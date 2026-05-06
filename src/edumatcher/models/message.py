@@ -1,0 +1,384 @@
+"""
+Message envelope helpers for ZeroMQ pub/sub and push/pull.
+
+All messages are multipart ZMQ frames:
+  frame[0]: topic (bytes) — used for PUB/SUB filtering
+  frame[1]: JSON payload  (bytes)
+
+Topic conventions
+-----------------
+  order.new          — gateway → engine (PUSH/PULL, but we still include a topic for audit)
+  order.cancel       — gateway → engine
+    system.gateway_connect   — gateway → engine: authenticate gateway_id
+    system.gateway_auth.{GW_ID} — engine → gateway: auth accepted/rejected
+  order.ack.{GW_ID}  — engine → gateway: accepted or rejected
+  order.fill.{GW_ID} — engine → gateway: partial or full fill
+  order.cancelled.{GW_ID} — engine → gateway: cancel confirmed
+  order.expired.{GW_ID}   — engine → gateway: DAY order expired at shutdown
+  trade.executed     — engine → all subscribers
+  book.{SYMBOL}      — engine → all subscribers
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+# PERF improvement #6: Use orjson instead of stdlib json.
+#
+# orjson is a C-extension JSON serializer that is ~9-10x faster than
+# json.dumps().encode() for the dict sizes used in our message envelopes
+# (~10-15 keys).  With 2-4 encode() calls per order on the hot path,
+# switching from json (~2.1µs/call) to orjson (~0.22µs/call) saves
+# ~4-7µs per aggressive order.  orjson.dumps() returns bytes directly,
+# eliminating the extra .encode() step required by stdlib json.
+#
+# For decode (inbound messages from gateways), orjson.loads() is similarly
+# faster, but decode is not on the latency-critical path since the gateway
+# already parsed the user command before sending.
+try:
+    import orjson as _json_mod
+
+    def _dumps(obj: dict[str, Any]) -> bytes:
+        return _json_mod.dumps(obj)
+
+    def _loads(data: bytes) -> dict[str, Any]:
+        return _json_mod.loads(data)  # type: ignore[no-any-return]
+
+except ImportError:
+    # Fallback to stdlib json if orjson is not installed (e.g. minimal envs)
+    import json as _json_fallback
+
+    def _dumps(obj: dict[str, Any]) -> bytes:
+        return _json_fallback.dumps(obj).encode()
+
+    def _loads(data: bytes) -> dict[str, Any]:
+        return _json_fallback.loads(data)  # type: ignore[no-any-return]
+
+
+def encode(topic: str, payload: dict[str, Any]) -> list[bytes]:
+    """Return a two-frame ZMQ multipart message."""
+    return [topic.encode(), _dumps(payload)]
+
+
+def decode(frames: list[bytes]) -> tuple[str, dict[str, Any]]:
+    """Parse a two-frame ZMQ multipart message."""
+    topic = frames[0].decode()
+    payload = _loads(frames[1])
+    return topic, payload
+
+
+def make_order_new_msg(order_dict: dict[str, Any]) -> list[bytes]:
+    return encode("order.new", order_dict)
+
+
+def make_gateway_connect_msg(gateway_id: str) -> list[bytes]:
+    return encode("system.gateway_connect", {"gateway_id": gateway_id})
+
+
+def make_gateway_auth_msg(
+    gateway_id: str,
+    accepted: bool,
+    reason: str = "",
+    description: str = "",
+) -> list[bytes]:
+    topic = f"system.gateway_auth.{gateway_id}"
+    payload = {
+        "gateway_id": gateway_id,
+        "accepted": accepted,
+        "reason": reason,
+        "description": description,
+    }
+    return encode(topic, payload)
+
+
+def make_order_cancel_msg(order_id: str, gateway_id: str) -> list[bytes]:
+    return encode("order.cancel", {"order_id": order_id, "gateway_id": gateway_id})
+
+
+def make_order_amend_msg(
+    order_id: str,
+    gateway_id: str,
+    price: float | None = None,
+    qty: int | None = None,
+) -> list[bytes]:
+    payload: dict[str, Any] = {"order_id": order_id, "gateway_id": gateway_id}
+    if price is not None:
+        payload["price"] = price
+    if qty is not None:
+        payload["qty"] = qty
+    return encode("order.amend", payload)
+
+
+def make_amended_msg(
+    gateway_id: str,
+    order_id: str,
+    price: float | None,
+    qty: int,
+    remaining_qty: int,
+    priority_reset: bool,
+) -> list[bytes]:
+    topic = f"order.amended.{gateway_id}"
+    return encode(
+        topic,
+        {
+            "order_id": order_id,
+            "price": price,
+            "qty": qty,
+            "remaining_qty": remaining_qty,
+            "priority_reset": priority_reset,
+        },
+    )
+
+
+def make_ack_msg(
+    gateway_id: str,
+    order_id: str,
+    accepted: bool,
+    reason: str = "",
+    order: dict[str, Any] | None = None,
+) -> list[bytes]:
+    topic = f"order.ack.{gateway_id}"
+    payload: dict[str, Any] = {
+        "order_id": order_id,
+        "accepted": accepted,
+        "reason": reason,
+    }
+    if order:
+        payload.update(
+            {
+                "symbol": order.get("symbol"),
+                "side": order.get("side"),
+                "order_type": order.get("order_type"),
+                "tif": order.get("tif"),
+                "qty": order.get("quantity"),
+                "price": order.get("price"),
+            }
+        )
+    return encode(topic, payload)
+
+
+def make_fill_msg(
+    gateway_id: str,
+    order_id: str,
+    fill_qty: int,
+    fill_price: float,
+    remaining_qty: int,
+    status: str,
+    order: dict[str, Any] | None = None,
+) -> list[bytes]:
+    topic = f"order.fill.{gateway_id}"
+    payload: dict[str, Any] = {
+        "order_id": order_id,
+        "fill_qty": fill_qty,
+        "fill_price": fill_price,
+        "remaining_qty": remaining_qty,
+        "status": status,
+    }
+    if order:
+        payload.update(
+            {
+                "symbol": order.get("symbol"),
+                "side": order.get("side"),
+                "order_type": order.get("order_type"),
+                "tif": order.get("tif"),
+                "qty": order.get("quantity"),
+                "price": order.get("price"),
+            }
+        )
+    return encode(topic, payload)
+
+
+def make_cancelled_msg(gateway_id: str, order_id: str) -> list[bytes]:
+    topic = f"order.cancelled.{gateway_id}"
+    return encode(topic, {"order_id": order_id})
+
+
+def make_expired_msg(gateway_id: str, order_id: str) -> list[bytes]:
+    topic = f"order.expired.{gateway_id}"
+    return encode(topic, {"order_id": order_id})
+
+
+def make_trade_msg(trade_dict: dict[str, Any]) -> list[bytes]:
+    return encode("trade.executed", trade_dict)
+
+
+def make_book_msg(symbol: str, book_snapshot: dict[str, Any]) -> list[bytes]:
+    return encode(f"book.{symbol}", book_snapshot)
+
+
+def make_orders_request_msg(gateway_id: str) -> list[bytes]:
+    return encode("order.orders_request", {"gateway_id": gateway_id})
+
+
+def make_orders_msg(gateway_id: str, orders: list[dict[str, Any]]) -> list[bytes]:
+    topic = f"order.orders.{gateway_id}"
+    return encode(topic, {"orders": orders})
+
+
+def make_book_snapshot_request_msg(symbol: str) -> list[bytes]:
+    return encode("book.snapshot_request", {"symbol": symbol})
+
+
+def make_eod_msg(books: list[dict[str, Any]]) -> list[bytes]:
+    """
+    End-of-day broadcast — engine sends this before shutting down.
+    ``books`` is a list of book snapshots (one per symbol), each containing
+    the current best bid/ask so subscribers can record closing prices.
+    """
+    return encode("system.eod", {"books": books})
+
+
+def make_symbols_request_msg(gateway_id: str) -> list[bytes]:
+    return encode("system.symbols_request", {"gateway_id": gateway_id})
+
+
+def make_symbols_msg(gateway_id: str, symbols: list[str]) -> list[bytes]:
+    topic = f"system.symbols.{gateway_id}"
+    return encode(topic, {"symbols": symbols})
+
+
+# ------------------------------------------------------------------
+# Combo-order messages
+# ------------------------------------------------------------------
+
+
+def make_combo_order_msg(combo_dict: dict[str, Any]) -> list[bytes]:
+    """Gateway → engine: submit a combo order."""
+    return encode("order.combo", combo_dict)
+
+
+def make_combo_cancel_msg(combo_id: str, gateway_id: str) -> list[bytes]:
+    """Gateway → engine: cancel a combo and all its child legs."""
+    return encode(
+        "order.combo_cancel",
+        {
+            "combo_id": combo_id,
+            "gateway_id": gateway_id,
+        },
+    )
+
+
+def make_combo_ack_msg(
+    gateway_id: str,
+    combo_id: str,
+    accepted: bool,
+    reason: str = "",
+    combo: dict[str, Any] | None = None,
+) -> list[bytes]:
+    """Engine → gateway: combo accepted or rejected."""
+    topic = f"combo.ack.{gateway_id}"
+    payload: dict[str, Any] = {
+        "combo_id": combo_id,
+        "accepted": accepted,
+        "reason": reason,
+    }
+    if combo:
+        payload["combo"] = combo
+    return encode(topic, payload)
+
+
+def make_combo_status_msg(
+    gateway_id: str,
+    combo_id: str,
+    status: str,
+    details: dict[str, Any] | None = None,
+) -> list[bytes]:
+    """Engine → gateway: combo status transition (MATCHED / FAILED / etc.)."""
+    topic = f"combo.status.{gateway_id}"
+    payload: dict[str, Any] = {
+        "combo_id": combo_id,
+        "status": status,
+    }
+    if details:
+        payload["details"] = details
+    return encode(topic, payload)
+
+
+# ---------------------------------------------------------------------------
+# Session / auction messages
+# ---------------------------------------------------------------------------
+
+
+def make_session_transition_msg(to_state: str) -> list[bytes]:
+    """Scheduler → engine: request session state transition."""
+    return encode("session.transition", {"to_state": to_state})
+
+
+def make_session_state_msg(state: str, prev_state: str = "") -> list[bytes]:
+    """Engine → all: broadcast current session state."""
+    payload: dict[str, Any] = {"state": state}
+    if prev_state:
+        payload["prev_state"] = prev_state
+    return encode("session.state", payload)
+
+
+def make_auction_result_msg(
+    symbol: str,
+    eq_price: float | None,
+    eq_qty: int,
+    trades_count: int,
+    imbalance_side: str,
+    imbalance_qty: int,
+) -> list[bytes]:
+    """Engine → all: auction uncross result for one symbol."""
+    return encode(
+        f"auction.result.{symbol}",
+        {
+            "symbol": symbol,
+            "eq_price": eq_price,
+            "eq_qty": eq_qty,
+            "trades_count": trades_count,
+            "imbalance_side": imbalance_side,
+            "imbalance_qty": imbalance_qty,
+        },
+    )
+
+
+# ------------------------------------------------------------------
+# OCO-order messages
+# ------------------------------------------------------------------
+
+
+def make_oco_order_msg(payload: dict[str, Any]) -> list[bytes]:
+    """Gateway → engine: submit an OCO (One-Cancels-Other) pair."""
+    return encode("order.oco", payload)
+
+
+def make_oco_cancel_msg(oco_id: str, gateway_id: str) -> list[bytes]:
+    """Gateway → engine: cancel an OCO pair and both its legs."""
+    return encode("order.oco_cancel", {"oco_id": oco_id, "gateway_id": gateway_id})
+
+
+def make_oco_ack_msg(
+    gateway_id: str,
+    oco_id: str,
+    accepted: bool,
+    reason: str = "",
+    order_id_1: str = "",
+    order_id_2: str = "",
+) -> list[bytes]:
+    """Engine → gateway: OCO pair accepted or rejected."""
+    topic = f"oco.ack.{gateway_id}"
+    payload: dict[str, Any] = {
+        "oco_id": oco_id,
+        "accepted": accepted,
+        "reason": reason,
+        "order_id_1": order_id_1,
+        "order_id_2": order_id_2,
+    }
+    return encode(topic, payload)
+
+
+def make_oco_cancelled_msg(
+    gateway_id: str, oco_id: str, cancelled_order_id: str, reason: str = ""
+) -> list[bytes]:
+    """Engine → gateway: OCO sibling cancelled because the other leg was actioned."""
+    topic = f"oco.cancelled.{gateway_id}"
+    return encode(
+        topic,
+        {
+            "oco_id": oco_id,
+            "cancelled_order_id": cancelled_order_id,
+            "reason": reason,
+        },
+    )

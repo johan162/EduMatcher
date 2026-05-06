@@ -1,0 +1,109 @@
+# EduMatcher — Matching Engine Configuration
+#
+# symbols:
+#   <SYMBOL>:
+#     last_buy_price:  <float>   # optional — seed "last buy" before any trades
+#     last_sell_price: <float>   # optional — seed "last sell" before any trades
+#     market_maker_orders:       # optional — FIX-like strings injected at engine startup
+#       - "NEW|SYM=...|..."
+# gateways:
+#   fix:
+#     - id: TRADER01
+#       description: Human trader workstation
+#     - id: TRADER02
+#       description: Strategy / high-frequency simulator
+#
+# Notes:
+#   • Only symbols listed here are accepted by the engine.
+#     Orders for any other symbol are rejected with "Symbol not configured".
+#   • Only FIX gateway IDs listed under gateways.fix may connect and submit
+#     order.new / order.cancel / order.orders_request messages.
+#   • last_buy_price / last_sell_price are used only when no persisted
+#     book_stats.json values exist for that symbol (config is the seed,
+#     the live file takes precedence after the first trade).
+#   • market_maker_orders are injected once at startup using gateway_id "MM".
+#     They are re-injected on every engine restart (use TIF=GTC only if you
+#     want them to survive over multiple sessions via gtc_orders.json;
+#     otherwise use DAY so they are cleaned up on shutdown).
+#   • market_maker_combos are optional startup combo seeds injected once at
+#     engine startup using gateway_id "MM".
+#   • sessions_enabled controls scheduler-driven session handling in the engine.
+#     - false: ignore session transitions, run continuous matching immediately.
+#     - true: start in CLOSED and accept orders only when scheduler opens sessions.
+#   • Supported order fields: SYM, SIDE, TYPE, QTY, PRICE, STOP, TIF, VISIBLE, SMP
+
+sessions_enabled: false
+
+gateways:
+  fix:
+    - id: TRADER01
+      description: The first trader
+    - id: TRADER02
+      description: High frequency
+
+symbols:
+  MSFT:
+    last_buy_price:  415.00
+    last_sell_price: 415.50
+    market_maker_orders:
+      - "NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=1000|PRICE=414.00|TIF=GTC"
+      - "NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=500|PRICE=413.00|TIF=GTC"
+      - "NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=1000|PRICE=416.00|TIF=GTC"
+      - "NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=500|PRICE=417.00|TIF=GTC"
+
+  AAPL:
+    last_buy_price:  209.50
+    last_sell_price: 210.50
+    market_maker_orders:
+      - "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=2000|PRICE=209.00|TIF=GTC"
+      - "NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=2000|PRICE=211.00|TIF=GTC"
+
+  TSLA:
+    last_buy_price:  248.00
+    last_sell_price: 249.00
+    market_maker_orders:
+      - "NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=500|PRICE=247.00|TIF=GTC"
+      - "NEW|SYM=TSLA|SIDE=SELL|TYPE=LIMIT|QTY=500|PRICE=250.00|TIF=GTC"
+
+market_maker_combos:
+  - combo_id: MM-PAIR-AAPL-MSFT
+    combo_type: AON
+    tif: GTC
+    legs:
+      - symbol: AAPL
+        side: BUY
+        order_type: LIMIT
+        quantity: 100
+        price: 209.50
+      - symbol: MSFT
+        side: SELL
+        order_type: LIMIT
+        quantity: 50
+        price: 415.50
+  - combo_id: MM-ROTATION-MSFT-TSLA
+    combo_type: AON
+    tif: GTC
+    legs:
+      - symbol: MSFT
+        side: BUY
+        order_type: LIMIT
+        quantity: 40
+        price: 414.50
+      - symbol: TSLA
+        side: SELL
+        order_type: LIMIT
+        quantity: 80
+        price: 249.50
+
+# ---------------------------------------------------------------------------
+# Session schedule (optional) — used by pm-scheduler
+# ---------------------------------------------------------------------------
+# Times are HH:MM in local time.  Omit the whole section to skip auctions
+# and run continuous matching from engine startup (default behavior).
+#
+# schedule:
+#   pre_open: "09:00"
+#   opening_auction_start: "09:25"
+#   continuous_start: "09:30"
+#   closing_auction_start: "16:00"
+#   closing_auction_end: "16:05"

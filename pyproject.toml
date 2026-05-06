@@ -1,0 +1,112 @@
+# Setup poetry configuration
+# poetry config virtualenvs.in-project true
+# poetry install --with dev,docs
+
+
+[tool.poetry]
+name = "edumatcher"
+version = "1.0.0-beta"
+description = "Educational multi-process trading system with order matching"
+authors = ["johan162@gmail.com"]
+readme = "README.md"
+packages = [{include = "edumatcher", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pyzmq = "^27.1.0"
+rich = "^15.0.0"
+prompt_toolkit = "^3.0"
+pyyaml = "^6.0.3"
+orjson = "^3.11.9"
+flake8 = "^7.3.0"
+black = "^26.3.1"
+mypy = "^1.20.2"
+twine = "^6.2.0"
+pyright = "^1.1.409"
+
+[tool.poetry.group.dev.dependencies]
+mkdocs = "^1.6"
+mkdocs-material = "^9.0"
+pytest = "^9.0.3"
+types-PyYAML = "^6.0"
+pytest-cov = "^7.1.0"
+
+[tool.poetry.group.docs.dependencies]
+mkdocs = ">=1.5.0"
+mkdocs-material = ">=9.7.6"
+mkdocstrings = {extras = ["python"], version = ">=0.22.0"}
+
+[tool.poetry.scripts]
+pm-engine   = "edumatcher.engine.main:main"
+pm-gateway  = "edumatcher.gateway.main:main"
+pm-viewer   = "edumatcher.viewer.main:main"
+pm-board    = "edumatcher.board.main:main"
+pm-orders   = "edumatcher.orders.main:main"
+pm-audit    = "edumatcher.audit.main:main"
+pm-clearing = "edumatcher.clearing.main:main"
+pm-stats    = "edumatcher.stats.main:main"
+pm-ticker   = "edumatcher.ticker.main:main"
+pm-scheduler = "edumatcher.scheduler.main:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra --strict-markers"
+markers = [
+    "perf: performance / benchmarking tests (deselect with '-m not perf')",
+]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ["py313"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_untyped_calls = true
+disallow_any_generics = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+disallow_incomplete_defs = false
+disallow_any_generics = false
+check_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "yaml"
+ignore_missing_imports = true
+
+[tool.pyright]
+pythonVersion = "3.13"
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "strict"
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownArgumentType = false
+reportUnknownVariableType = false
+reportUnknownParameterType = false
+reportMissingParameterType = false
+reportUntypedFunctionDecorator = false
+reportUntypedBaseClass = false
+reportUnknownLambdaType = false
+executionEnvironments = [
+    { root = "tests", reportPrivateUsage = false, reportUnusedVariable = false, reportUnusedFunction = false, reportUnusedImport = false, reportMissingTypeArgument = false, reportArgumentType = false, reportOptionalOperand = false, reportOperatorIssue = false, reportAttributeAccessIssue = false, reportReturnType = false },
+    { root = "src" },
+]

@@ -1,0 +1,279 @@
+"""
+Tests for models/message.py — all encode/decode helpers.
+"""
+
+from __future__ import annotations
+
+from edumatcher.models.message import (
+    decode,
+    encode,
+    make_amended_msg,
+    make_auction_result_msg,
+    make_book_msg,
+    make_book_snapshot_request_msg,
+    make_cancelled_msg,
+    make_combo_ack_msg,
+    make_combo_cancel_msg,
+    make_combo_order_msg,
+    make_combo_status_msg,
+    make_eod_msg,
+    make_expired_msg,
+    make_fill_msg,
+    make_gateway_auth_msg,
+    make_gateway_connect_msg,
+    make_ack_msg,
+    make_order_amend_msg,
+    make_order_cancel_msg,
+    make_order_new_msg,
+    make_orders_msg,
+    make_orders_request_msg,
+    make_session_state_msg,
+    make_session_transition_msg,
+    make_symbols_msg,
+    make_symbols_request_msg,
+    make_trade_msg,
+    make_oco_order_msg,
+    make_oco_cancel_msg,
+)
+
+
+def _rt(frames: list[bytes]) -> tuple[str, dict]:
+    """Round-trip: encode then decode."""
+    return decode(frames)
+
+
+class TestEncodeDecodeRoundtrip:
+    def test_encode_decode_basic(self) -> None:
+        frames = encode("my.topic", {"key": "value", "n": 42})
+        topic, payload = decode(frames)
+        assert topic == "my.topic"
+        assert payload == {"key": "value", "n": 42}
+
+    def test_encode_produces_two_frames(self) -> None:
+        frames = encode("t", {})
+        assert len(frames) == 2
+        assert frames[0] == b"t"
+
+    def test_decode_empty_payload(self) -> None:
+        frames = encode("t", {})
+        _, payload = decode(frames)
+        assert payload == {}
+
+
+class TestOrderMessages:
+    def test_make_order_new_msg(self) -> None:
+        d = {"symbol": "AAPL", "side": "BUY"}
+        topic, payload = _rt(make_order_new_msg(d))
+        assert topic == "order.new"
+        assert payload["symbol"] == "AAPL"
+
+    def test_make_order_cancel_msg(self) -> None:
+        topic, payload = _rt(make_order_cancel_msg("ORD1", "GW01"))
+        assert topic == "order.cancel"
+        assert payload["order_id"] == "ORD1"
+        assert payload["gateway_id"] == "GW01"
+
+    def test_make_order_amend_msg_price_and_qty(self) -> None:
+        topic, payload = _rt(make_order_amend_msg("ORD1", "GW01", price=150.0, qty=200))
+        assert topic == "order.amend"
+        assert payload["price"] == 150.0
+        assert payload["qty"] == 200
+
+    def test_make_order_amend_msg_price_only(self) -> None:
+        _, payload = _rt(make_order_amend_msg("ORD1", "GW01", price=99.0))
+        assert "price" in payload
+        assert "qty" not in payload
+
+    def test_make_order_amend_msg_qty_only(self) -> None:
+        _, payload = _rt(make_order_amend_msg("ORD1", "GW01", qty=50))
+        assert "qty" in payload
+        assert "price" not in payload
+
+    def test_make_amended_msg(self) -> None:
+        topic, payload = _rt(make_amended_msg("GW01", "ORD1", 150.0, 100, 80, True))
+        assert topic == "order.amended.GW01"
+        assert payload["price"] == 150.0
+        assert payload["priority_reset"] is True
+
+    def test_make_ack_msg_rejected(self) -> None:
+        topic, payload = _rt(make_ack_msg("GW01", "ORD1", False, "bad symbol"))
+        assert topic == "order.ack.GW01"
+        assert payload["accepted"] is False
+        assert payload["reason"] == "bad symbol"
+
+    def test_make_ack_msg_with_order(self) -> None:
+        order = {
+            "symbol": "AAPL",
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "tif": "DAY",
+            "quantity": 100,
+            "price": 150.0,
+        }
+        topic, payload = _rt(make_ack_msg("GW01", "ORD1", True, order=order))
+        assert payload["symbol"] == "AAPL"
+        assert payload["qty"] == 100
+
+    def test_make_fill_msg(self) -> None:
+        topic, payload = _rt(make_fill_msg("GW01", "ORD1", 50, 150.0, 50, "PARTIAL"))
+        assert topic == "order.fill.GW01"
+        assert payload["fill_qty"] == 50
+        assert payload["fill_price"] == 150.0
+
+    def test_make_fill_msg_with_order(self) -> None:
+        order = {
+            "symbol": "AAPL",
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "tif": "DAY",
+            "quantity": 100,
+            "price": 150.0,
+        }
+        _, payload = _rt(
+            make_fill_msg("GW01", "ORD1", 100, 150.0, 0, "FILLED", order=order)
+        )
+        assert payload["symbol"] == "AAPL"
+
+    def test_make_cancelled_msg(self) -> None:
+        topic, payload = _rt(make_cancelled_msg("GW01", "ORD1"))
+        assert topic == "order.cancelled.GW01"
+        assert payload["order_id"] == "ORD1"
+
+    def test_make_expired_msg(self) -> None:
+        topic, payload = _rt(make_expired_msg("GW02", "ORD99"))
+        assert topic == "order.expired.GW02"
+        assert payload["order_id"] == "ORD99"
+
+
+class TestSystemMessages:
+    def test_make_gateway_connect_msg(self) -> None:
+        topic, payload = _rt(make_gateway_connect_msg("GW01"))
+        assert topic == "system.gateway_connect"
+        assert payload["gateway_id"] == "GW01"
+
+    def test_make_gateway_auth_accepted(self) -> None:
+        topic, payload = _rt(make_gateway_auth_msg("GW01", True, description="Test GW"))
+        assert topic == "system.gateway_auth.GW01"
+        assert payload["accepted"] is True
+        assert payload["description"] == "Test GW"
+
+    def test_make_gateway_auth_rejected(self) -> None:
+        topic, payload = _rt(make_gateway_auth_msg("GW01", False, reason="not allowed"))
+        assert payload["accepted"] is False
+        assert payload["reason"] == "not allowed"
+
+    def test_make_symbols_request_msg(self) -> None:
+        topic, payload = _rt(make_symbols_request_msg("GW01"))
+        assert topic == "system.symbols_request"
+        assert payload["gateway_id"] == "GW01"
+
+    def test_make_symbols_msg(self) -> None:
+        topic, payload = _rt(make_symbols_msg("GW01", ["AAPL", "MSFT"]))
+        assert topic == "system.symbols.GW01"
+        assert payload["symbols"] == ["AAPL", "MSFT"]
+
+    def test_make_orders_request_msg(self) -> None:
+        topic, payload = _rt(make_orders_request_msg("GW01"))
+        assert topic == "order.orders_request"
+
+    def test_make_orders_msg(self) -> None:
+        topic, payload = _rt(make_orders_msg("GW01", [{"id": "O1"}]))
+        assert topic == "order.orders.GW01"
+        assert len(payload["orders"]) == 1
+
+    def test_make_eod_msg(self) -> None:
+        topic, payload = _rt(make_eod_msg([{"symbol": "AAPL"}]))
+        assert topic == "system.eod"
+        assert len(payload["books"]) == 1
+
+    def test_make_book_snapshot_request_msg(self) -> None:
+        topic, payload = _rt(make_book_snapshot_request_msg("AAPL"))
+        assert topic == "book.snapshot_request"
+        assert payload["symbol"] == "AAPL"
+
+
+class TestMarketDataMessages:
+    def test_make_trade_msg(self) -> None:
+        topic, payload = _rt(make_trade_msg({"symbol": "AAPL", "price": 150.0}))
+        assert topic == "trade.executed"
+        assert payload["price"] == 150.0
+
+    def test_make_book_msg(self) -> None:
+        topic, payload = _rt(make_book_msg("AAPL", {"bids": [], "asks": []}))
+        assert topic == "book.AAPL"
+        assert "bids" in payload
+
+
+class TestSessionMessages:
+    def test_make_session_transition_msg(self) -> None:
+        topic, payload = _rt(make_session_transition_msg("CONTINUOUS"))
+        assert topic == "session.transition"
+        assert payload["to_state"] == "CONTINUOUS"
+
+    def test_make_session_state_msg_no_prev(self) -> None:
+        topic, payload = _rt(make_session_state_msg("CONTINUOUS"))
+        assert topic == "session.state"
+        assert "prev_state" not in payload
+
+    def test_make_session_state_msg_with_prev(self) -> None:
+        topic, payload = _rt(make_session_state_msg("CONTINUOUS", "OPENING_AUCTION"))
+        assert payload["prev_state"] == "OPENING_AUCTION"
+
+    def test_make_auction_result_msg(self) -> None:
+        topic, payload = _rt(
+            make_auction_result_msg("AAPL", 150.0, 1000, 5, "BUY", 200)
+        )
+        assert topic == "auction.result.AAPL"
+        assert payload["eq_price"] == 150.0
+        assert payload["eq_qty"] == 1000
+
+    def test_make_auction_result_msg_no_price(self) -> None:
+        topic, payload = _rt(make_auction_result_msg("AAPL", None, 0, 0, "", 0))
+        assert payload["eq_price"] is None
+
+
+class TestComboMessages:
+    def test_make_combo_order_msg(self) -> None:
+        topic, payload = _rt(make_combo_order_msg({"combo_id": "PAIR1"}))
+        assert topic == "order.combo"
+        assert payload["combo_id"] == "PAIR1"
+
+    def test_make_combo_cancel_msg(self) -> None:
+        topic, payload = _rt(make_combo_cancel_msg("PAIR1", "GW01"))
+        assert topic == "order.combo_cancel"
+        assert payload["combo_id"] == "PAIR1"
+
+    def test_make_combo_ack_accepted(self) -> None:
+        topic, payload = _rt(make_combo_ack_msg("GW01", "PAIR1", True))
+        assert topic == "combo.ack.GW01"
+        assert payload["accepted"] is True
+
+    def test_make_combo_ack_with_combo(self) -> None:
+        topic, payload = _rt(
+            make_combo_ack_msg("GW01", "PAIR1", True, combo={"legs": 2})
+        )
+        assert payload["combo"] == {"legs": 2}
+
+    def test_make_combo_status_msg(self) -> None:
+        topic, payload = _rt(make_combo_status_msg("GW01", "PAIR1", "MATCHED"))
+        assert topic == "combo.status.GW01"
+        assert payload["status"] == "MATCHED"
+
+    def test_make_combo_status_msg_with_details(self) -> None:
+        topic, payload = _rt(
+            make_combo_status_msg("GW01", "PAIR1", "FAILED", details={"reason": "x"})
+        )
+        assert payload["details"] == {"reason": "x"}
+
+
+class TestOcoMessages:
+    def test_make_oco_order_msg(self) -> None:
+        topic, payload = _rt(make_oco_order_msg({"oco_id": "OCO1"}))
+        assert topic == "order.oco"
+        assert payload["oco_id"] == "OCO1"
+
+    def test_make_oco_cancel_msg(self) -> None:
+        topic, payload = _rt(make_oco_cancel_msg("OCO1", "GW01"))
+        assert topic == "order.oco_cancel"
+        assert payload["oco_id"] == "OCO1"
+        assert payload["gateway_id"] == "GW01"
