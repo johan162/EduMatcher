@@ -160,6 +160,7 @@ cython_debug/
 
 # Runtime data files
 data/**
+src/data/**
 
 .makefile-stamps
 
