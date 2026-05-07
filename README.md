@@ -11,14 +11,15 @@
 |Repo URL|[![GitHub](https://img.shields.io/badge/GitHub-100000?style=flat-square&logo=github&logoColor=white)](https://github.com/johan162/edumatcher)|
 
 
-!!! warning "Not yet ready!"
-    While the system works as designed and the documentation is mostly ready
-    the project is not. Before 1.0.0 the CI/CD pipeline needs to be completed
-    with publication to PyPi. In addition the rendered documentation also needs to be
-    put via `gh-pages` branch to actual github pages (as part of the CI/CD) process.
-    The release process will also need to be designed. Most likely similar to my other
-    project, e.g. `mcprojsim`. I will also need to consider if the docs should be released
-    as PDFs (from Latex).
+> [!CAUTION]
+>!!! warning "Not yet ready!"
+>    While the system works as designed and the documentation is mostly ready
+>    the project is not. Before 1.0.0 the CI/CD pipeline needs to be completed
+>    with publication to PyPi. In addition the rendered documentation also needs to be
+>    put via `gh-pages` branch to actual github pages (as part of the CI/CD) process.
+>    The release process will also need to be designed. Most likely similar to my other
+>    project, e.g. `mcprojsim`. I will also need to consider if the docs should be released
+>    as PDFs (from Latex).
 
 
 EduMatcher is a comprehensive, production-grade educational trading system that teaches the fundamentals of order matching, market microstructure, and multi-process system design. Unlike toy implementations, EduMatcher is *genuinely fast and realistic* — perfect for learning how modern exchanges actually work.
