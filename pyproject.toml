@@ -47,6 +47,8 @@ pm-clearing = "edumatcher.clearing.main:main"
 pm-stats    = "edumatcher.stats.main:main"
 pm-ticker   = "edumatcher.ticker.main:main"
 pm-scheduler = "edumatcher.scheduler.main:main"
+pm-ai-trader = "edumatcher.ai_trader.main:main"
+pm-ai-swarm = "edumatcher.ai_trader.swarm:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

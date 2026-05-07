@@ -50,5 +50,7 @@ nav:
     - Persistence: persistence.md
   - Architecture: architecture.md
   - Developer:
+    - AI Bot Traders: ai-bot.md
+    - Exchange Experiments: experiements.md
     - Verification: verification.md
   - FAQ: faq.md
