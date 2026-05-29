@@ -55,6 +55,7 @@ def _make_engine(
     symbols=("AAPL",),
     gateways=("GW01",),
     sessions_enabled: bool = False,
+    snapshot_interval_sec: float = 0.5,
 ) -> tuple[Engine, _FakeSock]:
     pull_sock = _FakeSock(sent=[])
     pub_sock = _FakeSock(sent=[])
@@ -64,6 +65,7 @@ def _make_engine(
         fix_gateways={
             gw: FixGatewayConfig(id=gw, description=f"{gw} trader") for gw in gateways
         },
+        snapshot_interval_sec=snapshot_interval_sec,
         sessions_enabled=sessions_enabled,
     )
 
@@ -106,7 +108,6 @@ def _make_order_payload(
         stop_price=stop_price,
     )
     return o.to_dict()
-
 
 
 # ---------------------------------------------------------------------------
@@ -649,6 +650,16 @@ class TestOCOHandlers:
 
 
 class TestFlushSnapshots:
+    def test_engine_uses_configured_snapshot_interval(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        engine, _ = _make_engine(
+            monkeypatch,
+            tmp_path,
+            snapshot_interval_sec=1.25,
+        )
+        assert engine.snapshot_interval_sec == 1.25
+
     def test_flush_publishes_dirty_symbols(self, monkeypatch, tmp_path) -> None:
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)
         _connect(engine)
@@ -669,6 +680,24 @@ class TestFlushSnapshots:
         # Set last snapshot to "just now" so throttle blocks
         engine._last_snapshot["AAPL"] = _time.monotonic()
         engine._dirty_symbols.add("AAPL")
+        count_before = len(pub_sock.sent)
+        engine._flush_snapshots()
+        assert len(pub_sock.sent) == count_before
+
+    def test_flush_respects_configured_interval(self, monkeypatch, tmp_path) -> None:
+        import time as _time
+
+        engine, pub_sock = _make_engine(
+            monkeypatch,
+            tmp_path,
+            snapshot_interval_sec=2.0,
+        )
+        _connect(engine)
+        engine._handle_new_order(_make_order_payload())
+        engine._dirty_symbols.add("AAPL")
+
+        # Only 1 second elapsed since last publish with a 2-second interval -> no publish.
+        engine._last_snapshot["AAPL"] = _time.monotonic() - 1.0
         count_before = len(pub_sock.sent)
         engine._flush_snapshots()
         assert len(pub_sock.sent) == count_before

@@ -2,8 +2,24 @@
 #
 # symbols:
 #   <SYMBOL>:
+#     level: L2              # optional — named risk profile from risk_controls.levels
 #     last_buy_price:  <float>   # optional — seed "last buy" before any trades
 #     last_sell_price: <float>   # optional — seed "last sell" before any trades
+#     collar:                # optional — per-symbol collar override
+#       static_band_pct: 0.20
+#       dynamic_band_pct: 0.02
+#     circuit_breaker:       # optional — per-symbol circuit breaker override
+#       reference_window_ns: 300000000000
+#       levels:
+#         L1:
+#           price_shift_pct: 0.07
+#           halt_duration_ns: 300000000000
+#         L2:
+#           price_shift_pct: 0.13
+#           halt_duration_ns: 900000000000
+#         L3:
+#           price_shift_pct: 0.20
+#           halt_duration_ns:   # null => rest of trading day
 #     market_maker_quotes:       # optional — startup quote seeds (first startup)
 #       - gateway_id: MM01       # must reference gateways.fix role=MARKET_MAKER
 #         bid_price: 100.00
@@ -37,15 +53,72 @@
 #     quote bid/ask legs for the configured MARKET_MAKER gateway(s).
 #   • If any MARKET_MAKER gateway is configured, define at least one
 #     market_maker_quotes entry per symbol.
+#   • risk_controls.levels defines reusable collar profiles.
+#   • circuit_breaker_defaults defines global breaker trigger levels (L1/L2/L3),
+#     with optional per-symbol overrides under symbols.<SYM>.circuit_breaker.
+#   • mm_obligation_defaults sets global MM quote-obligation defaults and
+#     optional per-symbol overrides (applies to gateways unless overridden).
+#   • Symbol resolution precedence:
+#       symbol override > symbol level > risk_controls.default_level > built-in defaults
+#   • Circuit-breaker precedence:
+#       symbols.<SYM>.circuit_breaker > circuit_breaker_defaults > built-in ladder
+#   • MM obligation precedence:
+#       gateway mm_obligations.<symbol> > mm_obligation_defaults.symbols.<symbol>
+#       > gateway flat fields > mm_obligation_defaults flat fields
 #   • On first startup, quotes become the seeded book liquidity.
 #   • market_maker_combos are optional startup combo seeds injected once at
 #     engine startup using gateway_id "MM".
 #   • sessions_enabled controls scheduler-driven session handling in the engine.
 #     - false: ignore session transitions, run continuous matching immediately.
 #     - true: start in CLOSED and accept orders only when scheduler opens sessions.
+#   • snapshot_interval_sec controls throttled book snapshot publication cadence
+#     per symbol for dirty books (default: 0.5 seconds).
 #   • Supported order fields: SYM, SIDE, TYPE, QTY, PRICE, STOP, TIF, VISIBLE, SMP
 
 sessions_enabled: false
+snapshot_interval_sec: 0.5
+
+mm_obligation_defaults:
+  enforce_mm_obligation: false
+  mm_max_spread_ticks: 10
+  mm_min_qty: 100
+  symbols:
+    TSLA:
+      enforce_mm_obligation: true
+      mm_max_spread_ticks: 8
+      mm_min_qty: 120
+
+risk_controls:
+  default_level: L2
+  levels:
+    L1:
+      collar:
+        static_band_pct: 0.30
+        dynamic_band_pct: 0.05
+    L2:
+      collar:
+        static_band_pct: 0.20
+        dynamic_band_pct: 0.02
+    L3:
+      collar:
+        static_band_pct: 0.12
+        dynamic_band_pct: 0.01
+
+circuit_breaker_defaults:
+  reference_window_ns: 300000000000
+  levels:
+    L1:
+      price_shift_pct: 0.07
+      halt_duration_ns: 300000000000
+      resumption_mode: AUCTION
+    L2:
+      price_shift_pct: 0.13
+      halt_duration_ns: 900000000000
+      resumption_mode: AUCTION
+    L3:
+      price_shift_pct: 0.20
+      halt_duration_ns:  # null => rest of trading day
+      resumption_mode: AUCTION
 
 gateways:
   fix:
@@ -66,6 +139,7 @@ gateways:
 
 symbols:
   MSFT:
+    level: L1
     tick_decimals: 2
     last_buy_price:  415.00
     last_sell_price: 415.50
@@ -79,6 +153,7 @@ symbols:
         tif: DAY
 
   AAPL:
+    # No explicit level — inherits risk_controls.default_level (L2)
     tick_decimals: 2
     last_buy_price:  209.50
     last_sell_price: 210.50
@@ -92,9 +167,18 @@ symbols:
         tif: DAY
 
   TSLA:
+    level: L3
     tick_decimals: 2
     last_buy_price:  248.00
     last_sell_price: 249.00
+    collar:
+      # Symbol override beats level value; static stays from L3, dynamic overridden here
+      dynamic_band_pct: 0.015
+    circuit_breaker:
+      # Symbol override beats circuit_breaker_defaults for matching level keys
+      levels:
+        L1:
+          halt_duration_ns: 600000000000
     market_maker_quotes:
       - gateway_id: TRADER02
         quote_id: MM-TSLA-1

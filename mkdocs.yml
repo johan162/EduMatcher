@@ -36,6 +36,7 @@ nav:
   - MM Quotes: mm-quotes.md
   - Concepts:
     - The Order Book: concepts-order-book.md
+    - A deep dive into the order book: order-book-deep-dive.md
     - Your First Trade: concepts-first-trade.md
     - A Full Trading Day: concepts-trading-day.md
     - Glossary: glossary.md
@@ -49,9 +50,14 @@ nav:
     - Processes: processes.md
     - Configuration: configuration.md
     - Persistence: persistence.md
-  - Architecture: architecture.md
+    - Risk Controls: risk-controls.md
+    - Drop Copy: drop-copy.md
+    - Persistence: persistence.md
+    - P&L: pnl.md
+  - Architecture: 
+    - Overview: architecture.md
   - Developer:
     - AI Bot Traders: ai-bot.md
-    - Exchange Experiments: experiements.md
+    - Experiments: experiements.md
     - Verification: verification.md
   - FAQ: faq.md

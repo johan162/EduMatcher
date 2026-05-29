@@ -8,6 +8,7 @@ file in the project root. It defines:
 - optional seeded last-buy / last-sell statistics
 - startup market-maker quotes used to seed initial book liquidity
 - optional startup market-maker combo orders
+- optional global risk-control level profiles
 - optional daily session schedule for `pm-scheduler`
 
 ## File Location
@@ -49,8 +50,24 @@ gateways:
 
 symbols:
   AAPL:
+    level: L2
     last_buy_price: 209.50
     last_sell_price: 210.50
+    collar:
+      static_band_pct: 0.20
+      dynamic_band_pct: 0.02
+    circuit_breaker:
+      reference_window_ns: 300000000000
+      levels:
+        L1:
+          price_shift_pct: 0.07
+          halt_duration_ns: 300000000000
+        L2:
+          price_shift_pct: 0.13
+          halt_duration_ns: 900000000000
+        L3:
+          price_shift_pct: 0.20
+          halt_duration_ns:
     market_maker_quotes:
       - gateway_id: MM01
         quote_id: MM-AAPL-1
@@ -76,12 +93,39 @@ market_maker_combos:
         quantity: 50
         price: 415.50
 
+risk_controls:
+  default_level: L2
+  levels:
+    L1:
+      collar:
+        static_band_pct: 0.30
+        dynamic_band_pct: 0.05
+    L2:
+      collar:
+        static_band_pct: 0.20
+        dynamic_band_pct: 0.02
+
+circuit_breaker_defaults:
+  reference_window_ns: 300000000000
+  levels:
+    L1:
+      price_shift_pct: 0.07
+      halt_duration_ns: 300000000000
+    L2:
+      price_shift_pct: 0.13
+      halt_duration_ns: 900000000000
+    L3:
+      price_shift_pct: 0.20
+      halt_duration_ns:
+
 schedule:
   pre_open: "09:00"
   opening_auction_start: "09:25"
   continuous_start: "09:30"
   closing_auction_start: "16:00"
   closing_auction_end: "16:05"
+
+snapshot_interval_sec: 0.5
 ```
 
 ### Required vs optional top-level keys
@@ -92,10 +136,32 @@ schedule:
 | `gateways.fix` | Yes | Engine |
 | `symbols` | Yes | Engine |
 | `market_maker_combos` | No | Engine |
+| `risk_controls` | No | Engine |
+| `mm_obligation_defaults` | No | Engine |
+| `circuit_breaker_defaults` | No | Engine |
+| `snapshot_interval_sec` | No | Engine |
 | `schedule` | No | Scheduler |
 
 If a config file exists, `symbols` must be a mapping and `gateways.fix` must be
 a list. Otherwise config loading fails and the engine exits.
+
+## Snapshot Publish Throttle
+
+`snapshot_interval_sec` controls the per-symbol throttle window for
+`book.<SYMBOL>` publications from dirty books.
+
+```yaml
+snapshot_interval_sec: 0.5
+```
+
+Rules:
+
+- must be numeric
+- must be `> 0`
+- default is `0.5` seconds when omitted
+
+The engine poll loop still runs every 200ms; this setting only controls how
+frequently a changed symbol is eligible for snapshot publication.
 
 ## Gateway Allowlist
 
@@ -122,6 +188,8 @@ gateways:
 | `enforce_mm_obligation` | No | Boolean toggle for quote obligation checks. Defaults to `false`. |
 | `mm_max_spread_ticks` | No | Max allowed quote spread in ticks when enforcement is enabled. Defaults to `10`. |
 | `mm_min_qty` | No | Min allowed bid/ask quote quantity when enforcement is enabled. Defaults to `100`. |
+
+
 
 Example:
 
@@ -158,6 +226,46 @@ Direct orders from an unauthorized gateway are rejected with reason:
 ```text
 Gateway not configured: <GW_ID>
 ```
+
+## Global MM Obligation Defaults
+
+`mm_obligation_defaults` defines quote-obligation policy defaults for
+market-maker quote validation, with optional per-symbol overrides.
+
+```yaml
+mm_obligation_defaults:
+  enforce_mm_obligation: false
+  mm_max_spread_ticks: 10
+  mm_min_qty: 100
+  symbols:
+    TSLA:
+      enforce_mm_obligation: true
+      mm_max_spread_ticks: 8
+      mm_min_qty: 120
+```
+
+### Supported fields
+
+| Field | Required | Description |
+|---|---|---|
+| `enforce_mm_obligation` | No | Global default toggle for MM quote obligation checks. |
+| `mm_max_spread_ticks` | No | Global default max allowed quote spread. |
+| `mm_min_qty` | No | Global default min quote size on each side. |
+| `symbols` | No | Per-symbol override mapping (`<SYMBOL> -> policy`). |
+
+Each `symbols.<SYMBOL>` policy supports the same three fields.
+
+### MM obligation precedence
+
+The effective policy for a quote is resolved using:
+
+1. `gateways.fix[*].mm_obligations.<SYMBOL>` (most specific)
+2. `mm_obligation_defaults.symbols.<SYMBOL>`
+3. Gateway flat fields (`enforce_mm_obligation`, `mm_max_spread_ticks`, `mm_min_qty`)
+4. `mm_obligation_defaults` flat fields (least specific)
+
+This lets you set one global policy and then tighten/relax specific symbols or
+specific gateway+symbol pairs.
 
 ## Symbol Universe
 
@@ -196,9 +304,99 @@ Every symbol entry supports the following keys:
 
 | Key | Type | Required | Description |
 |---|---|---|---|
+| `level` | string | No | Named collar profile from `risk_controls.levels`.
+| `collar` | mapping | No | Per-symbol collar config or override.
+| `circuit_breaker` | mapping | No | Per-symbol circuit-breaker overrides (threshold ladder). |
 | `last_buy_price` | number | No | Seed value for the viewer’s Last Buy field. |
 | `last_sell_price` | number | No | Seed value for the viewer’s Last Sell field. |
 | `market_maker_quotes` | list of mappings | No | Quote definitions injected at engine startup as linked bid/ask quote legs. |
+
+### Global risk-control levels and symbol precedence
+
+You can define reusable risk profiles once at the top level and then assign
+them per symbol.
+
+```yaml
+risk_controls:
+  default_level: L2
+  levels:
+    L1:
+      collar:
+        static_band_pct: 0.30
+        dynamic_band_pct: 0.05
+    L2:
+      collar:
+        static_band_pct: 0.20
+        dynamic_band_pct: 0.02
+
+symbols:
+  AAPL:
+    # Inherits L2 because default_level is L2
+    tick_decimals: 2
+  TSLA:
+    level: L1
+    # Partial override: static from L1, dynamic overridden below
+    collar:
+      dynamic_band_pct: 0.06
+```
+
+Resolution order for collar values is:
+
+1. Symbol-level override (`symbols.<sym>.collar`)
+2. Symbol level (`symbols.<sym>.level`)
+3. Global default level (`risk_controls.default_level`)
+4. Built-in hard defaults
+
+Validation rules:
+
+- `risk_controls.levels` must be a mapping
+- `risk_controls.default_level` must reference a defined level name
+- `symbols.<sym>.level` must reference a defined level name
+- level `collar` sections must be mappings when present
+
+### Circuit-breaker threshold ladders (L1/L2/L3)
+
+Circuit breakers are configured as a threshold ladder, not by selecting one
+"default breaker level". A trade's absolute price shift from rolling reference
+determines which level fires.
+
+```yaml
+circuit_breaker_defaults:
+  reference_window_ns: 300000000000
+  levels:
+    L1:
+      price_shift_pct: 0.07
+      halt_duration_ns: 300000000000
+      resumption_mode: AUCTION
+    L2:
+      price_shift_pct: 0.13
+      halt_duration_ns: 900000000000
+      resumption_mode: AUCTION
+    L3:
+      price_shift_pct: 0.20
+      halt_duration_ns:   # null => rest of trading day
+      resumption_mode: AUCTION
+
+symbols:
+  TSLA:
+    circuit_breaker:
+      levels:
+        L1:
+          halt_duration_ns: 600000000000
+```
+
+Circuit-breaker precedence is:
+
+1. `symbols.<sym>.circuit_breaker` (most specific)
+2. `circuit_breaker_defaults`
+3. built-in defaults (L1=7%/5m, L2=13%/15m, L3=20%/rest-of-day)
+
+Validation rules:
+
+- `circuit_breaker.levels` values must be mappings
+- each level requires `price_shift_pct` in `(0, 1)`
+- `halt_duration_ns` must be positive integer or null
+- `resumption_mode` must be `AUCTION` or `CONTINUOUS`
 
 ### `last_buy_price` and `last_sell_price`
 
@@ -316,10 +514,10 @@ normally.  Depending on the MM gateway's configured `quote_refresh_policy`,
 the quote may be inactivated (sibling leg cancelled).  The book then has no MM
 liquidity until the MM connects and re-quotes.
 
-**No circuit breaker fires in this scenario** — the circuit breaker is a
-planned future feature that is not yet implemented.  See
-[MM Quotes — Fills Before the MM Connects](mm-quotes.md#fills-against-seed-quotes-before-the-mm-connects)
-for the full event-by-event breakdown.
+If a fill generated from seed liquidity breaches the configured circuit-breaker
+band, the symbol can halt immediately even before the market-maker process
+connects.  See [Risk Controls](risk-controls.md) for exact circuit-breaker
+semantics.
 
 ### Subsequent startups
 

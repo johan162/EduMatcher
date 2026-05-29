@@ -1,0 +1,431 @@
+# Risk Controls
+
+!!! note "Learning objectives"
+    After reading this page you will understand:
+
+    - How an instrument halt state prevents trading while a symbol is suspended
+    - How price collars reject orders that stray too far from a reference or last-traded price
+    - How circuit breakers detect violent price moves and automatically halt and resume a symbol
+    - How all three mechanisms interact with the order types described in [Order Types](order-types.md)
+    - How to configure each feature in `engine_config.yaml`
+
+    **Prerequisite**: [Concepts — Order Book](concepts-order-book.md) explains the
+    order lifecycle that underpins these controls.
+
+---
+
+## Overview
+
+Real exchanges operate several layers of protection against runaway prices and
+disorderly markets.  EduMatcher implements three complementary mechanisms:
+
+| Mechanism | Who sets it | What it checks | How it resolves |
+|---|---|---|---|
+| **Instrument halt** | Operator (external message) | Symbol is marked `HALTED` | Operator sends resume |
+| **Price collar** | Config per symbol | Incoming order price vs. reference band | Order is rejected |
+| **Circuit breaker** | Config per symbol | Last trade price vs. rolling reference | Automatic halt + scheduled resume |
+
+All three operate at the engine level — *before* any order enters the book.
+
+---
+
+## 1. Instrument halt state
+
+### What it does
+
+Each symbol in EduMatcher can be in one of two states:
+
+| State | Orders accepted? | Quotes accepted? |
+|---|---|---|
+| `ACTIVE` | Yes | Yes |
+| `HALTED` | LIMIT and ICEBERG rest (do not match); MARKET, FOK, IOC are rejected | Rejected immediately |
+
+A halt is an operator-initiated pause.  It is broader than a circuit breaker
+pause: it can be applied manually at any time, for any reason (e.g., a pending
+news announcement, a technology incident at a venue, a regulatory instruction).
+
+### State model
+
+```python
+class InstrumentState(str, Enum):
+    ACTIVE = "ACTIVE"
+    HALTED = "HALTED"
+```
+
+The engine maintains a `_halted_symbols` dictionary (keyed on symbol name) that
+records which symbols are currently halted.  Any key not present in the
+dictionary is implicitly `ACTIVE`.
+
+### Halt behaviour by order type
+
+When the engine receives a new order for a halted symbol:
+
+- **MARKET / FOK / IOC** — rejected immediately with reason
+  `SYMBOL_HALTED`.  These order types require immediate execution and cannot
+  be held on the book.
+- **LIMIT / ICEBERG** — accepted and placed on the book but the engine
+  suppresses the continuous-matching sweep.  The order will rest until the
+  symbol is resumed, at which point it participates in the reopening.
+
+When the engine receives a new quote for a halted symbol, the entire quote is
+rejected (both sides).
+
+### Interaction with auctions
+
+If a symbol is halted during an auction phase the engine will still accept
+LIMIT orders so they can participate in the uncross when the halt is lifted and
+trading resumes.  Market-maker quotes are rejected because a quote always
+implies willingness to trade immediately and a halted market does not offer that
+guarantee.
+
+---
+
+## 2. Price collars
+
+### Motivation
+
+Price collars are a pre-trade filter.  They prevent an erroneous ("fat-finger")
+order from moving the market far from its fair value.  Without collars a
+mistyped limit price could instantly sweep the entire book.
+
+### Band definitions
+
+EduMatcher supports two independent collar bands, both configured per symbol:
+
+| Band | Measured from | Purpose |
+|---|---|---|
+| **Static band** | Reference price (typically last closing price, set in config) | Wide safety net; catches gross errors |
+| **Dynamic band** | Last traded price in this session | Tighter rolling band; tracks intra-day moves |
+
+Both bands are expressed as a *percentage of the relevant reference price*.
+The boundary tick values are computed with **truncation toward zero**
+(`int()`) so that the protected range is always at least as tight as the
+nominal percentage:
+
+```
+static_upper  = int(reference_price × (1 + static_band_pct))
+static_lower  = int(reference_price × (1 - static_band_pct))
+
+dynamic_upper = int(last_trade_price × (1 + dynamic_band_pct))
+dynamic_lower = int(last_trade_price × (1 - dynamic_band_pct))
+```
+
+An incoming order price is rejected if it falls outside *either* band.  The
+static band is checked first.
+
+!!! warning "Tick-based prices"
+    All prices in EduMatcher are stored as integer tick counts.  The collar
+    boundaries are in ticks, not display prices.  See
+    [Configuration](configuration.md) for the relationship between ticks and
+    display prices.
+
+### Validation logic
+
+```
+validate_collar(price, collar, last_trade_price) → CollarResult
+```
+
+1. If `price < static_lower` or `price > static_upper` → `STATIC_COLLAR_BREACH`
+2. If `last_trade_price` is known and `price < dynamic_lower` or
+   `price > dynamic_upper` → `DYNAMIC_COLLAR_BREACH`
+3. Otherwise → accepted
+
+The dynamic check is skipped when `last_trade_price` is `None` (no trade has
+occurred yet in this session).
+
+### Which orders are checked
+
+Collars apply to **LIMIT and ICEBERG** orders (any order that carries an
+explicit price).  MARKET orders do not carry a price and are therefore not
+subject to collar validation.
+
+### Configuration
+
+Add a `collar` sub-section to any symbol in `engine_config.yaml`:
+
+```yaml
+symbols:
+  MSFT:
+    tick_decimals: 2
+    last_buy_price: 420.00
+    collar:
+      static_band_pct: 0.20   # ±20% from reference price (default)
+      dynamic_band_pct: 0.02  # ±2% from last traded price (default)
+```
+
+Both fields are optional.  When the `collar` key is absent entirely, no collar
+is applied to that symbol.  When the `collar` key is present but empty (`{}`),
+the defaults above are used.
+
+### Global level profiles (L1/L2/L3 style)
+
+Collar values can be sourced from reusable global risk levels:
+
+```yaml
+risk_controls:
+  default_level: L2
+  levels:
+    L1:
+      collar:
+        static_band_pct: 0.30
+        dynamic_band_pct: 0.05
+    L2:
+      collar:
+        static_band_pct: 0.20
+        dynamic_band_pct: 0.02
+
+symbols:
+  AAPL:
+    # inherits L2
+    tick_decimals: 2
+  TSLA:
+    level: L1
+    # override dynamic band only
+    collar:
+      dynamic_band_pct: 0.06
+```
+
+Resolution precedence is:
+
+1. `symbols.<symbol>.collar` (symbol override)
+2. `symbols.<symbol>.level` profile from `risk_controls.levels`
+3. `risk_controls.default_level` profile
+4. built-in defaults (`static_band_pct=0.20`, `dynamic_band_pct=0.02`)
+
+| Parameter | Type | Default | Meaning |
+|---|---|---|---|
+| `static_band_pct` | float | `0.20` | Maximum distance from reference price, as a fraction (0 < x < 1) |
+| `dynamic_band_pct` | float | `0.02` | Maximum distance from last trade price, as a fraction (0 < x < 1) |
+
+The reference price for the static band is taken from `last_buy_price`
+(converted to ticks) at engine startup.
+
+---
+
+## 3. Circuit breakers
+
+### Motivation
+
+A circuit breaker is an *automatic* mechanism that pauses trading when prices
+move too fast.  Unlike a collar (which rejects individual orders), a circuit
+breaker monitors executed trades and halts the *entire symbol* when a trade
+deviates too sharply from recent history.  It then automatically resumes after
+a configurable pause, giving participants time to update their orders.
+
+Real-world examples: the US market-wide circuit breakers (Level 1/2/3), the
+London Stock Exchange's Automated Auction Call mechanism, and per-stock
+volatility interruptions on Euronext.
+
+### How it works — step by step
+
+1. **Every trade is recorded.**  When the engine publishes a fill, it calls
+   `record_trade(price, now)` on the circuit breaker for that symbol.
+
+2. **Reference price is computed from history.**  The engine looks back over a
+   rolling time window (`reference_window_ns`) and averages the prices of trades
+   that occurred within that window — *excluding the new trade being evaluated*.
+   This ensures the check is "does this trade deviate from where the market has
+   been?" rather than including the potentially erroneous trade in its own
+   reference.
+
+3. **Deviation is tested against levels.**  The absolute shift from reference is
+  compared against configured levels (for example `L1=7%`, `L2=13%`,
+  `L3=20%`). The highest crossed level fires.
+
+4. **Symbol is halted.**  The engine sets `_halted_symbols[symbol] = True`,
+   cancels all outstanding market-maker quotes for that symbol, and broadcasts a
+   `circuit_breaker.halt.{symbol}` message over the pub socket.
+
+5. **Resume is scheduled by level.**  The fired level defines the halt length.
+  Example: L1 might halt for 5 minutes, L2 for 15 minutes, and L3 for the rest
+  of the trading day.
+
+6. **Engine polls for resumption.**  Each iteration of the main event loop calls
+   `_flush_circuit_breakers()`, which checks `should_resume(now)` for every
+   active circuit breaker.  When the pause expires:
+     - The symbol is un-halted.
+     - If `resumption_mode == "AUCTION"`, an uncross is run to reprice resting
+       orders at a new equilibrium.
+     - A `circuit_breaker.resume.{symbol}` message is broadcast.
+
+### Rolling reference window
+
+The reference window is a sliding time window.  Any trade older than
+`now - reference_window_ns` is discarded before computing the average.  This
+means the reference tracks recent price behaviour — a slow steady trend will
+not accumulate stale data that masks a sudden move.
+
+```
+           reference_window_ns
+        ←──────────────────────→
+────────●──●───●───●──●────●──── now
+        (old trades)  (new trade being evaluated)
+
+reference = average of all trades in window (excluding new trade)
+```
+
+If the window is empty (no previous trades), the circuit breaker has no
+reference to compare against, so the new trade is always accepted and simply
+added to the history.
+
+### Resumption modes
+
+| Mode | What happens at resume |
+|---|---|
+| `AUCTION` | The engine runs a mini uncross for the symbol, computing an equilibrium price from resting limit orders.  This is the default and mirrors how real exchanges reopen after a volatility interruption. |
+| `CONTINUOUS` | The symbol resumes continuous matching immediately.  Resting orders participate in normal sweeping as the next order arrives. |
+
+### Configuration
+
+Define a global threshold ladder under `circuit_breaker_defaults`, then override
+per symbol only where needed:
+
+```yaml
+circuit_breaker_defaults:
+  reference_window_ns: 300000000000
+  levels:
+    L1:
+      price_shift_pct: 0.07
+      halt_duration_ns: 300000000000   # 5 minutes
+      resumption_mode: AUCTION
+    L2:
+      price_shift_pct: 0.13
+      halt_duration_ns: 900000000000   # 15 minutes
+      resumption_mode: AUCTION
+    L3:
+      price_shift_pct: 0.20
+      halt_duration_ns:                 # null => rest of trading day
+      resumption_mode: AUCTION
+
+symbols:
+  TSLA:
+    tick_decimals: 2
+    circuit_breaker:
+      levels:
+        L1:
+          halt_duration_ns: 600000000000  # symbol-specific override
+```
+
+For each trade, the engine computes:
+
+$$
+	ext{price\_shift} = \frac{|\text{trade\_price} - \text{reference\_price}|}{\text{reference\_price}}
+$$
+
+The highest level where `price_shift >= price_shift_pct` fires.
+
+| Parameter | Type | Default | Meaning |
+|---|---|---|---|
+| `reference_window_ns` | int | `300_000_000_000` | Lookback window for rolling reference price |
+| `levels.<L>.price_shift_pct` | float | required | Trigger threshold fraction in `(0, 1)` |
+| `levels.<L>.halt_duration_ns` | int or null | required | Halt time in ns, or `null` for rest-of-day halt |
+| `levels.<L>.resumption_mode` | string | `"AUCTION"` | `AUCTION` or `CONTINUOUS` when timed halt resumes |
+
+When `circuit_breaker_defaults` and symbol-level `circuit_breaker` are both
+present, per-symbol values override global defaults by level key.
+
+### Why there is no selected "default breaker level"
+
+Circuit-breaker levels are **trigger outcomes**, not configuration profiles to
+pick one from. A symbol defines a ladder of levels; the observed price shift
+determines which level is activated at runtime.
+
+
+
+---
+
+## 4. Interaction between mechanisms
+
+All three controls can be active simultaneously on the same symbol.  The engine
+applies them in this order for every incoming order:
+
+```
+1. Is the symbol halted?           → reject MARKET/FOK/IOC; suppress matching for LIMIT
+2. Is a collar configured?         → validate price against static and dynamic bands
+3. (After match) Did a trade fire
+   a circuit breaker?              → halt symbol, schedule resume
+```
+
+A circuit breaker halt feeds back into step 1: any subsequent orders on a
+circuit-breaker-halted symbol are subject to the same halt rules as an
+operator-initiated halt.
+
+### Combined example
+
+```
+Reference price: 10000 ticks (100.00 in display)
+Static collar:   ±20%  → [8000, 12000] ticks
+Dynamic collar:  ±2%   → depends on last trade
+CB levels:       L1=7%, L2=13%, L3=20%
+
+A limit sell order arrives at price 7500 ticks:
+  → Static collar: 7500 < 8000 → STATIC_COLLAR_BREACH → rejected
+
+A limit buy at 10100 ticks trades. Last trade = 10100.
+  → CB rolling reference (from history) = 10050
+  → deviation = |10100 - 10050| / 10050 ≈ 0.5% < 5% → no halt
+
+A limit buy at 10800 ticks trades. Reference = 10100.
+  → deviation = |10800 - 10100| / 10100 ≈ 6.9% < 7% → no breaker
+
+A limit buy at 11000 ticks trades. Reference = 10100.
+  → deviation = |11000 - 10100| / 10100 ≈ 8.9% ≥ L1 (7%)
+  → L1 circuit breaker fires, symbol halted for L1 duration (e.g. 5 min)
+
+A limit buy at 12200 ticks trades. Reference = 10100.
+  → deviation = |12200 - 10100| / 10100 ≈ 20.8% ≥ L3 (20%)
+  → L3 circuit breaker fires, symbol halted for rest of trading day
+  → next order at this symbol: if MARKET → rejected; if LIMIT → accepted, no match
+```
+
+---
+
+## 5. ZeroMQ messages
+
+Risk events are broadcast on the engine's PUB socket (port 5556).
+
+### Circuit breaker halt
+
+```
+topic:   b"circuit_breaker.halt.MSFT"
+payload: {
+    "symbol":          "MSFT",
+    "trigger_price":   10800,
+    "reference_price": 10100,
+    "resume_at_ns":    <timestamp>
+}
+```
+
+### Circuit breaker resume
+
+```
+topic:   b"circuit_breaker.resume.MSFT"
+payload: {
+    "symbol":         "MSFT",
+    "resume_at_ns":   <timestamp>,
+    "resumption_mode": "AUCTION"
+}
+```
+
+---
+
+## 6. Market-maker interaction
+
+When a circuit breaker fires, all outstanding market-maker quotes for the
+affected symbol are cancelled immediately.  This protects market makers from
+having stale quotes executed against them during a disorderly market.  When the
+symbol resumes, market makers are expected to submit fresh quotes at updated
+prices.
+
+Operator-initiated halts do not automatically cancel outstanding quotes.  They
+instead prevent new quotes from being accepted.  Pre-existing quotes remain on
+the book and will participate in any uncross at resumption.
+
+---
+
+## See also
+
+- [Configuration](configuration.md) — full `engine_config.yaml` reference
+- [Order Types](order-types.md) — how different order types behave under halt
+- [Drop Copy](drop-copy.md) — how fill events are forwarded to risk systems
+- [Auctions & Session Scheduling](auction.md) — the uncross that can occur at circuit breaker resumption

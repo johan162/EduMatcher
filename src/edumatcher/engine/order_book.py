@@ -380,6 +380,53 @@ class OrderBook:
         self.last_buy_price = last_buy_price
         self.last_sell_price = last_sell_price
 
+    def depth_snapshot(self, tolerance_ticks: int) -> "dict[str, Any]":
+        """
+        Compute book-depth metrics within *tolerance_ticks* of the last trade.
+
+        Uses the ``_bid_qty`` / ``_ask_qty`` price-level index for O(P)
+        performance where P = number of distinct price levels — much cheaper
+        than iterating heap entries as ``snapshot()`` does.
+
+        Parameters
+        ----------
+        tolerance_ticks : How many ticks on each side of the last trade to
+                          include.  Example: last trade = 15000 ticks,
+                          tolerance = 100 → bids in [14900, 15000] and asks
+                          in [15000, 15100].
+
+        Returns
+        -------
+        A dict with keys:
+          ``symbol``, ``mid_price_ticks``, ``tolerance_ticks``,
+          ``bid_depth`` (total qty), ``ask_depth`` (total qty),
+          ``imbalance`` (float in [-1, 1]; positive = more bids),
+          ``cost_to_move`` (same as bid_depth for now).
+
+        Returns an *empty dict* if no trades have occurred yet (no meaningful
+        mid price to anchor the window on).
+        """
+        if self.last_trade_price is None:
+            return {}
+
+        mid = self.last_trade_price
+        lower = mid - tolerance_ticks
+        upper = mid + tolerance_ticks
+
+        bid_depth = sum(qty for px, qty in self._bid_qty.items() if lower <= px <= mid)
+        ask_depth = sum(qty for px, qty in self._ask_qty.items() if mid <= px <= upper)
+        total = bid_depth + ask_depth
+
+        return {
+            "symbol": self.symbol,
+            "mid_price_ticks": mid,
+            "tolerance_ticks": tolerance_ticks,
+            "bid_depth": bid_depth,
+            "ask_depth": ask_depth,
+            "imbalance": (bid_depth - ask_depth) / total if total > 0 else 0.0,
+            "cost_to_move": bid_depth,
+        }
+
     def snapshot(self) -> dict[str, Any]:
         """
         Build a book snapshot for the viewer.

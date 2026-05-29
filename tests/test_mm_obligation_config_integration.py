@@ -116,3 +116,90 @@ gateways:
     )
     ack_disabled = _last_quote_ack(pub_disabled)
     assert ack_disabled["accepted"] is True
+
+
+def test_global_mm_obligation_defaults_enforced_when_gateway_fields_missing(
+    monkeypatch, tmp_path: Path
+) -> None:
+    yaml_text = """
+mm_obligation_defaults:
+  enforce_mm_obligation: true
+  mm_max_spread_ticks: 5
+  mm_min_qty: 10
+symbols:
+  AAPL:
+    market_maker_quotes:
+      - gateway_id: GW01
+        bid_price: 100.00
+        ask_price: 100.03
+        bid_qty: 10
+        ask_qty: 10
+gateways:
+  fix:
+    - id: GW01
+      role: MARKET_MAKER
+"""
+    engine, pub_sock = _make_engine(monkeypatch, tmp_path, yaml_text)
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q-GLOBAL-MM-ON",
+            "bid_price": 100.00,
+            "ask_price": 100.10,
+            "bid_qty": 10,
+            "ask_qty": 10,
+        }
+    )
+    ack = _last_quote_ack(pub_sock)
+    assert ack["accepted"] is False
+    assert "Spread" in ack["reason"]
+
+
+def test_mm_obligation_specificity_gateway_symbol_beats_global_symbol(
+    monkeypatch, tmp_path: Path
+) -> None:
+    yaml_text = """
+mm_obligation_defaults:
+  enforce_mm_obligation: false
+  mm_max_spread_ticks: 20
+  mm_min_qty: 1
+  symbols:
+    AAPL:
+      enforce_mm_obligation: false
+      mm_max_spread_ticks: 20
+      mm_min_qty: 1
+symbols:
+  AAPL:
+    market_maker_quotes:
+      - gateway_id: GW01
+        bid_price: 100.00
+        ask_price: 100.03
+        bid_qty: 10
+        ask_qty: 10
+gateways:
+  fix:
+    - id: GW01
+      role: MARKET_MAKER
+      enforce_mm_obligation: false
+      mm_obligations:
+        AAPL:
+          enforce_mm_obligation: true
+          max_spread_ticks: 5
+          min_qty: 10
+"""
+    engine, pub_sock = _make_engine(monkeypatch, tmp_path, yaml_text)
+    engine._handle_quote_new(
+        {
+            "gateway_id": "GW01",
+            "symbol": "AAPL",
+            "quote_id": "Q-SPECIFIC-WINS",
+            "bid_price": 100.00,
+            "ask_price": 100.10,
+            "bid_qty": 10,
+            "ask_qty": 10,
+        }
+    )
+    ack = _last_quote_ack(pub_sock)
+    assert ack["accepted"] is False
+    assert "Spread" in ack["reason"]

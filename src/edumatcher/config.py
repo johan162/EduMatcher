@@ -10,6 +10,9 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 ENGINE_PULL_ADDR = "tcp://127.0.0.1:5555"  # engine receives orders here
 ENGINE_PUB_ADDR = "tcp://127.0.0.1:5556"  # engine publishes all events here
+DROP_COPY_PUB_ADDR = (
+    "tcp://127.0.0.1:5557"  # engine drop-copy feed (per-participant fills)
+)
 
 # ---------------------------------------------------------------------------
 # Data directory

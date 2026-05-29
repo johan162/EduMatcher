@@ -55,6 +55,7 @@ from edumatcher.models.clock import now_ns
 from edumatcher.models.message import (
     _dumps,
     decode,
+    encode,
     make_ack_msg,
     make_amended_msg,
     make_book_msg,
@@ -86,7 +87,6 @@ from edumatcher.models.order import (
     OrderStatus,
     OrderType,
     Side,
-    SmpAction,
     TIF,
 )
 from edumatcher.models.price import from_ticks, to_ticks
@@ -125,6 +125,15 @@ class Engine:
         self._sessions: dict[str, ParticipantSession] = {}
         self._quote_index = QuoteIndex()
 
+        # Halt state — keyed by symbol; True means halted (circuit breaker fired)
+        self._halted_symbols: dict[str, bool] = {}
+        # Price collar configs — keyed by symbol; populated in _load_config()
+        self._collars: dict[str, Any] = {}  # values: CollarConfig
+        # Circuit breaker states — keyed by symbol; populated in _load_config()
+        self._circuit_breakers: dict[str, Any] = {}  # values: CircuitBreakerState
+        # Drop copy publisher — None until run() is called (avoids binding port 5557 in tests)
+        self._drop_copy: Any = None  # DropCopyPublisher created lazily in run()
+
         # Global order_id → symbol map for O(1) cancel routing
         self._order_symbol: dict[str, str] = {}
 
@@ -141,6 +150,7 @@ class Engine:
         self._last_snapshot: dict[str, float] = {}
         # Set of symbols whose book changed since last snapshot publish
         self._dirty_symbols: set[str] = set()
+        self.snapshot_interval_sec: float = self.SNAPSHOT_INTERVAL
 
         # Combo-order tracking
         self._combos: dict[str, ComboOrder] = {}  # combo internal id → ComboOrder
@@ -166,6 +176,7 @@ class Engine:
                 self._allowed_symbols = self._engine_config.allowed_symbols
                 self._allowed_fix_gateways = self._engine_config.allowed_fix_gateways
                 self._sessions_enabled = self._engine_config.sessions_enabled
+                self.snapshot_interval_sec = self._engine_config.snapshot_interval_sec
                 self._gateway_descriptions = {
                     gw_id: cfg.description
                     for gw_id, cfg in self._engine_config.fix_gateways.items()
@@ -255,17 +266,21 @@ class Engine:
     def _flush_snapshots(self) -> None:
         """
         Publish book snapshots for all dirty symbols whose throttle window
-        has elapsed (SNAPSHOT_INTERVAL seconds since last publish).
+        has elapsed (snapshot_interval_sec seconds since last publish).
         Called once per poll loop tick.
         """
         now = time.monotonic()
         sent: set[str] = set()
         for symbol in self._dirty_symbols:
             last = self._last_snapshot.get(symbol, 0.0)
-            if now - last >= self.SNAPSHOT_INTERVAL:
+            if now - last >= self.snapshot_interval_sec:
                 book = self.books.get(symbol)
                 if book:
                     self.pub_sock.send_multipart(make_book_msg(symbol, book.snapshot()))
+                    # Depth metrics — published alongside each book snapshot
+                    depth = book.depth_snapshot(tolerance_ticks=100)
+                    if depth:
+                        self.pub_sock.send_multipart(encode(f"depth.{symbol}", depth))
                 self._last_snapshot[symbol] = now
                 sent.add(symbol)
         self._dirty_symbols -= sent
@@ -320,7 +335,9 @@ class Engine:
 
                 previous = self._quote_index.remove(gateway_id, sym)
                 if previous:
-                    self._cancel_quote_entry(previous, reason="Replaced by startup quote")
+                    self._cancel_quote_entry(
+                        previous, reason="Replaced by startup quote"
+                    )
 
                 bid = Order.create(
                     symbol=sym,
@@ -420,6 +437,23 @@ class Engine:
                     self.pub_sock.send_multipart(
                         make_book_msg(sym, self.books[sym].snapshot())
                     )
+
+        # Wire collar and circuit breaker configs now that tick-decimals are set
+        for sym, sym_cfg in self._engine_config.symbols.items():
+            if sym_cfg.collar is not None:
+                # Populate reference_price from last trade (buy side preferred)
+                ref_float = sym_cfg.last_buy_price or sym_cfg.last_sell_price
+                if ref_float is not None:
+                    sym_cfg.collar.symbol = sym
+                    sym_cfg.collar.reference_price = to_ticks(float(ref_float), sym)
+                    self._collars[sym] = sym_cfg.collar
+            if sym_cfg.circuit_breaker is not None:
+                sym_cfg.circuit_breaker.symbol = sym
+                from edumatcher.engine.circuit_breaker import CircuitBreakerState
+
+                self._circuit_breakers[sym] = CircuitBreakerState(
+                    symbol=sym, config=sym_cfg.circuit_breaker
+                )
 
     # ------------------------------------------------------------------
     # Startup — restore GTC orders
@@ -547,6 +581,42 @@ class Engine:
 
         book = self._book(order.symbol)
         do_match = is_matching_enabled(self._session_state)
+
+        # Halt check — circuit breaker has halted this symbol
+        if self._halted_symbols.get(order.symbol):
+            if order.order_type in (OrderType.MARKET, OrderType.FOK, OrderType.IOC):
+                self.pub_sock.send_multipart(
+                    make_ack_msg(
+                        order.gateway_id,
+                        order.id,
+                        accepted=False,
+                        reason=(
+                            f"{order.symbol} is halted — "
+                            f"{order.order_type.value} orders rejected during circuit breaker halt"
+                        ),
+                    )
+                )
+                return
+            # LIMIT / ICEBERG: accept and rest without matching (auction interest)
+            do_match = False
+
+        # Price collar check — static and dynamic band protection
+        if order.price is not None:
+            collar = self._collars.get(order.symbol)
+            if collar is not None:
+                from edumatcher.engine.collar import validate_collar
+
+                result = validate_collar(order.price, collar, book.last_trade_price)
+                if result.rejected:
+                    self.pub_sock.send_multipart(
+                        make_ack_msg(
+                            order.gateway_id,
+                            order.id,
+                            accepted=False,
+                            reason=result.reason,
+                        )
+                    )
+                    return
 
         # MARKET / FOK / IOC cannot rest — reject during no-matching phases
         if not do_match and order.order_type in (
@@ -688,6 +758,28 @@ class Engine:
                 # If this order is an OCO leg, cancel the sibling when fully filled
                 if evt.status == OrderStatus.FILLED and evt.oco_group_id:
                     self._check_oco_after_event(evt)
+                # Drop copy — forward fill to participant's risk/clearing system
+                if self._drop_copy is not None:
+                    self._drop_copy.publish(
+                        gateway_id=evt.gateway_id,
+                        event_type="order.fill",
+                        payload={
+                            "order_id": evt.id,
+                            "symbol": evt.symbol,
+                            "fill_qty": evt.quantity - evt.remaining_qty,
+                            "fill_price": (
+                                from_ticks(book.last_trade_price, evt.symbol)
+                                if book.last_trade_price is not None
+                                else 0.0
+                            ),
+                            "remaining_qty": evt.remaining_qty,
+                            "liquidity_flag": (
+                                "MAKER_QUOTE"
+                                if evt.origin == OrderOrigin.QUOTE
+                                else "MAKER"
+                            ),
+                        },
+                    )
             elif evt.status == OrderStatus.REJECTED:
                 self.pub_sock.send_multipart(
                     make_ack_msg(
@@ -887,6 +979,85 @@ class Engine:
                 ),
             ]
         )
+        # Circuit breaker monitor — check if this fill triggered a halt
+        self._check_circuit_breaker(trade.symbol, trade.price, trade.timestamp)
+
+    def _check_circuit_breaker(self, symbol: str, trade_price: int, now: int) -> None:
+        """
+        Called after every fill to check whether a circuit breaker halt should fire.
+
+        If the rolling-window average has moved more than ``dynamic_band_pct``
+        from the trigger price, the symbol is halted:
+          - All resting quotes for the symbol are cancelled.
+          - A ``circuit_breaker.halt.{symbol}`` message is broadcast.
+          - ``_halted_symbols[symbol]`` is set to True so new orders are blocked.
+        """
+        cb = self._circuit_breakers.get(symbol)
+        if cb is None:
+            return
+        triggered_level = cb.record_trade(trade_price, now)
+        if triggered_level is None:
+            return
+
+        cb.activate(now, triggered_level)
+        self._halted_symbols[symbol] = True
+
+        # Cancel all resting quotes for the halted symbol
+        for entry in self._quote_index.cancel_all_for_symbol(symbol):
+            self._cancel_quote_entry(entry, reason="Circuit breaker halt")
+
+        self.pub_sock.send_multipart(
+            encode(
+                f"circuit_breaker.halt.{symbol}",
+                {
+                    "symbol": symbol,
+                    "trigger_price": (
+                        from_ticks(cb.trigger_price, symbol)
+                        if cb.trigger_price is not None
+                        else None
+                    ),
+                    "reference_price": (
+                        from_ticks(cb.reference_price, symbol)
+                        if cb.reference_price is not None
+                        else None
+                    ),
+                    "resume_at_ns": cb.resume_at_ns,
+                    "resumption_mode": cb.active_resumption_mode,
+                    "level": cb.triggered_level,
+                },
+            )
+        )
+        self._mark_dirty(symbol)
+        print(
+            f"[ENGINE] CIRCUIT BREAKER HALT {symbol}: "
+            f"level={cb.triggered_level} "
+            f"trigger={cb.trigger_price}, ref={cb.reference_price} ticks"
+        )
+
+    def _flush_circuit_breakers(self) -> None:
+        """
+        Called once per poll loop tick.  Checks all halted symbols and resumes
+        trading for those whose ``halt_duration_ns`` has elapsed.
+
+        If ``resumption_mode == "AUCTION"``, the accumulated resting orders
+        are uncrossed at the equilibrium price before continuous matching resumes.
+        """
+        now = now_ns()
+        for symbol, cb in self._circuit_breakers.items():
+            if not cb.should_resume(now):
+                continue
+            cb.deactivate()
+            self._halted_symbols[symbol] = False
+            if cb.active_resumption_mode == "AUCTION":
+                self._run_uncross(from_state=self._session_state, symbol_filter=symbol)
+            self.pub_sock.send_multipart(
+                encode(
+                    f"circuit_breaker.resume.{symbol}",
+                    {"symbol": symbol, "mode": cb.active_resumption_mode},
+                )
+            )
+            self._mark_dirty(symbol)
+            print(f"[ENGINE] CIRCUIT BREAKER RESUME {symbol}")
 
     def _on_quote_leg_filled(self, order: Order) -> None:
         if not order.quote_id:
@@ -964,6 +1135,18 @@ class Engine:
             )
             return
 
+        # Halt check — circuit breaker has halted this symbol; reject incoming quotes
+        if self._halted_symbols.get(symbol):
+            self.pub_sock.send_multipart(
+                make_quote_ack_msg(
+                    gateway_id,
+                    quote_id,
+                    False,
+                    f"{symbol} is halted — quotes rejected during circuit breaker halt",
+                )
+            )
+            return
+
         try:
             bid_price = to_ticks(float(payload["bid_price"]), symbol)
             ask_price = to_ticks(float(payload["ask_price"]), symbol)
@@ -996,9 +1179,31 @@ class Engine:
             if self._engine_config
             else None
         )
-        if cfg and cfg.enforce_mm_obligation:
+        if cfg:
+            enforce_mm = cfg.enforce_mm_obligation
+            mm_max_spread_ticks = cfg.mm_max_spread_ticks
+            mm_min_qty = cfg.mm_min_qty
+
+            # Specificity precedence for MM obligation policy:
+            # gateway+symbol > global symbol > gateway > global defaults.
+            if self._engine_config is not None:
+                global_symbol_policy = (
+                    self._engine_config.global_symbol_mm_obligation_policies.get(symbol)
+                )
+                if global_symbol_policy is not None:
+                    enforce_mm = global_symbol_policy.enforce_mm_obligation
+                    mm_max_spread_ticks = global_symbol_policy.mm_max_spread_ticks
+                    mm_min_qty = global_symbol_policy.mm_min_qty
+
+            gateway_symbol_policy = cfg.mm_obligation_policies.get(symbol)
+            if gateway_symbol_policy is not None:
+                enforce_mm = gateway_symbol_policy.enforce_mm_obligation
+                mm_max_spread_ticks = gateway_symbol_policy.mm_max_spread_ticks
+                mm_min_qty = gateway_symbol_policy.mm_min_qty
+
+        if cfg and enforce_mm:
             spread_ticks = ask_price - bid_price
-            if spread_ticks > cfg.mm_max_spread_ticks:
+            if spread_ticks > mm_max_spread_ticks:
                 self.pub_sock.send_multipart(
                     make_quote_ack_msg(
                         gateway_id,
@@ -1006,18 +1211,18 @@ class Engine:
                         False,
                         (
                             f"Spread {spread_ticks} ticks exceeds max "
-                            f"{cfg.mm_max_spread_ticks}"
+                            f"{mm_max_spread_ticks}"
                         ),
                     )
                 )
                 return
-            if bid_qty < cfg.mm_min_qty or ask_qty < cfg.mm_min_qty:
+            if bid_qty < mm_min_qty or ask_qty < mm_min_qty:
                 self.pub_sock.send_multipart(
                     make_quote_ack_msg(
                         gateway_id,
                         quote_id,
                         False,
-                        f"Quote size must be >= {cfg.mm_min_qty}",
+                        f"Quote size must be >= {mm_min_qty}",
                     )
                 )
                 return
@@ -1531,6 +1736,14 @@ class Engine:
 
         # --- Apply the transition ---
         self._session_state = to_state
+
+        if to_state == SessionState.CLOSED:
+            # End-of-day reset for any still-halted symbols (e.g. L3 rest-of-day).
+            for symbol, cb in self._circuit_breakers.items():
+                if cb.halted:
+                    cb.deactivate()
+                    self._halted_symbols[symbol] = False
+
         self.pub_sock.send_multipart(
             make_session_state_msg(to_state.value, prev_state=from_state.value)
         )
@@ -1552,9 +1765,24 @@ class Engine:
                             self._check_combo_after_child_event(cancelled)
                         self._mark_dirty(book.symbol)
 
-    def _run_uncross(self, from_state: SessionState) -> None:
-        """Run the equilibrium-price uncrossing on every symbol book."""
+    def _run_uncross(
+        self,
+        from_state: SessionState,
+        symbol_filter: str | None = None,
+    ) -> None:
+        """Run the equilibrium-price uncrossing on every (or one) symbol book.
+
+        Parameters
+        ----------
+        from_state    : The session state from which the uncross is triggered
+                        (currently unused in the body, kept for call-site clarity).
+        symbol_filter : When provided, only uncross this specific symbol.
+                        Used by ``_flush_circuit_breakers()`` for per-symbol
+                        resumption auctions.
+        """
         for symbol, book in self.books.items():
+            if symbol_filter is not None and symbol != symbol_filter:
+                continue
             result = compute_equilibrium(book)
             if result.eq_price is not None and result.eq_qty > 0:
                 trades, events = execute_uncross(book, result.eq_price)
@@ -2073,6 +2301,8 @@ class Engine:
 
         self.pull_sock.close()
         self.pub_sock.close()
+        if self._drop_copy is not None:
+            self._drop_copy.close()
 
     # ------------------------------------------------------------------
     # Main loop
@@ -2081,6 +2311,20 @@ class Engine:
     def run(self) -> None:
         self._restore_gtc()
         self._load_config()  # seed stats + MM orders (after GTC restore)
+
+        # Create drop copy publisher here (not in __init__) so that unit tests
+        # that call handlers directly never attempt to bind ZMQ port 5557.
+        try:
+            from edumatcher.engine.drop_copy import DropCopyPublisher
+
+            self._drop_copy = DropCopyPublisher(zmq.Context.instance())
+            print("[ENGINE] Drop copy PUB bound on port 5557")
+        except zmq.ZMQError as exc:
+            print(
+                f"[ENGINE] WARNING: Drop copy unavailable — {exc}",
+                file=sys.stderr,
+            )
+
         self._running = True
 
         poller = zmq.Poller()
@@ -2136,6 +2380,8 @@ class Engine:
                     print(f"[ENGINE] Error processing {topic}: {exc}", file=sys.stderr)
             # Throttled snapshot publish — runs every poll tick (max 200ms)
             self._flush_snapshots()
+            # Check circuit breaker timers — resume halted symbols
+            self._flush_circuit_breakers()
 
 
 def main() -> None:

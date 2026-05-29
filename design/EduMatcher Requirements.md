@@ -1,6 +1,6 @@
 # EduMatcher — System Requirements Document
 
-**Version:** 2.0  
+**Version:** 3.0  
 **Date:** 2026-05-05  
 **Purpose:** Complete specification for re-implementing the EduMatcher multi-process trading system in any programming language.
 
@@ -26,6 +26,7 @@
 15. [Non-Functional Requirements](#15-non-functional-requirements)
 16. [Implementation Plan](#16-implementation-plan)
 17. [Test Specification](#17-test-specification)
+18. [Post-v2 Requirements Addendum](#18-post-v2-requirements-addendum)
 
 ---
 
@@ -2322,6 +2323,281 @@ All IDs (order_id, trade_id) are UUID v4 strings, ensuring global uniqueness wit
 | T-SESS-008 | VALID_TRANSITIONS completeness | All 5 states have entries; no state is unreachable in the forward direction |
 | T-SESS-009 | Invalid transition PRE_OPEN→CLOSED | Not in VALID_TRANSITIONS; engine silently rejects, logs warning |
 | T-SESS-010 | CLOSED→PRE_OPEN valid (next day) | Is in VALID_TRANSITIONS; engine accepts and publishes `session.state` |
+
+---
+
+## 18. Post-v2 Requirements Addendum
+
+This section captures major functionality implemented after version 2.0.
+Where this section conflicts with earlier text, this section takes precedence.
+
+### 18.1 Messaging Extensions
+
+The following topics are implemented and form part of the protocol:
+
+- `quote.new` (Gateway -> Engine): submit or replace a two-sided MM quote.
+- `quote.cancel` (Gateway -> Engine): cancel active quote for one symbol.
+- `quote.ack.{GW_ID}` (Engine -> Gateway): quote accept/reject response.
+- `quote.status.{GW_ID}` (Engine -> Gateway): quote lifecycle status.
+- `risk.kill_switch` (Gateway -> Engine): emergency cancel by gateway, optional symbol scope.
+- `risk.kill_switch_ack.{GW_ID}` (Engine -> Gateway): kill-switch result summary with cancellation counts.
+- `circuit_breaker.halt.{SYMBOL}` (Engine -> All): symbol halt event with trigger/reference details and level.
+- `circuit_breaker.resume.{SYMBOL}` (Engine -> All): symbol resume event.
+- `depth.{SYMBOL}` (Engine -> All): tolerance-window depth metrics published with snapshot flushes.
+- `drop_copy.event.{GW_ID}` (Engine -> Drop-copy subscribers): sequenced per-gateway event stream on dedicated drop-copy PUB socket.
+- `drop_copy.replay.{RECIPIENT_ID}` (Engine -> Drop-copy subscribers): replay stream from buffered sequence.
+
+### 18.2 Tick/Nanosecond Canonical Model
+
+FR-CORE-001: Internal canonical price representation
+
+- The engine SHALL use integer ticks for all matching-critical prices (`order.price`, `order.stop_price`, `trade.price`, book indices, collar/circuit-breaker checks).
+- Decimal display prices SHALL be converted to ticks at ingress boundaries and converted back to decimal at egress boundaries.
+
+FR-CORE-002: Per-symbol tick precision
+
+- `tick_decimals` SHALL be configurable per symbol.
+- Supported range is 0..8.
+- Default is 2 when not configured.
+
+FR-CORE-003: Canonical timestamp representation
+
+- The engine SHALL use integer nanosecond timestamps for ordering-critical state.
+- `now_ns()` SHALL be strictly monotonic within process lifetime (if wall-clock regresses or ties, increment by 1 ns).
+
+FR-CORE-004: External timestamp compatibility
+
+- External JSON payloads may expose seconds as decimal for backward compatibility (for example in selected publication paths), but internal state and comparisons SHALL remain integer nanoseconds.
+
+### 18.3 Risk Controls: Collar + Circuit Breaker
+
+#### FR-RISK-001: Collar checks
+
+- A collar SHALL reject limit-priced orders outside static and dynamic bands.
+- Static band is anchored to symbol reference price.
+- Dynamic band is anchored to last trade price when available.
+- MARKET/FOK/IOC SHALL bypass collar checks.
+
+#### FR-RISK-002: Collar level profiles
+
+- `risk_controls.levels` SHALL define reusable collar profiles.
+- `risk_controls.default_level` SHALL apply when symbol `level` is absent.
+- Resolution precedence for collars SHALL be:
+  1. `symbols.<SYM>.collar`
+  2. `symbols.<SYM>.level` profile
+  3. `risk_controls.default_level` profile
+  4. built-in collar defaults
+
+#### FR-RISK-003: Circuit breaker ladder model
+
+- Circuit breakers SHALL be configured as threshold ladders (`levels`) keyed by level name.
+- Each level SHALL define:
+  - `price_shift_pct` in (0,1)
+  - `halt_duration_ns` (positive integer or null for rest-of-day)
+  - `resumption_mode` in {AUCTION, CONTINUOUS}
+- Trigger selection SHALL use the highest crossed threshold based on absolute shift from rolling reference.
+
+#### FR-RISK-004: Circuit breaker defaults and overrides
+
+- Global defaults SHALL be configured under top-level `circuit_breaker_defaults`.
+- Per-symbol overrides SHALL be configured under `symbols.<SYM>.circuit_breaker`.
+- Resolution precedence SHALL be:
+  1. symbol circuit-breaker override
+  2. global `circuit_breaker_defaults`
+  3. built-in defaults
+- Built-in defaults are:
+  - L1: 7% shift, 5 minutes
+  - L2: 13% shift, 15 minutes
+  - L3: 20% shift, rest-of-day
+
+#### FR-RISK-005: Deprecated placement rejection
+
+- `risk_controls.levels.<LEVEL>.circuit_breaker` SHALL be rejected at config load with a clear error directing operators to top-level `circuit_breaker_defaults`.
+
+#### FR-RISK-006: Halt behavior
+
+- On breaker halt, the engine SHALL:
+  1. mark symbol halted,
+  2. cancel all active MM quote entries for that symbol,
+  3. publish `circuit_breaker.halt.{SYMBOL}` with trigger/reference/level data.
+- While halted:
+  - MARKET/FOK/IOC SHALL be rejected.
+  - LIMIT/ICEBERG MAY rest but SHALL NOT match.
+  - `quote.new` SHALL be rejected.
+
+#### FR-RISK-007: Resume behavior
+
+- Timed levels SHALL auto-resume when `halt_duration_ns` elapses.
+- For `resumption_mode = AUCTION`, symbol-level uncross SHALL run before resume publish.
+- For null duration levels (rest-of-day), auto-resume SHALL NOT occur.
+- On session transition to CLOSED, any still-halted symbols SHALL be force-reset to non-halted.
+
+### 18.4 Market-Maker Quotes
+
+#### FR-MMQ-001: Quote submission model
+
+- A quote SHALL be represented by two linked limit orders (bid/ask) with shared `quote_id`.
+- `quote.new` for the same `(gateway_id, symbol)` SHALL replace prior active quote by cancelling prior quote legs.
+
+#### FR-MMQ-002: Access control
+
+- Only gateways with role `MARKET_MAKER` SHALL be allowed to submit quotes.
+
+#### FR-MMQ-003: Validation
+
+- `bid_qty` and `ask_qty` SHALL be positive.
+- `bid_price` SHALL be strictly less than `ask_price`.
+- Symbol allowlist and gateway connectivity/auth rules SHALL apply.
+
+#### FR-MMQ-004: Quote lifecycle publication
+
+- Engine SHALL publish `quote.ack.{GW_ID}` for accept/reject.
+- Engine SHALL publish `quote.status.{GW_ID}` transitions (`ACTIVE`, `CANCELLED`, inactive-on-fill states).
+
+#### FR-MMQ-005: Quote refresh policy
+
+- `quote_refresh_policy` SHALL support:
+  - `INACTIVATE_ON_ANY_FILL`
+  - `INACTIVATE_ON_FULL_FILL`
+  - `NEVER_INACTIVATE`
+- When policy requires inactivation, sibling quote leg SHALL be cancelled and quote removed from active index.
+
+#### FR-MMQ-006: Disconnect behavior
+
+- Participant disconnect handling SHALL support:
+  - `LEAVE_ALL`: no automatic cancellations.
+  - `CANCEL_QUOTES_ONLY`: cancel active quotes only.
+  - `CANCEL_ALL`: cancel active quotes and all resting non-quote orders for participant.
+
+### 18.5 MM Obligation and MMP-Related Policy
+
+#### FR-MMO-001: Enforced quote obligation checks
+
+- When MM obligation enforcement is active for a participant/symbol, quote acceptance SHALL enforce:
+  - maximum spread in ticks,
+  - minimum bid/ask quantity.
+
+#### FR-MMO-002: Configuration fields
+
+- Global defaults: `mm_obligation_defaults` with `enforce_mm_obligation`, `mm_max_spread_ticks`, `mm_min_qty`, and optional per-symbol overrides under `mm_obligation_defaults.symbols`.
+- Gateway defaults: `gateways.fix[].enforce_mm_obligation`, `mm_max_spread_ticks`, `mm_min_qty`.
+- Gateway symbol overrides: `gateways.fix[].mm_obligations.<SYM>` with `enforce_mm_obligation`, `max_spread_ticks`, `min_qty`.
+
+#### FR-MMO-003: Specificity precedence
+
+- Effective MM obligation policy SHALL resolve as:
+  1. gateway+symbol override
+  2. global symbol override
+  3. gateway-level defaults
+  4. global defaults
+
+#### FR-MMO-004: MMP model availability
+
+- Data models SHALL include MMP state primitives (`mmp_fill_count`, `mmp_window_ns`, `max_requote_delay_ns`, activation/reset state), enabling future engine-side MMP trigger workflow.
+
+### 18.6 Kill Switch
+
+#### FR-KILL-001: Kill-switch action
+
+- `risk.kill_switch` SHALL cancel open risk-bearing exposure for the requesting gateway.
+- With symbol specified, scope SHALL be single symbol.
+- Without symbol, scope SHALL be all symbols.
+
+#### FR-KILL-002: Cancel scope
+
+- Kill switch SHALL cancel:
+  - active MM quote entries and their legs,
+  - resting non-quote orders belonging to the gateway.
+
+#### FR-KILL-003: Acknowledgement
+
+- Engine SHALL publish `risk.kill_switch_ack.{GW_ID}` containing:
+  - `accepted`
+  - `reason`
+  - `cancelled_orders`
+  - `cancelled_quotes`
+
+### 18.7 Additional Market Data and Backoffice Streams
+
+#### FR-MD-001: Depth metrics stream
+
+- Engine SHALL compute and publish `depth.{SYMBOL}` metrics alongside throttled book snapshot flushes.
+- Metrics SHALL be anchored to last trade and include:
+  - `mid_price_ticks`
+  - `tolerance_ticks`
+  - `bid_depth`
+  - `ask_depth`
+  - `imbalance`
+  - `cost_to_move`
+- If no last trade exists, no depth payload SHALL be published for the symbol.
+
+#### FR-OPS-001: Drop-copy socket
+
+- Engine SHALL bind a dedicated drop-copy PUB socket (default `tcp://127.0.0.1:5557`).
+- Drop-copy publishes SHALL include sequence and nanosecond timestamp.
+- Engine SHALL maintain a bounded replay buffer (default 10,000 events) and support replay by sequence lower bound.
+
+#### FR-OPS-002: Drop-copy payloads
+
+- For fill drop-copy events, payload SHALL include at least: order identifier, symbol, fill quantity, fill price, remaining quantity, and liquidity flag.
+
+### 18.8 Configuration Additions and Rules
+
+#### FR-CFG-018-001: Symbol config additions
+
+- `tick_decimals` per symbol.
+- `level` per symbol for collar profile selection.
+- `collar` per-symbol overrides.
+- `circuit_breaker` per-symbol ladder overrides.
+- `market_maker_quotes` seed entries.
+
+#### FR-CFG-018-002: Top-level additions
+
+- `risk_controls` (collar levels only)
+- `circuit_breaker_defaults`
+- `mm_obligation_defaults`
+- `sessions_enabled`
+
+#### FR-CFG-018-003: MM gateway validation rule
+
+- If any MARKET_MAKER gateway is configured, each configured symbol SHALL include at least one `market_maker_quotes` entry.
+
+### 18.9 Persistence Additions
+
+#### FR-PER-018-001: Tick/ns persistence model
+
+- Persisted order/trade/book-stat values SHALL preserve integer tick and integer nanosecond semantics in core files and runtime state.
+
+#### FR-PER-018-002: Drop-copy replay buffer
+
+- Drop-copy replay storage is in-memory bounded buffer; it is not durable across engine restarts.
+
+### 18.10 Non-Functional Additions
+
+#### NFR-013: Deterministic arithmetic
+
+- Matching-critical price math SHALL avoid floating-point drift by using integer ticks.
+
+#### NFR-014: Time ordering robustness
+
+- Event ordering SHALL be resilient to wall-clock ties/regressions via strictly monotonic nanosecond clock helper.
+
+#### NFR-015: Segregated operational feed
+
+- Drop-copy SHALL be isolated from market data transport to reduce subscriber coupling and support participant-specific operational monitoring.
+
+### 18.11 Test Addendum
+
+The implementation includes dedicated coverage for these new areas. A conforming reimplementation SHALL include equivalent tests for:
+
+- Circuit-breaker ladder trigger selection, timed and rest-of-day halts, and activation/resume transitions.
+- Halted-symbol behavior for order acceptance/matching suppression and quote rejection.
+- Collar static/dynamic rejection behavior.
+- MM quote workflow: role gating, replace/cancel flow, disconnect behavior, and refresh-policy transitions.
+- MM obligation enforcement toggles and specificity precedence resolution.
+- Kill-switch scoped/global cancellation and acknowledgement counts.
+- Depth metrics payload shape and windowed depth math.
+- Drop-copy publish sequencing and replay semantics.
 
 ---
 

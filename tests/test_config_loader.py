@@ -200,6 +200,22 @@ class TestConfigLoaderHappyPath:
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         assert cfg.sessions_enabled is True
 
+    def test_snapshot_interval_defaults_to_point_five(self, tmp_path: Path) -> None:
+        cfg = load_engine_config(_write_yaml(tmp_path, MINIMAL_YAML))
+        assert cfg.snapshot_interval_sec == pytest.approx(0.5)
+
+    def test_snapshot_interval_custom_value(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          fix:
+            - id: GW01
+        snapshot_interval_sec: 1.25
+        """
+        cfg = load_engine_config(_write_yaml(tmp_path, yaml))
+        assert cfg.snapshot_interval_sec == pytest.approx(1.25)
+
     def test_market_maker_combo(self, tmp_path: Path) -> None:
         yaml = """
         symbols:
@@ -300,6 +316,30 @@ class TestConfigLoaderFileErrors:
         sessions_enabled: "yes"
         """
         with pytest.raises(ValueError, match="sessions_enabled"):
+            load_engine_config(_write_yaml(tmp_path, yaml))
+
+    def test_snapshot_interval_non_numeric_raises(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          fix:
+            - id: GW01
+        snapshot_interval_sec: "fast"
+        """
+        with pytest.raises(ValueError, match="snapshot_interval_sec"):
+            load_engine_config(_write_yaml(tmp_path, yaml))
+
+    def test_snapshot_interval_non_positive_raises(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          fix:
+            - id: GW01
+        snapshot_interval_sec: 0
+        """
+        with pytest.raises(ValueError, match="snapshot_interval_sec"):
             load_engine_config(_write_yaml(tmp_path, yaml))
 
 
