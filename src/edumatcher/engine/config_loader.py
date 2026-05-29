@@ -28,6 +28,7 @@ from edumatcher.models.order import TIF
 @dataclass
 class SymbolConfig:
     name: str
+    tick_decimals: int = 2
     last_buy_price: Optional[float] = None
     last_sell_price: Optional[float] = None
     market_maker_orders: list[str] = field(default_factory=list)
@@ -114,7 +115,15 @@ def load_engine_config(path: Path) -> EngineConfig:
 
         lbp = cfg.get("last_buy_price")
         lsp = cfg.get("last_sell_price")
+        tick_decimals = cfg.get("tick_decimals", 2)
         mm_orders = cfg.get("market_maker_orders") or []
+
+        try:
+            tick_decimals = int(tick_decimals)
+        except (TypeError, ValueError):
+            raise ValueError(f"Symbol '{sym}': tick_decimals must be an integer")
+        if not (0 <= tick_decimals <= 8):
+            raise ValueError(f"Symbol '{sym}': tick_decimals must be in range 0..8")
 
         if lbp is not None:
             try:
@@ -140,6 +149,7 @@ def load_engine_config(path: Path) -> EngineConfig:
 
         symbols[sym] = SymbolConfig(
             name=sym,
+            tick_decimals=tick_decimals,
             last_buy_price=lbp,
             last_sell_price=lsp,
             market_maker_orders=list(mm_orders),

@@ -19,9 +19,11 @@ best-priced, earliest-submitted order first (price-time priority).
 from __future__ import annotations
 
 import heapq
-import time
 from collections import deque
 from typing import Any, Optional
+
+from edumatcher.models.clock import now_ns
+from edumatcher.models.price import from_ticks
 
 from edumatcher.models.order import (
     Order,
@@ -106,19 +108,19 @@ class OrderBook:
         self._trailing_stops: list[Order] = []
 
         # Price-level quantity index: price → total visible resting qty
-        self._bid_qty: dict[float, int] = {}
-        self._ask_qty: dict[float, int] = {}
+        self._bid_qty: dict[int, int] = {}
+        self._ask_qty: dict[int, int] = {}
 
         # order_id → _HeapEntry (for bid/ask) or Order (for stops)
         self._order_index: dict[str, Order] = {}
         self._entry_index: dict[str, _HeapEntry] = {}
 
-        self.last_trade_price: Optional[float] = None
+        self.last_trade_price: Optional[int] = None
         self.last_trade_qty: Optional[int] = None
-        self.last_buy_price: Optional[float] = (
+        self.last_buy_price: Optional[int] = (
             None  # last trade where buyer was aggressor
         )
-        self.last_sell_price: Optional[float] = (
+        self.last_sell_price: Optional[int] = (
             None  # last trade where seller was aggressor
         )
         self.recent_trades: deque[Trade] = deque(maxlen=20)
@@ -128,7 +130,7 @@ class OrderBook:
     # ------------------------------------------------------------------
 
     def process(
-        self, order: Order, *, match: bool = True, now: float | None = None
+        self, order: Order, *, match: bool = True, now: int | None = None
     ) -> tuple[list[Trade], list[Order]]:
         """
         Accept an incoming order and attempt to match it.
@@ -140,7 +142,7 @@ class OrderBook:
             sweep the opposite side.  Used during auction / no-matching phases
             to collect interest.  MARKET and FOK orders are rejected when
             match=False because they cannot rest.
-        now : float | None
+        now : int | None
             PERF #3: Pre-computed timestamp (time.time()) from the engine's
             dispatch loop.  Passed through to Trade.create() and stop/trailing
             stop conversion to avoid redundant time.time() syscalls.  Each
@@ -158,7 +160,7 @@ class OrderBook:
 
         # PERF #3: Compute timestamp once if caller didn't provide one.
         if now is None:
-            now = time.time()
+            now = now_ns()
 
         # --- No-matching mode: queue-only ---
         if not match:
@@ -240,9 +242,9 @@ class OrderBook:
     def amend_order(
         self,
         order_id: str,
-        new_price: Optional[float] = None,
+        new_price: Optional[int] = None,
         new_qty: Optional[int] = None,
-        now: Optional[float] = None,
+        now: Optional[int] = None,
     ) -> tuple[Optional[Order], bool, str]:
         """
         Amend a resting order's price and/or quantity.
@@ -280,7 +282,7 @@ class OrderBook:
             return None, False, f"Cannot amend {order.order_type.value} orders"
 
         if now is None:
-            now = time.time()
+            now = now_ns()
 
         old_price = order.price
         old_qty = order.quantity
@@ -372,7 +374,7 @@ class OrderBook:
         ]
 
     def restore_stats(
-        self, last_buy_price: Optional[float], last_sell_price: Optional[float]
+        self, last_buy_price: Optional[int], last_sell_price: Optional[int]
     ) -> None:
         """Restore persisted side-specific last-trade prices after an engine restart."""
         self.last_buy_price = last_buy_price
@@ -384,8 +386,8 @@ class OrderBook:
         Bids and asks are aggregated by price level.
         Iceberg orders contribute only displayed_qty to the visible size.
         """
-        bids: dict[float, dict[str, Any]] = {}
-        asks: dict[float, dict[str, Any]] = {}
+        bids: dict[int, dict[str, Any]] = {}
+        asks: dict[int, dict[str, Any]] = {}
 
         for entry in self._bids:
             if not entry.valid:
@@ -429,15 +431,57 @@ class OrderBook:
             lvl["qty"] += qty
             lvl["count"] += 1
 
+        bid_rows = []
+        for lvl in bids.values():
+            bid_rows.append(
+                {
+                    "price": from_ticks(lvl["price"], self.symbol),
+                    "qty": lvl["qty"],
+                    "count": lvl["count"],
+                }
+            )
+
+        ask_rows = []
+        for lvl in asks.values():
+            ask_rows.append(
+                {
+                    "price": from_ticks(lvl["price"], self.symbol),
+                    "qty": lvl["qty"],
+                    "count": lvl["count"],
+                }
+            )
+
+        recent_rows: list[dict[str, Any]] = []
+        for t in list(self.recent_trades)[-5:]:
+            recent_rows.append(
+                {
+                    "id": t.id,
+                    "symbol": t.symbol,
+                    "buy_order_id": t.buy_order_id,
+                    "sell_order_id": t.sell_order_id,
+                    "buy_gateway_id": t.buy_gateway_id,
+                    "sell_gateway_id": t.sell_gateway_id,
+                    "price": from_ticks(t.price, self.symbol),
+                    "quantity": t.quantity,
+                    "timestamp": t.timestamp / 1_000_000_000,
+                }
+            )
+
         return {
             "symbol": self.symbol,
-            "bids": sorted(bids.values(), key=lambda x: -x["price"]),
-            "asks": sorted(asks.values(), key=lambda x: x["price"]),
-            "last_price": self.last_trade_price,
+            "bids": sorted(bid_rows, key=lambda x: -x["price"]),
+            "asks": sorted(ask_rows, key=lambda x: x["price"]),
+            "last_price": from_ticks(self.last_trade_price, self.symbol)
+            if self.last_trade_price is not None
+            else None,
             "last_qty": self.last_trade_qty,
-            "last_buy_price": self.last_buy_price,
-            "last_sell_price": self.last_sell_price,
-            "recent_trades": [t.to_dict() for t in list(self.recent_trades)[-5:]],
+            "last_buy_price": from_ticks(self.last_buy_price, self.symbol)
+            if self.last_buy_price is not None
+            else None,
+            "last_sell_price": from_ticks(self.last_sell_price, self.symbol)
+            if self.last_sell_price is not None
+            else None,
+            "recent_trades": recent_rows,
         }
 
     # ------------------------------------------------------------------
@@ -581,10 +625,10 @@ class OrderBook:
         self,
         aggressor: Order,
         opposite_heap: list[_HeapEntry],
-        price_limit: Optional[float],
+        price_limit: Optional[int],
         trades: list[Trade],
         events: list[Order],
-        now: float,
+        now: int,
     ) -> None:
         """Generic price-time sweep for MARKET / LIMIT / FOK."""
         # PERF improvement #8: Cache immutable aggressor attributes as locals.
@@ -689,7 +733,7 @@ class OrderBook:
     def _available_qty(
         self,
         heap: list[_HeapEntry],
-        price_limit: Optional[float],
+        price_limit: Optional[int],
         side: Side,
     ) -> int:
         """
@@ -713,10 +757,10 @@ class OrderBook:
         aggressor: Order,
         passive: Order,
         fill_qty: int,
-        fill_price: float,
+        fill_price: int,
         trades: list[Trade],
         events: list[Order],
-        now: float,
+        now: int,
     ) -> None:
         """Record fill, update quantities/statuses, build Trade object."""
         # Determine buy/sell sides

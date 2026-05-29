@@ -152,3 +152,9 @@ of all trades for the day.
 - P&L is **informational only** — no margin checks or risk limits are applied.
 - Both sides of every trade (buyer and seller) have their ledgers updated independently.
 - The `last_price` used for unrealized P&L is the most recent trade price for that symbol.
+
+## Tick/Ns Migration Note
+
+Core engine trade prices are represented internally in ticks and timestamps in
+nanoseconds. Clearing/reporting views convert those values to decimal prices and
+human-readable timestamps at output boundaries.

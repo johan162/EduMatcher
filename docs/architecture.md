@@ -1249,3 +1249,14 @@ All of these improvements are **pure Python** — no C extensions, no multi-thre
 no unsafe hacks.  The key insight is that in a tight loop, small costs (100 ns here,
 200 ns there) compound rapidly.  At 160,000 orders/second, each order has a budget
 of only **6.25 µs** — every nanosecond matters.
+
+## Tick And Time Representation (v2)
+
+- Internal prices are stored as integer ticks in core engine/model logic.
+- Internal timestamps are stored as integer nanoseconds (`time_ns`).
+- Conversion happens at boundaries only:
+    - Inbound user/config prices (decimal) -> ticks.
+    - Outbound UI/messages/reporting values -> decimal prices.
+    - Outbound display timestamps use seconds derived from ns (`ns / 1e9`).
+- Matching, queue priority, auction price selection, and stop logic all operate
+    on integer values to avoid float drift.

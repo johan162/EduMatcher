@@ -43,6 +43,7 @@ gateways:
 
 symbols:
   MSFT:
+    tick_decimals: 2
     last_buy_price:  415.00
     last_sell_price: 415.50
     market_maker_orders:
@@ -52,6 +53,7 @@ symbols:
       - "NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=500|PRICE=417.00|TIF=GTC"
 
   AAPL:
+    tick_decimals: 2
     last_buy_price:  209.50
     last_sell_price: 210.50
     market_maker_orders:
@@ -59,6 +61,7 @@ symbols:
       - "NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=2000|PRICE=211.00|TIF=GTC"
 
   TSLA:
+    tick_decimals: 2
     last_buy_price:  248.00
     last_sell_price: 249.00
     market_maker_orders:

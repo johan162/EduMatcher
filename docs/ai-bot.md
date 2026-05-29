@@ -214,3 +214,10 @@ poetry run pm-ai-swarm \
 2. Ensure all bot IDs are listed under `gateways.fix` in `engine_config.yaml`.
 3. Start small (2–5 bots), verify flow, then scale to 30.
 4. Use fixed seeds for scenario replay and performance comparisons.
+
+## Tick/Ns Migration Notes
+
+- Bots still choose human-readable decimal prices based on profile settings.
+- Engine boundary conversion maps those prices to symbol tick units.
+- To avoid off-grid prices, keep profile `tick_size` aligned with symbol
+  `tick_decimals` configuration.

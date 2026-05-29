@@ -217,3 +217,15 @@ system.  To reset, delete them manually between sessions.
 
 All files reside in the `data/` directory relative to the project root.
 The directory is created automatically if it does not exist.
+
+## Tick/Ns Schema Note
+
+In the migrated v2 implementation:
+
+- Persisted engine order/combo state stores internal tick/ns values.
+- `book_stats.json` stores side-specific last prices in tick units.
+- User-facing displays continue to show decimal prices by converting at read/
+  publish boundaries.
+
+When switching from legacy float state to v2 with no backward compatibility,
+delete legacy persistence files before first startup.

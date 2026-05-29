@@ -1,4 +1,8 @@
-# EduMatcher — Quotes Implementation Plan
+# EduMatcher — Quotes Implementation Plan v5
+
+> **v5 note:** This version keeps the detailed implementation guidance from v1
+> and applies compatibility corrections for the current codebase, including the
+> dedicated MM obligation module (Phase 7) and expanded test coverage.
 
 > **No backward compatibility.** Delete persisted data files before starting:
 > ```bash
@@ -6,10 +10,10 @@
 > ```
 >
 > **Tick migration assumed complete.** Integer ticks for all prices, integer
-> nanoseconds for all timestamps. See `EduMatcher_Tick_Migration_Plan_v6.md`.
+> nanoseconds internally. See `design/EduMatcher Tick Migration Plan v2.md`.
 >
-> **Clock:** Use `monotonic_ns()` from `models/clock.py` everywhere a timestamp
-> is needed — never call `time.time_ns()` directly. `monotonic_ns()` wraps it
+> **Clock:** Use `now_ns()` from `models/clock.py` everywhere a timestamp
+> is needed — never call `time.time_ns()` directly. `now_ns()` wraps it
 > with a strictly-increasing guarantee even when the system clock steps backward.
 
 ---
@@ -38,14 +42,14 @@ ask is the lowest price any seller is currently offering.
 - **Spread** — the difference between the best ask and the best bid. A spread of
 $0.05 means you can immediately buy at $150.05 or immediately sell at $150.00.
 Market makers earn the spread when a buyer hits their ask and a seller hits their
-bid. Market maker obligations (Phase 11) enforce that the spread stays tight.
+bid. Market maker obligations (Phase 7) enforce that the spread stays tight.
 
 - **Adverse selection / informed flow** — market makers are exposed to being filled
 by traders who have better information about where prices are going. A market maker
 who posts a bid at $150 may be hit by someone who knows the price is about to fall
 to $140 — the market maker just bought shares that are about to lose value. This
 is "adverse selection." "Informed flow" refers to orders from participants with an
-informational advantage. MMP (Market Maker Protection, Phase 11) defends against
+informational advantage. MMP (Market Maker Protection, Phase 7) defends against
 this by pulling quotes when fills arrive suspiciously fast.
 
 - **Depth** — the quantity of resting orders at each price level. "Deep" books have
@@ -182,7 +186,7 @@ one thing runs at a time. **Never introduce threads or async into the engine.**
 **Performance rules — maintain throughout:**
 - `__slots__` on every new dataclass instantiated at high frequency
 - Pre-built enum lookup dicts for all `from_dict()` methods
-- `monotonic_ns()` from `models/clock.py` everywhere — never call `time.time_ns()` or `time.time()` directly
+- `now_ns()` from `models/clock.py` everywhere — never call `time.time_ns()` or `time.time()` directly
 - Integer ticks for all prices — convert to float only at ZMQ publish boundaries
 - Inline `_dumps({...})` on hot paths rather than calling helper functions
 
@@ -292,7 +296,7 @@ def create(
         price=price,
         quantity=quantity,
         aggressor_side=aggressor_side,   # ← pass through
-        timestamp=now if now is not None else monotonic_ns(),  # from models/clock.py
+        timestamp=now if now is not None else now_ns(),  # from models/clock.py
     )
 ```
 
@@ -474,6 +478,7 @@ def _handle_gateway_connect(self, payload: dict[str, Any]) -> None:
 
 ```python
 from edumatcher.models.participant import ParticipantRole, DisconnectBehaviour
+from edumatcher.models.quote import QuoteRefreshPolicy
 
 @dataclass
 class FixGatewayConfig:
@@ -481,6 +486,7 @@ class FixGatewayConfig:
     description:          str                 = ""
     role:                 ParticipantRole     = ParticipantRole.TRADER
     disconnect_behaviour: DisconnectBehaviour = DisconnectBehaviour.CANCEL_QUOTES_ONLY
+    quote_refresh_policy: QuoteRefreshPolicy  = QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL
 ```
 
 In the `load_engine_config()` function, in the gateway-parsing loop, parse the new
@@ -489,26 +495,31 @@ fields. The `.upper()` call makes the YAML values case-insensitive:
 ```python
 role_str = gw_data.get("role", "TRADER").upper()
 disc_str = gw_data.get("disconnect_behaviour", "CANCEL_QUOTES_ONLY").upper()
+refresh_str = gw_data.get("quote_refresh_policy", "INACTIVATE_ON_ANY_FILL").upper()
 cfg = FixGatewayConfig(
     id=gw_id,
     description=gw_data.get("description", ""),
     role=ParticipantRole(role_str),
     disconnect_behaviour=DisconnectBehaviour(disc_str),
+    quote_refresh_policy=QuoteRefreshPolicy(refresh_str),
 )
 ```
 
 ### 2.4 Update `engine_config.yaml`
 
 ```yaml
-fix_gateways:
-  GW01:
-    description: "Trader terminal 1"
-    role: TRADER
-    disconnect_behaviour: CANCEL_ALL
-  MM01:
-    description: "Market maker 1"
-    role: MARKET_MAKER
-    disconnect_behaviour: CANCEL_QUOTES_ONLY
+gateways:
+  fix:
+    - id: GW01
+      description: "Trader terminal 1"
+      role: TRADER
+      disconnect_behaviour: CANCEL_ALL
+      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+    - id: MM01
+      description: "Market maker 1"
+      role: MARKET_MAKER
+      disconnect_behaviour: CANCEL_QUOTES_ONLY
+      quote_refresh_policy: INACTIVATE_ON_FULL_FILL
 ```
 
 ---
@@ -556,9 +567,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
-# monotonic_ns() provides a strictly-increasing nanosecond timestamp
+# now_ns() provides a strictly-increasing nanosecond timestamp
 # even when the system clock steps backward. See models/clock.py.
-from edumatcher.models.clock import monotonic_ns
+from edumatcher.models.clock import now_ns
 
 
 class QuoteState(str, Enum):
@@ -607,7 +618,7 @@ class QuoteEntry:
     bid_order_id: str    # the order ID of the BUY leg in the OrderBook
     ask_order_id: str    # the order ID of the SELL leg in the OrderBook
     state:        QuoteState = QuoteState.ACTIVE
-    timestamp:    int = field(default_factory=monotonic_ns)  # int nanoseconds; monotonic_ns from models/clock.py
+    timestamp:    int = field(default_factory=now_ns)  # int nanoseconds; now_ns from models/clock.py
 
     def counterpart_order_id(self, filled_side: str) -> str:
         """
@@ -824,8 +835,10 @@ QUOTE|CANCEL               ← cancel ALL quotes for this gateway
 
 ```python
 elif cmd == "QUOTE":
+    kv = self._kv(parts[1:])
     symbol = kv.get("SYM", "").upper()
-    cancel = "CANCEL" in kv  # True if CANCEL appears anywhere in the key-value pairs
+    # IMPORTANT: bare "CANCEL" has no "=" so it is not present in kv.
+    cancel = any(p.upper() == "CANCEL" for p in parts[1:])
 
     if cancel:
         # symbol may be empty string if no SYM= was given — treat as None (mass cancel)
@@ -841,18 +854,18 @@ elif cmd == "QUOTE":
         bid_qty   = int(kv["BIDQTY"])
         ask_qty   = int(kv["ASKQTY"])
     except (KeyError, ValueError) as e:
-        self._print_error(f"QUOTE parse error: {e}")
+        console.print(f"[red]QUOTE parse error: {e}[/red]")
         return
 
     # Basic sanity checks — caught early before sending to the engine
     if bid_price >= ask_price:
-        self._print_error("QUOTE rejected locally: bid price must be strictly less than ask price")
+        console.print("[red]QUOTE rejected locally: bid price must be strictly less than ask price[/red]")
         return
     if bid_qty <= 0 or ask_qty <= 0:
-        self._print_error("QUOTE rejected locally: quantities must be positive integers")
+        console.print("[red]QUOTE rejected locally: quantities must be positive integers[/red]")
         return
     if not symbol:
-        self._print_error("QUOTE rejected locally: SYM= is required")
+        console.print("[red]QUOTE rejected locally: SYM= is required[/red]")
         return
 
     import uuid   # move this import to the top of gateway/main.py if not already there
@@ -964,15 +977,19 @@ down, `send_multipart()` could block indefinitely. `NOBLOCK` makes it raise a
 
 This is the largest phase. Read every section before writing any code.
 
-> **Dependency warning for phases implemented in order:**
-> Phase 6's code references items from later phases. Use these stubs when
-> implementing Phase 6, then replace them once the later phase is complete:
+> **Dependency warning for phased implementation:**
+> Phase 6 references optional controls that may be implemented in separate,
+> later workstreams. Use these stubs when implementing Phase 6 so tests stay
+> runnable before those optional controls exist:
 >
-> - `self._halted_symbols` (Phase 7) — add `self._halted_symbols: dict[str, bool] = {}`
+> - `self._halted_symbols` (optional halt control) — add `self._halted_symbols: dict[str, bool] = {}`
 >   to `__init__` now so Guard 5 in `_handle_quote_new()` works.
-> - `validate_collar()` (Phase 9) — Guard the call: `if hasattr(self, '_collars') and self._collars.get(symbol):` until Phase 9 is done.
-> - `self._mm_obligations` (Phase 11) — add `self._mm_obligations: dict = {}` to `__init__` now.
-> - `self._drop_copy` (Phase 13) — guard the call: `if hasattr(self, '_drop_copy'): self._drop_copy.publish(...)` until Phase 13 is done.
+> - `validate_collar()` (optional collar control) — Guard the call:
+>   `if hasattr(self, '_collars') and self._collars.get(symbol):`.
+> - `self._mm_obligations` (Phase 7 in this document) — add
+>   `self._mm_obligations: dict = {}` to `__init__`.
+> - `self._drop_copy` (optional drop-copy stream) — guard the call:
+>   `if hasattr(self, '_drop_copy'): self._drop_copy.publish(...)`.
 >
 > These guards let you run the test suite after each phase without AttributeErrors.
 
@@ -1110,8 +1127,8 @@ def _publish_trades(self, trades: list["Trade"]) -> None:
     immediately after it is produced, before the next message is processed.
     """
     from edumatcher.models.price import from_ticks
-    from edumatcher.models.clock import monotonic_ns
-    now = monotonic_ns()
+    from edumatcher.models.clock import now_ns
+    now = now_ns()
     for trade in trades:
         self.pub_sock.send_multipart([
             _TRADE_TOPIC,
@@ -1232,7 +1249,7 @@ def _handle_quote_new(self, payload: dict[str, Any]) -> None:
     bid_price = to_ticks(float(raw_bid), symbol)
     ask_price = to_ticks(float(raw_ask), symbol)
 
-    # MMP spread check (Phase 11) — obligation may require a maximum spread
+    # MMP spread check (Phase 7) — obligation may require a maximum spread
     obligation = self._mm_obligations.get((gateway_id, symbol))
     if obligation:
         spread = ask_price - bid_price
@@ -1256,8 +1273,8 @@ def _handle_quote_new(self, payload: dict[str, Any]) -> None:
                 return _reject(f"{label} price: {result.reason}")
 
     # All validation passed — now build the orders
-    from edumatcher.models.clock import monotonic_ns
-    now  = monotonic_ns()
+    from edumatcher.models.clock import now_ns
+    now  = now_ns()
     book = self._book(symbol)
 
     # --- Atomically replace an existing quote ---
@@ -1469,10 +1486,10 @@ def _on_quote_leg_filled(self, order: Order, book: "OrderBook") -> None:
     # MM. If fills arrive too fast (more than mmp_fill_count in mmp_window_ns),
     # MMP triggers and pulls all quotes to protect the MM from further informed flow.
     #
-    # Capture now once — we call monotonic_ns() once and use it for both
+    # Capture now once — we call now_ns() once and use it for both
     # record_fill() and activate_mmp() to ensure consistent timestamps.
-    from edumatcher.models.clock import monotonic_ns
-    mmp_now = monotonic_ns()
+    from edumatcher.models.clock import now_ns
+    mmp_now = now_ns()
     key = (gateway_id, symbol)
     obligation = self._mm_obligations.get(key)
     if obligation:
@@ -1523,7 +1540,7 @@ def _handle_gateway_disconnect(self, payload: dict[str, Any]) -> None:
                     book.cancel_order(order.id)
                     self._order_symbol.pop(order.id, None)
                     self.pub_sock.send_multipart(
-                        make_order_cancelled_msg(gateway_id, order.id)
+                        make_cancelled_msg(gateway_id, order.id)
                     )
             self._mark_dirty(symbol)
 ```
@@ -1535,7 +1552,7 @@ before any existing transition logic:
 
 ```python
 def _handle_session_transition(self, payload: dict[str, Any]) -> None:
-    new_state = SessionState(payload.get("state", ""))
+    new_state = SessionState(payload.get("to_state", ""))
 
     # Quotes are only valid during CONTINUOUS trading.
     # Cancel all quotes before transitioning into any auction state.
@@ -1578,3 +1595,279 @@ elif topic == "risk.kill_switch":
     self._handle_kill_switch(payload)
 ```
 
+### 6.9 Add `_handle_kill_switch()`
+
+v1 referenced kill-switch messaging and run-loop routing but did not define the
+handler. Add it now so the plan is executable end-to-end.
+
+```python
+def _handle_kill_switch(self, payload: dict[str, Any]) -> None:
+    gateway_id = str(payload.get("gateway_id", "")).upper()
+    if not gateway_id:
+        return
+
+    # Count and cancel quote entries first.
+    quote_entries = self._quote_index.cancel_all_for_gateway(gateway_id)
+    cancelled_quotes = len(quote_entries)
+    for entry in quote_entries:
+        book = self.books.get(entry.symbol)
+        if not book:
+            continue
+        for oid in (entry.bid_order_id, entry.ask_order_id):
+            book.cancel_order(oid)
+            self._order_symbol.pop(oid, None)
+        self.pub_sock.send_multipart(make_quote_status_msg(
+            gateway_id=gateway_id,
+            quote_id=entry.quote_id,
+            symbol=entry.symbol,
+            status=QuoteState.CANCELLED.value,
+            bid_remaining=0,
+            ask_remaining=0,
+        ))
+        self._mark_dirty(entry.symbol)
+
+    # Cancel all remaining regular resting orders for the gateway.
+    cancelled_orders = 0
+    for symbol, book in self.books.items():
+        for order in list(book.resting_orders()):
+            if order.gateway_id != gateway_id:
+                continue
+            book.cancel_order(order.id)
+            self._order_symbol.pop(order.id, None)
+            self.pub_sock.send_multipart(make_cancelled_msg(gateway_id, order.id))
+            cancelled_orders += 1
+            self._mark_dirty(symbol)
+
+    self.pub_sock.send_multipart(
+        make_kill_switch_ack_msg(
+            gateway_id,
+            cancelled_orders=cancelled_orders,
+            cancelled_quotes=cancelled_quotes,
+        )
+    )
+```
+
+---
+
+## Phase 7 — Market Maker Obligations and MMP
+
+**New file:** `models/mm_obligation.py`
+
+```python
+"""
+models/mm_obligation.py — Market maker obligations and MMP state.
+
+MarketMakerObligation defines what a market maker must do to fulfil their
+designated status: maintain tight spreads, minimum quote sizes, and sufficient
+time-in-market presence.
+
+MMPState implements Market Maker Protection: when a MM's quotes are being
+consumed too rapidly (more than mmp_fill_count times in mmp_window_ns), the
+exchange automatically cancels all their quotes to protect them from being
+adversely selected by informed flow. The MM must then re-quote.
+
+All time values are int nanoseconds. Spread is measured in int ticks.
+"""
+from __future__ import annotations
+from collections import deque
+from dataclasses import dataclass, field
+from typing import Optional
+
+
+@dataclass
+class MarketMakerObligation:
+    """
+    Quoting obligations for one (gateway_id, symbol) pair.
+    Loaded from engine_config.yaml in this plan's config extension step.
+
+    These fields define what a market maker must do to maintain their designated
+    status. Exchanges typically enforce obligations to ensure continuous liquidity.
+    """
+    gateway_id:           str
+    symbol:               str
+    max_spread_ticks:     int   = 10            # maximum allowed bid-ask spread in ticks
+    min_qty:              int   = 100           # minimum size on each side of the quote
+    min_presence_pct:     float = 0.85          # must be quoting ≥85% of session time
+                                                # NOTE: min_presence_pct is declared here
+                                                # but NOT yet tracked or enforced in this
+                                                # implementation. It is a placeholder for
+                                                # a future feature that would monitor how
+                                                # long the MM's quotes are live and penalise
+                                                # them if they are absent too long.
+    max_requote_delay_ns: int   = 500_000_000   # 500ms to re-quote after inactivation
+    mmp_fill_count:       int   = 5             # trigger MMP after N fills in window
+    mmp_window_ns:        int   = 1_000_000_000 # 1-second rolling window
+
+
+@dataclass
+class MMPState:
+    """
+    Runtime MMP tracking for one (gateway_id, symbol) pair.
+    Not persisted — reset to default on engine restart.
+    """
+    gateway_id:       str
+    symbol:           str
+    fill_times:       deque = field(default_factory=deque)  # int nanosecond timestamps
+    mmp_active:       bool  = False
+    mmp_triggered_at: Optional[int] = None   # nanoseconds
+    requote_deadline: Optional[int] = None   # nanoseconds
+
+    def record_fill(self, obligation: MarketMakerObligation, now: int) -> bool:
+        """
+        Record a fill timestamp and check if MMP should trigger.
+
+        Returns True if the fill count in the rolling window has reached
+        or exceeded the threshold. The caller should then call activate_mmp().
+        """
+        # Remove fills older than the window
+        cutoff = now - obligation.mmp_window_ns
+        while self.fill_times and self.fill_times[0] < cutoff:
+            self.fill_times.popleft()
+        self.fill_times.append(now)
+        return len(self.fill_times) >= obligation.mmp_fill_count
+
+    def activate_mmp(self, obligation: MarketMakerObligation, now: int) -> None:
+        """Call after record_fill() returns True to activate MMP."""
+        self.mmp_active       = True
+        self.mmp_triggered_at = now
+        self.requote_deadline = now + obligation.max_requote_delay_ns
+        self.fill_times.clear()   # reset the counter for next MMP window
+
+    def reset_mmp(self) -> None:
+        """Call when the MM submits a fresh quote, clearing MMP state."""
+        self.mmp_active       = False
+        self.mmp_triggered_at = None
+        self.requote_deadline = None
+```
+
+**Integrate into the engine** — in `__init__`:
+```python
+from edumatcher.models.mm_obligation import MarketMakerObligation, MMPState
+self._mm_obligations: dict[tuple[str, str], MarketMakerObligation] = {}
+self._mmp_state:      dict[tuple[str, str], MMPState]              = {}
+```
+
+The MMP check is already wired into `_on_quote_leg_filled()` (Phase 6). The spread
+and min_qty checks are in `_handle_quote_new()` (Phase 6).
+
+---
+
+## Phase 8 — Tests (required for this plan to be safe)
+
+**Files:** `tests/test_messages.py`, `tests/test_config_loader.py`,
+`tests/test_engine_handlers.py`, `tests/test_engine_handlers2.py`,
+`tests/test_gateway_and_scheduler.py`, plus one new focused unit test file:
+`tests/test_quote_models.py`, and one new MM obligation unit test file:
+`tests/test_mm_obligation.py`.
+
+### 8.1 Message helper tests (`tests/test_messages.py`)
+
+Add round-trip tests for:
+- `make_quote_new_msg`
+- `make_quote_cancel_msg` (single symbol and mass-cancel form)
+- `make_quote_ack_msg`
+- `make_quote_fill_msg`
+- `make_quote_status_msg`
+- `make_gateway_disconnect_msg`
+- `make_kill_switch_msg`
+- `make_kill_switch_ack_msg`
+
+Assert topic strings and key payload fields exactly.
+
+### 8.2 Config loader tests (`tests/test_config_loader.py`)
+
+Add tests that parse gateway-level fields in existing schema (`gateways.fix` list):
+- `role`
+- `disconnect_behaviour`
+- `quote_refresh_policy`
+
+Add both positive and negative cases:
+- valid uppercase values
+- valid lowercase values with `.upper()` normalization
+- invalid enum value raises `ValueError`
+
+Also add coverage for MM obligation config loading (if loaded in this phase):
+- obligation parsed into `_mm_obligations[(gateway_id, symbol)]`
+- invalid numeric bounds (negative spread/qty/window/count) rejected
+- unknown symbols/gateways rejected during config validation
+
+### 8.3 Model tests (`tests/test_quote_models.py`)
+
+Add new tests for:
+- `Order` round-trip includes `origin` and `quote_id`
+- `Trade` round-trip includes `aggressor_side`
+- `QuoteIndex.put/get/remove` behavior
+- `QuoteIndex.cancel_all_for_gateway` and `cancel_all_for_symbol`
+- `QuoteEntry.counterpart_order_id("BUY"/"SELL")`
+
+### 8.4 Engine handler tests (quotes core)
+
+Extend engine handler tests to cover:
+
+1. `_handle_quote_new` rejections:
+   - unknown gateway
+   - disconnected gateway
+   - non-MARKET_MAKER role
+   - non-CONTINUOUS when sessions enabled
+   - invalid symbol
+   - crossed quote (`bid >= ask`)
+   - non-positive quantities
+2. `_handle_quote_new` accept:
+   - creates two orders with `origin=QUOTE`
+   - registers both in `_order_symbol`
+   - creates index entry in `_quote_index`
+   - publishes `quote.ack.{GW}` accepted
+3. replace behavior:
+   - second quote for same `(gateway_id, symbol)` cancels old two legs first
+4. `_handle_quote_cancel`:
+   - symbol-scoped cancel
+   - mass cancel for one gateway
+5. `_on_quote_leg_filled`:
+   - `INACTIVATE_ON_ANY_FILL` pulls counterpart on partial fill
+   - `INACTIVATE_ON_FULL_FILL` waits until fully filled
+   - `NEVER_INACTIVATE` leaves counterpart live
+6. `_handle_gateway_disconnect`:
+   - `CANCEL_QUOTES_ONLY`
+   - `CANCEL_ALL`
+   - `LEAVE_ALL`
+7. `_handle_session_transition` auction entry:
+   - quote mass-cancel occurs when transitioning into opening/closing auction
+8. `_handle_kill_switch`:
+   - cancels quotes + regular orders
+   - publishes kill-switch ack counts
+9. MM obligation checks in `_handle_quote_new`:
+   - reject when spread exceeds `max_spread_ticks`
+   - reject when either side qty < `min_qty`
+10. MMP trigger in `_on_quote_leg_filled`:
+   - `record_fill()` crossing threshold activates MMP
+   - MMP path calls quote-cancel and clears active quote index entry
+11. MMP reset on fresh quote:
+   - new accepted quote clears prior `mmp_active` state for `(gateway_id, symbol)`
+
+### 8.5 MM obligation model tests (`tests/test_mm_obligation.py`)
+
+Add focused tests for `MMPState` window logic and reset behavior:
+- `record_fill()` prunes old timestamps outside window
+- threshold crossing returns `True` exactly at configured count
+- `activate_mmp()` sets active flag and requote deadline, then clears fill deque
+- `reset_mmp()` clears active state and deadlines
+- boundary case: fill exactly at cutoff timestamp is retained
+
+### 8.6 Gateway tests (`tests/test_gateway_and_scheduler.py`)
+
+Add parser and subscriber coverage:
+- parse and send `QUOTE|...` new
+- parse and send `QUOTE|SYM=...|CANCEL`
+- parse and send `QUOTE|CANCEL` (mass cancel)
+- local validation failures do not send
+- display handlers for `quote.ack`, `quote.fill`, `quote.status`
+- display handler for `risk.kill_switch_ack`
+- clean shutdown sends `system.gateway_disconnect` before close
+
+### 8.7 Regression guard: existing behavior must still pass
+
+Run the existing canonical suite after implementing quote changes:
+
+```bash
+poetry run pytest tests/ -n auto --cov=src/edumatcher --cov-report=term-missing --cov-report=html --cov-report=xml --cov-fail-under=85
+```

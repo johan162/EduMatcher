@@ -431,3 +431,31 @@ Edit `engine_config.yaml` and restart the engine.
 - removing a symbol causes future orders for it to be rejected
 - persisted GTC orders for removed symbols are skipped during restore
 - startup combo seeds referencing removed symbols will make config loading fail
+
+## Tick Precision
+
+Each symbol can define `tick_decimals` in `engine_config.yaml`.
+
+- `tick_decimals: 2` means one tick is `0.01`.
+- `tick_decimals: 4` means one tick is `0.0001`.
+
+Example:
+
+```yaml
+symbols:
+  AAPL:
+    tick_decimals: 2
+    last_buy_price: 209.50
+    last_sell_price: 210.50
+```
+
+Inbound config price values are converted to integer ticks during config load.
+
+## Migration Cutover Note
+
+For the tick/ns migration with no backward compatibility, remove persisted files
+before the first migrated startup:
+
+```bash
+rm -f data/gtc_orders.json data/book_stats.json data/gtc_combos.json
+```

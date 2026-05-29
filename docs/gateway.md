@@ -463,3 +463,11 @@ Press **↑** / **↓** arrow keys to navigate through previously entered comman
 A background thread listens on the SUB socket and prints events (fills, cancels,
 combo status changes, session transitions) in real-time, interleaved cleanly with
 the command prompt. You can continue typing while events arrive.
+
+## Tick/Ns Migration Notes
+
+- Gateway commands remain decimal-friendly (`PRICE=150.25`, `STOP=149.50`).
+- Engine boundary logic converts these values to ticks before matching.
+- Returned prices remain readable decimals.
+- Timestamp displays in gateway views are seconds-based renderings derived from
+  internal nanosecond timestamps.

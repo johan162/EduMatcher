@@ -121,7 +121,7 @@ class TestParseFIXOrder:
         assert order is not None
         assert order.symbol == "AAPL"
         assert order.side == Side.BUY
-        assert order.price == 50.0
+        assert order.price == 5000
         assert order.tif == TIF.GTC
 
     def test_missing_new_prefix_returns_none(self) -> None:
@@ -140,7 +140,8 @@ class TestParseFIXOrder:
         line = "NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP_LIMIT|QTY=50|PRICE=95.0|STOP=100.0"
         order = Engine._parse_fix_order(line, "MM")
         assert order is not None
-        assert order.stop_price == 100.0
+        assert order.stop_price == 10000
+        assert order.price == 9500
 
 
 # ---------------------------------------------------------------------------

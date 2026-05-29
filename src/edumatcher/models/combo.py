@@ -8,11 +8,12 @@ The parent combo tracks whether all legs have filled.
 
 from __future__ import annotations
 
-import time
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
+
+from edumatcher.models.clock import now_ns
 
 from edumatcher.models.order import (
     OrderStatus,
@@ -48,8 +49,8 @@ class ComboLeg:
     side: Side
     order_type: OrderType
     quantity: int
-    price: Optional[float] = None
-    stop_price: Optional[float] = None
+    price: Optional[int] = None
+    stop_price: Optional[int] = None
     smp_action: SmpAction = SmpAction.NONE
 
     def to_dict(self) -> dict[str, Any]:
@@ -91,7 +92,7 @@ class ComboOrder:
     combo_type: ComboType
     tif: TIF
     legs: list[ComboLeg]
-    timestamp: float
+    timestamp: int
     status: ComboStatus = ComboStatus.PENDING
 
     # Populated by the engine after child orders are created
@@ -132,7 +133,7 @@ class ComboOrder:
             combo_type=combo_type,
             tif=tif,
             legs=legs,
-            timestamp=time.time(),
+            timestamp=now_ns(),
         )
 
     # ------------------------------------------------------------------

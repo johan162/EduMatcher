@@ -953,9 +953,7 @@ class TestIcebergReplenishment:
         # Place a regular limit at same price BEFORE the replenishment timestamp
         # To guarantee ordering, manually backdate it to just before iceberg's new ts
         regular = _limit(Side.BUY, 100.0, qty=50, gateway_id="REG")
-        regular.timestamp = (
-            iceberg.timestamp - 0.001
-        )  # earlier than replenished iceberg
+        regular.timestamp = iceberg.timestamp - 1  # 1ns earlier than replenished iceberg
         book.process(regular)
 
         # Next sell should fill the regular order (earlier timestamp than replenished iceberg)

@@ -531,11 +531,11 @@ class TestTrailingStopEngine:
         ]
         assert any(p["accepted"] for p in ack_payloads)
 
-        # The internal order in the engine should have stop_price = 97.0
+        # Internal engine state is tick-based (2 decimals), so stop is 9700 ticks.
         book = engine._book("AAPL")
         internal = book._order_index.get(ts.id)
         assert internal is not None, "trailing stop should be registered in the book"
-        assert internal.stop_price == 97.0
+        assert internal.stop_price == 9700
 
     def test_engine_rejects_trailing_stop_with_no_last_price(self, eng):
         """Engine rejects trailing stop if no last trade and no STOP= provided."""

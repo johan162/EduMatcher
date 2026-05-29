@@ -142,6 +142,8 @@ class ClearingProcess:
             )
 
     def _record_trade(self, trade: Trade) -> None:
+        ts_raw = trade.timestamp
+        ts_sec = ts_raw / 1_000_000_000 if ts_raw > 1_000_000_000_000 else ts_raw
         self._csv_writer.writerow(
             [
                 trade.id,
@@ -152,7 +154,7 @@ class ClearingProcess:
                 trade.sell_gateway_id,
                 trade.price,
                 trade.quantity,
-                datetime.fromtimestamp(trade.timestamp, timezone.utc).isoformat(),
+                datetime.fromtimestamp(ts_sec, timezone.utc).isoformat(),
             ]
         )
         self._csv_file.flush()
@@ -219,7 +221,13 @@ class ClearingProcess:
                 self._record_trade(trade)
                 self._update_ledger(trade)
                 self._trade_count += 1
-                ts = datetime.fromtimestamp(trade.timestamp, timezone.utc).strftime(
+                ts_raw = trade.timestamp
+                ts_sec = (
+                    ts_raw / 1_000_000_000
+                    if ts_raw > 1_000_000_000_000
+                    else ts_raw
+                )
+                ts = datetime.fromtimestamp(ts_sec, timezone.utc).strftime(
                     "%H:%M:%S"
                 )
                 console.print(

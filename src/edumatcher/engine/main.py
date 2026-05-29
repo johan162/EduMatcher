@@ -51,6 +51,7 @@ from edumatcher.engine.persistence import (
 )
 from edumatcher.messaging.bus import make_puller, make_publisher
 from edumatcher.models.combo import ComboOrder, ComboStatus
+from edumatcher.models.clock import now_ns
 from edumatcher.models.message import (
     _dumps,
     decode,
@@ -80,6 +81,8 @@ from edumatcher.models.order import (
     SmpAction,
     TIF,
 )
+from edumatcher.models.price import from_ticks, to_ticks
+from edumatcher.models.price import register_tick_decimals
 
 # PERF B: Module-level pre-encoded topic constant for trade messages.
 # Avoids re-encoding the same static string on every trade publication.
@@ -251,13 +254,36 @@ class Engine:
         """Pre-create books, seed stats, inject MM orders from engine config."""
         if not self._engine_config:
             return
+
+        for sym, sym_cfg in self._engine_config.symbols.items():
+            register_tick_decimals(sym, sym_cfg.tick_decimals)
+
         # Restore persisted stats first so config seeds only fill gaps
         stats = load_book_stats(BOOK_STATS_FILE)
         for sym, sym_cfg in self._engine_config.symbols.items():
             book = self._book(sym)
             persisted = stats.get(sym, {})
-            lbp = persisted.get("last_buy_price") or sym_cfg.last_buy_price
-            lsp = persisted.get("last_sell_price") or sym_cfg.last_sell_price
+            lbp_raw = persisted.get("last_buy_price")
+            lsp_raw = persisted.get("last_sell_price")
+
+            lbp = (
+                to_ticks(float(lbp_raw), sym)
+                if lbp_raw is not None
+                else (
+                    to_ticks(float(sym_cfg.last_buy_price), sym)
+                    if sym_cfg.last_buy_price is not None
+                    else None
+                )
+            )
+            lsp = (
+                to_ticks(float(lsp_raw), sym)
+                if lsp_raw is not None
+                else (
+                    to_ticks(float(sym_cfg.last_sell_price), sym)
+                    if sym_cfg.last_sell_price is not None
+                    else None
+                )
+            )
             book.restore_stats(lbp, lsp)
         if stats:
             print(f"[ENGINE] Restored book statistics for {len(stats)} symbol(s).")
@@ -323,10 +349,15 @@ class Engine:
             order_type = OrderType(kv["TYPE"])
             quantity = int(kv["QTY"])
             tif = TIF(kv.get("TIF", "DAY"))
-            price = float(kv["PRICE"]) if "PRICE" in kv else None
-            stop_price = float(kv["STOP"]) if "STOP" in kv else None
+            price = to_ticks(float(kv["PRICE"]), symbol) if "PRICE" in kv else None
+            stop_price = (
+                to_ticks(float(kv["STOP"]), symbol) if "STOP" in kv else None
+            )
             visible = int(kv["VISIBLE"]) if "VISIBLE" in kv else None
             smp_action = SmpAction(kv.get("SMP", SmpAction.NONE))
+            trail_offset = (
+                to_ticks(float(kv["TRAIL"]), symbol) if "TRAIL" in kv else None
+            )
         except (KeyError, ValueError) as exc:
             print(f"[ENGINE] Bad MM order '{line}': {exc}", file=sys.stderr)
             return None
@@ -341,6 +372,7 @@ class Engine:
             stop_price=stop_price,
             visible_qty=visible,
             smp_action=smp_action,
+            trail_offset=trail_offset,
         )
 
     # ------------------------------------------------------------------
@@ -388,6 +420,14 @@ class Engine:
 
     def _handle_new_order(self, payload: dict[str, Any]) -> None:
         order = Order.from_dict(payload)
+
+        # Boundary conversion: inbound payload prices are display decimals.
+        if order.price is not None and isinstance(order.price, float):
+            order.price = to_ticks(order.price, order.symbol)
+        if order.stop_price is not None and isinstance(order.stop_price, float):
+            order.stop_price = to_ticks(order.stop_price, order.symbol)
+        if order.trail_offset is not None and isinstance(order.trail_offset, float):
+            order.trail_offset = to_ticks(order.trail_offset, order.symbol)
 
         # FIX gateway allowlist + connect/auth check
         ok, reason = self._gateway_status(order.gateway_id)
@@ -511,7 +551,7 @@ class Engine:
         # _sweep() → _apply_fill() → Trade.create() and into stop/trailing stop
         # triggers.  Eliminates 2-6 redundant time.time() syscalls per order,
         # saving ~0.5-2µs per order depending on the number of fills and stops.
-        now = time.time()
+        now = now_ns()
 
         # PERF A: Inline ack message — bypass make_ack_msg() entirely.
         #
@@ -545,7 +585,9 @@ class Engine:
                         "order_type": payload.get("order_type"),
                         "tif": payload.get("tif"),
                         "qty": order.quantity,
-                        "price": order.price,
+                        "price": from_ticks(order.price, order.symbol)
+                        if order.price is not None
+                        else None,
                     }
                 ),
             ]
@@ -572,14 +614,18 @@ class Engine:
                             {
                                 "order_id": evt.id,
                                 "fill_qty": evt.quantity - evt.remaining_qty,
-                                "fill_price": book.last_trade_price,
+                                "fill_price": from_ticks(book.last_trade_price, evt.symbol)
+                                if book.last_trade_price is not None
+                                else None,
                                 "remaining_qty": evt.remaining_qty,
                                 "status": evt.status.value,
                                 "symbol": evt.symbol,
                                 "side": evt.side.value,
                                 "order_type": evt.order_type.value,
                                 "qty": evt.quantity,
-                                "price": evt.price,
+                                "price": from_ticks(evt.price, evt.symbol)
+                                if evt.price is not None
+                                else None,
                             }
                         ),
                     ]
@@ -640,9 +686,9 @@ class Engine:
                             "sell_order_id": trade.sell_order_id,
                             "buy_gateway_id": trade.buy_gateway_id,
                             "sell_gateway_id": trade.sell_gateway_id,
-                            "price": trade.price,
+                            "price": from_ticks(trade.price, trade.symbol),
                             "quantity": trade.quantity,
-                            "timestamp": trade.timestamp,
+                            "timestamp": trade.timestamp / 1_000_000_000,
                         }
                     ),
                 ]
@@ -715,7 +761,35 @@ class Engine:
         for book in self.books.values():
             for order in book.resting_orders():
                 if order.gateway_id == gateway_id:
-                    orders.append(order.to_dict())
+                    orders.append(
+                        {
+                            "id": order.id,
+                            "symbol": order.symbol,
+                            "side": order.side.value,
+                            "order_type": order.order_type.value,
+                            "tif": order.tif.value,
+                            "quantity": order.quantity,
+                            "remaining_qty": order.remaining_qty,
+                            "gateway_id": order.gateway_id,
+                            "trail_offset": from_ticks(order.trail_offset, order.symbol)
+                            if order.trail_offset is not None
+                            else None,
+                            "oco_group_id": order.oco_group_id,
+                            "timestamp": order.timestamp / 1_000_000_000,
+                            "status": order.status.value,
+                            "price": from_ticks(order.price, order.symbol)
+                            if order.price is not None
+                            else None,
+                            "stop_price": from_ticks(order.stop_price, order.symbol)
+                            if order.stop_price is not None
+                            else None,
+                            "visible_qty": order.visible_qty,
+                            "displayed_qty": order.displayed_qty,
+                            "smp_action": order.smp_action.value,
+                            "combo_parent_id": order.combo_parent_id,
+                            "leg_index": order.leg_index,
+                        }
+                    )
         self.pub_sock.send_multipart(make_orders_msg(gateway_id, orders))
 
     # ------------------------------------------------------------------
@@ -800,7 +874,9 @@ class Engine:
                             evt.gateway_id,
                             evt.id,
                             fill_qty=evt.quantity - evt.remaining_qty,
-                            fill_price=book.last_trade_price,  # type: ignore[arg-type]
+                            fill_price=from_ticks(book.last_trade_price, evt.symbol)  # type: ignore[arg-type]
+                            if book.last_trade_price is not None
+                            else 0.0,
                             remaining_qty=evt.remaining_qty,
                             status=evt.status.value,
                             order=evt.to_dict(),
@@ -825,7 +901,21 @@ class Engine:
                         self._check_combo_after_child_event(evt)
 
             for trade in trades:
-                self.pub_sock.send_multipart(make_trade_msg(trade.to_dict()))
+                self.pub_sock.send_multipart(
+                    make_trade_msg(
+                        {
+                            "id": trade.id,
+                            "symbol": trade.symbol,
+                            "buy_order_id": trade.buy_order_id,
+                            "sell_order_id": trade.sell_order_id,
+                            "buy_gateway_id": trade.buy_gateway_id,
+                            "sell_gateway_id": trade.sell_gateway_id,
+                            "price": from_ticks(trade.price, trade.symbol),
+                            "quantity": trade.quantity,
+                            "timestamp": trade.timestamp / 1_000_000_000,
+                        }
+                    )
+                )
 
             self._mark_dirty(leg.symbol)
             combo.leg_statuses[i] = child.status.value
@@ -847,6 +937,13 @@ class Engine:
     def _handle_combo_order(self, payload: dict[str, Any]) -> None:
         """Accept a combo, create child orders on respective books."""
         combo = ComboOrder.from_dict(payload)
+
+        # Boundary conversion: combo legs may arrive in display price units.
+        for leg in combo.legs:
+            if leg.price is not None and isinstance(leg.price, float):
+                leg.price = to_ticks(leg.price, leg.symbol)
+            if leg.stop_price is not None and isinstance(leg.stop_price, float):
+                leg.stop_price = to_ticks(leg.stop_price, leg.symbol)
 
         # Gateway auth
         ok, reason = self._gateway_status(combo.gateway_id)
@@ -1073,7 +1170,7 @@ class Engine:
                                 evt.gateway_id,
                                 evt.id,
                                 fill_qty=evt.quantity - evt.remaining_qty,
-                                fill_price=result.eq_price,
+                                fill_price=from_ticks(result.eq_price, symbol),
                                 remaining_qty=evt.remaining_qty,
                                 status=evt.status.value,
                                 order=evt.to_dict(),
@@ -1083,7 +1180,21 @@ class Engine:
                             self._check_combo_after_child_event(evt)
 
                 for trade in trades:
-                    self.pub_sock.send_multipart(make_trade_msg(trade.to_dict()))
+                    self.pub_sock.send_multipart(
+                        make_trade_msg(
+                            {
+                                "id": trade.id,
+                                "symbol": trade.symbol,
+                                "buy_order_id": trade.buy_order_id,
+                                "sell_order_id": trade.sell_order_id,
+                                "buy_gateway_id": trade.buy_gateway_id,
+                                "sell_gateway_id": trade.sell_gateway_id,
+                                "price": from_ticks(trade.price, trade.symbol),
+                                "quantity": trade.quantity,
+                                "timestamp": trade.timestamp / 1_000_000_000,
+                            }
+                        )
+                    )
 
                 self._mark_dirty(symbol)
 
@@ -1100,7 +1211,9 @@ class Engine:
             self.pub_sock.send_multipart(
                 make_auction_result_msg(
                     symbol=symbol,
-                    eq_price=result.eq_price,
+                    eq_price=from_ticks(result.eq_price, symbol)
+                    if result.eq_price is not None
+                    else None,
                     eq_qty=result.eq_qty,
                     trades_count=len(trades) if result.eq_price else 0,
                     imbalance_side=result.imbalance_side,
@@ -1168,9 +1281,15 @@ class Engine:
                     quantity=quantity,
                     gateway_id=gateway_id,
                     tif=tif,
-                    price=raw.get("price"),
-                    stop_price=raw.get("stop_price"),
-                    trail_offset=raw.get("trail_offset"),
+                    price=to_ticks(float(raw["price"]), symbol)
+                    if raw.get("price") is not None
+                    else None,
+                    stop_price=to_ticks(float(raw["stop_price"]), symbol)
+                    if raw.get("stop_price") is not None
+                    else None,
+                    trail_offset=to_ticks(float(raw["trail_offset"]), symbol)
+                    if raw.get("trail_offset") is not None
+                    else None,
                 )
             except (KeyError, ValueError):
                 return None
@@ -1266,7 +1385,21 @@ class Engine:
 
             # ACK each leg individually so the gateway can track them
             self.pub_sock.send_multipart(
-                make_ack_msg(gateway_id, leg.id, accepted=True, order=leg.to_dict())
+                make_ack_msg(
+                    gateway_id,
+                    leg.id,
+                    accepted=True,
+                    order={
+                        "symbol": leg.symbol,
+                        "side": leg.side.value,
+                        "order_type": leg.order_type.value,
+                        "tif": leg.tif.value,
+                        "quantity": leg.quantity,
+                        "price": from_ticks(leg.price, leg.symbol)
+                        if leg.price is not None
+                        else None,
+                    },
+                )
             )
 
             trades, events = book.process(leg, match=do_match)
@@ -1278,7 +1411,9 @@ class Engine:
                             evt.gateway_id,
                             evt.id,
                             fill_qty=evt.quantity - evt.remaining_qty,
-                            fill_price=book.last_trade_price,  # type: ignore[arg-type]
+                            fill_price=from_ticks(book.last_trade_price, evt.symbol)  # type: ignore[arg-type]
+                            if book.last_trade_price is not None
+                            else 0.0,
                             remaining_qty=evt.remaining_qty,
                             status=evt.status.value,
                             order=evt.to_dict(),
@@ -1303,7 +1438,21 @@ class Engine:
                     )
 
             for trade in trades:
-                self.pub_sock.send_multipart(make_trade_msg(trade.to_dict()))
+                self.pub_sock.send_multipart(
+                    make_trade_msg(
+                        {
+                            "id": trade.id,
+                            "symbol": trade.symbol,
+                            "buy_order_id": trade.buy_order_id,
+                            "sell_order_id": trade.sell_order_id,
+                            "buy_gateway_id": trade.buy_gateway_id,
+                            "sell_gateway_id": trade.sell_gateway_id,
+                            "price": from_ticks(trade.price, trade.symbol),
+                            "quantity": trade.quantity,
+                            "timestamp": trade.timestamp / 1_000_000_000,
+                        }
+                    )
+                )
 
             self._mark_dirty(symbol)
 
@@ -1456,10 +1605,10 @@ class Engine:
             )
             return
 
-        now = time.time()
+        now = now_ns()
         amended, priority_reset, err = book.amend_order(
             order_id,
-            new_price=new_price,
+            new_price=to_ticks(float(new_price), symbol) if new_price is not None else None,
             new_qty=new_qty,
             now=now,
         )
@@ -1475,7 +1624,9 @@ class Engine:
             make_amended_msg(
                 gateway_id,
                 order_id,
-                price=amended.price,
+                price=from_ticks(amended.price, amended.symbol)
+                if amended.price is not None
+                else None,
                 qty=amended.quantity,
                 remaining_qty=amended.remaining_qty,
                 priority_reset=priority_reset,

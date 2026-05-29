@@ -12,9 +12,10 @@ trades + events for the engine to publish.
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
+from edumatcher.models.clock import now_ns
 
 from edumatcher.models.order import Order
 from edumatcher.models.trade import Trade
@@ -27,7 +28,7 @@ if TYPE_CHECKING:
 class AuctionResult:
     """Outcome of an equilibrium price calculation."""
 
-    eq_price: float | None  # None when no crossable interest
+    eq_price: int | None  # None when no crossable interest
     eq_qty: int  # total executable quantity
     surplus: int  # |buy_qty - sell_qty| at eq_price
     imbalance_side: str  # "BUY", "SELL", or "" if balanced
@@ -58,7 +59,7 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
 
     # Build cumulative buy qty from highest price downward:
     # cum_buy[price] = total bid qty at prices >= price
-    cum_buy: dict[float, int] = {}
+    cum_buy: dict[int, int] = {}
     running = 0
     for p in bid_prices:
         running += book._bid_qty[p]
@@ -66,7 +67,7 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
 
     # Build cumulative sell qty from lowest price upward:
     # cum_sell[price] = total ask qty at prices <= price
-    cum_sell: dict[float, int] = {}
+    cum_sell: dict[int, int] = {}
     running = 0
     for p in ask_prices:
         running += book._ask_qty[p]
@@ -75,7 +76,7 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
     # Candidate prices = union of all bid and ask price levels, sorted
     all_prices = sorted(set(bid_prices) | set(ask_prices))
 
-    best_price: float | None = None
+    best_price: int | None = None
     best_qty = 0
     best_surplus = float("inf")
 
@@ -142,9 +143,7 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
     )
 
 
-def execute_uncross(
-    book: "OrderBook", eq_price: float
-) -> tuple[list[Trade], list[Order]]:
+def execute_uncross(book: "OrderBook", eq_price: int) -> tuple[list[Trade], list[Order]]:
     """
     Execute all crossable interest at the equilibrium price.
 
@@ -158,7 +157,7 @@ def execute_uncross(
 
     # PERF #3: Single time.time() for the entire uncross batch — all fills
     # within an auction uncross are logically simultaneous at the same price.
-    now = time.time()
+    now = now_ns()
 
     while True:
         best_bid = book._peek(book._bids)

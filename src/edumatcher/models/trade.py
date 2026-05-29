@@ -5,9 +5,10 @@ Trade dataclass — produced by the matching engine when two orders cross.
 from __future__ import annotations
 
 import itertools
-import time
 from dataclasses import dataclass
 from typing import Any
+
+from edumatcher.models.clock import now_ns
 
 # ---------------------------------------------------------------------------
 # PERF improvement #2: Monotonic counter for trade IDs instead of uuid4().
@@ -39,9 +40,9 @@ class Trade:
     sell_order_id: str
     buy_gateway_id: str
     sell_gateway_id: str
-    price: float
+    price: int
     quantity: int
-    timestamp: float
+    timestamp: int
 
     # ------------------------------------------------------------------
     # Factory
@@ -54,13 +55,13 @@ class Trade:
         sell_order_id: str,
         buy_gateway_id: str,
         sell_gateway_id: str,
-        price: float,
+        price: int,
         quantity: int,
         # PERF #3: Accept a pre-computed timestamp from the caller instead of
         # calling time.time() independently.  The engine computes one timestamp
         # per incoming order and passes it through the entire processing chain,
         # eliminating 2-4 redundant syscalls per aggressive order (~1-1.5µs saved).
-        now: float | None = None,
+        now: int | None = None,
     ) -> "Trade":
         return cls(
             # PERF #2: Use monotonic counter instead of uuid4() syscall.
@@ -72,9 +73,9 @@ class Trade:
             sell_gateway_id=sell_gateway_id,
             price=price,
             quantity=quantity,
-            # PERF #3: Reuse caller-provided timestamp; fall back to time.time()
+            # PERF #3: Reuse caller-provided timestamp; fall back to now_ns()
             # only for non-hot-path callers (tests, deserialization).
-            timestamp=now if now is not None else time.time(),
+            timestamp=now if now is not None else now_ns(),
         )
 
     def to_dict(self) -> dict[str, Any]:

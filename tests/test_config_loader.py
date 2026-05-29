@@ -220,6 +220,22 @@ class TestConfigLoaderHappyPath:
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         assert cfg.fix_gateways["GW01"].description == ""
 
+    def test_tick_decimals_defaults_to_2(self, tmp_path: Path) -> None:
+        cfg = load_engine_config(_write_yaml(tmp_path, MINIMAL_YAML))
+        assert cfg.symbols["AAPL"].tick_decimals == 2
+
+    def test_tick_decimals_custom_value(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          EURUSD:
+            tick_decimals: 4
+        gateways:
+          fix:
+            - id: GW01
+        """
+        cfg = load_engine_config(_write_yaml(tmp_path, yaml))
+        assert cfg.symbols["EURUSD"].tick_decimals == 4
+
 
 # ---------------------------------------------------------------------------
 # File-not-found
@@ -336,6 +352,18 @@ class TestConfigLoaderSymbolErrors:
             - id: GW01
         """
         with pytest.raises(ValueError, match="must start with 'NEW|'"):
+            load_engine_config(_write_yaml(tmp_path, yaml))
+
+    def test_tick_decimals_out_of_range_raises(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL:
+            tick_decimals: 9
+        gateways:
+          fix:
+            - id: GW01
+        """
+        with pytest.raises(ValueError, match="tick_decimals"):
             load_engine_config(_write_yaml(tmp_path, yaml))
 
 

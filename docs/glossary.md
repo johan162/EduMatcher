@@ -376,3 +376,25 @@ $$\text{VWAP} = \frac{\sum(\text{price}_i \times \text{qty}_i)}{\sum \text{qty}_
 The high-performance messaging library used by EduMatcher for inter-process
 communication. Uses a broker-less PUSH/PULL and PUB/SUB topology. No external
 message queue server is required. See [Architecture](architecture.md).
+
+---
+
+## T
+
+**Tick**
+The smallest permitted price increment for a symbol. EduMatcher stores prices
+internally as integer counts of ticks.
+
+**tick_decimals**
+Configuration value defining the decimal precision of one tick for a symbol.
+Example: `tick_decimals = 2` means one tick equals `0.01`.
+
+**trail_offset_ticks**
+Trailing stop offset represented in ticks. The stop ratchets using tick-domain
+arithmetic to avoid mixed float/int behavior.
+
+## N
+
+**timestamp_ns**
+Timestamp represented as integer nanoseconds. Used internally for strict
+ordering and queue priority tie-breaks.

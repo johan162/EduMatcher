@@ -377,3 +377,10 @@ When an uncross completes, the engine publishes:
 | **Surplus** | The absolute difference between cumulative buy and sell quantity at the equilibrium price — the quantity that cannot be matched. |
 | **TIF** | Time-in-Force — attribute on an order that controls its lifetime (`DAY`, `GTC`, `ATO`, `ATC`, `FOK`). |
 | **Uncross** | The process of executing all crossable interest at the equilibrium price when an auction window closes. |
+
+## Tick/Ns Migration Notes
+
+- The equilibrium price is computed on integer tick levels in engine internals.
+- Auction fills and imbalance calculations use tick-domain arithmetic.
+- Published auction result messages expose decimal prices for readability,
+  converted from the internal tick value.

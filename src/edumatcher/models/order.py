@@ -4,11 +4,12 @@ Domain models: Order, enums.
 
 from __future__ import annotations
 
-import time
 import uuid
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Optional
+
+from edumatcher.models.clock import now_ns
 
 
 class Side(str, Enum):
@@ -100,11 +101,11 @@ class Order:
     quantity: int  # total original quantity
     remaining_qty: int  # quantity yet to be filled
     gateway_id: str
-    timestamp: float
+    timestamp: int
     status: OrderStatus
 
-    price: Optional[float] = None  # limit / stop-limit / FOK / iceberg limit price
-    stop_price: Optional[float] = (
+    price: Optional[int] = None  # limit / stop-limit / FOK / iceberg limit price (ticks)
+    stop_price: Optional[int] = (
         None  # STOP / STOP_LIMIT / TRAILING_STOP trigger price
     )
     visible_qty: Optional[int] = None  # ICEBERG: fixed peak size
@@ -112,7 +113,7 @@ class Order:
     smp_action: SmpAction = SmpAction.NONE  # self-match prevention
 
     # Trailing stop field
-    trail_offset: Optional[float] = (
+    trail_offset: Optional[int] = (
         None  # TRAILING_STOP: fixed distance to trail market price
     )
 
@@ -135,11 +136,11 @@ class Order:
         quantity: int,
         gateway_id: str,
         tif: TIF = TIF.DAY,
-        price: Optional[float] = None,
-        stop_price: Optional[float] = None,
+        price: Optional[int] = None,
+        stop_price: Optional[int] = None,
         visible_qty: Optional[int] = None,
         smp_action: SmpAction = SmpAction.NONE,
-        trail_offset: Optional[float] = None,
+        trail_offset: Optional[int] = None,
         oco_group_id: Optional[str] = None,
     ) -> "Order":
         displayed = visible_qty if order_type == OrderType.ICEBERG else None
@@ -152,7 +153,7 @@ class Order:
             quantity=quantity,
             remaining_qty=quantity,
             gateway_id=gateway_id,
-            timestamp=time.time(),
+            timestamp=now_ns(),
             status=OrderStatus.NEW,
             price=price,
             stop_price=stop_price,

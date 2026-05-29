@@ -243,3 +243,23 @@ everything in the background.
 Run `pm-audit --terminal` in a separate window. It subscribes to **all**
 ZeroMQ messages and prints them to stdout, giving a full real-time trace of
 every event in the system.
+
+---
+
+### Why does the engine use integer ticks instead of float prices?
+
+Float arithmetic can introduce tiny representation errors in comparisons and
+aggregation. Using integer ticks makes price-time matching and level math exact.
+
+### Why were timestamps changed to nanoseconds?
+
+Nanosecond integer timestamps improve event ordering precision and avoid
+float-second precision loss at high message rates.
+
+### Do I need to clean persisted files for the migration?
+
+Yes, for the no-backward-compatibility cutover remove:
+
+- `data/gtc_orders.json`
+- `data/book_stats.json`
+- `data/gtc_combos.json`

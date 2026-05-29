@@ -556,3 +556,18 @@ event confirming the new phase.
 | Clearing | `trade.executed` |
 | Audit | *(empty filter — receives everything)* |
 | Statistics | `trade.`, `book.`, `system.eod`, `system.symbols.STATS`, `session.state`, `auction.result.` |
+
+---
+
+## Price And Timestamp Semantics (v2)
+
+- Internal engine/model state uses integer ticks for price and integer
+  nanoseconds for ordering-critical timestamps.
+- External process payloads keep human-readable decimal prices and seconds-based
+  timestamps where appropriate.
+- Message producers convert from internal ticks/ns at publish boundaries.
+
+Practical rule:
+
+- Do not perform business logic on decimal payload values in core matching code.
+- Do conversion at process edges only.
