@@ -65,16 +65,24 @@ from edumatcher.models.message import (
     make_expired_msg,
     make_fill_msg,
     make_gateway_auth_msg,
+    make_kill_switch_ack_msg,
     make_orders_msg,
+    make_quote_ack_msg,
+    make_quote_status_msg,
     make_symbols_msg,
-    make_trade_msg,
     make_session_state_msg,
     make_auction_result_msg,
     make_oco_ack_msg,
     make_oco_cancelled_msg,
 )
+from edumatcher.models.participant import (
+    DisconnectBehaviour,
+    ParticipantRole,
+    ParticipantSession,
+)
 from edumatcher.models.order import (
     Order,
+    OrderOrigin,
     OrderStatus,
     OrderType,
     Side,
@@ -83,6 +91,7 @@ from edumatcher.models.order import (
 )
 from edumatcher.models.price import from_ticks, to_ticks
 from edumatcher.models.price import register_tick_decimals
+from edumatcher.models.quote import QuoteEntry, QuoteIndex, QuoteRefreshPolicy
 
 # PERF B: Module-level pre-encoded topic constant for trade messages.
 # Avoids re-encoding the same static string on every trade publication.
@@ -113,6 +122,8 @@ class Engine:
         self._engine_config: EngineConfig | None = None
         self._gateway_descriptions: dict[str, str] = {}
         self._connected_fix_gateways: set[str] = set()
+        self._sessions: dict[str, ParticipantSession] = {}
+        self._quote_index = QuoteIndex()
 
         # Global order_id → symbol map for O(1) cancel routing
         self._order_symbol: dict[str, str] = {}
@@ -211,9 +222,22 @@ class Engine:
             return True, ""
         if gw_id not in self._allowed_fix_gateways:
             return False, f"Gateway not configured: {gw_id}"
-        if gw_id not in self._connected_fix_gateways:
+        session = self._sessions.get(gw_id)
+        connected = (session is not None and session.connected) or (
+            gw_id in self._connected_fix_gateways
+        )
+        if not connected:
             return False, f"Gateway not connected: {gw_id}"
         return True, ""
+
+    def _session_for_gateway(self, gateway_id: str) -> ParticipantSession:
+        gw_id = gateway_id.upper()
+        session = self._sessions.get(gw_id)
+        if session is not None:
+            return session
+        session = ParticipantSession(gateway_id=gw_id)
+        self._sessions[gw_id] = session
+        return session
 
     # ------------------------------------------------------------------
     # Book access
@@ -247,11 +271,11 @@ class Engine:
         self._dirty_symbols -= sent
 
     # ------------------------------------------------------------------
-    # Config: seed stats + inject market-maker orders
+    # Config: seed stats + inject market-maker quotes
     # ------------------------------------------------------------------
 
     def _load_config(self) -> None:
-        """Pre-create books, seed stats, inject MM orders from engine config."""
+        """Pre-create books, seed stats, inject MM quotes from engine config."""
         if not self._engine_config:
             return
 
@@ -288,18 +312,90 @@ class Engine:
         if stats:
             print(f"[ENGINE] Restored book statistics for {len(stats)} symbol(s).")
 
+        n_mm_quotes = 0
         for sym, sym_cfg in self._engine_config.symbols.items():
-            for fix_line in sym_cfg.market_maker_orders:
-                order = self._parse_fix_order(fix_line, gateway_id="MM")
-                if order:
-                    self._book(order.symbol).process(order)
-                    self._order_symbol[order.id] = order.symbol
-                    if self.verbose:
-                        print(
-                            f"[ENGINE] MM order {order.id[:8]} {order.symbol} "
-                            f"{order.side.value} {order.order_type.value} "
-                            f"qty={order.quantity} price={order.price}"
-                        )
+            for idx, quote_seed in enumerate(sym_cfg.market_maker_quotes, start=1):
+                gateway_id = quote_seed.gateway_id
+                quote_id = quote_seed.quote_id or f"SEED-{gateway_id}-{sym}-{idx}"
+
+                previous = self._quote_index.remove(gateway_id, sym)
+                if previous:
+                    self._cancel_quote_entry(previous, reason="Replaced by startup quote")
+
+                bid = Order.create(
+                    symbol=sym,
+                    side=Side.BUY,
+                    order_type=OrderType.LIMIT,
+                    quantity=quote_seed.bid_qty,
+                    gateway_id=gateway_id,
+                    tif=quote_seed.tif,
+                    price=to_ticks(quote_seed.bid_price, sym),
+                )
+                ask = Order.create(
+                    symbol=sym,
+                    side=Side.SELL,
+                    order_type=OrderType.LIMIT,
+                    quantity=quote_seed.ask_qty,
+                    gateway_id=gateway_id,
+                    tif=quote_seed.tif,
+                    price=to_ticks(quote_seed.ask_price, sym),
+                )
+                bid.origin = OrderOrigin.QUOTE
+                ask.origin = OrderOrigin.QUOTE
+                bid.quote_id = quote_id
+                ask.quote_id = quote_id
+
+                self._order_symbol[bid.id] = sym
+                self._order_symbol[ask.id] = sym
+                self._quote_index.put(
+                    QuoteEntry(
+                        quote_id=quote_id,
+                        gateway_id=gateway_id,
+                        symbol=sym,
+                        bid_order_id=bid.id,
+                        ask_order_id=ask.id,
+                    )
+                )
+
+                now = now_ns()
+                book = self._book(sym)
+                for quote_order in (bid, ask):
+                    trades, events = book.process(quote_order, match=True, now=now)
+                    for evt in events:
+                        if evt.status in _FILL_STATUSES:
+                            self.pub_sock.send_multipart(
+                                make_fill_msg(
+                                    evt.gateway_id,
+                                    evt.id,
+                                    fill_qty=evt.quantity - evt.remaining_qty,
+                                    fill_price=(
+                                        from_ticks(book.last_trade_price, evt.symbol)
+                                        if book.last_trade_price is not None
+                                        else 0.0
+                                    ),
+                                    remaining_qty=evt.remaining_qty,
+                                    status=evt.status.value,
+                                    order=evt.to_dict(),
+                                )
+                            )
+                            if evt.quote_id:
+                                self._on_quote_leg_filled(evt)
+                        elif evt.status == OrderStatus.CANCELLED:
+                            self.pub_sock.send_multipart(
+                                make_cancelled_msg(evt.gateway_id, evt.id)
+                            )
+                    for trade in trades:
+                        self._publish_trade(trade)
+
+                self._mark_dirty(sym)
+                n_mm_quotes += 1
+                if self.verbose:
+                    print(
+                        f"[ENGINE] MM quote {quote_id} {sym} "
+                        f"bid={quote_seed.bid_price}x{quote_seed.bid_qty} "
+                        f"ask={quote_seed.ask_price}x{quote_seed.ask_qty} "
+                        f"gw={gateway_id}"
+                    )
 
         n_mm_combos = 0
         for combo_cfg in self._engine_config.market_maker_combos:
@@ -313,12 +409,9 @@ class Engine:
             if self._accept_combo(combo, publish_ack=False):
                 n_mm_combos += 1
 
-        n_mm = sum(
-            len(c.market_maker_orders) for c in self._engine_config.symbols.values()
-        )
-        if n_mm or n_mm_combos:
+        if n_mm_quotes or n_mm_combos:
             print(
-                f"[ENGINE] Injected {n_mm} market-maker order(s) "
+                f"[ENGINE] Injected {n_mm_quotes} market-maker quote(s) "
                 f"and {n_mm_combos} combo(s)."
             )
             # Publish immediately on startup (bypass throttle)
@@ -327,53 +420,6 @@ class Engine:
                     self.pub_sock.send_multipart(
                         make_book_msg(sym, self.books[sym].snapshot())
                     )
-
-    @staticmethod
-    def _parse_fix_order(line: str, gateway_id: str) -> Order | None:
-        """
-        Parse a FIX-like string of the form:
-          NEW|SYM=X|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=50.0|TIF=GTC|SMP=NONE
-        Returns an Order or None if parsing fails.
-        """
-        parts = line.strip().split("|")
-        if not parts or parts[0].upper() != "NEW":
-            return None
-        kv: dict[str, str] = {}
-        for p in parts[1:]:
-            if "=" in p:
-                k, v = p.split("=", 1)
-                kv[k.upper()] = v.upper()
-        try:
-            symbol = kv["SYM"]
-            side = Side(kv["SIDE"])
-            order_type = OrderType(kv["TYPE"])
-            quantity = int(kv["QTY"])
-            tif = TIF(kv.get("TIF", "DAY"))
-            price = to_ticks(float(kv["PRICE"]), symbol) if "PRICE" in kv else None
-            stop_price = (
-                to_ticks(float(kv["STOP"]), symbol) if "STOP" in kv else None
-            )
-            visible = int(kv["VISIBLE"]) if "VISIBLE" in kv else None
-            smp_action = SmpAction(kv.get("SMP", SmpAction.NONE))
-            trail_offset = (
-                to_ticks(float(kv["TRAIL"]), symbol) if "TRAIL" in kv else None
-            )
-        except (KeyError, ValueError) as exc:
-            print(f"[ENGINE] Bad MM order '{line}': {exc}", file=sys.stderr)
-            return None
-        return Order.create(
-            symbol=symbol,
-            side=side,
-            order_type=order_type,
-            quantity=quantity,
-            gateway_id=gateway_id,
-            tif=tif,
-            price=price,
-            stop_price=stop_price,
-            visible_qty=visible,
-            smp_action=smp_action,
-            trail_offset=trail_offset,
-        )
 
     # ------------------------------------------------------------------
     # Startup — restore GTC orders
@@ -585,9 +631,11 @@ class Engine:
                         "order_type": payload.get("order_type"),
                         "tif": payload.get("tif"),
                         "qty": order.quantity,
-                        "price": from_ticks(order.price, order.symbol)
-                        if order.price is not None
-                        else None,
+                        "price": (
+                            from_ticks(order.price, order.symbol)
+                            if order.price is not None
+                            else None
+                        ),
                     }
                 ),
             ]
@@ -614,18 +662,22 @@ class Engine:
                             {
                                 "order_id": evt.id,
                                 "fill_qty": evt.quantity - evt.remaining_qty,
-                                "fill_price": from_ticks(book.last_trade_price, evt.symbol)
-                                if book.last_trade_price is not None
-                                else None,
+                                "fill_price": (
+                                    from_ticks(book.last_trade_price, evt.symbol)
+                                    if book.last_trade_price is not None
+                                    else None
+                                ),
                                 "remaining_qty": evt.remaining_qty,
                                 "status": evt.status.value,
                                 "symbol": evt.symbol,
                                 "side": evt.side.value,
                                 "order_type": evt.order_type.value,
                                 "qty": evt.quantity,
-                                "price": from_ticks(evt.price, evt.symbol)
-                                if evt.price is not None
-                                else None,
+                                "price": (
+                                    from_ticks(evt.price, evt.symbol)
+                                    if evt.price is not None
+                                    else None
+                                ),
                             }
                         ),
                     ]
@@ -673,26 +725,7 @@ class Engine:
                     f"[ENGINE] TRADE {trade.id[:8]} {trade.symbol} "
                     f"qty={trade.quantity} @{trade.price}"
                 )
-            # PERF A+B: Fully inlined — no encode() call, pre-cached topic,
-            # single orjson.dumps() on a flat dict literal.
-            self.pub_sock.send_multipart(
-                [
-                    _TRADE_TOPIC,
-                    _dumps(
-                        {
-                            "id": trade.id,
-                            "symbol": trade.symbol,
-                            "buy_order_id": trade.buy_order_id,
-                            "sell_order_id": trade.sell_order_id,
-                            "buy_gateway_id": trade.buy_gateway_id,
-                            "sell_gateway_id": trade.sell_gateway_id,
-                            "price": from_ticks(trade.price, trade.symbol),
-                            "quantity": trade.quantity,
-                            "timestamp": trade.timestamp / 1_000_000_000,
-                        }
-                    ),
-                ]
-            )
+            self._publish_trade(trade)
 
         # Mark book dirty; snapshot will be published on next throttle tick
         self._mark_dirty(order.symbol)
@@ -707,9 +740,12 @@ class Engine:
         if not gateway_id:
             return
 
+        session = self._session_for_gateway(gateway_id)
+
         if self._allowed_fix_gateways is None:
             # Backward-compat mode: no gateway restrictions
             self._connected_fix_gateways.add(gateway_id)
+            session.connected = True
             self.pub_sock.send_multipart(
                 make_gateway_auth_msg(gateway_id, accepted=True)
             )
@@ -727,7 +763,17 @@ class Engine:
                 print(f"[ENGINE] REFUSED gateway connect: {gateway_id}")
             return
 
+        cfg = (
+            self._engine_config.fix_gateways[gateway_id]
+            if self._engine_config
+            else None
+        )
+        if cfg:
+            session.role = cfg.role
+            session.disconnect_behaviour = cfg.disconnect_behaviour
+
         self._connected_fix_gateways.add(gateway_id)
+        session.connected = True
         self.pub_sock.send_multipart(
             make_gateway_auth_msg(
                 gateway_id,
@@ -771,26 +817,388 @@ class Engine:
                             "quantity": order.quantity,
                             "remaining_qty": order.remaining_qty,
                             "gateway_id": order.gateway_id,
-                            "trail_offset": from_ticks(order.trail_offset, order.symbol)
-                            if order.trail_offset is not None
-                            else None,
+                            "trail_offset": (
+                                from_ticks(order.trail_offset, order.symbol)
+                                if order.trail_offset is not None
+                                else None
+                            ),
                             "oco_group_id": order.oco_group_id,
                             "timestamp": order.timestamp / 1_000_000_000,
                             "status": order.status.value,
-                            "price": from_ticks(order.price, order.symbol)
-                            if order.price is not None
-                            else None,
-                            "stop_price": from_ticks(order.stop_price, order.symbol)
-                            if order.stop_price is not None
-                            else None,
+                            "price": (
+                                from_ticks(order.price, order.symbol)
+                                if order.price is not None
+                                else None
+                            ),
+                            "stop_price": (
+                                from_ticks(order.stop_price, order.symbol)
+                                if order.stop_price is not None
+                                else None
+                            ),
                             "visible_qty": order.visible_qty,
                             "displayed_qty": order.displayed_qty,
                             "smp_action": order.smp_action.value,
                             "combo_parent_id": order.combo_parent_id,
                             "leg_index": order.leg_index,
+                            "origin": order.origin.value,
+                            "quote_id": order.quote_id,
                         }
                     )
         self.pub_sock.send_multipart(make_orders_msg(gateway_id, orders))
+
+    def _cancel_order_by_id(self, order_id: str) -> bool:
+        symbol = self._order_symbol.get(order_id)
+        book = self.books.get(symbol) if symbol else None
+        cancelled = book.cancel_order(order_id) if book else None
+        if not cancelled:
+            return False
+        self._order_symbol.pop(order_id, None)
+        self._mark_dirty(cancelled.symbol)
+        self.pub_sock.send_multipart(make_cancelled_msg(cancelled.gateway_id, order_id))
+        return True
+
+    def _cancel_quote_entry(self, entry: QuoteEntry, reason: str = "") -> int:
+        cancelled = 0
+        for order_id in (entry.bid_order_id, entry.ask_order_id):
+            if self._cancel_order_by_id(order_id):
+                cancelled += 1
+        self.pub_sock.send_multipart(
+            make_quote_status_msg(entry.gateway_id, entry.quote_id, "CANCELLED", reason)
+        )
+        return cancelled
+
+    def _publish_trade(self, trade: Any) -> None:
+        self.pub_sock.send_multipart(
+            [
+                _TRADE_TOPIC,
+                _dumps(
+                    {
+                        "id": trade.id,
+                        "symbol": trade.symbol,
+                        "buy_order_id": trade.buy_order_id,
+                        "sell_order_id": trade.sell_order_id,
+                        "buy_gateway_id": trade.buy_gateway_id,
+                        "sell_gateway_id": trade.sell_gateway_id,
+                        "price": from_ticks(trade.price, trade.symbol),
+                        "quantity": trade.quantity,
+                        "aggressor_side": trade.aggressor_side,
+                        "timestamp": trade.timestamp / 1_000_000_000,
+                    }
+                ),
+            ]
+        )
+
+    def _on_quote_leg_filled(self, order: Order) -> None:
+        if not order.quote_id:
+            return
+        entry = self._quote_index.get(order.gateway_id, order.symbol)
+        if not entry or entry.quote_id != order.quote_id:
+            return
+
+        cfg = (
+            self._engine_config.fix_gateways.get(order.gateway_id)
+            if self._engine_config
+            else None
+        )
+        policy = (
+            cfg.quote_refresh_policy
+            if cfg is not None
+            else QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL
+        )
+
+        should_inactivate = policy == QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL or (
+            policy == QuoteRefreshPolicy.INACTIVATE_ON_FULL_FILL
+            and order.status == OrderStatus.FILLED
+        )
+        if not should_inactivate:
+            return
+
+        self._quote_index.remove(order.gateway_id, order.symbol)
+        sibling_id = entry.counterpart_order_id(order.side.value)
+        self._cancel_order_by_id(sibling_id)
+
+        status = (
+            "INACTIVE_BID_FILLED" if order.side == Side.BUY else "INACTIVE_ASK_FILLED"
+        )
+        self.pub_sock.send_multipart(
+            make_quote_status_msg(order.gateway_id, entry.quote_id, status)
+        )
+
+    def _handle_quote_new(self, payload: dict[str, Any]) -> None:
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        symbol = str(payload.get("symbol", "")).upper()
+        quote_id = str(payload.get("quote_id", ""))
+
+        ok, reason = self._gateway_status(gateway_id)
+        if not ok:
+            self.pub_sock.send_multipart(
+                make_quote_ack_msg(gateway_id, quote_id, False, reason)
+            )
+            return
+
+        session = self._session_for_gateway(gateway_id)
+        if session.role != ParticipantRole.MARKET_MAKER:
+            self.pub_sock.send_multipart(
+                make_quote_ack_msg(
+                    gateway_id,
+                    quote_id,
+                    False,
+                    "Quotes are only allowed for MARKET_MAKER participants",
+                )
+            )
+            return
+
+        if not symbol:
+            self.pub_sock.send_multipart(
+                make_quote_ack_msg(gateway_id, quote_id, False, "Missing symbol")
+            )
+            return
+        if self._allowed_symbols and symbol not in self._allowed_symbols:
+            self.pub_sock.send_multipart(
+                make_quote_ack_msg(
+                    gateway_id,
+                    quote_id,
+                    False,
+                    f"Symbol not configured: {symbol}",
+                )
+            )
+            return
+
+        try:
+            bid_price = to_ticks(float(payload["bid_price"]), symbol)
+            ask_price = to_ticks(float(payload["ask_price"]), symbol)
+            bid_qty = int(payload["bid_qty"])
+            ask_qty = int(payload["ask_qty"])
+            tif = TIF(str(payload.get("tif", "DAY")).upper())
+        except (KeyError, TypeError, ValueError):
+            self.pub_sock.send_multipart(
+                make_quote_ack_msg(gateway_id, quote_id, False, "Invalid quote payload")
+            )
+            return
+
+        if bid_qty <= 0 or ask_qty <= 0:
+            self.pub_sock.send_multipart(
+                make_quote_ack_msg(
+                    gateway_id, quote_id, False, "Quote quantities must be positive"
+                )
+            )
+            return
+        if bid_price >= ask_price:
+            self.pub_sock.send_multipart(
+                make_quote_ack_msg(
+                    gateway_id, quote_id, False, "Quote requires bid_price < ask_price"
+                )
+            )
+            return
+
+        cfg = (
+            self._engine_config.fix_gateways.get(gateway_id)
+            if self._engine_config
+            else None
+        )
+        if cfg and cfg.enforce_mm_obligation:
+            spread_ticks = ask_price - bid_price
+            if spread_ticks > cfg.mm_max_spread_ticks:
+                self.pub_sock.send_multipart(
+                    make_quote_ack_msg(
+                        gateway_id,
+                        quote_id,
+                        False,
+                        (
+                            f"Spread {spread_ticks} ticks exceeds max "
+                            f"{cfg.mm_max_spread_ticks}"
+                        ),
+                    )
+                )
+                return
+            if bid_qty < cfg.mm_min_qty or ask_qty < cfg.mm_min_qty:
+                self.pub_sock.send_multipart(
+                    make_quote_ack_msg(
+                        gateway_id,
+                        quote_id,
+                        False,
+                        f"Quote size must be >= {cfg.mm_min_qty}",
+                    )
+                )
+                return
+
+        previous = self._quote_index.remove(gateway_id, symbol)
+        if previous:
+            self._cancel_quote_entry(previous, reason="Replaced by new quote")
+
+        if not quote_id:
+            quote_id = f"{gateway_id}-{symbol}-{now_ns()}"
+
+        bid = Order.create(
+            symbol=symbol,
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=bid_qty,
+            gateway_id=gateway_id,
+            tif=tif,
+            price=bid_price,
+        )
+        ask = Order.create(
+            symbol=symbol,
+            side=Side.SELL,
+            order_type=OrderType.LIMIT,
+            quantity=ask_qty,
+            gateway_id=gateway_id,
+            tif=tif,
+            price=ask_price,
+        )
+        bid.origin = OrderOrigin.QUOTE
+        ask.origin = OrderOrigin.QUOTE
+        bid.quote_id = quote_id
+        ask.quote_id = quote_id
+
+        self._order_symbol[bid.id] = symbol
+        self._order_symbol[ask.id] = symbol
+        entry = QuoteEntry(
+            quote_id=quote_id,
+            gateway_id=gateway_id,
+            symbol=symbol,
+            bid_order_id=bid.id,
+            ask_order_id=ask.id,
+        )
+        self._quote_index.put(entry)
+
+        now = now_ns()
+        book = self._book(symbol)
+        for quote_order in (bid, ask):
+            trades, events = book.process(quote_order, match=True, now=now)
+            for evt in events:
+                if evt.status in _FILL_STATUSES:
+                    self.pub_sock.send_multipart(
+                        make_fill_msg(
+                            evt.gateway_id,
+                            evt.id,
+                            fill_qty=evt.quantity - evt.remaining_qty,
+                            fill_price=(
+                                from_ticks(book.last_trade_price, evt.symbol)
+                                if book.last_trade_price is not None
+                                else 0.0
+                            ),
+                            remaining_qty=evt.remaining_qty,
+                            status=evt.status.value,
+                            order=evt.to_dict(),
+                        )
+                    )
+                    if evt.quote_id:
+                        self._on_quote_leg_filled(evt)
+                elif evt.status == OrderStatus.CANCELLED:
+                    self.pub_sock.send_multipart(
+                        make_cancelled_msg(evt.gateway_id, evt.id)
+                    )
+            for trade in trades:
+                self._publish_trade(trade)
+
+        self._mark_dirty(symbol)
+        self.pub_sock.send_multipart(
+            make_quote_ack_msg(
+                gateway_id,
+                quote_id,
+                True,
+                bid_order_id=bid.id,
+                ask_order_id=ask.id,
+            )
+        )
+        self.pub_sock.send_multipart(
+            make_quote_status_msg(gateway_id, quote_id, "ACTIVE")
+        )
+
+    def _handle_quote_cancel(self, payload: dict[str, Any]) -> None:
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        symbol = str(payload.get("symbol", "")).upper()
+
+        ok, reason = self._gateway_status(gateway_id)
+        if not ok:
+            self.pub_sock.send_multipart(
+                make_quote_ack_msg(gateway_id, "", False, reason)
+            )
+            return
+
+        entry = self._quote_index.remove(gateway_id, symbol)
+        if not entry:
+            self.pub_sock.send_multipart(
+                make_quote_ack_msg(gateway_id, "", False, "No active quote for symbol")
+            )
+            return
+
+        self._cancel_quote_entry(entry, reason="Cancelled by participant")
+        self.pub_sock.send_multipart(
+            make_quote_ack_msg(gateway_id, entry.quote_id, True)
+        )
+
+    def _handle_gateway_disconnect(self, payload: dict[str, Any]) -> None:
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        if not gateway_id:
+            return
+
+        session = self._session_for_gateway(gateway_id)
+        session.connected = False
+        self._connected_fix_gateways.discard(gateway_id)
+
+        if session.disconnect_behaviour == DisconnectBehaviour.LEAVE_ALL:
+            return
+
+        removed_quotes = self._quote_index.cancel_all_for_gateway(gateway_id)
+        for entry in removed_quotes:
+            self._cancel_quote_entry(entry, reason="Gateway disconnected")
+
+        if session.disconnect_behaviour == DisconnectBehaviour.CANCEL_ALL:
+            for book in self.books.values():
+                for order in list(book.resting_orders()):
+                    if (
+                        order.gateway_id == gateway_id
+                        and order.origin != OrderOrigin.QUOTE
+                    ):
+                        self._cancel_order_by_id(order.id)
+
+    def _handle_kill_switch(self, payload: dict[str, Any]) -> None:
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        symbol_filter = str(payload.get("symbol", "")).upper()
+
+        ok, reason = self._gateway_status(gateway_id)
+        if not ok:
+            self.pub_sock.send_multipart(
+                make_kill_switch_ack_msg(gateway_id, False, reason)
+            )
+            return
+
+        cancelled_orders = 0
+        cancelled_quotes = 0
+
+        if symbol_filter:
+            entry = self._quote_index.get(gateway_id, symbol_filter)
+            if entry is not None:
+                self._quote_index.remove(gateway_id, symbol_filter)
+                cancelled_quotes += self._cancel_quote_entry(
+                    entry, reason="Kill switch"
+                )
+        else:
+            entries = self._quote_index.cancel_all_for_gateway(gateway_id)
+            for entry in entries:
+                cancelled_quotes += self._cancel_quote_entry(
+                    entry, reason="Kill switch"
+                )
+
+        for book in self.books.values():
+            if symbol_filter and book.symbol != symbol_filter:
+                continue
+            for order in list(book.resting_orders()):
+                if order.gateway_id == gateway_id and order.origin != OrderOrigin.QUOTE:
+                    if self._cancel_order_by_id(order.id):
+                        cancelled_orders += 1
+
+        self.pub_sock.send_multipart(
+            make_kill_switch_ack_msg(
+                gateway_id,
+                True,
+                cancelled_orders=cancelled_orders,
+                cancelled_quotes=cancelled_quotes,
+            )
+        )
 
     # ------------------------------------------------------------------
     # Combo-order handlers
@@ -874,9 +1282,11 @@ class Engine:
                             evt.gateway_id,
                             evt.id,
                             fill_qty=evt.quantity - evt.remaining_qty,
-                            fill_price=from_ticks(book.last_trade_price, evt.symbol)  # type: ignore[arg-type]
-                            if book.last_trade_price is not None
-                            else 0.0,
+                            fill_price=(
+                                from_ticks(book.last_trade_price, evt.symbol)
+                                if book.last_trade_price is not None
+                                else 0.0
+                            ),
                             remaining_qty=evt.remaining_qty,
                             status=evt.status.value,
                             order=evt.to_dict(),
@@ -901,21 +1311,7 @@ class Engine:
                         self._check_combo_after_child_event(evt)
 
             for trade in trades:
-                self.pub_sock.send_multipart(
-                    make_trade_msg(
-                        {
-                            "id": trade.id,
-                            "symbol": trade.symbol,
-                            "buy_order_id": trade.buy_order_id,
-                            "sell_order_id": trade.sell_order_id,
-                            "buy_gateway_id": trade.buy_gateway_id,
-                            "sell_gateway_id": trade.sell_gateway_id,
-                            "price": from_ticks(trade.price, trade.symbol),
-                            "quantity": trade.quantity,
-                            "timestamp": trade.timestamp / 1_000_000_000,
-                        }
-                    )
-                )
+                self._publish_trade(trade)
 
             self._mark_dirty(leg.symbol)
             combo.leg_statuses[i] = child.status.value
@@ -1180,21 +1576,7 @@ class Engine:
                             self._check_combo_after_child_event(evt)
 
                 for trade in trades:
-                    self.pub_sock.send_multipart(
-                        make_trade_msg(
-                            {
-                                "id": trade.id,
-                                "symbol": trade.symbol,
-                                "buy_order_id": trade.buy_order_id,
-                                "sell_order_id": trade.sell_order_id,
-                                "buy_gateway_id": trade.buy_gateway_id,
-                                "sell_gateway_id": trade.sell_gateway_id,
-                                "price": from_ticks(trade.price, trade.symbol),
-                                "quantity": trade.quantity,
-                                "timestamp": trade.timestamp / 1_000_000_000,
-                            }
-                        )
-                    )
+                    self._publish_trade(trade)
 
                 self._mark_dirty(symbol)
 
@@ -1211,9 +1593,11 @@ class Engine:
             self.pub_sock.send_multipart(
                 make_auction_result_msg(
                     symbol=symbol,
-                    eq_price=from_ticks(result.eq_price, symbol)
-                    if result.eq_price is not None
-                    else None,
+                    eq_price=(
+                        from_ticks(result.eq_price, symbol)
+                        if result.eq_price is not None
+                        else None
+                    ),
                     eq_qty=result.eq_qty,
                     trades_count=len(trades) if result.eq_price else 0,
                     imbalance_side=result.imbalance_side,
@@ -1281,15 +1665,21 @@ class Engine:
                     quantity=quantity,
                     gateway_id=gateway_id,
                     tif=tif,
-                    price=to_ticks(float(raw["price"]), symbol)
-                    if raw.get("price") is not None
-                    else None,
-                    stop_price=to_ticks(float(raw["stop_price"]), symbol)
-                    if raw.get("stop_price") is not None
-                    else None,
-                    trail_offset=to_ticks(float(raw["trail_offset"]), symbol)
-                    if raw.get("trail_offset") is not None
-                    else None,
+                    price=(
+                        to_ticks(float(raw["price"]), symbol)
+                        if raw.get("price") is not None
+                        else None
+                    ),
+                    stop_price=(
+                        to_ticks(float(raw["stop_price"]), symbol)
+                        if raw.get("stop_price") is not None
+                        else None
+                    ),
+                    trail_offset=(
+                        to_ticks(float(raw["trail_offset"]), symbol)
+                        if raw.get("trail_offset") is not None
+                        else None
+                    ),
                 )
             except (KeyError, ValueError):
                 return None
@@ -1395,9 +1785,11 @@ class Engine:
                         "order_type": leg.order_type.value,
                         "tif": leg.tif.value,
                         "quantity": leg.quantity,
-                        "price": from_ticks(leg.price, leg.symbol)
-                        if leg.price is not None
-                        else None,
+                        "price": (
+                            from_ticks(leg.price, leg.symbol)
+                            if leg.price is not None
+                            else None
+                        ),
                     },
                 )
             )
@@ -1411,9 +1803,11 @@ class Engine:
                             evt.gateway_id,
                             evt.id,
                             fill_qty=evt.quantity - evt.remaining_qty,
-                            fill_price=from_ticks(book.last_trade_price, evt.symbol)  # type: ignore[arg-type]
-                            if book.last_trade_price is not None
-                            else 0.0,
+                            fill_price=(
+                                from_ticks(book.last_trade_price, evt.symbol)
+                                if book.last_trade_price is not None
+                                else 0.0
+                            ),
                             remaining_qty=evt.remaining_qty,
                             status=evt.status.value,
                             order=evt.to_dict(),
@@ -1438,21 +1832,7 @@ class Engine:
                     )
 
             for trade in trades:
-                self.pub_sock.send_multipart(
-                    make_trade_msg(
-                        {
-                            "id": trade.id,
-                            "symbol": trade.symbol,
-                            "buy_order_id": trade.buy_order_id,
-                            "sell_order_id": trade.sell_order_id,
-                            "buy_gateway_id": trade.buy_gateway_id,
-                            "sell_gateway_id": trade.sell_gateway_id,
-                            "price": from_ticks(trade.price, trade.symbol),
-                            "quantity": trade.quantity,
-                            "timestamp": trade.timestamp / 1_000_000_000,
-                        }
-                    )
-                )
+                self._publish_trade(trade)
 
             self._mark_dirty(symbol)
 
@@ -1604,11 +1984,14 @@ class Engine:
                 )
             )
             return
+        assert symbol is not None
 
         now = now_ns()
         amended, priority_reset, err = book.amend_order(
             order_id,
-            new_price=to_ticks(float(new_price), symbol) if new_price is not None else None,
+            new_price=(
+                to_ticks(float(new_price), symbol) if new_price is not None else None
+            ),
             new_qty=new_qty,
             now=now,
         )
@@ -1624,9 +2007,11 @@ class Engine:
             make_amended_msg(
                 gateway_id,
                 order_id,
-                price=from_ticks(amended.price, amended.symbol)
-                if amended.price is not None
-                else None,
+                price=(
+                    from_ticks(amended.price, amended.symbol)
+                    if amended.price is not None
+                    else None
+                ),
                 qty=amended.quantity,
                 remaining_qty=amended.remaining_qty,
                 priority_reset=priority_reset,
@@ -1729,14 +2114,22 @@ class Engine:
                         self._handle_oco_order(payload)
                     elif topic == "order.oco_cancel":
                         self._handle_oco_cancel(payload)
+                    elif topic == "quote.new":
+                        self._handle_quote_new(payload)
+                    elif topic == "quote.cancel":
+                        self._handle_quote_cancel(payload)
                     elif topic == "system.gateway_connect":
                         self._handle_gateway_connect(payload)
+                    elif topic == "system.gateway_disconnect":
+                        self._handle_gateway_disconnect(payload)
                     elif topic == "system.symbols_request":
                         self._handle_symbols_request(payload)
                     elif topic == "book.snapshot_request":
                         self._handle_book_snapshot_request(payload)
                     elif topic == "order.orders_request":
                         self._handle_orders_request(payload)
+                    elif topic == "risk.kill_switch":
+                        self._handle_kill_switch(payload)
                     elif topic == "session.transition":
                         self._handle_session_transition(payload)
                 except Exception as exc:

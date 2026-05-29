@@ -2,7 +2,6 @@
 Additional Engine handler tests targeting the 232 uncovered statements.
 
 Covers:
-  - _parse_fix_order (valid/invalid)
   - _handle_symbols_request
   - _handle_book_snapshot_request
   - _handle_amend (success/error paths)
@@ -108,40 +107,6 @@ def _make_order_payload(
     )
     return o.to_dict()
 
-
-# ---------------------------------------------------------------------------
-# _parse_fix_order
-# ---------------------------------------------------------------------------
-
-
-class TestParseFIXOrder:
-    def test_valid_limit_buy(self) -> None:
-        line = "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=50.0|TIF=GTC"
-        order = Engine._parse_fix_order(line, gateway_id="MM")
-        assert order is not None
-        assert order.symbol == "AAPL"
-        assert order.side == Side.BUY
-        assert order.price == 5000
-        assert order.tif == TIF.GTC
-
-    def test_missing_new_prefix_returns_none(self) -> None:
-        line = "AMEND|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=50.0"
-        assert Engine._parse_fix_order(line, "MM") is None
-
-    def test_missing_required_field_returns_none(self) -> None:
-        line = "NEW|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=50.0"
-        assert Engine._parse_fix_order(line, "MM") is None
-
-    def test_invalid_enum_value_returns_none(self) -> None:
-        line = "NEW|SYM=AAPL|SIDE=WRONG|TYPE=LIMIT|QTY=100|PRICE=50.0"
-        assert Engine._parse_fix_order(line, "MM") is None
-
-    def test_stop_limit_parsed(self) -> None:
-        line = "NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP_LIMIT|QTY=50|PRICE=95.0|STOP=100.0"
-        order = Engine._parse_fix_order(line, "MM")
-        assert order is not None
-        assert order.stop_price == 10000
-        assert order.price == 9500
 
 
 # ---------------------------------------------------------------------------

@@ -471,16 +471,22 @@ class OrderBook:
             "symbol": self.symbol,
             "bids": sorted(bid_rows, key=lambda x: -x["price"]),
             "asks": sorted(ask_rows, key=lambda x: x["price"]),
-            "last_price": from_ticks(self.last_trade_price, self.symbol)
-            if self.last_trade_price is not None
-            else None,
+            "last_price": (
+                from_ticks(self.last_trade_price, self.symbol)
+                if self.last_trade_price is not None
+                else None
+            ),
             "last_qty": self.last_trade_qty,
-            "last_buy_price": from_ticks(self.last_buy_price, self.symbol)
-            if self.last_buy_price is not None
-            else None,
-            "last_sell_price": from_ticks(self.last_sell_price, self.symbol)
-            if self.last_sell_price is not None
-            else None,
+            "last_buy_price": (
+                from_ticks(self.last_buy_price, self.symbol)
+                if self.last_buy_price is not None
+                else None
+            ),
+            "last_sell_price": (
+                from_ticks(self.last_sell_price, self.symbol)
+                if self.last_sell_price is not None
+                else None
+            ),
             "recent_trades": recent_rows,
         }
 
@@ -489,7 +495,7 @@ class OrderBook:
     # ------------------------------------------------------------------
 
     def _match_market(
-        self, order: Order, trades: list[Trade], events: list[Order], now: float
+        self, order: Order, trades: list[Trade], events: list[Order], now: int
     ) -> None:
         opposite = self._asks if order.side == Side.BUY else self._bids
         self._sweep(
@@ -502,7 +508,7 @@ class OrderBook:
             )  # unsatisfied market → discard silently
 
     def _match_limit(
-        self, order: Order, trades: list[Trade], events: list[Order], now: float
+        self, order: Order, trades: list[Trade], events: list[Order], now: int
     ) -> None:
         opposite = self._asks if order.side == Side.BUY else self._bids
         self._sweep(
@@ -517,7 +523,7 @@ class OrderBook:
             self._rest(order)
 
     def _match_fok(
-        self, order: Order, trades: list[Trade], events: list[Order], now: float
+        self, order: Order, trades: list[Trade], events: list[Order], now: int
     ) -> None:
         """Check full fillability first; only execute if entire quantity can be filled."""
         opposite = self._asks if order.side == Side.BUY else self._bids
@@ -536,7 +542,7 @@ class OrderBook:
         )
 
     def _match_iceberg(
-        self, order: Order, trades: list[Trade], events: list[Order], now: float
+        self, order: Order, trades: list[Trade], events: list[Order], now: int
     ) -> None:
         """
         Iceberg enters the book as a LIMIT order showing only displayed_qty.
@@ -550,7 +556,7 @@ class OrderBook:
             self._rest(order)
 
     def _match_ioc(
-        self, order: Order, trades: list[Trade], events: list[Order], now: float
+        self, order: Order, trades: list[Trade], events: list[Order], now: int
     ) -> None:
         """
         Immediate-Or-Cancel: sweep up to price_limit, then cancel any unfilled remainder.
@@ -682,7 +688,7 @@ class OrderBook:
         opposite_heap: list[_HeapEntry],
         trades: list[Trade],
         events: list[Order],
-        now: float,
+        now: int,
     ) -> None:
         """
         Sweep visible slice of iceberg; replenish peak if exhausted and hidden qty remains.
@@ -779,6 +785,7 @@ class OrderBook:
             sell_gateway_id=sell_order.gateway_id,
             price=fill_price,
             quantity=fill_qty,
+            aggressor_side=aggressor.side.value,
             now=now,
         )
         trades.append(trade)
@@ -913,7 +920,7 @@ class OrderBook:
     # Stop order trigger
     # ------------------------------------------------------------------
 
-    def _check_stops(self, now: float) -> list[Order]:
+    def _check_stops(self, now: int) -> list[Order]:
         """
         Check pending stop orders against last_trade_price using two heaps:
           _buy_stops  min-heap by stop_price — fire when last_price >= stop_price
@@ -976,7 +983,7 @@ class OrderBook:
 
         return triggered
 
-    def _check_trailing_stops(self, now: float) -> list[Order]:
+    def _check_trailing_stops(self, now: int) -> list[Order]:
         """
         Update trailing stop prices based on the latest trade and return any triggered orders.
 
@@ -1006,15 +1013,20 @@ class OrderBook:
                 # Lazy-delete terminal orders; do NOT re-add to still_active
                 continue
 
-            offset = order.trail_offset  # guaranteed non-None by _add_trailing_stop
+            offset = order.trail_offset
+            stop_price = order.stop_price
+            if offset is None or stop_price is None:
+                still_active.append(order)
+                continue
 
             if order.side == Side.SELL:
                 # Ratchet the stop up if the market has risen
-                candidate = trade_price - offset  # type: ignore[operator]
-                if candidate > order.stop_price:  # type: ignore[operator]
+                candidate = trade_price - offset
+                if candidate > stop_price:
                     order.stop_price = candidate
+                    stop_price = candidate
                 # Trigger when price falls to/below the current stop
-                if trade_price <= order.stop_price:  # type: ignore[operator]
+                if trade_price <= stop_price:
                     order.order_type = OrderType.MARKET
                     order.trail_offset = None
                     # PERF #3: Reuse cached timestamp for trailing stop trigger.
@@ -1024,11 +1036,12 @@ class OrderBook:
                     continue
             else:  # BUY trailing stop
                 # Ratchet the stop down if the market has fallen
-                candidate = trade_price + offset  # type: ignore[operator]
-                if candidate < order.stop_price:  # type: ignore[operator]
+                candidate = trade_price + offset
+                if candidate < stop_price:
                     order.stop_price = candidate
+                    stop_price = candidate
                 # Trigger when price rises to/at the current stop
-                if trade_price >= order.stop_price:  # type: ignore[operator]
+                if trade_price >= stop_price:
                     order.order_type = OrderType.MARKET
                     order.trail_offset = None
                     # PERF #3: Reuse cached timestamp for trailing stop trigger.

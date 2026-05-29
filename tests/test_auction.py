@@ -223,7 +223,7 @@ class TestUncrossExecution:
         book.process(_make_order(side=Side.SELL, qty=10, price=100.0), match=False)
 
         result = compute_equilibrium(book)
-        trades, events = execute_uncross(book, result.eq_price)  # type: ignore[arg-type]
+        trades, events = execute_uncross(book, result.eq_price)
 
         assert len(trades) == 1
         assert trades[0].quantity == 10
@@ -239,7 +239,7 @@ class TestUncrossExecution:
         book.process(_make_order(side=Side.SELL, qty=10, price=100.0), match=False)
 
         result = compute_equilibrium(book)
-        trades, events = execute_uncross(book, result.eq_price)  # type: ignore[arg-type]
+        trades, events = execute_uncross(book, result.eq_price)
 
         assert sum(t.quantity for t in trades) == 10
         # The buy order should be PARTIAL (10 remaining)
@@ -266,7 +266,7 @@ class TestUncrossExecution:
         book.process(_make_order(side=Side.SELL, qty=7, price=100.5), match=False)
 
         result = compute_equilibrium(book)
-        trades, events = execute_uncross(book, result.eq_price)  # type: ignore[arg-type]
+        trades, events = execute_uncross(book, result.eq_price)
 
         total_qty = sum(t.quantity for t in trades)
         assert total_qty == result.eq_qty

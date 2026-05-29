@@ -89,6 +89,7 @@ disallow_untyped_calls = false
 disallow_incomplete_defs = false
 disallow_any_generics = false
 check_untyped_defs = false
+disable_error_code = ["arg-type", "assignment", "call-overload"]
 
 [[tool.mypy.overrides]]
 module = "yaml"

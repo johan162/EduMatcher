@@ -21,7 +21,11 @@ from edumatcher.models.message import (
     make_fill_msg,
     make_gateway_auth_msg,
     make_gateway_connect_msg,
+    make_gateway_disconnect_msg,
     make_ack_msg,
+    make_kill_switch_ack_msg,
+    make_kill_switch_msg,
+    make_depth_msg,
     make_order_amend_msg,
     make_order_cancel_msg,
     make_order_new_msg,
@@ -31,6 +35,11 @@ from edumatcher.models.message import (
     make_session_transition_msg,
     make_symbols_msg,
     make_symbols_request_msg,
+    make_quote_new_msg,
+    make_quote_cancel_msg,
+    make_quote_ack_msg,
+    make_quote_status_msg,
+    make_dropcopy_fill_msg,
     make_trade_msg,
     make_oco_order_msg,
     make_oco_cancel_msg,
@@ -277,3 +286,62 @@ class TestOcoMessages:
         assert topic == "order.oco_cancel"
         assert payload["oco_id"] == "OCO1"
         assert payload["gateway_id"] == "GW01"
+
+
+class TestMMQuoteAndRiskMessages:
+    def test_make_quote_new_msg(self) -> None:
+        topic, payload = _rt(
+            make_quote_new_msg({"gateway_id": "GW01", "symbol": "AAPL"})
+        )
+        assert topic == "quote.new"
+        assert payload["symbol"] == "AAPL"
+
+    def test_make_quote_cancel_msg(self) -> None:
+        topic, payload = _rt(make_quote_cancel_msg("GW01", "AAPL"))
+        assert topic == "quote.cancel"
+        assert payload["gateway_id"] == "GW01"
+
+    def test_make_quote_ack_msg(self) -> None:
+        topic, payload = _rt(
+            make_quote_ack_msg("GW01", "Q1", True, bid_order_id="B1", ask_order_id="S1")
+        )
+        assert topic == "quote.ack.GW01"
+        assert payload["quote_id"] == "Q1"
+        assert payload["accepted"] is True
+
+    def test_make_quote_status_msg(self) -> None:
+        topic, payload = _rt(make_quote_status_msg("GW01", "Q1", "ACTIVE"))
+        assert topic == "quote.status.GW01"
+        assert payload["status"] == "ACTIVE"
+
+    def test_make_gateway_disconnect_msg(self) -> None:
+        topic, payload = _rt(make_gateway_disconnect_msg("GW01", "shutdown"))
+        assert topic == "system.gateway_disconnect"
+        assert payload["reason"] == "shutdown"
+
+    def test_make_kill_switch_msg(self) -> None:
+        topic, payload = _rt(make_kill_switch_msg("GW01", "AAPL"))
+        assert topic == "risk.kill_switch"
+        assert payload["symbol"] == "AAPL"
+
+    def test_make_kill_switch_ack_msg(self) -> None:
+        topic, payload = _rt(
+            make_kill_switch_ack_msg(
+                "GW01",
+                True,
+                cancelled_orders=3,
+                cancelled_quotes=1,
+            )
+        )
+        assert topic == "risk.kill_switch_ack.GW01"
+        assert payload["cancelled_orders"] == 3
+
+    def test_make_dropcopy_fill_msg(self) -> None:
+        topic, payload = _rt(make_dropcopy_fill_msg("GW01", {"trade_id": "1"}))
+        assert topic == "dropcopy.fill.GW01"
+        assert payload["trade_id"] == "1"
+
+    def test_make_depth_msg(self) -> None:
+        topic, payload = _rt(make_depth_msg("AAPL", {"bids": [[10000, 10]]}))
+        assert topic == "book.depth.AAPL"
+        assert payload["bids"][0][0] == 10000

@@ -47,7 +47,7 @@ def to_ticks(price: float | int, symbol: str) -> int:
     if isinstance(price, int):
         return price
     scale = 10 ** get_tick_decimals(symbol)
-    return round(price * scale)
+    return int(round(price * scale))
 
 
 def from_ticks(ticks: int | float, symbol: str) -> float:
@@ -58,8 +58,9 @@ def from_ticks(ticks: int | float, symbol: str) -> float:
     """
     if isinstance(ticks, float):
         return ticks
-    scale = 10 ** get_tick_decimals(symbol)
-    return ticks / scale
+    decimals: int = get_tick_decimals(symbol)
+    scale: float = float(10**decimals)
+    return float(ticks) / scale
 
 
 def to_ticks_or_none(price: Optional[float], symbol: str) -> Optional[int]:

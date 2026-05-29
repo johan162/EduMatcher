@@ -85,10 +85,14 @@ from edumatcher.models.message import (  # noqa: E402
     make_combo_cancel_msg,
     make_combo_order_msg,
     make_gateway_connect_msg,
+    make_gateway_disconnect_msg,
+    make_kill_switch_msg,
     make_order_amend_msg,
     make_order_cancel_msg,
     make_order_new_msg,
     make_orders_request_msg,
+    make_quote_cancel_msg,
+    make_quote_new_msg,
     make_symbols_request_msg,
     make_oco_order_msg,
     make_oco_cancel_msg,
@@ -101,6 +105,7 @@ from edumatcher.models.order import (  # noqa: E402
     SmpAction,
     TIF,
 )
+from edumatcher.models.price import to_ticks  # noqa: E402
 
 # force_terminal=True so rich always emits ANSI even through the proxy.
 console = Console(file=_SysStdoutProxy(), force_terminal=True)  # type: ignore[arg-type]
@@ -111,6 +116,9 @@ console = Console(file=_SysStdoutProxy(), force_terminal=True)  # type: ignore[a
 
 _TOP_LEVEL_CMDS = [
     "NEW",
+    "QUOTE",
+    "QUOTE_CANCEL",
+    "KILL",
     "AMEND",
     "CANCEL",
     "ORDERS",
@@ -357,6 +365,9 @@ _HELP_TEXT = """
 
   CANCEL|ID=<order-id>
   CANCEL|COMBO_ID=<combo-label>   — cancel a combo and all its legs
+    QUOTE|SYM=<sym>|BID=<p>|ASK=<p>|BID_QTY=<n>|ASK_QTY=<n>[|TIF=DAY|GTC][|QUOTE_ID=<label>]
+    QUOTE_CANCEL|SYM=<sym>          — cancel active quote for a symbol
+    KILL[|SYM=<sym>]                — kill-switch cancel for this gateway
   ORDERS      — show all outstanding orders for this gateway
   POS         — show current positions with P&L
   SYMBOLS     — list all active instruments in the engine
@@ -390,6 +401,9 @@ class Gateway:
             f"combo.status.{self.gateway_id}",
             f"oco.ack.{self.gateway_id}",
             f"oco.cancelled.{self.gateway_id}",
+            f"quote.ack.{self.gateway_id}",
+            f"quote.status.{self.gateway_id}",
+            f"risk.kill_switch_ack.{self.gateway_id}",
             f"system.symbols.{self.gateway_id}",
             f"system.gateway_auth.{self.gateway_id}",
             "trade.executed",
@@ -589,6 +603,39 @@ class Gateway:
                 f"[{ts}] [yellow]OCO CANCEL[/yellow] {oco_id}  sibling={sibling}  {reason}"
             )
 
+        elif "quote.ack" in topic:
+            quote_id = payload.get("quote_id", "?")
+            if payload.get("accepted"):
+                bid_id = payload.get("bid_order_id", "")[:8]
+                ask_id = payload.get("ask_order_id", "")[:8]
+                console.print(
+                    f"[{ts}] [green]QUOTE ACK[/green]  {quote_id}  bid={bid_id} ask={ask_id}"
+                )
+            else:
+                console.print(
+                    f"[{ts}] [red]QUOTE REJ[/red]  {quote_id}  {payload.get('reason', '')}"
+                )
+
+        elif "quote.status" in topic:
+            quote_id = payload.get("quote_id", "?")
+            status = payload.get("status", "?")
+            reason = payload.get("reason", "")
+            msg = f"[{ts}] [cyan]QUOTE {status}[/cyan]  {quote_id}"
+            if reason:
+                msg += f"  {reason}"
+            console.print(msg)
+
+        elif "risk.kill_switch_ack" in topic:
+            if payload.get("accepted"):
+                console.print(
+                    f"[{ts}] [yellow]KILL ACK[/yellow]  orders={payload.get('cancelled_orders', 0)} "
+                    f"quote_legs={payload.get('cancelled_quotes', 0)}"
+                )
+            else:
+                console.print(
+                    f"[{ts}] [red]KILL REJ[/red]  {payload.get('reason', '')}"
+                )
+
         elif "trade.executed" in topic:
             # Track last price per symbol for unrealized P&L
             symbol = payload.get("symbol")
@@ -723,6 +770,29 @@ class Gateway:
             self.push_sock.send_multipart(make_symbols_request_msg(self.gateway_id))
             return
 
+        if cmd == "QUOTE":
+            kv = self._kv(parts[1:])
+            self._send_quote(kv)
+            return
+
+        if cmd == "QUOTE_CANCEL":
+            kv = self._kv(parts[1:])
+            symbol = kv.get("SYM")
+            if not symbol:
+                console.print("[red]QUOTE_CANCEL requires SYM=<symbol>[/red]")
+                return
+            self.push_sock.send_multipart(
+                make_quote_cancel_msg(self.gateway_id, symbol)
+            )
+            return
+
+        if cmd == "KILL":
+            kv = self._kv(parts[1:])
+            self.push_sock.send_multipart(
+                make_kill_switch_msg(self.gateway_id, kv.get("SYM", ""))
+            )
+            return
+
         if cmd == "CANCEL":
             kv = self._kv(parts[1:])
             combo_id = kv.get("COMBO_ID")
@@ -840,11 +910,13 @@ class Gateway:
             quantity=quantity,
             gateway_id=self.gateway_id,
             tif=tif,
-            price=price,
-            stop_price=stop_price,
+            price=to_ticks(price, symbol) if price is not None else None,
+            stop_price=to_ticks(stop_price, symbol) if stop_price is not None else None,
             visible_qty=visible,
             smp_action=smp_action,
-            trail_offset=float(kv["TRAIL"]) if "TRAIL" in kv else None,
+            trail_offset=(
+                to_ticks(float(kv["TRAIL"]), symbol) if "TRAIL" in kv else None
+            ),
         )
 
         # Pre-register in cache before ACK arrives
@@ -862,6 +934,40 @@ class Gateway:
         }
 
         self.push_sock.send_multipart(make_order_new_msg(order.to_dict()))
+
+    def _send_quote(self, kv: dict[str, str]) -> None:
+        try:
+            symbol = kv["SYM"]
+            bid_price = float(kv["BID"])
+            ask_price = float(kv["ASK"])
+            bid_qty = int(kv["BID_QTY"])
+            ask_qty = int(kv["ASK_QTY"])
+            tif = TIF(kv.get("TIF", "DAY"))
+        except (KeyError, ValueError) as exc:
+            console.print(f"[red]QUOTE parse error: {exc}[/red]")
+            return
+
+        if bid_qty <= 0 or ask_qty <= 0:
+            console.print("[red]QUOTE requires positive BID_QTY and ASK_QTY[/red]")
+            return
+        if bid_price >= ask_price:
+            console.print("[red]QUOTE requires BID < ASK[/red]")
+            return
+
+        payload: dict[str, Any] = {
+            "gateway_id": self.gateway_id,
+            "symbol": symbol,
+            "bid_price": bid_price,
+            "bid_qty": bid_qty,
+            "ask_price": ask_price,
+            "ask_qty": ask_qty,
+            "tif": tif.value,
+        }
+        quote_id = kv.get("QUOTE_ID")
+        if quote_id:
+            payload["quote_id"] = quote_id
+
+        self.push_sock.send_multipart(make_quote_new_msg(payload))
 
     def _send_oco(self, kv: dict[str, str]) -> None:
         """Parse and send an OCO pair from TYPE=OCO format."""
@@ -973,7 +1079,7 @@ class Gateway:
                     side=Side(side),
                     order_type=OrderType(leg_type),
                     quantity=int(qty),
-                    price=float(price) if price else None,
+                    price=to_ticks(float(price), sym) if price else None,
                     smp_action=SmpAction(smp_str),
                 )
             except (ValueError, KeyError) as exc:
@@ -1088,6 +1194,12 @@ class Gateway:
                         self._parse_and_send(line)
         finally:
             self._running = False
+            try:
+                self.push_sock.send_multipart(
+                    make_gateway_disconnect_msg(self.gateway_id, reason="client_exit")
+                )
+            except Exception:
+                pass
             self.push_sock.close()
             self.sub_sock.close()
             console.print(f"\n[bold]Gateway {self.gateway_id} disconnected.[/bold]")

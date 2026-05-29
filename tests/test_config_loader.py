@@ -14,6 +14,8 @@ from edumatcher.engine.config_loader import (
     ScheduleConfig,
     load_engine_config,
 )
+from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
+from edumatcher.models.quote import QuoteRefreshPolicy
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -76,18 +78,24 @@ class TestConfigLoaderHappyPath:
         assert "MSFT" in cfg.symbols
         assert cfg.symbols["MSFT"].last_buy_price is None
 
-    def test_market_maker_orders(self, tmp_path: Path) -> None:
+    def test_market_maker_quotes(self, tmp_path: Path) -> None:
         yaml = """
         symbols:
           AAPL:
-            market_maker_orders:
-              - "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149"
+            market_maker_quotes:
+              - gateway_id: MM01
+                bid_price: 149.0
+                ask_price: 150.0
+                bid_qty: 100
+                ask_qty: 100
         gateways:
           fix:
-            - id: GW01
+            - id: MM01
+              role: MARKET_MAKER
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
-        assert len(cfg.symbols["AAPL"].market_maker_orders) == 1
+        assert len(cfg.symbols["AAPL"].market_maker_quotes) == 1
+        assert cfg.symbols["AAPL"].market_maker_quotes[0].gateway_id == "MM01"
 
     def test_multiple_gateways(self, tmp_path: Path) -> None:
         yaml = """
@@ -103,6 +111,35 @@ class TestConfigLoaderHappyPath:
         assert "GW01" in cfg.fix_gateways
         assert "GW02" in cfg.fix_gateways
         assert cfg.fix_gateways["GW01"].description == "First gateway"
+
+    def test_gateway_mm_fields(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL:
+            market_maker_quotes:
+              - gateway_id: MM01
+                bid_price: 100.0
+                ask_price: 101.0
+                bid_qty: 50
+                ask_qty: 50
+        gateways:
+          fix:
+            - id: MM01
+              role: MARKET_MAKER
+              disconnect_behaviour: CANCEL_ALL
+              quote_refresh_policy: NEVER_INACTIVATE
+              enforce_mm_obligation: true
+              mm_max_spread_ticks: 8
+              mm_min_qty: 50
+        """
+        cfg = load_engine_config(_write_yaml(tmp_path, yaml))
+        gw = cfg.fix_gateways["MM01"]
+        assert gw.role == ParticipantRole.MARKET_MAKER
+        assert gw.disconnect_behaviour == DisconnectBehaviour.CANCEL_ALL
+        assert gw.quote_refresh_policy == QuoteRefreshPolicy.NEVER_INACTIVATE
+        assert gw.enforce_mm_obligation is True
+        assert gw.mm_max_spread_ticks == 8
+        assert gw.mm_min_qty == 50
 
     def test_gateway_id_uppercased(self, tmp_path: Path) -> None:
         yaml = """
@@ -320,38 +357,61 @@ class TestConfigLoaderSymbolErrors:
         yaml = """
         symbols:
           AAPL:
-            market_maker_orders: "not-a-list"
+            market_maker_quotes: "not-a-list"
         gateways:
           fix:
             - id: GW01
         """
-        with pytest.raises(ValueError, match="must be a list"):
+        with pytest.raises(ValueError, match="market_maker_quotes must be a list"):
             load_engine_config(_write_yaml(tmp_path, yaml))
 
-    def test_mm_order_not_string_raises(self, tmp_path: Path) -> None:
+    def test_mm_quote_not_mapping_raises(self, tmp_path: Path) -> None:
         yaml = """
         symbols:
           AAPL:
-            market_maker_orders:
+            market_maker_quotes:
               - 12345
         gateways:
           fix:
             - id: GW01
         """
-        with pytest.raises(ValueError, match="must be a string"):
+        with pytest.raises(ValueError, match="must be a mapping"):
             load_engine_config(_write_yaml(tmp_path, yaml))
 
-    def test_mm_order_missing_new_prefix_raises(self, tmp_path: Path) -> None:
+    def test_mm_quote_invalid_payload_raises(self, tmp_path: Path) -> None:
         yaml = """
         symbols:
           AAPL:
-            market_maker_orders:
-              - "CANCEL|ID=123"
+            market_maker_quotes:
+              - gateway_id: MM01
+                bid_price: 101.0
+                ask_price: 100.0
+                bid_qty: 10
+                ask_qty: 10
+        gateways:
+          fix:
+            - id: MM01
+              role: MARKET_MAKER
+        """
+        with pytest.raises(ValueError, match="requires bid_price < ask_price"):
+            load_engine_config(_write_yaml(tmp_path, yaml))
+
+    def test_mm_quote_gateway_must_be_market_maker(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL:
+            market_maker_quotes:
+              - gateway_id: GW01
+                bid_price: 100.0
+                ask_price: 101.0
+                bid_qty: 10
+                ask_qty: 10
         gateways:
           fix:
             - id: GW01
+              role: TRADER
         """
-        with pytest.raises(ValueError, match="must start with 'NEW|'"):
+        with pytest.raises(ValueError, match="must reference a MARKET_MAKER gateway"):
             load_engine_config(_write_yaml(tmp_path, yaml))
 
     def test_tick_decimals_out_of_range_raises(self, tmp_path: Path) -> None:
@@ -433,6 +493,80 @@ class TestConfigLoaderGatewayErrors:
             - id: GW01
         """
         with pytest.raises(ValueError, match="Duplicate gateway id"):
+            load_engine_config(_write_yaml(tmp_path, yaml))
+
+    def test_gateway_invalid_role_raises(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          fix:
+            - id: GW01
+              role: INVALID
+        """
+        with pytest.raises(ValueError, match="role is invalid"):
+            load_engine_config(_write_yaml(tmp_path, yaml))
+
+    def test_gateway_invalid_disconnect_behaviour_raises(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          fix:
+            - id: GW01
+              disconnect_behaviour: BAD_MODE
+        """
+        with pytest.raises(ValueError, match="disconnect_behaviour is invalid"):
+            load_engine_config(_write_yaml(tmp_path, yaml))
+
+    def test_gateway_invalid_quote_refresh_policy_raises(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          fix:
+            - id: GW01
+              quote_refresh_policy: SOMETIMES
+        """
+        with pytest.raises(ValueError, match="quote_refresh_policy is invalid"):
+            load_engine_config(_write_yaml(tmp_path, yaml))
+
+    def test_gateway_invalid_enforce_mm_obligation_type_raises(
+        self, tmp_path: Path
+    ) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          fix:
+            - id: GW01
+              enforce_mm_obligation: "yes"
+        """
+        with pytest.raises(ValueError, match="enforce_mm_obligation"):
+            load_engine_config(_write_yaml(tmp_path, yaml))
+
+    def test_gateway_invalid_mm_max_spread_ticks_raises(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          fix:
+            - id: GW01
+              mm_max_spread_ticks: 0
+        """
+        with pytest.raises(ValueError, match="mm_max_spread_ticks"):
+            load_engine_config(_write_yaml(tmp_path, yaml))
+
+    def test_gateway_invalid_mm_min_qty_raises(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          fix:
+            - id: GW01
+              mm_min_qty: -1
+        """
+        with pytest.raises(ValueError, match="mm_min_qty"):
             load_engine_config(_write_yaml(tmp_path, yaml))
 
     def test_gateway_description_not_string_raises(self, tmp_path: Path) -> None:

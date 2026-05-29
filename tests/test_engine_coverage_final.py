@@ -13,6 +13,7 @@ import pytest
 from edumatcher.engine.config_loader import (
     EngineConfig,
     FixGatewayConfig,
+    MMQuoteSeed,
     SymbolConfig,
 )
 from edumatcher.engine.main import Engine
@@ -49,7 +50,7 @@ def _make_engine(
     tmp_path,
     symbols=("AAPL",),
     gateways=("GW01",),
-    mm_orders=None,
+    mm_quotes=None,
     gtc_orders=None,
     gtc_combos=None,
     book_stats=None,
@@ -61,8 +62,8 @@ def _make_engine(
 
     sym_configs = {}
     for sym in symbols:
-        orders_list = mm_orders.get(sym, []) if mm_orders else []
-        sym_configs[sym] = SymbolConfig(name=sym, market_maker_orders=orders_list)
+        quotes_list = mm_quotes.get(sym, []) if mm_quotes else []
+        sym_configs[sym] = SymbolConfig(name=sym, market_maker_quotes=quotes_list)
 
     cfg = EngineConfig(
         symbols=sym_configs,
@@ -241,14 +242,22 @@ class TestLoadConfigWithStats:
         # stats restore path hit; book should exist
         assert "AAPL" in engine.books
 
-    def test_load_config_verbose_mm_order(self, monkeypatch, tmp_path) -> None:
-        """With verbose=True and MM orders, the verbose MM order print runs."""
+    def test_load_config_verbose_mm_quote(self, monkeypatch, tmp_path) -> None:
+        """With verbose=True and MM quotes, the verbose MM quote print runs."""
         engine, _ = _make_engine(
             monkeypatch,
             tmp_path,
             symbols=("AAPL",),
-            mm_orders={
-                "AAPL": ["NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=105.00"]
+            mm_quotes={
+                "AAPL": [
+                    MMQuoteSeed(
+                        gateway_id="GW01",
+                        bid_price=104.0,
+                        ask_price=105.0,
+                        bid_qty=100,
+                        ask_qty=100,
+                    )
+                ]
             },
             verbose=True,
         )

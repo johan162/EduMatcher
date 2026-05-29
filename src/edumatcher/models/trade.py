@@ -42,6 +42,7 @@ class Trade:
     sell_gateway_id: str
     price: int
     quantity: int
+    aggressor_side: str
     timestamp: int
 
     # ------------------------------------------------------------------
@@ -57,6 +58,7 @@ class Trade:
         sell_gateway_id: str,
         price: int,
         quantity: int,
+        aggressor_side: str,
         # PERF #3: Accept a pre-computed timestamp from the caller instead of
         # calling time.time() independently.  The engine computes one timestamp
         # per incoming order and passes it through the entire processing chain,
@@ -73,6 +75,7 @@ class Trade:
             sell_gateway_id=sell_gateway_id,
             price=price,
             quantity=quantity,
+            aggressor_side=aggressor_side,
             # PERF #3: Reuse caller-provided timestamp; fall back to now_ns()
             # only for non-hot-path callers (tests, deserialization).
             timestamp=now if now is not None else now_ns(),
@@ -88,6 +91,7 @@ class Trade:
             "sell_gateway_id": self.sell_gateway_id,
             "price": self.price,
             "quantity": self.quantity,
+            "aggressor_side": self.aggressor_side,
             "timestamp": self.timestamp,
         }
 
@@ -102,5 +106,6 @@ class Trade:
             sell_gateway_id=d["sell_gateway_id"],
             price=d["price"],
             quantity=d["quantity"],
+            aggressor_side=d.get("aggressor_side", ""),
             timestamp=d["timestamp"],
         )

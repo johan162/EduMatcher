@@ -48,24 +48,25 @@ from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
 # Paths
 # ---------------------------------------------------------------------------
 
-VERIFY_DIR    = ROOT / "data" / "verify"
-MM_FIX_FILE   = VERIFY_DIR / "mm_orders.fix"
+VERIFY_DIR = ROOT / "data" / "verify"
+MM_FIX_FILE = VERIFY_DIR / "mm_orders.fix"
 TEST_FIX_FILE = VERIFY_DIR / "test_orders.fix"
 ENGINE_RESULT = VERIFY_DIR / "engine_result.json"
 
 GATEWAY_ID = "VERIFY01"
-SYMBOLS    = ["AAPL", "AMAZ", "MSFT", "GOOG"]
+SYMBOLS = ["AAPL", "AMAZ", "MSFT", "GOOG"]
 
 # Timeouts
-ACK_TIMEOUT_MS   = 2_000   # ms to wait for a single ACK
-AUTH_TIMEOUT_MS  = 3_000   # ms to wait for gateway auth
-SNAP_TIMEOUT_MS  = 5_000   # ms to wait for a book snapshot after request
-DRAIN_PAUSE_S    = 0.5     # seconds to pause after last order before snapshots
+ACK_TIMEOUT_MS = 2_000  # ms to wait for a single ACK
+AUTH_TIMEOUT_MS = 3_000  # ms to wait for gateway auth
+SNAP_TIMEOUT_MS = 5_000  # ms to wait for a book snapshot after request
+DRAIN_PAUSE_S = 0.5  # seconds to pause after last order before snapshots
 
 
 # ---------------------------------------------------------------------------
 # FIX parser (same as paper trader — kept local to avoid cross-file deps)
 # ---------------------------------------------------------------------------
+
 
 def _parse_fix_line(line: str) -> Order | None:
     """Parse a FIX-like NEW order line into an Order object."""
@@ -83,15 +84,15 @@ def _parse_fix_line(line: str) -> Order | None:
             kv[k.upper()] = v
 
     try:
-        symbol     = kv["SYM"].upper()
-        side       = Side(kv["SIDE"].upper())
+        symbol = kv["SYM"].upper()
+        side = Side(kv["SIDE"].upper())
         order_type = OrderType(kv["TYPE"].upper())
-        quantity   = int(kv["QTY"])
-        tif_val    = TIF(kv.get("TIF", "DAY").upper())
-        price      = float(kv["PRICE"])  if "PRICE"   in kv else None
-        stop_price = float(kv["STOP"])   if "STOP"    in kv else None
-        visible    = int(kv["VISIBLE"])  if "VISIBLE" in kv else None
-        trail      = float(kv["TRAIL"])  if "TRAIL"   in kv else None
+        quantity = int(kv["QTY"])
+        tif_val = TIF(kv.get("TIF", "DAY").upper())
+        price = float(kv["PRICE"]) if "PRICE" in kv else None
+        stop_price = float(kv["STOP"]) if "STOP" in kv else None
+        visible = int(kv["VISIBLE"]) if "VISIBLE" in kv else None
+        trail = float(kv["TRAIL"]) if "TRAIL" in kv else None
     except (KeyError, ValueError) as exc:
         print(f"[REPLAY] Parse error '{line}': {exc}", file=sys.stderr)
         return None
@@ -114,6 +115,7 @@ def _parse_fix_line(line: str) -> Order | None:
 # ---------------------------------------------------------------------------
 # Replay engine
 # ---------------------------------------------------------------------------
+
 
 class ReplayClient:
     """ZMQ-based order replay client."""
@@ -145,7 +147,7 @@ class ReplayClient:
 
     def authenticate(self) -> bool:
         """Send gateway_connect and wait for auth confirmation."""
-        time.sleep(0.15)   # allow SUB filters to propagate
+        time.sleep(0.15)  # allow SUB filters to propagate
         self.push_sock.send_multipart(make_gateway_connect_msg(GATEWAY_ID))
         deadline = time.monotonic() + AUTH_TIMEOUT_MS / 1000
         while time.monotonic() < deadline:
@@ -222,8 +224,8 @@ def _snapshot_for_result(snap: dict) -> dict:
     return {
         "bids": [{"price": b["price"], "qty": b["qty"]} for b in snap.get("bids", [])],
         "asks": [{"price": a["price"], "qty": a["qty"]} for a in snap.get("asks", [])],
-        "last_price":      snap.get("last_price"),
-        "last_buy_price":  snap.get("last_buy_price"),
+        "last_price": snap.get("last_price"),
+        "last_buy_price": snap.get("last_buy_price"),
         "last_sell_price": snap.get("last_sell_price"),
     }
 
@@ -238,9 +240,9 @@ def run_replay(pull_addr: str, pub_addr: str) -> None:
         )
         sys.exit(1)
 
-    mm_lines   = _load_fix_file(MM_FIX_FILE)
+    mm_lines = _load_fix_file(MM_FIX_FILE)
     test_lines = _load_fix_file(TEST_FIX_FILE)
-    all_lines  = mm_lines + test_lines
+    all_lines = mm_lines + test_lines
 
     client = ReplayClient(pull_addr, pub_addr)
 
@@ -249,11 +251,11 @@ def run_replay(pull_addr: str, pub_addr: str) -> None:
         sys.exit(1)
 
     # ── Send all orders ──────────────────────────────────────────────────────
-    total       = 0
-    accepted    = 0
-    rejected    = 0
-    parse_errs  = 0
-    t_start     = time.monotonic()
+    total = 0
+    accepted = 0
+    rejected = 0
+    parse_errs = 0
+    t_start = time.monotonic()
 
     for raw in all_lines:
         order = _parse_fix_line(raw)
@@ -309,15 +311,20 @@ def run_replay(pull_addr: str, pub_addr: str) -> None:
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     ap.add_argument(
-        "--pull", default=ENGINE_PULL_ADDR,
-        metavar="ADDR", help=f"Engine PULL address (default: {ENGINE_PULL_ADDR})"
+        "--pull",
+        default=ENGINE_PULL_ADDR,
+        metavar="ADDR",
+        help=f"Engine PULL address (default: {ENGINE_PULL_ADDR})",
     )
     ap.add_argument(
-        "--pub", default=ENGINE_PUB_ADDR,
-        metavar="ADDR", help=f"Engine PUB address (default: {ENGINE_PUB_ADDR})"
+        "--pub",
+        default=ENGINE_PUB_ADDR,
+        metavar="ADDR",
+        help=f"Engine PUB address (default: {ENGINE_PUB_ADDR})",
     )
     args = ap.parse_args()
     run_replay(args.pull, args.pub)

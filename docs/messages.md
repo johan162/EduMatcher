@@ -240,6 +240,57 @@ At least one of `price` or `qty` must be present.
 
 ---
 
+### `quote.new`
+
+Sent by a market-maker gateway to submit or replace a two-sided quote.
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Originating gateway identifier |
+| `symbol` | string | Instrument ticker |
+| `quote_id` | string \| absent | Optional client-provided quote label |
+| `bid_price` | float | Bid price |
+| `bid_qty` | integer | Bid quantity |
+| `ask_price` | float | Ask price |
+| `ask_qty` | integer | Ask quantity |
+| `tif` | string | Quote leg time-in-force (`DAY` or `GTC`) |
+
+Replies:
+
+- `quote.ack.{GW_ID}`
+- `quote.status.{GW_ID}`
+
+### `quote.cancel`
+
+Cancel the active quote for one symbol.
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Gateway identifier |
+| `symbol` | string | Instrument ticker |
+
+### `risk.kill_switch`
+
+Cancel risk-bearing exposure for a gateway.
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Gateway identifier |
+| `symbol` | string \| empty | Optional symbol scope |
+
+Reply: `risk.kill_switch_ack.{GW_ID}` with cancellation totals.
+
+### `system.gateway_disconnect`
+
+Graceful disconnect notice from gateway to engine.
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Gateway identifier |
+| `reason` | string | Optional disconnect reason |
+
+---
+
 ### `order.combo`
 
 Sent by a gateway to submit a combo (multi-leg) order.

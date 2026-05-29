@@ -129,8 +129,8 @@ class TestGatewayComboParser:
         gw.order_cache = {}
         gw._known_symbols = ["AAPL", "MSFT", "GOOG"]
         gw._running = True
-        gw.push_sock = _FakePush()  # type: ignore[assignment]
-        gw.sub_sock = _FakeSub()  # type: ignore[assignment]
+        gw.push_sock = _FakePush()
+        gw.sub_sock = _FakeSub()
 
         gw._parse_and_send(line)
         return sent

@@ -44,9 +44,9 @@ from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
 
 VERIFY_DIR = ROOT / "data" / "verify"
 
-MM_FIX_FILE   = VERIFY_DIR / "mm_orders.fix"
+MM_FIX_FILE = VERIFY_DIR / "mm_orders.fix"
 TEST_FIX_FILE = VERIFY_DIR / "test_orders.fix"
-PAPER_RESULT  = VERIFY_DIR / "paper_result.json"
+PAPER_RESULT = VERIFY_DIR / "paper_result.json"
 
 # ---------------------------------------------------------------------------
 # Symbol definitions
@@ -96,9 +96,9 @@ _DEPTH_EXTRA: dict[str, list[tuple[float, int]]] = {
 
 def _mm_orders_for_symbol(symbol: str) -> list[str]:
     """Return FIX lines that seed liquidity for one symbol."""
-    mid    = REF_PRICE[symbol]
+    mid = REF_PRICE[symbol]
     levels = _LEVELS_MSFT if symbol == "MSFT" else _LEVELS_STD
-    extra  = _DEPTH_EXTRA.get(symbol, [])
+    extra = _DEPTH_EXTRA.get(symbol, [])
 
     lines: list[str] = []
     for offset, qty in levels:
@@ -137,26 +137,26 @@ def build_mm_orders() -> list[str]:
 # ---------------------------------------------------------------------------
 
 _ORDER_TYPES = [
-    ("LIMIT",      35),
-    ("MARKET",     22),
-    ("FOK",        10),
-    ("IOC",        10),
-    ("ICEBERG",    13),
-    ("STOP",        5),
-    ("STOP_LIMIT",  5),
+    ("LIMIT", 35),
+    ("MARKET", 22),
+    ("FOK", 10),
+    ("IOC", 10),
+    ("ICEBERG", 13),
+    ("STOP", 5),
+    ("STOP_LIMIT", 5),
 ]
-_TYPE_NAMES   = [t for t, _ in _ORDER_TYPES]
+_TYPE_NAMES = [t for t, _ in _ORDER_TYPES]
 _TYPE_WEIGHTS = [w for _, w in _ORDER_TYPES]
 
 
 def _generate_one_order(rng: random.Random, symbol: str) -> str:
     """Return a single random FIX line for the given symbol."""
-    mid    = REF_PRICE[symbol]
+    mid = REF_PRICE[symbol]
     half_s = (_LEVELS_MSFT if symbol == "MSFT" else _LEVELS_STD)[0][0]
 
-    side_str  = rng.choice(["BUY", "SELL"])
-    otype     = rng.choices(_TYPE_NAMES, weights=_TYPE_WEIGHTS, k=1)[0]
-    qty       = rng.randrange(1, 11) * 50        # 50 … 500
+    side_str = rng.choice(["BUY", "SELL"])
+    otype = rng.choices(_TYPE_NAMES, weights=_TYPE_WEIGHTS, k=1)[0]
+    qty = rng.randrange(1, 11) * 50  # 50 … 500
 
     # Whether this order is "near market" (more likely to match) or "away"
     near = rng.random() < 0.60
@@ -166,19 +166,35 @@ def _generate_one_order(rng: random.Random, symbol: str) -> str:
 
     if otype == "LIMIT":
         if side_str == "BUY":
-            price = round(mid + half_s * rng.uniform(-3.0, 0.8) if near
-                          else mid - half_s * rng.uniform(1.5, 5.0), 2)
+            price = round(
+                (
+                    mid + half_s * rng.uniform(-3.0, 0.8)
+                    if near
+                    else mid - half_s * rng.uniform(1.5, 5.0)
+                ),
+                2,
+            )
         else:
-            price = round(mid + half_s * rng.uniform(-0.8, 3.0) if near
-                          else mid + half_s * rng.uniform(1.5, 5.0), 2)
-        return f"NEW|SYM={symbol}|SIDE={side_str}|TYPE=LIMIT|QTY={qty}|PRICE={price:.2f}"
+            price = round(
+                (
+                    mid + half_s * rng.uniform(-0.8, 3.0)
+                    if near
+                    else mid + half_s * rng.uniform(1.5, 5.0)
+                ),
+                2,
+            )
+        return (
+            f"NEW|SYM={symbol}|SIDE={side_str}|TYPE=LIMIT|QTY={qty}|PRICE={price:.2f}"
+        )
 
     if otype in ("FOK", "IOC"):
         if side_str == "BUY":
             price = round(mid + half_s * rng.uniform(-1.5, 2.0), 2)
         else:
             price = round(mid + half_s * rng.uniform(-2.0, 1.5), 2)
-        return f"NEW|SYM={symbol}|SIDE={side_str}|TYPE={otype}|QTY={qty}|PRICE={price:.2f}"
+        return (
+            f"NEW|SYM={symbol}|SIDE={side_str}|TYPE={otype}|QTY={qty}|PRICE={price:.2f}"
+        )
 
     if otype == "ICEBERG":
         if side_str == "BUY":
@@ -186,7 +202,7 @@ def _generate_one_order(rng: random.Random, symbol: str) -> str:
         else:
             price = round(mid + half_s * rng.uniform(-0.2, 2.0), 2)
         total_qty = qty * rng.randint(2, 5)
-        visible   = rng.choice([50, 100, 150, 200])
+        visible = rng.choice([50, 100, 150, 200])
         return (
             f"NEW|SYM={symbol}|SIDE={side_str}|TYPE=ICEBERG"
             f"|QTY={total_qty}|PRICE={price:.2f}|VISIBLE={visible}"
@@ -202,10 +218,10 @@ def _generate_one_order(rng: random.Random, symbol: str) -> str:
 
     # STOP_LIMIT
     if side_str == "BUY":
-        stop  = round(mid + half_s * rng.uniform(0.5, 3.0), 2)
+        stop = round(mid + half_s * rng.uniform(0.5, 3.0), 2)
         limit = round(stop + half_s * rng.uniform(0.1, 0.5), 2)
     else:
-        stop  = round(mid - half_s * rng.uniform(0.5, 3.0), 2)
+        stop = round(mid - half_s * rng.uniform(0.5, 3.0), 2)
         limit = round(stop - half_s * rng.uniform(0.1, 0.5), 2)
     return (
         f"NEW|SYM={symbol}|SIDE={side_str}|TYPE=STOP_LIMIT"
@@ -227,6 +243,7 @@ def build_test_orders(rng: random.Random, count: int) -> list[str]:
 # FIX-line parser  (replicates gateway + engine logic)
 # ---------------------------------------------------------------------------
 
+
 def parse_fix_line(line: str, gateway_id: str = "PAPER01") -> Optional[Order]:
     """Parse a FIX-like NEW order line into an Order object."""
     line = line.strip()
@@ -243,15 +260,15 @@ def parse_fix_line(line: str, gateway_id: str = "PAPER01") -> Optional[Order]:
             kv[k.upper()] = v
 
     try:
-        symbol     = kv["SYM"].upper()
-        side       = Side(kv["SIDE"].upper())
+        symbol = kv["SYM"].upper()
+        side = Side(kv["SIDE"].upper())
         order_type = OrderType(kv["TYPE"].upper())
-        quantity   = int(kv["QTY"])
-        tif_val    = TIF(kv.get("TIF", "DAY").upper())
-        price      = float(kv["PRICE"]) if "PRICE" in kv else None
-        stop_price = float(kv["STOP"])  if "STOP"  in kv else None
-        visible    = int(kv["VISIBLE"]) if "VISIBLE" in kv else None
-        trail      = float(kv["TRAIL"]) if "TRAIL"  in kv else None
+        quantity = int(kv["QTY"])
+        tif_val = TIF(kv.get("TIF", "DAY").upper())
+        price = float(kv["PRICE"]) if "PRICE" in kv else None
+        stop_price = float(kv["STOP"]) if "STOP" in kv else None
+        visible = int(kv["VISIBLE"]) if "VISIBLE" in kv else None
+        trail = float(kv["TRAIL"]) if "TRAIL" in kv else None
     except (KeyError, ValueError) as exc:
         print(f"[PAPER] Parse error '{line}': {exc}", file=sys.stderr)
         return None
@@ -275,14 +292,15 @@ def parse_fix_line(line: str, gateway_id: str = "PAPER01") -> Optional[Order]:
 # Paper trader — uses OrderBook directly, no ZMQ
 # ---------------------------------------------------------------------------
 
+
 def _snapshot_for_result(book: OrderBook) -> dict:
     """Strip snapshot down to the fields used for comparison."""
     snap = book.snapshot()
     return {
         "bids": [{"price": b["price"], "qty": b["qty"]} for b in snap["bids"]],
         "asks": [{"price": a["price"], "qty": a["qty"]} for a in snap["asks"]],
-        "last_price":      snap["last_price"],
-        "last_buy_price":  snap["last_buy_price"],
+        "last_price": snap["last_price"],
+        "last_buy_price": snap["last_buy_price"],
         "last_sell_price": snap["last_sell_price"],
     }
 
@@ -297,9 +315,9 @@ def paper_trade(mm_lines: list[str], test_lines: list[str]) -> dict:
     """
     books: dict[str, OrderBook] = {sym: OrderBook(sym) for sym in SYMBOLS}
 
-    total_trades  = 0
-    total_orders  = 0
-    skipped       = 0
+    total_trades = 0
+    total_orders = 0
+    skipped = 0
 
     t0 = time.monotonic()
     all_lines = mm_lines + test_lines
@@ -310,7 +328,9 @@ def paper_trade(mm_lines: list[str], test_lines: list[str]) -> dict:
             skipped += 1
             continue
         if order.symbol not in books:
-            print(f"[PAPER] Unknown symbol '{order.symbol}' — skipping", file=sys.stderr)
+            print(
+                f"[PAPER] Unknown symbol '{order.symbol}' — skipping", file=sys.stderr
+            )
             skipped += 1
             continue
 
@@ -340,10 +360,13 @@ def paper_trade(mm_lines: list[str], test_lines: list[str]) -> dict:
 # CLI entry-point
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[1])
-    ap.add_argument("--seed",  type=int, default=42,   help="Random seed (default: 42)")
-    ap.add_argument("--count", type=int, default=1000, help="Number of test orders (default: 1000)")
+    ap.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
+    ap.add_argument(
+        "--count", type=int, default=1000, help="Number of test orders (default: 1000)"
+    )
     args = ap.parse_args()
 
     VERIFY_DIR.mkdir(parents=True, exist_ok=True)

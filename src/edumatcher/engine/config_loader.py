@@ -10,7 +10,7 @@ Returned structure:
         .name:              str
         .last_buy_price:    float | None
         .last_sell_price:   float | None
-        .market_maker_orders: list[str]   # raw FIX-like strings
+        .market_maker_quotes: list[MMQuoteSeed]
 """
 
 from __future__ import annotations
@@ -22,7 +22,12 @@ from typing import Optional
 import yaml
 
 from edumatcher.models.combo import ComboLeg, ComboType
+from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
+from edumatcher.models.quote import QuoteRefreshPolicy
 from edumatcher.models.order import TIF
+
+_DEFAULT_MM_MAX_SPREAD_TICKS = 10
+_DEFAULT_MM_MIN_QTY = 100
 
 
 @dataclass
@@ -31,7 +36,18 @@ class SymbolConfig:
     tick_decimals: int = 2
     last_buy_price: Optional[float] = None
     last_sell_price: Optional[float] = None
-    market_maker_orders: list[str] = field(default_factory=list)
+    market_maker_quotes: list["MMQuoteSeed"] = field(default_factory=list)
+
+
+@dataclass
+class MMQuoteSeed:
+    gateway_id: str
+    bid_price: float
+    ask_price: float
+    bid_qty: int
+    ask_qty: int
+    tif: TIF = TIF.DAY
+    quote_id: str | None = None
 
 
 @dataclass
@@ -46,6 +62,12 @@ class ComboSeedConfig:
 class FixGatewayConfig:
     id: str
     description: str = ""
+    role: ParticipantRole = ParticipantRole.TRADER
+    disconnect_behaviour: DisconnectBehaviour = DisconnectBehaviour.CANCEL_QUOTES_ONLY
+    quote_refresh_policy: QuoteRefreshPolicy = QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL
+    enforce_mm_obligation: bool = False
+    mm_max_spread_ticks: int = _DEFAULT_MM_MAX_SPREAD_TICKS
+    mm_min_qty: int = _DEFAULT_MM_MIN_QTY
 
 
 @dataclass
@@ -116,7 +138,7 @@ def load_engine_config(path: Path) -> EngineConfig:
         lbp = cfg.get("last_buy_price")
         lsp = cfg.get("last_sell_price")
         tick_decimals = cfg.get("tick_decimals", 2)
-        mm_orders = cfg.get("market_maker_orders") or []
+        mm_quotes_raw = cfg.get("market_maker_quotes") or []
 
         try:
             tick_decimals = int(tick_decimals)
@@ -135,24 +157,70 @@ def load_engine_config(path: Path) -> EngineConfig:
                 lsp = float(lsp)
             except (TypeError, ValueError):
                 raise ValueError(f"Symbol '{sym}': last_sell_price must be a number")
-        if not isinstance(mm_orders, list):
-            raise ValueError(f"Symbol '{sym}': market_maker_orders must be a list")
-        for i, line in enumerate(mm_orders):
-            if not isinstance(line, str):
+        if not isinstance(mm_quotes_raw, list):
+            raise ValueError(f"Symbol '{sym}': market_maker_quotes must be a list")
+
+        mm_quotes: list[MMQuoteSeed] = []
+        for i, quote_raw in enumerate(mm_quotes_raw):
+            if not isinstance(quote_raw, dict):
                 raise ValueError(
-                    f"Symbol '{sym}': market_maker_orders[{i}] must be a string"
+                    f"Symbol '{sym}': market_maker_quotes[{i}] must be a mapping"
                 )
-            if not line.upper().startswith("NEW|"):
+
+            gateway_id_raw = quote_raw.get("gateway_id")
+            if not isinstance(gateway_id_raw, str) or not gateway_id_raw.strip():
                 raise ValueError(
-                    f"Symbol '{sym}': market_maker_orders[{i}] must start with 'NEW|'"
+                    f"Symbol '{sym}': market_maker_quotes[{i}].gateway_id must be a non-empty string"
                 )
+            gateway_id = gateway_id_raw.strip().upper()
+
+            try:
+                bid_price = float(quote_raw["bid_price"])
+                ask_price = float(quote_raw["ask_price"])
+                bid_qty = int(quote_raw["bid_qty"])
+                ask_qty = int(quote_raw["ask_qty"])
+                tif = TIF(str(quote_raw.get("tif", TIF.DAY.value)).upper())
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"Symbol '{sym}': market_maker_quotes[{i}] is invalid"
+                ) from exc
+
+            quote_id_raw = quote_raw.get("quote_id")
+            if quote_id_raw is not None and not isinstance(quote_id_raw, str):
+                raise ValueError(
+                    f"Symbol '{sym}': market_maker_quotes[{i}].quote_id must be a string"
+                )
+            quote_id = quote_id_raw.strip() if isinstance(quote_id_raw, str) else None
+            if quote_id == "":
+                quote_id = None
+
+            if bid_qty <= 0 or ask_qty <= 0:
+                raise ValueError(
+                    f"Symbol '{sym}': market_maker_quotes[{i}] quantities must be positive"
+                )
+            if bid_price >= ask_price:
+                raise ValueError(
+                    f"Symbol '{sym}': market_maker_quotes[{i}] requires bid_price < ask_price"
+                )
+
+            mm_quotes.append(
+                MMQuoteSeed(
+                    gateway_id=gateway_id,
+                    bid_price=bid_price,
+                    ask_price=ask_price,
+                    bid_qty=bid_qty,
+                    ask_qty=ask_qty,
+                    tif=tif,
+                    quote_id=quote_id,
+                )
+            )
 
         symbols[sym] = SymbolConfig(
             name=sym,
             tick_decimals=tick_decimals,
             last_buy_price=lbp,
             last_sell_price=lsp,
-            market_maker_orders=list(mm_orders),
+            market_maker_quotes=mm_quotes,
         )
 
     mm_combos_raw = raw.get("market_maker_combos") or []
@@ -249,12 +317,99 @@ def load_engine_config(path: Path) -> EngineConfig:
             desc = ""
         if not isinstance(desc, str):
             raise ValueError(f"gateways.fix[{i}].description must be a string")
+
+        role_raw = str(item.get("role", ParticipantRole.TRADER.value)).upper()
+        disconnect_raw = str(
+            item.get(
+                "disconnect_behaviour",
+                DisconnectBehaviour.CANCEL_QUOTES_ONLY.value,
+            )
+        ).upper()
+        refresh_raw = str(
+            item.get(
+                "quote_refresh_policy",
+                QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL.value,
+            )
+        ).upper()
+        enforce_mm_obligation = item.get("enforce_mm_obligation", False)
+        if not isinstance(enforce_mm_obligation, bool):
+            raise ValueError(
+                f"gateways.fix[{i}].enforce_mm_obligation must be a boolean"
+            )
+
+        mm_max_spread_ticks_raw = item.get(
+            "mm_max_spread_ticks", _DEFAULT_MM_MAX_SPREAD_TICKS
+        )
+        mm_min_qty_raw = item.get("mm_min_qty", _DEFAULT_MM_MIN_QTY)
+        try:
+            mm_max_spread_ticks = int(mm_max_spread_ticks_raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"gateways.fix[{i}].mm_max_spread_ticks must be an integer"
+            ) from exc
+        try:
+            mm_min_qty = int(mm_min_qty_raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"gateways.fix[{i}].mm_min_qty must be an integer"
+            ) from exc
+        if mm_max_spread_ticks <= 0:
+            raise ValueError(f"gateways.fix[{i}].mm_max_spread_ticks must be > 0")
+        if mm_min_qty <= 0:
+            raise ValueError(f"gateways.fix[{i}].mm_min_qty must be > 0")
+
+        try:
+            role = ParticipantRole(role_raw)
+        except ValueError as exc:
+            raise ValueError(f"gateways.fix[{i}].role is invalid") from exc
+
+        try:
+            disconnect_behaviour = DisconnectBehaviour(disconnect_raw)
+        except ValueError as exc:
+            raise ValueError(
+                f"gateways.fix[{i}].disconnect_behaviour is invalid"
+            ) from exc
+
+        try:
+            quote_refresh_policy = QuoteRefreshPolicy(refresh_raw)
+        except ValueError as exc:
+            raise ValueError(
+                f"gateways.fix[{i}].quote_refresh_policy is invalid"
+            ) from exc
+
         if gw_id in fix_gateways:
             raise ValueError(f"Duplicate gateway id in gateways.fix: {gw_id}")
-        fix_gateways[gw_id] = FixGatewayConfig(id=gw_id, description=desc)
+        fix_gateways[gw_id] = FixGatewayConfig(
+            id=gw_id,
+            description=desc,
+            role=role,
+            disconnect_behaviour=disconnect_behaviour,
+            quote_refresh_policy=quote_refresh_policy,
+            enforce_mm_obligation=enforce_mm_obligation,
+            mm_max_spread_ticks=mm_max_spread_ticks,
+            mm_min_qty=mm_min_qty,
+        )
 
     if not fix_gateways:
         raise ValueError("Engine config must define at least one gateways.fix entry")
+
+    mm_gateway_ids = {
+        gw_id for gw_id, gw_cfg in fix_gateways.items() if gw_cfg.role == ParticipantRole.MARKET_MAKER
+    }
+    for sym, sym_cfg in symbols.items():
+        if mm_gateway_ids and not sym_cfg.market_maker_quotes:
+            raise ValueError(
+                f"Symbol '{sym}': at least one market_maker_quotes entry is required when MARKET_MAKER gateways are configured"
+            )
+        for i, quote_seed in enumerate(sym_cfg.market_maker_quotes):
+            if quote_seed.gateway_id not in fix_gateways:
+                raise ValueError(
+                    f"Symbol '{sym}': market_maker_quotes[{i}].gateway_id references unknown gateway '{quote_seed.gateway_id}'"
+                )
+            if quote_seed.gateway_id not in mm_gateway_ids:
+                raise ValueError(
+                    f"Symbol '{sym}': market_maker_quotes[{i}].gateway_id must reference a MARKET_MAKER gateway"
+                )
 
     sessions_enabled_raw = raw.get("sessions_enabled", True)
     if not isinstance(sessions_enabled_raw, bool):

@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import argparse
-import subprocess
 import time
-from typing import Any
 
 import pytest
 

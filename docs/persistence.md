@@ -35,7 +35,7 @@ sessions to preserve market state and historical records.
 2. The engine reads `data/gtc_orders.json` (if it exists).
 3. Each GTC order is re-injected into its symbol's order book **with its original timestamp preserved**.
 4. The engine reads `data/gtc_combos.json` (if it exists) and rebuilds parent-child tracking maps.
-5. Market-maker orders from the `market_maker_orders` config section are injected (gateway_id = "MM").
+5. Market-maker quotes from each symbol's `market_maker_quotes` config section are injected as linked bid/ask quote legs.  **No gateway connection is required** — seeds enter the book before any participant dials in.  If a restored GTC order already crosses a seed price, a trade executes immediately during this step.
 6. Market-maker combos from the `market_maker_combos` config section are injected.
 7. Original timestamps ensure that price-time priority carries over correctly — an order
    submitted yesterday still has seniority over a new order at the same price submitted today.
@@ -95,15 +95,19 @@ for the next day, simply delete the file before restarting the engine.
 ## Trading Day Lifecycle
 
 ```
-Engine start
+Engine start  (no gateways connected yet)
     │
     ├─ Load data/book_stats.json (restore last_buy/sell prices)
     ├─ Load data/gtc_orders.json
     ├─ Load data/gtc_combos.json (rebuild parent-child maps)
     ├─ Re-inject GTC orders with original timestamps
-    ├─ Inject market-maker orders from config
+    ├─ Inject market-maker quotes from config  ← seeds posted without MM online
+    │       GTC resting orders may cross seeds here; trades fire immediately
     ├─ Inject market-maker combos from config
     ├─ Publish initial book snapshots
+    │
+    │  ← Gateways begin connecting ──────────────────
+    │  MM gateway connects and re-quotes if seed was consumed
     │
     │  ← Trading session ────────────────────────────
     │  Orders arrive, match, fill, rest

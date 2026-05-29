@@ -382,3 +382,106 @@ def make_oco_cancelled_msg(
             "reason": reason,
         },
     )
+
+
+# ------------------------------------------------------------------
+# MM quote / risk-control messages
+# ------------------------------------------------------------------
+
+
+def make_quote_new_msg(payload: dict[str, Any]) -> list[bytes]:
+    """Gateway → engine: submit/replace two-sided quote for one symbol."""
+    return encode("quote.new", payload)
+
+
+def make_quote_cancel_msg(gateway_id: str, symbol: str) -> list[bytes]:
+    """Gateway → engine: cancel active quote for one symbol."""
+    return encode("quote.cancel", {"gateway_id": gateway_id, "symbol": symbol})
+
+
+def make_quote_ack_msg(
+    gateway_id: str,
+    quote_id: str,
+    accepted: bool,
+    reason: str = "",
+    bid_order_id: str = "",
+    ask_order_id: str = "",
+) -> list[bytes]:
+    """Engine → gateway: quote accepted or rejected."""
+    topic = f"quote.ack.{gateway_id}"
+    return encode(
+        topic,
+        {
+            "quote_id": quote_id,
+            "accepted": accepted,
+            "reason": reason,
+            "bid_order_id": bid_order_id,
+            "ask_order_id": ask_order_id,
+        },
+    )
+
+
+def make_quote_status_msg(
+    gateway_id: str,
+    quote_id: str,
+    status: str,
+    reason: str = "",
+) -> list[bytes]:
+    """Engine → gateway: quote lifecycle transition."""
+    topic = f"quote.status.{gateway_id}"
+    return encode(
+        topic,
+        {
+            "quote_id": quote_id,
+            "status": status,
+            "reason": reason,
+        },
+    )
+
+
+def make_gateway_disconnect_msg(gateway_id: str, reason: str = "") -> list[bytes]:
+    """Gateway → engine: graceful disconnect notification."""
+    return encode(
+        "system.gateway_disconnect",
+        {
+            "gateway_id": gateway_id,
+            "reason": reason,
+        },
+    )
+
+
+def make_kill_switch_msg(gateway_id: str, symbol: str = "") -> list[bytes]:
+    """Gateway/admin → engine: cancel open risk-bearing exposure."""
+    return encode("risk.kill_switch", {"gateway_id": gateway_id, "symbol": symbol})
+
+
+def make_kill_switch_ack_msg(
+    gateway_id: str,
+    accepted: bool,
+    reason: str = "",
+    cancelled_orders: int = 0,
+    cancelled_quotes: int = 0,
+) -> list[bytes]:
+    """Engine → gateway/admin: kill-switch result summary."""
+    topic = f"risk.kill_switch_ack.{gateway_id}"
+    return encode(
+        topic,
+        {
+            "accepted": accepted,
+            "reason": reason,
+            "cancelled_orders": cancelled_orders,
+            "cancelled_quotes": cancelled_quotes,
+        },
+    )
+
+
+def make_dropcopy_fill_msg(
+    gateway_id: str, fill_payload: dict[str, Any]
+) -> list[bytes]:
+    """Engine → backoffice: copy of fill activity for one participant."""
+    return encode(f"dropcopy.fill.{gateway_id}", fill_payload)
+
+
+def make_depth_msg(symbol: str, depth: dict[str, Any]) -> list[bytes]:
+    """Engine → subscribers: depth ladder snapshot."""
+    return encode(f"book.depth.{symbol}", depth)

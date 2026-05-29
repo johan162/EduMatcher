@@ -223,13 +223,9 @@ class ClearingProcess:
                 self._trade_count += 1
                 ts_raw = trade.timestamp
                 ts_sec = (
-                    ts_raw / 1_000_000_000
-                    if ts_raw > 1_000_000_000_000
-                    else ts_raw
+                    ts_raw / 1_000_000_000 if ts_raw > 1_000_000_000_000 else ts_raw
                 )
-                ts = datetime.fromtimestamp(ts_sec, timezone.utc).strftime(
-                    "%H:%M:%S"
-                )
+                ts = datetime.fromtimestamp(ts_sec, timezone.utc).strftime("%H:%M:%S")
                 console.print(
                     f"[CLEARING] [{ts}] TRADE {trade.id[:8]}  "
                     f"{trade.symbol}  qty={trade.quantity} @{trade.price:.4f}  "

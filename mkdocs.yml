@@ -33,6 +33,7 @@ extra_javascript:
 
 nav:
   - Home: index.md
+  - MM Quotes: mm-quotes.md
   - Concepts:
     - The Order Book: concepts-order-book.md
     - Your First Trade: concepts-first-trade.md

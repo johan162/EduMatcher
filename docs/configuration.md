@@ -6,7 +6,7 @@ file in the project root. It defines:
 - the allowed FIX gateways
 - the traded symbol universe
 - optional seeded last-buy / last-sell statistics
-- optional startup market-maker single-leg orders
+- startup market-maker quotes used to seed initial book liquidity
 - optional startup market-maker combo orders
 - optional daily session schedule for `pm-scheduler`
 
@@ -31,7 +31,7 @@ path does not exist, the engine starts in unrestricted mode:
 - no symbol allowlist
 - no FIX gateway allowlist
 - no seeded market statistics
-- no startup market-maker orders
+- no startup market-maker quotes
 - no startup market-maker combos
 
 The scheduler behaves differently: if its config file is missing or does not
@@ -51,8 +51,14 @@ symbols:
   AAPL:
     last_buy_price: 209.50
     last_sell_price: 210.50
-    market_maker_orders:
-      - "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=2000|PRICE=209.00|TIF=DAY"
+    market_maker_quotes:
+      - gateway_id: MM01
+        quote_id: MM-AAPL-1
+        bid_price: 209.00
+        ask_price: 211.00
+        bid_qty: 2000
+        ask_qty: 2000
+        tif: DAY
 
 market_maker_combos:
   - combo_id: MM-PAIR-AAPL-MSFT
@@ -110,6 +116,33 @@ gateways:
 |---|---|---|
 | `id` | Yes | Must be a non-empty string. Stored uppercased by the loader. |
 | `description` | No | Display-only label used in gateway auth responses and logs. Defaults to empty string. |
+| `role` | No | `TRADER`, `MARKET_MAKER`, or `ADMIN`. Defaults to `TRADER`. |
+| `disconnect_behaviour` | No | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, or `LEAVE_ALL`. Defaults to `CANCEL_QUOTES_ONLY`. |
+| `quote_refresh_policy` | No | `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, or `NEVER_INACTIVATE`. Defaults to `INACTIVATE_ON_ANY_FILL`. |
+| `enforce_mm_obligation` | No | Boolean toggle for quote obligation checks. Defaults to `false`. |
+| `mm_max_spread_ticks` | No | Max allowed quote spread in ticks when enforcement is enabled. Defaults to `10`. |
+| `mm_min_qty` | No | Min allowed bid/ask quote quantity when enforcement is enabled. Defaults to `100`. |
+
+Example:
+
+```yaml
+gateways:
+  fix:
+    - id: TRADER01
+      description: Human trader workstation
+      role: TRADER
+      disconnect_behaviour: CANCEL_ALL
+      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+      enforce_mm_obligation: false
+    - id: MM01
+      description: Market maker
+      role: MARKET_MAKER
+      disconnect_behaviour: CANCEL_QUOTES_ONLY
+      quote_refresh_policy: INACTIVATE_ON_FULL_FILL
+      enforce_mm_obligation: true
+      mm_max_spread_ticks: 8
+      mm_min_qty: 50
+```
 
 ### Runtime effect
 
@@ -165,7 +198,7 @@ Every symbol entry supports the following keys:
 |---|---|---|---|
 | `last_buy_price` | number | No | Seed value for the viewer’s Last Buy field. |
 | `last_sell_price` | number | No | Seed value for the viewer’s Last Sell field. |
-| `market_maker_orders` | list of strings | No | FIX-like order definitions injected at engine startup. |
+| `market_maker_quotes` | list of mappings | No | Quote definitions injected at engine startup as linked bid/ask quote legs. |
 
 ### `last_buy_price` and `last_sell_price`
 
@@ -184,50 +217,116 @@ environment.
 Persisted `data/book_stats.json` values take priority over config seeds.
 Config values are only used to fill gaps when no persisted value exists.
 
-### `market_maker_orders`
+### `market_maker_quotes`
 
 ```yaml
 symbols:
   MSFT:
-    market_maker_orders:
-      - "NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=1000|PRICE=414.00|TIF=DAY"
-      - "NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=1000|PRICE=416.00|TIF=DAY"
+    market_maker_quotes:
+      - gateway_id: MM01
+        quote_id: MM-MSFT-1
+        bid_price: 414.00
+        ask_price: 416.00
+        bid_qty: 1000
+        ask_qty: 1000
+        tif: DAY
 ```
 
-These orders are parsed and injected at engine startup using internal
-`gateway_id = "MM"`.
+These quotes are injected at engine startup by creating linked bid/ask quote
+legs on the target symbol.
 
 #### Validation rules
 
-- `market_maker_orders` must be a list
-- every element must be a string
-- every string must start with `NEW|`
+- `market_maker_quotes` must be a list
+- every element must be a mapping with:
+  - `gateway_id`
+  - `bid_price`, `ask_price`
+  - `bid_qty`, `ask_qty`
+- `gateway_id` must reference a configured `gateways.fix` entry with role `MARKET_MAKER`
+- each quote requires `bid_price < ask_price`
+- each quote requires positive quantities
+- if at least one `MARKET_MAKER` gateway exists, each symbol must define at least one `market_maker_quotes` entry
 
-#### Supported FIX-like fields
+#### Supported fields
 
 | Field | Required | Description |
 |---|---|---|
-| `SYM=` | Yes | Target symbol. In practice this should match the enclosing symbol block. |
-| `SIDE=` | Yes | `BUY` or `SELL` |
-| `TYPE=` | Yes | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG` |
-| `QTY=` | Yes | Total quantity |
-| `PRICE=` | Conditional | Required for `LIMIT`, `STOP_LIMIT`, `FOK`, `ICEBERG` |
-| `STOP=` | Conditional | Required for `STOP`, `STOP_LIMIT` |
-| `TIF=` | No | Defaults to `DAY`; can be `DAY`, `GTC`, or any other order TIF supported by the order model |
-| `VISIBLE=` | Conditional | Required for `ICEBERG` |
-| `SMP=` | No | Self-match prevention action; defaults to `NONE` |
+| `gateway_id` | Yes | Must be a configured FIX gateway with role `MARKET_MAKER`. |
+| `quote_id` | No | Optional explicit quote ID. If omitted, engine generates one. |
+| `bid_price` | Yes | Bid side display price; converted to ticks by the engine. |
+| `ask_price` | Yes | Ask side display price; converted to ticks by the engine. |
+| `bid_qty` | Yes | Bid quantity, must be positive. |
+| `ask_qty` | Yes | Ask quantity, must be positive. |
+| `tif` | No | Defaults to `DAY`; supports normal order TIF values (`DAY`, `GTC`, etc.). |
 
 #### Persistence interaction
 
 | TIF | Behavior |
 |---|---|
 | `DAY` | Removed at shutdown and re-injected cleanly on next startup. |
-| `GTC` | Persisted to `data/gtc_orders.json` and also re-injected from config on next startup, which can create duplicates. |
+| `GTC` | Quote legs are persisted as regular orders, then quote seeds run again on restart, which can create duplicates. |
 
 !!! warning
-    `GTC` market-maker orders are usually the wrong choice for seeded books.
+  `GTC` market-maker quote seeds are usually the wrong choice for seeded books.
     Because they are both persisted and re-injected from config, they will be
     duplicated across restarts unless you explicitly clear persisted state.
+
+## First Startup (Fresh Seeded Book)
+
+The first time you start the engine there are no persisted files. The entire
+opening book is created from `market_maker_quotes` in the config.
+
+### Prerequisites
+
+1. Every symbol must have at least one `market_maker_quotes` entry.
+2. Every quote seed must reference a configured `MARKET_MAKER` gateway.
+3. Bid price must be strictly less than ask price for every seed.
+
+If any of these rules are violated, the config loader raises a `ValueError` and
+the engine exits before binding any socket.
+
+### Procedure
+
+```bash
+# 1. Ensure no stale persistence files are present
+rm -f data/gtc_orders.json data/book_stats.json data/gtc_combos.json
+
+# 2. Start the engine in verbose mode so you can see the seeding log
+poetry run pm-engine --verbose
+```
+
+The engine will log each injected quote and a summary line:
+
+```
+[ENGINE] MM quote SEED-MM01-AAPL-1 AAPL bid=209.00x2000 ask=211.00x2000 gw=MM01
+[ENGINE] MM quote SEED-MM01-MSFT-1 MSFT bid=414.00x1000 ask=416.00x1000 gw=MM01
+[ENGINE] Injected 2 market-maker quote(s) and 0 combo(s).
+```
+
+### What happens before the MM gateway connects
+
+Seed quotes enter the book the instant the engine starts, before any gateway
+has connected.  The `gateway_id` in a seed quote is an **accounting identity**
+— it determines which gateway owns the quote, not whether that gateway is
+online.
+
+If a trader connects and sends an aggressive order during continuous session
+before the MM gateway dials in, the order will match against the seed quote
+normally.  Depending on the MM gateway's configured `quote_refresh_policy`,
+the quote may be inactivated (sibling leg cancelled).  The book then has no MM
+liquidity until the MM connects and re-quotes.
+
+**No circuit breaker fires in this scenario** — the circuit breaker is a
+planned future feature that is not yet implemented.  See
+[MM Quotes — Fills Before the MM Connects](mm-quotes.md#fills-against-seed-quotes-before-the-mm-connects)
+for the full event-by-event breakdown.
+
+### Subsequent startups
+
+On every restart the engine re-runs the same seeding step from config (step 5
+in the startup sequence).  Previous `DAY` quotes are already gone (expired at
+shutdown); `GTC` quote seeds would be re-injected *and* restored from the GTC
+file, causing duplicates — use `tif: DAY` for seed quotes to avoid this.
 
 ## Startup Market-Maker Combo Orders
 
@@ -356,7 +455,7 @@ Engine startup
     +-- 3. Restore persisted GTC combos from data/gtc_combos.json
     +-- 4. Load persisted book stats from data/book_stats.json
     |       +-- use config last_buy_price / last_sell_price only where stats are missing
-    +-- 5. Inject market_maker_orders
+    +-- 5. Inject market_maker_quotes
     +-- 6. Inject market_maker_combos
     +-- 7. Publish initial book snapshots
 ```
@@ -365,7 +464,7 @@ This ordering matters:
 
 - persisted GTC state comes back before seeded startup liquidity
 - persisted book stats override config seeds
-- seeded GTC orders or combos can duplicate restored GTC state
+- seeded GTC quotes or combos can duplicate restored GTC state
 
 ## Full Example
 
@@ -381,23 +480,38 @@ symbols:
   MSFT:
     last_buy_price: 415.00
     last_sell_price: 415.50
-    market_maker_orders:
-      - "NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=1000|PRICE=414.00|TIF=DAY"
-      - "NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=1000|PRICE=416.00|TIF=DAY"
+    market_maker_quotes:
+      - gateway_id: TRADER02
+        quote_id: MM-MSFT-1
+        bid_price: 414.00
+        ask_price: 416.00
+        bid_qty: 1000
+        ask_qty: 1000
+        tif: DAY
 
   AAPL:
     last_buy_price: 209.50
     last_sell_price: 210.50
-    market_maker_orders:
-      - "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=2000|PRICE=209.00|TIF=DAY"
-      - "NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=2000|PRICE=211.00|TIF=DAY"
+    market_maker_quotes:
+      - gateway_id: TRADER02
+        quote_id: MM-AAPL-1
+        bid_price: 209.00
+        ask_price: 211.00
+        bid_qty: 2000
+        ask_qty: 2000
+        tif: DAY
 
   TSLA:
     last_buy_price: 248.00
     last_sell_price: 249.00
-    market_maker_orders:
-      - "NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=500|PRICE=247.00|TIF=DAY"
-      - "NEW|SYM=TSLA|SIDE=SELL|TYPE=LIMIT|QTY=500|PRICE=250.00|TIF=DAY"
+    market_maker_quotes:
+      - gateway_id: TRADER02
+        quote_id: MM-TSLA-1
+        bid_price: 247.00
+        ask_price: 250.00
+        bid_qty: 500
+        ask_qty: 500
+        tif: DAY
 
 market_maker_combos:
   - combo_id: MM-PAIR-AAPL-MSFT

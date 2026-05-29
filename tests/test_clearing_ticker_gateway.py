@@ -48,6 +48,7 @@ def _make_trade(
         sell_gateway_id=sell_gw,
         price=price,
         quantity=qty,
+        aggressor_side="BUY",
     )
 
 
@@ -374,6 +375,7 @@ class TestTradeFromDict:
             sell_gateway_id="GW02",
             price=150.0,
             quantity=100,
+            aggressor_side="BUY",
         )
         d = trade.to_dict()
         restored = Trade.from_dict(d)

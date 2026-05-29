@@ -280,6 +280,25 @@ class TestGatewayHelpers:
         )
         assert gw._last_prices.get("AAPL") == 152.0
 
+    def test_handle_event_quote_ack(self) -> None:
+        gw = _make_gateway()
+        gw._handle_event(
+            "quote.ack.GW01",
+            {
+                "quote_id": "Q1",
+                "accepted": True,
+                "bid_order_id": "B1",
+                "ask_order_id": "S1",
+            },
+        )
+
+    def test_handle_event_kill_switch_ack(self) -> None:
+        gw = _make_gateway()
+        gw._handle_event(
+            "risk.kill_switch_ack.GW01",
+            {"accepted": True, "cancelled_orders": 2, "cancelled_quotes": 1},
+        )
+
 
 # ---------------------------------------------------------------------------
 # Gateway._update_position
@@ -389,6 +408,23 @@ class TestGatewayParseAndSend:
     def test_symbols_command(self) -> None:
         gw = _make_gateway()
         gw._parse_and_send("SYMBOLS")
+        assert gw.push_sock.send_multipart.called
+
+    def test_quote_command(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send(
+            "QUOTE|SYM=AAPL|BID=149.50|ASK=150.50|BID_QTY=100|ASK_QTY=120|TIF=DAY"
+        )
+        assert gw.push_sock.send_multipart.called
+
+    def test_quote_cancel_command(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send("QUOTE_CANCEL|SYM=AAPL")
+        assert gw.push_sock.send_multipart.called
+
+    def test_kill_command(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send("KILL|SYM=AAPL")
         assert gw.push_sock.send_multipart.called
 
     def test_cancel_by_id(self) -> None:

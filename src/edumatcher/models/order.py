@@ -63,6 +63,14 @@ class SmpAction(str, Enum):
     CANCEL_BOTH = "CANCEL_BOTH"
 
 
+class OrderOrigin(str, Enum):
+    """Source of the order in the matching engine."""
+
+    ORDER = "ORDER"
+    QUOTE = "QUOTE"
+    IMPLIED = "IMPLIED"
+
+
 # ---------------------------------------------------------------------------
 # PERF improvement #5: Pre-built enum-by-value lookup dicts.
 #
@@ -76,6 +84,7 @@ _TYPE_MAP: dict[str, OrderType] = {v.value: v for v in OrderType}
 _TIF_MAP: dict[str, TIF] = {v.value: v for v in TIF}
 _STATUS_MAP: dict[str, OrderStatus] = {v.value: v for v in OrderStatus}
 _SMP_MAP: dict[str, SmpAction] = {v.value: v for v in SmpAction}
+_ORIGIN_MAP: dict[str, OrderOrigin] = {v.value: v for v in OrderOrigin}
 
 
 # ---------------------------------------------------------------------------
@@ -104,10 +113,10 @@ class Order:
     timestamp: int
     status: OrderStatus
 
-    price: Optional[int] = None  # limit / stop-limit / FOK / iceberg limit price (ticks)
-    stop_price: Optional[int] = (
-        None  # STOP / STOP_LIMIT / TRAILING_STOP trigger price
+    price: Optional[int] = (
+        None  # limit / stop-limit / FOK / iceberg limit price (ticks)
     )
+    stop_price: Optional[int] = None  # STOP / STOP_LIMIT / TRAILING_STOP trigger price
     visible_qty: Optional[int] = None  # ICEBERG: fixed peak size
     displayed_qty: Optional[int] = None  # ICEBERG: current visible slice on book
     smp_action: SmpAction = SmpAction.NONE  # self-match prevention
@@ -123,6 +132,10 @@ class Order:
     # Combo-order fields (set only on child orders of a combo)
     combo_parent_id: Optional[str] = None  # parent ComboOrder.id
     leg_index: Optional[int] = None  # position in combo legs list (0-based)
+
+    # Source metadata
+    origin: OrderOrigin = OrderOrigin.ORDER
+    quote_id: Optional[str] = None
 
     # ------------------------------------------------------------------
     # Factory
@@ -188,6 +201,8 @@ class Order:
             "smp_action": self.smp_action.value,
             "combo_parent_id": self.combo_parent_id,
             "leg_index": self.leg_index,
+            "origin": self.origin.value,
+            "quote_id": self.quote_id,
         }
 
     @classmethod
@@ -220,4 +235,6 @@ class Order:
         o.oco_group_id = d.get("oco_group_id")
         o.combo_parent_id = d.get("combo_parent_id")
         o.leg_index = d.get("leg_index")
+        o.origin = _ORIGIN_MAP.get(d.get("origin", "ORDER"), OrderOrigin.ORDER)
+        o.quote_id = d.get("quote_id")
         return o

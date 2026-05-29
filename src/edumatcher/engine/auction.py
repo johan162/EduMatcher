@@ -143,7 +143,9 @@ def compute_equilibrium(book: "OrderBook") -> AuctionResult:  # noqa: F821
     )
 
 
-def execute_uncross(book: "OrderBook", eq_price: int) -> tuple[list[Trade], list[Order]]:
+def execute_uncross(
+    book: "OrderBook", eq_price: int
+) -> tuple[list[Trade], list[Order]]:
     """
     Execute all crossable interest at the equilibrium price.
 

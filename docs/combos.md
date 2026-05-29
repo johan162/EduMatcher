@@ -341,18 +341,40 @@ A market maker that understands combos can:
 
 ### Configuration
 
-In `engine_config.yaml`, market-maker seed orders can include combos:
+In `engine_config.yaml`, market-maker startup quote seeds can be combined with combo seeds:
 
 ```yaml
-market_maker_orders:
-  # Single-leg seeds (existing)
-  - "NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=414.00"
-  - "NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=416.00"
-  - "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=209.00"
-  - "NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=211.00"
+symbols:
+  MSFT:
+    market_maker_quotes:
+      - gateway_id: MM01
+        bid_price: 414.00
+        ask_price: 416.00
+        bid_qty: 100
+        ask_qty: 100
+  AAPL:
+    market_maker_quotes:
+      - gateway_id: MM01
+        bid_price: 209.00
+        ask_price: 211.00
+        bid_qty: 100
+        ask_qty: 100
 
-  # Combo seeds (new)
-  - "NEW|TYPE=COMBO|COMBO_ID=MM-MSFT-AAPL|COMBO_TYPE=AON|TIF=GTC|LEG_COUNT=2|LEG0.SYM=MSFT|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=414.50|LEG1.SYM=AAPL|LEG1.SIDE=SELL|LEG1.QTY=100|LEG1.PRICE=210.50"
+market_maker_combos:
+  - combo_id: MM-MSFT-AAPL
+    combo_type: AON
+    tif: GTC
+    legs:
+      - symbol: MSFT
+        side: BUY
+        order_type: LIMIT
+        quantity: 100
+        price: 414.50
+      - symbol: AAPL
+        side: SELL
+        order_type: LIMIT
+        quantity: 100
+        price: 210.50
 ```
 
 This ensures that when a retail trader submits a combo, there is resting liquidity on

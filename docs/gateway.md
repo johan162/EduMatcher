@@ -147,7 +147,7 @@ On startup, the gateway:
 
 1. Connects PUSH socket to the engine PULL port (5555)
 2. Connects SUB socket to the engine PUB port (5556)
-3. Subscribes to: `order.ack.{ID}`, `order.fill.{ID}`, `order.amended.{ID}`, `order.cancelled.{ID}`, `order.expired.{ID}`, `order.orders.{ID}`, `combo.ack.{ID}`, `combo.status.{ID}`, `system.symbols.{ID}`, `system.gateway_auth.{ID}`, `trade.executed`, `session.state`
+3. Subscribes to: `order.ack.{ID}`, `order.fill.{ID}`, `order.amended.{ID}`, `order.cancelled.{ID}`, `order.expired.{ID}`, `order.orders.{ID}`, `combo.ack.{ID}`, `combo.status.{ID}`, `oco.ack.{ID}`, `oco.cancelled.{ID}`, `quote.ack.{ID}`, `quote.status.{ID}`, `risk.kill_switch_ack.{ID}`, `system.symbols.{ID}`, `system.gateway_auth.{ID}`, `trade.executed`, `session.state`
 4. Sends `system.gateway_connect` and waits up to **3 seconds** for the auth response
 5. If accepted: enters the interactive prompt loop
 6. If rejected: prints the reason and exits immediately
@@ -174,6 +174,33 @@ the connection and the gateway exits.
 ## Command Format
 
 All commands use a pipe-separated key=value format, similar to FIX protocol fields.
+
+### QUOTE — Submit/Replace A Two-Sided MM Quote
+
+```
+QUOTE|SYM=<symbol>|BID=<price>|ASK=<price>|BID_QTY=<n>|ASK_QTY=<n>[|TIF=<DAY|GTC>][|QUOTE_ID=<label>]
+```
+
+Rules:
+
+- `BID` must be strictly less than `ASK`
+- `BID_QTY` and `ASK_QTY` must be positive integers
+- Existing quote for the same gateway+symbol is replaced
+
+### QUOTE_CANCEL — Cancel Active Quote
+
+```
+QUOTE_CANCEL|SYM=<symbol>
+```
+
+### KILL — Trigger Kill-Switch
+
+```
+KILL
+KILL|SYM=<symbol>
+```
+
+`KILL` cancels active quote legs and non-quote resting orders for the gateway.
 
 ### NEW — Submit an Order
 
