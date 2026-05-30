@@ -7,7 +7,8 @@
       message bus rather than a single monolithic program
     - The trade-offs that architecture introduces: scalability and observability
       vs. deployment complexity and latency
-    - The role and responsibilities of each of the ten processes
+    - The role and responsibilities of each of the ten core runtime processes plus
+      the optional AI trader tools
     - Which processes are mandatory and which are optional observers
     - How to read the message-flow tables to trace an order from submission to fill
 
@@ -83,8 +84,9 @@ current state rather than waiting for the next change.
 
 ## Process Overview
 
-A complete EduMatcher session uses up to **ten** processes, each in its own
-terminal.
+A complete EduMatcher session usually uses **ten core runtime processes**, with
+two additional optional AI trader entrypoints available when you want automated
+flow.
 
 !!! info "Why `pm-`?"
     All CLI commands share the `pm-` prefix, short for **Process for Matching**.
@@ -103,6 +105,8 @@ terminal.
 | **pm-scheduler** | `poetry run pm-scheduler` | Drives session phase transitions | No |
 | **pm-ticker** | `poetry run pm-ticker` | Scrolling market data ticker | No (needs pm-stats) |
 | **pm-board** | `poetry run pm-board` | Full-screen multi-symbol display | No |
+| **pm-ai-trader** | `poetry run pm-ai-trader` | Single AI trading bot gateway | No |
+| **pm-ai-swarm** | `poetry run pm-ai-swarm` | Coordinated multi-agent AI trading swarm | No |
 
 !!! warning "Start the engine first"
     The engine binds the ZeroMQ sockets.  All other processes connect to those
@@ -126,10 +130,12 @@ poetry run pm-engine [--verbose] [--config engine_config.yaml]
 
 **Startup behaviour**:
 1. Creates `data/` directory if needed
-2. Loads `engine_config.yaml` — registers symbol allowlist, seeds book stats, injects MM orders
-3. Loads resting GTC orders from `data/gtc_orders.json` (if present)
-4. Binds ZMQ PULL :5555 and PUB :5556
-5. Publishes initial book snapshots for all populated books
+2. Parses `engine_config.yaml` if present — registers symbol/gateway allowlists and session settings
+3. Binds the main ZMQ PULL :5555 and PUB :5556 sockets during engine initialization
+4. On `run()`, restores persisted book stats, GTC orders, and GTC combos
+5. Applies config-driven seeds (book stats gaps, market-maker quotes, market-maker combos)
+6. Tries to bind the dedicated drop-copy PUB :5557 socket
+7. Publishes initial book snapshots for populated books and enters the poll loop
 
 See [Configuration](configuration.md) for full details on the config file.
 
@@ -216,13 +222,19 @@ is refused and the gateway exits.
 | `system.gateway_auth.{own GW_ID}` | Authentication reply |
 | `order.ack.{own GW_ID}` | Order acknowledgements |
 | `order.fill.{own GW_ID}` | Fill notifications |
+| `order.amended.{own GW_ID}` | Successful amend notifications |
 | `order.cancelled.{own GW_ID}` | Cancel confirmations |
 | `order.expired.{own GW_ID}` | Expiry notifications |
 | `order.orders.{own GW_ID}` | Order list replies |
 | `combo.ack.{own GW_ID}` | Combo acknowledgements |
 | `combo.status.{own GW_ID}` | Combo status updates |
+| `oco.ack.{own GW_ID}` | OCO creation acknowledgements |
+| `oco.cancelled.{own GW_ID}` | OCO sibling-cancel notifications |
+| `quote.ack.{own GW_ID}` | Quote acknowledgements |
+| `quote.status.{own GW_ID}` | Quote lifecycle updates |
+| `risk.kill_switch_ack.{own GW_ID}` | Kill-switch acknowledgement |
 | `system.symbols.{own GW_ID}` | Symbol list reply |
-| `session.state` | Session phase changes |
+| `trade.executed` | Global trade feed for last-price / P&L display |
 
 See the [Gateway Reference](gateway.md) for the full command list.
 
@@ -626,3 +638,14 @@ auto-rotate interval, and the current clock time.
     poetry run pm-board --rows 15 --interval 8
     ```
     The board auto-discovers symbols as they become active — no configuration needed.
+
+## Optional AI trader tools
+
+EduMatcher also ships two AI-focused entrypoints:
+
+| Process | Command | Role |
+|---------|---------|------|
+| **pm-ai-trader** | `poetry run pm-ai-trader` | Single automated trader using the gateway interface |
+| **pm-ai-swarm** | `poetry run pm-ai-swarm` | Multi-agent trading swarm / orchestration entrypoint |
+
+See [AI Bot Traders](ai-bot.md) for configuration and runtime details.

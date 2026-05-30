@@ -47,7 +47,7 @@ EduMatcher teaches **real market mechanics** through hands-on code:
 ## Key Features
 
 - **Complete Trading Lifecycle**: From order entry through clearing with full audit trails
-- **Multiple Order Types**: Market, Limit, Pegged, IOC, GTD, and combo orders
+- **Multiple Order Types**: Market, Limit, STOP, STOP_LIMIT, IOC/FOK, ICEBERG, combo, and OCO workflows
 - **Realistic Matching**: Price-time priority with sophisticated combo order handling
 - **Market Mechanisms**: Opening auctions, intra-day auctions, circuit breakers, and clearing
 - **Gateway & Engine**: Separate processes demonstrating proper exchange architecture
@@ -81,14 +81,23 @@ These numbers aren't just impressive—they're *realistic*. You're learning how 
 
 ### Quick Start
 
-Install dependencies and run the documentation server:
+Install the project with the documentation and development dependencies:
 
 ```bash
-poetry install
+poetry config virtualenvs.in-project true
+poetry install --with dev,docs
+```
+
+Run the documentation site:
+
+```bash
 poetry run mkdocs serve
 ```
 
 Then open **http://127.0.0.1:8000** for interactive learning.
+
+To run the exchange itself, use the dedicated [Running the System](#running-the-system)
+section below.
 
 ### For Developers
 
@@ -159,13 +168,39 @@ Perfect for:
 
 ## Running the System
 
-```bash
-# Build the documentation
-poetry run mkdocs build
+Start the runtime processes in separate terminals. A minimal manual session is:
 
-# Verify against test data
-./tools/verify_matching.sh
+```bash
+# Terminal 1 — matching engine
+poetry run pm-engine --verbose
+
+# Terminal 2 — full event log
+poetry run pm-audit --terminal
+
+# Terminal 3 — clearing / P&L
+poetry run pm-clearing
+
+# Terminal 4 — live order book
+poetry run pm-viewer --symbol AAPL
+
+# Terminal 5 — trading gateway
+poetry run pm-gateway --id GW01
 ```
+
+`GW01` must exist in `engine_config.yaml` under `gateways.fix` or the gateway
+will be rejected during startup.
+
+Optional processes you will commonly add during demos:
+
+```bash
+poetry run pm-orders
+poetry run pm-stats
+poetry run pm-scheduler --now
+```
+
+On macOS, `./launch_all.sh` is a convenience launcher that opens the standard
+process set in Terminal windows via AppleScript. It is not a generic Linux or
+Windows process supervisor.
 
 ## Contributing
 
@@ -177,11 +212,11 @@ If you use this tool in teaching or courses, please cite:
 
 ```text
 @software{edumatcher,
-  title = {Monte Carlo Project Simulator},
+  title = {EduMatcher},
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/edumatcher},
-  version = {0.15.2}
+  version = {1.0.0-beta}
 }
 ```
 

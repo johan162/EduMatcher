@@ -1250,7 +1250,7 @@ no unsafe hacks.  The key insight is that in a tight loop, small costs (100 ns h
 200 ns there) compound rapidly.  At 160,000 orders/second, each order has a budget
 of only **6.25 µs** — every nanosecond matters.
 
-## Tick And Time Representation (v2)
+## Tick And Time Representation
 
 - Internal prices are stored as integer ticks in core engine/model logic.
 - Internal timestamps are stored as integer nanoseconds (`time_ns`).

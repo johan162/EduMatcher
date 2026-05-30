@@ -5,9 +5,11 @@ file in the project root. It defines:
 
 - the allowed FIX gateways
 - the traded symbol universe
+- optional `sessions_enabled` control for auction/session enforcement
 - optional seeded last-buy / last-sell statistics
 - startup market-maker quotes used to seed initial book liquidity
 - optional startup market-maker combo orders
+- optional global MM obligation defaults
 - optional global risk-control level profiles
 - optional daily session schedule for `pm-scheduler`
 
@@ -35,14 +37,19 @@ path does not exist, the engine starts in unrestricted mode:
 - no startup market-maker quotes
 - no startup market-maker combos
 
-The scheduler behaves differently: if its config file is missing or does not
-contain a `schedule` section, it falls back to built-in default session times.
+The scheduler behaves differently:
+
+- `pm-scheduler --config missing.yaml` is **fatal**
+- `pm-scheduler` with no explicit `--config` falls back to its built-in default
+  schedule if the default file is missing or lacks a `schedule` section
 
 ## Top-level Structure
 
 The full supported schema is:
 
 ```yaml
+sessions_enabled: true
+
 gateways:
   fix:
     - id: TRADER01
@@ -50,6 +57,7 @@ gateways:
 
 symbols:
   AAPL:
+    tick_decimals: 2
     level: L2
     last_buy_price: 209.50
     last_sell_price: 210.50
@@ -92,6 +100,16 @@ market_maker_combos:
         order_type: LIMIT
         quantity: 50
         price: 415.50
+
+mm_obligation_defaults:
+  enforce_mm_obligation: false
+  mm_max_spread_ticks: 10
+  mm_min_qty: 100
+  symbols:
+    AAPL:
+      enforce_mm_obligation: true
+      mm_max_spread_ticks: 8
+      mm_min_qty: 120
 
 risk_controls:
   default_level: L2
@@ -140,6 +158,7 @@ snapshot_interval_sec: 0.5
 | `mm_obligation_defaults` | No | Engine |
 | `circuit_breaker_defaults` | No | Engine |
 | `snapshot_interval_sec` | No | Engine |
+| `sessions_enabled` | No | Engine |
 | `schedule` | No | Scheduler |
 
 If a config file exists, `symbols` must be a mapping and `gateways.fix` must be
@@ -188,6 +207,44 @@ gateways:
 | `enforce_mm_obligation` | No | Boolean toggle for quote obligation checks. Defaults to `false`. |
 | `mm_max_spread_ticks` | No | Max allowed quote spread in ticks when enforcement is enabled. Defaults to `10`. |
 | `mm_min_qty` | No | Min allowed bid/ask quote quantity when enforcement is enabled. Defaults to `100`. |
+
+### Role Privileges and Obligations
+
+`role` defines the participant class attached to a FIX gateway session. The
+engine currently enforces the following differences:
+
+| Role | Can submit regular orders | Can submit quotes (`quote.new`) | MM obligation checks | Disconnect behavior knobs | Kill switch (`risk.kill_switch`) | Exchange Wide Circuit Breaker (`risk.circuit_breaker_halt_all`) |
+|---|---|---|---|---|---|---|
+| `TRADER` | Yes | No | Not applicable | Yes | Yes | No |
+| `MARKET_MAKER` | Yes | Yes | Applicable when enabled | Yes | Yes | No |
+| `ADMIN` | Yes | No (current behavior) | Not applicable | Yes | Yes | Yes |
+
+Detailed behavior:
+
+- `TRADER`:
+  - Intended for directional/order-entry participants.
+  - May place/cancel/amend orders and use normal gateway APIs.
+  - Quote submission is rejected because only `MARKET_MAKER` may quote.
+
+- `MARKET_MAKER`:
+  - All trader capabilities, plus `quote.new` / `quote.cancel` support.
+  - Subject to quote-lifecycle controls (`quote_refresh_policy`).
+  - Subject to MM obligation policy when enabled (`enforce_mm_obligation`,
+    `mm_max_spread_ticks`, `mm_min_qty`, plus symbol overrides).
+
+- `ADMIN`:
+  - Reserved role for operational/admin participants.
+  - Not allowed to submit MM quotes unless role is `MARKET_MAKER`.
+  - Authorized to send `risk.circuit_breaker_halt_all`, which halts all known
+    symbols in one command.
+  - Can still invoke shared APIs such as kill switch, because kill switch is
+    currently gated by authenticated/connected gateway status, not by role.
+
+!!! note "Current implementation scope"
+    Role-based enforcement is currently focused on quote authorization
+    (`MARKET_MAKER` only), MM obligation policy, and ADMIN authorization for
+    `risk.circuit_breaker_halt_all`. Additional ADMIN-specific privileges (if
+    desired) would require explicit engine-side role checks.
 
 
 
@@ -624,7 +681,8 @@ All values are interpreted as local-time `HH:MM` strings.
 
 - if the config file exists and `schedule` contains any of these keys, the scheduler uses them
 - missing keys fall back to their defaults
-- if the config file is missing or `schedule` is absent, the scheduler uses its built-in default schedule
+- if you pass `--config` and the file is missing, the scheduler exits with a fatal error
+- if you do **not** pass `--config` and the default file is missing or `schedule` is absent, the scheduler uses its built-in default schedule
 
 The default session path is:
 
@@ -634,9 +692,10 @@ PRE_OPEN -> OPENING_AUCTION -> CONTINUOUS -> CLOSING_AUCTION -> CLOSED
 
 ### Important distinction
 
-The engine itself still starts in `CONTINUOUS` mode by default for backward
-compatibility. The `schedule` section only has an effect if you actually run
-`pm-scheduler`.
+The scheduler only matters when `sessions_enabled: true` in the engine config.
+With sessions disabled, the engine stays in `CONTINUOUS` and ignores incoming
+`session.transition` messages. With sessions enabled, the engine starts in
+`CLOSED` and waits for scheduler-driven transitions.
 
 ## Startup and Persistence Order
 
@@ -645,17 +704,18 @@ The effective startup sequence is:
 ```text
 Engine startup
     |
-    +-- 1. Load config if present
-    |       +-- establish symbol allowlist
-    |       +-- establish FIX gateway allowlist
+    +-- 1. Parse config if present
+    |       +-- establish symbol allowlist / gateway allowlist / session flags
     |
-    +-- 2. Restore persisted GTC orders from data/gtc_orders.json
-    +-- 3. Restore persisted GTC combos from data/gtc_combos.json
-    +-- 4. Load persisted book stats from data/book_stats.json
+    +-- 2. Bind main PULL/PUB sockets
+    +-- 3. Load persisted book stats from data/book_stats.json
     |       +-- use config last_buy_price / last_sell_price only where stats are missing
-    +-- 5. Inject market_maker_quotes
-    +-- 6. Inject market_maker_combos
-    +-- 7. Publish initial book snapshots
+    +-- 4. Restore persisted GTC orders from data/gtc_orders.json
+    +-- 5. Restore persisted GTC combos from data/gtc_combos.json
+    +-- 6. Inject market_maker_quotes
+    +-- 7. Inject market_maker_combos
+    +-- 8. Bind drop-copy PUB :5557 if available
+    +-- 9. Publish initial book snapshots
 ```
 
 This ordering matters:

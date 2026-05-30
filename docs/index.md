@@ -78,7 +78,8 @@ If you are already familiar with trading concepts, go straight to the
 
 ```bash
 cd EduMatcher
-poetry install
+poetry config virtualenvs.in-project true
+poetry install --with dev,docs
 ```
 
 ### Start the system (minimum viable session)
@@ -102,6 +103,9 @@ poetry run pm-viewer --symbol AAPL
 poetry run pm-gateway --id GW01
 ```
 
+`GW01` must be configured under `gateways.fix` in `engine_config.yaml` or the
+gateway will fail authentication and exit.
+
 To add more users, watch more symbols, or enable auctions:
 
 ```bash
@@ -123,12 +127,14 @@ poetry run pm-scheduler --now
 
 ### One-command launch
 
-Alternatively, use the convenience script that starts all processes in
-background with proper ordering:
+On macOS, you can use the convenience launcher instead:
 
 ```bash
 ./launch_all.sh
 ```
+
+`launch_all.sh` uses `osascript` to open new Terminal windows, so it is
+macOS-specific rather than a generic background-process launcher.
 
 ### Browse the docs
 
@@ -147,6 +153,7 @@ poetry run mkdocs serve
 |--------|---------|---------|
 | Engine PULL | `tcp://127.0.0.1:5555` | Receive orders from gateways |
 | Engine PUB  | `tcp://127.0.0.1:5556` | Broadcast all events to subscribers |
+| Drop-copy PUB | `tcp://127.0.0.1:5557` | Broadcast fill-only drop-copy events |
 
 ---
 
@@ -162,6 +169,10 @@ poetry run mkdocs serve
 | `pm-clearing` | Trade settlement & P&L tracking |
 | `pm-stats`    | Market statistics recorder (SQLite) — OHLCV, VWAP, snapshots |
 | `pm-scheduler`| Session scheduler — drives auction/continuous phase transitions |
+| `pm-ticker`   | Scrolling market-data ticker fed by `data/stats.db` and live books |
+| `pm-board`    | Multi-symbol market board for demos or projections |
+| `pm-ai-trader`| Single AI bot gateway/trader |
+| `pm-ai-swarm` | Multi-agent AI trading swarm |
 
 ---
 
@@ -172,5 +183,8 @@ All runtime files are created under `data/` automatically on first run:
 | File | Content |
 |------|---------|
 | `data/gtc_orders.json` | Resting GTC orders — reloaded next trading day |
+| `data/gtc_combos.json` | Resting GTC combo parents and child-link state |
+| `data/book_stats.json` | Persisted per-symbol last-buy / last-sell context |
 | `data/audit.log` | Full audit trail (rotating, max 10 MB × 5 files) |
-| `data/clearing_report.csv` | Trade-by-trade settlement record || `data/stats.db` | SQLite database: daily OHLCV, 15-min snapshots, trade log |
+| `data/clearing_report.csv` | Trade-by-trade settlement record |
+| `data/stats.db` | SQLite database: daily OHLCV, snapshots, and trade log |

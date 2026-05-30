@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import pytest
+
 from edumatcher.engine.config_loader import EngineConfig, FixGatewayConfig, SymbolConfig
 from edumatcher.engine.main import Engine
 from edumatcher.models.message import decode
@@ -236,3 +238,64 @@ def test_quote_obligation_not_enforced_when_disabled(monkeypatch, tmp_path) -> N
         [f for f in pub_sock.sent if decode(f)[0] == "quote.ack.GW01"][-1]
     )[1]
     assert ack_payload["accepted"] is True
+
+
+@pytest.mark.parametrize(
+    "role",
+    [ParticipantRole.TRADER, ParticipantRole.MARKET_MAKER],
+)
+def test_global_circuit_breaker_halt_all_rejected_for_non_admin(
+    monkeypatch, tmp_path, role: ParticipantRole
+) -> None:
+    engine, pub_sock = _make_engine(monkeypatch, tmp_path, role=role)
+
+    engine._handle_circuit_breaker_halt_all({"gateway_id": "GW01"})
+
+    topic, payload = decode(pub_sock.sent[-1])
+    assert topic == "risk.circuit_breaker_halt_all_ack.GW01"
+    assert payload["accepted"] is False
+    assert "ADMIN" in payload["reason"]
+
+
+def test_global_circuit_breaker_halt_all_accepts_admin(monkeypatch, tmp_path) -> None:
+    pull_sock = _FakeSock(sent=[])
+    pub_sock = _FakeSock(sent=[])
+
+    cfg = EngineConfig(
+        symbols={
+            "AAPL": SymbolConfig(name="AAPL"),
+            "MSFT": SymbolConfig(name="MSFT"),
+        },
+        fix_gateways={
+            "GW01": FixGatewayConfig(
+                id="GW01",
+                description="Admin",
+                role=ParticipantRole.ADMIN,
+                disconnect_behaviour=DisconnectBehaviour.CANCEL_QUOTES_ONLY,
+            )
+        },
+        sessions_enabled=False,
+    )
+
+    monkeypatch.setattr("edumatcher.engine.main.make_puller", lambda _: pull_sock)
+    monkeypatch.setattr("edumatcher.engine.main.make_publisher", lambda _: pub_sock)
+    monkeypatch.setattr("edumatcher.engine.main.load_engine_config", lambda _: cfg)
+    monkeypatch.setattr("edumatcher.engine.main.load_gtc_orders", lambda _: [])
+    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: {})
+    monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
+
+    cfg_path = tmp_path / "engine_config.yaml"
+    cfg_path.write_text("dummy: true\n")
+    engine = Engine(config_path=str(cfg_path))
+    engine._handle_gateway_connect({"gateway_id": "GW01"})
+
+    pub_sock.sent.clear()
+    engine._handle_circuit_breaker_halt_all({"gateway_id": "GW01"})
+
+    assert engine._halted_symbols.get("AAPL") is True
+    assert engine._halted_symbols.get("MSFT") is True
+
+    topic, payload = decode(pub_sock.sent[-1])
+    assert topic == "risk.circuit_breaker_halt_all_ack.GW01"
+    assert payload["accepted"] is True
+    assert payload["halted_symbols"] == 2

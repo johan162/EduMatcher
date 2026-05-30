@@ -16,9 +16,10 @@ CLOSING_AUCTION, CLOSED). IOC is only valid during `CONTINUOUS` trading.
 [GW01] order.ack: accepted=false reason="IOC rejected outside CONTINUOUS phase"
 ```
 
-**Fix:** Check the current session phase with `SESSION` at the gateway prompt,
-then wait for CONTINUOUS or switch to a `LIMIT` order with `TIF=DAY` if you're
-willing to have the order rest.
+**Fix:** The gateway has no `SESSION` command. Watch the scheduler output,
+run `pm-audit --terminal`, or use `pm-viewer` / `pm-orders` to see
+`session.state` events, then wait for CONTINUOUS or switch to a `LIMIT` order
+with `TIF=DAY` if you're willing to have the order rest.
 
 ---
 
@@ -224,8 +225,41 @@ filling against your own sell. Options:
 Check that:
 1. The engine is running *before* the gateways try to connect.
 2. ZMQ ports 5555 and 5556 are not blocked by a firewall or in use by another
-   process: `lsof -i :5555 -i :5556`
+    process: `lsof -i :5555 -i :5556`
 3. The gateway ID exists in `engine_config.yaml`.
+
+If the engine is down or unreachable, `pm-gateway` exits after about three
+seconds with `Gateway authentication timed out`.
+
+---
+
+### Why is my viewer empty even though it started correctly?
+
+An empty viewer usually means the symbol has no resting orders yet. `pm-viewer`
+subscribes to `book.<SYMBOL>` and then requests an initial snapshot, but if the
+book is empty the snapshot is also empty.
+
+**Fix:** Submit a resting order, enable market-maker quote seeds for that
+symbol, or verify that you are watching a configured symbol.
+
+---
+
+### Why did `pm-scheduler --config ...` exit immediately?
+
+An explicit `--config` path is treated strictly. If the file does not exist,
+the scheduler exits with a fatal error instead of silently falling back.
+
+If you omit `--config`, the scheduler uses `engine_config.yaml` when present and
+otherwise falls back to its built-in default times.
+
+---
+
+### Why doesn't `./launch_all.sh` work on my machine?
+
+`launch_all.sh` is macOS-specific. It uses `osascript` to open Terminal windows,
+so it does not behave like a generic Linux or Windows launcher.
+
+Use the manual process commands from the home page if you are not on macOS.
 
 ---
 
@@ -234,7 +268,7 @@ Check that:
 Each process is an independent OS process communicating over ZeroMQ. They
 cannot run inside a single terminal because each blocks on its own event loop.
 For convenience, use the provided `./launch_all.sh` script which starts
-everything in the background.
+the standard setup in separate Terminal windows on macOS.
 
 ---
 

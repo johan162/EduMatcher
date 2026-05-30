@@ -56,7 +56,7 @@ message looks like:
   schema drift is invisible until something breaks at runtime.
 
 EduMatcher uses the **hardcoded approach**.  Each message type is created
-by a helper function in `pythonmatcher/models/message.py` (e.g.
+by a helper function in `src/edumatcher/models/message.py` (e.g.
 `make_order_new_msg`, `make_gateway_connect_msg`) and decoded by `decode()`.
 Every field documented on this page is exactly what those functions produce.
 This is ideal for a learning system — you can read the code and immediately
@@ -156,6 +156,11 @@ and received atomically:
 |---|---|---|---|
 | Order submission | PUSH → PULL | `tcp://127.0.0.1:5555` | Gateway → Engine |
 | Event broadcast | PUB → SUB | `tcp://127.0.0.1:5556` | Engine → all subscribers |
+| Drop copy | PUB → SUB | `tcp://127.0.0.1:5557` | Engine → drop-copy consumers |
+
+The dedicated drop-copy channel is implemented in
+`src/edumatcher/engine/drop_copy.py` and is documented in more detail on the
+[Drop Copy](drop-copy.md) page.
 
 ---
 
@@ -243,6 +248,8 @@ At least one of `price` or `qty` must be present.
 ### `quote.new`
 
 Sent by a market-maker gateway to submit or replace a two-sided quote.
+Role requirements and MM obligation controls are documented in
+[Configuration - Role Privileges and Obligations](configuration.md#role-privileges-and-obligations).
 
 | Field | Type | Description |
 |---|---|---|
@@ -279,6 +286,45 @@ Cancel risk-bearing exposure for a gateway.
 | `symbol` | string \| empty | Optional symbol scope |
 
 Reply: `risk.kill_switch_ack.{GW_ID}` with cancellation totals.
+
+### `risk.circuit_breaker_halt_all`
+
+Administrative global halt request. This sets all known symbols to halted.
+Only gateways configured with `role: ADMIN` are authorized.
+
+Operational semantics:
+
+- This is an exchange-wide manual halt. It is not timer-based.
+- The engine marks affected symbols as halted and publishes
+  `circuit_breaker.halt.<SYMBOL>` with `resumption_mode = "MANUAL"` and
+  `resume_at_ns = null`.
+- While halted, quote entry is rejected and immediate-execution order types are
+  rejected under the normal halt rules.
+- The halt remains in effect until it is explicitly cleared.
+
+How the halt is currently cleared:
+
+- There is currently no dedicated `risk.circuit_breaker_resume_all` command.
+- The implemented clear path is session end-of-day reset: when the engine
+  transitions to `CLOSED` via `session.transition`, circuit-breaker halt state
+  is deactivated for configured circuit-breaker symbols.
+- Operationally, treat this command as a "hold until operator/session reset"
+  control.
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Requesting admin gateway identifier |
+
+Reply: `risk.circuit_breaker_halt_all_ack.{GW_ID}`
+
+Ack payload fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `accepted` | boolean | `true` if request was authorized and applied |
+| `reason` | string | Rejection reason when `accepted=false` |
+| `halted_symbols` | integer | Number of symbols set to halted |
+| `cancelled_quotes` | integer | Number of quote legs cancelled during halt |
 
 ### `system.gateway_disconnect`
 

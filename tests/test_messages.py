@@ -23,6 +23,8 @@ from edumatcher.models.message import (
     make_gateway_connect_msg,
     make_gateway_disconnect_msg,
     make_ack_msg,
+    make_circuit_breaker_halt_all_ack_msg,
+    make_circuit_breaker_halt_all_msg,
     make_kill_switch_ack_msg,
     make_kill_switch_msg,
     make_depth_msg,
@@ -335,6 +337,25 @@ class TestMMQuoteAndRiskMessages:
         )
         assert topic == "risk.kill_switch_ack.GW01"
         assert payload["cancelled_orders"] == 3
+
+    def test_make_circuit_breaker_halt_all_msg(self) -> None:
+        topic, payload = _rt(make_circuit_breaker_halt_all_msg("GW01"))
+        assert topic == "risk.circuit_breaker_halt_all"
+        assert payload["gateway_id"] == "GW01"
+
+    def test_make_circuit_breaker_halt_all_ack_msg(self) -> None:
+        topic, payload = _rt(
+            make_circuit_breaker_halt_all_ack_msg(
+                "GW01",
+                True,
+                halted_symbols=12,
+                cancelled_quotes=8,
+            )
+        )
+        assert topic == "risk.circuit_breaker_halt_all_ack.GW01"
+        assert payload["accepted"] is True
+        assert payload["halted_symbols"] == 12
+        assert payload["cancelled_quotes"] == 8
 
     def test_make_dropcopy_fill_msg(self) -> None:
         topic, payload = _rt(make_dropcopy_fill_msg("GW01", {"trade_id": "1"}))

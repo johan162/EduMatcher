@@ -20,7 +20,11 @@ markdown_extensions:
       generic: true
   - pymdownx.highlight:
       anchor_linenums: true
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
       alternate_style: true
   - tables
@@ -30,17 +34,19 @@ markdown_extensions:
 extra_javascript:
   - javascripts/mathjax.js
   - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+  - https://unpkg.com/mermaid@10/dist/mermaid.min.js
+  - javascripts/mermaid-init.js
 
 nav:
   - Home: index.md
-  - MM Quotes: mm-quotes.md
+  - How an Exchange Works: introduction-exchange-concepts.md
   - Concepts:
     - The Order Book: concepts-order-book.md
-    - A deep dive into the order book: order-book-deep-dive.md
+    - The Order Book Deep Dive: order-book-deep-dive.md
+    - MM Quotes: mm-quotes.md
     - Your First Trade: concepts-first-trade.md
     - A Full Trading Day: concepts-trading-day.md
-    - Glossary: glossary.md
-  - Matcher Reference:
+  - User Guide:
     - Order Types: order-types.md
     - Combo Orders: combos.md
     - Auctions & Scheduling: auction.md
@@ -52,12 +58,12 @@ nav:
     - Persistence: persistence.md
     - Risk Controls: risk-controls.md
     - Drop Copy: drop-copy.md
-    - Persistence: persistence.md
-    - P&L: pnl.md
   - Architecture: 
     - Overview: architecture.md
-  - Developer:
+    - Detailed Walkthrough: architecture-guide.md
+  - Developer Info:
     - AI Bot Traders: ai-bot.md
     - Experiments: experiements.md
     - Verification: verification.md
+  - Glossary: glossary.md
   - FAQ: faq.md

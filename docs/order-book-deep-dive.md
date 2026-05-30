@@ -1,37 +1,38 @@
-# EduMatcher OrderBook — Deep Dive for Python Programmers (v4)
+# EduMatcher OrderBook — Deep Dive for Python Programmers
 
-## What You Will Learn
+!!! note "Learning objectives"
+    After reading this page you will thoroughly understand:
 
-- **What an order book is** — the fundamental data structure at the heart of every
-  financial exchange, and what problem it solves
-- **The heap data structure** — what it is, how Python's `heapq` module works, and
-  why a heap is the right tool for a matching engine's price queue
-- **Lazy deletion** — why we never remove entries from the middle of a heap, and how
-  to mark entries as invalid instead
-- **The dual-index pattern** — why a matching engine maintains two parallel data
-  structures (the heap and a flat dictionary) and what each one is responsible for
-- **Price-time priority** — how we encode "best price first, then earliest time" into
-  a heap key using a simple tuple trick
-- **The `__slots__` optimisation** — what Python object memory looks like by default,
-  and how `__slots__` trades flexibility for speed and lower memory
-- **Stop and trailing stop order mechanics** — how two separate heaps replace a linear
-  scan for triggered stops, and why each heap uses a different sort direction
-- **The three "last price" fields** — why `last_trade_price`, `last_buy_price`, and
-  `last_sell_price` are three distinct fields serving three distinct purposes
-- **The iceberg FOK undercount** — a concrete limitation of the visible-only quantity
-  index and what it means for Fill-Or-Kill availability checks
-- **Spread and mid price as derived values** — why the order book stores neither, and
-  what happens when one side of the book is empty
-- **The synchronisation invariant** — the four data structures that must always be
-  updated together, and what breaks if any one is missed
-- **Self-match prevention** — why an exchange needs to detect when a participant would
-  trade against themselves, and how the three cancellation strategies work
-- **No-matching mode** — how the same order book collects interest during an auction
-  without executing any trades
+    - **What an order book is** — the fundamental data structure at the heart of every
+      financial exchange, and what problem it solves
+    - **The heap data structure** — what it is, how Python's `heapq` module works, and
+      why a heap is the right tool for a matching engine's price queue
+    - **Lazy deletion** — why we never remove entries from the middle of a heap, and how
+      to mark entries as invalid instead
+    - **The dual-index pattern** — why a matching engine maintains two parallel data
+      structures (the heap and a flat dictionary) and what each one is responsible for
+    - **Price-time priority** — how we encode "best price first, then earliest time" into
+      a heap key using a simple tuple trick
+    - **The `__slots__` optimisation** — what Python object memory looks like by default,
+      and how `__slots__` trades flexibility for speed and lower memory
+    - **Stop and trailing stop order mechanics** — how two separate heaps replace a linear
+      scan for triggered stops, and why each heap uses a different sort direction
+    - **The three "last price" fields** — why `last_trade_price`, `last_buy_price`, and
+      `last_sell_price` are three distinct fields serving three distinct purposes
+    - **The iceberg FOK undercount** — a concrete limitation of the visible-only quantity
+      index and what it means for Fill-Or-Kill availability checks
+    - **Spread and mid price as derived values** — why the order book stores neither, and
+      what happens when one side of the book is empty
+    - **The synchronisation invariant** — the four data structures that must always be
+      updated together, and what breaks if any one is missed
+    - **Self-match prevention** — why an exchange needs to detect when a participant would
+      trade against themselves, and how the three cancellation strategies work
+    - **No-matching mode** — how the same order book collects interest during an auction
+      without executing any trades
 
----
 
-## Financial Glossary
+
+## Short Financial Glossary
 
 Read this before anything else. Every term below appears in this document. If you
 already work in finance, skip ahead — these definitions are deliberately simplified
@@ -130,7 +131,7 @@ same `gateway_id`.
 auction, orders are collected but not immediately matched. At the end of the auction
 period, all eligible orders execute simultaneously at a single equilibrium price.
 
----
+
 
 ## What Is an Order Book?
 
@@ -165,7 +166,7 @@ $150.31). The order rests on the bid side, joining the queue.
 
 The `OrderBook` class in `engine/order_book.py` implements all of this.
 
----
+
 
 ## Background: The Heap Data Structure
 
@@ -290,7 +291,7 @@ among equal prices, whoever arrived first should win. It prevents a participant 
 "cutting the queue" by submitting an order at the same price as someone who was
 already waiting.
 
----
+
 
 ## The `_HeapEntry` Wrapper
 
@@ -364,7 +365,7 @@ direct memory offset — like accessing `struct.field` in C. This is approximate
 `_HeapEntry` is instantiated once per resting order. In a book with thousands of
 resting orders, this saving compounds meaningfully.
 
----
+
 
 ## The `OrderBook` Class
 
@@ -387,7 +388,7 @@ The `OrderBook` maintains ten distinct data structures. Each answers a different
 question. They are all updated in sync — if you update one, you must update the
 others. This is the key discipline of the order book implementation.
 
----
+
 
 #### 1. `_bids` and `_asks` — The Price-Time Queues
 
@@ -408,7 +409,7 @@ seller will accept.
 When the matching engine needs to fill an incoming buy order, it looks at `_asks[0]`.
 When filling an incoming sell order, it looks at `_bids[0]`. Both are O(1) lookups.
 
----
+
 
 #### 2. `_order_index` — Fast Lookup by Order ID
 
@@ -429,7 +430,7 @@ O(n). With this dictionary, it is O(1).
 order = self._order_index.get(order_id)   # O(1) — no heap scan needed
 ```
 
----
+
 
 #### 3. `_entry_index` — Fast Lookup by Entry
 
@@ -459,7 +460,7 @@ different purposes and have different lifetimes. Stop orders, for example, are i
 `_order_index` but not in `_entry_index` (they use different heaps with different
 management). Keeping them separate avoids conflation.
 
----
+
 
 #### 4. `_bid_qty` and `_ask_qty` — The Price-Level Quantity Index
 
@@ -553,7 +554,7 @@ check to see phantom liquidity that has already been cancelled. Leaving an entry
 `_order_index` after a fill would cause a cancel request on that order ID to find
 a filled order and send a confusing response.
 
----
+
 
 #### 5. `_buy_stops` and `_sell_stops` — The Stop Heaps
 
@@ -594,7 +595,7 @@ Two separate heaps mean triggering is O(k log k) where k is the number of stops
 that actually fire — typically zero or one. Without the split, you would need to
 check both heaps for every trade.
 
----
+
 
 #### 6. `_trailing_stops` — The Trailing Stop List
 
@@ -607,7 +608,7 @@ price of a trailing stop changes every time the market price moves, so a heap is
 not useful here — we must scan all of them on every trade to update their trigger
 prices. In practice, trailing stop lists are short.
 
----
+
 
 #### 7. `recent_trades` — The Rolling Trade Window
 
@@ -644,7 +645,7 @@ trade history, `recent_trades` in the next snapshot is all it gets from the engi
 The stats database (`data/stats.db`) has the full OHLCV history, but display
 processes do not query it directly.
 
----
+
 
 ## Walking Through `process()` — The Main Entry Point
 
@@ -743,7 +744,7 @@ timestamp is passed through to avoid more calls inside the recursive call.
 This recursion is bounded in practice — triggered orders rarely trigger further
 stops — but it is worth being aware of for deep stop cascades.
 
----
+
 
 ## The Sweep Loop — `_sweep()`
 
@@ -827,7 +828,7 @@ Each iteration:
    order has. The fill price is always the resting order's price (the passive side
    sets the price; the aggressive side takes it).
 
----
+
 
 ## `_apply_fill()` — What Happens When Two Orders Trade
 
@@ -931,7 +932,7 @@ sells hitting bids (rising `last_buy_price`) suggests downward pressure. These
 separate fields let statistics and display tools show this directionality without
 needing to examine the full trade history.
 
----
+
 
 ## `_peek()` — Lazy Deletion in Practice
 
@@ -971,7 +972,7 @@ In a busy book where orders fill and cancel frequently, this avoids O(n) removal
 operations and replaces them with O(log n) cleanup spread across many calls to
 `_peek`.
 
----
+
 
 ## `_rest()` — Placing a Resting Order
 
@@ -1017,7 +1018,7 @@ Note the iceberg special case: an iceberg order rests its `displayed_qty` (the
 visible peak) rather than its full `remaining_qty`. The hidden reserve is invisible
 to other participants.
 
----
+
 
 ## `amend_order()` — Modifying a Resting Order
 
@@ -1057,7 +1058,7 @@ The `priority_reset` branch is why `_entry_index` exists. Without it, we would
 have no way to invalidate the old heap entry when the order is re-inserted at a
 new key.
 
----
+
 
 ## Iceberg Orders — Replenishment
 
@@ -1089,7 +1090,7 @@ iceberg replenishment loses queue priority.
 `_reinsert_iceberg` invalidates the old heap entry (lazy deletion) and pushes a new
 one with the updated timestamp and quantity.
 
----
+
 
 ## Self-Match Prevention
 
@@ -1137,7 +1138,7 @@ order which may belong to a different participant and can fill legitimately.
 from both indexes (`_order_index`, `_entry_index`), decrements the qty index, and
 appends the cancelled order to `events` so the gateway is notified.
 
----
+
 
 ## Stop Orders — Two Heaps
 
@@ -1181,7 +1182,7 @@ This makes stop checking O(1) in the common case (no stops triggered) and O(k lo
 when k stops fire. A naive linear scan over all pending stops would be O(s) on every
 trade, where s is the total number of pending stops.
 
----
+
 
 ## Trailing Stops — The Ratchet
 
@@ -1224,7 +1225,7 @@ In EduMatcher, both `trade_price` and `order.trail_offset` are integer tick coun
 so the subtraction `candidate = trade_price - order.trail_offset` is exact integer
 arithmetic with no floating-point drift.
 
----
+
 
 ## The `snapshot()` Method
 
@@ -1297,7 +1298,7 @@ iterating individual orders. Reserve `snapshot()` for full depth snapshots neede
 less frequently, such as when a client connects and needs the full current book
 state.
 
----
+
 
 ## Data Structure Summary
 
@@ -1314,7 +1315,7 @@ state.
 | `_ask_qty` | Dict | `price_ticks` | `int` | O(P) depth / FOK check |
 | `recent_trades` | Deque | — | `Trade` | Rolling last-20-trades window |
 
----
+
 
 ## Complexity Summary
 
@@ -1333,6 +1334,6 @@ state.
 
 Where n = total resting orders, P = distinct price levels (typically P << n).
 
----
+
 
 *Part of the EduMatcher documentation series. v4 — May 2026.*

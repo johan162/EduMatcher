@@ -129,8 +129,6 @@ regulated venue it would be a compliance failure.
 
 ---
 
-## Starting a Gateway
-
 The gateway (`pm-gateway`) is your trading terminal. Each gateway instance represents
 one user connecting to the trading system. Multiple gateways can run simultaneously.
 
@@ -147,11 +145,15 @@ On startup, the gateway:
 
 1. Connects PUSH socket to the engine PULL port (5555)
 2. Connects SUB socket to the engine PUB port (5556)
-3. Subscribes to: `order.ack.{ID}`, `order.fill.{ID}`, `order.amended.{ID}`, `order.cancelled.{ID}`, `order.expired.{ID}`, `order.orders.{ID}`, `combo.ack.{ID}`, `combo.status.{ID}`, `oco.ack.{ID}`, `oco.cancelled.{ID}`, `quote.ack.{ID}`, `quote.status.{ID}`, `risk.kill_switch_ack.{ID}`, `system.symbols.{ID}`, `system.gateway_auth.{ID}`, `trade.executed`, `session.state`
+3. Subscribes to: `order.ack.{ID}`, `order.fill.{ID}`, `order.amended.{ID}`, `order.cancelled.{ID}`, `order.expired.{ID}`, `order.orders.{ID}`, `combo.ack.{ID}`, `combo.status.{ID}`, `oco.ack.{ID}`, `oco.cancelled.{ID}`, `quote.ack.{ID}`, `quote.status.{ID}`, `risk.kill_switch_ack.{ID}`, `system.symbols.{ID}`, `system.gateway_auth.{ID}`, `trade.executed`
 4. Sends `system.gateway_connect` and waits up to **3 seconds** for the auth response
 5. If accepted: enters the interactive prompt loop
 6. If rejected: prints the reason and exits immediately
 7. If timeout (engine not running): exits with "Gateway authentication timed out"
+
+The gateway does **not** subscribe to `session.state`. Use `pm-audit`,
+`pm-viewer`, `pm-orders`, or the scheduler output if you need to watch trading
+phase transitions live.
 
 Allowed gateway IDs are configured in `engine_config.yaml` under `gateways.fix`.
 

@@ -6,7 +6,7 @@
     - What drop copy is and why it exists in real exchange ecosystems
     - How EduMatcher's drop copy publisher works
     - The message format published on the drop copy channel
-    - How a downstream system can replay missed events after a reconnect
+    - What replay support exists today and what its limits are
     - How to configure and monitor the drop copy stream
 
     **Prerequisite**: [Processes](processes.md) gives an overview of the
@@ -37,7 +37,8 @@ This separation is important:
 
 ## Architecture
 
-EduMatcher's drop copy publisher runs inside the matching engine.  It binds a
+EduMatcher's drop copy publisher runs inside the matching engine in
+`src/edumatcher/engine/drop_copy.py`. It binds a
 dedicated ZeroMQ PUB socket on port **5557** and publishes events as the
 engine processes fills.
 
@@ -94,7 +95,8 @@ Frame 1 (payload):  orjson-encoded JSON object
 
 ### `order.fill` event
 
-Published whenever an order receives a full or partial fill.
+Published whenever an order receives a full or partial fill. This is the only
+live drop-copy event type currently emitted by the engine.
 
 ```json
 {
@@ -104,16 +106,17 @@ Published whenever an order receives a full or partial fill.
   "event_type": "order.fill",
   "order_id": "ord-001",
   "symbol": "MSFT",
-  "side": "BUY",
   "fill_qty": 100,
-  "fill_price": 42000,
-  "leaves_qty": 0
+  "fill_price": 420.0,
+  "remaining_qty": 0,
+  "liquidity_flag": "MAKER"
 }
 ```
 
-!!! note "Tick prices"
-    `fill_price` is in **integer ticks**, not display prices.  Use
-    `from_ticks(fill_price, symbol)` to convert to a display float.
+!!! note "Price units and fields"
+    `fill_price` is published as a display-price float, not as raw integer
+    ticks. The payload also uses `remaining_qty` and `liquidity_flag`; it does
+    not include `side` or `leaves_qty`.
 
 ---
 
@@ -161,6 +164,10 @@ Frame 1 (payload):  same format as live events
 ```
 
 The call returns the number of messages replayed.
+
+There is currently **no external replay-request message handler** wired into the
+engine loop. Replay exists as an in-process publisher method, which is useful
+for tests or embedded consumers but is not yet a full reconnect protocol.
 
 ### Replay topic design
 

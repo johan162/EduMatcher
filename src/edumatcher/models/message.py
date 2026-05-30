@@ -475,6 +475,31 @@ def make_kill_switch_ack_msg(
     )
 
 
+def make_circuit_breaker_halt_all_msg(gateway_id: str) -> list[bytes]:
+    """Admin → engine: halt trading for all known symbols."""
+    return encode("risk.circuit_breaker_halt_all", {"gateway_id": gateway_id})
+
+
+def make_circuit_breaker_halt_all_ack_msg(
+    gateway_id: str,
+    accepted: bool,
+    reason: str = "",
+    halted_symbols: int = 0,
+    cancelled_quotes: int = 0,
+) -> list[bytes]:
+    """Engine → admin: global circuit-breaker halt result summary."""
+    topic = f"risk.circuit_breaker_halt_all_ack.{gateway_id}"
+    return encode(
+        topic,
+        {
+            "accepted": accepted,
+            "reason": reason,
+            "halted_symbols": halted_symbols,
+            "cancelled_quotes": cancelled_quotes,
+        },
+    )
+
+
 def make_dropcopy_fill_msg(
     gateway_id: str, fill_payload: dict[str, Any]
 ) -> list[bytes]:

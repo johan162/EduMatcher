@@ -43,6 +43,19 @@ sessions to preserve market state and historical records.
 
 ---
 
+## Operational edge cases
+
+- If `data/gtc_orders.json`, `data/gtc_combos.json`, or `data/book_stats.json`
+  is malformed JSON, startup does **not** fail. The loader returns empty state
+  for that file and the engine continues.
+- Restored GTC orders for symbols that no longer exist in the current config are
+  skipped during restore rather than aborting startup.
+- Because config quote seeds run **after** persisted GTC restore, seeded `GTC`
+  liquidity can duplicate already-restored inventory on restart. Use `DAY` for
+  seeded demo liquidity unless you are intentionally managing persisted state.
+
+---
+
 ## Order ID Stability
 
 GTC order IDs are UUID4 strings generated at submission time by the gateway.

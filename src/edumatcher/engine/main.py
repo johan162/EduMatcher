@@ -66,6 +66,7 @@ from edumatcher.models.message import (
     make_expired_msg,
     make_fill_msg,
     make_gateway_auth_msg,
+    make_circuit_breaker_halt_all_ack_msg,
     make_kill_switch_ack_msg,
     make_orders_msg,
     make_quote_ack_msg,
@@ -1405,6 +1406,79 @@ class Engine:
             )
         )
 
+    def _handle_circuit_breaker_halt_all(self, payload: dict[str, Any]) -> None:
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+
+        ok, reason = self._gateway_status(gateway_id)
+        if not ok:
+            self.pub_sock.send_multipart(
+                make_circuit_breaker_halt_all_ack_msg(gateway_id, False, reason)
+            )
+            return
+
+        session = self._session_for_gateway(gateway_id)
+        if session.role != ParticipantRole.ADMIN:
+            self.pub_sock.send_multipart(
+                make_circuit_breaker_halt_all_ack_msg(
+                    gateway_id,
+                    False,
+                    "Global circuit-breaker halt is only allowed for ADMIN participants",
+                )
+            )
+            return
+
+        symbols: set[str] = set(self.books.keys())
+        symbols.update(self._circuit_breakers.keys())
+        symbols.update(self._halted_symbols.keys())
+        if self._allowed_symbols is not None:
+            symbols.update(self._allowed_symbols)
+        elif self._engine_config is not None:
+            symbols.update(self._engine_config.symbols.keys())
+
+        now = now_ns()
+        cancelled_quotes = 0
+        for symbol in sorted(symbols):
+            self._halted_symbols[symbol] = True
+
+            cb = self._circuit_breakers.get(symbol)
+            if cb is not None:
+                cb.halted = True
+                cb.halted_at_ns = now
+                cb.resume_at_ns = None
+                cb.trigger_price = None
+                cb.reference_price = None
+                cb.triggered_level = "ADMIN_ALL"
+                cb.active_resumption_mode = "MANUAL"
+
+            for entry in self._quote_index.cancel_all_for_symbol(symbol):
+                cancelled_quotes += self._cancel_quote_entry(
+                    entry, reason="Global circuit breaker halt"
+                )
+
+            self.pub_sock.send_multipart(
+                encode(
+                    f"circuit_breaker.halt.{symbol}",
+                    {
+                        "symbol": symbol,
+                        "trigger_price": None,
+                        "reference_price": None,
+                        "resume_at_ns": None,
+                        "resumption_mode": "MANUAL",
+                        "level": "ADMIN_ALL",
+                    },
+                )
+            )
+            self._mark_dirty(symbol)
+
+        self.pub_sock.send_multipart(
+            make_circuit_breaker_halt_all_ack_msg(
+                gateway_id,
+                True,
+                halted_symbols=len(symbols),
+                cancelled_quotes=cancelled_quotes,
+            )
+        )
+
     # ------------------------------------------------------------------
     # Combo-order handlers
     # ------------------------------------------------------------------
@@ -2374,6 +2448,8 @@ class Engine:
                         self._handle_orders_request(payload)
                     elif topic == "risk.kill_switch":
                         self._handle_kill_switch(payload)
+                    elif topic == "risk.circuit_breaker_halt_all":
+                        self._handle_circuit_breaker_halt_all(payload)
                     elif topic == "session.transition":
                         self._handle_session_transition(payload)
                 except Exception as exc:

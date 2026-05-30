@@ -10,7 +10,7 @@
     - How to submit, replace, and cancel quotes from the gateway CLI
     - Why startup seeding and gateway connectivity are independent events
     - What happens when a fill occurs against a seed quote before the MM gateway connects
-    - Why no circuit breaker fires in that scenario (and what does happen instead)
+    - How configured circuit breakers can still halt a symbol after fills against seed liquidity
 
 ---
 
@@ -35,8 +35,9 @@ in engine orchestration.
 
 On every engine startup, `_load_config()` reads each symbol's
 `market_maker_quotes` list and posts the defined bid/ask pairs into the order
-book before any gateway connection is accepted.  This gives every book a
-guaranteed spread from the first moment of the trading day.
+book **after restored GTC state has been reloaded** and before any gateway
+connection is accepted. This gives every book a guaranteed spread from the
+first moment of the trading day while preserving prior-session time priority.
 
 Each seeded quote entry defines:
 
@@ -52,7 +53,7 @@ file otherwise.
 ### Exact startup sequence
 
 ```
-1.  Engine binds ZeroMQ sockets (no gateways connected yet)
+1.  Engine parses config / allowlists and binds the main PULL/PUB sockets
 2.  Restore data/book_stats.json  → last_buy_price / last_sell_price per symbol
 3.  Restore data/gtc_orders.json  → re-inject GTC orders with original timestamps
 4.  Restore data/gtc_combos.json  → rebuild parent-child combo maps
@@ -61,8 +62,9 @@ file otherwise.
         • matching is enabled — a GTC resting order could cross a seed quote here
         • trades and fill messages are published immediately
 6.  Inject market_maker_combos    → seeded combo orders at top level
-7.  Publish initial book snapshots for all symbols
-8.  Begin accepting gateway connections
+7.  Bind drop-copy PUB :5557 if available
+8.  Publish initial book snapshots for all symbols
+9.  Begin accepting gateway connections
 ```
 
 For a clean first run, clear persisted files so no stale state competes with
@@ -116,15 +118,19 @@ continuous session before the MM has dialled in.
 | 7 | The `INACTIVE_*` status message is sent to `quote.status.MM01` on the PUB socket — but MM01 is not connected and has no subscriber, so the message is **silently dropped** |
 | 8 | Book continues in continuous session with reduced or no MM liquidity |
 
-### No circuit breaker fires
+### Circuit breakers can still fire
 
-The circuit breaker is a **planned future feature** and is not implemented in
-the current codebase.  There is no `circuit_breaker.py`, no `HALTED` session
-state, and no per-symbol halt mechanism.  A fill against an unattended seed
-quote does **not** trigger any halt or rejection of subsequent orders.
+Circuit breakers are implemented in the current engine. If a fill against a
+seed quote breaches the configured threshold ladder for that symbol:
 
-The book simply becomes thin.  All other participants can continue to submit
-and match orders normally.
+- the symbol is marked halted
+- all resting quotes for that symbol are cancelled
+- the engine publishes `circuit_breaker.halt.<SYMBOL>`
+- new orders and new quotes for that symbol are rejected until the breaker resumes
+
+If the breaker's `resumption_mode` is `AUCTION`, the engine runs a symbol-local
+uncross before continuous matching resumes. So an unattended seed quote can do
+more than thin the book: it can be the trade that triggers a temporary halt.
 
 ### What the MM must do on connect
 
@@ -231,5 +237,6 @@ confirm action scope.
 !!! warning "Seed quotes and disconnect"
     If the MM gateway was never connected in the first place, `_handle_gateway_disconnect`
     is never called and the seed quotes are **not** auto-cancelled on any disconnect
-    event.  Only an explicit gateway disconnect message (or a `KILL` command from
-    an admin gateway) would remove them.
+    event. They remain live until they are filled, explicitly quote-cancelled,
+    cancelled by a kill-switch from that gateway, or removed by another engine
+    event such as a circuit-breaker halt.

@@ -70,6 +70,10 @@ When the engine receives a new order for a halted symbol:
 When the engine receives a new quote for a halted symbol, the entire quote is
 rejected (both sides).
 
+Quote eligibility by participant role (for example, `MARKET_MAKER` vs
+`TRADER`) is described in
+[Configuration - Role Privileges and Obligations](configuration.md#role-privileges-and-obligations).
+
 ### Interaction with auctions
 
 If a symbol is halted during an auction phase the engine will still accept
