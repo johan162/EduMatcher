@@ -238,6 +238,101 @@ def make_symbols_msg(gateway_id: str, symbols: list[str]) -> list[bytes]:
 
 
 # ------------------------------------------------------------------
+# Session-status query (read current state without advancing it)
+# ------------------------------------------------------------------
+
+
+def make_session_state_request_msg(gateway_id: str) -> list[bytes]:
+    """Operator → engine: request the current session state."""
+    return encode("system.session_state_request", {"gateway_id": gateway_id})
+
+
+def make_session_status_msg(
+    gateway_id: str,
+    state: str,
+    sessions_enabled: bool,
+) -> list[bytes]:
+    """Engine → operator: reply with the current session state."""
+    topic = f"system.session_status.{gateway_id}"
+    return encode(topic, {"state": state, "sessions_enabled": sessions_enabled})
+
+
+# ------------------------------------------------------------------
+# Session schedule query
+# ------------------------------------------------------------------
+
+
+def make_session_schedule_request_msg(gateway_id: str) -> list[bytes]:
+    """Operator → engine: request the session schedule configuration."""
+    return encode("system.session_schedule_request", {"gateway_id": gateway_id})
+
+
+def make_session_schedule_msg(
+    gateway_id: str,
+    sessions_enabled: bool,
+    schedule: dict[str, str] | None,
+) -> list[bytes]:
+    """Engine → operator: reply with the session schedule configuration."""
+    topic = f"system.session_schedule.{gateway_id}"
+    return encode(
+        topic,
+        {
+            "sessions_enabled": sessions_enabled,
+            "schedule": schedule or {},
+        },
+    )
+
+
+# ------------------------------------------------------------------
+# Gateway-list query
+# ------------------------------------------------------------------
+
+
+def make_gateways_request_msg(gateway_id: str) -> list[bytes]:
+    """Operator → engine: request the list of configured gateways."""
+    return encode("system.gateways_request", {"gateway_id": gateway_id})
+
+
+def make_gateways_msg(
+    gateway_id: str,
+    gateways: list[dict[str, Any]],
+) -> list[bytes]:
+    """Engine → operator: reply with configured gateways and connection status."""
+    topic = f"system.gateways.{gateway_id}"
+    return encode(topic, {"gateways": gateways})
+
+
+# ------------------------------------------------------------------
+# Daily volume query
+# ------------------------------------------------------------------
+
+
+def make_volume_request_msg(gateway_id: str) -> list[bytes]:
+    """Operator → engine: request daily traded volume."""
+    return encode("system.volume_request", {"gateway_id": gateway_id})
+
+
+def make_volume_msg(
+    gateway_id: str,
+    symbols: dict[str, dict[str, Any]],
+    total_qty: int,
+    total_value: float,
+    total_trades: int,
+) -> list[bytes]:
+    """Engine → operator: reply with daily volume data."""
+    topic = f"system.volume.{gateway_id}"
+    return encode(
+        topic,
+        {
+            "symbols": symbols,
+            "total_qty": total_qty,
+            "total_value": total_value,
+            "total_trades": total_trades,
+        },
+    )
+
+
+# ------------------------------------------------------------------
 # Combo-order messages
 # ------------------------------------------------------------------
 

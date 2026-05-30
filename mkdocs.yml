@@ -57,6 +57,7 @@ nav:
     - Configuration: configuration.md
     - Persistence: persistence.md
     - Risk Controls: risk-controls.md
+    - Exchange Commands: commands.md
     - Drop Copy: drop-copy.md
   - Architecture: 
     - Overview: architecture.md

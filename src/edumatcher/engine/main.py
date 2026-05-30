@@ -77,6 +77,10 @@ from edumatcher.models.message import (
     make_auction_result_msg,
     make_oco_ack_msg,
     make_oco_cancelled_msg,
+    make_session_status_msg,
+    make_session_schedule_msg,
+    make_gateways_msg,
+    make_volume_msg,
 )
 from edumatcher.models.participant import (
     DisconnectBehaviour,
@@ -828,6 +832,80 @@ class Engine:
         gateway_id = payload.get("gateway_id", "")
         symbols = sorted(self.books.keys())
         self.pub_sock.send_multipart(make_symbols_msg(gateway_id, symbols))
+
+    def _handle_session_state_request(self, payload: dict[str, Any]) -> None:
+        """Return the current session state without advancing it."""
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        self.pub_sock.send_multipart(
+            make_session_status_msg(
+                gateway_id,
+                self._session_state.value,
+                self._sessions_enabled,
+            )
+        )
+
+    def _handle_session_schedule_request(self, payload: dict[str, Any]) -> None:
+        """Return the session schedule configuration from the loaded engine config."""
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        schedule: dict[str, str] | None = None
+        if self._engine_config and self._engine_config.schedule:
+            s = self._engine_config.schedule
+            schedule = {
+                "pre_open": s.pre_open,
+                "opening_auction_start": s.opening_auction_start,
+                "continuous_start": s.continuous_start,
+                "closing_auction_start": s.closing_auction_start,
+                "closing_auction_end": s.closing_auction_end,
+            }
+        self.pub_sock.send_multipart(
+            make_session_schedule_msg(gateway_id, self._sessions_enabled, schedule)
+        )
+
+    def _handle_gateways_request(self, payload: dict[str, Any]) -> None:
+        """Return all configured gateways with their role and connection status."""
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        gateways: list[dict[str, Any]] = []
+        if self._engine_config:
+            for gw_id, cfg in sorted(self._engine_config.fix_gateways.items()):
+                session = self._sessions.get(gw_id)
+                connected = (
+                    session is not None and session.connected
+                ) or (gw_id in self._connected_fix_gateways)
+                gateways.append(
+                    {
+                        "id": gw_id,
+                        "role": cfg.role.value,
+                        "description": cfg.description,
+                        "connected": connected,
+                    }
+                )
+        self.pub_sock.send_multipart(make_gateways_msg(gateway_id, gateways))
+
+    def _handle_volume_request(self, payload: dict[str, Any]) -> None:
+        """Return daily traded volume totals per symbol and exchange-wide."""
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        symbols_vol: dict[str, dict[str, Any]] = {}
+        total_qty = 0
+        total_value = 0.0
+        total_trades = 0
+        for sym, book in sorted(self.books.items()):
+            symbols_vol[sym] = {
+                "qty": book.daily_qty,
+                "value": round(book.daily_value, 2),
+                "trades": book.daily_trades,
+            }
+            total_qty += book.daily_qty
+            total_value += book.daily_value
+            total_trades += book.daily_trades
+        self.pub_sock.send_multipart(
+            make_volume_msg(
+                gateway_id,
+                symbols_vol,
+                total_qty,
+                round(total_value, 2),
+                total_trades,
+            )
+        )
 
     def _handle_gateway_connect(self, payload: dict[str, Any]) -> None:
         gateway_id = str(payload.get("gateway_id", "")).upper()
@@ -2509,6 +2587,14 @@ class Engine:
                         self._handle_circuit_breaker_resume_all(payload)
                     elif topic == "session.transition":
                         self._handle_session_transition(payload)
+                    elif topic == "system.session_state_request":
+                        self._handle_session_state_request(payload)
+                    elif topic == "system.session_schedule_request":
+                        self._handle_session_schedule_request(payload)
+                    elif topic == "system.gateways_request":
+                        self._handle_gateways_request(payload)
+                    elif topic == "system.volume_request":
+                        self._handle_volume_request(payload)
                 except Exception as exc:
                     print(f"[ENGINE] Error processing {topic}: {exc}", file=sys.stderr)
             # Throttled snapshot publish — runs every poll tick (max 200ms)

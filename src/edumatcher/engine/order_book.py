@@ -90,6 +90,9 @@ class OrderBook:
         "last_buy_price",
         "last_sell_price",
         "recent_trades",
+        "daily_qty",
+        "daily_value",
+        "daily_trades",
     )
 
     def __init__(self, symbol: str) -> None:
@@ -124,6 +127,11 @@ class OrderBook:
             None  # last trade where seller was aggressor
         )
         self.recent_trades: deque[Trade] = deque(maxlen=20)
+
+        # Daily cumulative stats — reset at EOD / engine restart
+        self.daily_qty: int = 0
+        self.daily_value: float = 0.0
+        self.daily_trades: int = 0
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -838,6 +846,10 @@ class OrderBook:
         trades.append(trade)
         self.last_trade_price = fill_price
         self.last_trade_qty = fill_qty
+        # Accumulate daily volume stats
+        self.daily_qty += fill_qty
+        self.daily_value += from_ticks(fill_price, self.symbol) * fill_qty
+        self.daily_trades += 1
         # Track side-specific last price (aggressor side determines the label)
         if aggressor.side == Side.BUY:
             self.last_buy_price = fill_price
