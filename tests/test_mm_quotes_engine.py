@@ -299,3 +299,79 @@ def test_global_circuit_breaker_halt_all_accepts_admin(monkeypatch, tmp_path) ->
     assert topic == "risk.circuit_breaker_halt_all_ack.GW01"
     assert payload["accepted"] is True
     assert payload["halted_symbols"] == 2
+
+
+@pytest.mark.parametrize(
+    "role",
+    [ParticipantRole.TRADER, ParticipantRole.MARKET_MAKER],
+)
+def test_global_circuit_breaker_resume_all_rejected_for_non_admin(
+    monkeypatch, tmp_path, role: ParticipantRole
+) -> None:
+    engine, pub_sock = _make_engine(monkeypatch, tmp_path, role=role)
+    # Manually set a halt so there's something to clear
+    engine._halted_symbols["AAPL"] = True
+
+    engine._handle_circuit_breaker_resume_all({"gateway_id": "GW01"})
+
+    topic, payload = decode(pub_sock.sent[-1])
+    assert topic == "risk.circuit_breaker_resume_all_ack.GW01"
+    assert payload["accepted"] is False
+    assert "ADMIN" in payload["reason"]
+    # Halt state must be unchanged
+    assert engine._halted_symbols["AAPL"] is True
+
+
+def test_global_circuit_breaker_halt_then_resume_all(monkeypatch, tmp_path) -> None:
+    pull_sock = _FakeSock(sent=[])
+    pub_sock = _FakeSock(sent=[])
+
+    cfg = EngineConfig(
+        symbols={
+            "AAPL": SymbolConfig(name="AAPL"),
+            "MSFT": SymbolConfig(name="MSFT"),
+        },
+        fix_gateways={
+            "GW01": FixGatewayConfig(
+                id="GW01",
+                description="Admin",
+                role=ParticipantRole.ADMIN,
+                disconnect_behaviour=DisconnectBehaviour.CANCEL_QUOTES_ONLY,
+            )
+        },
+        sessions_enabled=False,
+    )
+
+    monkeypatch.setattr("edumatcher.engine.main.make_puller", lambda _: pull_sock)
+    monkeypatch.setattr("edumatcher.engine.main.make_publisher", lambda _: pub_sock)
+    monkeypatch.setattr("edumatcher.engine.main.load_engine_config", lambda _: cfg)
+    monkeypatch.setattr("edumatcher.engine.main.load_gtc_orders", lambda _: [])
+    monkeypatch.setattr("edumatcher.engine.main.load_book_stats", lambda _: {})
+    monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
+
+    cfg_path = tmp_path / "engine_config.yaml"
+    cfg_path.write_text("dummy: true\n")
+    engine = Engine(config_path=str(cfg_path))
+    engine._handle_gateway_connect({"gateway_id": "GW01"})
+
+    # Halt all
+    engine._handle_circuit_breaker_halt_all({"gateway_id": "GW01"})
+    assert engine._halted_symbols.get("AAPL") is True
+    assert engine._halted_symbols.get("MSFT") is True
+
+    pub_sock.sent.clear()
+
+    # Resume all
+    engine._handle_circuit_breaker_resume_all({"gateway_id": "GW01"})
+
+    assert engine._halted_symbols.get("AAPL") is False
+    assert engine._halted_symbols.get("MSFT") is False
+
+    topics = _topics(pub_sock)
+    assert "circuit_breaker.resume.AAPL" in topics
+    assert "circuit_breaker.resume.MSFT" in topics
+
+    topic, payload = decode(pub_sock.sent[-1])
+    assert topic == "risk.circuit_breaker_resume_all_ack.GW01"
+    assert payload["accepted"] is True
+    assert payload["resumed_symbols"] == 2

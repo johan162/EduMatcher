@@ -67,6 +67,7 @@ from edumatcher.models.message import (
     make_fill_msg,
     make_gateway_auth_msg,
     make_circuit_breaker_halt_all_ack_msg,
+    make_circuit_breaker_resume_all_ack_msg,
     make_kill_switch_ack_msg,
     make_orders_msg,
     make_quote_ack_msg,
@@ -1479,6 +1480,60 @@ class Engine:
             )
         )
 
+    def _handle_circuit_breaker_resume_all(self, payload: dict[str, Any]) -> None:
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+
+        ok, reason = self._gateway_status(gateway_id)
+        if not ok:
+            self.pub_sock.send_multipart(
+                make_circuit_breaker_resume_all_ack_msg(gateway_id, False, reason)
+            )
+            return
+
+        session = self._session_for_gateway(gateway_id)
+        if session.role != ParticipantRole.ADMIN:
+            self.pub_sock.send_multipart(
+                make_circuit_breaker_resume_all_ack_msg(
+                    gateway_id,
+                    False,
+                    "Global circuit-breaker resume is only allowed for ADMIN participants",
+                )
+            )
+            return
+
+        # Collect every symbol that is currently halted
+        halted_symbols = sorted(
+            sym for sym, halted in self._halted_symbols.items() if halted
+        )
+
+        for symbol in halted_symbols:
+            self._halted_symbols[symbol] = False
+
+            cb = self._circuit_breakers.get(symbol)
+            if cb is not None:
+                cb.deactivate()
+
+            self.pub_sock.send_multipart(
+                encode(
+                    f"circuit_breaker.resume.{symbol}",
+                    {"symbol": symbol, "mode": "MANUAL"},
+                )
+            )
+            self._mark_dirty(symbol)
+
+        self.pub_sock.send_multipart(
+            make_circuit_breaker_resume_all_ack_msg(
+                gateway_id,
+                True,
+                resumed_symbols=len(halted_symbols),
+            )
+        )
+        if halted_symbols:
+            print(
+                f"[ENGINE] ADMIN CIRCUIT BREAKER RESUME ALL — "
+                f"{len(halted_symbols)} symbol(s): {', '.join(halted_symbols)}"
+            )
+
     # ------------------------------------------------------------------
     # Combo-order handlers
     # ------------------------------------------------------------------
@@ -2450,6 +2505,8 @@ class Engine:
                         self._handle_kill_switch(payload)
                     elif topic == "risk.circuit_breaker_halt_all":
                         self._handle_circuit_breaker_halt_all(payload)
+                    elif topic == "risk.circuit_breaker_resume_all":
+                        self._handle_circuit_breaker_resume_all(payload)
                     elif topic == "session.transition":
                         self._handle_session_transition(payload)
                 except Exception as exc:

@@ -300,16 +300,8 @@ Operational semantics:
   `resume_at_ns = null`.
 - While halted, quote entry is rejected and immediate-execution order types are
   rejected under the normal halt rules.
-- The halt remains in effect until it is explicitly cleared.
-
-How the halt is currently cleared:
-
-- There is currently no dedicated `risk.circuit_breaker_resume_all` command.
-- The implemented clear path is session end-of-day reset: when the engine
-  transitions to `CLOSED` via `session.transition`, circuit-breaker halt state
-  is deactivated for configured circuit-breaker symbols.
-- Operationally, treat this command as a "hold until operator/session reset"
-  control.
+- The halt remains in effect until an explicit `risk.circuit_breaker_resume_all`
+  is sent, or until end-of-day session reset.
 
 | Field | Type | Description |
 |---|---|---|
@@ -325,6 +317,123 @@ Ack payload fields:
 | `reason` | string | Rejection reason when `accepted=false` |
 | `halted_symbols` | integer | Number of symbols set to halted |
 | `cancelled_quotes` | integer | Number of quote legs cancelled during halt |
+
+---
+
+### `risk.circuit_breaker_resume_all`
+
+Administrative global resume request. Clears the halt on every symbol that was
+halted by a preceding `risk.circuit_breaker_halt_all`.
+Only gateways configured with `role: ADMIN` are authorized.
+
+Operational semantics:
+
+- The engine iterates all symbols currently marked as halted, sets each to
+  non-halted, and deactivates any in-memory circuit-breaker state.
+- A `circuit_breaker.resume.<SYMBOL>` event (with `mode = "MANUAL"`) is
+  published for each resumed symbol.
+- Only symbols that are currently halted are touched; symbols that are already
+  trading are left unchanged.
+- If no symbols are halted, the request is still accepted and
+  `resumed_symbols = 0` is returned.
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Requesting admin gateway identifier |
+
+Reply: `risk.circuit_breaker_resume_all_ack.{GW_ID}`
+
+Ack payload fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `accepted` | boolean | `true` if request was authorized and applied |
+| `reason` | string | Rejection reason when `accepted=false` |
+| `resumed_symbols` | integer | Number of symbols transitioned from halted to trading |
+
+---
+
+### ADMIN workflow: exchange-wide halt and resume
+
+This section describes how an operator uses an ADMIN-role gateway to perform
+an exchange-wide circuit-breaker halt and subsequently resume all trading.
+
+**Step 0 — configure an ADMIN gateway**
+
+Declare a gateway with `role: ADMIN` in `engine_config.yaml`:
+
+```yaml
+gateways:
+  fix:
+    GW_ADMIN:
+      id: GW_ADMIN
+      description: Operations desk
+      role: ADMIN
+      disconnect_behaviour: cancel_quotes_only
+```
+
+See [Role Privileges and Obligations](configuration.md#role-privileges-and-obligations)
+for the full permissions matrix.
+
+**Step 1 — connect the ADMIN gateway**
+
+The gateway sends `session.gateway_connect` as usual. The engine registers the
+session and marks its role as `ADMIN`.
+
+**Step 2 — trigger the exchange-wide halt**
+
+Send `risk.circuit_breaker_halt_all` via the PUSH socket:
+
+```json
+{ "gateway_id": "GW_ADMIN" }
+```
+
+The engine will:
+
+1. Verify the gateway is connected and carries role `ADMIN`.
+2. Collect every known symbol (from order books, circuit-breaker state, and
+   engine configuration).
+3. Mark each symbol as halted with `resumption_mode = "MANUAL"`.
+4. Cancel all outstanding MM quote legs (both sides).
+5. Publish one `circuit_breaker.halt.<SYMBOL>` event per symbol.
+6. Acknowledge with `risk.circuit_breaker_halt_all_ack.GW_ADMIN`.
+
+Expected inbound events (subscribe to `circuit_breaker.*`):
+
+```
+circuit_breaker.halt.AAPL  → { symbol: "AAPL", resumption_mode: "MANUAL", level: "ADMIN_ALL", ... }
+circuit_breaker.halt.MSFT  → { symbol: "MSFT", resumption_mode: "MANUAL", level: "ADMIN_ALL", ... }
+...
+risk.circuit_breaker_halt_all_ack.GW_ADMIN → { accepted: true, halted_symbols: N, cancelled_quotes: M }
+```
+
+**Step 3 — resume all trading**
+
+When the situation is resolved, send `risk.circuit_breaker_resume_all`:
+
+```json
+{ "gateway_id": "GW_ADMIN" }
+```
+
+The engine will:
+
+1. Verify the gateway is connected and carries role `ADMIN`.
+2. Collect every symbol currently marked as halted.
+3. Clear the halt and deactivate circuit-breaker state for each symbol.
+4. Publish one `circuit_breaker.resume.<SYMBOL>` event per symbol.
+5. Acknowledge with `risk.circuit_breaker_resume_all_ack.GW_ADMIN`.
+
+Expected inbound events:
+
+```
+circuit_breaker.resume.AAPL  → { symbol: "AAPL", mode: "MANUAL" }
+circuit_breaker.resume.MSFT  → { symbol: "MSFT", mode: "MANUAL" }
+...
+risk.circuit_breaker_resume_all_ack.GW_ADMIN → { accepted: true, resumed_symbols: N }
+```
+
+After receiving the ack, normal order flow resumes for all previously halted
+symbols. Market-maker quote obligations are enforced again immediately.
 
 ### `system.gateway_disconnect`
 

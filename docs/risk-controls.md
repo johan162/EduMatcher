@@ -413,7 +413,199 @@ payload: {
 
 ---
 
-## 6. Market-maker interaction
+## 6. ADMIN-role operator controls
+
+An operator gateway configured with `role: ADMIN` can trigger and lift an
+**exchange-wide** halt without waiting for a per-symbol circuit breaker to fire
+or expire.  This is the manual emergency control used when a venue-wide
+technology incident, regulatory instruction, or extreme market dislocation
+requires every symbol to be frozen simultaneously.
+
+### Prerequisites
+
+Configure a dedicated gateway with `role: ADMIN` in `engine_config.yaml`:
+
+```yaml
+gateways:
+  fix:
+    GW_ADMIN:
+      id: GW_ADMIN
+      description: "Operations desk"
+      role: ADMIN
+      disconnect_behaviour: cancel_quotes_only
+```
+
+The gateway connects to the engine via the standard PUSH socket (port 5555) and
+subscribes to the PUB socket (port 5556) to receive ack messages.
+
+See [Role Privileges and Obligations](configuration.md#role-privileges-and-obligations)
+for the full permissions matrix.
+
+---
+
+### Triggering an exchange-wide halt
+
+Send the following frame to the engine's PUSH socket (port **5555**):
+
+```
+Frame 0 (topic):   b"risk.circuit_breaker_halt_all"
+Frame 1 (payload): {"gateway_id": "GW_ADMIN"}
+```
+
+Python snippet using `pyzmq`:
+
+```python
+import zmq, json
+
+ctx = zmq.Context()
+push = ctx.socket(zmq.PUSH)
+push.connect("tcp://localhost:5555")
+
+push.send_multipart([
+    b"risk.circuit_breaker_halt_all",
+    json.dumps({"gateway_id": "GW_ADMIN"}).encode(),
+])
+```
+
+What the engine does:
+
+1. Verifies `GW_ADMIN` is connected and carries role `ADMIN`.
+2. Collects every known symbol (order books, circuit-breaker state, engine
+   configuration).
+3. Marks each symbol `HALTED` with `resumption_mode = "MANUAL"` (no auto-resume
+   timer).
+4. Cancels all outstanding market-maker quote legs for every symbol.
+5. Publishes one `circuit_breaker.halt.<SYMBOL>` event per symbol on the PUB
+   socket.
+6. Sends the ack to the PUB socket.
+
+Expected inbound events (subscribe to `circuit_breaker.*` and
+`risk.circuit_breaker_halt_all_ack.*`):
+
+```
+topic:   b"circuit_breaker.halt.AAPL"
+payload: {
+    "symbol":          "AAPL",
+    "trigger_price":   null,
+    "reference_price": null,
+    "resume_at_ns":    null,
+    "resumption_mode": "MANUAL",
+    "level":           "ADMIN_ALL"
+}
+
+topic:   b"circuit_breaker.halt.MSFT"
+payload: { ...same structure... }
+
+topic:   b"risk.circuit_breaker_halt_all_ack.GW_ADMIN"
+payload: {
+    "accepted":        true,
+    "reason":          "",
+    "halted_symbols":  4,
+    "cancelled_quotes": 12
+}
+```
+
+If the gateway is not connected or does not carry role `ADMIN`, the engine
+returns `accepted: false` and no symbols are halted:
+
+```
+topic:   b"risk.circuit_breaker_halt_all_ack.GW_ADMIN"
+payload: {
+    "accepted": false,
+    "reason":   "Global circuit-breaker halt is only allowed for ADMIN participants"
+}
+```
+
+---
+
+### Resuming all trading
+
+Once the situation is resolved, send `risk.circuit_breaker_resume_all` on the
+same PUSH socket:
+
+```
+Frame 0 (topic):   b"risk.circuit_breaker_resume_all"
+Frame 1 (payload): {"gateway_id": "GW_ADMIN"}
+```
+
+Python snippet:
+
+```python
+push.send_multipart([
+    b"risk.circuit_breaker_resume_all",
+    json.dumps({"gateway_id": "GW_ADMIN"}).encode(),
+])
+```
+
+What the engine does:
+
+1. Verifies `GW_ADMIN` is connected and carries role `ADMIN`.
+2. Collects every symbol currently marked as halted.
+3. Clears the halt flag and deactivates any circuit-breaker state for each
+   symbol.
+4. Publishes one `circuit_breaker.resume.<SYMBOL>` event per symbol.
+5. Sends the ack.
+
+Expected inbound events:
+
+```
+topic:   b"circuit_breaker.resume.AAPL"
+payload: { "symbol": "AAPL", "mode": "MANUAL" }
+
+topic:   b"circuit_breaker.resume.MSFT"
+payload: { "symbol": "MSFT", "mode": "MANUAL" }
+
+topic:   b"risk.circuit_breaker_resume_all_ack.GW_ADMIN"
+payload: {
+    "accepted":         true,
+    "reason":           "",
+    "resumed_symbols":  4
+}
+```
+
+After the ack is received, normal order flow and quote submission resume for all
+previously halted symbols.  Market makers are expected to re-enter fresh quotes;
+the engine will begin enforcing MM obligation checks again immediately.
+
+---
+
+### Sequence diagram
+
+```mermaid
+sequenceDiagram
+    participant Op as Operator (GW_ADMIN)
+    participant Eng as Engine
+    participant Sub as Subscribers
+
+    Op->>Eng: risk.circuit_breaker_halt_all<br/>{gateway_id: "GW_ADMIN"}
+    Eng->>Sub: circuit_breaker.halt.AAPL  {level: ADMIN_ALL}
+    Eng->>Sub: circuit_breaker.halt.MSFT  {level: ADMIN_ALL}
+    Eng->>Op: risk.circuit_breaker_halt_all_ack.GW_ADMIN<br/>{accepted: true, halted_symbols: 2}
+
+    Note over Op,Sub: ... incident resolved ...
+
+    Op->>Eng: risk.circuit_breaker_resume_all<br/>{gateway_id: "GW_ADMIN"}
+    Eng->>Sub: circuit_breaker.resume.AAPL  {mode: MANUAL}
+    Eng->>Sub: circuit_breaker.resume.MSFT  {mode: MANUAL}
+    Eng->>Op: risk.circuit_breaker_resume_all_ack.GW_ADMIN<br/>{accepted: true, resumed_symbols: 2}
+```
+
+---
+
+### Key differences from automatic circuit breakers
+
+| Property | Automatic CB (per-symbol) | ADMIN global halt |
+|---|---|---|
+| Trigger | Trade price deviation | Operator command |
+| Scope | Single symbol | All symbols |
+| Resume | Scheduled timer (or AUCTION uncross) | Explicit `risk.circuit_breaker_resume_all` |
+| Quotes cancelled on halt | Yes | Yes |
+| `resumption_mode` | `AUCTION` or `CONTINUOUS` | Always `MANUAL` |
+| Who can send | Any connected gateway | `ADMIN` role only |
+
+---
+
+## 7. Market-maker interaction
 
 When a circuit breaker fires, all outstanding market-maker quotes for the
 affected symbol are cancelled immediately.  This protects market makers from

@@ -213,11 +213,11 @@ gateways:
 `role` defines the participant class attached to a FIX gateway session. The
 engine currently enforces the following differences:
 
-| Role | Can submit regular orders | Can submit quotes (`quote.new`) | MM obligation checks | Disconnect behavior knobs | Kill switch (`risk.kill_switch`) | Exchange Wide Circuit Breaker (`risk.circuit_breaker_halt_all`) |
-|---|---|---|---|---|---|---|
-| `TRADER` | Yes | No | Not applicable | Yes | Yes | No |
-| `MARKET_MAKER` | Yes | Yes | Applicable when enabled | Yes | Yes | No |
-| `ADMIN` | Yes | No (current behavior) | Not applicable | Yes | Yes | Yes |
+| Role | Can submit regular orders | Can submit quotes (`quote.new`) | MM obligation checks | Disconnect behavior knobs | Kill switch (`risk.kill_switch`) | Exchange Wide CB Halt (`risk.circuit_breaker_halt_all`) | Exchange Wide CB Resume (`risk.circuit_breaker_resume_all`) |
+|---|---|---|---|---|---|---|---|
+| `TRADER` | Yes | No | Not applicable | Yes | Yes | No | No |
+| `MARKET_MAKER` | Yes | Yes | Applicable when enabled | Yes | Yes | No | No |
+| `ADMIN` | Yes | No (current behavior) | Not applicable | Yes | Yes | Yes | Yes |
 
 Detailed behavior:
 
@@ -237,14 +237,17 @@ Detailed behavior:
   - Not allowed to submit MM quotes unless role is `MARKET_MAKER`.
   - Authorized to send `risk.circuit_breaker_halt_all`, which halts all known
     symbols in one command.
+  - Authorized to send `risk.circuit_breaker_resume_all`, which resumes all
+    symbols that were halted by the global halt command.
   - Can still invoke shared APIs such as kill switch, because kill switch is
     currently gated by authenticated/connected gateway status, not by role.
 
 !!! note "Current implementation scope"
     Role-based enforcement is currently focused on quote authorization
     (`MARKET_MAKER` only), MM obligation policy, and ADMIN authorization for
-    `risk.circuit_breaker_halt_all`. Additional ADMIN-specific privileges (if
-    desired) would require explicit engine-side role checks.
+    `risk.circuit_breaker_halt_all` / `risk.circuit_breaker_resume_all`.
+    Additional ADMIN-specific privileges (if desired) would require explicit
+    engine-side role checks.
 
 
 

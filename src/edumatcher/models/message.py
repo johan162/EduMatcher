@@ -500,6 +500,29 @@ def make_circuit_breaker_halt_all_ack_msg(
     )
 
 
+def make_circuit_breaker_resume_all_msg(gateway_id: str) -> list[bytes]:
+    """Admin → engine: resume trading for all symbols halted by global CB halt."""
+    return encode("risk.circuit_breaker_resume_all", {"gateway_id": gateway_id})
+
+
+def make_circuit_breaker_resume_all_ack_msg(
+    gateway_id: str,
+    accepted: bool,
+    reason: str = "",
+    resumed_symbols: int = 0,
+) -> list[bytes]:
+    """Engine → admin: global circuit-breaker resume result summary."""
+    topic = f"risk.circuit_breaker_resume_all_ack.{gateway_id}"
+    return encode(
+        topic,
+        {
+            "accepted": accepted,
+            "reason": reason,
+            "resumed_symbols": resumed_symbols,
+        },
+    )
+
+
 def make_dropcopy_fill_msg(
     gateway_id: str, fill_payload: dict[str, Any]
 ) -> list[bytes]:
