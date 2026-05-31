@@ -746,6 +746,154 @@ stops — but it is worth being aware of for deep stop cascades.
 
 
 
+## Hot-Path Risk Checks in the Matching Engine
+
+Important architectural point: the `OrderBook` is not the first line of defense.
+In EduMatcher, `Engine._handle_new_order()` performs a sequence of checks before
+an order reaches `book.process()`, and `_publish_trade()` applies an additional
+post-trade risk check after every fill.
+
+This means the true hot path is:
+
+1. **Ingress validation + risk gates** (`_handle_new_order`)
+2. **Matching** (`book.process` / `_sweep`)
+3. **Post-trade risk reaction** (`_publish_trade` -> `_check_circuit_breaker`)
+
+The checks below are intentionally in this path because they prevent invalid,
+unsafe, or policy-violating state transitions. Moving them to an async sidecar
+would be faster, but would permit trades that should have been blocked.
+
+### 1) Gateway allowlist and connection/auth status
+
+The engine first verifies that the sender gateway is allowed and currently
+connected/authenticated (fast-path via `_connected_fix_gateways`, fallback to
+`_gateway_status`).
+
+Why this must be here:
+
+- Without it, disconnected or unauthorized participants could inject live orders.
+- Any downstream risk logic would be operating on already-accepted bad flow.
+- A reject-early check avoids wasted matching work for invalid participants.
+
+### 2) Symbol allowlist check
+
+If `_allowed_symbols` is configured, the symbol must be in that set or the order
+is rejected.
+
+Why this must be here:
+
+- Prevents accidental trading in unconfigured instruments.
+- Enforces operational scope (for example, staged rollouts per symbol).
+- Protects all downstream components from unknown-symbol state.
+
+### 3) Session-state and auction phase gating
+
+The engine enforces market lifecycle rules before matching:
+
+- `accepts_orders(self._session_state)` for open/closed behavior
+- `ATO` accepted only in `OPENING_AUCTION`
+- `ATC` accepted only in `CLOSING_AUCTION`
+
+Why this must be here:
+
+- Session violations are market-structure errors, not business preferences.
+- You cannot "fix" a wrongly accepted closed-market order after execution.
+- Correct auction behavior requires pre-trade admission control.
+
+### 4) Circuit-breaker halt gate (pre-trade)
+
+If `self._halted_symbols[symbol]` is true:
+
+- `MARKET`, `IOC`, `FOK` are rejected
+- `LIMIT`/`ICEBERG` may be accepted to rest, but matching is disabled
+
+Why this must be here:
+
+- A halt is a hard safety boundary for immediate executions.
+- Letting aggressive orders through during a halt would defeat the breaker.
+- Allowing passive rest preserves auction-style interest for controlled resume.
+
+### 5) Price-collar validation (pre-trade)
+
+For priced orders, `validate_collar(...)` is called when collars are enabled.
+This applies static/dynamic band checks using collar config and last-trade state.
+
+Why this must be here:
+
+- Price collars are anti-fat-finger controls.
+- If checked after matching, the damage (bad prints) is already done.
+- Collar rejects protect both participants and reference prices used by other
+    controls.
+
+### 6) No-matching mode hard rejections for immediate-only types
+
+If matching is disabled (`do_match=False`), the engine rejects immediate-execution
+types (`MARKET`, `IOC`, `FOK`) because they cannot legally rest.
+
+Why this must be here:
+
+- Prevents semantic corruption of order types.
+- Ensures predictable participant behavior in auctions and halts.
+- Avoids pseudo-accepting orders that can never satisfy their contract.
+
+### 7) Kill-switch and disconnect behavior (flow-level risk control)
+
+Two engine controls rapidly remove participant exposure:
+
+- `risk.kill_switch` -> `_handle_kill_switch`: cancel all (or symbol-filtered)
+    non-quote orders and active quotes for that gateway
+- `_handle_gateway_disconnect`: depending on configured disconnect behavior,
+    auto-cancel quotes and optionally all resting participant orders
+
+Why this must be in/next to the hot path:
+
+- This is emergency brake functionality; latency to cancel matters.
+- It bounds risk from broken algos, network partitions, or runaway quoting.
+- A slow/offline reconciliation loop is not an acceptable substitute.
+
+### 8) Circuit-breaker monitor (post-trade in the hot path)
+
+After each trade publish, `_publish_trade()` performs:
+
+- per-symbol breaker lookup
+- `_check_circuit_breaker(symbol, trade_price, trade_timestamp)`
+
+If triggered, the engine halts the symbol, cancels resting quotes for that symbol,
+broadcasts halt state, and marks the book dirty for snapshot publication.
+
+Why this must be synchronous with trade flow:
+
+- Triggering depends on the latest executed price and time window.
+- Delayed checks allow extra trades past the intended halt threshold.
+- Deterministic halt timing is part of market integrity.
+
+### 9) Other correctness checks in the same path
+
+Not all checks are "risk controls" in the regulatory sense, but they still protect
+market correctness and participant safety:
+
+- order-type-specific requirements (for example trailing-stop stop-price derivation
+    from `last_trade_price`)
+- SMP-triggered cancellation handling in event publication path
+- OCO/combo cascade checks after fills/cancels
+
+These checks also cost CPU, but prevent logical contradictions such as self-trades,
+orphaned linked orders, or malformed triggered orders.
+
+### Performance Impact and Why There Is No Real Alternative
+
+Yes, these checks materially slow the hot path. Every branch, dictionary lookup,
+and validation call adds latency and reduces maximum TPS versus a "pure matching"
+micro-benchmark.
+
+However, there is no credible alternative if the goal is correct risk management.
+Any design that defers these controls until after matching converts hard pre-trade
+guarantees into best-effort post-trade cleanup, which is too late for market
+integrity. In real exchanges and in EduMatcher, **correctness and risk containment
+must dominate raw throughput**.
+
+
+
 ## The Sweep Loop — `_sweep()`
 
 This is the innermost loop of the matching engine. It runs for every aggressive
