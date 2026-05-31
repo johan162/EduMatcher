@@ -41,7 +41,7 @@ actively trading through its trigger level.
 Also check the trigger direction. A **SELL STOP** triggers when `last_trade_price <= stop_price`.
 If the market is above your stop, it won't fire until price falls *to* or *through* it.
 
-See [Stop Trigger Logic](order-types.md#9-stop-trigger-logic) for full details.
+See [Stop Trigger Logic](user-guide/04-order-types.md#9-stop-trigger-logic) for full details.
 
 ---
 
@@ -137,7 +137,7 @@ Buy 100 shares @ 150.00  →  avg_cost = 150.00
 Buy 100 shares @ 152.00  →  avg_cost = (150 × 100 + 152 × 100) / 200 = 151.00
 ```
 
-See [P&L & Clearing — VWAP Average Cost](pnl.md#vwap-average-cost).
+See [P&L & Clearing — VWAP Average Cost](user-guide/07-pnl-clearing.md#vwap-average-cost).
 
 ---
 

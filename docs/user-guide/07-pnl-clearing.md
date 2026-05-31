@@ -9,7 +9,7 @@
     - The difference between realized and unrealized P&L
     - How to read the P&L output from `pm-clearing`
 
-    **Prerequisite**: Complete [Your First Trade](concepts-first-trade.md) — seeing
+    **Prerequisite**: Complete [Your First Trade](../concepts/04-concepts-first-trade.md) — seeing
     P&L update in real time makes the formulas on this page much more concrete.
 
 ## What this page covers

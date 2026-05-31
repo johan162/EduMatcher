@@ -215,7 +215,7 @@ is important for understanding order strategy.
 
 ---
 
-[Back to top](#the-order-book) | [Next: A Full Trading Day →](concepts-trading-day.md)
+[Back to top](#the-order-book) | [Next: A Full Trading Day →](05-concepts-trading-day.md)
 
 ## Implementation Note: Tick Prices
 

@@ -160,7 +160,7 @@ and received atomically:
 
 The dedicated drop-copy channel is implemented in
 `src/edumatcher/engine/drop_copy.py` and is documented in more detail on the
-[Drop Copy](drop-copy.md) page.
+[Drop Copy](13-drop-copy.md) page.
 
 ---
 
@@ -249,7 +249,7 @@ At least one of `price` or `qty` must be present.
 
 Sent by a market-maker gateway to submit or replace a two-sided quote.
 Role requirements and MM obligation controls are documented in
-[Configuration - Role Privileges and Obligations](configuration.md#role-privileges-and-obligations).
+[Configuration - Role Privileges and Obligations](01-configuration.md#role-privileges-and-obligations).
 
 | Field | Type | Description |
 |---|---|---|
@@ -372,7 +372,7 @@ gateways:
       disconnect_behaviour: cancel_quotes_only
 ```
 
-See [Role Privileges and Obligations](configuration.md#role-privileges-and-obligations)
+See [Role Privileges and Obligations](01-configuration.md#role-privileges-and-obligations)
 for the full permissions matrix.
 
 **Step 1 — connect the ADMIN gateway**
@@ -745,7 +745,7 @@ Travels over the PUSH/PULL channel (port 5555), same as order messages.
 |---|---|---|
 | `to_state` | string | Target state: `"PRE_OPEN"`, `"OPENING_AUCTION"`, `"CONTINUOUS"`, `"CLOSING_AUCTION"`, `"CLOSED"` |
 
-The engine validates the transition (see [Auctions & Scheduling](auction.md)
+The engine validates the transition (see [Auctions & Scheduling](06-auctions-scheduling.md)
 for valid state transitions).  Invalid transitions are silently rejected
 and logged to stderr.  On success, the engine publishes a `session.state`
 event confirming the new phase.

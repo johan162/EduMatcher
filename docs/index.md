@@ -41,13 +41,13 @@ the same price, the earliest one fills first.
 
 | Topic | Where |
 |-------|-------|
-| Order books, bids, asks, spread, depth | [The Order Book](concepts-order-book.md) |
-| How to execute your first trade | [Your First Trade](concepts-first-trade.md) |
-| Session phases, opening & closing auctions | [A Full Trading Day](concepts-trading-day.md) |
-| All ten order types with worked examples | [Order Types](order-types.md) |
-| Multi-leg combo and OCO strategies | [Combo Orders](combos.md) |
-| Realized vs. unrealized P&L, VWAP cost basis | [P&L & Clearing](pnl.md) |
-| ZeroMQ pub/sub architecture | [Architecture](architecture.md) |
+| Order books, bids, asks, spread, depth | [The Order Book](concepts/01-concepts-order-book.md) |
+| How to execute your first trade | [Your First Trade](concepts/04-concepts-first-trade.md) |
+| Session phases, opening & closing auctions | [A Full Trading Day](concepts/05-concepts-trading-day.md) |
+| All ten order types with worked examples | [Order Types](user-guide/04-order-types.md) |
+| Multi-leg combo and OCO strategies | [Combo Orders](user-guide/05-combos.md) |
+| Realized vs. unrealized P&L, VWAP cost basis | [P&L & Clearing](user-guide/07-pnl-clearing.md) |
+| ZeroMQ pub/sub architecture | [Architecture](architecture/01-architecture.md) |
 | Definitions of all financial terms | [Glossary](glossary.md) |
 
 ---
@@ -56,11 +56,11 @@ the same price, the earliest one fills first.
 
 If you are new to trading systems, follow this path:
 
-1. **[The Order Book](concepts-order-book.md)** — understand bids, asks, spread, and price-time priority
-2. **[Your First Trade](concepts-first-trade.md)** — run the system and execute a trade step-by-step
-3. **[A Full Trading Day](concepts-trading-day.md)** — learn session phases and auctions
-4. **[Order Types](order-types.md)** — explore all ten order types
-5. **[P&L & Clearing](pnl.md)** — understand how profit and loss are tracked
+1. **[The Order Book](concepts/01-concepts-order-book.md)** — understand bids, asks, spread, and price-time priority
+2. **[Your First Trade](concepts/04-concepts-first-trade.md)** — run the system and execute a trade step-by-step
+3. **[A Full Trading Day](concepts/05-concepts-trading-day.md)** — learn session phases and auctions
+4. **[Order Types](user-guide/04-order-types.md)** — explore all ten order types
+5. **[P&L & Clearing](user-guide/07-pnl-clearing.md)** — understand how profit and loss are tracked
 
 If you are already familiar with trading concepts, go straight to the
 [Quick Start](#quick-start) below or browse the [reference section](#reference-docs).

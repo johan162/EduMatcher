@@ -576,7 +576,7 @@ liquidity until the MM connects and re-quotes.
 
 If a fill generated from seed liquidity breaches the configured circuit-breaker
 band, the symbol can halt immediately even before the market-maker process
-connects.  See [Risk Controls](risk-controls.md) for exact circuit-breaker
+connects.  See [Risk Controls](12-risk-controls.md) for exact circuit-breaker
 semantics.
 
 ### Subsequent startups

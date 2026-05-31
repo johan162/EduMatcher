@@ -2372,7 +2372,7 @@ can trade immediately.
 **Borrow Rate:** The annualised fee charged to a short seller for borrowing shares from a lender. Easy-to-borrow large-cap stocks typically have borrow rates near zero. Hard-to-borrow, heavily-shorted, or illiquid stocks can carry rates of 5–50% or more per annum, applied daily to the short position. Rising borrow rates signal increasing short interest and decreasing availability of lendable shares, and are themselves a market signal.
 
 **Bracket Order:** A strategy combining an entry order with both a take-profit LIMIT and a
-stop-loss STOP, typically implemented as an OCO pair. See [OCO](order-types.md#13-oco-one-cancels-other).
+stop-loss STOP, typically implemented as an OCO pair. See [OCO](user-guide/04-order-types.md#13-oco-one-cancels-other).
 
 **Broker:** An intermediary who executes orders on behalf of clients without trading for their own account. The word traces to Old French/Norse roots meaning someone who opens a cask and sells by the cup, a retail intermediary.
 
@@ -2461,7 +2461,7 @@ stop-loss STOP, typically implemented as an OCO pair. See [OCO](order-types.md#1
 
 **ECN (Electronic Communication Network):** An electronic trading system that automatically matches buy and sell orders, typically with narrower spreads than exchanges but less regulatory oversight.
 
-**Equilibrium Price (Auction Price):** The single price at which the maximum volume can trade in a call auction. See [Auctions & Session Scheduling](auction.md).
+**Equilibrium Price (Auction Price):** The single price at which the maximum volume can trade in a call auction. See [Auctions & Session Scheduling](user-guide/06-auctions-scheduling.md).
 
 **Equity:** Ownership stake in a company. Equity holders (shareholders) have a residual claim on the company's assets and earnings after all creditors are paid.
 
@@ -2524,7 +2524,7 @@ orders are serialised to `data/gtc_orders.json` at shutdown and reloaded next se
 
 ### I
 
-**Iceberg Order / Hidden Order / Reserve Order:** An order that shows only a small visible peak while hiding a large reserve. Each time the visible portion fills, the order replenishes from the reserve. See [Order Types](order-types.md#6-iceberg).
+**Iceberg Order / Hidden Order / Reserve Order:** An order that shows only a small visible peak while hiding a large reserve. Each time the visible portion fills, the order replenishes from the reserve. See [Order Types](user-guide/04-order-types.md#6-iceberg).
 
 **Immediate-Or-Cancel (IOC):** An order that fills as much as possible immediately and cancels any unfilled remainder. Never rests in the book.
 
@@ -2557,7 +2557,7 @@ data, better analytics) that others do not, giving them a trading advantage. Auc
 
 **IOC (Immediate-Or-Cancel):** A time-in-force (and order type) where an order sweeps available liquidity at
 the limit price and any unfilled remainder is immediately cancelled. Never
-rests on the book. See [Order Types](order-types.md#10-ioc-immediate-or-cancel).
+rests on the book. See [Order Types](user-guide/04-order-types.md#10-ioc-immediate-or-cancel).
 
 **IPO (Initial Public Offering):** The first sale of a company's shares to the general public, after which the shares are listed and traded on a stock exchange.
 
@@ -2666,7 +2666,7 @@ Often used as a reference price when the spread is non-zero.
 
 **OCC (Options Clearing Corporation):** The central clearing house for equity options in the US.
 
-**OCO (One-Cancels-Other):** Two linked orders where filling either automatically cancels the other. See [Order Types](order-types.md#13-oco-one-cancels-other).
+**OCO (One-Cancels-Other):** Two linked orders where filling either automatically cancels the other. See [Order Types](user-guide/04-order-types.md#13-oco-one-cancels-other).
 
 **OHLCV:** Open, High, Low, Close, Volume, the five standard summary statistics recorded for each trading session (or any time period). Open: the first traded price. High: the highest traded price. Low: the lowest traded price. Close: the last traded price (the official closing price in a closing auction). Volume: total shares traded. OHLCV data forms the basis of almost all price charts and historical market analysis.
 
@@ -2773,7 +2773,7 @@ position. Once realized, it cannot be reversed by subsequent price moves.
 
 **Sequence Number:** A monotonically increasing counter attached to events (in a drop copy or message feed) to enable detection of missed events and ordered replay.
 
-**Session State Machine:** The formal model of an exchange's trading day phases (PRE_OPEN, OPENING_AUCTION, CONTINUOUS, CLOSING_AUCTION, CLOSED) and the permitted transitions between them. See [A Full Trading Day](concepts-trading-day.md).
+**Session State Machine:** The formal model of an exchange's trading day phases (PRE_OPEN, OPENING_AUCTION, CONTINUOUS, CLOSING_AUCTION, CLOSED) and the permitted transitions between them. See [A Full Trading Day](concepts/05-concepts-trading-day.md).
 
 **Settlement:** The final transfer of securities from seller to buyer and cash from buyer to seller. Legally completes the trade. In the US, equity settlement currently occurs on T+1.
 
@@ -2891,7 +2891,7 @@ $$\text{VWAP} = \frac{\sum(\text{price}_i \times \text{qty}_i)}{\sum \text{qty}_
 
 **ZeroMQ (ZMQ):** The high-performance messaging library used by EduMatcher for inter-process
 communication. Uses a broker-less PUSH/PULL and PUB/SUB topology. No external
-message queue server is required. See [Architecture](architecture.md).
+message queue server is required. See [Architecture](architecture/01-architecture.md).
 
 
 ## References

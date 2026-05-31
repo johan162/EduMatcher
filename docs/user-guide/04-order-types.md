@@ -9,7 +9,7 @@
     - How time-in-force controls order lifetime across session phases
     - How combo and OCO orders manage multi-leg strategy risk
 
-    **Prerequisite**: [The Order Book](concepts-order-book.md) — you should understand
+    **Prerequisite**: [The Order Book](../concepts/01-concepts-order-book.md) — you should understand
     price-time priority before diving into order type mechanics.
 
 EduMatcher supports **ten order types**, from the simplest market order to
@@ -336,7 +336,7 @@ hedged entries, statistical arbitrage) where the profit depends on the
 *relationship* between instruments, not on any single instrument's direction.
 Without combos, submitting legs separately exposes you to **leg risk** — one
 side fills while the other does not, leaving you with unintended directional
-exposure. See the [Combo Orders](combos.md) page for full details, examples,
+exposure. See the [Combo Orders](05-combos.md) page for full details, examples,
 and the implied orders mechanism.
 
 ---

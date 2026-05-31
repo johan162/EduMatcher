@@ -6,10 +6,10 @@
     - How an instrument halt state prevents trading while a symbol is suspended
     - How price collars reject orders that stray too far from a reference or last-traded price
     - How circuit breakers detect violent price moves and automatically halt and resume a symbol
-    - How all three mechanisms interact with the order types described in [Order Types](order-types.md)
+    - How all three mechanisms interact with the order types described in [Order Types](04-order-types.md)
     - How to configure each feature in `engine_config.yaml`
 
-    **Prerequisite**: [Concepts — Order Book](concepts-order-book.md) explains the
+    **Prerequisite**: [Concepts — Order Book](../concepts/01-concepts-order-book.md) explains the
     order lifecycle that underpins these controls.
 
 ---
@@ -72,7 +72,7 @@ rejected (both sides).
 
 Quote eligibility by participant role (for example, `MARKET_MAKER` vs
 `TRADER`) is described in
-[Configuration - Role Privileges and Obligations](configuration.md#role-privileges-and-obligations).
+[Configuration - Role Privileges and Obligations](01-configuration.md#role-privileges-and-obligations).
 
 ### Interaction with auctions
 
@@ -120,7 +120,7 @@ static band is checked first.
 !!! warning "Tick-based prices"
     All prices in EduMatcher are stored as integer tick counts.  The collar
     boundaries are in ticks, not display prices.  See
-    [Configuration](configuration.md) for the relationship between ticks and
+    [Configuration](01-configuration.md) for the relationship between ticks and
     display prices.
 
 ### Validation logic
@@ -438,7 +438,7 @@ gateways:
 The gateway connects to the engine via the standard PUSH socket (port 5555) and
 subscribes to the PUB socket (port 5556) to receive ack messages.
 
-See [Role Privileges and Obligations](configuration.md#role-privileges-and-obligations)
+See [Role Privileges and Obligations](01-configuration.md#role-privileges-and-obligations)
 for the full permissions matrix.
 
 ---
@@ -621,7 +621,7 @@ the book and will participate in any uncross at resumption.
 
 ## See also
 
-- [Configuration](configuration.md) — full `engine_config.yaml` reference
-- [Order Types](order-types.md) — how different order types behave under halt
-- [Drop Copy](drop-copy.md) — how fill events are forwarded to risk systems
-- [Auctions & Session Scheduling](auction.md) — the uncross that can occur at circuit breaker resumption
+- [Configuration](01-configuration.md) — full `engine_config.yaml` reference
+- [Order Types](04-order-types.md) — how different order types behave under halt
+- [Drop Copy](13-drop-copy.md) — how fill events are forwarded to risk systems
+- [Auctions & Session Scheduling](06-auctions-scheduling.md) — the uncross that can occur at circuit breaker resumption

@@ -9,8 +9,8 @@
     - Which commands are ADMIN-restricted and which any connected gateway may send
     - How to extend the framework with new commands as the exchange evolves
 
-    **Prerequisites**: [Messages](messages.md) for the raw two-frame format.
-    [Risk Controls § 6](risk-controls.md#6-admin-role-operator-controls) for
+    **Prerequisites**: [Messages](09-messages.md) for the raw two-frame format.
+    [Risk Controls § 6](12-risk-controls.md#6-admin-role-operator-controls) for
     the halt/resume operational flow.
 
 ---
@@ -1074,8 +1074,8 @@ To add a new command:
 
 ## See also
 
-- [Messages](messages.md) — raw frame format for every message
-- [Risk Controls](risk-controls.md) — how halt state affects order matching
-- [Configuration — Role Privileges](configuration.md#role-privileges-and-obligations) — the permissions matrix
-- [Gateway Commands](gateway.md) — participant-facing CLI commands (TRADER / MM role)
-- [Auctions & Scheduling](auction.md) — valid session-state transitions
+- [Messages](09-messages.md) — raw frame format for every message
+- [Risk Controls](12-risk-controls.md) — how halt state affects order matching
+- [Configuration — Role Privileges](01-configuration.md#role-privileges-and-obligations) — the permissions matrix
+- [Gateway Commands](08-gateway.md) — participant-facing CLI commands (TRADER / MM role)
+- [Auctions & Scheduling](06-auctions-scheduling.md) — valid session-state transitions

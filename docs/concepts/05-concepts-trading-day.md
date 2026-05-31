@@ -156,7 +156,7 @@ to CONTINUOUS.
 This is the main trading session. Every new order is immediately swept against
 resting liquidity. All ten order types are valid here.
 
-**Price-time priority is in full effect.** See [The Order Book](concepts-order-book.md)
+**Price-time priority is in full effect.** See [The Order Book](01-concepts-order-book.md)
 for a detailed explanation.
 
 **Example: continuous trading in action**
@@ -172,7 +172,7 @@ NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=100
 ```
 
 STOP and TRAILING_STOP orders activate here when `last_trade_price` crosses
-their trigger levels. See [Stop Trigger Logic](order-types.md#9-stop-trigger-logic)
+their trigger levels. See [Stop Trigger Logic](../user-guide/04-order-types.md#9-stop-trigger-logic)
 for details.
 
 ---
@@ -267,4 +267,4 @@ SESSION|TRANSITION=CLOSED
 
 ---
 
-[← Your First Trade](concepts-first-trade.md) | [Next: Glossary →](glossary.md)
+[← Your First Trade](04-concepts-first-trade.md) | [Next: Glossary →](../glossary.md)

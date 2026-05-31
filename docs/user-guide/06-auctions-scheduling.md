@@ -9,7 +9,7 @@
     - What happens to resting orders at each phase transition
     - How to drive phase transitions in EduMatcher
 
-    **Prerequisite**: [A Full Trading Day](concepts-trading-day.md) gives a visual
+   **Prerequisite**: [A Full Trading Day](../concepts/05-concepts-trading-day.md) gives a visual
     overview of the session phases before diving into the mechanics here.
 
 ## What are auctions?

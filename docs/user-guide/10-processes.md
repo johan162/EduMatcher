@@ -137,7 +137,7 @@ poetry run pm-engine [--verbose] [--config engine_config.yaml]
 6. Tries to bind the dedicated drop-copy PUB :5557 socket
 7. Publishes initial book snapshots for populated books and enters the poll loop
 
-See [Configuration](configuration.md) for full details on the config file.
+See [Configuration](01-configuration.md) for full details on the config file.
 
 **Shutdown (Ctrl-C)**:
 1. Serializes all resting GTC orders to `data/gtc_orders.json`
@@ -236,7 +236,7 @@ is refused and the gateway exits.
 | `system.symbols.{own GW_ID}` | Symbol list reply |
 | `trade.executed` | Global trade feed for last-price / P&L display |
 
-See the [Gateway Reference](gateway.md) for the full command list.
+See the [Gateway Reference](08-gateway.md) for the full command list.
 
 
 
@@ -369,7 +369,7 @@ trade_id,symbol,buy_order_id,sell_order_id,buy_gateway,sell_gateway,price,quanti
 |---|---|
 | `trade.executed` | Every matched trade pair — drives P&L calculations |
 
-See [P&L & Clearing](pnl.md) for the full accounting model.
+See [P&L & Clearing](07-pnl-clearing.md) for the full accounting model.
 
 
 
@@ -518,7 +518,7 @@ poetry run pm-scheduler [--config engine_config.yaml] [--now] [--delay 3]
 
 The scheduler does not subscribe to any PUB messages — it is fire-and-forget.
 
-See [Auctions & Scheduling](auction.md) for the full schedule configuration
+See [Auctions & Scheduling](06-auctions-scheduling.md) for the full schedule configuration
 and session-phase documentation.
 
 
@@ -648,4 +648,4 @@ EduMatcher also ships two AI-focused entrypoints:
 | **pm-ai-trader** | `poetry run pm-ai-trader` | Single automated trader using the gateway interface |
 | **pm-ai-swarm** | `poetry run pm-ai-swarm` | Multi-agent trading swarm / orchestration entrypoint |
 
-See [AI Bot Traders](ai-bot.md) for configuration and runtime details.
+See [AI Bot Traders](../developer/01-ai-bot.md) for configuration and runtime details.

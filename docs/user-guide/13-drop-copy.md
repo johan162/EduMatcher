@@ -9,7 +9,7 @@
     - What replay support exists today and what its limits are
     - How to configure and monitor the drop copy stream
 
-    **Prerequisite**: [Processes](processes.md) gives an overview of the
+    **Prerequisite**: [Processes](10-processes.md) gives an overview of the
     ZeroMQ topology that drop copy sits within.
 
 ---
@@ -182,7 +182,7 @@ The buffer holds only the last 10,000 events.  If a consumer has been
 disconnected long enough that its `from_seq` predates the oldest buffered
 message, it will receive only the available subset.  In production systems this
 gap would typically be filled from a persistent audit log (see
-[Persistence](persistence.md)).
+[Persistence](11-persistence.md)).
 
 ---
 
@@ -226,7 +226,7 @@ To change the drop copy port, edit `DROP_COPY_PUB_ADDR` in `config.py`.
 
 ## See also
 
-- [Processes](processes.md) — full ZeroMQ topology
-- [Risk Controls](risk-controls.md) — halt, collar, and circuit breaker events
-- [Persistence](persistence.md) — durable audit trail as a complement to drop copy
-- [Messages](messages.md) — all message types used in EduMatcher
+- [Processes](10-processes.md) — full ZeroMQ topology
+- [Risk Controls](12-risk-controls.md) — halt, collar, and circuit breaker events
+- [Persistence](11-persistence.md) — durable audit trail as a complement to drop copy
+- [Messages](09-messages.md) — all message types used in EduMatcher
