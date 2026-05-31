@@ -1,6 +1,6 @@
 site_name: EduMatcher — Educational Trading System
-site_description: A multi-process Python trading system for learning order matching, FIX protocols, and market microstructure.
-site_author: EduMatcher
+site_description: A multi-process Python trading system for learning order matching and market microstructure.
+site_author: Johan Persson <johan162@gmail.com>
 
 theme:
   name: material
@@ -39,32 +39,33 @@ extra_javascript:
 
 nav:
   - Home: index.md
-  - How an Exchange Works: introduction-exchange-concepts.md
+  - How an Exchange Works: how-exchange-works.md
   - Concepts:
-    - The Order Book: concepts-order-book.md
-    - The Order Book Deep Dive: order-book-deep-dive.md
-    - MM Quotes: mm-quotes.md
-    - Your First Trade: concepts-first-trade.md
-    - A Full Trading Day: concepts-trading-day.md
+    - The Order Book: concepts/01-concepts-order-book.md
+    - The Order Book Deep Dive: concepts/02-concepts-order-book-deep-dive.md
+    - MM Quotes: concepts/03-concepts-mm-quotes.md
+    - Your First Trade: concepts/04-concepts-first-trade.md
+    - A Full Trading Day: concepts/05-concepts-trading-day.md
   - User Guide:
-    - Order Types: order-types.md
-    - Combo Orders: combos.md
-    - Auctions & Scheduling: auction.md
-    - P&L & Clearing: pnl.md
-    - Gateway Commands: gateway.md
-    - Messages: messages.md
-    - Processes: processes.md
-    - Configuration: configuration.md
-    - Persistence: persistence.md
-    - Risk Controls: risk-controls.md
-    - Exchange Commands: commands.md
-    - Drop Copy: drop-copy.md
+    - Configuration: 01-configuration.md
+    - Commands: 02-commands.md
+    - Running the Engine: user-guide/03-running-the-engine.md
+    - Order Types: 04-order-types.md
+    - Combo Orders: 05-combo-orders.md
+    - Auctions & Scheduling: 06-auctions-scheduling.md
+    - P&L & Clearing: 07-pnl-clearing.md
+    - Gateway Commands: 08-gateways.md
+    - Messages: 09-messages.md
+    - Processes: 10-processes.md
+    - Persistence: 11-persistence.md
+    - Risk Controls: 12-risk-controls.md
+    - Drop Copy: 13-drop-copy.md
   - Architecture: 
-    - Overview: architecture.md
-    - Detailed Walkthrough: architecture-guide.md
+    - Overview: 01-architecture.md
+    - Detailed Walkthrough: 02-architecture-guide.md
   - Developer Info:
-    - AI Bot Traders: ai-bot.md
-    - Experiments: experiements.md
-    - Verification: verification.md
+    - AI Bot Traders: 01-ai-bot.md
+    - Experiments: 02-experiments.md
+    - Verification: 03-verification.md
   - Glossary: glossary.md
   - FAQ: faq.md
