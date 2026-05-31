@@ -628,9 +628,7 @@ class TestCancelSymbol:
         assert result["cancelled_quotes"] == 2
 
     def test_rejected_when_not_admin(self) -> None:
-        ack = make_cancel_symbol_ack_msg(
-            "GW_ADMIN", "AAPL", False, reason="ADMIN only"
-        )
+        ack = make_cancel_symbol_ack_msg("GW_ADMIN", "AAPL", False, reason="ADMIN only")
         client, push = _client(recv_queue=_q(ack))
         result = client.cancel_symbol("AAPL")
         assert result["accepted"] is False

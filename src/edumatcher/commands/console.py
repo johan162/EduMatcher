@@ -504,7 +504,9 @@ def execute_command(  # noqa: C901
             return False
         result = client.symbol_resume(sym)
         if result.get("accepted"):
-            console.print(f"[bold green]RESUMED[/bold green]  {result.get('symbol', sym)}")
+            console.print(
+                f"[bold green]RESUMED[/bold green]  {result.get('symbol', sym)}"
+            )
         else:
             console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
         return bool(result.get("accepted"))

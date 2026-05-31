@@ -45,6 +45,7 @@ _DEAD_STATUSES: frozenset[OrderStatus] = frozenset(
     }
 )
 
+
 # ---------------------------------------------------------------------------
 # PERF improvement #4: __slots__ on _HeapEntry.
 #

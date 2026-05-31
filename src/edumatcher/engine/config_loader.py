@@ -862,9 +862,7 @@ def load_engine_config(path: Path) -> EngineConfig:
 
     enforce_cb_raw = raw.get("enforce_circuit_breakers", True)
     if not isinstance(enforce_cb_raw, bool):
-        raise ValueError(
-            "Engine config 'enforce_circuit_breakers' must be a boolean"
-        )
+        raise ValueError("Engine config 'enforce_circuit_breakers' must be a boolean")
 
     # Optional schedule section
     schedule_cfg: ScheduleConfig | None = None

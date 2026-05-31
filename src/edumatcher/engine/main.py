@@ -52,11 +52,6 @@ from edumatcher.engine.persistence import (
 from edumatcher.messaging.bus import make_puller, make_publisher
 from edumatcher.models.combo import ComboOrder, ComboStatus
 from edumatcher.models.clock import now_ns
-
-# PERF: cache time.time_ns as a module-level constant so the hot path
-# avoids the attribute lookup on the `time` module AND the threading lock
-# inside now_ns().  Safe for the engine's single-threaded event loop.
-_time_ns = time.time_ns
 from edumatcher.models.message import (
     dumps,
     decode,
@@ -106,6 +101,17 @@ from edumatcher.models.order import (
 from edumatcher.models.price import from_ticks, to_ticks
 from edumatcher.models.price import register_tick_decimals
 from edumatcher.models.quote import QuoteEntry, QuoteIndex, QuoteRefreshPolicy
+from edumatcher.models.session import (
+    SessionState,
+    VALID_TRANSITIONS,
+    accepts_orders,
+    is_matching_enabled,
+)
+
+# PERF: cache time.time_ns as a module-level constant so the hot path
+# avoids the attribute lookup on the `time` module AND the threading lock
+# inside now_ns().  Safe for the engine's single-threaded event loop.
+_time_ns = time.time_ns
 
 # PERF B: Module-level pre-encoded topic constant for trade messages.
 # Avoids re-encoding the same static string on every trade publication.
@@ -114,12 +120,6 @@ _TRADE_TOPIC = b"trade.executed"
 # PERF: Pre-built frozenset for fill status check — avoids creating a
 # temporary tuple on every iteration of the events loop.
 _FILL_STATUSES = frozenset({OrderStatus.PARTIAL, OrderStatus.FILLED})
-from edumatcher.models.session import (  # noqa: E402
-    SessionState,
-    VALID_TRANSITIONS,
-    accepts_orders,
-    is_matching_enabled,
-)
 
 
 class Engine:
@@ -543,7 +543,9 @@ class Engine:
             ok, reason = self._gateway_status(order.gateway_id)
             if not ok:
                 self.pub_sock.send_multipart(
-                    make_ack_msg(order.gateway_id, order.id, accepted=False, reason=reason)
+                    make_ack_msg(
+                        order.gateway_id, order.id, accepted=False, reason=reason
+                    )
                 )
                 if self.verbose:
                     print(f"[ENGINE] REJECTED {order.id[:8]} — {reason}")
@@ -724,12 +726,12 @@ class Engine:
         # values; reusing them in the fill message eliminates enum.value calls
         # (~460 ns each) for the aggressor fill event.
         _pub = self.pub_sock
-        _fill_topic = _tc[f"fill.{_gw}"]   # guaranteed set by ack-topic setup above
+        _fill_topic = _tc[f"fill.{_gw}"]  # guaranteed set by ack-topic setup above
         _ptrade = self._publish_trade
         _side_v: str = payload["side"]
         _ot_v: str = payload["order_type"]
         _tif_v: str = payload["tif"]
-        _price_v = payload.get("price")      # None for MARKET orders
+        _price_v = payload.get("price")  # None for MARKET orders
         _pub.send_multipart(
             [
                 ack_topic,
@@ -779,9 +781,13 @@ class Engine:
                 _is_agg = evt is order
                 _pub.send_multipart(
                     [
-                        _fill_topic if evt.gateway_id == _gw else (
-                            _tc.get(f"fill.{evt.gateway_id}")
-                            or f"order.fill.{evt.gateway_id}".encode()
+                        (
+                            _fill_topic
+                            if evt.gateway_id == _gw
+                            else (
+                                _tc.get(f"fill.{evt.gateway_id}")
+                                or f"order.fill.{evt.gateway_id}".encode()
+                            )
                         ),
                         dumps(
                             {
@@ -789,10 +795,14 @@ class Engine:
                                 "fill_qty": evt.quantity - evt.remaining_qty,
                                 "fill_price": _fill_px,
                                 "remaining_qty": evt.remaining_qty,
-                                "status": "PARTIAL_FILL" if evt.remaining_qty else "FILLED",
+                                "status": (
+                                    "PARTIAL_FILL" if evt.remaining_qty else "FILLED"
+                                ),
                                 "symbol": evt.symbol,
                                 "side": _side_v if _is_agg else evt.side.value,
-                                "order_type": _ot_v if _is_agg else evt.order_type.value,
+                                "order_type": (
+                                    _ot_v if _is_agg else evt.order_type.value
+                                ),
                                 "qty": evt.quantity,
                                 "price": (
                                     _price_v
@@ -822,9 +832,7 @@ class Engine:
                             "order_id": evt.id,
                             "symbol": evt.symbol,
                             "fill_qty": evt.quantity - evt.remaining_qty,
-                            "fill_price": (
-                                _fill_px if _fill_px is not None else 0.0
-                            ),
+                            "fill_price": (_fill_px if _fill_px is not None else 0.0),
                             "remaining_qty": evt.remaining_qty,
                             "liquidity_flag": (
                                 "MAKER_QUOTE"
@@ -1781,9 +1789,7 @@ class Engine:
 
         if not symbol:
             self.pub_sock.send_multipart(
-                make_symbol_resume_ack_msg(
-                    gateway_id, symbol, False, "symbol required"
-                )
+                make_symbol_resume_ack_msg(gateway_id, symbol, False, "symbol required")
             )
             return
 
@@ -1840,9 +1846,7 @@ class Engine:
 
         if not symbol:
             self.pub_sock.send_multipart(
-                make_cancel_symbol_ack_msg(
-                    gateway_id, symbol, False, "symbol required"
-                )
+                make_cancel_symbol_ack_msg(gateway_id, symbol, False, "symbol required")
             )
             return
 
