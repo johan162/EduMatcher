@@ -127,6 +127,8 @@ class EngineConfig:
     snapshot_interval_sec: float = _DEFAULT_SNAPSHOT_INTERVAL_SEC
     sessions_enabled: bool = False
     schedule: ScheduleConfig | None = None
+    enforce_collars: bool = True
+    enforce_circuit_breakers: bool = True
 
     @property
     def allowed_symbols(self) -> frozenset[str]:
@@ -854,6 +856,16 @@ def load_engine_config(path: Path) -> EngineConfig:
     if snapshot_interval_sec <= 0:
         raise ValueError("Engine config 'snapshot_interval_sec' must be > 0")
 
+    enforce_collars_raw = raw.get("enforce_collars", True)
+    if not isinstance(enforce_collars_raw, bool):
+        raise ValueError("Engine config 'enforce_collars' must be a boolean")
+
+    enforce_cb_raw = raw.get("enforce_circuit_breakers", True)
+    if not isinstance(enforce_cb_raw, bool):
+        raise ValueError(
+            "Engine config 'enforce_circuit_breakers' must be a boolean"
+        )
+
     # Optional schedule section
     schedule_cfg: ScheduleConfig | None = None
     schedule_raw = raw.get("schedule")
@@ -881,4 +893,6 @@ def load_engine_config(path: Path) -> EngineConfig:
         snapshot_interval_sec=snapshot_interval_sec,
         sessions_enabled=sessions_enabled_raw,
         schedule=schedule_cfg,
+        enforce_collars=enforce_collars_raw,
+        enforce_circuit_breakers=enforce_cb_raw,
     )

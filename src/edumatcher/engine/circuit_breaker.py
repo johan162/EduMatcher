@@ -42,6 +42,8 @@ class CircuitBreakerState:
     trade_history: deque[tuple[int, int]] = field(
         default_factory=deque
     )  # (timestamp_ns, price_ticks)
+    _trade_price_sum: int = 0
+    _history_len_synced: int = 0
     halted: bool = False
     halted_at_ns: Optional[int] = None
     resume_at_ns: Optional[int] = None
@@ -50,20 +52,30 @@ class CircuitBreakerState:
     triggered_level: Optional[str] = None
     active_resumption_mode: Optional[str] = None
 
+    def _sync_history_aggregate(self) -> None:
+        """Resync rolling aggregates if history was mutated outside this class."""
+        cur_len = len(self.trade_history)
+        if cur_len != self._history_len_synced:
+            self._trade_price_sum = sum(price for _, price in self.trade_history)
+            self._history_len_synced = cur_len
+
     def record_trade(self, price: int, now: int) -> CircuitBreakerLevel | None:
         """Record a fill and return the triggered breaker level, if any."""
         if self.halted:
             return None  # don't double-trigger an active halt
 
+        self._sync_history_aggregate()
+
         # Trim entries older than the reference window — O(k) where k ≤ window age
         cutoff = now - self.config.reference_window_ns
         while self.trade_history and self.trade_history[0][0] < cutoff:
-            self.trade_history.popleft()
+            _, old_price = self.trade_history.popleft()
+            self._trade_price_sum -= old_price
+            self._history_len_synced -= 1
 
         fired_level: CircuitBreakerLevel | None = None
         if self.trade_history:
-            prices = [p for _, p in self.trade_history]
-            ref = sum(prices) // len(prices)
+            ref = self._trade_price_sum // len(self.trade_history)
             self.reference_price = ref
             shift = abs(price - ref) / ref if ref > 0 else 0.0
             for level in sorted(
@@ -74,6 +86,8 @@ class CircuitBreakerState:
                     fired_level = level
 
         self.trade_history.append((now, price))
+        self._trade_price_sum += price
+        self._history_len_synced += 1
         if fired_level is not None:
             self.trigger_price = price
             self.triggered_level = fired_level.name

@@ -68,6 +68,19 @@ def test_quote_index_cancel_for_gateway() -> None:
     assert idx.active_count() == 1
 
 
+def test_quote_index_cancel_for_symbol_and_has_symbol() -> None:
+    idx = QuoteIndex()
+    idx.put(QuoteEntry("Q1", "GW01", "AAPL", "B1", "S1"))
+    idx.put(QuoteEntry("Q2", "GW02", "AAPL", "B2", "S2"))
+    idx.put(QuoteEntry("Q3", "GW01", "MSFT", "B3", "S3"))
+
+    assert idx.has_symbol("AAPL") is True
+    removed = idx.cancel_all_for_symbol("AAPL")
+    assert len(removed) == 2
+    assert idx.has_symbol("AAPL") is False
+    assert idx.active_count() == 1
+
+
 def test_mmp_state_records_and_activates() -> None:
     obligation = MarketMakerObligation(
         gateway_id="GW01",

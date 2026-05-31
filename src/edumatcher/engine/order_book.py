@@ -34,6 +34,16 @@ from edumatcher.models.order import (
 )
 from edumatcher.models.trade import Trade
 
+# Module-level frozenset avoids allocating a temporary tuple inside _peek()
+# on every heap operation (called O(N) times per aggressive order).
+_DEAD_STATUSES: frozenset[OrderStatus] = frozenset(
+    {
+        OrderStatus.FILLED,
+        OrderStatus.CANCELLED,
+        OrderStatus.REJECTED,
+        OrderStatus.EXPIRED,
+    }
+)
 
 # ---------------------------------------------------------------------------
 # PERF improvement #4: __slots__ on _HeapEntry.
@@ -93,6 +103,7 @@ class OrderBook:
         "daily_qty",
         "daily_value",
         "daily_trades",
+        "_has_stops",
     )
 
     def __init__(self, symbol: str) -> None:
@@ -132,6 +143,11 @@ class OrderBook:
         self.daily_qty: int = 0
         self.daily_value: float = 0.0
         self.daily_trades: int = 0
+
+        # True when the book has any resting stop or trailing-stop orders.
+        # Guards the stop-check calls in process() to avoid function-call
+        # overhead on every fill when no stops are present.
+        self._has_stops: bool = False
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -205,7 +221,7 @@ class OrderBook:
             self._add_trailing_stop(order, events)
 
         # After any trade, check if stop orders should trigger
-        if trades:
+        if trades and self._has_stops:
             triggered = self._check_stops(now)
             triggered += self._check_trailing_stops(now)
             for t_order in triggered:
@@ -646,6 +662,7 @@ class OrderBook:
         ), "Trailing stop must have a positive trail_offset"
         self._trailing_stops.append(order)
         self._order_index[order.id] = order
+        self._has_stops = True
         events.append(order)  # ack (status = NEW)
 
     def _add_stop(self, order: Order, events: list[Order]) -> None:
@@ -660,6 +677,7 @@ class OrderBook:
             heapq.heappush(self._sell_stops, entry)
         self._order_index[order.id] = order
         self._entry_index[order.id] = entry
+        self._has_stops = True
         events.append(order)  # ack (status = NEW)
 
     # ------------------------------------------------------------------
@@ -963,12 +981,7 @@ class OrderBook:
                 heapq.heappop(heap)
                 continue
             o = entry.order
-            if o.status in (
-                OrderStatus.FILLED,
-                OrderStatus.CANCELLED,
-                OrderStatus.REJECTED,
-                OrderStatus.EXPIRED,
-            ):
+            if o.status in _DEAD_STATUSES:
                 heapq.heappop(heap)
                 entry.valid = False
                 continue
@@ -1039,6 +1052,9 @@ class OrderBook:
             stop_order.timestamp = now
             self._order_index.pop(stop_order.id, None)
             triggered.append(stop_order)
+
+        if not self._buy_stops and not self._sell_stops and not self._trailing_stops:
+            self._has_stops = False
 
         return triggered
 
@@ -1112,4 +1128,6 @@ class OrderBook:
             still_active.append(order)
 
         self._trailing_stops = still_active
+        if not self._trailing_stops and not self._buy_stops and not self._sell_stops:
+            self._has_stops = False
         return triggered

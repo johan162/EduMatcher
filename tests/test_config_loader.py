@@ -200,6 +200,25 @@ class TestConfigLoaderHappyPath:
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
         assert cfg.sessions_enabled is True
 
+    def test_enforcement_toggles_default_to_true(self, tmp_path: Path) -> None:
+        cfg = load_engine_config(_write_yaml(tmp_path, MINIMAL_YAML))
+        assert cfg.enforce_collars is True
+        assert cfg.enforce_circuit_breakers is True
+
+    def test_enforcement_toggles_parsed(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          fix:
+            - id: GW01
+        enforce_collars: false
+        enforce_circuit_breakers: false
+        """
+        cfg = load_engine_config(_write_yaml(tmp_path, yaml))
+        assert cfg.enforce_collars is False
+        assert cfg.enforce_circuit_breakers is False
+
     def test_snapshot_interval_defaults_to_point_five(self, tmp_path: Path) -> None:
         cfg = load_engine_config(_write_yaml(tmp_path, MINIMAL_YAML))
         assert cfg.snapshot_interval_sec == pytest.approx(0.5)
@@ -340,6 +359,30 @@ class TestConfigLoaderFileErrors:
         snapshot_interval_sec: 0
         """
         with pytest.raises(ValueError, match="snapshot_interval_sec"):
+            load_engine_config(_write_yaml(tmp_path, yaml))
+
+    def test_enforce_collars_non_bool_raises(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          fix:
+            - id: GW01
+        enforce_collars: "yes"
+        """
+        with pytest.raises(ValueError, match="enforce_collars"):
+            load_engine_config(_write_yaml(tmp_path, yaml))
+
+    def test_enforce_circuit_breakers_non_bool_raises(self, tmp_path: Path) -> None:
+        yaml = """
+        symbols:
+          AAPL: {}
+        gateways:
+          fix:
+            - id: GW01
+        enforce_circuit_breakers: "yes"
+        """
+        with pytest.raises(ValueError, match="enforce_circuit_breakers"):
             load_engine_config(_write_yaml(tmp_path, yaml))
 
 

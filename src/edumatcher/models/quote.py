@@ -43,6 +43,26 @@ class QuoteEntry:
 class QuoteIndex:
     def __init__(self) -> None:
         self._index: dict[tuple[str, str], QuoteEntry] = {}
+        self._keys_by_gateway: dict[str, set[tuple[str, str]]] = {}
+        self._keys_by_symbol: dict[str, set[tuple[str, str]]] = {}
+
+    def _track_key(self, key: tuple[str, str]) -> None:
+        gw, sym = key
+        self._keys_by_gateway.setdefault(gw, set()).add(key)
+        self._keys_by_symbol.setdefault(sym, set()).add(key)
+
+    def _untrack_key(self, key: tuple[str, str]) -> None:
+        gw, sym = key
+        gw_keys = self._keys_by_gateway.get(gw)
+        if gw_keys is not None:
+            gw_keys.discard(key)
+            if not gw_keys:
+                self._keys_by_gateway.pop(gw, None)
+        sym_keys = self._keys_by_symbol.get(sym)
+        if sym_keys is not None:
+            sym_keys.discard(key)
+            if not sym_keys:
+                self._keys_by_symbol.pop(sym, None)
 
     def get(self, gateway_id: str, symbol: str) -> Optional[QuoteEntry]:
         return self._index.get((gateway_id, symbol))
@@ -50,19 +70,41 @@ class QuoteIndex:
     def put(self, entry: QuoteEntry) -> Optional[QuoteEntry]:
         key = (entry.gateway_id, entry.symbol)
         old = self._index.get(key)
+        if old is not None:
+            self._untrack_key(key)
         self._index[key] = entry
+        self._track_key(key)
         return old
 
     def remove(self, gateway_id: str, symbol: str) -> Optional[QuoteEntry]:
-        return self._index.pop((gateway_id, symbol), None)
+        key = (gateway_id, symbol)
+        old = self._index.pop(key, None)
+        if old is not None:
+            self._untrack_key(key)
+        return old
 
     def cancel_all_for_gateway(self, gateway_id: str) -> list[QuoteEntry]:
-        keys = [k for k in self._index if k[0] == gateway_id]
-        return [self._index.pop(k) for k in keys]
+        keys = list(self._keys_by_gateway.get(gateway_id, set()))
+        removed: list[QuoteEntry] = []
+        for key in keys:
+            entry = self._index.pop(key, None)
+            if entry is not None:
+                self._untrack_key(key)
+                removed.append(entry)
+        return removed
 
     def cancel_all_for_symbol(self, symbol: str) -> list[QuoteEntry]:
-        keys = [k for k in self._index if k[1] == symbol]
-        return [self._index.pop(k) for k in keys]
+        keys = list(self._keys_by_symbol.get(symbol, set()))
+        removed: list[QuoteEntry] = []
+        for key in keys:
+            entry = self._index.pop(key, None)
+            if entry is not None:
+                self._untrack_key(key)
+                removed.append(entry)
+        return removed
+
+    def has_symbol(self, symbol: str) -> bool:
+        return bool(self._keys_by_symbol.get(symbol))
 
     def active_count(self) -> int:
         return len(self._index)

@@ -145,10 +145,10 @@ Run performance benchmarks:
 
 ```bash
 # just perf tests (verbose output)
-poetry run pytest tests/test_perf.py -v -s -m perf -p no:cov
+poetry run pytest -o addopts='' tests/test_perf.py -v -s -m perf -p no:cov
 
 # throughput-only (TPS table)
-poetry run pytest tests/test_perf.py -v -s -m perf -k max_tps -p no:cov
+poetry run pytest -o addopts='' tests/test_perf.py -v -s -m perf -k max_tps -p no:cov
 
 # exclude from normal CI runs
 poetry run pytest tests/ -m "not perf"
@@ -165,10 +165,10 @@ The command above prints a throughput block. A recent local run produced:
 | Aggressive LIMIT    | 3,000 (30%) |
 | Passive BUY         | 2,500 (25%) |
 | Passive SELL        | 2,500 (25%) |
-| Elapsed             |     0.189 s |
+| Elapsed             |     0.160 s |
 | Trades generated    |       7,421 |
-| TPS (orders/sec)    |      52,487 |
-| Mean time per order |   19.052 µs |
+| TPS (orders/sec)    |      61,870 |
+| Mean time per order |   16.163 µs |
 
 These values are machine-dependent and should be treated as a baseline example,
 not a fixed performance guarantee.

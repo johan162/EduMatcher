@@ -252,6 +252,16 @@ class TestCollarEngineIntegration:
         assert msg["accepted"] is False
         assert "DYNAMIC_COLLAR_BREACH" in msg["reason"]
 
+    def test_collar_check_can_be_disabled(self, engine) -> None:
+        eng, pub = engine
+        eng._enforce_collars = False
+        self._add_collar(eng)
+
+        eng._handle_new_order(_order_dict(price=130.0))
+        topic, msg = decode(pub.sent[-1])
+        assert topic.startswith("order.ack.")
+        assert msg["accepted"] is True
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Circuit breaker engine integration
@@ -283,6 +293,15 @@ class TestCircuitBreakerEngineIntegration:
         eng._check_circuit_breaker("AAPL", 10000, 1_000_000_000)
         # No halt message should be published
         assert not any(b"circuit_breaker.halt" in f[0] for f in pub.sent if f)
+
+    def test_check_cb_can_be_disabled(self, engine) -> None:
+        eng, _ = engine
+        self._wire_cb(eng)
+        eng._enforce_circuit_breakers = False
+        for i in range(10):
+            eng._check_circuit_breaker("AAPL", 10000, 1_000_000_000 + i)
+        eng._check_circuit_breaker("AAPL", 10600, 1_000_000_010)
+        assert not eng._halted_symbols.get("AAPL")
 
     def test_check_cb_does_not_fire_within_band(self, engine) -> None:
         eng, pub = engine

@@ -15,6 +15,11 @@ _MAX_TICK_DECIMALS = 8
 # Symbol -> tick decimals registry. Populated at startup.
 _tick_decimals_by_symbol: dict[str, int] = {}
 
+# Per-symbol scale caches — populated by register_tick_decimals so that
+# from_ticks / to_ticks skip the 10**N computation on every call.
+_from_scale_cache: dict[str, float] = {}
+_to_scale_cache: dict[str, int] = {}
+
 
 def register_tick_decimals(symbol: str, tick_decimals: int) -> None:
     """Register tick precision for a symbol.
@@ -26,7 +31,10 @@ def register_tick_decimals(symbol: str, tick_decimals: int) -> None:
         raise ValueError(
             f"tick_decimals must be between {_MIN_TICK_DECIMALS} and {_MAX_TICK_DECIMALS}"
         )
-    _tick_decimals_by_symbol[symbol.upper()] = tick_decimals
+    sym_upper = symbol.upper()
+    _tick_decimals_by_symbol[sym_upper] = tick_decimals
+    _from_scale_cache[sym_upper] = float(10**tick_decimals)
+    _to_scale_cache[sym_upper] = 10**tick_decimals
 
 
 def get_tick_decimals(symbol: str) -> int:
@@ -37,6 +45,8 @@ def get_tick_decimals(symbol: str) -> int:
 def clear_tick_registry() -> None:
     """Clear the in-memory tick registry (used by tests)."""
     _tick_decimals_by_symbol.clear()
+    _from_scale_cache.clear()
+    _to_scale_cache.clear()
 
 
 def to_ticks(price: float | int, symbol: str) -> int:
@@ -46,7 +56,10 @@ def to_ticks(price: float | int, symbol: str) -> int:
     """
     if isinstance(price, int):
         return price
-    scale = 10 ** get_tick_decimals(symbol)
+    scale = _to_scale_cache.get(symbol)
+    if scale is None:
+        scale = 10 ** get_tick_decimals(symbol)
+        _to_scale_cache[symbol.upper()] = scale
     return int(round(price * scale))
 
 
@@ -58,8 +71,10 @@ def from_ticks(ticks: int | float, symbol: str) -> float:
     """
     if isinstance(ticks, float):
         return ticks
-    decimals: int = get_tick_decimals(symbol)
-    scale: float = float(10**decimals)
+    scale = _from_scale_cache.get(symbol)
+    if scale is None:
+        scale = float(10 ** get_tick_decimals(symbol))
+        _from_scale_cache[symbol.upper()] = scale
     return float(ticks) / scale
 
 
