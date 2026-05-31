@@ -73,6 +73,9 @@ from edumatcher.models.message import (
     make_gateway_auth_msg,
     make_circuit_breaker_halt_all_ack_msg,
     make_circuit_breaker_resume_all_ack_msg,
+    make_symbol_halt_ack_msg,
+    make_symbol_resume_ack_msg,
+    make_cancel_symbol_ack_msg,
     make_kill_switch_ack_msg,
     make_orders_msg,
     make_quote_ack_msg,
@@ -1670,6 +1673,207 @@ class Engine:
                 f"{len(halted_symbols)} symbol(s): {', '.join(halted_symbols)}"
             )
 
+    def _handle_symbol_halt(self, payload: dict[str, Any]) -> None:
+        """Halt trading on a single symbol (ADMIN only)."""
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        symbol = str(payload.get("symbol", "")).upper()
+
+        ok, reason = self._gateway_status(gateway_id)
+        if not ok:
+            self.pub_sock.send_multipart(
+                make_symbol_halt_ack_msg(gateway_id, symbol, False, reason)
+            )
+            return
+
+        session = self._session_for_gateway(gateway_id)
+        if session.role != ParticipantRole.ADMIN:
+            self.pub_sock.send_multipart(
+                make_symbol_halt_ack_msg(
+                    gateway_id,
+                    symbol,
+                    False,
+                    "Per-symbol halt is only allowed for ADMIN participants",
+                )
+            )
+            return
+
+        if not symbol:
+            self.pub_sock.send_multipart(
+                make_symbol_halt_ack_msg(gateway_id, symbol, False, "symbol required")
+            )
+            return
+
+        if self._allowed_symbols is not None and symbol not in self._allowed_symbols:
+            self.pub_sock.send_multipart(
+                make_symbol_halt_ack_msg(
+                    gateway_id, symbol, False, f"Unknown symbol: {symbol}"
+                )
+            )
+            return
+
+        now = now_ns()
+        self._halted_symbols[symbol] = True
+
+        cb = self._circuit_breakers.get(symbol)
+        if cb is not None:
+            cb.halted = True
+            cb.halted_at_ns = now
+            cb.resume_at_ns = None
+            cb.trigger_price = None
+            cb.reference_price = None
+            cb.triggered_level = "ADMIN_SYMBOL"
+            cb.active_resumption_mode = "MANUAL"
+
+        cancelled_quotes = 0
+        for entry in self._quote_index.cancel_all_for_symbol(symbol):
+            cancelled_quotes += self._cancel_quote_entry(
+                entry, reason="Per-symbol halt"
+            )
+
+        self.pub_sock.send_multipart(
+            encode(
+                f"circuit_breaker.halt.{symbol}",
+                {
+                    "symbol": symbol,
+                    "trigger_price": None,
+                    "reference_price": None,
+                    "resume_at_ns": None,
+                    "resumption_mode": "MANUAL",
+                    "level": "ADMIN_SYMBOL",
+                },
+            )
+        )
+        self._mark_dirty(symbol)
+
+        self.pub_sock.send_multipart(
+            make_symbol_halt_ack_msg(
+                gateway_id,
+                symbol,
+                True,
+                cancelled_quotes=cancelled_quotes,
+            )
+        )
+        print(f"[ENGINE] ADMIN SYMBOL HALT — {symbol} by {gateway_id}")
+
+    def _handle_symbol_resume(self, payload: dict[str, Any]) -> None:
+        """Resume a single symbol that was halted by a per-symbol or global halt (ADMIN only)."""
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        symbol = str(payload.get("symbol", "")).upper()
+
+        ok, reason = self._gateway_status(gateway_id)
+        if not ok:
+            self.pub_sock.send_multipart(
+                make_symbol_resume_ack_msg(gateway_id, symbol, False, reason)
+            )
+            return
+
+        session = self._session_for_gateway(gateway_id)
+        if session.role != ParticipantRole.ADMIN:
+            self.pub_sock.send_multipart(
+                make_symbol_resume_ack_msg(
+                    gateway_id,
+                    symbol,
+                    False,
+                    "Per-symbol resume is only allowed for ADMIN participants",
+                )
+            )
+            return
+
+        if not symbol:
+            self.pub_sock.send_multipart(
+                make_symbol_resume_ack_msg(
+                    gateway_id, symbol, False, "symbol required"
+                )
+            )
+            return
+
+        if not self._halted_symbols.get(symbol):
+            self.pub_sock.send_multipart(
+                make_symbol_resume_ack_msg(
+                    gateway_id, symbol, False, f"{symbol} is not halted"
+                )
+            )
+            return
+
+        self._halted_symbols[symbol] = False
+
+        cb = self._circuit_breakers.get(symbol)
+        if cb is not None:
+            cb.deactivate()
+
+        self.pub_sock.send_multipart(
+            encode(
+                f"circuit_breaker.resume.{symbol}",
+                {"symbol": symbol, "mode": "MANUAL"},
+            )
+        )
+        self._mark_dirty(symbol)
+
+        self.pub_sock.send_multipart(
+            make_symbol_resume_ack_msg(gateway_id, symbol, True)
+        )
+        print(f"[ENGINE] ADMIN SYMBOL RESUME — {symbol} by {gateway_id}")
+
+    def _handle_cancel_symbol(self, payload: dict[str, Any]) -> None:
+        """Cancel all resting orders for a symbol across every gateway (ADMIN only)."""
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        symbol = str(payload.get("symbol", "")).upper()
+
+        ok, reason = self._gateway_status(gateway_id)
+        if not ok:
+            self.pub_sock.send_multipart(
+                make_cancel_symbol_ack_msg(gateway_id, symbol, False, reason)
+            )
+            return
+
+        session = self._session_for_gateway(gateway_id)
+        if session.role != ParticipantRole.ADMIN:
+            self.pub_sock.send_multipart(
+                make_cancel_symbol_ack_msg(
+                    gateway_id,
+                    symbol,
+                    False,
+                    "Symbol-level mass cancel is only allowed for ADMIN participants",
+                )
+            )
+            return
+
+        if not symbol:
+            self.pub_sock.send_multipart(
+                make_cancel_symbol_ack_msg(
+                    gateway_id, symbol, False, "symbol required"
+                )
+            )
+            return
+
+        book = self.books.get(symbol)
+        cancelled_orders = 0
+        if book is not None:
+            for order in list(book.resting_orders()):
+                if order.origin != OrderOrigin.QUOTE:
+                    if self._cancel_order_by_id(order.id):
+                        cancelled_orders += 1
+
+        cancelled_quotes = 0
+        for entry in self._quote_index.cancel_all_for_symbol(symbol):
+            cancelled_quotes += self._cancel_quote_entry(
+                entry, reason="Symbol mass cancel"
+            )
+
+        self.pub_sock.send_multipart(
+            make_cancel_symbol_ack_msg(
+                gateway_id,
+                symbol,
+                True,
+                cancelled_orders=cancelled_orders,
+                cancelled_quotes=cancelled_quotes,
+            )
+        )
+        print(
+            f"[ENGINE] ADMIN CANCEL SYMBOL — {symbol} by {gateway_id}:"
+            f" orders={cancelled_orders} quotes={cancelled_quotes}"
+        )
+
     # ------------------------------------------------------------------
     # Combo-order handlers
     # ------------------------------------------------------------------
@@ -2644,6 +2848,12 @@ class Engine:
                         self._handle_circuit_breaker_halt_all(payload)
                     elif topic == "risk.circuit_breaker_resume_all":
                         self._handle_circuit_breaker_resume_all(payload)
+                    elif topic == "risk.symbol_halt":
+                        self._handle_symbol_halt(payload)
+                    elif topic == "risk.symbol_resume":
+                        self._handle_symbol_resume(payload)
+                    elif topic == "risk.cancel_symbol":
+                        self._handle_cancel_symbol(payload)
                     elif topic == "session.transition":
                         self._handle_session_transition(payload)
                     elif topic == "system.session_state_request":

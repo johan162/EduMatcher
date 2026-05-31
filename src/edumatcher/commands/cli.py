@@ -33,6 +33,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "Examples:\n"
             "  pm-admin-cli --id GW_ADMIN halt\n"
             "  pm-admin-cli --id GW_ADMIN resume\n"
+            "  pm-admin-cli --id GW_ADMIN halt-sym --sym AAPL\n"
+            "  pm-admin-cli --id GW_ADMIN resume-sym --sym AAPL\n"
+            "  pm-admin-cli --id GW_ADMIN cancel-sym --sym AAPL\n"
             "  pm-admin-cli --id GW_ADMIN kill --gw TRADER01\n"
             "  pm-admin-cli --id GW_ADMIN kill --gw TRADER01 --sym AAPL\n"
             "  pm-admin-cli --id GW_ADMIN kick --gw TRADER01 --reason 'Compliance hold'\n"
@@ -86,6 +89,24 @@ def _build_parser() -> argparse.ArgumentParser:
         "resume",
         help="Resume all symbols halted by 'halt' (ADMIN role required)",
     )
+
+    p = sub.add_parser(
+        "halt-sym",
+        help="Halt trading on a single symbol (ADMIN role required)",
+    )
+    p.add_argument("--sym", required=True, metavar="SYMBOL", help="Symbol to halt")
+
+    p = sub.add_parser(
+        "resume-sym",
+        help="Resume a single symbol halted by 'halt-sym' or a circuit breaker (ADMIN role required)",
+    )
+    p.add_argument("--sym", required=True, metavar="SYMBOL", help="Symbol to resume")
+
+    p = sub.add_parser(
+        "cancel-sym",
+        help="Cancel all resting orders on a symbol across every gateway (ADMIN role required)",
+    )
+    p.add_argument("--sym", required=True, metavar="SYMBOL", help="Symbol to clear")
 
     # ---- Any connected gateway ----
     p = sub.add_parser(

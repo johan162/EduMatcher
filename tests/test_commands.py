@@ -29,6 +29,7 @@ from edumatcher.models.message import (
     decode,
     encode,
     make_book_msg,
+    make_cancel_symbol_ack_msg,
     make_circuit_breaker_halt_all_ack_msg,
     make_circuit_breaker_resume_all_ack_msg,
     make_gateway_auth_msg,
@@ -38,6 +39,8 @@ from edumatcher.models.message import (
     make_quote_ack_msg,
     make_session_schedule_msg,
     make_session_status_msg,
+    make_symbol_halt_ack_msg,
+    make_symbol_resume_ack_msg,
     make_symbols_msg,
     make_volume_msg,
 )
@@ -545,3 +548,98 @@ class TestVolume:
         result = client.volume()
         assert result["total_qty"] == 0
         assert result["symbols"] == {}
+
+
+# ---------------------------------------------------------------------------
+# Per-symbol halt / resume / cancel
+# ---------------------------------------------------------------------------
+
+
+class TestSymbolHalt:
+    def test_sends_correct_topic_and_payload(self) -> None:
+        ack = make_symbol_halt_ack_msg("GW_ADMIN", "AAPL", True, cancelled_quotes=2)
+        client, push = _client(recv_queue=_q(ack))
+        result = client.symbol_halt("aapl")  # lowercase input
+
+        topic, payload = _last_sent(push)
+        assert topic == "risk.symbol_halt"
+        assert payload["gateway_id"] == "GW_ADMIN"
+        assert payload["symbol"] == "AAPL"  # uppercased by client
+
+        assert result["accepted"] is True
+        assert result["symbol"] == "AAPL"
+        assert result["cancelled_quotes"] == 2
+
+    def test_rejected_when_not_admin(self) -> None:
+        ack = make_symbol_halt_ack_msg("GW_ADMIN", "AAPL", False, reason="Not ADMIN")
+        client, push = _client(recv_queue=_q(ack))
+        result = client.symbol_halt("AAPL")
+        assert result["accepted"] is False
+        assert "ADMIN" in result["reason"]
+
+    def test_no_quotes_cancelled_when_none_active(self) -> None:
+        ack = make_symbol_halt_ack_msg("GW_ADMIN", "MSFT", True, cancelled_quotes=0)
+        client, push = _client(recv_queue=_q(ack))
+        result = client.symbol_halt("MSFT")
+        assert result["accepted"] is True
+        assert result["cancelled_quotes"] == 0
+
+
+class TestSymbolResume:
+    def test_sends_correct_topic_and_payload(self) -> None:
+        ack = make_symbol_resume_ack_msg("GW_ADMIN", "AAPL", True)
+        client, push = _client(recv_queue=_q(ack))
+        result = client.symbol_resume("aapl")  # lowercase input
+
+        topic, payload = _last_sent(push)
+        assert topic == "risk.symbol_resume"
+        assert payload["gateway_id"] == "GW_ADMIN"
+        assert payload["symbol"] == "AAPL"
+
+        assert result["accepted"] is True
+        assert result["symbol"] == "AAPL"
+
+    def test_rejected_when_symbol_not_halted(self) -> None:
+        ack = make_symbol_resume_ack_msg(
+            "GW_ADMIN", "AAPL", False, reason="AAPL is not halted"
+        )
+        client, push = _client(recv_queue=_q(ack))
+        result = client.symbol_resume("AAPL")
+        assert result["accepted"] is False
+        assert "not halted" in result["reason"]
+
+
+class TestCancelSymbol:
+    def test_sends_correct_topic_and_payload(self) -> None:
+        ack = make_cancel_symbol_ack_msg(
+            "GW_ADMIN", "AAPL", True, cancelled_orders=12, cancelled_quotes=2
+        )
+        client, push = _client(recv_queue=_q(ack))
+        result = client.cancel_symbol("aapl")  # lowercase input
+
+        topic, payload = _last_sent(push)
+        assert topic == "risk.cancel_symbol"
+        assert payload["gateway_id"] == "GW_ADMIN"
+        assert payload["symbol"] == "AAPL"
+
+        assert result["accepted"] is True
+        assert result["symbol"] == "AAPL"
+        assert result["cancelled_orders"] == 12
+        assert result["cancelled_quotes"] == 2
+
+    def test_rejected_when_not_admin(self) -> None:
+        ack = make_cancel_symbol_ack_msg(
+            "GW_ADMIN", "AAPL", False, reason="ADMIN only"
+        )
+        client, push = _client(recv_queue=_q(ack))
+        result = client.cancel_symbol("AAPL")
+        assert result["accepted"] is False
+
+    def test_empty_book_returns_zero_counts(self) -> None:
+        ack = make_cancel_symbol_ack_msg(
+            "GW_ADMIN", "TSLA", True, cancelled_orders=0, cancelled_quotes=0
+        )
+        client, push = _client(recv_queue=_q(ack))
+        result = client.cancel_symbol("TSLA")
+        assert result["cancelled_orders"] == 0
+        assert result["cancelled_quotes"] == 0

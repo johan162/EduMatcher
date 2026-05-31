@@ -31,6 +31,7 @@ from edumatcher.config import ENGINE_PUB_ADDR, ENGINE_PULL_ADDR
 from edumatcher.models.message import (
     decode,
     make_book_snapshot_request_msg,
+    make_cancel_symbol_msg,
     make_circuit_breaker_halt_all_msg,
     make_circuit_breaker_resume_all_msg,
     make_gateway_connect_msg,
@@ -42,6 +43,8 @@ from edumatcher.models.message import (
     make_session_state_request_msg,
     make_session_schedule_request_msg,
     make_session_transition_msg,
+    make_symbol_halt_msg,
+    make_symbol_resume_msg,
     make_symbols_request_msg,
     make_volume_request_msg,
 )
@@ -52,6 +55,9 @@ _ACK_SUB_PREFIXES: tuple[str, ...] = (
     "system.gateway_auth.",
     "risk.circuit_breaker_halt_all_ack.",
     "risk.circuit_breaker_resume_all_ack.",
+    "risk.symbol_halt_ack.",
+    "risk.symbol_resume_ack.",
+    "risk.cancel_symbol_ack.",
     "risk.kill_switch_ack.",
     "quote.ack.",
     "book.",
@@ -390,3 +396,55 @@ class ExchangeCommandClient:
         """
         self._send(make_volume_request_msg(self._gw_id))
         return self._recv(f"system.volume.{self._gw_id}")
+
+    # ------------------------------------------------------------------
+    # Per-symbol controls — ADMIN role required
+    # ------------------------------------------------------------------
+
+    def symbol_halt(self, symbol: str) -> dict[str, Any]:
+        """
+        Halt trading on a single *symbol*.
+
+        Cancels all outstanding MM quote legs for that symbol and prevents
+        new orders from matching until :meth:`symbol_resume` is called.
+        Unlike :meth:`halt_all`, all other symbols continue trading normally.
+        Requires ``role: ADMIN``.
+
+        Returns
+        -------
+        dict with keys: ``accepted``, ``symbol``, ``reason``,
+        ``cancelled_quotes``.
+        """
+        self._send(make_symbol_halt_msg(self._gw_id, symbol.upper()))
+        return self._recv(f"risk.symbol_halt_ack.{self._gw_id}")
+
+    def symbol_resume(self, symbol: str) -> dict[str, Any]:
+        """
+        Resume trading on a single *symbol* previously halted by
+        :meth:`symbol_halt` or by an automatic circuit-breaker trigger.
+
+        Requires ``role: ADMIN``.
+
+        Returns
+        -------
+        dict with keys: ``accepted``, ``symbol``, ``reason``.
+        """
+        self._send(make_symbol_resume_msg(self._gw_id, symbol.upper()))
+        return self._recv(f"risk.symbol_resume_ack.{self._gw_id}")
+
+    def cancel_symbol(self, symbol: str) -> dict[str, Any]:
+        """
+        Cancel **all** resting orders and the active quote for *symbol*
+        across every connected gateway.
+
+        Unlike :meth:`kill_switch`, which targets a single gateway, this
+        command clears the entire order book for one symbol regardless of
+        which participant placed the orders.  Requires ``role: ADMIN``.
+
+        Returns
+        -------
+        dict with keys: ``accepted``, ``symbol``, ``reason``,
+        ``cancelled_orders``, ``cancelled_quotes``.
+        """
+        self._send(make_cancel_symbol_msg(self._gw_id, symbol.upper()))
+        return self._recv(f"risk.cancel_symbol_ack.{self._gw_id}")

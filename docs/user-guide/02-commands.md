@@ -88,6 +88,9 @@ gateway.  Single-word commands (no arguments) need no pipes.
 |---|---|---|
 | `HALT` | `HALT` | Exchange-wide circuit-breaker halt — requires ADMIN |
 | `RESUME` | `RESUME` | Lift the exchange-wide halt — requires ADMIN |
+| `HALT_SYM` | `HALT_SYM\|SYM=AAPL` | Halt trading on a single symbol — requires ADMIN |
+| `RESUME_SYM` | `RESUME_SYM\|SYM=AAPL` | Resume a single halted symbol — requires ADMIN |
+| `CANCEL_SYM` | `CANCEL_SYM\|SYM=AAPL` | Cancel **all** resting orders for a symbol across every gateway — requires ADMIN |
 | `KILL` | `KILL\|GW=TRADER01` or `KILL\|GW=TRADER01\|SYM=AAPL` | Cancel all orders/quotes for a gateway (optional: scope to one symbol) |
 | `KICK` | `KICK\|GW=TRADER01` or `KICK\|GW=TRADER01\|REASON=Compliance hold` | Forcefully disconnect a gateway |
 | `QCANCEL` | `QCANCEL\|GW=MM01\|SYM=AAPL` | Cancel an MM's active quote on one symbol |
@@ -166,6 +169,9 @@ same `execute_command()` function.  Every command maps 1-to-1:
 |---|---|---|
 | `HALT` | `halt` | `client.halt_all()` |
 | `RESUME` | `resume` | `client.resume_all()` |
+| `HALT_SYM\|SYM=X` | `halt-sym --sym X` | `client.symbol_halt("X")` |
+| `RESUME_SYM\|SYM=X` | `resume-sym --sym X` | `client.symbol_resume("X")` |
+| `CANCEL_SYM\|SYM=X` | `cancel-sym --sym X` | `client.cancel_symbol("X")` |
 | `KILL\|GW=X\|SYM=Y` | `kill --gw X --sym Y` | `client.kill_switch("X", symbol="Y")` |
 | `KICK\|GW=X\|REASON=Z` | `kick --gw X --reason Z` | `client.gateway_kick("X", reason="Z")` |
 | `QCANCEL\|GW=X\|SYM=Y` | `qcancel --gw X --sym Y` | `client.quote_cancel("X", "Y")` |
@@ -228,6 +234,62 @@ pm-admin-cli --id GW_ADMIN resume
 RESUMED  3 symbol(s)
 ```
 Requires `role: ADMIN`.
+
+---
+
+#### `halt-sym` — Halt trading on a single symbol
+
+```bash
+pm-admin-cli --id GW_ADMIN halt-sym --sym AAPL
+```
+```
+HALTED  AAPL  0 quote leg(s) cancelled
+```
+Halts only the specified symbol.  All other symbols continue trading.  Any
+active MM quote legs for that symbol are cancelled.  The symbol remains halted
+until `resume-sym` is called.  Requires `role: ADMIN`.
+
+| Flag | Required | Description |
+|---|---|---|
+| `--sym SYMBOL` | yes | Symbol to halt |
+
+---
+
+#### `resume-sym` — Resume a single halted symbol
+
+```bash
+pm-admin-cli --id GW_ADMIN resume-sym --sym AAPL
+```
+```
+RESUMED  AAPL
+```
+Resumes a symbol halted by `halt-sym` **or** by an automatic circuit-breaker
+trigger.  Requires `role: ADMIN`.
+
+| Flag | Required | Description |
+|---|---|---|
+| `--sym SYMBOL` | yes | Symbol to resume |
+
+---
+
+#### `cancel-sym` — Cancel all resting orders for a symbol
+
+```bash
+pm-admin-cli --id GW_ADMIN cancel-sym --sym AAPL
+```
+```
+CANCEL_SYM OK  AAPL  orders=12  quotes=2
+```
+Cancels **every** resting order and active quote for `AAPL` across all
+connected gateways.  This is an emergency book-clearing command — unlike
+`kill`, which targets a single gateway, `cancel-sym` clears the entire
+order book for one symbol regardless of who placed the orders.  The symbol
+remains in its current halt state; no halt or resume is triggered.
+Requires `role: ADMIN`.
+
+| Flag | Required | Description |
+|---|---|---|
+| `--sym SYMBOL` | yes | Symbol whose orders to cancel |
 
 ---
 
@@ -435,7 +497,7 @@ entire engine session.
 set -e
 ID="--id GW_ADMIN"
 
-# Halt the exchange
+# Halt the entire exchange while investigating
 pm-admin-cli $ID halt
 
 # Cancel all exposure and disconnect the offending participant
@@ -447,6 +509,24 @@ pm-admin-cli $ID orders --gw ROGUE01
 
 # Resume when clear
 pm-admin-cli $ID resume
+```
+
+```bash
+#!/bin/bash
+# Targeted: suspend one symbol and clear its book, keep everything else trading
+set -e
+ID="--id GW_ADMIN"
+
+# Halt only AAPL — MSFT and TSLA keep trading
+pm-admin-cli $ID halt-sym --sym AAPL
+
+# Clear all resting orders on AAPL across every participant
+pm-admin-cli $ID cancel-sym --sym AAPL
+
+# ... investigate ...
+
+# Reopen AAPL when satisfied
+pm-admin-cli $ID resume-sym --sym AAPL
 ```
 
 ---

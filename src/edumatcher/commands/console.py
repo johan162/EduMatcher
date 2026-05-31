@@ -94,6 +94,9 @@ _SESSION_STATES = [
 _TOP_CMDS = [
     "HALT",
     "RESUME",
+    "HALT_SYM",
+    "RESUME_SYM",
+    "CANCEL_SYM",
     "KILL",
     "KICK",
     "QCANCEL",
@@ -112,6 +115,9 @@ _TOP_CMDS = [
 
 # Fields expected after each multi-field command (in typical entry order)
 _CMD_FIELDS: dict[str, list[str]] = {
+    "HALT_SYM": ["SYM="],
+    "RESUME_SYM": ["SYM="],
+    "CANCEL_SYM": ["SYM="],
     "KILL": ["GW=", "SYM="],
     "KICK": ["GW=", "REASON="],
     "QCANCEL": ["GW=", "SYM="],
@@ -125,6 +131,10 @@ _HELP_TEXT = """
 
   HALT                          — halt all symbols (manual circuit breaker, MANUAL resumption)
   RESUME                        — resume all symbols previously halted by HALT
+
+  HALT_SYM|SYM=<sym>            — halt trading on a single symbol only
+  RESUME_SYM|SYM=<sym>          — resume a single symbol halted by HALT_SYM or a circuit breaker
+  CANCEL_SYM|SYM=<sym>          — cancel ALL resting orders on <sym> across every gateway
 
   KILL|GW=<gw>[|SYM=<sym>]     — cancel all resting orders and the active quote for <gw>
                                    (add SYM= to scope to a single instrument)
@@ -467,6 +477,49 @@ def execute_command(  # noqa: C901
             console.print(
                 f"[bold green]RESUMED[/bold green]  "
                 f"{result.get('resumed_symbols', 0)} symbol(s)"
+            )
+        else:
+            console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
+        return bool(result.get("accepted"))
+
+    elif cmd == "HALT_SYM":
+        sym = fields.get("SYM", "")
+        if not sym:
+            console.print("[yellow]Usage:[/yellow]  HALT_SYM|SYM=<sym>")
+            return False
+        result = client.symbol_halt(sym)
+        if result.get("accepted"):
+            console.print(
+                f"[bold red]HALTED[/bold red]  {result.get('symbol', sym)}  "
+                f"{result.get('cancelled_quotes', 0)} quote leg(s) cancelled"
+            )
+        else:
+            console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
+        return bool(result.get("accepted"))
+
+    elif cmd == "RESUME_SYM":
+        sym = fields.get("SYM", "")
+        if not sym:
+            console.print("[yellow]Usage:[/yellow]  RESUME_SYM|SYM=<sym>")
+            return False
+        result = client.symbol_resume(sym)
+        if result.get("accepted"):
+            console.print(f"[bold green]RESUMED[/bold green]  {result.get('symbol', sym)}")
+        else:
+            console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
+        return bool(result.get("accepted"))
+
+    elif cmd == "CANCEL_SYM":
+        sym = fields.get("SYM", "")
+        if not sym:
+            console.print("[yellow]Usage:[/yellow]  CANCEL_SYM|SYM=<sym>")
+            return False
+        result = client.cancel_symbol(sym)
+        if result.get("accepted"):
+            console.print(
+                f"[yellow]CANCEL_SYM OK[/yellow]  {result.get('symbol', sym)}  "
+                f"orders={result.get('cancelled_orders', 0)}  "
+                f"quotes={result.get('cancelled_quotes', 0)}"
             )
         else:
             console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")

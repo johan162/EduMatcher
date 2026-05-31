@@ -623,6 +623,97 @@ def make_circuit_breaker_resume_all_ack_msg(
     )
 
 
+# ---------------------------------------------------------------------------
+# Per-symbol halt / resume
+# ---------------------------------------------------------------------------
+
+
+def make_symbol_halt_msg(gateway_id: str, symbol: str) -> list[bytes]:
+    """Admin → engine: halt trading on a single symbol (ADMIN role required)."""
+    return encode(
+        "risk.symbol_halt",
+        {"gateway_id": gateway_id, "symbol": symbol.upper()},
+    )
+
+
+def make_symbol_halt_ack_msg(
+    gateway_id: str,
+    symbol: str,
+    accepted: bool,
+    reason: str = "",
+    cancelled_quotes: int = 0,
+) -> list[bytes]:
+    """Engine → admin: per-symbol halt result."""
+    return encode(
+        f"risk.symbol_halt_ack.{gateway_id}",
+        {
+            "accepted": accepted,
+            "symbol": symbol,
+            "reason": reason,
+            "cancelled_quotes": cancelled_quotes,
+        },
+    )
+
+
+def make_symbol_resume_msg(gateway_id: str, symbol: str) -> list[bytes]:
+    """Admin → engine: resume trading on a single halted symbol (ADMIN role required)."""
+    return encode(
+        "risk.symbol_resume",
+        {"gateway_id": gateway_id, "symbol": symbol.upper()},
+    )
+
+
+def make_symbol_resume_ack_msg(
+    gateway_id: str,
+    symbol: str,
+    accepted: bool,
+    reason: str = "",
+) -> list[bytes]:
+    """Engine → admin: per-symbol resume result."""
+    return encode(
+        f"risk.symbol_resume_ack.{gateway_id}",
+        {
+            "accepted": accepted,
+            "symbol": symbol,
+            "reason": reason,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Symbol-scoped mass cancel (across all gateways)
+# ---------------------------------------------------------------------------
+
+
+def make_cancel_symbol_msg(gateway_id: str, symbol: str) -> list[bytes]:
+    """Admin → engine: cancel all resting orders for *symbol* across every gateway."""
+    return encode(
+        "risk.cancel_symbol",
+        {"gateway_id": gateway_id, "symbol": symbol.upper()},
+    )
+
+
+def make_cancel_symbol_ack_msg(
+    gateway_id: str,
+    symbol: str,
+    accepted: bool,
+    reason: str = "",
+    cancelled_orders: int = 0,
+    cancelled_quotes: int = 0,
+) -> list[bytes]:
+    """Engine → admin: symbol-level mass-cancel result."""
+    return encode(
+        f"risk.cancel_symbol_ack.{gateway_id}",
+        {
+            "accepted": accepted,
+            "symbol": symbol,
+            "reason": reason,
+            "cancelled_orders": cancelled_orders,
+            "cancelled_quotes": cancelled_quotes,
+        },
+    )
+
+
 def make_dropcopy_fill_msg(
     gateway_id: str, fill_payload: dict[str, Any]
 ) -> list[bytes]:
