@@ -30,10 +30,12 @@ EduMatcher is a comprehensive, production-grade educational trading system that 
 | Category          | Details                                                                                    |
 | ----------------- | ------------------------------------------------------------------------------------------ |
 | **Purpose**       | Educational trading system: order matching engine, gateway architecture, market mechanisms |
-| **Performance**   | ~160,000 orders/second with sub-10µs latency — comparable to real exchange engines         |
+| **Performance**   | ~60,000 orders/second with sub-10µs latency         |
 | **Language**      | Python 3.10+ with full type hints and comprehensive test coverage (85%+)                   |
 | **Learning Path** | Audit trails → Order books → Matching algorithms → Auctions → Multi-process systems        |
 | **Documentation** | Extensive docs covering concepts, architecture, configuration, and deployment              |
+
+*A note on performance:* The primary drag for increasing performance is the need to do a price collar (and circuit-breaker) check in the hot path for every match. This is necessary in order to do real risk-management. There is no way around this. 
 
 ## What You'll Learn
 
