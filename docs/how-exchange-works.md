@@ -12,7 +12,7 @@ You have been asked to work on a financial exchange system. The codebase is full
 
 This document is a conceptual map. It will not show you a single line of code. Instead, it will walk you through the world your code inhabits: the participants, the rules, the safeguards, and the architecture that together constitute a financial exchange. By the end, you should be able to read a description of a market event, "GW01 submitted a GTC iceberg order that triggered a circuit breaker halt; the matching engine moved to CLOSING_AUCTION state and the scheduler notified all subscribers via the PUB socket", and understand every word of it.
 
-By necessity most of the concepts are only very briefly discussed. Any fuller discussion would render 100's of pages of hard-core finance literature and the point of this document is not to be a complete introduction to finance (if even such a thing is possible). Instead you will find excellent academic references (that I have drawn upon in writing this) that do indeed have 100's of pages of, sometimes very complex math, at the end of this document.
+By necessity most of the concepts are only very briefly discussed. Any fuller discussion would render hundreds of pages of hard-core finance literature and the point of this document is not to be a complete introduction to finance (if even such a thing is possible). Instead you will find excellent academic references (that I have drawn upon in writing this) that do indeed have hundreds of pages of, sometimes very complex math, at the end of this document.
 
 Real exchanges are referenced throughout to anchor the concepts in reality. The NYSE (New York Stock Exchange), CME Group (Chicago Mercantile Exchange), Eurex, LSE (London Stock Exchange), NASDAQ, and IEX are among the most influential exchanges in the world, and each has contributed to the vocabulary and practices you will encounter here. 
 
@@ -57,6 +57,7 @@ Real exchanges are referenced throughout to anchor the concepts in reality. The 
 
 - Speed Bumps, Leveling the Playing Field
 - The Technology Architecture
+- Exchange Connectivity Protocols, How Orders and Data Reach the Exchange
 - Primary and Secondary Sites, Resilience Architecture
 - Load Balancing, Distributing the Work
 - Market Data Architecture, How the Market Sees Itself
@@ -236,9 +237,15 @@ Every exchange makes three implicit promises to its participants:
 
 **1. Price discovery.** At any moment, the current price of an asset reflects the aggregate opinion of all participants currently willing to trade it. You can look at the market and see what "fair value" is right now.
 
+That does **not** mean the market has discovered some permanent "true" value. It means the exchange has produced the best currently available consensus price given the orders visible at that moment. In a fast market, that discovered price can legitimately change many times per second as new information arrives.
+
 **2. Liquidity.** You can convert your asset into cash (or vice versa) quickly, without having to wait indefinitely for a counterparty to appear. The exchange provides the infrastructure that makes counterparties findable.
 
+Liquidity is also **size-dependent**. Selling 100 shares of a liquid stock may happen instantly with almost no price impact; selling 5 million shares may still be possible, but only by moving through multiple price levels or slicing the order over time.
+
 **3. Fairness and transparency.** The rules for who trades first and at what price are known in advance, applied consistently, and visible to all participants equally. There is no backroom dealing.
+
+Fairness does not mean every participant gets the same result. It means the same published rules apply to everyone: if two orders arrive under identical conditions, the exchange must resolve them according to the same deterministic priority rules regardless of who submitted them.
 
 #### Instruments: What Is Being Traded?
 
@@ -345,6 +352,24 @@ This is also why you will find financial terminology resistant to renaming even 
 
 
 Before diving into mechanics, it helps to know who is actually in the room.
+
+```mermaid
+flowchart LR
+    INV["Investor / Trader"]
+    BR["Broker"]
+    MM["Market Maker"]
+    EX["Exchange"]
+    CCP["Clearing House / CCP"]
+    REG["Regulator / Surveillance"]
+
+    INV -->|"Submits order via"| BR
+    BR -->|"Routes order to"| EX
+    MM -->|"Quotes directly into"| EX
+    EX -->|"Reports matched trades to"| CCP
+    EX -->|"Reports market activity to"| REG
+```
+
+This is a deliberately simplified map of *roles*, not network topology. The investor cares about execution, the broker about access and client handling, the market maker about continuous quoting, the exchange about matching and rule enforcement, and the CCP about guaranteeing settlement after the trade.
 
 #### Traders (Regular Participants)
 
@@ -1638,6 +1663,13 @@ Without DvP, a seller might deliver shares and then find the buyer has defaulted
 
 US equities currently settle on **T+1**, one business day after the trade date. The market previously operated on T+5 (paper certificates and bicycle messengers), then T+3, then T+2 as settlement infrastructure was digitised, and moved to T+1 in 2024 [8]. Some markets (certain money market funds, US Treasury securities) already settle same-day. Same-day settlement eliminates settlement risk entirely but requires that cash and securities be available at the moment of trading.
 
+**Concrete example:** Suppose Fund A buys 1,000 shares of MSFT from Market Maker B at 14:03 on Monday.
+
+1. **Monday 14:03 — matching:** the exchange creates the trade record immediately.
+2. **Monday afternoon — clearing:** the CCP novates the trade, so Fund A and Market Maker B now face the CCP rather than each other directly.
+3. **Tuesday (T+1) — settlement:** cash is debited from Fund A and credited to Market Maker B; shares are debited from Market Maker B's custody account and credited to Fund A's.
+4. **After settlement:** the buyer is now the legal owner of the shares. Only at this point has the trade fully completed.
+
 #### Failed Settlement
 
 Not all trades settle on time. A **failed settlement** occurs when one party cannot deliver, the seller lacks the shares (perhaps their own purchase has not yet settled), or the buyer lacks the cash. Failed settlements create a cascading chain of problems, since other participants may be counting on receiving those shares to fulfil their own obligations.
@@ -1789,7 +1821,7 @@ A **speed bump** is a deliberate artificial delay introduced by the exchange to 
 
 #### IEX: The Most Famous Speed Bump
 
-**IEX (Investors Exchange)**, founded in 2012 and launched as a regulated exchange in 2016, introduced the speed bump concept to mainstream exchange operation [6]. IEX routes all orders through 38 miles of coiled fibre-optic cable (housed in a small box called the "magic shoe") before they reach the matching engine. The cable introduces a fixed 350-microsecond delay.
+**IEX (Investors Exchange)**, founded in 2012 and launched as a regulated exchange in 2016, introduced the speed bump concept to mainstream exchange operation [6]. IEX routes all orders through 38 miles of coiled fibre-optic cable (housed in a small box called the **Magic Shoebox**) before they reach the matching engine. The cable introduces a fixed 350-microsecond delay.
 
 IEX's founders argued in the book *Flash Boys* (Lewis, 2014) [6] that speed advantages primarily benefit HFT firms at the expense of long-term investors. The speed bump was their answer. IEX gained significant market share and regulatory approval, demonstrating that speed bumps are a viable exchange design.
 
@@ -1812,20 +1844,24 @@ flowchart LR
     LB["Load Balancer"]
     GW["Gateway Layer\nAuth · Validation · FIX Translation"]
     ME["Matching Engine\nSingle-threaded\nOne book per symbol\nDeterministic"]
-    PUB["PUB Socket\nMessage Bus"]
+    PUB["Public Market Data Bus\nPUB / SUB"]
     CL["Clearing\nProcess"]
     AL["Audit\nLog"]
     MD["Market Data\nFeed"]
     ST["Stats\nRecorder"]
-    DC["Drop Copy\nFeed"]
+    DC["Private Drop Copy Feed"]
+    RISK["Prime Broker / Risk /\nCompliance Consumer"]
 
     P1 & P2 & P3 --> LB --> GW
-    GW -- "Validated orders\n(PUSH)" --> ME
-    ME -- "ACKs and fills\n(PULL)" --> GW
+    GW -- "Inbound orders / cancels" --> ME
+    ME -- "ACKs, rejects,\nparticipant-specific fills" --> GW
     GW -- "Fill notifications" --> P1 & P2 & P3
-    ME -- "Trades, fills,\nbook updates" --> PUB
-    PUB --> CL & AL & MD & ST & DC
+    ME -- "Public trades,\nbook updates,\nsession events" --> PUB
+    PUB --> CL & AL & MD & ST
+    ME -- "Private participant\norder lifecycle copy" --> DC --> RISK
 ```
+
+The two outbound channels serve different audiences. The **public market data bus** is for shared market state, trades, books, and session events. **Drop copy** is private and participant-specific: it exists so a firm's risk, clearing, or compliance systems can see that firm's activity without subscribing to everyone else's.
 
 #### The Gateway
 
@@ -1860,7 +1896,7 @@ All eleven fields in this message have meaning:
 | 40 | OrdType | 2 | 1=Market, 2=Limit, 3=Stop |
 | 59 | TimeInForce | 0 | 0=DAY, 1=GTC, 3=IOC, 4=FOK, 7=ATC |
 
-Most exchanges accept FIX (or a compressed binary variant called FAST or ITCH for market data). A simplified FIX-inspired text format for internal gateway commands might look like: `NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.30`.
+Most exchanges accept FIX for general-purpose order entry and post-trade workflows. Market data, and sometimes the lowest-latency order-entry paths, often use separate binary protocols such as ITCH, OUCH, BOE, or FIX-family encodings such as FAST or SBE. A simplified FIX-inspired text format for internal gateway commands might look like: `NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.30`.
 
 #### The Matching Engine
 
@@ -1903,6 +1939,52 @@ Snapshots include:
 - The last trade price and quantity
 - Recent trade history (a rolling window of the last N trades)
 - The current tick size for the symbol (so subscribers can correctly format prices)
+
+### Exchange Connectivity Protocols, How Orders and Data Reach the Exchange
+
+Production exchanges rarely expose just one wire protocol. They usually separate **order entry** from **market data**, and they often support more than one style of client connectivity at the same venue: a human-readable or integration-friendly interface for broad interoperability, plus lower-latency binary protocols for firms that care about every microsecond.
+
+```mermaid
+flowchart LR
+    OMS["Broker OMS / EMS"] -->|FIX| GW["Exchange Gateway"]
+    HFT["Colocated low-latency client"] -->|OUCH / BOE| GW
+    GW --> ME["Matching Engine"]
+    ME -->|Execution reports / drop copy| OMS
+    ME -->|ITCH-style market data| MD["Feed handlers / algos / screens"]
+    MD -->|Gap detection / replay / snapshots| CONSUMERS["Trading systems and viewers"]
+```
+
+The split exists because these are different engineering problems. **Order-entry protocols** need sessions, authentication, throttles, cancels, replaces, rejects, and acknowledgements. **Market-data protocols** need fan-out, sequencing, packet-loss detection, replay, and compact encoding at very high message rates.
+
+| Protocol / family | Typical role | Usual wire style | Why venues use it | Official specification |
+|---|---|---|---|---|
+| **FIX** | General-purpose order entry, execution reports, drop copy, allocations | Text `tag=value` session protocol | Easy integration across brokers, OMS/EMS systems, and exchanges | [20] |
+| **OUCH** | Very low-latency order entry | Compact binary messages | Smaller message set and lower parsing cost than general FIX sessions | [18] |
+| **ITCH** | Depth-of-book and trade market data | Binary incremental market-data feed | Efficiently distributes every book event and trade to many subscribers | [17] |
+| **MoldUDP64** | Transport and sequencing wrapper for multicast market data | Binary packet framing over UDP multicast | Provides sequence numbers and recovery semantics around high-volume feeds | [19] |
+| **BOE** | Venue-specific low-latency order entry at Cboe | Binary | Optimised direct exchange access for latency-sensitive participants | [21], [22] |
+| **FAST / SBE** | Encoding families used to shrink or speed up messages | Binary encodings layered onto venue schemas or FIX-derived schemas | Reduces bandwidth and parsing overhead when plain FIX is too verbose | [20] |
+
+Two distinctions matter:
+
+1. **ITCH is not an order-entry protocol.** It tells you what happened in the market; it does not submit a new order.
+2. **FAST and SBE are encodings, not entire market models.** They describe how to pack fields efficiently; the venue still decides the business meaning of the messages.
+
+#### A Concrete Real-World Example
+
+An asset manager might send a parent order through a broker's OMS using FIX because it is readable, well understood, and easy to integrate into existing workflows. The broker's smart order router or a colocated market-making system may then convert that intent into many small child orders over a lower-latency venue protocol such as OUCH or BOE. At the same time, market-data handlers consume ITCH-style feeds to maintain a real-time book image and detect whether they missed any sequence numbers.
+
+That means one trading firm can use **three different protocol layers at once**:
+
+- **FIX** for workflow and interoperability
+- **OUCH / BOE** for direct low-latency order entry
+- **ITCH + MoldUDP64** for market data
+
+This is why exchange connectivity teams are careful about language. "The exchange protocol" is usually not one protocol. It is a family of interfaces, each built for a specific operational purpose.
+
+#### An Important Implementation Caution
+
+Protocol names travel across venues, but message schemas do not become interchangeable just because the names sound familiar. Nasdaq OUCH is not the same thing as a Cboe binary order-entry session, and one venue's ITCH feed will not necessarily carry the same event set, field ordering, or recovery workflow as another venue's market-data feed. In production work, you implement against the exact venue specification and certification suite, not against the protocol name alone.
 
 ### Primary and Secondary Sites, Resilience Architecture
 
@@ -2412,6 +2494,42 @@ The authoritative academic and practitioner reference for all derivatives. Chapt
 
 
 
+**[17]** Nasdaq Trader. *Nasdaq TotalView-ITCH 5.0 Specification*. Available at: https://www.nasdaqtrader.com/content/technicalsupport/specifications/dataproducts/NQTVITCHspecification.pdf
+
+Official Nasdaq documentation for its binary depth-of-book market-data feed. This is the canonical reference for how a venue-level ITCH feed represents order-book events, trades, and sequence-driven state changes.
+
+
+
+**[18]** Nasdaq Trader. *OUCH 5.0 Specification*. Available at: https://www.nasdaqtrader.com/content/technicalsupport/specifications/TradingProducts/OUCH5.0.pdf and landing page https://www.nasdaqtrader.com/Trader.aspx?id=OUCH
+
+Official Nasdaq documentation for its low-latency binary order-entry protocol. It is the clearest primary source for understanding the narrow, high-speed style of order-entry interface used by colocated and latency-sensitive participants.
+
+
+
+**[19]** Nasdaq Trader. *MoldUDP64 Specification*. Available at: https://www.nasdaqtrader.com/content/technicalsupport/specifications/dataproducts/moldudp64.pdf
+
+Official Nasdaq documentation for MoldUDP64, the packet framing and recovery model commonly used around high-volume multicast market-data feeds. It is useful because it shows that transport and business semantics are often specified separately.
+
+
+
+**[20]** FIX Trading Community. *Standards*. Available at: https://fixtrading.org/standards/
+
+The official standards portal for FIX, including the FIX protocol family and related encodings such as FAST and SBE. This is the authoritative starting point for the standardised side of exchange, broker, and post-trade connectivity.
+
+
+
+**[21]** Cboe U.S. Equities. *Technical Specifications*. Available at: https://www.cboe.com/us/equities/support/technical/
+
+Official Cboe engineering documentation hub for its U.S. equities markets. This is the primary public source for Cboe's low-latency order-entry and market-data interface specifications.
+
+
+
+**[22]** Cboe U.S. Options. *Technical Specifications*. Available at: https://www.cboe.com/us/options/support/technical/
+
+Official Cboe engineering documentation hub for its U.S. options markets. Included because protocol families such as BOE are often documented at the venue-technology-library level rather than in a single universal PDF.
+
+
+
 ## Exchanges own technical references
 
 Publicly available technical specifications and documentation provide exact structural logic and algorithmic details for combo and implied/synthetic orders across major electronic matching engines.
@@ -2452,8 +2570,6 @@ The core documentation for understanding order behavior, priority categories, an
 
 ### Notes on Sources Not Cited Inline
 
-Some specific facts in this document are well established in the historical and financial literature but could not be attributed to a single verifiable primary aademic document within this text, but rather second hand sources such as NYSE own publications and posts. For example:
+Some specific facts in this document are well established in the historical and financial literature but could not be attributed to a single verifiable primary academic document within this text, but rather second-hand sources such as NYSE's own publications and posts. For example:
 
 **NYSE closing auction volume (substantial part of daily volume):** Based on exchange market structure analyses published periodically by NYSE Group and referenced in market microstructure research. The specific percentage varies by year and instrument; the range given is illustrative. See [The shifting dynamics of the NYSE Closing Auction](https://www.nyse.com/data-insights/nyse-closing-auction-dynamics-2023)
-
-
