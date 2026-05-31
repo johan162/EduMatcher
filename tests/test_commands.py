@@ -42,10 +42,10 @@ from edumatcher.models.message import (
     make_volume_msg,
 )
 
-
 # ---------------------------------------------------------------------------
 # Test helpers
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class _FakePush:
@@ -63,7 +63,9 @@ def _q(*frames_list: list[bytes]) -> deque[list[bytes]]:
     return deque(frames_list)
 
 
-def _client(gw_id: str = "GW_ADMIN", recv_queue: deque[list[bytes]] | None = None) -> tuple[ExchangeCommandClient, _FakePush]:
+def _client(
+    gw_id: str = "GW_ADMIN", recv_queue: deque[list[bytes]] | None = None
+) -> tuple[ExchangeCommandClient, _FakePush]:
     push = _FakePush()
     client = ExchangeCommandClient(
         gw_id,
@@ -82,6 +84,7 @@ def _last_sent(push: _FakePush) -> tuple[str, dict]:
 # ---------------------------------------------------------------------------
 # Lifecycle
 # ---------------------------------------------------------------------------
+
 
 class TestLifecycle:
     def test_connect_sends_correct_frames(self) -> None:
@@ -141,6 +144,7 @@ class TestLifecycle:
 # ADMIN risk controls
 # ---------------------------------------------------------------------------
 
+
 class TestAdminRiskControls:
     def test_halt_all_sends_correct_frames(self) -> None:
         client, push = _client(
@@ -175,7 +179,9 @@ class TestAdminRiskControls:
     def test_resume_all_sends_correct_frames(self) -> None:
         client, push = _client(
             recv_queue=_q(
-                make_circuit_breaker_resume_all_ack_msg("GW_ADMIN", True, resumed_symbols=3)
+                make_circuit_breaker_resume_all_ack_msg(
+                    "GW_ADMIN", True, resumed_symbols=3
+                )
             )
         )
         result = client.resume_all()
@@ -190,7 +196,9 @@ class TestAdminRiskControls:
     def test_resume_all_zero_when_nothing_halted(self) -> None:
         client, push = _client(
             recv_queue=_q(
-                make_circuit_breaker_resume_all_ack_msg("GW_ADMIN", True, resumed_symbols=0)
+                make_circuit_breaker_resume_all_ack_msg(
+                    "GW_ADMIN", True, resumed_symbols=0
+                )
             )
         )
         result = client.resume_all()
@@ -201,6 +209,7 @@ class TestAdminRiskControls:
 # ---------------------------------------------------------------------------
 # Risk controls available to any gateway
 # ---------------------------------------------------------------------------
+
 
 class TestRiskControls:
     def test_kill_switch_all_symbols(self) -> None:
@@ -234,7 +243,9 @@ class TestRiskControls:
     def test_mass_cancel_delegates_to_kill_switch(self) -> None:
         client, push = _client(
             recv_queue=_q(
-                make_kill_switch_ack_msg("MM01", True, cancelled_orders=1, cancelled_quotes=2)
+                make_kill_switch_ack_msg(
+                    "MM01", True, cancelled_orders=1, cancelled_quotes=2
+                )
             )
         )
         result = client.mass_cancel("MM01", "MSFT")
@@ -246,15 +257,13 @@ class TestRiskControls:
         assert result["cancelled_quotes"] == 2
 
     def test_quote_cancel_sends_correct_frames(self) -> None:
-        client, push = _client(
-            recv_queue=_q(make_quote_ack_msg("MM01", "Q001", True))
-        )
+        client, push = _client(recv_queue=_q(make_quote_ack_msg("MM01", "Q001", True)))
         result = client.quote_cancel("mm01", "aapl")  # lowercase input
 
         topic, payload = _last_sent(push)
         assert topic == "quote.cancel"
         assert payload["gateway_id"] == "MM01"  # uppercased
-        assert payload["symbol"] == "AAPL"      # uppercased
+        assert payload["symbol"] == "AAPL"  # uppercased
 
         assert result["accepted"] is True
 
@@ -279,6 +288,7 @@ class TestRiskControls:
 # Data queries
 # ---------------------------------------------------------------------------
 
+
 class TestDataQueries:
     def test_book_depth_sends_snapshot_request(self) -> None:
         book_payload = {
@@ -289,9 +299,7 @@ class TestDataQueries:
             "last_qty": 50,
             "recent_trades": [],
         }
-        client, push = _client(
-            recv_queue=_q(make_book_msg("AAPL", book_payload))
-        )
+        client, push = _client(recv_queue=_q(make_book_msg("AAPL", book_payload)))
         result = client.book_depth("aapl")  # lowercase input
 
         topic, payload = _last_sent(push)
@@ -303,12 +311,8 @@ class TestDataQueries:
         assert result["last_price"] == 150.25
 
     def test_order_list_returns_orders_array(self) -> None:
-        orders = [
-            {"id": "abc", "symbol": "AAPL", "side": "BUY", "remaining_qty": 100}
-        ]
-        client, push = _client(
-            recv_queue=_q(make_orders_msg("TRADER01", orders))
-        )
+        orders = [{"id": "abc", "symbol": "AAPL", "side": "BUY", "remaining_qty": 100}]
+        client, push = _client(recv_queue=_q(make_orders_msg("TRADER01", orders)))
         result = client.order_list("TRADER01")
 
         topic, payload = _last_sent(push)
@@ -340,9 +344,12 @@ class TestDataQueries:
 # Session control
 # ---------------------------------------------------------------------------
 
+
 class TestSessionControl:
     def test_session_advance_sends_transition(self) -> None:
-        state_msg = encode("session.state", {"state": "CONTINUOUS", "prev_state": "OPENING_AUCTION"})
+        state_msg = encode(
+            "session.state", {"state": "CONTINUOUS", "prev_state": "OPENING_AUCTION"}
+        )
         client, push = _client(recv_queue=_q(state_msg))
         result = client.session_advance("continuous")  # lowercase input
 
@@ -358,11 +365,14 @@ class TestSessionControl:
 # _recv behaviour
 # ---------------------------------------------------------------------------
 
+
 class TestRecvBehaviour:
     def test_recv_skips_unrelated_messages_before_matching(self) -> None:
         """Messages that don't match the prefix are silently discarded."""
         unrelated = encode("order.ack.TRADER01", {"order_id": "x", "accepted": True})
-        halt_ack = make_circuit_breaker_halt_all_ack_msg("GW_ADMIN", True, halted_symbols=1)
+        halt_ack = make_circuit_breaker_halt_all_ack_msg(
+            "GW_ADMIN", True, halted_symbols=1
+        )
 
         client, _ = _client(recv_queue=_q(unrelated, halt_ack))
         result = client.halt_all()
@@ -386,8 +396,12 @@ class TestRecvBehaviour:
 
     def test_multiple_commands_in_sequence(self) -> None:
         """Each command consumes exactly its own ack from the queue."""
-        halt_ack = make_circuit_breaker_halt_all_ack_msg("GW_ADMIN", True, halted_symbols=2)
-        resume_ack = make_circuit_breaker_resume_all_ack_msg("GW_ADMIN", True, resumed_symbols=2)
+        halt_ack = make_circuit_breaker_halt_all_ack_msg(
+            "GW_ADMIN", True, halted_symbols=2
+        )
+        resume_ack = make_circuit_breaker_resume_all_ack_msg(
+            "GW_ADMIN", True, resumed_symbols=2
+        )
 
         client, push = _client(recv_queue=_q(halt_ack, resume_ack))
 
@@ -407,6 +421,7 @@ class TestRecvBehaviour:
 # ---------------------------------------------------------------------------
 # New read-only query commands
 # ---------------------------------------------------------------------------
+
 
 class TestSessionStatus:
     def test_returns_state_and_sessions_enabled(self) -> None:
@@ -466,8 +481,18 @@ class TestSessionSchedule:
 class TestGatewayList:
     def test_returns_list_of_gateways(self) -> None:
         gateways = [
-            {"id": "GW_ADMIN", "role": "ADMIN", "description": "Admin gateway", "connected": True},
-            {"id": "TRADER01", "role": "TRADER", "description": "Trader 1", "connected": False},
+            {
+                "id": "GW_ADMIN",
+                "role": "ADMIN",
+                "description": "Admin gateway",
+                "connected": True,
+            },
+            {
+                "id": "TRADER01",
+                "role": "TRADER",
+                "description": "Trader 1",
+                "connected": False,
+            },
         ]
         ack = make_gateways_msg("GW_ADMIN", gateways)
         client, push = _client(recv_queue=_q(ack))
@@ -520,4 +545,3 @@ class TestVolume:
         result = client.volume()
         assert result["total_qty"] == 0
         assert result["symbols"] == {}
-

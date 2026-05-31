@@ -2,13 +2,15 @@
 
 **Learn how real trading systems work. Build it from first principles.**
 
-| Category | Link |
-|----------|--------|
-|**License**|[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)|
-|**Release**|[![GitHub release](https://img.shields.io/github/v/release/johan162/edumatcher?include_prereleases)](https://github.com/johan162/edumatcher/releases)|
-|**CI/CD**|[![Coverage](https://img.shields.io/badge/coverage-85%25-brightgreen.svg)](coverage.svg)|
-|**Code Quality**|[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/) [![Linting: flake8](https://img.shields.io/badge/linting-flake8-yellowgreen)](https://flake8.pycqa.org/)|
-|Repo URL|[![GitHub](https://img.shields.io/badge/GitHub-100000?style=flat-square&logo=github&logoColor=white)](https://github.com/johan162/edumatcher)|
+| Category          | Link                                                                                                                                                                                                                                                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Package**       | [![PyPI version](https://img.shields.io/pypi/v/mcprojsim.svg)](https://pypi.org/project/mcprojsim/) [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)                                                                                                              |
+| **Documentation** | [![Documentation](https://img.shields.io/badge/docs-mkdocs-blue)](https://johan162.github.io/edumatcher/)                                                                                                                                                                                                                 |
+| **License**       | [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)                                                                                                                                                                                                               |
+| **Release**       | [![GitHub release](https://img.shields.io/github/v/release/johan162/edumatcher?include_prereleases)](https://github.com/johan162/edumatcher/releases)                                                                                                                                                                     |
+| **CI/CD**         | [![Coverage](https://img.shields.io/badge/coverage-85%25-brightgreen.svg)](coverage.svg)                                                                                                                                                                                                                                  |
+| **Code Quality**  | [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/) [![Linting: flake8](https://img.shields.io/badge/linting-flake8-yellowgreen)](https://flake8.pycqa.org/) |
+| Repo URL          | [![GitHub](https://img.shields.io/badge/GitHub-100000?style=flat-square&logo=github&logoColor=white)](https://github.com/johan162/edumatcher)                                                                                                                                                                             |
 
 
 > [!CAUTION]
@@ -25,13 +27,13 @@
 EduMatcher is a comprehensive, production-grade educational trading system that teaches the fundamentals of order matching, market microstructure, and multi-process system design. Unlike toy implementations, EduMatcher is *genuinely fast and realistic* — perfect for learning how modern exchanges actually work.
 
 
-| Category | Details |
-|----------|---------|
-| **Purpose** | Educational trading system: order matching engine, gateway architecture, market mechanisms |
-| **Performance** | ~160,000 orders/second with sub-10µs latency — comparable to real exchange engines |
-| **Language** | Python 3.10+ with full type hints and comprehensive test coverage (85%+) |
-| **Learning Path** | Audit trails → Order books → Matching algorithms → Auctions → Multi-process systems |
-| **Documentation** | Extensive docs covering concepts, architecture, configuration, and deployment |
+| Category          | Details                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| **Purpose**       | Educational trading system: order matching engine, gateway architecture, market mechanisms |
+| **Performance**   | ~160,000 orders/second with sub-10µs latency — comparable to real exchange engines         |
+| **Language**      | Python 3.10+ with full type hints and comprehensive test coverage (85%+)                   |
+| **Learning Path** | Audit trails → Order books → Matching algorithms → Auctions → Multi-process systems        |
+| **Documentation** | Extensive docs covering concepts, architecture, configuration, and deployment              |
 
 ## What You'll Learn
 
@@ -64,15 +66,15 @@ EduMatcher achieves **real-world latency** while remaining purely educational:
 ### Latency (engine-only, n=1,000 each)
 
 | Order type | min (µs) | median (µs) | P80 (µs) | P90 (µs) | max (µs) |
-|------------|--------:|------------:|---------:|---------:|---------:|
-| Limit      |     8.1 |         8.5 |      9.6 |     10.0 |       18 |
-| Market     |     8.1 |         8.5 |      8.8 |      9.3 |       45 |
+| ---------- | -------: | ----------: | -------: | -------: | -------: |
+| Limit      |      8.1 |         8.5 |      9.6 |     10.0 |       18 |
+| Market     |      8.1 |         8.5 |      8.8 |      9.3 |       45 |
 
 ### Throughput
 
-| Metric | Value |
-|--------|-------|
-| **Max TPS** | ~160,000 orders/second |
+| Metric        | Value                                               |
+| ------------- | --------------------------------------------------- |
+| **Max TPS**   | ~160,000 orders/second                              |
 | **Order mix** | 20% Market, 30% aggressive Limit, 50% passive Limit |
 
 These numbers aren't just impressive—they're *realistic*. You're learning how production exchanges actually perform.
@@ -145,9 +147,31 @@ Run performance benchmarks:
 # just perf tests (verbose output)
 poetry run pytest tests/test_perf.py -v -s -m perf -p no:cov
 
+# throughput-only (TPS table)
+poetry run pytest tests/test_perf.py -v -s -m perf -k max_tps -p no:cov
+
 # exclude from normal CI runs
 poetry run pytest tests/ -m "not perf"
 ```
+
+### Latest TPS sample output
+
+The command above prints a throughput block. A recent local run produced:
+
+| Metric              |       Value |
+| ------------------- | ----------: |
+| Timed orders (`n`)  |       9,900 |
+| Market BUY          | 2,000 (20%) |
+| Aggressive LIMIT    | 3,000 (30%) |
+| Passive BUY         | 2,500 (25%) |
+| Passive SELL        | 2,500 (25%) |
+| Elapsed             |     0.189 s |
+| Trades generated    |       7,421 |
+| TPS (orders/sec)    |      52,487 |
+| Mean time per order |   19.052 µs |
+
+These values are machine-dependent and should be treated as a baseline example,
+not a fixed performance guarantee.
 
 ## Why EduMatcher?
 

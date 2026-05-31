@@ -67,6 +67,11 @@ def decode(frames: list[bytes]) -> tuple[str, dict[str, Any]]:
     return topic, payload
 
 
+def dumps(payload: dict[str, Any]) -> bytes:
+    """Public JSON serializer for payloads used in fast-path message publishing."""
+    return _dumps(payload)
+
+
 def make_order_new_msg(order_dict: dict[str, Any]) -> list[bytes]:
     return encode("order.new", order_dict)
 

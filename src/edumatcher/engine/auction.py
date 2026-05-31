@@ -10,6 +10,8 @@ The functions in this module operate on an OrderBook instance and return
 trades + events for the engine to publish.
 """
 
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
 
 from dataclasses import dataclass

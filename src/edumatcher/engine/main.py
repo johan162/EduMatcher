@@ -53,7 +53,7 @@ from edumatcher.messaging.bus import make_puller, make_publisher
 from edumatcher.models.combo import ComboOrder, ComboStatus
 from edumatcher.models.clock import now_ns
 from edumatcher.models.message import (
-    _dumps,
+    dumps,
     decode,
     encode,
     make_ack_msg,
@@ -697,7 +697,7 @@ class Engine:
         self.pub_sock.send_multipart(
             [
                 ack_topic,
-                _dumps(
+                dumps(
                     {
                         "order_id": order.id,
                         "accepted": True,
@@ -734,7 +734,7 @@ class Engine:
                     [
                         _tc.get(f"fill.{evt.gateway_id}")
                         or f"order.fill.{evt.gateway_id}".encode(),
-                        _dumps(
+                        dumps(
                             {
                                 "order_id": evt.id,
                                 "fill_qty": evt.quantity - evt.remaining_qty,
@@ -806,7 +806,7 @@ class Engine:
                     [
                         _tc.get(f"cancel.{evt.gateway_id}")
                         or f"order.cancelled.{evt.gateway_id}".encode(),
-                        _dumps({"order_id": evt.id}),
+                        dumps({"order_id": evt.id}),
                     ]
                 )
                 if evt.combo_parent_id:
@@ -868,9 +868,9 @@ class Engine:
         if self._engine_config:
             for gw_id, cfg in sorted(self._engine_config.fix_gateways.items()):
                 session = self._sessions.get(gw_id)
-                connected = (
-                    session is not None and session.connected
-                ) or (gw_id in self._connected_fix_gateways)
+                connected = (session is not None and session.connected) or (
+                    gw_id in self._connected_fix_gateways
+                )
                 gateways.append(
                     {
                         "id": gw_id,
@@ -1043,7 +1043,7 @@ class Engine:
         self.pub_sock.send_multipart(
             [
                 _TRADE_TOPIC,
-                _dumps(
+                dumps(
                     {
                         "id": trade.id,
                         "symbol": trade.symbol,
@@ -1259,6 +1259,9 @@ class Engine:
             if self._engine_config
             else None
         )
+        enforce_mm = False
+        mm_max_spread_ticks = 0
+        mm_min_qty = 0
         if cfg:
             enforce_mm = cfg.enforce_mm_obligation
             mm_max_spread_ticks = cfg.mm_max_spread_ticks
@@ -1874,7 +1877,7 @@ class Engine:
         """Cancel all resting child legs and mark combo as terminal."""
         combo.status = terminal_status
 
-        for i, child_id in enumerate(combo.child_order_ids):
+        for child_id in combo.child_order_ids:
             symbol = self._order_symbol.get(child_id)
             book = self.books.get(symbol) if symbol else None
             if book:
@@ -1991,6 +1994,7 @@ class Engine:
             if symbol_filter is not None and symbol != symbol_filter:
                 continue
             result = compute_equilibrium(book)
+            trades: list[Any] = []
             if result.eq_price is not None and result.eq_qty > 0:
                 trades, events = execute_uncross(book, result.eq_price)
 
@@ -2134,7 +2138,7 @@ class Engine:
             return
 
         # Validate that legs with limit/stop prices have those prices
-        for i, (leg, raw) in enumerate([(leg1, leg1_raw), (leg2, leg2_raw)], 1):
+        for i, leg in enumerate((leg1, leg2), 1):
             if (
                 leg.order_type in (OrderType.LIMIT, OrderType.IOC, OrderType.FOK)
                 and leg.price is None

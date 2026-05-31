@@ -1,0 +1,88 @@
+name: Publish Python Package to PyPI
+
+on:
+  # This workflow runs every time a new release is created on GitHub
+  release:
+    types: [published]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Check tag format
+      id: tag_check
+      run: |
+        TAG_NAME="${{ github.ref_name }}"
+        echo "Tag name: $TAG_NAME"
+        
+        # Production releases must match exactly vMAJOR.MINOR.PATCH.
+        # Pre-releases like v1.2.3rc1 are published to TestPyPI.
+        if [[ "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "is_production_release=true" >> $GITHUB_OUTPUT
+          echo "This is a production release (exact vMAJOR.MINOR.PATCH tag)"
+        else
+          echo "is_production_release=false" >> $GITHUB_OUTPUT
+          echo "This is a non-production release and will be published to TestPyPI"
+        fi
+
+    - name: Install Poetry
+      run: |
+        pipx install poetry
+        poetry config virtualenvs.in-project true
+
+    - name: Cache Poetry dependencies
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: ${{ runner.os }}-publish-poetry-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-publish-poetry-
+
+    - name: Install Poetry dev tools
+      run: |
+        poetry install --only dev --no-root --no-interaction
+
+    - name: Validate Poetry project metadata
+      run: poetry check
+
+    - name: Build package
+      run: poetry build
+
+    - name: Check package
+      run: poetry run twine check dist/*
+
+    # ------------------------------------------------------------------
+    # CONDITIONAL UPLOAD TO TESTPYPI
+    # This step runs for non-production releases (examples: test-v1.0.0, v1.0.0rc1, v1.0.0-beta1)
+    # ------------------------------------------------------------------
+    - name: Publish package to TestPyPI
+      if: steps.tag_check.outputs.is_production_release == 'false'
+      env:
+        POETRY_REPOSITORIES_TESTPYPI_URL: https://test.pypi.org/legacy/
+        POETRY_HTTP_BASIC_TESTPYPI_USERNAME: __token__
+        POETRY_HTTP_BASIC_TESTPYPI_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+      run: |
+        poetry publish --repository testpypi --no-interaction
+
+    # ------------------------------------------------------------------
+    # CONDITIONAL UPLOAD TO REAL PYPI  
+    # This step runs for production releases (examples: v1.0.0, v2.1.5, v1.2.3)
+    # ------------------------------------------------------------------
+    - name: Publish package to PyPI
+      if: steps.tag_check.outputs.is_production_release == 'true'
+      env:
+        POETRY_HTTP_BASIC_PYPI_USERNAME: __token__
+        POETRY_HTTP_BASIC_PYPI_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        poetry publish --no-interaction

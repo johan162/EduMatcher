@@ -41,10 +41,10 @@ from rich.table import Table
 
 from edumatcher.commands import CommandTimeoutError, ExchangeCommandClient
 
-
 # ---------------------------------------------------------------------------
 # prompt_toolkit / rich integration (same pattern as pm-gateway)
 # ---------------------------------------------------------------------------
+
 
 class _SysStdoutProxy:
     """
@@ -112,11 +112,11 @@ _TOP_CMDS = [
 
 # Fields expected after each multi-field command (in typical entry order)
 _CMD_FIELDS: dict[str, list[str]] = {
-    "KILL":    ["GW=", "SYM="],
-    "KICK":    ["GW=", "REASON="],
+    "KILL": ["GW=", "SYM="],
+    "KICK": ["GW=", "REASON="],
     "QCANCEL": ["GW=", "SYM="],
-    "BOOK":    ["SYM="],
-    "ORDERS":  ["GW="],
+    "BOOK": ["SYM="],
+    "ORDERS": ["GW="],
     "SESSION": ["STATE="],
 }
 
@@ -153,9 +153,7 @@ class _AdminCompleter(Completer):
     def __init__(self, known_symbols: list[str]) -> None:
         self.known_symbols = known_symbols
 
-    def get_completions(
-        self, document: Document, complete_event: CompleteEvent
-    ) -> Any:
+    def get_completions(self, document: Document, complete_event: CompleteEvent) -> Any:
         text = document.text_before_cursor
         parts = text.split("|")
         current = parts[-1]
@@ -169,9 +167,7 @@ class _AdminCompleter(Completer):
             return
 
         cmd = parts[0].upper()
-        already_keys = {
-            seg.split("=")[0].upper() for seg in parts[1:] if "=" in seg
-        }
+        already_keys = {seg.split("=")[0].upper() for seg in parts[1:] if "=" in seg}
 
         # ---- Value completion after KEY= ----
         if "=" in current:
@@ -191,8 +187,7 @@ class _AdminCompleter(Completer):
         # ---- Field-name completion ----
         partial_key = current.upper()
         field_candidates = [
-            f for f in _CMD_FIELDS.get(cmd, [])
-            if f.rstrip("=") not in already_keys
+            f for f in _CMD_FIELDS.get(cmd, []) if f.rstrip("=") not in already_keys
         ]
         for c in field_candidates:
             if c.upper().startswith(partial_key):
@@ -202,6 +197,7 @@ class _AdminCompleter(Completer):
 # ---------------------------------------------------------------------------
 # Command parser
 # ---------------------------------------------------------------------------
+
 
 def _parse(line: str) -> tuple[str, dict[str, str]]:
     """Parse ``'CMD|K=V|K=V'`` into ``(CMD, {K: V, ...})``."""
@@ -218,6 +214,7 @@ def _parse(line: str) -> tuple[str, dict[str, str]]:
 # ---------------------------------------------------------------------------
 # Display helpers
 # ---------------------------------------------------------------------------
+
 
 def _print_book(book: dict[str, Any]) -> None:
     sym = book.get("symbol", "?")
@@ -306,7 +303,9 @@ def _print_session_status(result: dict[str, Any]) -> None:
     enabled = result.get("sessions_enabled", False)
     state_col = "bold green" if state not in ("CLOSED", "PRE_OPEN") else "bold yellow"
     console.print(f"  Session state     : [{state_col}]{state}[/{state_col}]")
-    console.print(f"  Auto-scheduling   : {'[green]ON[/green]' if enabled else '[dim]off[/dim]'}")
+    console.print(
+        f"  Auto-scheduling   : {'[green]ON[/green]' if enabled else '[dim]off[/dim]'}"
+    )
 
 
 def _print_schedule(result: dict[str, Any]) -> None:
@@ -314,7 +313,9 @@ def _print_schedule(result: dict[str, Any]) -> None:
     schedule: dict[str, str] = result.get("schedule", {})
 
     if not enabled:
-        console.print("[dim]Automatic session scheduling is [yellow]disabled[/yellow].[/dim]")
+        console.print(
+            "[dim]Automatic session scheduling is [yellow]disabled[/yellow].[/dim]"
+        )
         if not schedule:
             return
 
@@ -327,11 +328,11 @@ def _print_schedule(result: dict[str, Any]) -> None:
     t.add_column("Time (HH:MM)", justify="right", min_width=14)
 
     phase_labels = [
-        ("pre_open",              "Pre-Open"),
+        ("pre_open", "Pre-Open"),
         ("opening_auction_start", "Opening Auction Start"),
-        ("continuous_start",      "Continuous Trading Start"),
+        ("continuous_start", "Continuous Trading Start"),
         ("closing_auction_start", "Closing Auction Start"),
-        ("closing_auction_end",   "Closing Auction End"),
+        ("closing_auction_end", "Closing Auction End"),
     ]
     for key, label in phase_labels:
         val = schedule.get(key, "") if schedule else ""
@@ -408,6 +409,7 @@ def _print_volume(result: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 # Shared command executor — used by both the REPL and the CLI tool
 # ---------------------------------------------------------------------------
+
 
 def execute_command(  # noqa: C901
     client: ExchangeCommandClient,
@@ -503,9 +505,7 @@ def execute_command(  # noqa: C901
             return False
         result = client.quote_cancel(gw, sym)
         if result.get("accepted"):
-            console.print(
-                f"[yellow]QCANCEL OK[/yellow]  {gw.upper()}  {sym.upper()}"
-            )
+            console.print(f"[yellow]QCANCEL OK[/yellow]  {gw.upper()}  {sym.upper()}")
         else:
             console.print(f"[red]REJECTED[/red]  {result.get('reason', '')}")
         return bool(result.get("accepted"))
@@ -598,7 +598,9 @@ class AdminConsole:
         if cmd in ("EXIT", "QUIT"):
             raise SystemExit(0)
         try:
-            execute_command(self._client, cmd, fields, symbols_cache=self._known_symbols)
+            execute_command(
+                self._client, cmd, fields, symbols_cache=self._known_symbols
+            )
         except CommandTimeoutError as exc:
             console.print(f"[red]TIMEOUT[/red]  {exc}")
 
@@ -673,6 +675,7 @@ class AdminConsole:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(

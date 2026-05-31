@@ -23,7 +23,7 @@ import logging
 import signal
 import sys
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -74,7 +74,7 @@ class AuditProcess:
                 frames = self.sub.recv_multipart()
                 try:
                     topic, payload = decode(frames)
-                    ts = datetime.utcnow().isoformat(timespec="milliseconds")
+                    ts = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
                     line = f"[{ts}] [{topic}] {json.dumps(payload)}"
                     self.logger.info(line)
                 except Exception as exc:

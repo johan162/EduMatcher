@@ -47,7 +47,7 @@ from typing import Any, Optional
 
 import zmq
 
-from edumatcher.models.message import _dumps
+from edumatcher.models.message import dumps
 
 # Per-process monotone counter — starts at 1 so seq=0 means "no events yet"
 _seq_counter = itertools.count(1)
@@ -137,7 +137,7 @@ class DropCopyPublisher:
         self._pub.send_multipart(
             [
                 topic_bytes,
-                _dumps(
+                dumps(
                     {
                         "seq": seq,
                         "timestamp": now,
@@ -175,7 +175,7 @@ class DropCopyPublisher:
                 self._pub.send_multipart(
                     [
                         topic_bytes,
-                        _dumps(
+                        dumps(
                             {
                                 "seq": msg.seq,
                                 "timestamp": msg.timestamp,

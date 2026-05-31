@@ -1,0 +1,89 @@
+name: Setup Python and Poetry
+description: Set up Python, Poetry, and the project dependencies for CI jobs
+
+inputs:
+  python-version:
+    description: Python version to install
+    required: false
+    default: "3.13"
+  dependency-groups:
+    description: Comma-separated Poetry groups to install with --with
+    required: false
+    default: "dev"
+  install-root:
+    description: Whether to install the project package itself
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install Poetry
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install poetry
+
+    - name: Configure Poetry
+      shell: bash
+      run: |
+        poetry config virtualenvs.in-project true
+        poetry --version
+
+    - name: Normalize cache key inputs
+      id: normalize
+      shell: bash
+      run: |
+        SANITIZED_GROUPS="${{ inputs.dependency-groups }}"
+        SANITIZED_GROUPS="${SANITIZED_GROUPS//,/-}"
+        SANITIZED_GROUPS="${SANITIZED_GROUPS// /-}"
+        SANITIZED_GROUPS="${SANITIZED_GROUPS//[^a-zA-Z0-9._-]/-}"
+        while [[ "${SANITIZED_GROUPS}" == *--* ]]; do
+          SANITIZED_GROUPS="${SANITIZED_GROUPS//--/-}"
+        done
+        SANITIZED_GROUPS="${SANITIZED_GROUPS#-}"
+        SANITIZED_GROUPS="${SANITIZED_GROUPS%-}"
+
+        if [[ -z "${SANITIZED_GROUPS}" ]]; then
+          SANITIZED_GROUPS="default"
+        fi
+
+        echo "dependency-groups-key=${SANITIZED_GROUPS}" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Poetry download cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pypoetry
+        key: ${{ runner.os }}-pypoetry-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-pypoetry-
+
+    - name: Cache virtual environment
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: >-
+          ${{ runner.os }}-py${{ inputs.python-version }}-groups-${{ steps.normalize.outputs.dependency-groups-key }}-root-${{ inputs.install-root }}-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-py${{ inputs.python-version }}-groups-${{ steps.normalize.outputs.dependency-groups-key }}-root-${{ inputs.install-root }}-
+          ${{ runner.os }}-py${{ inputs.python-version }}-
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        ARGS=(install --sync)
+
+        if [[ -n "${{ inputs.dependency-groups }}" ]]; then
+          ARGS+=(--with "${{ inputs.dependency-groups }}")
+        fi
+
+        if [[ "${{ inputs.install-root }}" != "true" ]]; then
+          ARGS+=(--no-root)
+        fi
+
+        poetry "${ARGS[@]}"

@@ -430,8 +430,6 @@ def load_engine_config(path: Path) -> EngineConfig:
                 effective_collar_raw.update(collar_raw)
 
         if effective_collar_raw is not None:
-            if not isinstance(effective_collar_raw, dict):
-                raise ValueError(f"Symbol '{sym}': collar must be a mapping")
             from edumatcher.engine.collar import CollarConfig
 
             try:
@@ -513,8 +511,6 @@ def load_engine_config(path: Path) -> EngineConfig:
             effective_cb_raw["levels"] = merged_levels
 
         if effective_cb_raw is not None:
-            if not isinstance(effective_cb_raw, dict):
-                raise ValueError(f"Symbol '{sym}': circuit_breaker must be a mapping")
             from edumatcher.engine.circuit_breaker import (
                 CircuitBreakerConfig,
                 CircuitBreakerLevel,

@@ -3,13 +3,21 @@
 # poetry install --with dev,docs
 
 
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
 [tool.poetry]
 name = "edumatcher"
-version = "1.0.0-beta"
+version = "0.1.0rc1"
 description = "Educational multi-process trading system with order matching"
-authors = ["johan162@gmail.com"]
+authors = ["Johan Persson <johan162@gmail.com>"]
 readme = "README.md"
 packages = [{include = "edumatcher", from = "src"}]
+keywords = ["finance", "exchange", "matching-engine", "trading", "education", "learning", "order-matching", "market-microstructure"]
+license = "MIT"
+repository = "https://github.com/johan162/EduMatcher"
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -18,11 +26,6 @@ rich = "^15.0.0"
 prompt_toolkit = "^3.0"
 pyyaml = "^6.0.3"
 orjson = "^3.11.9"
-flake8 = "^7.3.0"
-black = "^26.3.1"
-mypy = "^1.20.2"
-twine = "^6.2.0"
-pyright = "^1.1.409"
 
 [tool.poetry.group.dev.dependencies]
 mkdocs = "^1.6"
@@ -30,6 +33,15 @@ mkdocs-material = "^9.0"
 pytest = "^9.0.3"
 types-PyYAML = "^6.0"
 pytest-cov = "^7.1.0"
+pytest-xdist = ">=3.8.0"
+twine = ">=6.2.0"
+types-tabulate = "^0.10.0.20260308"
+pyright = "^1.1.409"
+flake8 = "^7.3.0"
+black = "^26.3.1"
+mypy = "^1.20.2"
+
+
 
 [tool.poetry.group.docs.dependencies]
 mkdocs = ">=1.5.0"
@@ -55,14 +67,36 @@ pm-ai-swarm = "edumatcher.ai_trader.swarm:main"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-ra --strict-markers"
+python_classes = ["Test*"]
+python_functions = ["test_*"]
 markers = [
     "perf: performance / benchmarking tests (deselect with '-m not perf')",
 ]
+addopts = [
+    "--strict-markers",
+    "-m",
+    "not heavy and not probabilistic and not probabilistic_full",
+    "--cov=edumatcher",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*", "*/test_*.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
 
 [tool.black]
 line-length = 88
@@ -85,17 +119,23 @@ warn_no_return = true
 show_error_codes = true
 
 [[tool.mypy.overrides]]
+module = "yaml"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "scipy.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
 disallow_untyped_calls = false
 disallow_incomplete_defs = false
-disallow_any_generics = false
+disallow_untyped_decorators = false
+warn_return_any = false
 check_untyped_defs = false
-disable_error_code = ["arg-type", "assignment", "call-overload"]
+disable_error_code = ["arg-type", "assignment", "call-overload", "type-arg"]
 
-[[tool.mypy.overrides]]
-module = "yaml"
-ignore_missing_imports = true
 
 [tool.pyright]
 pythonVersion = "3.13"
@@ -112,6 +152,10 @@ reportUntypedFunctionDecorator = false
 reportUntypedBaseClass = false
 reportUnknownLambdaType = false
 executionEnvironments = [
-    { root = "tests", reportPrivateUsage = false, reportUnusedVariable = false, reportUnusedFunction = false, reportUnusedImport = false, reportMissingTypeArgument = false, reportArgumentType = false, reportOptionalOperand = false, reportOperatorIssue = false, reportAttributeAccessIssue = false, reportReturnType = false },
+    { root = "tests", reportPrivateUsage = false, reportUnusedVariable = false, reportUnusedFunction = false, reportUnusedImport = false, reportMissingTypeArgument = false, reportArgumentType = false, reportOptionalOperand = false, reportOptionalMemberAccess = false, reportOperatorIssue = false, reportAttributeAccessIssue = false, reportCallIssue = false, reportReturnType = false },
+    { root = "tools", reportUnusedImport = false, reportMissingTypeArgument = false, reportArgumentType = false, reportOptionalMemberAccess = false },
     { root = "src" },
 ]
+
+
+

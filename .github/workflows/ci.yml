@@ -1,0 +1,130 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ develop, main, 'feature/**', 'bugfix/**', 'hotfix/**' ]
+  pull_request:
+    branches: [ develop, main ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: '3.13'
+  POETRY_NO_INTERACTION: '1'
+  POETRY_VIRTUALENVS_IN_PROJECT: 'true'
+
+jobs:
+  code-check:
+    name: Code check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python and Poetry
+        uses: ./.github/actions/setup-python-poetry
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          dependency-groups: dev
+          install-root: 'false'
+
+      - name: Formatting check
+        run: poetry run black --check src tests
+
+      - name: Lint check
+        run: poetry run flake8 src tests
+
+      - name: Type check
+        run: poetry run mypy src tests
+
+  testing:
+    name: Testing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y graphviz
+
+      - name: Set up Python and Poetry
+        uses: ./.github/actions/setup-python-poetry
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          dependency-groups: dev
+          install-root: 'true'
+
+      - name: Run unit tests with coverage
+        run: |
+          poetry run pytest \
+            tests/ \
+            -m "not heavy" \
+            -n auto \
+            --cov=src/edumatcher \
+            --cov-report=term-missing \
+            --cov-report=html \
+            --cov-report=xml \
+            --junitxml=pytest-report.xml \
+            --cov-fail-under=80
+
+      - name: Upload test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-py${{ env.PYTHON_VERSION }}
+          path: |
+            htmlcov/
+            .coverage
+            pytest-report.xml
+          retention-days: 7
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs:
+      - code-check
+      - testing
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python and Poetry
+        uses: ./.github/actions/setup-python-poetry
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          dependency-groups: dev
+          install-root: 'false'
+
+      - name: Create artifacts
+        run: poetry build
+
+      - name: Verify artifacts with Twine
+        run: poetry run twine check dist/*
+
+      - name: Get build metadata
+        id: metadata
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "branch=${BRANCH//\//-}" >> "$GITHUB_OUTPUT"
+          echo "timestamp=$(date +'%Y%m%d-%H%M%S')" >> "$GITHUB_OUTPUT"
+
+      - name: Upload builds on success
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          # -py${{ env.PYTHON_VERSION }}
+          name: edumatcher-${{ steps.metadata.outputs.branch }}-${{ steps.metadata.outputs.short_sha }}-${{ steps.metadata.outputs.timestamp }}
+          path: |
+            dist/
+          retention-days: 3

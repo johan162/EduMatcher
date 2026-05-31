@@ -128,7 +128,7 @@ def _run_scheduled(
         print("[SCHEDULER] All transitions sent. Done.")
 
 
-def _run_now(push_sock: zmq.Socket[bytes]) -> None:
+def _run_now(push_sock: zmq.Socket[bytes], delay: float = NOW_MODE_DELAY) -> None:
     """Rapid-fire all transitions with short delays (for testing)."""
     transitions = [
         SessionState.PRE_OPEN,
@@ -138,21 +138,17 @@ def _run_now(push_sock: zmq.Socket[bytes]) -> None:
         SessionState.CLOSED,
     ]
 
-    print(
-        f"[SCHEDULER] --now mode: sending all transitions with {NOW_MODE_DELAY}s delays\n"
-    )
+    print(f"[SCHEDULER] --now mode: sending all transitions with {delay}s delays\n")
 
     for state in transitions:
         print(f"[SCHEDULER] → {state.value}")
         push_sock.send_multipart(make_session_transition_msg(state.value))
-        time.sleep(NOW_MODE_DELAY)
+        time.sleep(delay)
 
     print("[SCHEDULER] Done.")
 
 
 def main() -> None:
-    global NOW_MODE_DELAY
-
     parser = argparse.ArgumentParser(description="EduMatcher session scheduler")
     parser.add_argument(
         "--now",
@@ -172,14 +168,13 @@ def main() -> None:
         help=f"Seconds between transitions in --now mode (default: {NOW_MODE_DELAY})",
     )
     args = parser.parse_args()
-
-    NOW_MODE_DELAY = args.delay
+    now_mode_delay = args.delay
 
     push_sock = make_pusher(ENGINE_PULL_ADDR)
     time.sleep(0.1)  # let socket connect
 
     if args.now:
-        _run_now(push_sock)
+        _run_now(push_sock, now_mode_delay)
     else:
         config_path = Path(args.config) if args.config else ENGINE_CONFIG_FILE
         if args.config and not config_path.exists():

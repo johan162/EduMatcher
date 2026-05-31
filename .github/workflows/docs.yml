@@ -1,0 +1,94 @@
+name: Documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for git info plugin
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Poetry
+        run: |
+          pipx install poetry
+
+      - name: Install dependencies
+        run: |
+          poetry install --with docs
+
+      - name: Create CHANGELOG symlink
+        run: |
+          ln -sf  ../CHANGELOG.md docs/CHANGELOG.md
+
+      - name: Build documentation
+        run: |
+          poetry run mkdocs build
+
+      - name: Upload documentation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation
+          path: site/
+          retention-days: 7
+
+  publish-docs:
+    needs: build-docs
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Poetry
+        run: |
+          pipx install poetry
+
+      - name: Install dependencies
+        run: |
+          poetry install --with docs
+
+      - name: Create CHANGELOG symlink
+        run: |
+          ln -sf  ../CHANGELOG.md docs/CHANGELOG.md
+
+      - name: Configure Git
+        run: |
+          # Required for mkdocs gh-deploy to create commits on gh-pages branch
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Deploy to GitHub Pages
+        run: |
+          poetry run mkdocs gh-deploy --force --message "Deploy documentation from ${GITHUB_SHA}"
