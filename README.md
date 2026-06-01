@@ -5,69 +5,30 @@
 | Category          | Link         |
 | ----------------- | ------------ |
 | **Package**       | [![PyPI version](https://img.shields.io/pypi/v/edumatcher.svg)](https://pypi.org/project/edumatcher/) [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/) |
-| **Documentation** | [![Documentation](https://img.shields.io/badge/docs-mkdocs-blue)](https://johan162.github.io/edumatcher/)  
+| **Documentation** | [![Documentation](https://img.shields.io/badge/docs-mkdocs-blue)](https://johan162.github.io/edumatcher/) |
 | **License**       | [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  |
 | **Release**       | [![GitHub release](https://img.shields.io/github/v/release/johan162/edumatcher?include_prereleases)](https://github.com/johan162/edumatcher/releases)  |
 | **CI/CD**         | [![Coverage](https://img.shields.io/badge/coverage-84%25-brightgreen.svg)](coverage.svg)   |
 | **Code Quality**  | [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/) [![Linting: flake8](https://img.shields.io/badge/linting-flake8-yellowgreen)](https://flake8.pycqa.org/) |
 | Repo URL          | [![GitHub](https://img.shields.io/badge/GitHub-100000?style=flat-square&logo=github&logoColor=white)](https://github.com/johan162/edumatcher) |
 
+EduMatcher is an educational trading system that teaches market microstructure,
+matching logic, and exchange architecture through runnable code.
 
->[!CAUTION]
->!!! note "Key Limitations of EduMatcher"
->    
->  - EduMatcher does not support spread-order books
->  - EduMatcher does not support implied-orders (a.k.a. syntethic-orders) Adding these concepts would significantly reduce TPS as it requires a sweep and re-calculation after each fill. 
->  - EduMatcher does not support primary-secondary site failover
->  - EduMatcher does not support load-balancing
->  - EduMatcher does only support limited re-play for participants loosing the connection
->  - EduMatcher does not support index calculations
+Unlike toy examples, it is designed to be both understandable and fast.
 
+## Why EduMatcher?
 
-
-
-EduMatcher is a comprehensive, educational trading system that teaches the fundamentals of order matching, market microstructure, and multi-process system design. 
-Unlike toy implementations, EduMatcher is *genuinely fast and realistic* — perfect for learning how modern exchanges actually work.
-
-
-| Category          | Details                                                                                    |
-| ----------------- | ------------------------------------------------------------------------------------------ |
-| **Purpose**       | Educational trading system: order matching engine, gateway architecture, market mechanisms |
-| **Performance**   | ~60,000 orders/second with sub-10µs latency         |
-| **Language**      | Python 3.13+ with full type hints and comprehensive test coverage (85%+)                   |
-| **Learning Path** | Audit trails → Order books → Matching algorithms → Auctions → Multi-process systems        |
-| **Documentation** | Extensive docs covering concepts, architecture, configuration, and deployment              |
-
-*A note on performance:* The primary drag for increasing performance is the need to do a price collar (and circuit-breaker) check in the hot path for every match. This is necessary in order to do real risk-management. There is no way around this. 
-
-## What You'll Learn
-
-EduMatcher teaches **real market mechanics** through hands-on code:
-
-- **Order Book Dynamics**: How limit order books work, what drives price discovery, and why market microstructure matters
-- **Matching Algorithms**: Fair and efficient order matching across market, limit, and combo orders
-- **Trading Day Lifecycle**: Opening auctions, continuous trading, market-on-close, and clearing
-- **Risk Management**: Auction mechanics, position limits, credit controls, and trade validation
-- **Multi-Process Architecture**: Separate gateway and engine processes with message-based communication
-- **Real Performance**: Achieve microsecond-latency execution—exactly what production systems need
-
-## Key Features
-
-- **Complete Trading Lifecycle**: From order entry through clearing with full audit trails
-- **Multiple Order Types**: Market, Limit, STOP, STOP_LIMIT, IOC/FOK, ICEBERG, combo, and OCO workflows
-- **Realistic Matching**: Price-time priority with sophisticated combo order handling
-- **Market Mechanisms**: Opening auctions, intra-day auctions, circuit breakers, and clearing
-- **Gateway & Engine**: Separate processes demonstrating proper exchange architecture
-- **Comprehensive Configuration**: Control symbols, limits, market hours, auction rules via YAML
-- **Message-Based**: FIX-like message protocol for realistic connectivity
-- **Rich Reporting**: Order statistics, P&L tracking, clearing reports, and performance metrics
-- **Extensive Tests**: 85%+ coverage with integration tests covering realistic trading scenarios
-- **Verification Tools**: Compare results, replay trading days, and validate matching logic
+- Real exchange mechanics: order books, auctions, clearing, and risk controls
+- Multi-process architecture: gateway, engine, audit, clearing, stats, and tooling
+- Performance-aware implementation: ~60,000 orders/second with microsecond latency
+- Practical protocol design: ALF (ALmost Fix) command language for gateway order entry
+- Strong engineering discipline: type hints, linting, and high test coverage
 
 ## Performance
 
-While EduMatcher cannot achieve the same performance as NYSE (New York Stck Exchange) or LSE (London Stock Exchange)
-it still manage to be fairly impressive considering its written in purely in Python and primary for my own educational purposes.
+EduMatcher does not aim to match venues like NYSE or LSE, but it is still
+fast for a pure Python educational project.
 
 
 ### Latency (engine-only, n=1,000 each)
@@ -84,9 +45,31 @@ it still manage to be fairly impressive considering its written in purely in Pyt
 | **Max TPS**   | ~60,000 orders/second                              |
 | **Order mix** | 20% Market, 30% aggressive Limit, 50% passive Limit |
 
+*Performance note:* price-collar and circuit-breaker checks run in the hot path
+for every match. They are required for realistic risk control and add measurable cost.
 
 
-### Explore the Code
+## Key Features
+
+- Complete lifecycle: order entry, matching, clearing, and audit trail
+- Rich order support: MARKET, LIMIT, STOP, STOP_LIMIT, IOC/FOK, ICEBERG, combo, OCO
+- Market mechanisms: opening/closing auctions and circuit breakers
+- Config-driven behavior via `engine_config.yaml` which acts as reference data for EduMatcher
+- Message-based process boundaries with strong observability
+- Implement real risk controls such as prioce-collar, kill-switch, circuit-breaker, and mass-cancel
+
+
+## Key Limitations
+
+- No spread-order books
+- No implied (synthetic) orders
+- No primary-secondary site failover
+- No load balancing
+- Limited replay for participants that lose the connection
+- No index calculations
+
+
+## Explore the Code
 
 Start with these key areas:
 
@@ -96,32 +79,21 @@ Start with these key areas:
 
 ## Documentation
 
-EduMatcher includes comprehensive and what I believe to be well-written documentation:
+Full docs: [EduMatcher Documentation](https://johan162.github.io/edumatcher/)
 
-The full documentation is available at GitHub pages [EduMatcher Documentation](https://johan162.github.io/edumatcher/) or as raw Markdow files.
-In addition to the EduMatcher specific documentation there a beginner friendly document meant for the SW Developer without any
-financial background to learn the basic financial terminology and how the financial market and 
-exchanges work, aptly named: [How an Exchange Works](https://johan162.github.io/how-exchange-works/)
-Most likely you will also find a lot of use for the (very extensive) [Glossary](https://johan162.github.io/glossary/) 
+Additional references:
 
-
-## Why EduMatcher?
-
-Most trading system tutorials oversimplify. EduMatcher doesn't. You get:
-
-✅ **Real-world latency** — Microsecond-precision, no artificial delays  
-✅ **Production patterns** — Message queues, multi-process architecture, proper error handling  
-✅ **Complete coverage** — Opening auctions through clearing, not just simple matching  
-✅ **Extensive tests** — Learn from 80%+ test coverage and realistic integration tests  
-✅ **Rich documentation** — Concepts explained, diagrams provided, code heavily commented  
-✅ **Actually fast** — 60K+ orders/second, so you understand performance-conscious design  
+- [How an Exchange Works](https://johan162.github.io/how-exchange-works/)
+- [ALF Protocol Appendix](docs/user-guide/20-app-alf-protocol.md)
+- [Glossary](https://johan162.github.io/glossary/)
 
 
-Perfect for:
-- **Computer Science students** learning systems design and concurrency
-- **Finance students** understanding market microstructure and trading mechanics
-- **Developers** building exchange technology or trading systems
-- **Anyone** curious how modern markets actually work
+## Who It's For
+
+- Computer science students learning systems design and concurrency
+- Finance students learning market microstructure and trading mechanics
+- Developers building exchange technology or trading systems
+- Anyone curious about how modern markets actually work
 
 
 ## Contributing
