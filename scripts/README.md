@@ -1,6 +1,6 @@
 # Build Scripts
 
-This directory contains the maintenance scripts for `mcprojsim`.
+This directory contains the maintenance scripts for `edumatcher`.
 They support local development, CI validation, release preparation,
 documentation workflows, setup verification, and containerized docs serving.
 
@@ -10,26 +10,21 @@ documentation workflows, setup verification, and containerized docs serving.
 - [Table of Contents](#table-of-contents)
   - [Script Conventions](#script-conventions)
   - [Scripts Overview](#scripts-overview)
-    - [`mkchlogentry.sh` - CHANGELOG Entry Script](#mkchlogentrysh---changelog-entry-script)
     - [`mkbld.sh` - Main Build Script](#mkbldsh---main-build-script)
+    - [`mkchlogentry.sh` - CHANGELOG Entry Script](#mkchlogentrysh---changelog-entry-script)
     - [`mkcovupd.sh` - Coverage Badge Updater](#mkcovupdsh---coverage-badge-updater)
     - [`mkrelease.sh` - Release Automation Script](#mkreleasesh---release-automation-script)
-    - [`mkrelease2.sh` - CI-Delegating Release Script](#mkrelease2sh---ci-delegating-release-script)
     - [`mkghrelease.sh` - GitHub Release Creator](#mkghreleasesh---github-release-creator)
     - [`mkmcpbundle.sh` - MCP Bundle Builder](#mkmcpbundlesh---mcp-bundle-builder)
     - [`mkdocs.sh` - Documentation Automation Script](#mkdocssh---documentation-automation-script)
-    - [`gen-examples.sh` - Examples Page Generator](#gen-examplessh---examples-page-generator)
-    - [`gen_nb_sickness_example.py` - NB Sickness Example Generator](#gen_nb_sickness_examplepy---nb-sickness-example-generator)
     - [`verify_setup.sh` - Local Setup Verification](#verify_setupsh---local-setup-verification)
     - [`docs-contctl.sh` - Containerized Docs Server Manager](#docs-contctlsh---containerized-docs-server-manager)
-    - [`pandoc_sprint_planning_table_widths.lua` - Pandoc Lua Filter](#pandoc_sprint_planning_table_widthslua---pandoc-lua-filter)
   - [Typical Workflows](#typical-workflows)
     - [Daily Development Check](#daily-development-check)
     - [Fresh Local Setup Verification](#fresh-local-setup-verification)
     - [Documentation Workflows](#documentation-workflows)
     - [Release Workflow](#release-workflow)
   - [Troubleshooting](#troubleshooting)
-  - [Related Files](#related-files)
 
 
 ## Script Conventions
@@ -163,32 +158,6 @@ Automates the local release workflow, including version bumping, quality gates, 
 - Run `mkchlogentry.sh` first to create the new `CHANGELOG.md` entry before starting the release
 
 
-### `mkrelease2.sh` - CI-Delegating Release Script
-
-Alternative release script that merges to `main` and pushes, then delegates all quality gates, tagging, GitHub Release creation, and PyPI publishing to CI.
-
-```bash
-./scripts/mkrelease2.sh <version> [major|minor|patch] [OPTIONS]
-```
-
-**What it does:**
-1. Validates the repo state
-2. Bumps the version and updates `CHANGELOG.md` on `develop`
-3. Commits and pushes `develop`
-4. Squash-merges `develop` → `main` and pushes
-5. Merges `main` → `develop` (back-merge) and pushes
-
-CI then automatically runs lint, type-checking, and tests; builds and verifies artifacts; creates the git tag and GitHub Release; and publishes to PyPI.
-
-**Options:**
-- `--dry-run` - Preview without making changes
-- `--help`, `-h` - Display help message
-
-**When to prefer this over `mkrelease.sh`:**
-- Use `mkrelease2.sh` when your CI pipeline is configured to handle tagging and publishing automatically on merge to `main`.
-- Use `mkrelease.sh` for a fully local release pipeline where you run quality gates before pushing.
-
-
 ### `mkghrelease.sh` - GitHub Release Creator
 
 Creates a GitHub release with the `gh` CLI after the local release work and CI/artifact generation are complete.'
@@ -272,11 +241,7 @@ Verifies that a local Poetry-based installation is working end to end.
 **What it does:**
 1. Verifies Poetry is installed
 2. Installs dependencies with `poetry install --with dev`
-3. Checks that the `mcprojsim` CLI is available
-4. Validates the sample project file
-5. Runs a short simulation
-6. Confirms expected output files are created
-7. Verifies the configuration command works
+3. Verifies the configuration command works
 
 **Best used for:**
 - Initial local setup verification
@@ -306,56 +271,14 @@ Manages the containerized documentation server built from `Dockerfile.docs`.
 - `-h`, `--help` - Display help message
 
 **Environment variables:**
-- `MCPROJSIM_DOCS_IMAGE` - Override image name
-- `MCPROJSIM_DOCS_PORT` - Override default port
-- `MCPROJSIM_USE_PROXY_CA=true` - Build with proxy CA support
+- `EDUMATCHER_DOCS_IMAGE` - Override image name
+- `EDUMATCHER_DOCS_PORT` - Override default port
+- `EDUMATCHER_USE_PROXY_CA=true` - Build with proxy CA support
 
 **When to use it:**
 - Use this script when you want the docs served from the same containerized environment used for docs image validation
 - Prefer `make docs-serve` or `poetry run mkdocs serve` for the fastest local editing feedback
 
-### `gen-examples.sh` - Examples Page Generator
-
-Generates `docs/examples.md` from the template `docs/examples_template.md` by expanding two placeholder types.
-
-```bash
-./scripts/gen-examples.sh [--jobs N] [template] [output]
-# or
-make gen-examples
-```
-
-**Placeholder types:**
-- `{{file:path}}` — inserts file contents in a fenced code block (language auto-detected from extension)
-- `{{run:command}}` — emits the user-facing command in a `bash` block, then inserts captured output in a `text` block
-
-**What it does:**
-1. **Pass 1** — scans the template for `{{run:...}}` commands, executes each unique command in parallel, and caches outputs under `.build/gen-examples/runs/`
-2. **Pass 2** — renders the final markdown by expanding all `{{file:...}}` and `{{run:...}}` placeholders using the cached outputs
-
-**Options:**
-- `--jobs N` — max number of parallel Pass 1 commands (`0` = no limit; default)
-- `--help` — display help message
-
-**Requirements:**
-- Run from the project root
-- `mcprojsim` must be installed and on `PATH` (or via `poetry run`) for `{{run:...}}` commands to produce output
-
-### `gen_nb_sickness_example.py` - NB Sickness Example Generator
-
-One-shot Python script that (re)generates `examples/sprint_nb_sickness_large.yaml` — a 60-task sprint planning example with a Negative Binomial velocity model and sickness modelling enabled.
-
-```bash
-poetry run python scripts/gen_nb_sickness_example.py
-```
-
-**What it does:**
-- Generates 60 tasks with lognormal estimates (story point sizes 3, 5, 8, 12) using a fixed random seed
-- First 30 tasks are independent; the remaining 30 each have 1–3 dependencies
-- Writes the YAML file directly to `examples/sprint_nb_sickness_large.yaml`
-
-**Requirements:**
-- `pyyaml` available (included in the `dev` and `mcp` dependency groups)
-- Run from the project root
 
 ## Typical Workflows
 
@@ -408,7 +331,7 @@ make docs-container-start
 **Problem: `coverage.xml` not found**
 
 ```bash
-poetry run pytest --cov=src/mcprojsim --cov-report=xml
+poetry run pytest --cov=src/edumatcher --cov-report=xml
 ./scripts/mkcovupd.sh
 ```
 
@@ -432,31 +355,4 @@ poetry install --with dev
 
 - Ensure Pandoc is installed and that you pass `--lua-filter scripts/pandoc_sprint_planning_table_widths.lua` explicitly on the command line
 
-## Related Files
 
-## Support Files
-
-### `pandoc_sprint_planning_table_widths.lua` - Pandoc Lua Filter
-
-A Pandoc Lua filter that overrides column widths for 3-column tables when converting sprint planning documentation to LaTeX/PDF output.
-It is not a standalone script — it is passed to `pandoc` via `--lua-filter`.
-
-```bash
-pandoc docs/user_guide/sprint_planning.md \
-  --lua-filter scripts/pandoc_sprint_planning_table_widths.lua \
-  -o sprint_planning.pdf
-```
-
-**Behavior:**
-- Only activates for LaTeX/PDF output (`FORMAT == "latex"`)
-- Only applies to tables with exactly 3 columns
-- Sets proportional column widths appropriate for the sprint planning reference table layout
-
-**Requirements:**
-- Pandoc installed (`brew install pandoc` or equivalent)
-- A LaTeX distribution for PDF output (e.g. MacTeX / TeX Live)
-
-- [Makefile](../Makefile) - Thin wrappers for common development and docs commands
-- [README.md](../README.md) - Main project usage and installation guide
-- [QUICKSTART.md](../QUICKSTART.md) - End-user quick start guide
-- [GitHub workflows](../.github/workflows/) - CI/CD automation

@@ -1,6 +1,6 @@
 #!/bin/bash
-# mcprojsim Release Script
-# Description: Automates the release process for mcprojsim, including versioning and release validation.
+# Release Script
+# Description: Automates the release process for EduMatcher, including versioning and release validation.
 # CI/CD Support: No. Can not be run in CI as it requires user interaction.
 # Usage: ./scripts/mkrelease.sh <version> [major|minor|patch] [--dry-run] [--help]
 #
@@ -24,10 +24,8 @@ NC='\033[0m'
 
 declare GITHUB_USER="johan162"
 declare SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-declare PROGRAMNAME="mcprojsim"
-declare PROGRAMNAME_PRETTY="MCProjSim"
-declare PROGRAM_ENTRYPOINT="mcprojsim.cli"
-declare SMOKE_TEST_FILE="tests/test_simulation.py"
+declare PROGRAMNAME="edumatcher"
+declare PROGRAMNAME_PRETTY="EduMatcher"
 declare COVERAGE="80"
 
 # =====================================

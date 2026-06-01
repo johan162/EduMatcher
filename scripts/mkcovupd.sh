@@ -12,10 +12,8 @@ set -euo pipefail # Exit on any error or uninitialized variable
 # CONFIGURATION
 # =====================================
 
-declare PROGRAMNAME="mcprojsim"
-declare PROGRAMNAME_PRETTY="MCProjSim"
-declare PROGRAM_ENTRYPOINT="mcprojsim.cli"
-declare SMOKE_TEST_FILE="tests/test_simulation.py"
+declare PROGRAMNAME="edumatcher"
+declare PROGRAMNAME_PRETTY="EduMatcher"
 declare COVERAGE="80"
 
 # Detect CI environment

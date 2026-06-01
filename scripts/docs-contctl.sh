@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # =============================================================================
-# docs-contctl.sh - Container control for the mcprojsim documentation server
+# docs-contctl.sh - Container control for the edumatcher documentation server
 #
 # This script controls the containerized documentation server that serves the
-# mcprojsim documentation via a web server.
+# edumatcher documentation via a web server.
 #
 # Usage:
 #   ./scripts/docs-contctl.sh [command] [options]
@@ -18,7 +18,7 @@
 #
 # Options:
 #   -p, --port PORT    - Port to serve documentation on (default: 9090)
-#   -n, --name NAME    - Container name (default: mcprojsim-docs)
+#   -n, --name NAME    - Container name (default: edumatcher-docs)
 #   -d, --detach       - Run in background (default for start)
 #   -f, --foreground   - Run in foreground
 #   -h, --help         - Show this help message
@@ -29,13 +29,13 @@
 #   ./scripts/docs-contctl.sh stop                # Stop the container
 #   ./scripts/docs-contctl.sh restart -p 9000     # Restart on different port
 #   ./scripts/docs-contctl.sh logs -f             # Follow container logs
-#   MCPROJSIM_USE_PROXY_CA=true ./scripts/docs-contctl.sh build # Build image with proxy CA support
+#   EDUMATCHER_USE_PROXY_CA=true ./scripts/docs-contctl.sh build # Build image with proxy CA support
 #   ./scripts/docs-contctl.sh build		   		  # Build image without proxy CA support
 #
 # Environment Variables:
-#   MCPROJSIM_DOCS_IMAGE      - Container image name (default: mcprojsim-docs:latest)
-#   MCPROJSIM_DOCS_PORT       - Default port (default: 9090)
-#   MCPROJSIM_USE_PROXY_CA    - Set to "true" to build with proxy CA cert (default: false)
+#   EDUMATCHER_DOCS_IMAGE      - Container image name (default: edumatcher-docs:latest)
+#   EDUMATCHER_DOCS_PORT       - Default port (default: 9090)
+#   EDUMATCHER_USE_PROXY_CA    - Set to "true" to build with proxy CA cert (default: false)
 # =============================================================================
 
 set -euo pipefail
@@ -48,10 +48,10 @@ readonly SCRIPT_PATH="${PROJECT_ROOT}/scripts/docs-contctl.sh"
 PROXY_CA_FILE="${PROJECT_ROOT}/CA_proxy_fw_all.pem"
 
 # Configuration
-readonly DEFAULT_PORT="${MCPROJSIM_DOCS_PORT:-9090}"
-readonly DEFAULT_IMAGE="${MCPROJSIM_DOCS_IMAGE:-mcprojsim-docs:latest}"
-readonly DEFAULT_CONTAINER_NAME="mcprojsim-docs"
-readonly USE_PROXY_CA="${MCPROJSIM_USE_PROXY_CA:-false}"
+readonly DEFAULT_PORT="${EDUMATCHER_DOCS_PORT:-9090}"
+readonly DEFAULT_IMAGE="${EDUMATCHER_DOCS_IMAGE:-edumatcher-docs:latest}"
+readonly DEFAULT_CONTAINER_NAME="edumatcher-docs"
+readonly USE_PROXY_CA="${EDUMATCHER_USE_PROXY_CA:-false}"
 
 # State
 PORT="${DEFAULT_PORT}"

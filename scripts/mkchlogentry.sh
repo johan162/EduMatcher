@@ -8,8 +8,8 @@ set -euo pipefail
 
 declare GITHUB_USER="johan162"
 declare SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-declare PROGRAMNAME="mcprojsim"
-declare PROGRAMNAME_PRETTY="MCProjSim"
+declare PROGRAMNAME="edumatcher"
+declare PROGRAMNAME_PRETTY="EduMatcher"
 
 if [ -n "${CI:-}" ] || [ -n "${GITHUB_ACTIONS:-}" ]; then
     echo "🔧 Running in CI mode"

@@ -30,10 +30,8 @@ NC='\033[0m'
 
 declare GITHUB_USER="johan162"
 declare SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-declare PROGRAMNAME="mcprojsim"
-declare PROGRAMNAME_PRETTY="MCProjSim"
-declare PROGRAM_ENTRYPOINT="mcprojsim.cli"
-declare SMOKE_TEST_FILE="tests/test_simulation.py"
+declare PROGRAMNAME="edumatcher"
+declare PROGRAMNAME_PRETTY="EduMatcher"
 declare COVERAGE="80"
 
 
