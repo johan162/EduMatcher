@@ -13,25 +13,28 @@
 | Repo URL          | [![GitHub](https://img.shields.io/badge/GitHub-100000?style=flat-square&logo=github&logoColor=white)](https://github.com/johan162/edumatcher) |
 
 
-> [!CAUTION]
->!!! warning "Not yet ready!"
->    While the system works as designed and the documentation is mostly ready
->    the project is not. Before 1.0.0 the CI/CD pipeline needs to be completed
->    with publication to PyPi. In addition the rendered documentation also needs to be
->    put via `gh-pages` branch to actual github pages (as part of the CI/CD) process.
->    The release process will also need to be designed. Most likely similar to my other
->    project, e.g. `mcprojsim`. I will also need to consider if the docs should be released
->    as PDFs (from Latex).
+>[!CAUTION]
+>!!! note "Key Limitations of EduMatcher"
+>    
+>  - EduMatcher does not support spread-order books
+>  - EduMatcher does not support implied-orders (a.k.a. syntethic-orders) Adding these concepts would significantly reduce TPS as it requires a sweep and re-calculation after each fill. 
+>  - EduMatcher does not support primary-secondary site failover
+>  - EduMatcher does not support load-balancing
+>  - EduMatcher does only support limited re-play for participants loosing the connection
+>  - EduMatcher does not support index calculations
 
 
-EduMatcher is a comprehensive, production-grade educational trading system that teaches the fundamentals of order matching, market microstructure, and multi-process system design. Unlike toy implementations, EduMatcher is *genuinely fast and realistic* — perfect for learning how modern exchanges actually work.
+
+
+EduMatcher is a comprehensive, educational trading system that teaches the fundamentals of order matching, market microstructure, and multi-process system design. 
+Unlike toy implementations, EduMatcher is *genuinely fast and realistic* — perfect for learning how modern exchanges actually work.
 
 
 | Category          | Details                                                                                    |
 | ----------------- | ------------------------------------------------------------------------------------------ |
 | **Purpose**       | Educational trading system: order matching engine, gateway architecture, market mechanisms |
 | **Performance**   | ~60,000 orders/second with sub-10µs latency         |
-| **Language**      | Python 3.10+ with full type hints and comprehensive test coverage (85%+)                   |
+| **Language**      | Python 3.13+ with full type hints and comprehensive test coverage (85%+)                   |
 | **Learning Path** | Audit trails → Order books → Matching algorithms → Auctions → Multi-process systems        |
 | **Documentation** | Extensive docs covering concepts, architecture, configuration, and deployment              |
 
@@ -63,7 +66,9 @@ EduMatcher teaches **real market mechanics** through hands-on code:
 
 ## Performance
 
-EduMatcher achieves **real-world latency** while remaining purely educational:
+While EduMatcher cannot achieve the same performance as NYSE (New York Stck Exchange) or LSE (London Stock Exchange)
+it still manage to be fairly impressive considering its written in purely in Python and primary for my own educational purposes.
+
 
 ### Latency (engine-only, n=1,000 each)
 
@@ -88,21 +93,16 @@ Start with these key areas:
 - **[src/edumatcher/engine/](src/edumatcher/engine/)** — Core matching logic and order book
 - **[src/edumatcher/gateway/](src/edumatcher/gateway/)** — Message handling and order validation
 - **[src/edumatcher/clearing/](src/edumatcher/clearing/)** — Trade settlement and P&L calculation
-- **[docs/](docs/)** — Concept guides, architecture, and trading mechanics
 
 ## Documentation
 
-EduMatcher includes comprehensive, well-written documentation:
+EduMatcher includes comprehensive and what I believe to be well-written documentation:
 
-- **[Architecture](docs/architecture.md)** — System design and multi-process model
-- **[Order Book Concepts](docs/concepts-order-book.md)** — How limit order books work
-- **[Order Types](docs/order-types.md)** — Market, Limit, Pegged, combos, and more
-- **[Trading Day](docs/concepts-trading-day.md)** — Market hours, auctions, clearing
-- **[Matching Rules](docs/auction.md)** — Fair and efficient order matching
-- **[Configuration](docs/configuration.md)** — Customize the system for your use case
-- **[Verification](docs/verification.md)** — Test and replay trading scenarios
-- **[Glossary](docs/glossary.md)** — Trading terminology defined
-
+The full documentation is available at GitHub pages [EduMatcher Documentation](https://johan162.github.io/edumatcher/) or as raw Markdow files.
+In addition to the EduMatcher specific documentation there a beginner friendly document meant for the SW Developer without any
+financial background to learn the basic financial terminology and how the financial market and 
+exchanges work, aptly named: [How an Exchange Works](https://johan162.github.io/how-exchange-works/)
+Most likely you will also find a lot of use for the (very extensive) [Glossary](https://johan162.github.io/glossary/) 
 
 
 ## Why EduMatcher?
@@ -112,9 +112,10 @@ Most trading system tutorials oversimplify. EduMatcher doesn't. You get:
 ✅ **Real-world latency** — Microsecond-precision, no artificial delays  
 ✅ **Production patterns** — Message queues, multi-process architecture, proper error handling  
 ✅ **Complete coverage** — Opening auctions through clearing, not just simple matching  
-✅ **Extensive tests** — Learn from 85%+ test coverage and realistic integration tests  
+✅ **Extensive tests** — Learn from 80%+ test coverage and realistic integration tests  
 ✅ **Rich documentation** — Concepts explained, diagrams provided, code heavily commented  
-✅ **Actually fast** — 160K+ orders/second, so you understand performance-conscious design  
+✅ **Actually fast** — 60K+ orders/second, so you understand performance-conscious design  
+
 
 Perfect for:
 - **Computer Science students** learning systems design and concurrency
@@ -123,10 +124,10 @@ Perfect for:
 - **Anyone** curious how modern markets actually work
 
 
-
 ## Contributing
 
 This is an educational project. If you find bugs, improve the documentation, or make other enhancements PRs are welcome!
+
 
 ## Citation
 
