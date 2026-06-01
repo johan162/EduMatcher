@@ -20,7 +20,7 @@ license = "MIT"
 repository = "https://github.com/johan162/EduMatcher"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.13"
 pyzmq = "^27.1.0"
 rich = "^15.0.0"
 prompt_toolkit = "^3.0"
