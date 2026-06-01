@@ -359,7 +359,7 @@ if [[ "$DRY_RUN" == "true" ]]; then
     echo "  [DRY-RUN] Would generate PDF versions of User Guide for release assets"
 else
     echo "  ✓ Generating all PDF version of User Guide for release assets..."
-    make -C docs -j 4 pdf-docs pdf-api-ref || {
+    make -C docs -j 4 pdf-docs  || {
         print_warning_colored "Makefile target 'pdf-docs' failed. Skipping PDF generation."
         exit 1;
     }
@@ -369,19 +369,11 @@ else
     echo "./dist/${PROGRAMNAME}_user_guide-dark-a4-${VERSION}.pdf"
     echo "./dist/${PROGRAMNAME}_user_guide-b5-${VERSION}.pdf"
     echo "./dist/${PROGRAMNAME}_user_guide-dark-b5-${VERSION}.pdf"
-    echo "./dist/${PROGRAMNAME}_api_ref-a4-${VERSION}.pdf"
-    echo "./dist/${PROGRAMNAME}_api_ref-dark-a4-${VERSION}.pdf"
-    echo "./dist/${PROGRAMNAME}_api_ref-b5-${VERSION}.pdf"
-    echo "./dist/${PROGRAMNAME}_api_ref-dark-b5-${VERSION}.pdf"
 
     if [[ ! -f "./dist/${PROGRAMNAME}_user_guide-a4-${VERSION}.pdf" \
           || ! -f "./dist/${PROGRAMNAME}_user_guide-dark-a4-${VERSION}.pdf" \
           || ! -f "./dist/${PROGRAMNAME}_user_guide-b5-${VERSION}.pdf" \
-          || ! -f "./dist/${PROGRAMNAME}_user_guide-dark-b5-${VERSION}.pdf" \
-          || ! -f "./dist/${PROGRAMNAME}_api_ref-a4-${VERSION}.pdf" \
-          || ! -f "./dist/${PROGRAMNAME}_api_ref-dark-a4-${VERSION}.pdf" \
-          || ! -f "./dist/${PROGRAMNAME}_api_ref-b5-${VERSION}.pdf" \
-          || ! -f "./dist/${PROGRAMNAME}_api_ref-dark-b5-${VERSION}.pdf" ]]; then
+          || ! -f "./dist/${PROGRAMNAME}_user_guide-dark-b5-${VERSION}.pdf" ]]; then
         print_error_colored "Expected PDF not found at ./dist directory"
         exit 1;
     fi    
@@ -401,7 +393,7 @@ print_step_colored "🎯 PHASE 4: RELEASE EXECUTION"
 print_step_colored ""
 
 # 4.1: Commit version updates
-run_command "git add pyproject.toml poetry.lock CHANGELOG.md README.md docs/user_guide/userguide_template*.tex docs/api_reference/api_ref_template*.tex docs/examples.md" "Staging release files..."
+run_command "git add pyproject.toml poetry.lock CHANGELOG.md README.md docs/user-guide/userguide_template*.tex" "Staging release files..."
 run_command "git commit -m \"chore(release): prepare $VERSION
 
 - Update version to $VERSION
@@ -555,27 +547,16 @@ if [[ "$DRY_RUN" == "true" ]]; then
     echo "  [DRY-RUN] Would generate PDF version of User Guide for release assets"
 else
     echo "  ✓ Generating PDF version of User Guide for release assets..."
-    make -C docs -j 4 pdf-docs pdf-api-ref  || {
+    make -C docs -j 4 pdf-docs || {
         print_warning_colored "Makefile target 'pdf' failed. Skipping PDF generation."
     }
     
-    # Zip-the PDFs into one API-bundle and one User-guide-budle for easier distribution and upload to GitHub releases
+    # Zip-the PDFs into one User-guide-bundle for easier distribution and upload to GitHub releases
     echo "  ✓ Creating ZIP bundles of generated PDFs for release assets..."
     (cd ./dist && zip -9 "${PROGRAMNAME}_user_guide_bundle-${VERSION}.zip" "${PROGRAMNAME}_user_guide-${VERSION}.pdf" "${PROGRAMNAME}_user_guide-dark-${VERSION}.pdf" "${PROGRAMNAME}_user_guide-b5-${VERSION}.pdf" "${PROGRAMNAME}_user_guide-dark-b5-${VERSION}.pdf")
-    (cd ./dist && zip -9 "${PROGRAMNAME}_api_ref_bundle-${VERSION}.zip" "${PROGRAMNAME}_api_ref-${VERSION}.pdf" "${PROGRAMNAME}_api_ref-dark-${VERSION}.pdf" "${PROGRAMNAME}_api_ref-b5-${VERSION}.pdf" "${PROGRAMNAME}_api_ref-dark-b5-${VERSION}.pdf")
     (cd ./dist && rm *.pdf)
 
 fi
-
-# 7.5 Generate MCP Bundle for release assets
-if [[ "$DRY_RUN" == "true" ]]; then
-    echo "  [DRY-RUN] Would generate MCP Bundle for release assets"
-else
-    echo "  ✓ Generating MCP Bundle for release assets..."
-    ./scripts/mkmcpbundle.sh || {
-        print_warning_colored "MCP Bundle generation failed. Skipping bundle creation."
-    }
-fi 
 
 # =====================================
 # PHASE 8: RELEASE SUMMARY
