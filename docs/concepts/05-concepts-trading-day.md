@@ -75,6 +75,46 @@ order-accepting phase.
 
 ---
 
+## Specifying time for the daily session
+
+Phase transition times are configured in `engine_config.yaml` under a `schedule`
+section, which is read by `pm-scheduler` (not by the engine itself):
+
+```yaml
+sessions_enabled: true
+
+schedule:
+  pre_open:              "09:00"
+  opening_auction_start: "09:25"
+  continuous_start:      "09:30"
+  closing_auction_start: "16:00"
+  closing_auction_end:   "16:05"
+```
+
+All values are `HH:MM` in the **local time of the machine running the
+scheduler**.
+
+| Key | Phase triggered | Default |
+|-----|----------------|---------|
+| `pre_open` | `PRE_OPEN` | `09:00` |
+| `opening_auction_start` | `OPENING_AUCTION` | `09:25` |
+| `continuous_start` | `CONTINUOUS` | `09:30` |
+| `closing_auction_start` | `CLOSING_AUCTION` | `16:00` |
+| `closing_auction_end` | `CLOSED` | `16:05` |
+
+**If the `schedule` section is absent entirely**, the scheduler falls back to
+the built-in defaults shown above.  If it is present but a key is missing,
+that specific transition is **never sent** that day — there is no per-key
+fallback.  So if you define `schedule:` but omit `closing_auction_end`, the
+market will never transition to `CLOSED` automatically.
+
+`sessions_enabled` must be `true` for the scheduler-driven schedule to take
+effect.  With it set to `false`, the engine ignores all `session.transition`
+messages and stays in perpetual continuous mode regardless of the `schedule`
+block.
+
+---
+
 ## Phase 1 — PRE_OPEN
 
 The market is warming up. Traders can submit LIMIT orders that rest on the
