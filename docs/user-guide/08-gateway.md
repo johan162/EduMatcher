@@ -47,11 +47,17 @@ client population:
 | **ETI (Eurex)** | Binary | European derivatives traders | Enhanced Transaction Interface; supports complex derivatives workflows |
 | **Proprietary REST/WebSocket** | Text / JSON | Retail, algorithmic | Used by crypto exchanges and some retail venues; easy to integrate |
 
-EduMatcher's gateway speaks a **FIX-inspired pipe-delimited text format**
-(`NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00`).  It borrows FIX's
-tag=value field concept but uses a simplified subset — no session layer, no
-checksums, no sequence numbers, no message types beyond the handful needed for
-this learning context.  A production FIX gateway would add all of these.
+EduMatcher's gateway speaks a **FIX-inspired pipe-delimited text format** that
+we call **ALF** (**AL**most **F**ix):
+`NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00`.
+It borrows FIX's field=value concept but uses a simplified subset - no session
+layer, no checksums, no sequence numbers, and no standard FIX message set.
+A production FIX gateway would add all of these.
+
+!!! note "Formal protocol reference"
+    This page explains ALF from the gateway user's point of view.
+    The formal syntax and semantics of the ALF protocol are defined in
+    [Appendix: ALF Protocol Reference](20-app-alf-protocol.md).
 
 ### One user per gateway — a learning simplification
 
@@ -139,7 +145,7 @@ poetry run pm-gateway --id GW01
 ```
 
 The `--id` flag sets your gateway identifier. It appears on all orders and fills.
-The ID must be preconfigured in `engine_config.yaml` under `gateways.fix`.
+The ID must be preconfigured in `engine_config.yaml` under `gateways.alf`.
 
 On startup, the gateway:
 
@@ -155,13 +161,13 @@ The gateway does **not** subscribe to `session.state`. Use `pm-audit`,
 `pm-viewer`, `pm-orders`, or the scheduler output if you need to watch trading
 phase transitions live.
 
-Allowed gateway IDs are configured in `engine_config.yaml` under `gateways.fix`.
+Allowed gateway IDs are configured in `engine_config.yaml` under `gateways.alf`.
 
 Example:
 
 ```yaml
 gateways:
-    fix:
+    alf:
         - id: TRADER01
             description: The first trader
         - id: TRADER02
@@ -175,7 +181,11 @@ the connection and the gateway exits.
 
 ## Command Format
 
-All commands use a pipe-separated key=value format, similar to FIX protocol fields.
+All commands use the ALF pipe-separated key=value format.
+
+!!! note
+    For the precise ALF grammar, parser rules, field semantics, and full command
+    catalog, see [Appendix: ALF Protocol Reference](20-app-alf-protocol.md).
 
 ### QUOTE — Submit/Replace A Two-Sided MM Quote
 
@@ -381,7 +391,7 @@ which is printed as a rich table:
 
 !!! note "Gateway authorization"
     `SYMBOLS` and all trading commands are available only after successful
-    startup authentication. If your ID is not listed under `gateways.fix`,
+    startup authentication. If your ID is not listed under `gateways.alf`,
     the engine refuses the connection.
 
 ---
@@ -462,7 +472,7 @@ poetry run pm-gateway --id TRADER03
 ```
 
 Before starting a new gateway ID (for example `TRADER03`), add it to
-`engine_config.yaml` in `gateways.fix` and restart the engine.
+`engine_config.yaml` in `gateways.alf` and restart the engine.
 
 Each gateway only receives events for its own orders. Use `pm-orders` to see all
 gateways' activity.

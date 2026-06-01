@@ -62,7 +62,7 @@ symbols:
         bid_qty: 10
         ask_qty: 10
 gateways:
-  fix:
+  alf:
     - id: GW01
       role: MARKET_MAKER
       enforce_mm_obligation: true
@@ -95,7 +95,7 @@ symbols:
         bid_qty: 10
         ask_qty: 10
 gateways:
-  fix:
+  alf:
     - id: GW01
       role: MARKET_MAKER
       enforce_mm_obligation: false
@@ -135,7 +135,7 @@ symbols:
         bid_qty: 10
         ask_qty: 10
 gateways:
-  fix:
+  alf:
     - id: GW01
       role: MARKET_MAKER
 """
@@ -178,7 +178,7 @@ symbols:
         bid_qty: 10
         ask_qty: 10
 gateways:
-  fix:
+  alf:
     - id: GW01
       role: MARKET_MAKER
       enforce_mm_obligation: false

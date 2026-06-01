@@ -2,15 +2,15 @@
 
 **Learn how real trading systems work. Build it from first principles.**
 
-| Category          | Link                                                                                                                                                                                                                                                                                                                      |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Package**       | [![PyPI version](https://img.shields.io/pypi/v/mcprojsim.svg)](https://pypi.org/project/mcprojsim/) [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)                                                                                                              |
-| **Documentation** | [![Documentation](https://img.shields.io/badge/docs-mkdocs-blue)](https://johan162.github.io/edumatcher/)                                                                                                                                                                                                                 |
-| **License**       | [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)                                                                                                                                                                                                               |
-| **Release**       | [![GitHub release](https://img.shields.io/github/v/release/johan162/edumatcher?include_prereleases)](https://github.com/johan162/edumatcher/releases)                                                                                                                                                                     |
-| **CI/CD**         | [![Coverage](https://img.shields.io/badge/coverage-84%25-brightgreen.svg)](coverage.svg)                                                                                                                                                                                                                                  |
+| Category          | Link         |
+| ----------------- | ------------ |
+| **Package**       | [![PyPI version](https://img.shields.io/pypi/v/edumatcher.svg)](https://pypi.org/project/edumatcher/) [![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/) |
+| **Documentation** | [![Documentation](https://img.shields.io/badge/docs-mkdocs-blue)](https://johan162.github.io/edumatcher/)  
+| **License**       | [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  |
+| **Release**       | [![GitHub release](https://img.shields.io/github/v/release/johan162/edumatcher?include_prereleases)](https://github.com/johan162/edumatcher/releases)  |
+| **CI/CD**         | [![Coverage](https://img.shields.io/badge/coverage-84%25-brightgreen.svg)](coverage.svg)   |
 | **Code Quality**  | [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/) [![Linting: flake8](https://img.shields.io/badge/linting-flake8-yellowgreen)](https://flake8.pycqa.org/) |
-| Repo URL          | [![GitHub](https://img.shields.io/badge/GitHub-100000?style=flat-square&logo=github&logoColor=white)](https://github.com/johan162/edumatcher)                                                                                                                                                                             |
+| Repo URL          | [![GitHub](https://img.shields.io/badge/GitHub-100000?style=flat-square&logo=github&logoColor=white)](https://github.com/johan162/edumatcher) |
 
 
 > [!CAUTION]
@@ -76,48 +76,10 @@ EduMatcher achieves **real-world latency** while remaining purely educational:
 
 | Metric        | Value                                               |
 | ------------- | --------------------------------------------------- |
-| **Max TPS**   | ~160,000 orders/second                              |
+| **Max TPS**   | ~60,000 orders/second                              |
 | **Order mix** | 20% Market, 30% aggressive Limit, 50% passive Limit |
 
-These numbers aren't just impressive—they're *realistic*. You're learning how production exchanges actually perform.
 
-## Getting Started
-
-### Quick Start
-
-Install the project with the documentation and development dependencies:
-
-```bash
-poetry config virtualenvs.in-project true
-poetry install --with dev,docs
-```
-
-Run the documentation site:
-
-```bash
-poetry run mkdocs serve
-```
-
-Then open **http://127.0.0.1:8000** for interactive learning.
-
-To run the exchange itself, use the dedicated [Running the System](#running-the-system)
-section below.
-
-### For Developers
-
-```bash
-# install with dev tools (testing, linting, type checking)
-poetry config virtualenvs.in-project true
-poetry install --with dev,docs
-
-# run the test suite
-poetry run pytest tests/ -n auto
-
-# check code quality
-poetry run black --check src tests
-poetry run mypy src tests
-poetry run flake8 src tests
-```
 
 ### Explore the Code
 
@@ -141,39 +103,7 @@ EduMatcher includes comprehensive, well-written documentation:
 - **[Verification](docs/verification.md)** — Test and replay trading scenarios
 - **[Glossary](docs/glossary.md)** — Trading terminology defined
 
-## Performance Tests
 
-Run performance benchmarks:
-
-```bash
-# just perf tests (verbose output)
-poetry run pytest -o addopts='' tests/test_perf.py -v -s -m perf -p no:cov
-
-# throughput-only (TPS table)
-poetry run pytest -o addopts='' tests/test_perf.py -v -s -m perf -k max_tps -p no:cov
-
-# exclude from normal CI runs
-poetry run pytest tests/ -m "not perf"
-```
-
-### Latest TPS sample output
-
-The command above prints a throughput block. A recent local run produced:
-
-| Metric              |       Value |
-| ------------------- | ----------: |
-| Timed orders (`n`)  |       9,900 |
-| Market BUY          | 2,000 (20%) |
-| Aggressive LIMIT    | 3,000 (30%) |
-| Passive BUY         | 2,500 (25%) |
-| Passive SELL        | 2,500 (25%) |
-| Elapsed             |     0.160 s |
-| Trades generated    |       7,421 |
-| TPS (orders/sec)    |      61,870 |
-| Mean time per order |   16.163 µs |
-
-These values are machine-dependent and should be treated as a baseline example,
-not a fixed performance guarantee.
 
 ## Why EduMatcher?
 
@@ -192,45 +122,11 @@ Perfect for:
 - **Developers** building exchange technology or trading systems
 - **Anyone** curious how modern markets actually work
 
-## Running the System
 
-Start the runtime processes in separate terminals. A minimal manual session is:
-
-```bash
-# Terminal 1 — matching engine
-poetry run pm-engine --verbose
-
-# Terminal 2 — full event log
-poetry run pm-audit --terminal
-
-# Terminal 3 — clearing / P&L
-poetry run pm-clearing
-
-# Terminal 4 — live order book
-poetry run pm-viewer --symbol AAPL
-
-# Terminal 5 — trading gateway
-poetry run pm-gateway --id GW01
-```
-
-`GW01` must exist in `engine_config.yaml` under `gateways.fix` or the gateway
-will be rejected during startup.
-
-Optional processes you will commonly add during demos:
-
-```bash
-poetry run pm-orders
-poetry run pm-stats
-poetry run pm-scheduler --now
-```
-
-On macOS, `./launch_all.sh` is a convenience launcher that opens the standard
-process set in Terminal windows via AppleScript. It is not a generic Linux or
-Windows process supervisor.
 
 ## Contributing
 
-This is an educational project. If you find bugs, improve the documentation, or enhance the teaching value—contributions are welcome!
+This is an educational project. If you find bugs, improve the documentation, or make other enhancements PRs are welcome!
 
 ## Citation
 
@@ -242,7 +138,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/edumatcher},
-  version = {1.0.0-beta}
+  version = {0.1.0rc1}
 }
 ```
 

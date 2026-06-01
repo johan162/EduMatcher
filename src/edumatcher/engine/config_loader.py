@@ -164,9 +164,9 @@ def load_engine_config(path: Path) -> EngineConfig:
     gateways_raw = raw.get("gateways")
     if not isinstance(gateways_raw, dict):
         raise ValueError("Engine config must have a 'gateways' mapping")
-    fix_raw = gateways_raw.get("fix")
-    if not isinstance(fix_raw, list):
-        raise ValueError("Engine config must have a 'gateways.fix' list")
+    alf_raw = gateways_raw.get("alf")
+    if not isinstance(alf_raw, list):
+        raise ValueError("Engine config must have a 'gateways.alf' list")
 
     cb_defaults_raw = raw.get("circuit_breaker_defaults")
     if cb_defaults_raw is not None and not isinstance(cb_defaults_raw, dict):
@@ -684,18 +684,18 @@ def load_engine_config(path: Path) -> EngineConfig:
         )
 
     fix_gateways: dict[str, FixGatewayConfig] = {}
-    for i, item in enumerate(fix_raw):
+    for i, item in enumerate(alf_raw):
         if not isinstance(item, dict):
-            raise ValueError(f"gateways.fix[{i}] must be a mapping")
+            raise ValueError(f"gateways.alf[{i}] must be a mapping")
         gw_id_raw = item.get("id")
         if not isinstance(gw_id_raw, str) or not gw_id_raw.strip():
-            raise ValueError(f"gateways.fix[{i}].id must be a non-empty string")
+            raise ValueError(f"gateways.alf[{i}].id must be a non-empty string")
         gw_id = gw_id_raw.strip().upper()
         desc = item.get("description", "")
         if desc is None:
             desc = ""
         if not isinstance(desc, str):
-            raise ValueError(f"gateways.fix[{i}].description must be a string")
+            raise ValueError(f"gateways.alf[{i}].description must be a string")
 
         role_raw = str(item.get("role", ParticipantRole.TRADER.value)).upper()
         disconnect_raw = str(
@@ -715,7 +715,7 @@ def load_engine_config(path: Path) -> EngineConfig:
         )
         if not isinstance(enforce_mm_obligation, bool):
             raise ValueError(
-                f"gateways.fix[{i}].enforce_mm_obligation must be a boolean"
+                f"gateways.alf[{i}].enforce_mm_obligation must be a boolean"
             )
 
         mm_max_spread_ticks_raw = item.get(
@@ -726,36 +726,36 @@ def load_engine_config(path: Path) -> EngineConfig:
             mm_max_spread_ticks = int(mm_max_spread_ticks_raw)
         except (TypeError, ValueError) as exc:
             raise ValueError(
-                f"gateways.fix[{i}].mm_max_spread_ticks must be an integer"
+                f"gateways.alf[{i}].mm_max_spread_ticks must be an integer"
             ) from exc
         try:
             mm_min_qty = int(mm_min_qty_raw)
         except (TypeError, ValueError) as exc:
             raise ValueError(
-                f"gateways.fix[{i}].mm_min_qty must be an integer"
+                f"gateways.alf[{i}].mm_min_qty must be an integer"
             ) from exc
         if mm_max_spread_ticks <= 0:
-            raise ValueError(f"gateways.fix[{i}].mm_max_spread_ticks must be > 0")
+            raise ValueError(f"gateways.alf[{i}].mm_max_spread_ticks must be > 0")
         if mm_min_qty <= 0:
-            raise ValueError(f"gateways.fix[{i}].mm_min_qty must be > 0")
+            raise ValueError(f"gateways.alf[{i}].mm_min_qty must be > 0")
 
         try:
             role = ParticipantRole(role_raw)
         except ValueError as exc:
-            raise ValueError(f"gateways.fix[{i}].role is invalid") from exc
+            raise ValueError(f"gateways.alf[{i}].role is invalid") from exc
 
         try:
             disconnect_behaviour = DisconnectBehaviour(disconnect_raw)
         except ValueError as exc:
             raise ValueError(
-                f"gateways.fix[{i}].disconnect_behaviour is invalid"
+                f"gateways.alf[{i}].disconnect_behaviour is invalid"
             ) from exc
 
         try:
             quote_refresh_policy = QuoteRefreshPolicy(refresh_raw)
         except ValueError as exc:
             raise ValueError(
-                f"gateways.fix[{i}].quote_refresh_policy is invalid"
+                f"gateways.alf[{i}].quote_refresh_policy is invalid"
             ) from exc
 
         # --- Optional per-symbol mm_obligations mapping -----------------------
@@ -763,19 +763,19 @@ def load_engine_config(path: Path) -> EngineConfig:
         mm_obligation_policies: dict[str, MMObligationPolicy] = {}
         mm_obligations_raw = item.get("mm_obligations") or {}
         if not isinstance(mm_obligations_raw, dict):
-            raise ValueError(f"gateways.fix[{i}].mm_obligations must be a mapping")
+            raise ValueError(f"gateways.alf[{i}].mm_obligations must be a mapping")
         for obl_sym, obl_raw in mm_obligations_raw.items():
             obl_sym = str(obl_sym).upper()
             if not isinstance(obl_raw, dict):
                 raise ValueError(
-                    f"gateways.fix[{i}].mm_obligations.{obl_sym} must be a mapping"
+                    f"gateways.alf[{i}].mm_obligations.{obl_sym} must be a mapping"
                 )
             obl_enforce_raw = obl_raw.get(
                 "enforce_mm_obligation", enforce_mm_obligation
             )
             if not isinstance(obl_enforce_raw, bool):
                 raise ValueError(
-                    f"gateways.fix[{i}].mm_obligations.{obl_sym}.enforce_mm_obligation must be a boolean"
+                    f"gateways.alf[{i}].mm_obligations.{obl_sym}.enforce_mm_obligation must be a boolean"
                 )
             obl_max_raw = obl_raw.get("max_spread_ticks", mm_max_spread_ticks)
             obl_min_raw = obl_raw.get("min_qty", mm_min_qty)
@@ -793,11 +793,11 @@ def load_engine_config(path: Path) -> EngineConfig:
                 )
             except (TypeError, ValueError) as exc:
                 raise ValueError(
-                    f"gateways.fix[{i}].mm_obligations.{obl_sym} is invalid"
+                    f"gateways.alf[{i}].mm_obligations.{obl_sym} is invalid"
                 ) from exc
 
         if gw_id in fix_gateways:
-            raise ValueError(f"Duplicate gateway id in gateways.fix: {gw_id}")
+            raise ValueError(f"Duplicate gateway id in gateways.alf: {gw_id}")
         fix_gateways[gw_id] = FixGatewayConfig(
             id=gw_id,
             description=desc,
@@ -812,7 +812,7 @@ def load_engine_config(path: Path) -> EngineConfig:
         )
 
     if not fix_gateways:
-        raise ValueError("Engine config must define at least one gateways.fix entry")
+        raise ValueError("Engine config must define at least one gateways.alf entry")
 
     mm_gateway_ids = {
         gw_id

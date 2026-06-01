@@ -427,7 +427,7 @@ Configure a dedicated gateway with `role: ADMIN` in `engine_config.yaml`:
 
 ```yaml
 gateways:
-  fix:
+  alf:
     GW_ADMIN:
       id: GW_ADMIN
       description: "Operations desk"

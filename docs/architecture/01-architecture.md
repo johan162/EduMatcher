@@ -812,7 +812,7 @@ Where p = distinct price levels, n = total resting orders, k = orders matched.
 ### Gateway Authentication
 
 Before a gateway can submit orders, it must authenticate with the engine.
-If the engine has a `gateways.fix` section in its config, only listed gateway IDs are accepted.
+If the engine has a `gateways.alf` section in its config, only listed gateway IDs are accepted.
 
 ```
 Gateway                              Engine
@@ -829,7 +829,7 @@ Gateway                              Engine
 ```
 
 If `accepted: false`, the gateway prints the rejection reason and exits.
-If no `gateways.fix` section exists in config, all gateway IDs are auto-accepted
+If no `gateways.alf` section exists in config, all gateway IDs are auto-accepted
 (backward-compatible mode).
 
 Orders from gateways that have not completed the auth handshake are rejected with

@@ -180,11 +180,11 @@ If the engine was killed mid-session, the file may be stale or missing.
 ### Why is my order rejected with "Gateway not authenticated"?
 
 Your gateway ID is not in the engine's allowlist. Gateway IDs must be
-pre-configured in `engine_config.yaml` under `gateways.fix`:
+pre-configured in `engine_config.yaml` under `gateways.alf`:
 
 ```yaml
 gateways:
-    fix:
+    alf:
         - id: GW01
           description: My first trader
 ```

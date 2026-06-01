@@ -1,4 +1,4 @@
-# Copilot instructions for `mcprojsim`
+# Copilot instructions for `edumatcher` project
 
 1. Think Before Coding
 Don't assume. Don't hide confusion. Surface tradeoffs.

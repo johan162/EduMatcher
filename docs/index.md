@@ -103,7 +103,7 @@ poetry run pm-viewer --symbol AAPL
 poetry run pm-gateway --id GW01
 ```
 
-`GW01` must be configured under `gateways.fix` in `engine_config.yaml` or the
+`GW01` must be configured under `gateways.alf` in `engine_config.yaml` or the
 gateway will fail authentication and exit.
 
 To add more users, watch more symbols, or enable auctions:
@@ -162,7 +162,7 @@ poetry run mkdocs serve
 | Command | Description |
 |---------|-------------|
 | `pm-engine`   | Matching engine — the core process that must start first |
-| `pm-gateway`  | User gateway (one per user) — accepts FIX-like commands on stdin |
+| `pm-gateway`  | User gateway (one per user) — accepts ALF commands on stdin ([ALF Protocol Reference](user-guide/20-app-alf-protocol.md)) |
 | `pm-viewer`   | Live order book display for a single symbol |
 | `pm-orders`   | Global order status monitor (all gateways, all symbols) |
 | `pm-audit`    | Event logger — records every message to a rotating log file |

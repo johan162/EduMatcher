@@ -34,7 +34,7 @@ symbols:
     last_buy_price: 150.0
     last_sell_price: 151.0
 gateways:
-  fix:
+  alf:
     - id: TRADER01
 """
 
@@ -59,7 +59,7 @@ class TestConfigLoaderHappyPath:
           aapl:
             last_buy_price: 100.0
         gateways:
-          fix:
+          alf:
             - id: GW01
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
@@ -71,7 +71,7 @@ class TestConfigLoaderHappyPath:
         symbols:
           MSFT:
         gateways:
-          fix:
+          alf:
             - id: GW01
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
@@ -89,7 +89,7 @@ class TestConfigLoaderHappyPath:
                 bid_qty: 100
                 ask_qty: 100
         gateways:
-          fix:
+          alf:
             - id: MM01
               role: MARKET_MAKER
         """
@@ -102,7 +102,7 @@ class TestConfigLoaderHappyPath:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
               description: First gateway
             - id: GW02
@@ -123,7 +123,7 @@ class TestConfigLoaderHappyPath:
                 bid_qty: 50
                 ask_qty: 50
         gateways:
-          fix:
+          alf:
             - id: MM01
               role: MARKET_MAKER
               disconnect_behaviour: CANCEL_ALL
@@ -146,7 +146,7 @@ class TestConfigLoaderHappyPath:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: trader01
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
@@ -165,7 +165,7 @@ class TestConfigLoaderHappyPath:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
         schedule:
           pre_open: "08:00"
@@ -193,7 +193,7 @@ class TestConfigLoaderHappyPath:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
         sessions_enabled: true
         """
@@ -210,7 +210,7 @@ class TestConfigLoaderHappyPath:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
         enforce_collars: false
         enforce_circuit_breakers: false
@@ -228,7 +228,7 @@ class TestConfigLoaderHappyPath:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
         snapshot_interval_sec: 1.25
         """
@@ -243,7 +243,7 @@ class TestConfigLoaderHappyPath:
           MSFT:
             last_buy_price: 400.0
         gateways:
-          fix:
+          alf:
             - id: GW01
         market_maker_combos:
           - combo_id: PAIR1
@@ -273,7 +273,7 @@ class TestConfigLoaderHappyPath:
             last_buy_price: "149.50"
             last_sell_price: "150.50"
         gateways:
-          fix:
+          alf:
             - id: GW01
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
@@ -285,7 +285,7 @@ class TestConfigLoaderHappyPath:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
               description:
         """
@@ -302,7 +302,7 @@ class TestConfigLoaderHappyPath:
           EURUSD:
             tick_decimals: 4
         gateways:
-          fix:
+          alf:
             - id: GW01
         """
         cfg = load_engine_config(_write_yaml(tmp_path, yaml))
@@ -330,7 +330,7 @@ class TestConfigLoaderFileErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
         sessions_enabled: "yes"
         """
@@ -342,7 +342,7 @@ class TestConfigLoaderFileErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
         snapshot_interval_sec: "fast"
         """
@@ -354,7 +354,7 @@ class TestConfigLoaderFileErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
         snapshot_interval_sec: 0
         """
@@ -366,7 +366,7 @@ class TestConfigLoaderFileErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
         enforce_collars: "yes"
         """
@@ -378,7 +378,7 @@ class TestConfigLoaderFileErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
         enforce_circuit_breakers: "yes"
         """
@@ -395,7 +395,7 @@ class TestConfigLoaderSymbolErrors:
     def test_missing_symbols_key_raises(self, tmp_path: Path) -> None:
         yaml = """
         gateways:
-          fix:
+          alf:
             - id: GW01
         """
         with pytest.raises(ValueError, match="'symbols'"):
@@ -406,7 +406,7 @@ class TestConfigLoaderSymbolErrors:
         symbols:
           AAPL: "not a dict"
         gateways:
-          fix:
+          alf:
             - id: GW01
         """
         with pytest.raises(ValueError, match="must be a mapping"):
@@ -418,7 +418,7 @@ class TestConfigLoaderSymbolErrors:
           AAPL:
             last_buy_price: "not-a-number"
         gateways:
-          fix:
+          alf:
             - id: GW01
         """
         with pytest.raises(ValueError, match="last_buy_price must be a number"):
@@ -430,7 +430,7 @@ class TestConfigLoaderSymbolErrors:
           AAPL:
             last_sell_price: "bad"
         gateways:
-          fix:
+          alf:
             - id: GW01
         """
         with pytest.raises(ValueError, match="last_sell_price must be a number"):
@@ -442,7 +442,7 @@ class TestConfigLoaderSymbolErrors:
           AAPL:
             market_maker_quotes: "not-a-list"
         gateways:
-          fix:
+          alf:
             - id: GW01
         """
         with pytest.raises(ValueError, match="market_maker_quotes must be a list"):
@@ -455,7 +455,7 @@ class TestConfigLoaderSymbolErrors:
             market_maker_quotes:
               - 12345
         gateways:
-          fix:
+          alf:
             - id: GW01
         """
         with pytest.raises(ValueError, match="must be a mapping"):
@@ -472,7 +472,7 @@ class TestConfigLoaderSymbolErrors:
                 bid_qty: 10
                 ask_qty: 10
         gateways:
-          fix:
+          alf:
             - id: MM01
               role: MARKET_MAKER
         """
@@ -490,7 +490,7 @@ class TestConfigLoaderSymbolErrors:
                 bid_qty: 10
                 ask_qty: 10
         gateways:
-          fix:
+          alf:
             - id: GW01
               role: TRADER
         """
@@ -503,7 +503,7 @@ class TestConfigLoaderSymbolErrors:
           AAPL:
             tick_decimals: 9
         gateways:
-          fix:
+          alf:
             - id: GW01
         """
         with pytest.raises(ValueError, match="tick_decimals"):
@@ -531,7 +531,7 @@ class TestConfigLoaderGatewayErrors:
         gateways:
           other: {}
         """
-        with pytest.raises(ValueError, match="gateways.fix"):
+        with pytest.raises(ValueError, match="gateways.alf"):
             load_engine_config(_write_yaml(tmp_path, yaml))
 
     def test_empty_fix_list_raises(self, tmp_path: Path) -> None:
@@ -539,7 +539,7 @@ class TestConfigLoaderGatewayErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix: []
+          alf: []
         """
         with pytest.raises(ValueError, match="at least one"):
             load_engine_config(_write_yaml(tmp_path, yaml))
@@ -549,7 +549,7 @@ class TestConfigLoaderGatewayErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - "just-a-string"
         """
         with pytest.raises(ValueError, match="must be a mapping"):
@@ -560,7 +560,7 @@ class TestConfigLoaderGatewayErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - description: "no id here"
         """
         with pytest.raises(ValueError, match=".id must be a non-empty string"):
@@ -571,7 +571,7 @@ class TestConfigLoaderGatewayErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
             - id: GW01
         """
@@ -583,7 +583,7 @@ class TestConfigLoaderGatewayErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
               role: INVALID
         """
@@ -595,7 +595,7 @@ class TestConfigLoaderGatewayErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
               disconnect_behaviour: BAD_MODE
         """
@@ -607,7 +607,7 @@ class TestConfigLoaderGatewayErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
               quote_refresh_policy: SOMETIMES
         """
@@ -621,7 +621,7 @@ class TestConfigLoaderGatewayErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
               enforce_mm_obligation: "yes"
         """
@@ -633,7 +633,7 @@ class TestConfigLoaderGatewayErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
               mm_max_spread_ticks: 0
         """
@@ -645,7 +645,7 @@ class TestConfigLoaderGatewayErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
               mm_min_qty: -1
         """
@@ -657,7 +657,7 @@ class TestConfigLoaderGatewayErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
               description: 12345
         """
@@ -676,7 +676,7 @@ class TestConfigLoaderComboErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
         market_maker_combos: "bad"
         """
@@ -688,7 +688,7 @@ class TestConfigLoaderComboErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
         market_maker_combos:
           - "just-a-string"
@@ -702,7 +702,7 @@ class TestConfigLoaderComboErrors:
           AAPL: {}
           MSFT: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
         market_maker_combos:
           - combo_type: AON
@@ -727,7 +727,7 @@ class TestConfigLoaderComboErrors:
           AAPL: {}
           MSFT: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
         market_maker_combos:
           - combo_id: PAIR1
@@ -752,7 +752,7 @@ class TestConfigLoaderComboErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
         market_maker_combos:
           - combo_id: BAD
@@ -771,7 +771,7 @@ class TestConfigLoaderComboErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
         market_maker_combos:
           - combo_id: DUP
@@ -795,7 +795,7 @@ class TestConfigLoaderComboErrors:
         symbols:
           AAPL: {}
         gateways:
-          fix:
+          alf:
             - id: GW01
         market_maker_combos:
           - combo_id: PAIR1

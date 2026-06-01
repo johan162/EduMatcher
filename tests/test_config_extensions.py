@@ -39,7 +39,7 @@ class TestCollarParsing:
                     tick_decimals: 2
                     last_buy_price: 150.00
                 gateways:
-                  fix:
+                  alf:
                     - id: TRADER01
                       role: TRADER
                 """,
@@ -62,7 +62,7 @@ class TestCollarParsing:
                       static_band_pct: 0.15
                       dynamic_band_pct: 0.03
                 gateways:
-                  fix:
+                  alf:
                     - id: TRADER01
                       role: TRADER
                 """,
@@ -87,7 +87,7 @@ class TestCollarParsing:
                     last_buy_price: 150.00
                     collar: {}
                 gateways:
-                  fix:
+                  alf:
                     - id: TRADER01
                       role: TRADER
                 """,
@@ -113,7 +113,7 @@ class TestCollarParsing:
                         collar:
                           static_band_pct: 1.5
                     gateways:
-                      fix:
+                      alf:
                         - id: TRADER01
                           role: TRADER
                     """,
@@ -134,7 +134,7 @@ class TestCollarParsing:
                         last_buy_price: 150.00
                         collar: not_a_mapping
                     gateways:
-                      fix:
+                      alf:
                         - id: TRADER01
                           role: TRADER
                     """,
@@ -160,7 +160,7 @@ class TestCircuitBreakerParsing:
                     tick_decimals: 2
                     last_buy_price: 150.00
                 gateways:
-                  fix:
+                  alf:
                     - id: TRADER01
                       role: TRADER
                 """,
@@ -191,7 +191,7 @@ class TestCircuitBreakerParsing:
                           halt_duration_ns: 900000000000
                           resumption_mode: CONTINUOUS
                 gateways:
-                  fix:
+                  alf:
                     - id: TRADER01
                       role: TRADER
                 """,
@@ -221,7 +221,7 @@ class TestCircuitBreakerParsing:
                     last_buy_price: 150.00
                     circuit_breaker: {}
                 gateways:
-                  fix:
+                  alf:
                     - id: TRADER01
                       role: TRADER
                 """,
@@ -256,7 +256,7 @@ class TestCircuitBreakerParsing:
                               halt_duration_ns: 300000000000
                               resumption_mode: INVALID
                     gateways:
-                      fix:
+                      alf:
                         - id: TRADER01
                           role: TRADER
                     """,
@@ -281,7 +281,7 @@ class TestCircuitBreakerParsing:
                               price_shift_pct: 2.0
                               halt_duration_ns: 300000000000
                     gateways:
-                      fix:
+                      alf:
                         - id: TRADER01
                           role: TRADER
                     """,
@@ -305,7 +305,7 @@ class TestCircuitBreakerParsing:
                             L1:
                               halt_duration_ns: 300000000000
                     gateways:
-                      fix:
+                      alf:
                         - id: TRADER01
                           role: TRADER
                     """,
@@ -326,7 +326,7 @@ class TestCircuitBreakerParsing:
                         last_buy_price: 150.00
                         circuit_breaker: bad
                     gateways:
-                      fix:
+                      alf:
                         - id: TRADER01
                           role: TRADER
                     """,
@@ -353,7 +353,7 @@ symbols:
         bid_qty: 100
         ask_qty: 100
 gateways:
-  fix:
+  alf:
     - id: MM01
       role: MARKET_MAKER
 """
@@ -424,7 +424,7 @@ class TestGlobalRiskControlLevels:
                     tick_decimals: 2
                     last_buy_price: 150.00
                 gateways:
-                  fix:
+                  alf:
                     - id: TRADER01
                       role: TRADER
                 """,
@@ -459,7 +459,7 @@ class TestGlobalRiskControlLevels:
                     level: L1
                     last_buy_price: 150.00
                 gateways:
-                  fix:
+                  alf:
                     - id: TRADER01
                       role: TRADER
                 """,
@@ -489,7 +489,7 @@ class TestGlobalRiskControlLevels:
                     collar:
                       dynamic_band_pct: 0.05
                 gateways:
-                  fix:
+                  alf:
                     - id: TRADER01
                       role: TRADER
                 """,
@@ -526,7 +526,7 @@ class TestGlobalRiskControlLevels:
                           resumption_mode: CONTINUOUS
                           halt_duration_ns: 600000000000
                 gateways:
-                  fix:
+                  alf:
                     - id: TRADER01
                       role: TRADER
                 """,
@@ -555,7 +555,7 @@ class TestGlobalRiskControlLevels:
                         last_buy_price: 150.00
                         level: L9
                     gateways:
-                      fix:
+                      alf:
                         - id: TRADER01
                           role: TRADER
                     """,
@@ -577,7 +577,7 @@ class TestGlobalRiskControlLevels:
                         tick_decimals: 2
                         last_buy_price: 150.00
                     gateways:
-                      fix:
+                      alf:
                         - id: TRADER01
                           role: TRADER
                     """,
@@ -599,7 +599,7 @@ class TestGlobalRiskControlLevels:
                         tick_decimals: 2
                         last_buy_price: 150.00
                     gateways:
-                      fix:
+                      alf:
                         - id: TRADER01
                           role: TRADER
                     """,
@@ -625,7 +625,7 @@ class TestGlobalRiskControlLevels:
                         tick_decimals: 2
                         last_buy_price: 150.00
                     gateways:
-                      fix:
+                      alf:
                         - id: TRADER01
                           role: TRADER
                     """,
@@ -656,7 +656,7 @@ class TestGlobalMMObligationPolicies:
                         bid_qty: 200
                         ask_qty: 200
                 gateways:
-                  fix:
+                  alf:
                     - id: MM01
                       role: MARKET_MAKER
                 """,
@@ -692,7 +692,7 @@ class TestGlobalMMObligationPolicies:
                         bid_qty: 220
                         ask_qty: 220
                 gateways:
-                  fix:
+                  alf:
                     - id: MM01
                       role: MARKET_MAKER
                 """,
@@ -719,7 +719,7 @@ class TestGlobalMMObligationPolicies:
                         bid_qty: 220
                         ask_qty: 220
                 gateways:
-                  fix:
+                  alf:
                     - id: MM01
                       role: MARKET_MAKER
                       enforce_mm_obligation: false
@@ -751,7 +751,7 @@ class TestGlobalMMObligationPolicies:
                         tick_decimals: 2
                         last_buy_price: 150.00
                     gateways:
-                      fix:
+                      alf:
                         - id: TRADER01
                           role: TRADER
                     """,

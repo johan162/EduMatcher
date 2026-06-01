@@ -503,7 +503,7 @@ restricts the run to a controlled environment:
 
 ```yaml
 gateways:
-  fix:
+  alf:
     - id: VERIFY01
 
 symbols:

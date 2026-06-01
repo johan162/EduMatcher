@@ -25,7 +25,7 @@ fields.  A completely minimal `engine_config.yaml` looks like this:
 
 ```yaml
 gateways:
-  fix:
+  alf:
     - id: TRADER01
       description: First trader
     - id: MM01
@@ -66,7 +66,7 @@ symbols:
 
 The engine will refuse to start (exit 1) if:
 
-- The file exists but `gateways.fix` is not a list, **or**
+- The file exists but `gateways.alf` is not a list, **or**
 - The file exists but `symbols` is not a mapping.
 
 Run this quick sanity check before starting the engine:
@@ -75,7 +75,7 @@ Run this quick sanity check before starting the engine:
 python - <<'EOF'
 import yaml, sys, pathlib
 cfg = yaml.safe_load(pathlib.Path("engine_config.yaml").read_text())
-gws = cfg.get("gateways", {}).get("fix", None)
+gws = cfg.get("gateways", {}).get("alf", None)
 syms = cfg.get("symbols", None)
 ok = isinstance(gws, list) and len(gws) > 0 and isinstance(syms, dict) and len(syms) > 0
 print("Config OK" if ok else "Config INVALID")
@@ -95,7 +95,7 @@ Config OK
 
 | Check | Why it matters |
 |---|---|
-| At least one entry under `gateways.fix` | No gateways → nobody can connect |
+| At least one entry under `gateways.alf` | No gateways → nobody can connect |
 | At least one entry under `symbols` | No symbols → no books, no trading |
 | Every gateway that should submit orders has a matching `id` | IDs must match exactly (case-insensitive on connect; stored uppercase) |
 | `role: ADMIN` exists for at least one gateway if you want operator control | Required to use `pm-admin` / `pm-admin-cli` |
@@ -225,7 +225,7 @@ poetry run pm-ai-swarm                # coordinated multi-bot swarm
 | Process | Mandatory? | Ports | Purpose |
 |---------|-----------|-------|---------|
 | `pm-engine` | **Yes** | PULL :5555, PUB :5556, PUB :5557 | Matching engine — the single writer of the order book. All orders flow in through :5555; all events flow out through :5556. Also publishes per-participant drop-copy fills on :5557. |
-| `pm-gateway` | At least one | PUSH :5555, SUB :5556 | Interactive FIX-like order entry terminal. One per trader, market maker, or operator. Handles authentication, order submission, amend, cancel, and displays acks/fills in real time. |
+| `pm-gateway` | At least one | PUSH :5555, SUB :5556 | Interactive ALF order entry terminal. One per trader, market maker, or operator. Handles authentication, order submission, amend, cancel, and displays acks/fills in real time. See [ALF Protocol Reference](20-app-alf-protocol.md). |
 | `pm-scheduler` | No (manual mode) | PUSH :5555 | Drives automatic session-phase transitions (`PRE_OPEN → OPENING_AUCTION → CONTINUOUS → CLOSING_AUCTION → CLOSED`) at the wall-clock times defined in `engine_config.yaml`. Omit this process if you want to advance phases manually with `SESSION\|STATE=...` in `pm-admin`. |
 | `pm-viewer` | No | SUB :5556, PUSH :5555 | Live L1/L2 order-book display for one symbol. Uses a push request to fetch the initial snapshot on connect; then updates on every `book.<SYMBOL>` event. |
 | `pm-orders` | No | SUB :5556 | Cross-gateway resting-order monitor. Subscribes to all `order.*` events and displays a live table of every active order regardless of which gateway submitted it. |
@@ -455,7 +455,7 @@ the `data/` directory.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `Config error: symbols must be a mapping` | `symbols:` is a list or missing | Correct `engine_config.yaml` |
-| `Config error: gateways.fix must be a list` | `gateways.fix:` is not a list | Correct `engine_config.yaml` |
+| `Config error: gateways.alf must be a list` | `gateways.alf:` is not a list | Correct `engine_config.yaml` |
 | `Address already in use — :5555` | Another engine (or other process) is already bound | `lsof -i :5555` to find and kill the conflicting process |
 | Silent exit with code 1 | Syntax error in the YAML file | `python -c "import yaml; yaml.safe_load(open('engine_config.yaml'))"` |
 
@@ -501,7 +501,7 @@ The gateway ID you passed to `--id` exists in the config but does not have
 
 ```yaml
 gateways:
-  fix:
+  alf:
     - id: GW_ADMIN
       role: ADMIN
       description: Operator console

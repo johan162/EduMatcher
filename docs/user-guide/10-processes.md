@@ -185,7 +185,8 @@ See [Configuration](01-configuration.md) for full details on the config file.
 
 ## pm-gateway — User Gateway
 
-One instance per user. Accepts FIX-like commands on stdin.
+One instance per user. Accepts ALF commands on stdin.
+See [ALF Protocol Reference](20-app-alf-protocol.md).
 
 ```bash
 poetry run pm-gateway --id <GW_ID>
@@ -200,7 +201,7 @@ poetry run pm-gateway --id <GW_ID>
 2. Waits for `system.gateway_auth.<GW_ID>`
 3. Enters command loop only if accepted
 
-If the ID is not listed in `engine_config.yaml` under `gateways.fix`, connection
+If the ID is not listed in `engine_config.yaml` under `gateways.alf`, connection
 is refused and the gateway exits.
 
 **Messages sent** (PUSH → :5555):
@@ -648,4 +649,4 @@ EduMatcher also ships two AI-focused entrypoints:
 | **pm-ai-trader** | `poetry run pm-ai-trader` | Single automated trader using the gateway interface |
 | **pm-ai-swarm** | `poetry run pm-ai-swarm` | Multi-agent trading swarm / orchestration entrypoint |
 
-See [AI Bot Traders](../developer/01-ai-bot.md) for configuration and runtime details.
+See [AI Bot Traders](../developer/02-ai-bot.md) for configuration and runtime details.

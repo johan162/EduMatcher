@@ -1,7 +1,16 @@
+!!! note "Learning objectives"
+    After reading this page you will understand:
+
+  - Which top-level `engine_config.yaml` sections are required vs optional, and what each one controls
+  - How to configure symbols (a.k.a. Order Books or LOBs), tick precision, seeded market-maker quotes/combos, and session schedules
+  - How gateway roles (`TRADER`, `MARKET_MAKER`, `ADMIN`) change permissions and operational controls
+  - How risk-control settings are resolved (global defaults, levels, and symbol-level overrides)
+  - What startup and persistence precedence rules affect real runtime behavior (restore vs seed, `DAY` vs `GTC`)
+
+
 # Engine Configuration
 
-The matching engine and session scheduler both consume the YAML configuration
-file in the project root. It defines:
+The matching engine and session scheduler both consume the YAML configuration file in the project root. It defines:
 
 - the allowed FIX gateways
 - the traded symbol universe
@@ -51,7 +60,7 @@ The full supported schema is:
 sessions_enabled: true
 
 gateways:
-  fix:
+  alf:
     - id: TRADER01
       description: Human trader workstation
 
@@ -151,7 +160,7 @@ snapshot_interval_sec: 0.5
 | Key | Required when config file exists? | Used by |
 |---|---|---|
 | `gateways` | Yes | Engine |
-| `gateways.fix` | Yes | Engine |
+| `gateways.alf` | Yes | Engine |
 | `symbols` | Yes | Engine |
 | `market_maker_combos` | No | Engine |
 | `risk_controls` | No | Engine |
@@ -161,7 +170,7 @@ snapshot_interval_sec: 0.5
 | `sessions_enabled` | No | Engine |
 | `schedule` | No | Scheduler |
 
-If a config file exists, `symbols` must be a mapping and `gateways.fix` must be
+If a config file exists, `symbols` must be a mapping and `gateways.alf` must be
 a list. Otherwise config loading fails and the engine exits.
 
 ## Snapshot Publish Throttle
@@ -184,11 +193,11 @@ frequently a changed symbol is eligible for snapshot publication.
 
 ## Gateway Allowlist
 
-Only FIX gateway IDs listed under `gateways.fix` may connect and submit orders.
+Only FIX gateway IDs listed under `gateways.alf` may connect and submit orders.
 
 ```yaml
 gateways:
-  fix:
+  alf:
     - id: TRADER01
       description: The first trader
     - id: TRADER02
@@ -255,7 +264,7 @@ Example:
 
 ```yaml
 gateways:
-  fix:
+  alf:
     - id: TRADER01
       description: Human trader workstation
       role: TRADER
@@ -319,7 +328,7 @@ Each `symbols.<SYMBOL>` policy supports the same three fields.
 
 The effective policy for a quote is resolved using:
 
-1. `gateways.fix[*].mm_obligations.<SYMBOL>` (most specific)
+1. `gateways.alf[*].mm_obligations.<SYMBOL>` (most specific)
 2. `mm_obligation_defaults.symbols.<SYMBOL>`
 3. Gateway flat fields (`enforce_mm_obligation`, `mm_max_spread_ticks`, `mm_min_qty`)
 4. `mm_obligation_defaults` flat fields (least specific)
@@ -500,7 +509,7 @@ legs on the target symbol.
   - `gateway_id`
   - `bid_price`, `ask_price`
   - `bid_qty`, `ask_qty`
-- `gateway_id` must reference a configured `gateways.fix` entry with role `MARKET_MAKER`
+- `gateway_id` must reference a configured `gateways.alf` entry with role `MARKET_MAKER`
 - each quote requires `bid_price < ask_price`
 - each quote requires positive quantities
 - if at least one `MARKET_MAKER` gateway exists, each symbol must define at least one `market_maker_quotes` entry
@@ -731,7 +740,7 @@ This ordering matters:
 
 ```yaml
 gateways:
-  fix:
+  alf:
     - id: TRADER01
       description: The first trader
     - id: TRADER02

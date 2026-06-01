@@ -48,7 +48,7 @@ nav:
     - A Full Trading Day: concepts/05-concepts-trading-day.md
   - User Guide:
     - Configuration: user-guide/01-configuration.md
-    - Commands: user-guide/02-commands.md
+    - Controlling the Exchange: user-guide/02-commands.md
     - Running the Engine: user-guide/03-running-the-engine.md
     - Order Types: user-guide/04-order-types.md
     - Combo Orders: user-guide/05-combos.md
@@ -60,12 +60,14 @@ nav:
     - Persistence: user-guide/11-persistence.md
     - Risk Controls: user-guide/12-risk-controls.md
     - Drop Copy: user-guide/13-drop-copy.md
+    - Appendix - ALF Protocol: user-guide/20-app-alf-protocol.md
   - Architecture: 
     - Overview: architecture/01-architecture.md
     - Detailed Walkthrough: architecture/02-architecture-guide.md
   - Developer Info:
-    - AI Bot Traders: developer/01-ai-bot.md
-    - Experiments: developer/02-experiments.md 
-    - Verification: developer/03-verification.md
+    - Development Practice: developer/01-dev-practice.md
+    - AI Bot Traders: developer/02-ai-bot.md
+    - Experiments: developer/03-experiments.md
+    - Verification: developer/04-verification.md
   - Glossary: glossary.md
   - FAQ: faq.md

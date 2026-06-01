@@ -135,7 +135,7 @@ Use this sequence for reliable startup.
 
 ### Step 1: Ensure gateway IDs exist in config
 
-Your swarm IDs must be listed under `gateways.fix` in `engine_config.yaml`.
+Your swarm IDs must be listed under `gateways.alf` in `engine_config.yaml`.
 For example, if you launch with `--prefix AI --start-index 1 --count 30`,
 the engine must allow `AI01` through `AI30`.
 
@@ -211,7 +211,7 @@ poetry run pm-ai-swarm \
 ## Practical Notes
 
 1. Keep engine and subscribers running before bots start.
-2. Ensure all bot IDs are listed under `gateways.fix` in `engine_config.yaml`.
+2. Ensure all bot IDs are listed under `gateways.alf` in `engine_config.yaml`.
 3. Start small (2–5 bots), verify flow, then scale to 30.
 4. Use fixed seeds for scenario replay and performance comparisons.
 

@@ -168,7 +168,7 @@ The dedicated drop-copy channel is implemented in
 
 ### `system.gateway_connect`
 
-Sent by a FIX gateway at startup to authenticate its gateway ID against
+Sent by an ALF gateway at startup to authenticate its gateway ID against
 `engine_config.yaml`.
 
 | Field | Type | Description |
@@ -180,7 +180,7 @@ Sent by a FIX gateway at startup to authenticate its gateway ID against
 | Field | Type | Description |
 |---|---|---|
 | `gateway_id` | string | Gateway identifier |
-| `accepted` | boolean | `true` if ID is configured in `gateways.fix` |
+| `accepted` | boolean | `true` if ID is configured in `gateways.alf` |
 | `reason` | string | Rejection reason when `accepted=false` |
 | `description` | string | Optional configured description for the gateway |
 
@@ -364,7 +364,7 @@ Declare a gateway with `role: ADMIN` in `engine_config.yaml`:
 
 ```yaml
 gateways:
-  fix:
+  alf:
     GW_ADMIN:
       id: GW_ADMIN
       description: Operations desk

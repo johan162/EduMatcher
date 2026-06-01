@@ -8,6 +8,7 @@
     - The full catalogue of commands available to an `ADMIN`-role gateway
     - Which commands are ADMIN-restricted and which any connected gateway may send
     - How to extend the framework with new commands as the exchange evolves
+    - Hopw to actively manage an exchange
 
     **Prerequisites**: [Messages](09-messages.md) for the raw two-frame format.
     [Risk Controls § 6](12-risk-controls.md#6-admin-role-operator-controls) for
@@ -81,8 +82,9 @@ Tab completion and arrow-key history work exactly as in `pm-gateway`.
 
 ### Console command syntax
 
-Commands follow the same `CMD|KEY=VALUE|KEY=VALUE` pipe syntax as the FIX
-gateway.  Single-word commands (no arguments) need no pipes.
+Commands follow the same `CMD|KEY=VALUE|KEY=VALUE` pipe syntax as the ALF
+gateway command language (see [ALF Protocol Reference](20-app-alf-protocol.md)).
+Single-word commands (no arguments) need no pipes.
 
 | Command | Syntax | Notes |
 |---|---|---|

@@ -21,7 +21,7 @@
 #           price_shift_pct: 0.20
 #           halt_duration_ns:   # null => rest of trading day
 #     market_maker_quotes:       # optional — startup quote seeds (first startup)
-#       - gateway_id: MM01       # must reference gateways.fix role=MARKET_MAKER
+#       - gateway_id: MM01       # must reference gateways.alf role=MARKET_MAKER
 #         bid_price: 100.00
 #         ask_price: 100.10
 #         bid_qty: 100
@@ -29,7 +29,7 @@
 #         tif: DAY
 #         quote_id: MM-AAPL-1
 # gateways:
-#   fix:
+#   alf:
 #     - id: TRADER01
 #       description: Human trader workstation
 #       role: TRADER
@@ -44,7 +44,7 @@
 # Notes:
 #   • Only symbols listed here are accepted by the engine.
 #     Orders for any other symbol are rejected with "Symbol not configured".
-#   • Only FIX gateway IDs listed under gateways.fix may connect and submit
+#   • Only ALF gateway IDs listed under gateways.alf may connect and submit
 #     order.new / order.cancel / order.orders_request messages.
 #   • last_buy_price / last_sell_price are used only when no persisted
 #     book_stats.json values exist for that symbol (config is the seed,
@@ -121,7 +121,7 @@ circuit_breaker_defaults:
       resumption_mode: AUCTION
 
 gateways:
-  fix:
+  alf:
     - id: TRADER01
       description: The first trader
       role: TRADER
@@ -225,8 +225,10 @@ market_maker_combos:
 # and run continuous matching from engine startup (default behavior).
 #
 # schedule:
-#   pre_open: "09:00"
+#   alf:
 #   opening_auction_start: "09:25"
 #   continuous_start: "09:30"
 #   closing_auction_start: "16:00"
-#   closing_auction_end: "16:05"
+#   • Only ALF gateway IDs listed under gateways.alf may connect and submit
+
+  alf:
