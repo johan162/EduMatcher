@@ -84,7 +84,7 @@ Full docs: [EduMatcher Documentation](https://johan162.github.io/edumatcher/)
 Additional references:
 
 - [How an Exchange Works](https://johan162.github.io/how-exchange-works/)
-- [ALF Protocol Appendix](docs/user-guide/20-app-alf-protocol.md)
+- [ALF Protocol Appendix](https://johan162.github.io/user-guide/20-app-alf-protocol.md)
 - [Glossary](https://johan162.github.io/glossary/)
 
 
