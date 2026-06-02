@@ -1313,7 +1313,7 @@ legs are evaluated together before any fills are committed.
 
 -----
 
-## 10. The Message Bus: Why ZeroMQ?
+##  The Message Bus: Why ZeroMQ?
 
 ### The Problem with Direct Function Calls
 
@@ -1466,7 +1466,7 @@ registry. Just connect and start sending.
 
 -----
 
-## 11. The Full Process Architecture
+##  The Full Process Architecture
 
 EduMatcher is a **multi-process system**. Each process is a separate Python program
 with its own memory space, started independently. The diagram below shows the
@@ -1634,7 +1634,7 @@ is the closest thing to a full audit trail in the system.
 
 -----
 
-## 12. Optimisations: Speed, Memory, and Latency
+##  Optimisations: Speed, Memory, and Latency
 
 This section collects all performance-oriented decisions in one place, explains
 the reasoning, and quantifies the expected impact where possible.
@@ -1910,7 +1910,7 @@ O(P) price levels before any fills are attempted, and rejection is clean.
 
 -----
 
-## 13. Persistence: Surviving a Restart
+##  Persistence: Surviving a Restart
 
 When the engine restarts, two categories of state need to be restored:
 
@@ -1996,7 +1996,7 @@ after restart.
 
 -----
 
-## 14. Clearing and Settlement: Following the Money
+##  Clearing and Settlement: Following the Money
 
 Clearing is the process of ensuring both sides of a trade actually deliver what they
 promised: the buyer delivers money, the seller delivers shares. EduMatcher
@@ -2084,13 +2084,13 @@ and legal infrastructure.
 
 -----
 
-## 15. What Is Missing: The Gap to Production
+##  What Is Missing: The Gap to Production
 
 EduMatcher is explicitly educational. Here is a complete and honest accounting of
 what would need to be added to make it production-grade. Each item is a
 non-trivial engineering project.
 
-### 15.1 Message Sequence Numbers and Guaranteed Delivery
+### Message Sequence Numbers and Guaranteed Delivery
 
 **What is missing:** Every ZMQ message published by the engine has no sequence
 number. If a subscriber (clearing, stats, audit) disconnects for 5 seconds and
@@ -2115,7 +2115,7 @@ MISSING:
   - Subscriber reconnect logic with automatic replay
 ```
 
-### 15.2 Authentication and Authorisation
+### Authentication and Authorisation
 
 **What is missing:** Any process can connect to port 5555 and submit orders as any
 `gateway_id`. There is no proof that `GW01` is actually GW01.
@@ -2154,7 +2154,7 @@ process is who it claims to be.
   periodically.
 - **Audit trail**: every authentication event and authorisation decision logged.
 
-### 15.3 TLS Encryption
+### TLS Encryption
 
 **What is missing:** All ZMQ communication is plaintext TCP. Any process on the
 network can read order messages, trade data, and fill reports.
@@ -2165,7 +2165,7 @@ elliptic-curve cryptography layer built directly into ZeroMQ, which provides bot
 encryption and authentication without a full TLS certificate infrastructure)
 encryption on all sockets.
 
-### 15.4 Primary and Secondary (Failover) Sites
+### Primary and Secondary (Failover) Sites
 
 **What is missing:** EduMatcher runs on one machine. If that machine crashes, the
 exchange stops. All in-flight orders and state are lost.
@@ -2206,7 +2206,7 @@ MISSING:
   - Duplicate message detection after failover
 ```
 
-### 15.5 Order Replay and Recovery
+### Order Replay and Recovery
 
 **What is missing:** If the engine crashes mid-processing (after receiving an order
 but before publishing its ack), that order is silently lost. The gateway never
@@ -2220,7 +2220,7 @@ reconnect receive replayed acks for any orders that were processed before the cr
 This is similar to how database transaction logs work. The core principle: if
 something is committed to the log, it happened; if it is not in the log, it did not.
 
-### 15.6 Rate Limiting and Risk Checks
+### Rate Limiting and Risk Checks
 
 **What is missing:** Any gateway can submit an unlimited number of orders per second.
 A buggy algorithm could send 100,000 orders per second, overwhelming the engine.
@@ -2241,7 +2241,7 @@ A buggy algorithm could send 100,000 orders per second, overwhelming the engine.
   $15.00 when you meant $150.00). Fat finger filters reject orders whose price or
   quantity deviates wildly from expected ranges.
 
-### 15.7 High-Precision Timestamps and Clock Synchronisation
+### High-Precision Timestamps and Clock Synchronisation
 
 **Status in EduMatcher:** Nanosecond integer timestamps via `monotonic_ns()` (from
 `models/clock.py`) are now implemented — see `EduMatcher_Tick_Migration_Plan_v6.md`.
@@ -2262,7 +2262,7 @@ values even when the system clock is adjusted backward. All `Order`, `Trade`, an
   for regulatory compliance in most jurisdictions, which mandate proof of when an
   order was received to the microsecond.
 
-### 15.8 Price Precision
+### Price Precision
 
 **Status in EduMatcher:** Integer tick-based prices are now implemented — see
 `EduMatcher_Tick_Migration_Plan_v6.md`. All prices inside the engine are stored
@@ -2285,7 +2285,7 @@ statically in `engine_config.yaml`. A production system needs dynamic tick size
 changes (e.g. when a stock splits), per-exchange tick tables, and validation that
 submitted prices are multiples of the tick size before they enter the engine.
 
-### 15.9 Network Level: FIX Protocol
+### Network Level: FIX Protocol
 
 **What is missing:** EduMatcher’s gateway uses a simplified text protocol
 (`NEW|SYM=AAPL|SIDE=BUY|...`). Real exchanges use the **FIX (Financial Information
@@ -2305,7 +2305,7 @@ Supporting FIX requires: a FIX engine (parser, session management, sequence numb
 tracking, resend request handling), support for multiple FIX versions (4.2, 4.4,
 5.0), and extensions for specific asset classes and order types.
 
-### 15.10 Regulatory Requirements
+### Regulatory Requirements
 
 **What is missing:** Depending on jurisdiction, an exchange must:
 

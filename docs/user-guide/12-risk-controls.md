@@ -29,7 +29,7 @@ All three operate at the engine level — *before* any order enters the book.
 
 
 
-## 1. Instrument halt state
+##  Instrument halt state
 
 ### What it does
 
@@ -84,7 +84,7 @@ guarantee.
 
 
 
-## 2. Price collars
+##  Price collars
 
 ### Motivation
 
@@ -206,7 +206,7 @@ The reference price for the static band is taken from `last_buy_price`
 
 
 
-## 3. Circuit breakers
+##  Circuit breakers
 
 ### Motivation
 
@@ -338,7 +338,7 @@ determines which level is activated at runtime.
 
 
 
-## 4. Interaction between mechanisms
+##  Interaction between mechanisms
 
 All three controls can be active simultaneously on the same symbol.  The engine
 applies them in this order for every incoming order:
@@ -384,7 +384,7 @@ A limit buy at 12200 ticks trades. Reference = 10100.
 
 
 
-## 5. ZeroMQ messages
+##  ZeroMQ messages
 
 Risk events are broadcast on the engine's PUB socket (port 5556).
 
@@ -413,7 +413,7 @@ payload: {
 
 
 
-## 6. ADMIN-role operator controls
+##  ADMIN-role operator controls
 
 An operator gateway configured with `role: ADMIN` can trigger and lift an
 **exchange-wide** halt without waiting for a per-symbol circuit breaker to fire
@@ -605,7 +605,7 @@ sequenceDiagram
 
 
 
-## 7. Market-maker interaction
+##  Market-maker interaction
 
 When a circuit breaker fires, all outstanding market-maker quotes for the
 affected symbol are cancelled immediately.  This protects market makers from

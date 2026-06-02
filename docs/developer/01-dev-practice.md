@@ -14,7 +14,7 @@
 
 
 
-## 1. What kind of project you are joining
+##  What kind of project you are joining
 
 EduMatcher is a **multi-process educational exchange**. It is not just a single
 matching function or a toy order-book exercise. The repository contains:
@@ -41,7 +41,7 @@ If you are new to the code base, start by reading these pages in order:
 
 
 
-## 2. Development environment
+##  Development environment
 
 ### Recommended Python version
 
@@ -90,7 +90,7 @@ for `scripts/docs-contctl.sh`.
 
 
 
-## 3. Repository map
+##  Repository map
 
 When you are orienting yourself, this is the practical top-level map:
 
@@ -119,7 +119,7 @@ If you want to understand the runtime quickly, read:
 
 
 
-## 4. Development workflow expectations
+##  Development workflow expectations
 
 ### Default working style
 
@@ -176,7 +176,7 @@ do not silently expand the scope of your change.
 
 
 
-## 5. Running a minimal system while developing
+##  Running a minimal system while developing
 
 It is worth keeping a **small live system** available during development. Even
 when unit tests pass, a real end-to-end run catches startup, wiring, and event
@@ -279,12 +279,12 @@ You should expect to see:
 
 
 
-## 6. Verification and test strategy
+##  Verification and test strategy
 
 There are three different kinds of checks in this repository, and they answer
 different questions.
 
-### 6.1 Normal regression tests
+###  Normal regression tests
 
 Run these continuously while developing:
 
@@ -295,7 +295,7 @@ poetry run pytest tests/ -m "not perf"
 These are the default correctness tests and should remain fast enough for
 frequent reruns.
 
-### 6.2 Deterministic engine verification
+###  Deterministic engine verification
 
 EduMatcher includes a dedicated replay-and-compare verification flow under
 `tools/`. This is the right choice when you need confidence that the production
@@ -317,7 +317,7 @@ Read [Verification](04-verification.md) before changing this flow. It explains
 why deterministic replay is hard and how the repository avoids common traps such
 as clocks, ACK ordering, and persisted GTC state.
 
-### 6.3 Performance tests
+###  Performance tests
 
 Performance tests are intentionally separate from the normal CI path. They
 measure engine behavior, not the full end-to-end network stack.
@@ -348,7 +348,7 @@ processing cost**, not total production wire latency.
 
 
 
-## 7. Helper scripts under `scripts/` and `tools/`
+##  Helper scripts under `scripts/` and `tools/`
 
 The repo includes useful helper scripts, but not all of them are equally
 authoritative. In general:
@@ -382,7 +382,7 @@ date.
 
 
 
-## 8. Documentation workflow
+##  Documentation workflow
 
 Developer-facing work is not finished until the docs still build cleanly.
 
@@ -414,7 +414,7 @@ than duplicating large explanations in new pages.
 
 
 
-## 9. Current release workflow
+##  Current release workflow
 
 The intended release flow is:
 
@@ -470,7 +470,7 @@ before pushing a real release.
 
 
 
-## 10. Common pitfalls for new developers
+##  Common pitfalls for new developers
 
 ### Starting clients before the engine
 
@@ -511,7 +511,7 @@ That is why a minimal live run is worth doing.
 
 
 
-## 11. Suggested first-week path for a new developer
+##  Suggested first-week path for a new developer
 
 If you are onboarding, this is a good sequence:
 

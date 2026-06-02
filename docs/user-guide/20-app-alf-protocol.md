@@ -12,7 +12,7 @@
 
 
 
-## 1. What ALF is
+## What ALF is
 
 **ALF** stands for **ALmost Fix**.
 
@@ -39,7 +39,7 @@ correct source to follow.
 
 
 
-## 2. Scope and boundaries
+## Scope and boundaries
 
 ALF is the **text command language accepted by `pm-gateway`**. It is not the
 internal engine wire format. The gateway converts ALF commands into the engine's
@@ -54,9 +54,9 @@ This appendix describes the **ALF side**, not the internal message bus.
 
 
 
-## 3. Core syntax rules
+## Core syntax rules
 
-### 3.1 Line structure
+### Line structure
 
 Every ALF command is a single line:
 
@@ -121,7 +121,7 @@ In practice:
 - the **first** `=` in a segment separates key from value
 - no quoting or escaping layer exists
 
-### 3.2 Whitespace
+###  Whitespace
 
 The gateway trims whitespace only at the very start and end of the full line.
 It does **not** trim spaces around individual fields. Write:
@@ -136,7 +136,7 @@ not:
 NEW | SYM=AAPL | SIDE=BUY
 ```
 
-### 3.3 Case handling
+### Case handling
 
 ALF is effectively **case-insensitive** for command verbs, field names, enum
 values, and symbols, because the gateway normalizes parsed values to uppercase.
@@ -159,7 +159,7 @@ Examples:
 If you generate ALF programmatically, assume that **labels and symbols are
 case-folded to uppercase** by the gateway.
 
-### 3.4 Field order
+### Field order
 
 After the command word, field order is generally **not significant**. The
 gateway parses fields into a key/value map and then validates what is present.
@@ -176,7 +176,7 @@ Exceptions:
 - the command verb must be the first token
 - combo leg numbering must be consistent with `LEG_COUNT`
 
-### 3.5 Duplicate and unknown fields
+### Duplicate and unknown fields
 
 If the same field appears more than once, the **last occurrence wins**.
 
@@ -191,7 +191,7 @@ This is parsed as `SYM=MSFT`.
 Unknown fields are ignored by the gateway unless they are required for the
 specific command being validated.
 
-### 3.6 Numeric formatting
+### Numeric formatting
 
 ALF uses human-readable decimal prices:
 
@@ -207,7 +207,7 @@ Quantities are integers:
 The gateway converts decimal prices to the symbol's internal tick representation
 before sending them to the engine.
 
-### 3.7 No escaping
+###  No escaping
 
 ALF has **no escaping mechanism** for `|`. Do not place `|` inside values.
 
@@ -217,7 +217,7 @@ not part of the documented protocol and should be avoided.
 
 
 
-## 4. Common field vocabulary
+## Common field vocabulary
 
 | Field | Meaning |
 |---|---|
@@ -236,7 +236,7 @@ not part of the documented protocol and should be avoided.
 | `OCO_ID` | User-supplied OCO label |
 | `QUOTE_ID` | User-supplied quote label |
 
-### 4.1 Supported `TIF` values
+###  Supported `TIF` values
 
 | Value | Meaning |
 |---|---|
@@ -245,7 +245,7 @@ not part of the documented protocol and should be avoided.
 | `ATO` | At the open; only meaningful during the opening auction |
 | `ATC` | At the close; only meaningful during the closing auction |
 
-### 4.2 Supported `SMP` values
+### Supported `SMP` values
 
 | Value | Meaning |
 |---|---|
@@ -256,7 +256,7 @@ not part of the documented protocol and should be avoided.
 
 
 
-## 5. Command families
+## Command families
 
 ALF commands fall into three groups:
 
@@ -271,9 +271,9 @@ important commands are the **trading commands**.
 
 
 
-## 6. Single-leg `NEW` orders
+##  Single-leg `NEW` orders
 
-### 6.1 Generic form
+###  Generic form
 
 ```text
 NEW|SYM=<symbol>|SIDE=<BUY|SELL>|TYPE=<order-type>|QTY=<quantity>[|...]
@@ -293,7 +293,7 @@ new-single =
 
 Where `option` depends on the selected order type.
 
-### 6.2 Supported single-leg order types
+###  Supported single-leg order types
 
 | Type | Required fields | Optional fields | Notes |
 |---|---|---|---|
@@ -306,7 +306,7 @@ Where `option` depends on the selected order type.
 | `ICEBERG` | `SYM`, `SIDE`, `TYPE=ICEBERG`, `QTY`, `PRICE`, `VISIBLE` | `TIF`, `SMP` | `VISIBLE` must be strictly less than `QTY` |
 | `TRAILING_STOP` | `SYM`, `SIDE`, `TYPE=TRAILING_STOP`, `QTY`, `TRAIL` | `STOP`, `TIF`, `SMP` | `STOP` is optional; if omitted the engine derives the initial stop from the last trade price |
 
-### 6.3 Formal syntax by order type
+###  Formal syntax by order type
 
 ### MARKET
 
@@ -414,7 +414,7 @@ Semantics:
   price
 - if `STOP` is omitted and no prior trade exists, the engine rejects the order
 
-### 6.4 Auction-only `TIF` values
+###  Auction-only `TIF` values
 
 `ATO` and `ATC` are accepted by the single-leg parser even though they are not
 prominent in tab completion.
@@ -428,7 +428,7 @@ NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=151.00|TIF=ATC
 
 These are only meaningful during the opening and closing auction phases.
 
-### 6.5 Practical parsing notes
+###  Practical parsing notes
 
 - `PRICE`, `STOP`, and `TRAIL` are decimal display prices, not ticks
 - `QTY` and `VISIBLE` must parse as integers
@@ -438,7 +438,7 @@ These are only meaningful during the opening and closing auction phases.
 
 
 
-## 7. `AMEND` - order amendments
+##  `AMEND` - order amendments
 
 `AMEND` applies only to **existing single-leg orders** identified by full
 engine-generated order ID.
@@ -519,9 +519,9 @@ requires the full internal ID.
 
 
 
-## 8. `CANCEL` - order and group cancellation
+##  `CANCEL` - order and group cancellation
 
-### 8.1 Single order cancel
+###  Single order cancel
 
 ```text
 CANCEL|ID=<order-id>
@@ -533,7 +533,7 @@ Example:
 CANCEL|ID=ORD-12345678
 ```
 
-### 8.2 Combo cancel
+###  Combo cancel
 
 ```text
 CANCEL|COMBO_ID=<combo-label>
@@ -545,7 +545,7 @@ Example:
 CANCEL|COMBO_ID=PAIR-001
 ```
 
-### 8.3 OCO cancel
+###  OCO cancel
 
 ```text
 CANCEL|OCO_ID=<oco-label>
@@ -566,7 +566,7 @@ CANCEL|OCO_ID=EXIT-AAPL
 
 
 
-## 9. `NEW|TYPE=OCO` - one-cancels-other pairs
+##  `NEW|TYPE=OCO` - one-cancels-other pairs
 
 OCO syntax creates **two linked orders on the same symbol and with the same
 quantity**. When one leg fills or is otherwise actioned, the sibling is
@@ -645,7 +645,7 @@ NEW|TYPE=OCO|OCO_ID=EXIT-TRAIL|SYM=AAPL|QTY=100|TIF=GTC|LEG1_SIDE=SELL|LEG1_TYPE
 
 
 
-## 10. `NEW|TYPE=COMBO` - multi-leg combo orders
+##  `NEW|TYPE=COMBO` - multi-leg combo orders
 
 Combo syntax creates a parent combo plus child orders across multiple symbols.
 
@@ -743,7 +743,7 @@ NEW|TYPE=COMBO|COMBO_ID=ARB-01|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=3|LEG0.SYM=AAPL|
 
 
 
-## 11. `QUOTE` and `QUOTE_CANCEL`
+##  `QUOTE` and `QUOTE_CANCEL`
 
 Quotes are a two-sided market-maker convenience command. One `QUOTE` submits or
 replaces both a bid and an ask for the same symbol.
@@ -777,7 +777,7 @@ QUOTE_CANCEL|SYM=AAPL
 
 
 
-## 12. `KILL`
+##  `KILL`
 
 `KILL` triggers the kill switch for the current gateway.
 
@@ -892,7 +892,7 @@ will cancel all of the above gateway-owned resting exposure across all symbols.
 
 
 
-## 13. Informational gateway commands
+##  Informational gateway commands
 
 These commands are part of the ALF command language accepted by `pm-gateway`,
 but they are not order-entry messages in the strict sense.
@@ -940,9 +940,9 @@ Stops the gateway process.
 
 
 
-## 14. Worked examples
+##  Worked examples
 
-### 14.1 Basic buy-side session
+###  Basic buy-side session
 
 ```text
 NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
@@ -950,20 +950,20 @@ AMEND|ID=<returned-order-id>|QTY=80
 CANCEL|ID=<returned-order-id>
 ```
 
-### 14.2 Stop-protected exit
+###  Stop-protected exit
 
 ```text
 NEW|TYPE=OCO|OCO_ID=EXIT-AAPL|SYM=AAPL|QTY=100|TIF=GTC|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=155.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=148.00
 ```
 
-### 14.3 Market-maker quoting
+###  Market-maker quoting
 
 ```text
 QUOTE|SYM=MSFT|BID=414.90|ASK=415.10|BID_QTY=250|ASK_QTY=250|QUOTE_ID=MSFT-MM-01
 QUOTE_CANCEL|SYM=MSFT
 ```
 
-### 14.4 Multi-symbol combo
+###  Multi-symbol combo
 
 ```text
 NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=MSFT|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=415.00|LEG1.SYM=AAPL|LEG1.SIDE=SELL|LEG1.QTY=100|LEG1.PRICE=210.00
@@ -971,7 +971,7 @@ NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=MSF
 
 
 
-## 15. Summary of important implementation truths
+##  Summary of important implementation truths
 
 If you are writing another ALF producer, the most important exact behaviors are:
 

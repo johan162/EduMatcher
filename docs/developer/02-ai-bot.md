@@ -53,7 +53,7 @@ human operators.
 
 You control each bot through CLI flags and profile selection.
 
-### 1. Select gateway identity
+###  Select gateway identity
 
 Every bot must use a unique gateway ID that is allowed in `engine_config.yaml`.
 
@@ -61,7 +61,7 @@ Every bot must use a unique gateway ID that is allowed in `engine_config.yaml`.
 poetry run pm-ai-trader --id AI01
 ```
 
-### 2. Choose personality profile
+###  Choose personality profile
 
 Available profile presets:
 
@@ -74,7 +74,7 @@ Available profile presets:
 poetry run pm-ai-trader --id AI01 --profile aggressive
 ```
 
-### 3. Restrict symbols per trader
+###  Restrict symbols per trader
 
 Assign one symbol or a comma-separated set.
 
@@ -82,7 +82,7 @@ Assign one symbol or a comma-separated set.
 poetry run pm-ai-trader --id AI01 --symbols AAPL,MSFT
 ```
 
-### 4. Make runs reproducible
+###  Make runs reproducible
 
 Control randomness with `--seed` and group runs with `--run-id`.
 
@@ -90,7 +90,7 @@ Control randomness with `--seed` and group runs with `--run-id`.
 poetry run pm-ai-trader --id AI01 --seed 42 --run-id demo-2026-05-07
 ```
 
-### 5. Control risk behavior
+###  Control risk behavior
 
 Guardrails are configurable per bot:
 
@@ -112,7 +112,7 @@ poetry run pm-ai-trader \
   --stale-data 4
 ```
 
-### 6. Run many traders at once
+###  Run many traders at once
 
 Use swarm mode to launch multiple bots with profile cycling and symbol allocation.
 
@@ -185,7 +185,7 @@ Quick checks:
 - Reuse the same `--seed-base` and profile list to replay similar behavior.
 - Change one parameter at a time for controlled experiments.
 
-### 7. Example control setups
+###  Example control setups
 
 Conservative liquidity set:
 

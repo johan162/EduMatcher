@@ -891,7 +891,7 @@ build messages → publish).  "µs" means microseconds (one millionth of a secon
 
 
 
-### 1. `__slots__` on hot-path classes
+###  `__slots__` on hot-path classes
 
 **What it does:**  By default, Python objects store their attributes in a hidden
 dictionary (`__dict__`).  When you add `__slots__ = ('x', 'y')` to a class,
@@ -949,7 +949,7 @@ is easy to forget.
 
 
 
-### 2. Fast enum lookup dictionaries
+###  Fast enum lookup dictionaries
 
 **What it does:**  Replaces `Side("BUY")` with a pre-built dictionary lookup
 `_SIDE_MAP["BUY"]`.
@@ -975,7 +975,7 @@ would give, making debugging slightly harder.
 
 
 
-### 3. Single `time.time()` call per order (cached timestamp)
+###  Single `time.time()` call per order (cached timestamp)
 
 **What it does:**  Calls `time.time()` once at the top of the hot path and passes
 the result (`now`) down to every function that needs a timestamp.
@@ -1004,7 +1004,7 @@ pollutes the function signatures — every internal method now carries an extra
 
 
 
-### 4. Monotonic integer trade IDs (replacing `uuid4()`)
+###  Monotonic integer trade IDs (replacing `uuid4()`)
 
 **What it does:**  Generates trade IDs as sequential integers (`1`, `2`, `3`, ...)
 instead of random UUIDs.
@@ -1034,7 +1034,7 @@ volume by observing the ID gap between two of their fills).
 
 
 
-### 5. `orjson` instead of stdlib `json`
+###  `orjson` instead of stdlib `json`
 
 **What it does:**  Replaces `json.dumps(payload).encode()` with `orjson.dumps(payload)`.
 
@@ -1073,7 +1073,7 @@ available on all architectures (e.g. some Alpine Docker images).
 
 
 
-### 6. Eliminate redundant serialization (`to_dict()` removal)
+###  Eliminate redundant serialization (`to_dict()` removal)
 
 **What it does:**  Instead of calling `order.to_dict()` to build a full 18-key
 dictionary and then passing it to a message function, we build only the keys the
@@ -1109,7 +1109,7 @@ tests harder — you can't just mock `to_dict()` and check its output.
 
 
 
-### 7. Inlined message construction
+###  Inlined message construction
 
 **What it does:**  Bypasses helper functions like `make_ack_msg()` and builds the
 two-frame ZMQ message (`[topic_bytes, payload_bytes]`) directly at the call site.
@@ -1133,7 +1133,7 @@ are negligible and the readability cost isn't justified.
 
 
 
-### 8. Pre-cached topic bytes
+###  Pre-cached topic bytes
 
 **What it does:**  ZMQ topic strings like `"order.ack.GW01"` are the same for every
 message sent to a given gateway.  We encode them once and store the `bytes` in a
@@ -1159,7 +1159,7 @@ indirection that can confuse readers unfamiliar with the pattern.
 
 
 
-### 9. Local variable caching in tight loops
+###  Local variable caching in tight loops
 
 **What it does:**  Before entering the matching loop, we copy frequently-accessed
 object attributes into local variables.
@@ -1192,7 +1192,7 @@ show the value actually used inside the loop.
 
 
 
-### 10. `__new__` for fast deserialization
+###  `__new__` for fast deserialization
 
 **What it does:**  Uses `object.__new__(cls)` + direct slot writes instead of
 calling the dataclass-generated `__init__` with 19 keyword arguments.

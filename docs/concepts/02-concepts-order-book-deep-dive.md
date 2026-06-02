@@ -390,7 +390,7 @@ others. This is the key discipline of the order book implementation.
 
 
 
-#### 1. `_bids` and `_asks` — The Price-Time Queues
+####  `_bids` and `_asks` — The Price-Time Queues
 
 ```python
 self._bids: list[_HeapEntry] = []   # max-heap via negated price
@@ -411,7 +411,7 @@ When filling an incoming sell order, it looks at `_bids[0]`. Both are O(1) looku
 
 
 
-#### 2. `_order_index` — Fast Lookup by Order ID
+####  `_order_index` — Fast Lookup by Order ID
 
 ```python
 self._order_index: dict[str, Order] = {}
@@ -432,7 +432,7 @@ order = self._order_index.get(order_id)   # O(1) — no heap scan needed
 
 
 
-#### 3. `_entry_index` — Fast Lookup by Entry
+####  `_entry_index` — Fast Lookup by Entry
 
 ```python
 self._entry_index: dict[str, _HeapEntry] = {}
@@ -462,7 +462,7 @@ management). Keeping them separate avoids conflation.
 
 
 
-#### 4. `_bid_qty` and `_ask_qty` — The Price-Level Quantity Index
+####  `_bid_qty` and `_ask_qty` — The Price-Level Quantity Index
 
 ```python
 self._bid_qty: dict[int, int] = {}   # price_ticks → total resting qty at that price
@@ -556,7 +556,7 @@ a filled order and send a confusing response.
 
 
 
-#### 5. `_buy_stops` and `_sell_stops` — The Stop Heaps
+####  `_buy_stops` and `_sell_stops` — The Stop Heaps
 
 ```python
 self._buy_stops: list[_HeapEntry] = []    # min-heap by stop_price
@@ -597,7 +597,7 @@ check both heaps for every trade.
 
 
 
-#### 6. `_trailing_stops` — The Trailing Stop List
+####  `_trailing_stops` — The Trailing Stop List
 
 ```python
 self._trailing_stops: list[Order] = []
@@ -610,7 +610,7 @@ prices. In practice, trailing stop lists are short.
 
 
 
-#### 7. `recent_trades` — The Rolling Trade Window
+####  `recent_trades` — The Rolling Trade Window
 
 ```python
 self.recent_trades: deque[Trade] = deque(maxlen=20)
@@ -763,7 +763,7 @@ The checks below are intentionally in this path because they prevent invalid,
 unsafe, or policy-violating state transitions. Moving them to an async sidecar
 would be faster, but would permit trades that should have been blocked.
 
-### 1) Gateway allowlist and connection/auth status
+###  Gateway allowlist and connection/auth status
 
 The engine first verifies that the sender gateway is allowed and currently
 connected/authenticated (fast-path via `_connected_fix_gateways`, fallback to
@@ -775,7 +775,7 @@ Why this must be here:
 - Any downstream risk logic would be operating on already-accepted bad flow.
 - A reject-early check avoids wasted matching work for invalid participants.
 
-### 2) Symbol allowlist check
+###  Symbol allowlist check
 
 If `_allowed_symbols` is configured, the symbol must be in that set or the order
 is rejected.
@@ -786,7 +786,7 @@ Why this must be here:
 - Enforces operational scope (for example, staged rollouts per symbol).
 - Protects all downstream components from unknown-symbol state.
 
-### 3) Session-state and auction phase gating
+###  Session-state and auction phase gating
 
 The engine enforces market lifecycle rules before matching:
 
@@ -800,7 +800,7 @@ Why this must be here:
 - You cannot "fix" a wrongly accepted closed-market order after execution.
 - Correct auction behavior requires pre-trade admission control.
 
-### 4) Circuit-breaker halt gate (pre-trade)
+###  Circuit-breaker halt gate (pre-trade)
 
 If `self._halted_symbols[symbol]` is true:
 
@@ -813,7 +813,7 @@ Why this must be here:
 - Letting aggressive orders through during a halt would defeat the breaker.
 - Allowing passive rest preserves auction-style interest for controlled resume.
 
-### 5) Price-collar validation (pre-trade)
+###  Price-collar validation (pre-trade)
 
 For priced orders, `validate_collar(...)` is called when collars are enabled.
 This applies static/dynamic band checks using collar config and last-trade state.
@@ -825,7 +825,7 @@ Why this must be here:
 - Collar rejects protect both participants and reference prices used by other
     controls.
 
-### 6) No-matching mode hard rejections for immediate-only types
+###  No-matching mode hard rejections for immediate-only types
 
 If matching is disabled (`do_match=False`), the engine rejects immediate-execution
 types (`MARKET`, `IOC`, `FOK`) because they cannot legally rest.
@@ -836,7 +836,7 @@ Why this must be here:
 - Ensures predictable participant behavior in auctions and halts.
 - Avoids pseudo-accepting orders that can never satisfy their contract.
 
-### 7) Kill-switch and disconnect behavior (flow-level risk control)
+###  Kill-switch and disconnect behavior (flow-level risk control)
 
 Two engine controls rapidly remove participant exposure:
 
@@ -851,7 +851,7 @@ Why this must be in/next to the hot path:
 - It bounds risk from broken algos, network partitions, or runaway quoting.
 - A slow/offline reconciliation loop is not an acceptable substitute.
 
-### 8) Circuit-breaker monitor (post-trade in the hot path)
+###  Circuit-breaker monitor (post-trade in the hot path)
 
 After each trade publish, `_publish_trade()` performs:
 
@@ -867,7 +867,7 @@ Why this must be synchronous with trade flow:
 - Delayed checks allow extra trades past the intended halt threshold.
 - Deterministic halt timing is part of market integrity.
 
-### 9) Other correctness checks in the same path
+###  Other correctness checks in the same path
 
 Not all checks are "risk controls" in the regulatory sense, but they still protect
 market correctness and participant safety:

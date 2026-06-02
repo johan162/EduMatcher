@@ -163,7 +163,7 @@ API_REF_LUA_FILTER_FLAGS := --lua-filter $(API_REF_LUA_FILTER) --lua-filter $(AD
 USER_GUIDE_MD_SOURCES := \
 	$(sort $(wildcard $(DOCS_DIR)/user-guide/[0-9][0-9]-*.md))
 
-# $(info USER_GUIDE_MD_SOURCES: $(USER_GUIDE_MD_SOURCES))
+$(info USER_GUIDE_MD_SOURCES: $(USER_GUIDE_MD_SOURCES))
 
 # Non-markdown assets that should still trigger a rebuild when changed.
 USER_GUIDE_PDF_DEPS := \
@@ -265,7 +265,7 @@ pdf-docs:  ## Build the user guide in all PDF variants (A4 light/dark, B5 light/
 define BUILD_USER_GUIDE_PDF
 $$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$($1_TEMPLATE) $$(USER_GUIDE_LUA_FILTER)
 	@echo -e "$(DARKYELLOW)- Updating version number $(BRIGHTCYAN)v$(VERSION)$(DARKYELLOW) in LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW)...$(NC)"
-	@sed -i.bak -E 's/Version: [0-9.]+/Version: $(VERSION)/g' $$($1_TEMPLATE)
+	@sed -i.bak -E 's/Version: [0-9]+(\.[0-9]+)*(rc[0-9]{1,2})?/Version: $(VERSION)/g' $$($1_TEMPLATE)
 	@rm -f $$($1_TEMPLATE).bak
 	@echo -e "$$(DARKYELLOW)- Building $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(DARKYELLOW) via LaTeX report pipeline...$$(NC)"
 	@mkdir -p $$(USER_GUIDE_BUILD_DIR)
@@ -277,7 +277,7 @@ $$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$($1_TEMPLATE) $$
 		--format $(2) \
 		$$(USER_GUIDE_MD_SOURCES)
 	@echo -e "$$(DARKYELLOW)  - Concatenating markdown sources...$$(NC)"
-	@cat $$(foreach f,$$(USER_GUIDE_MD_SOURCES),$$($1_EXPANDED_DIR)/$$(notdir $$f)) > $$($1_CONCAT_MD)
+	@awk 'FNR==1 && NR!=1{print ""; print ""}1' $$(foreach f,$$(USER_GUIDE_MD_SOURCES),$$($1_EXPANDED_DIR)/$$(notdir $$f)) > $$($1_CONCAT_MD)
 	@echo -e "$$(DARKYELLOW)  - Converting concatenated markdown to LaTeX body...$$(NC)"
 	@pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none $$(USER_GUIDE_LUA_FILTER_FLAGS) --metadata paper_format=$(2) $$($1_CONCAT_MD) -o $$($1_BODY_TEX)
 	@sed -i.bak 's/\\def\\LTcaptype{none}/\\def\\LTcaptype{table}/g' $$($1_BODY_TEX)
