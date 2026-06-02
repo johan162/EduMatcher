@@ -2,11 +2,9 @@
 # poetry config virtualenvs.in-project true
 # poetry install --with dev,docs
 
-
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-
 
 [tool.poetry]
 name = "edumatcher"

@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from edumatcher.stats.main import (
+    SNAPSHOT_INTERVAL_SEC,
     SCHEMA,
     StatsProcess,
     _DayAccum,
@@ -222,14 +223,14 @@ class TestOnBook:
         assert rows == []
 
     def test_snapshot_mid_uses_last_price_fallback(self, sp: StatsProcess) -> None:
-        sp._last_snap_ts["AAPL"] = 0.0
+        sp._last_snap_ts["AAPL"] = time.monotonic() - SNAPSHOT_INTERVAL_SEC - 1
         snap = self._book_payload(bid=None, ask=None, last=155.0)
         sp._on_book("AAPL", snap)
         rows = sp._conn.execute("SELECT mid_price FROM price_snapshots").fetchall()
         assert rows[0][0] == 155.0
 
     def test_pct_change_computed_when_prev_mid_exists(self, sp: StatsProcess) -> None:
-        sp._last_snap_ts["AAPL"] = 0.0
+        sp._last_snap_ts["AAPL"] = time.monotonic() - SNAPSHOT_INTERVAL_SEC - 1
         sp._last_snap_mid["AAPL"] = 100.0  # previous mid
         # new mid = (150 + 151) / 2 = 150.5
         sp._on_book("AAPL", self._book_payload(bid=150.0, ask=151.0))
