@@ -12,7 +12,7 @@
       indexes — and how to read a visual order book depth diagram
     - The time complexity of every core operation: insert, match, cancel, stop trigger
 
----
+
 
 ## Why This Architecture?
 
@@ -84,7 +84,7 @@ Before reading the topology diagram, it is worth having clear definitions:
   layer using the subscription filter — no broker, no routing table, no extra
   process.
 
----
+
 
 ## Overview
 
@@ -92,7 +92,7 @@ EduMatcher uses a **broker-less ZeroMQ** topology.
 The matching engine is the only process that *binds* sockets — all other processes *connect* to it.  
 No ZMQ broker daemon, no message queue server, no external dependencies beyond ZMQ itself.
 
----
+
 
 ## ZMQ Topology
 
@@ -123,7 +123,7 @@ No ZMQ broker daemon, no message queue server, no external dependencies beyond Z
                                                └─────────────┘  └─────────────┘
 ```
 
----
+
 
 ## Message Topics
 
@@ -158,7 +158,7 @@ All messages are two-frame ZMQ multipart:
 | `book.{SYMBOL}` | Engine → all | Order book snapshot after each change |
 | `system.eod` | Engine → all | End-of-day shutdown broadcast |
 
----
+
 
 ## Process Roles
 
@@ -175,7 +175,7 @@ All messages are two-frame ZMQ multipart:
 | Ticker | SUB→5556 | Connects | Scrolling market data display |
 | Board | SUB→5556 | Connects | Multi-symbol paged market display (all symbols) |
 
----
+
 
 ## Order Book Data Structures
 
@@ -233,7 +233,7 @@ OrderBook (per symbol)
 **Price-time priority**: within the same price level, earlier-submitted orders are filled first.
 Lazy deletion is used — heap entries are marked invalid on cancel/fill and skipped on next access.
 
----
+
 
 ## Thread Model
 
@@ -243,14 +243,14 @@ thread for ZMQ receiving in interactive processes (gateway, viewer, orders, clea
 The engine runs a single-threaded event loop using `zmq.Poller` with a 200 ms timeout,
 making it safe from concurrent modification without locks.
 
----
+
 
 ## Core Matching Algorithm — In Depth
 
 This section describes the exact data structures, algorithms, and time complexities
 used by the matching engine.
 
----
+
 
 ### Order Book Organization
 
@@ -287,7 +287,7 @@ maps that track the aggregate visible quantity at each price level.  They enable
 FOK pre-checks (where p = number of distinct price levels) instead of walking every
 heap entry.
 
----
+
 
 ### Heap Entry and Lazy Deletion
 
@@ -320,7 +320,7 @@ _peek() pops invalid entries until a valid one is at the top.
 Amortized O(1) access to the best price.
 ```
 
----
+
 
 ### Matching Algorithm: The Sweep
 
@@ -388,7 +388,7 @@ incoming order
                                  triggers later when last_trade_price crosses stop_price
 ```
 
----
+
 
 ### Apply Fill
 
@@ -410,7 +410,7 @@ function APPLY_FILL(aggressor, passive, fill_qty, fill_price):
        → re-insert into heap with fresh key
 ```
 
----
+
 
 ### Stop Order Trigger Mechanism
 
@@ -446,7 +446,7 @@ function CHECK_STOPS(last_trade_price):
         process(order)  → may produce additional trades → may trigger more stops (recursion)
 ```
 
----
+
 
 ### Resting an Order
 
@@ -467,7 +467,7 @@ function REST(order):
     _entry_index[order.id] = entry
 ```
 
----
+
 
 ### Cancellation
 
@@ -483,7 +483,7 @@ function CANCEL(order_id):
 
 No heap restructuring needed — lazy deletion handles cleanup on next `_peek()`.
 
----
+
 
 ### Time Complexity Summary
 
@@ -501,7 +501,7 @@ No heap restructuring needed — lazy deletion handles cleanup on next `_peek()`
 
 Where **n** = total resting orders on one side of one book.
 
----
+
 
 ### Combo Orders — Data Structures and Tracking
 
@@ -679,7 +679,7 @@ indexed if needed.
 Since L is bounded at 10, all combo-specific operations are effectively **O(1)** in
 big-O terms relative to book size n.
 
----
+
 
 ### Session State Machine
 
@@ -742,7 +742,7 @@ function HANDLE_SESSION_TRANSITION(to_state):
     publish session.state { state, prev_state }
 ```
 
----
+
 
 ### Auction Uncross Algorithm — Equilibrium Price
 
@@ -807,7 +807,7 @@ limit is used directly.
 
 Where p = distinct price levels, n = total resting orders, k = orders matched.
 
----
+
 
 ### Gateway Authentication
 
@@ -835,7 +835,7 @@ If no `gateways.alf` section exists in config, all gateway IDs are auto-accepted
 Orders from gateways that have not completed the auth handshake are rejected with
 reason "Gateway not connected: {GW_ID}".
 
----
+
 
 ### Engine Event Loop
 
@@ -873,7 +873,7 @@ No locks, no shared memory, no race conditions.  The sequential dispatch guarant
 that combo status transitions and cascade-cancels are atomic from the system's
 perspective.
 
----
+
 
 ## Performance Optimizations
 
@@ -889,7 +889,7 @@ Every number below was measured with the engine running in a single thread,
 processing orders through the full hot path (deserialize → validate → match →
 build messages → publish).  "µs" means microseconds (one millionth of a second).
 
----
+
 
 ### 1. `__slots__` on hot-path classes
 
@@ -947,7 +947,7 @@ becomes tricky — all parent classes must also declare `__slots__` or you lose
 the benefit.  Adding a new field requires updating the `__slots__` tuple, which
 is easy to forget.
 
----
+
 
 ### 2. Fast enum lookup dictionaries
 
@@ -973,7 +973,7 @@ unless you rebuild it.  Also, an invalid value like `_SIDE_MAP["INVALID"]` raise
 a `KeyError` instead of the more descriptive `ValueError` that `Side("INVALID")`
 would give, making debugging slightly harder.
 
----
+
 
 ### 3. Single `time.time()` call per order (cached timestamp)
 
@@ -1002,7 +1002,7 @@ sub-microsecond precision for sequencing events within a single order.  It also
 pollutes the function signatures — every internal method now carries an extra
 `now` parameter, making the code slightly harder to read and test.
 
----
+
 
 ### 4. Monotonic integer trade IDs (replacing `uuid4()`)
 
@@ -1032,7 +1032,7 @@ unsafe to merge trade logs from multiple sessions without adding a session prefi
 Also, sequential IDs leak information (e.g. competitors can estimate your trade
 volume by observing the ID gap between two of their fills).
 
----
+
 
 ### 5. `orjson` instead of stdlib `json`
 
@@ -1071,7 +1071,7 @@ payloads ever contain these edge cases, you'll get a `TypeError` at runtime.
 The library is also platform-specific (compiled C/Rust), so it may not be
 available on all architectures (e.g. some Alpine Docker images).
 
----
+
 
 ### 6. Eliminate redundant serialization (`to_dict()` removal)
 
@@ -1107,7 +1107,7 @@ field requirement, you need to find and update every inline dict that builds tha
 message type.  Forgetting one is a subtle bug.  It also makes writing integration
 tests harder — you can't just mock `to_dict()` and check its output.
 
----
+
 
 ### 7. Inlined message construction
 
@@ -1131,7 +1131,7 @@ construction point.  The engine code also becomes longer and denser, making
 code reviews harder.  For low-frequency messages (rejects, cancels), the savings
 are negligible and the readability cost isn't justified.
 
----
+
 
 ### 8. Pre-cached topic bytes
 
@@ -1157,7 +1157,7 @@ leak).  In practice this is a non-issue since gateway IDs are static, but in a
 general-purpose system you'd want eviction logic.  It also adds a layer of
 indirection that can confuse readers unfamiliar with the pattern.
 
----
+
 
 ### 9. Local variable caching in tight loops
 
@@ -1190,7 +1190,7 @@ possible in other contexts), the local copy becomes stale and introduces bugs.
 Debugging is also harder because inspecting `self._peek` in a debugger won't
 show the value actually used inside the loop.
 
----
+
 
 ### 10. `__new__` for fast deserialization
 
@@ -1220,7 +1220,7 @@ automatically pick it up — you'll get an `AttributeError` on first access.
 This pattern also breaks the implicit contract that dataclass instances are
 always fully initialized, which can confuse static analysis tools like mypy.
 
----
+
 
 ### Summary
 

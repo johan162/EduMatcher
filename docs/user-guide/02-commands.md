@@ -14,7 +14,7 @@
     [Risk Controls § 6](12-risk-controls.md#6-admin-role-operator-controls) for
     the halt/resume operational flow.
 
----
+
 
 ## Concept
 
@@ -55,7 +55,7 @@ All three share the **same command execution logic** (`execute_command` in
 `src/edumatcher/commands/console.py`), so adding a new exchange command only
 requires changes in one place.
 
----
+
 
 ## ADMIN console (`pm-admin`)
 
@@ -189,7 +189,7 @@ same `execute_command()` function.  Every command maps 1-to-1:
 Use `pm-admin` for interactive human-driven operations, `pm-admin-cli` for
 scripting and automation, and `ExchangeCommandClient` for custom Python tooling.
 
----
+
 
 ## CLI tool (`pm-admin-cli`)
 
@@ -225,7 +225,7 @@ HALTED  3 symbol(s), 6 quote leg(s) cancelled
 ```
 Requires `role: ADMIN`.  Exit code 0 if accepted, 1 if rejected.
 
----
+
 
 #### `resume` — Lift the exchange-wide halt
 
@@ -237,7 +237,7 @@ RESUMED  3 symbol(s)
 ```
 Requires `role: ADMIN`.
 
----
+
 
 #### `halt-sym` — Halt trading on a single symbol
 
@@ -255,7 +255,7 @@ until `resume-sym` is called.  Requires `role: ADMIN`.
 |---|---|---|
 | `--sym SYMBOL` | yes | Symbol to halt |
 
----
+
 
 #### `resume-sym` — Resume a single halted symbol
 
@@ -272,7 +272,7 @@ trigger.  Requires `role: ADMIN`.
 |---|---|---|
 | `--sym SYMBOL` | yes | Symbol to resume |
 
----
+
 
 #### `cancel-sym` — Cancel all resting orders for a symbol
 
@@ -293,7 +293,7 @@ Requires `role: ADMIN`.
 |---|---|---|
 | `--sym SYMBOL` | yes | Symbol whose orders to cancel |
 
----
+
 
 #### `kill` — Cancel all orders/quotes for a gateway
 
@@ -313,7 +313,7 @@ KILL OK  TRADER01  orders=4  quotes=0
 | `--gw GW_ID` | yes | Target gateway to cancel for |
 | `--sym SYMBOL` | no | Scope to one symbol (omit for all) |
 
----
+
 
 #### `kick` — Forcefully disconnect a gateway
 
@@ -329,7 +329,7 @@ Verify with `orders --gw TRADER01`.
 | `--gw GW_ID` | yes | Target gateway to disconnect |
 | `--reason TEXT` | no | Reason string recorded in the engine log |
 
----
+
 
 #### `qcancel` — Cancel a market-maker's active quote on one symbol
 
@@ -342,7 +342,7 @@ QCANCEL OK  MM01  AAPL
 Cancels both bid and ask legs of the active quote.  Resting limit orders
 are unaffected.  Use `kill` to also remove those.
 
----
+
 
 #### `book` — Print the order-book snapshot for a symbol
 
@@ -361,7 +361,7 @@ pm-admin-cli --id GW_ADMIN book --sym AAPL
   Last trade: 149.75 × 200
 ```
 
----
+
 
 #### `orders` — List resting orders for a gateway
 
@@ -376,7 +376,7 @@ pm-admin-cli --id GW_ADMIN kill --gw TRADER01
 pm-admin-cli --id GW_ADMIN orders --gw TRADER01   # should print 'No resting orders'
 ```
 
----
+
 
 #### `symbols` — List all configured instruments
 
@@ -395,7 +395,7 @@ pm-admin-cli --id GW_ADMIN symbols
 └────┴────────────────────────┘
 ```
 
----
+
 
 #### `session` — Request a session-phase transition
 
@@ -413,7 +413,7 @@ SESSION  OPENING_AUCTION → CONTINUOUS
 Invalid transitions are silently rejected by the engine.  Check the printed
 result to verify the transition was applied.
 
----
+
 
 #### `session-status` — Show current session state (read-only)
 
@@ -427,7 +427,7 @@ pm-admin-cli --id GW_ADMIN session-status
 Returns the current phase without triggering any transition.  Useful for
 monitoring scripts that need to know the exchange state before taking action.
 
----
+
 
 #### `schedule` — Show the session-transition schedule
 
@@ -448,7 +448,7 @@ pm-admin-cli --id GW_ADMIN schedule
 If `sessions_enabled` is false in the engine config, a message is printed
 before the table explaining that automatic scheduling is disabled.
 
----
+
 
 #### `gateways` — List all configured gateways
 
@@ -468,7 +468,7 @@ Shows every gateway entry from `engine_config.yaml` with its role and
 current connection status.  A gateway not listed in the config but that
 somehow connected will not appear (it would have been rejected during auth).
 
----
+
 
 #### `volume` — Show daily traded volume
 
@@ -490,7 +490,7 @@ Counters reset when the engine restarts.  There is currently no
 automatic end-of-day reset; daily volume accumulates across the
 entire engine session.
 
----
+
 
 ### Shell scripting example
 
@@ -531,7 +531,7 @@ pm-admin-cli $ID cancel-sym --sym AAPL
 pm-admin-cli $ID resume-sym --sym AAPL
 ```
 
----
+
 
 ## `ExchangeCommandClient`
 
@@ -737,7 +737,7 @@ class ExchangeCommandClient:
         return self._recv("session.state")
 ```
 
----
+
 
 ## Command reference
 
@@ -764,7 +764,7 @@ class ExchangeCommandClient:
     localhost; a production venue would add TLS mutual authentication and
     signing.
 
----
+
 
 ## Command details
 
@@ -799,7 +799,7 @@ While halted:
 - LIMIT / ICEBERG orders are accepted and rest without matching.
 - Quote submission is rejected.
 
----
+
 
 ### `resume_all` — Lift the exchange-wide halt
 
@@ -822,7 +822,7 @@ For each previously halted symbol the engine publishes
 `circuit_breaker.resume.<SYMBOL>` with `mode = "MANUAL"`.  Normal order flow
 and MM quote obligations resume immediately after the ack is received.
 
----
+
 
 ### `kill_switch` — Cancel all exposure for a gateway
 
@@ -848,7 +848,7 @@ result = client.kill_switch("TRADER01")
     nothing is halted.  To prevent the gateway from submitting new orders, follow
     up with `gateway_kick()`.
 
----
+
 
 ### `mass_cancel` — Cancel exposure for one symbol
 
@@ -865,7 +865,7 @@ result = client.mass_cancel("TRADER01", "AAPL")
 Identical to `kill_switch` with a symbol argument.  Only orders and quotes
 for `TRADER01` on `AAPL` are affected.
 
----
+
 
 ### `quote_cancel` — Cancel a market-maker's quote for one symbol
 
@@ -883,7 +883,7 @@ Cancels both the bid and ask legs of the active quote.  Resting limit orders
 submitted outside the quote mechanism are unaffected.  Use `mass_cancel` to
 also remove non-quote limit orders.
 
----
+
 
 ### `gateway_kick` — Forcefully disconnect a gateway
 
@@ -906,7 +906,7 @@ The engine applies the gateway's configured `disconnect_behaviour`:
 
 No ack is published.  Verify the effect with `order_list("TRADER01")`.
 
----
+
 
 ### `book_depth` — L1 / L2 order-book snapshot
 
@@ -940,7 +940,7 @@ a pre-trade sanity check.
     (port 5556) rather than polling with `book_depth`.  The engine publishes a
     new snapshot after every state-changing event.
 
----
+
 
 ### `order_list` — Inspect a gateway's resting orders
 
@@ -960,7 +960,7 @@ Returns all resting (unfilled, non-cancelled) orders across all symbols for the
 target gateway.  Useful for confirming that a `kill_switch` or `mass_cancel`
 took effect.
 
----
+
 
 ### `symbol_list` — Discover configured instruments
 
@@ -978,7 +978,7 @@ print("Configured symbols:", symbols)
 Returns the list of symbols the engine was started with.  Useful at startup to
 drive iteration over all instruments (e.g. request a book snapshot for each).
 
----
+
 
 ### `session_advance` — Manually drive the trading day
 
@@ -1008,7 +1008,7 @@ Invalid transitions are silently rejected by the engine.  The ack is the
 `session.state` broadcast — it carries the *actual* new state, so you can
 verify the transition succeeded by checking `result["state"]`.
 
----
+
 
 ## Full ADMIN operator workflow
 
@@ -1056,7 +1056,7 @@ result = client.resume_all()
 print(f"RESUME: {result['resumed_symbols']} symbols resumed")
 ```
 
----
+
 
 ## Extending the framework
 
@@ -1072,7 +1072,7 @@ To add a new command:
    `self._recv(ack_prefix)`.
 5. **Document it here** with a command-reference row and a detail section.
 
----
+
 
 ## See also
 

@@ -13,7 +13,7 @@
     - How to start a gateway, submit every order type, manage positions, and read
       responses
 
----
+
 
 ## Background — Gateways in Real Exchange Architecture
 
@@ -133,7 +133,7 @@ ZeroMQ arrival order with no timestamps beyond the wall clock of the machine
 running the test.  For a learning system on localhost this is irrelevant; for a
 regulated venue it would be a compliance failure.
 
----
+
 
 The gateway (`pm-gateway`) is your trading terminal. Each gateway instance represents
 one user connecting to the trading system. Multiple gateways can run simultaneously.
@@ -177,7 +177,7 @@ gateways:
 If a gateway starts with an ID that is not listed there, the engine refuses
 the connection and the gateway exits.
 
----
+
 
 ## Command Format
 
@@ -254,7 +254,7 @@ SMP prevents you from accidentally trading against your own resting orders.
 | FOK | SYM, SIDE, QTY, PRICE | SMP |
 | ICEBERG | SYM, SIDE, QTY, PRICE, VISIBLE (must be < QTY) | TIF, SMP |
 
----
+
 
 ### NEW (Combo) — Submit a Multi-Leg Order
 
@@ -290,7 +290,7 @@ NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=<DAY|GTC>|LEG_COUNT=<n>|LEG0.
 - No duplicate symbols (each leg must be a different instrument)
 - All legs validated against `engine_config.yaml` symbol allowlist
 
----
+
 
 ### CANCEL — Cancel a Resting Order
 
@@ -310,7 +310,7 @@ CANCEL|COMBO_ID=<combo-label>
 Cancels the combo and all its resting child legs atomically. Fills that already
 occurred are not reversed.
 
----
+
 
 ### ORDERS — View This Session's Orders
 
@@ -326,7 +326,7 @@ current status, remaining quantity, and last update time.
     via real-time `combo.ack` and `combo.status` messages printed as they arrive.
     To see all order activity (including combo children), use `pm-orders`.
 
----
+
 
 ### POS — View Current Positions
 
@@ -361,7 +361,7 @@ last trade price, unrealized P&L, and realized P&L for each symbol traded:
 !!! tip
     Use `POS` after each fill to monitor your exposure without switching to `pm-orders`.
 
----
+
 
 ### SYMBOLS — List Active Instruments
 
@@ -394,7 +394,7 @@ which is printed as a rich table:
     startup authentication. If your ID is not listed under `gateways.alf`,
     the engine refuses the connection.
 
----
+
 
 ### HELP — Command Reference
 
@@ -402,7 +402,7 @@ which is printed as a rich table:
 HELP
 ```
 
----
+
 
 ### EXIT / QUIT — Disconnect
 
@@ -410,7 +410,7 @@ HELP
 EXIT
 ```
 
----
+
 
 ## Gateway Responses
 
@@ -454,7 +454,7 @@ The gateway prints responses inline as events arrive from the engine:
 |---------|--------|
 | `Active Instruments` table | Response to `SYMBOLS` command |
 
----
+
 
 ## Multiple Gateways
 
@@ -477,7 +477,7 @@ Before starting a new gateway ID (for example `TRADER03`), add it to
 Each gateway only receives events for its own orders. Use `pm-orders` to see all
 gateways' activity.
 
----
+
 
 ## Interactive Features
 

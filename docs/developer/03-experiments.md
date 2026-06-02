@@ -19,7 +19,7 @@ The list is ordered from basic to very complex.
 4. Run the full quality gate after each change.
 5. Keep a short implementation log with assumptions and tradeoffs.
 
----
+
 
 ## Experiment 1: Price-Time Priority Audit Trace
 
@@ -62,7 +62,7 @@ How to verify:
 Learning objective:
 Understand deterministic matching and queue priority mechanics at a forensic level.
 
----
+
 
 ## Experiment 2: Exchange Tick-Size Regime per Symbol
 
@@ -114,7 +114,7 @@ How to verify:
 Learning objective:
 See how market design constraints shape order entry and liquidity formation.
 
----
+
 
 ## Experiment 3: Session-Aware Order Entry Policy Matrix
 
@@ -171,7 +171,7 @@ How to verify:
 Learning objective:
 Understand how session design controls market behavior and participant risk.
 
----
+
 
 ## Experiment 4: Per-Gateway Rate Limits and Burst Controls
 
@@ -215,7 +215,7 @@ How to verify:
 Learning objective:
 Learn the tradeoff between open access, fairness, and operational safety.
 
----
+
 
 ## Experiment 5: Fee and Rebate Model (Maker-Taker)
 
@@ -267,7 +267,7 @@ How to verify:
 Learning objective:
 Understand execution economics beyond simple price and quantity.
 
----
+
 
 ## Experiment 6: Realistic Cancel/Amend Latency Simulation
 
@@ -311,7 +311,7 @@ How to verify:
 Learning objective:
 See how latency changes strategy outcomes and risk exposure.
 
----
+
 
 ## Experiment 7: Full Order State Machine with Reason Codes
 
@@ -366,7 +366,7 @@ How to verify:
 Learning objective:
 Understand order lifecycle reliability and protocol discipline.
 
----
+
 
 ## Experiment 8: Market Data Channel Separation (Level 1 vs Level 2)
 
@@ -410,7 +410,7 @@ How to verify:
 Learning objective:
 Understand market data product design and distribution tradeoffs.
 
----
+
 
 ## Experiment 9: User and Account Domain Refactor
 
@@ -455,7 +455,7 @@ How to verify:
 Learning objective:
 Understand how real exchange participants are modeled beyond a single connection ID.
 
----
+
 
 ## Experiment 10: Kill Switch and Fat-Finger Controls
 
@@ -498,7 +498,7 @@ How to verify:
 Learning objective:
 Learn real-time safety controls used in production trading systems.
 
----
+
 
 ## Experiment 11: Drop Copy and Post-Trade Reconciliation Stream
 
@@ -540,7 +540,7 @@ How to verify:
 Learning objective:
 Understand operational controls and post-trade integrity pipelines.
 
----
+
 
 ## Experiment 12: Matching Mode Plug-in Layer (Pro-Rata vs Price-Time)
 
@@ -585,7 +585,7 @@ How to verify:
 Learning objective:
 See how market design choices alter participant incentives and microstructure dynamics.
 
----
+
 
 ## Experiment 13: Cross-Product Risk and Portfolio Margin Approximation
 
@@ -633,7 +633,7 @@ How to verify:
 Learning objective:
 Understand portfolio-level risk governance in modern exchanges and clearing ecosystems.
 
----
+
 
 ## Experiment 14: Auction Imbalance Feed and Indicative Price Model
 
@@ -679,7 +679,7 @@ How to verify:
 Learning objective:
 Understand auction mechanics and pre-open/pre-close transparency products.
 
----
+
 
 ## Experiment 15: Synthetic Orders Engine (Parent-Child Execution)
 
@@ -728,7 +728,7 @@ How to verify:
 Learning objective:
 Understand how high-level execution intent is translated into low-level exchange orders.
 
----
+
 
 ## Suggested progression path
 
@@ -740,7 +740,7 @@ Understand how high-level execution intent is translated into low-level exchange
 
 This progression mirrors how real venues evolve: deterministic matching first, then control frameworks, then advanced market products.
 
----
+
 
 ## Experiment 16 (Suggested Extension): Self-Trade Prevention
 

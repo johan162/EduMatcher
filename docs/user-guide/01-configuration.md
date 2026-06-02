@@ -1,3 +1,5 @@
+# Engine Configuration
+
 !!! note "Learning objectives"
     After reading this page you will understand:
 
@@ -8,7 +10,7 @@
   - What startup and persistence precedence rules affect real runtime behavior (restore vs seed, `DAY` vs `GTC`)
 
 
-# Engine Configuration
+## Confguring the exchange
 
 The matching engine and session scheduler both consume the YAML configuration file in the project root. It defines:
 

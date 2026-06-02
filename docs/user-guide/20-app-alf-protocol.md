@@ -10,7 +10,7 @@
     - how amendments, cancels, quotes, OCO orders, and combo orders are encoded
     - which parser behaviors are important when writing another client for EduMatcher
 
----
+
 
 ## 1. What ALF is
 
@@ -37,7 +37,7 @@ This appendix is the **normative reference** for ALF syntax and semantics. If
 another tool, bot, or GUI wants to generate ALF commands, this document is the
 correct source to follow.
 
----
+
 
 ## 2. Scope and boundaries
 
@@ -52,7 +52,7 @@ That distinction matters:
 
 This appendix describes the **ALF side**, not the internal message bus.
 
----
+
 
 ## 3. Core syntax rules
 
@@ -215,7 +215,7 @@ The first `=` in a segment splits key from value. Everything after that first
 `=` is considered part of the value, but values containing additional `=` are
 not part of the documented protocol and should be avoided.
 
----
+
 
 ## 4. Common field vocabulary
 
@@ -254,7 +254,7 @@ not part of the documented protocol and should be avoided.
 | `CANCEL_RESTING` | Cancel the resting order and continue matching |
 | `CANCEL_BOTH` | Cancel both the incoming and resting order |
 
----
+
 
 ## 5. Command families
 
@@ -269,7 +269,7 @@ ALF commands fall into three groups:
 If you are writing another interface that wants to submit orders, the most
 important commands are the **trading commands**.
 
----
+
 
 ## 6. Single-leg `NEW` orders
 
@@ -436,7 +436,7 @@ These are only meaningful during the opening and closing auction phases.
 - the gateway generates the final engine order ID; you do not supply it in
   `NEW`
 
----
+
 
 ## 7. `AMEND` - order amendments
 
@@ -517,7 +517,7 @@ Use the **full order ID** from the gateway's order table or acknowledgement
 stream. Inline gateway messages often abbreviate IDs visually, but `AMEND`
 requires the full internal ID.
 
----
+
 
 ## 8. `CANCEL` - order and group cancellation
 
@@ -564,7 +564,7 @@ CANCEL|OCO_ID=EXIT-AAPL
 - `OCO_ID` cancels the whole OCO pair
 - fills that already happened are never reversed by cancel
 
----
+
 
 ## 9. `NEW|TYPE=OCO` - one-cancels-other pairs
 
@@ -643,7 +643,7 @@ NEW|TYPE=OCO|OCO_ID=EXIT-TRAIL|SYM=AAPL|QTY=100|TIF=GTC|LEG1_SIDE=SELL|LEG1_TYPE
 - when one leg fills or is cancelled in a way that completes the OCO action, the
   sibling is auto-cancelled
 
----
+
 
 ## 10. `NEW|TYPE=COMBO` - multi-leg combo orders
 
@@ -741,7 +741,7 @@ NEW|TYPE=COMBO|COMBO_ID=ARB-01|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=3|LEG0.SYM=AAPL|
 - if a child leg is cancelled or expires, the remaining legs are cascade-cancelled
 - combo state is tracked separately from the ordinary `ORDERS` table
 
----
+
 
 ## 11. `QUOTE` and `QUOTE_CANCEL`
 
@@ -775,7 +775,7 @@ QUOTE_CANCEL|SYM=AAPL
 - a new quote for the same gateway and symbol replaces the previous active quote
 - a quote creates two internal `LIMIT` orders, one bid and one ask
 
----
+
 
 ## 12. `KILL`
 
@@ -890,7 +890,7 @@ KILL
 
 will cancel all of the above gateway-owned resting exposure across all symbols.
 
----
+
 
 ## 13. Informational gateway commands
 
@@ -938,7 +938,7 @@ QUIT
 
 Stops the gateway process.
 
----
+
 
 ## 14. Worked examples
 
@@ -969,7 +969,7 @@ QUOTE_CANCEL|SYM=MSFT
 NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=MSFT|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=415.00|LEG1.SYM=AAPL|LEG1.SIDE=SELL|LEG1.QTY=100|LEG1.PRICE=210.00
 ```
 
----
+
 
 ## 15. Summary of important implementation truths
 

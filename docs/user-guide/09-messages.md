@@ -13,7 +13,7 @@
     - The full catalogue of messages used in EduMatcher, their fields, and which
       processes produce and consume each one
 
----
+
 
 ## Background — Messages in a Bus System
 
@@ -136,7 +136,7 @@ the audit trail would be written by a Kafka consumer (guaranteed delivery,
 infinite replay), and the matching engine would use a persisted queue for order
 intake.
 
----
+
 
 ## Message structure
 
@@ -162,7 +162,7 @@ The dedicated drop-copy channel is implemented in
 `src/edumatcher/engine/drop_copy.py` and is documented in more detail on the
 [Drop Copy](13-drop-copy.md) page.
 
----
+
 
 ## Order messages (gateway → engine)
 
@@ -186,7 +186,7 @@ Sent by an ALF gateway at startup to authenticate its gateway ID against
 
 When `accepted=false`, the gateway must terminate and MUST NOT submit orders.
 
----
+
 
 ### `order.new`
 
@@ -210,7 +210,7 @@ Sent by a gateway to submit a new order for matching.
 | `displayed_qty` | integer \| null | Current visible slice (ICEBERG) |
 | `smp_action` | string | Self-match prevention: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` |
 
----
+
 
 ### `order.cancel`
 
@@ -221,7 +221,7 @@ Sent by a gateway to cancel a resting order.
 | `order_id` | string (UUID) | ID of the order to cancel |
 | `gateway_id` | string | Gateway that owns the order |
 
----
+
 
 ### `order.amend`
 
@@ -243,7 +243,7 @@ At least one of `price` or `qty` must be present.
 
 **Reply:** `order.amended.{GW_ID}` on success, or `order.ack.{GW_ID}` with `accepted=false` on rejection.
 
----
+
 
 ### `quote.new`
 
@@ -318,7 +318,7 @@ Ack payload fields:
 | `halted_symbols` | integer | Number of symbols set to halted |
 | `cancelled_quotes` | integer | Number of quote legs cancelled during halt |
 
----
+
 
 ### `risk.circuit_breaker_resume_all`
 
@@ -351,7 +351,7 @@ Ack payload fields:
 | `reason` | string | Rejection reason when `accepted=false` |
 | `resumed_symbols` | integer | Number of symbols transitioned from halted to trading |
 
----
+
 
 ### ADMIN workflow: exchange-wide halt and resume
 
@@ -444,7 +444,7 @@ Graceful disconnect notice from gateway to engine.
 | `gateway_id` | string | Gateway identifier |
 | `reason` | string | Optional disconnect reason |
 
----
+
 
 ### `order.combo`
 
@@ -461,7 +461,7 @@ Sent by a gateway to submit a combo (multi-leg) order.
 | `timestamp` | float | Unix epoch (seconds) |
 | `status` | string | Initial status (`"PENDING"`) |
 
----
+
 
 ### `order.combo_cancel`
 
@@ -472,7 +472,7 @@ Sent by a gateway to cancel a combo and all its child legs.
 | `combo_id` | string | User-provided combo label to cancel |
 | `gateway_id` | string | Gateway that owns the combo |
 
----
+
 
 ## Order events (engine → subscribers)
 
@@ -498,7 +498,7 @@ Subscribed to by the originating gateway and the order monitor.
 !!! note "Rejection reasons"
     Common rejection reasons: `"Symbol not configured: XYZ"`, `"Insufficient liquidity"` (FOK), `"Order not found"` (cancel), `"Gateway not configured: TRADER99"`, `"Gateway not connected: TRADER01"`.
 
----
+
 
 ### `order.fill.{GW_ID}`
 
@@ -519,7 +519,7 @@ Both the aggressor and the resting counterparty receive their own `order.fill` m
 | `qty` | integer | Original quantity |
 | `price` | float \| null | Limit price |
 
----
+
 
 ### `order.cancelled.{GW_ID}`
 
@@ -529,7 +529,7 @@ Confirms a cancel request or a Self-Match Prevention (SMP) forced cancellation.
 |---|---|---|
 | `order_id` | string (UUID) | Cancelled order |
 
----
+
 
 ### `order.amended.{GW_ID}`
 
@@ -543,7 +543,7 @@ Confirms a successful order amendment.
 | `remaining_qty` | integer | Remaining unfilled quantity |
 | `priority_reset` | boolean | `true` if the order lost time priority |
 
----
+
 
 ### `order.expired.{GW_ID}`
 
@@ -553,7 +553,7 @@ Published during engine shutdown for every resting `DAY` order that did not fill
 |---|---|---|
 | `order_id` | string (UUID) | Expired order |
 
----
+
 
 ### `order.orders.{GW_ID}`
 
@@ -563,7 +563,7 @@ Response to an `order.orders_request` from a gateway; delivers the full current 
 |---|---|---|
 | `orders` | array of order dicts | Each element has the same shape as `order.new` plus a current `status` and `remaining_qty` |
 
----
+
 
 ## Combo events (engine → subscribers)
 
@@ -581,7 +581,7 @@ Acknowledgement of a combo order submission.
 !!! note "Rejection reasons"
     Common rejection reasons: `"Combo requires at least 2 legs"`, `"Duplicate symbols in combo legs"`, `"Symbol not configured: XYZ"`, `"Leg 0: invalid quantity 0"`, `"Leg 0: LIMIT requires a price"`.
 
----
+
 
 ### `combo.status.{GW_ID}`
 
@@ -603,7 +603,7 @@ Published when a combo transitions between lifecycle states.
 | `FAILED` | A child leg was cancelled or expired — cascade-cancel triggered |
 | `CANCELLED` | User cancelled via `CANCEL\|COMBO_ID=` — all children cancelled |
 
----
+
 
 ## Trade events (engine → all subscribers)
 
@@ -623,7 +623,7 @@ Published once per matched trade pair. Consumed by clearing, audit, and statisti
 | `quantity` | integer | Matched quantity |
 | `timestamp` | float | Unix epoch (seconds) |
 
----
+
 
 ## Book events (engine → all subscribers)
 
@@ -643,7 +643,7 @@ Consumed by order-book viewers and the statistics process.
 | `last_sell_price` | float \| null | Last price where the seller was aggressor |
 | `recent_trades` | array | Up to 5 most recent `trade.executed` payloads |
 
----
+
 
 ## Request / response (gateway → engine, point-to-point)
 
@@ -659,7 +659,7 @@ Requests the current book snapshot for a symbol (used by viewers on startup to a
 
 **Reply:** `book.{SYMBOL}` — same shape as above.
 
----
+
 
 ### `system.symbols_request`
 
@@ -677,7 +677,7 @@ which symbols to pull opening book snapshots for.
 |---|---|---|
 | `symbols` | array of strings | All symbols configured in `engine_config.yaml` |
 
----
+
 
 ### `order.orders_request`
 
@@ -689,7 +689,7 @@ Requests the current order list for a specific gateway.
 
 **Reply:** `order.orders.{GW_ID}` — see above.
 
----
+
 
 ## System messages (engine → all subscribers)
 
@@ -704,7 +704,7 @@ and the statistics process to know what trading mode is currently active.
 | `state` | string | New session state: `"PRE_OPEN"`, `"OPENING_AUCTION"`, `"CONTINUOUS"`, `"CLOSING_AUCTION"`, `"CLOSED"` |
 | `prev_state` | string | Previous session state (empty string on first transition) |
 
----
+
 
 ### `auction.result.{SYMBOL}`
 
@@ -721,7 +721,7 @@ equilibrium price, quantity matched, and any imbalance.
 | `imbalance_side` | string | `"BUY"`, `"SELL"`, or `""` (balanced) |
 | `imbalance_qty` | integer | Surplus quantity that could not be matched |
 
----
+
 
 ### `system.eod`
 
@@ -732,7 +732,7 @@ Consumed by the statistics process to record end-of-day closing bid/ask prices.
 |---|---|---|
 | `books` | array of book snapshots | One entry per active symbol; each element has the same shape as a `book.{SYMBOL}` payload |
 
----
+
 
 ## Session messages (scheduler → engine)
 
@@ -750,7 +750,7 @@ for valid state transitions).  Invalid transitions are silently rejected
 and logged to stderr.  On success, the engine publishes a `session.state`
 event confirming the new phase.
 
----
+
 
 ## Subscription filter summary
 
@@ -763,7 +763,7 @@ event confirming the new phase.
 | Audit | *(empty filter — receives everything)* |
 | Statistics | `trade.`, `book.`, `system.eod`, `system.symbols.STATS`, `session.state`, `auction.result.` |
 
----
+
 
 ## Price And Timestamp Semantics (v2)
 

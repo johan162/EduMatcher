@@ -49,7 +49,7 @@ PRE_OPEN → OPENING_AUCTION → CONTINUOUS → CLOSING_AUCTION → CLOSED
 The scheduler process (`pm-scheduler`) drives these transitions by sending
 `session.transition` messages to the engine over ZeroMQ.
 
----
+
 
 ## Session phases
 
@@ -102,7 +102,7 @@ PRE_OPEN ─────────→ OPENING_AUCTION ──→ CONTINUOUS
 Invalid transitions are silently rejected by the engine and logged to
 stderr.
 
----
+
 
 ## The session scheduler (`pm-scheduler`)
 
@@ -194,7 +194,7 @@ Output:
 [SCHEDULER] Done.
 ```
 
----
+
 
 ## Equilibrium price
 
@@ -354,29 +354,7 @@ When an uncross completes, the engine publishes:
 | `order.expired.{gateway_id}` | One per ATO/ATC order that did not fill and was expired |
 | `session.state` | Confirms the new session state after the transition |
 
----
 
-## Glossary
-
-| Term | Definition |
-|---|---|
-| **ATC** | At-The-Close — a Time-in-Force value restricting an order to the closing auction only.  Expired automatically when the closing auction ends. |
-| **ATO** | At-The-Open — a Time-in-Force value restricting an order to the opening auction only.  Expired automatically when the opening auction ends. |
-| **Auction** | A trading mechanism that collects orders over a time window and then executes them all at a single equilibrium price (the uncross). |
-| **Call auction** | Synonym for auction — "call" refers to the fact that all participants are "called" to submit orders before a single price is determined. |
-| **Continuous trading** | The default matching mode where each incoming order is immediately matched against resting liquidity using price-time priority. |
-| **DAY** | A Time-in-Force value meaning the order is valid for the current trading day only. |
-| **Equilibrium price** | The single price that maximises executable quantity and minimises imbalance at the end of an auction.  Also called the uncross price or auction price. |
-| **FOK** | Fill-Or-Kill — an order that must be entirely filled immediately or rejected.  Not valid during auction phases. |
-| **GTC** | Good-Till-Cancelled — a Time-in-Force value meaning the order persists across trading sessions until explicitly cancelled. |
-| **Imbalance** | The difference between total buy and sell quantity at the equilibrium price.  Expressed as a side (BUY or SELL) and a quantity. |
-| **MARKET order** | An order with no price limit, filled at the best available price.  Rejected during auction phases because it cannot rest on the book. |
-| **pm-scheduler** | The standalone process that drives session-phase transitions by sending `session.transition` messages to the engine at wall-clock times. |
-| **PRE_OPEN** | Session phase before the opening auction.  Orders are accepted and rest on the book, but no matching occurs. |
-| **Session state** | One of `PRE_OPEN`, `OPENING_AUCTION`, `CONTINUOUS`, `CLOSING_AUCTION`, `CLOSED` — determines what the engine accepts and whether it matches. |
-| **Surplus** | The absolute difference between cumulative buy and sell quantity at the equilibrium price — the quantity that cannot be matched. |
-| **TIF** | Time-in-Force — attribute on an order that controls its lifetime (`DAY`, `GTC`, `ATO`, `ATC`, `FOK`). |
-| **Uncross** | The process of executing all crossable interest at the equilibrium price when an auction window closes. |
 
 ## Tick/Ns Migration Notes
 

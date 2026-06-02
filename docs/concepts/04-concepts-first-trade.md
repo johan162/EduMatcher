@@ -13,7 +13,7 @@ This is a step-by-step guided walkthrough. You need about 10 minutes and five
 terminal windows. No prior trading knowledge is assumed — every term is
 explained as it appears.
 
----
+
 
 ## Prerequisites
 
@@ -24,7 +24,7 @@ cd EduMatcher
 poetry install
 ```
 
----
+
 
 ## Step 1 — Start the system
 
@@ -66,7 +66,7 @@ GW01>
 
 The `GW01>` prompt means you are ready to enter orders.
 
----
+
 
 ## Step 2 — Check what symbols are available
 
@@ -79,7 +79,7 @@ SYMBOLS
 You should see the list of configured symbols (e.g. `AAPL`, `MSFT`). All
 examples in this walkthrough use `AAPL`.
 
----
+
 
 ## Step 3 — Submit a passive LIMIT BUY (make liquidity)
 
@@ -120,7 +120,7 @@ BID                ASK
 
 Your buy order is sitting on the bid side, waiting for a seller.
 
----
+
 
 ## Step 4 — Submit a matching LIMIT SELL (take liquidity)
 
@@ -134,7 +134,7 @@ NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00
 Because GW01 has a resting bid at $150.00 and GW02 is now willing to sell at
 $150.00, the prices **cross** — a trade happens immediately.
 
----
+
 
 ## Step 5 — Read the fill confirmation
 
@@ -159,7 +159,7 @@ In Window 1 (engine `--verbose`), you'll see the trade logged:
 TRADE AAPL buyer=GW01 seller=GW02 qty=100 price=150.00
 ```
 
----
+
 
 ## Step 6 — Check P&L in the clearing window
 
@@ -178,7 +178,7 @@ In Window 3 (clearing), you'll see a P&L update for both traders:
 - **GW02** sold 100 shares they presumably don't own — they are now **short**
   100 shares. Their P&L is also $0 at the moment of the trade.
 
----
+
 
 ## Step 7 — Submit a resting sell and watch unrealized P&L move
 
@@ -210,7 +210,7 @@ GW01 bought at $150, sold at $152 — **$2 × 100 shares = $200 realized profit*
 GW02 sold at $150, bought back at $152 — **$200 realized loss**. Both are now
 flat (position = 0).
 
----
+
 
 ## Step 8 — Submit and cancel a resting order
 
@@ -236,7 +236,7 @@ The engine confirms:
 
 The order disappears from the book viewer.
 
----
+
 
 ## Step 9 — Amend an existing order
 
@@ -287,7 +287,7 @@ fully filled or cancelled order.
     quantity reduction (50 → 30) happen in one command. The price change
     dominates — the order goes to the back of the $149.00 queue.
 
----
+
 
 ## Step 10 — Try a MARKET order
 
@@ -309,7 +309,7 @@ NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
 The market order fills immediately at $151.00 — it takes whatever price the
 resting sell requires. You didn't choose the price; you prioritised speed.
 
----
+
 
 ## Summary
 
@@ -328,7 +328,7 @@ You have completed a full basic trading session:
 | 9 | Amended a resting order | In-place price/qty update, queue priority |
 | 10 | Submitted a MARKET order | Immediacy vs. price certainty |
 
----
+
 
 ## What next?
 
@@ -336,6 +336,6 @@ You have completed a full basic trading session:
 - [A Full Trading Day](05-concepts-trading-day.md) — auctions, session phases, and daily lifecycle
 - [P&L & Clearing](../user-guide/07-pnl-clearing.md) — full explanation of VWAP cost basis and realized vs. unrealized
 
----
+
 
 [← The Order Book](01-concepts-order-book.md) | [Next: A Full Trading Day →](05-concepts-trading-day.md)

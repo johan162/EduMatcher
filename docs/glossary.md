@@ -14,9 +14,9 @@ The following definitions are written to be concise and standalone, useful as a 
 
 **Ask / Offer:** The price at which a seller is willing to sell. The best (lowest) ask is the top of the sell side of the order book.
 
-**ATC (At-The-Close):** An order TIF valid only during the closing auction.
+**ATC (At-The-Close):** An order TIF valid only during the closing auction. Expired automatically when the opening auction ends.
 
-**ATO (At-The-Open):** An order TIF valid only during the opening auction.
+**ATO (At-The-Open):** An order TIF valid only during the opening auction. Expired automatically when the closing auction ends.
 
 **Auction / Call Auction / Uncross / Fixing:** A trading mechanism where orders are collected over a period and then matched simultaneously at a single equilibrium price. Contrasts with continuous matching where orders match one at a time as they arrive.
 
@@ -67,6 +67,8 @@ stop-loss STOP, typically implemented as an OCO pair. See [OCO](user-guide/04-or
 ### C
 
 **Calendar Spread:** A derivatives strategy involving the simultaneous purchase and sale of contracts on the same underlying instrument but with different expiry dates, for example, buy the March futures contract, sell the June futures contract. Used to profit from expected changes in the price difference (the "spread") between contract months. Requires cross-symbol coordination in the matching engine.
+
+**Call auction:**  Synonym for auction — "call" refers to the fact that all participants are "called" to submit orders before a single price is determined.
 
 **Capital Appreciation:** An increase in the market price of a share (or other asset) above the price paid. The primary way equity investors generate returns.
 
@@ -208,6 +210,8 @@ orders are serialised to `data/gtc_orders.json` at shutdown and reloaded next se
 ### I
 
 **Iceberg Order / Hidden Order / Reserve Order:** An order that shows only a small visible peak while hiding a large reserve. Each time the visible portion fills, the order replenishes from the reserve. See [Order Types](user-guide/04-order-types.md#6-iceberg).
+
+**Imbalance:** The difference between total buy and sell quantity at the equilibrium price.  Expressed as a side (BUY or SELL) and a quantity.
 
 **Immediate-Or-Cancel (IOC):** An order that fills as much as possible immediately and cancels any unfilled remainder. Never rests in the book.
 
@@ -380,6 +384,8 @@ Often used as a reference price when the spread is non-zero.
 
 **Pre-Trade Risk Controls:** Checks applied to orders before they reach the matching engine, quantity limits, notional limits, fat-finger filters, credit checks, and rate limiting. The gateway is typically the enforcement layer.
 
+**PRE_OPEN:**  Session phase before the opening auction.  Orders are accepted and rest on the book, but no matching occurs.
+
 **Presence Obligation:** A market maker's contractual requirement to have live two-sided quotes resting in the book for a minimum percentage of the trading session, commonly 85% or more. Prevents market makers from only quoting on easy days and disappearing on volatile ones when liquidity is most needed.
 
 **Price Discovery:** The process by which the market determines the current fair price of an asset through the interaction of buyers and sellers. A well-functioning exchange enables efficient price discovery: prices reflect all currently available information and update rapidly as new information arrives. Price discovery is one of the three core promises every exchange makes. Poor price discovery, where the traded price diverges significantly from fair value for extended periods, is a sign of market dysfunction.
@@ -500,6 +506,8 @@ orders in thin books experience more slippage.
 **Stop-Limit Order:** A stop order that converts to a limit order when triggered. Provides price protection but may not execute if the market gaps.
 
 **Stop-Loss:** A sell stop order used to automatically exit a losing long position if the price falls to a specified level.
+
+ **Surplus:**  The absolute difference between cumulative buy and sell quantity at the equilibrium price — the quantity that cannot be matched.
 
 **Sweeping:** The process of an aggressive order filling against resting orders at successive price levels.
 

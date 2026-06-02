@@ -12,7 +12,7 @@
       anyone who wants to replay a set of orders and compare results
     - How the toolset sidesteps those traps — and where residual assumptions remain
 
----
+
 
 ## Why verification is hard
 
@@ -60,7 +60,7 @@ If the two books agree at price-level granularity, the engine is verified.
     order of individual trade events, or P&L computations.  Those require
     additional test fixtures (see `tests/test_clearing_ticker_gateway.py`).
 
----
+
 
 ## The verification flow
 
@@ -78,7 +78,7 @@ replay_to_engine.py ──▶  live engine ──▶  data/verify/engine_result.
 
 `verify_matching.sh` orchestrates all four steps in sequence.
 
----
+
 
 ## Tool 1 — `gen_verification_set.py`
 
@@ -204,7 +204,7 @@ authoritative input.
 
 The "4 skipped" are the `#` comment header lines in `mm_orders.fix`.
 
----
+
 
 ## Tool 2 — `replay_to_engine.py`
 
@@ -284,7 +284,7 @@ used by the paper result, then saved to `data/verify/engine_result.json`.
 [REPLAY] Saved engine result → data/verify/engine_result.json
 ```
 
----
+
 
 ## Tool 3 — `compare_results.py`
 
@@ -351,7 +351,7 @@ A failing run with a qty mismatch:
 
 Exit code is `0` on PASS and `1` on FAIL, making it composable in CI pipelines.
 
----
+
 
 ## Tool 4 — `verify_matching.sh`
 
@@ -400,7 +400,7 @@ suite, make sure the test suite finishes (and the engine stops) before
 `verify_matching.sh` starts — otherwise the GTC files written by the previous
 run will corrupt the initial book state.
 
----
+
 
 ## The hardest problems: time, identity, and state
 
@@ -494,7 +494,7 @@ The comparison aggregates total visible qty at each price level, not per-order
 qty.  As long as the total resting quantity at $419.03 is 450 in both cases, the
 iceberg's internal refresh state does not matter.
 
----
+
 
 ## The verification config
 
@@ -526,7 +526,7 @@ Key decisions:
 - No session schedule — the engine stays in `CONTINUOUS` indefinitely, avoiding
   `TIF=DAY` expiry.
 
----
+
 
 ## Running the full suite
 
@@ -576,7 +576,7 @@ Expected end-to-end output for a passing run:
 ✓  Verification PASSED — engine output matches paper trade.
 ```
 
----
+
 
 ## Summary
 
@@ -590,7 +590,7 @@ Expected end-to-end output for a passing run:
 | Async drain window | Engine still evaluating after last ACK | 0.5 s pause + 5 s snapshot timeout |
 | Iceberg refresh position | Hidden reserve replenishment | Aggregate visible qty per price level |
 
----
+
 
 ## What next?
 

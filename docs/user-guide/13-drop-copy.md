@@ -12,7 +12,7 @@
     **Prerequisite**: [Processes](10-processes.md) gives an overview of the
     ZeroMQ topology that drop copy sits within.
 
----
+
 
 ## What is drop copy?
 
@@ -33,7 +33,7 @@ This separation is important:
 - Back-office systems need guaranteed delivery with sequence numbers so they
   can detect gaps and request replays.
 
----
+
 
 ## Architecture
 
@@ -72,7 +72,7 @@ calling `run()` do not bind a ZMQ socket.
 The drop copy address is configurable via `DROP_COPY_PUB_ADDR` in
 `src/edumatcher/config.py`.
 
----
+
 
 ## Message format
 
@@ -118,7 +118,7 @@ live drop-copy event type currently emitted by the engine.
     ticks. The payload also uses `remaining_qty` and `liquidity_flag`; it does
     not include `side` or `leaves_qty`.
 
----
+
 
 ## Sequence numbers
 
@@ -134,7 +134,7 @@ Sequence numbers allow downstream consumers to:
    the consumer can discard the duplicate by checking whether the `seq` has
    already been processed.
 
----
+
 
 ## In-memory buffer
 
@@ -145,7 +145,7 @@ reconnect after a gap.
 The buffer is implemented as a `collections.deque` with `maxlen=10_000`.  When
 the buffer is full, the oldest event is discarded automatically.
 
----
+
 
 ## Replay
 
@@ -184,7 +184,7 @@ message, it will receive only the available subset.  In production systems this
 gap would typically be filled from a persistent audit log (see
 [Persistence](11-persistence.md)).
 
----
+
 
 ## Topic subscription patterns
 
@@ -197,7 +197,7 @@ for the drop copy stream:
 | `b"drop_copy.event.TRADER01"` | Live fills from gateway TRADER01 only |
 | `b"drop_copy.replay.MY_RISK_SYS"` | Replay messages addressed to MY_RISK_SYS |
 
----
+
 
 ## Startup and shutdown
 
@@ -210,7 +210,7 @@ from operating.
 On shutdown the publisher is explicitly closed via `DropCopyPublisher.close()`,
 which releases the ZMQ socket cleanly.
 
----
+
 
 ## Configuration reference
 
@@ -222,7 +222,7 @@ which releases the ZMQ socket cleanly.
 
 To change the drop copy port, edit `DROP_COPY_PUB_ADDR` in `config.py`.
 
----
+
 
 ## See also
 

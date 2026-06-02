@@ -14,7 +14,7 @@ survive the end of a trading session and are automatically restored when the sys
 restarts for the next day.  Several other data files are also maintained across
 sessions to preserve market state and historical records.
 
----
+
 
 ## How It Works
 
@@ -41,7 +41,7 @@ sessions to preserve market state and historical records.
    submitted yesterday still has seniority over a new order at the same price submitted today.
 8. Initial book snapshots are published so viewers show the restored state immediately.
 
----
+
 
 ## Operational edge cases
 
@@ -54,7 +54,7 @@ sessions to preserve market state and historical records.
   liquidity can duplicate already-restored inventory on restart. Use `DAY` for
   seeded demo liquidity unless you are intentionally managing persisted state.
 
----
+
 
 ## Order ID Stability
 
@@ -62,7 +62,7 @@ GTC order IDs are UUID4 strings generated at submission time by the gateway.
 They **do not change** across restarts. Gateways and the order monitor will see
 the same order ID in all events throughout the order's life.
 
----
+
 
 ## Submitting a GTC Order
 
@@ -75,7 +75,7 @@ NEW|SYM=AAPL|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=149.00|VISIBLE=100|TIF=GTC
 
 MARKET and FOK orders are always DAY orders — they cannot be GTC because they do not rest.
 
----
+
 
 ## The data/gtc_orders.json File
 
@@ -103,7 +103,7 @@ Format: a JSON array of serialized `Order` objects.
 You can inspect or edit this file between trading sessions. To cancel all GTC orders
 for the next day, simply delete the file before restarting the engine.
 
----
+
 
 ## Trading Day Lifecycle
 
@@ -136,7 +136,7 @@ Ctrl-C / SIGTERM
     └─ Shutdown
 ```
 
----
+
 
 ## Cancelling a GTC Order
 
@@ -152,7 +152,7 @@ already marked `CANCELLED`.
 !!! tip
     To find the full order ID, type `ORDERS` in your gateway terminal or check the audit log.
 
----
+
 
 ## The data/book_stats.json File
 
@@ -176,7 +176,7 @@ Format: a JSON object keyed by symbol:
 On startup, persisted values **override** any `last_buy_price` / `last_sell_price` seeded
 in `engine_config.yaml`.  Config seeds are only used when no persisted file exists (first run).
 
----
+
 
 ## The data/gtc_combos.json File
 
@@ -203,7 +203,7 @@ status `PENDING` or `PARTIALLY_MATCHED`):
 On restore, the engine rebuilds the `_combos` and `_order_to_combo` tracking maps so
 that fill events on restored child orders correctly propagate to their parent combo.
 
----
+
 
 ## Other Persistent Files
 
@@ -219,7 +219,7 @@ across sessions:
 These files are **append-only** (or upsert for SQLite) — they are never truncated by the
 system.  To reset, delete them manually between sessions.
 
----
+
 
 ## Summary of All Data Files
 

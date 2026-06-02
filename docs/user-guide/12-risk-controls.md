@@ -12,7 +12,7 @@
     **Prerequisite**: [Concepts — Order Book](../concepts/01-concepts-order-book.md) explains the
     order lifecycle that underpins these controls.
 
----
+
 
 ## Overview
 
@@ -27,7 +27,7 @@ disorderly markets.  EduMatcher implements three complementary mechanisms:
 
 All three operate at the engine level — *before* any order enters the book.
 
----
+
 
 ## 1. Instrument halt state
 
@@ -82,7 +82,7 @@ trading resumes.  Market-maker quotes are rejected because a quote always
 implies willingness to trade immediately and a halted market does not offer that
 guarantee.
 
----
+
 
 ## 2. Price collars
 
@@ -204,7 +204,7 @@ Resolution precedence is:
 The reference price for the static band is taken from `last_buy_price`
 (converted to ticks) at engine startup.
 
----
+
 
 ## 3. Circuit breakers
 
@@ -336,7 +336,7 @@ determines which level is activated at runtime.
 
 
 
----
+
 
 ## 4. Interaction between mechanisms
 
@@ -382,7 +382,7 @@ A limit buy at 12200 ticks trades. Reference = 10100.
   → next order at this symbol: if MARKET → rejected; if LIMIT → accepted, no match
 ```
 
----
+
 
 ## 5. ZeroMQ messages
 
@@ -411,7 +411,7 @@ payload: {
 }
 ```
 
----
+
 
 ## 6. ADMIN-role operator controls
 
@@ -441,7 +441,7 @@ subscribes to the PUB socket (port 5556) to receive ack messages.
 See [Role Privileges and Obligations](01-configuration.md#role-privileges-and-obligations)
 for the full permissions matrix.
 
----
+
 
 ### Triggering an exchange-wide halt
 
@@ -516,7 +516,7 @@ payload: {
 }
 ```
 
----
+
 
 ### Resuming all trading
 
@@ -567,7 +567,7 @@ After the ack is received, normal order flow and quote submission resume for all
 previously halted symbols.  Market makers are expected to re-enter fresh quotes;
 the engine will begin enforcing MM obligation checks again immediately.
 
----
+
 
 ### Sequence diagram
 
@@ -590,7 +590,7 @@ sequenceDiagram
     Eng->>Op: risk.circuit_breaker_resume_all_ack.GW_ADMIN<br/>{accepted: true, resumed_symbols: 2}
 ```
 
----
+
 
 ### Key differences from automatic circuit breakers
 
@@ -603,7 +603,7 @@ sequenceDiagram
 | `resumption_mode` | `AUCTION` or `CONTINUOUS` | Always `MANUAL` |
 | Who can send | Any connected gateway | `ADMIN` role only |
 
----
+
 
 ## 7. Market-maker interaction
 
@@ -617,7 +617,7 @@ Operator-initiated halts do not automatically cancel outstanding quotes.  They
 instead prevent new quotes from being accepted.  Pre-existing quotes remain on
 the book and will participate in any uncross at resumption.
 
----
+
 
 ## See also
 

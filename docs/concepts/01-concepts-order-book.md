@@ -9,7 +9,7 @@
     - How price-time priority determines who gets filled first
     - What happens step-by-step when two orders match
 
----
+
 
 ## What is an order book?
 
@@ -29,7 +29,7 @@ book. Orders are separated into two sides:
 The matching engine continuously checks whether the best bid and the best ask
 overlap in price. When they do, a **trade** is produced.
 
----
+
 
 ## A concrete order book
 
@@ -50,7 +50,7 @@ Imagine AAPL is trading around $150. The live book might look like this:
 - The **best ask** (lowest sell price) is **150.10** for 100 shares.
 - These prices do not overlap — no trade happens yet.
 
----
+
 
 ## The bid-ask spread
 
@@ -72,7 +72,7 @@ The **mid-price** is the midpoint between bid and ask:
 
 $$\text{mid} = \frac{149.90 + 150.10}{2} = 150.00$$
 
----
+
 
 ## Book depth
 
@@ -93,7 +93,7 @@ $$\frac{(100 \times 149.90) + (500 \times 149.80)}{600} = \frac{14990 + 74900}{6
 The trader wanted to sell at ~149.90 but the large size caused the actual
 average to be 149.82. This difference is called **slippage**.
 
----
+
 
 ## Price-time priority
 
@@ -136,7 +136,7 @@ This is why being early matters: all else being equal, the first order in
 queue has an advantage. This creates an incentive for market participants to
 submit orders quickly — one driver of the speed race in modern markets.
 
----
+
 
 ## Step-by-step: what happens when orders match
 
@@ -175,7 +175,7 @@ GW01: bought 100 AAPL @ 150.00 — position +100, avg cost 150.00
 GW02: sold   100 AAPL @ 150.00 — position -100 (or flat if they were long)
 ```
 
----
+
 
 ## Passive vs. aggressive orders
 
@@ -196,7 +196,7 @@ In real exchanges, makers often pay lower fees than takers as a reward for
 providing liquidity. EduMatcher does not model fees, but the distinction
 is important for understanding order strategy.
 
----
+
 
 ## Key terms summary
 
@@ -213,7 +213,7 @@ is important for understanding order strategy.
 | **Passive / maker** | An order resting on the book |
 | **Aggressive / taker** | An order that crosses the spread and matches immediately |
 
----
+
 
 [Back to top](#the-order-book) | [Next: A Full Trading Day →](05-concepts-trading-day.md)
 

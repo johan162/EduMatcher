@@ -12,7 +12,7 @@
     - Which processes are mandatory and which are optional observers
     - How to read the message-flow tables to trace an order from submission to fill
 
----
+
 
 ## Background — Why Separate Processes?
 
@@ -80,7 +80,7 @@ will miss messages sent before it subscribes.  This is why the engine publishes
 an initial book snapshot on startup: late-joining viewers can request the
 current state rather than waiting for the next change.
 
----
+
 
 ## Process Overview
 
@@ -113,7 +113,7 @@ flow.
     sockets.  If a process starts before the engine is ready, it will either fail
     immediately or silently lose its first messages.
 
----
+
 
 ## pm-engine — Matching Engine
 

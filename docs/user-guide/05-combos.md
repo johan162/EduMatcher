@@ -15,7 +15,7 @@
       itself computes from existing liquidity in related books — including the
       mathematics behind their price and quantity calculation
 
----
+
 
 ## What Is a Combo Order, and Why Would I Use One?
 
@@ -55,14 +55,14 @@ You need all three legs to fill at the same time, otherwise the arbitrage
 disappears before you can complete the position.  A three-leg combo is the
 only practical way to do this.
 
----
+
 
 Until now every order in EduMatcher has been a **single-leg** order — one symbol,
 one side, one quantity. That is enough to teach matching, price-time priority, and
 basic order types. Real markets, however, are full of strategies that require
 **multiple orders to work together as a unit**. That is what combo orders are for.
 
----
+
 
 ## What Are Combo Orders?
 
@@ -83,7 +83,7 @@ respective order books. The parent combo tracks whether all legs have filled.
     exchanges speak of **strategy orders** (straddles, strangles, butterflies). The
     mechanics are the same: multiple legs, one intent.
 
----
+
 
 ## Why Do Combo Orders Exist?
 
@@ -115,7 +115,7 @@ This is called **leg risk** (or execution risk).
 | State tracking — you mentally track which orders belong together | The engine tracks the parent combo and its children as a unit |
 | Strategy intent — the engine doesn't know your two orders are related | The engine understands the relationship and can report combo-level status |
 
----
+
 
 ## New Strategies Enabled by Combos
 
@@ -188,7 +188,7 @@ book.
 COMBO: BUY 100 MSFT @414.80, SELL 100 MSFT_PROXY @415.20
 ```
 
----
+
 
 ## Complexity Introduced by Combos
 
@@ -196,14 +196,14 @@ Combos look simple on the surface — "just submit two orders together." Under t
 they introduce **significant new complexity** that single-leg orders never had to deal
 with.
 
-### 1. Distributed State
+### Distributed State
 
 A single-leg order lives in one order book. A combo spans **multiple books**. The
 engine must track a parent object (the combo) and its children (the legs) across
 separate data structures. Every fill, cancel, or expiry on any child must propagate
 back to the parent.
 
-### 2. Lifecycle Management
+### Lifecycle Management
 
 Single-leg orders have a simple lifecycle: NEW → PARTIAL → FILLED (or CANCELLED /
 EXPIRED). Combos add a **second layer**:
@@ -222,7 +222,7 @@ COMBO lifecycle:
 The engine must detect transitions at the combo level whenever a child-level event
 occurs.
 
-### 3. Cascade Cancellation
+### Cascade Cancellation
 
 If one leg of a combo is cancelled or expires, the remaining legs must be
 **automatically cancelled**. This is non-trivial:
@@ -241,21 +241,21 @@ siblings' unfilled quantities. Fills that already occurred are **not** unwound.
     that already happened on other legs. This mirrors real exchange behavior — trades
     are irrevocable.
 
-### 4. Fill Event Hooks
+### Fill Event Hooks
 
 In a single-leg system the engine processes an order and publishes fills. With combos,
 every fill on a resting child order must also trigger a **parent combo check**: "Is
 this combo now fully matched?" This requires a reverse lookup from child order ID to
 parent combo ID on every fill event.
 
-### 5. Persistence Recovery
+### Persistence Recovery
 
 GTC combos must survive engine restarts. On shutdown the engine persists both the
 parent combo metadata and its child orders. On startup it must reconstruct the
 parent-child links and resume tracking fill progress — a non-trivial deserialization
 problem.
 
-### 6. Visibility and Information Leakage
+### Visibility and Information Leakage
 
 Should combo child orders be visible on the per-symbol book? If yes, counterparties
 can see "someone is building a pairs position" and **front-run** the trade (rush to
@@ -263,7 +263,7 @@ trade ahead of them, anticipating the price impact of the remaining legs). If no
 book underrepresents true liquidity. EduMatcher shows child orders on the book
 (they are normal resting orders) but does **not** label them as combo legs.
 
----
+
 
 ## Trading Combos in EduMatcher
 
@@ -313,7 +313,7 @@ This cancels all child legs atomically. Fills that already occurred are not reve
 The `ORDERS` command shows child orders with their parent combo ID. The `pm-orders`
 monitor displays combo-level status transitions in real time.
 
----
+
 
 ## New Demands on Market Makers
 
@@ -380,7 +380,7 @@ market_maker_combos:
 This ensures that when a retail trader submits a combo, there is resting liquidity on
 both legs from day one.
 
----
+
 
 ## Example Strategies in Detail
 
@@ -468,7 +468,7 @@ NEW|TYPE=COMBO|COMBO_ID=MM-ASK|COMBO_TYPE=AON|TIF=GTC|LEG_COUNT=2|LEG0.SYM=MSFT|
 The market maker earns the spread between bid and ask on **both** legs — but must
 manage the risk that one leg fills before the other.
 
----
+
 
 ## Summary
 
@@ -488,12 +488,14 @@ Combos are where an educational trading system transitions from "toy" to
 failure cascades, and the tension between atomicity and performance — the same
 problems real exchanges spend years solving.
 
----
+
 
 ## Implied Orders (Synthetic Orders)
 
 This section explains an advanced but very important exchange concept:
 **implied orders** (also called **synthetic orders**).
+
+**However, this concept is not yet supported by EduMatcher**
 
 ### The key idea in one paragraph
 

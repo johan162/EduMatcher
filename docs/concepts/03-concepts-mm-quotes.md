@@ -12,7 +12,7 @@
     - What happens when a fill occurs against a seed quote before the MM gateway connects
     - How configured circuit breakers can still halt a symbol after fills against seed liquidity
 
----
+
 
 ## Concept
 

@@ -28,7 +28,7 @@ It subscribes to every `trade.executed` event and maintains a running
 **P&L ledger per user (gateway) per symbol**. Each gateway represents one
 trader; the clearing process tracks their positions independently.
 
----
+
 
 ## Position Tracking
 
@@ -50,7 +50,7 @@ For each `(gateway_id, symbol)` pair the clearing process tracks:
 | `realized_pnl` | Accumulated profit/loss from trades that reduced the position. |
 | `unrealized_pnl` | Paper profit/loss on the remaining open position (not yet locked in). |
 
----
+
 
 ## VWAP Average Cost
 
@@ -66,7 +66,7 @@ $$
 \text{avg\_cost}_\text{new} = \frac{\text{avg\_cost}_\text{old} \times \lvert \text{position}_\text{old} \rvert + \text{fill\_price} \times \text{fill\_qty}}{\lvert \text{position}_\text{new} \rvert}
 $$
 
----
+
 
 ## Realized P&L
 
@@ -89,7 +89,7 @@ $$
 \text{realized} += (\text{avg\_cost} - \text{fill\_price}) \times \text{reduce\_qty}
 $$
 
----
+
 
 ## Unrealized P&L
 
@@ -107,7 +107,7 @@ $$
 
 For a short position, `position` is negative, so a price fall produces positive unrealized P&L.
 
----
+
 
 ## Example
 
@@ -118,7 +118,7 @@ For a short position, `position` is negative, so a price fall produces positive 
 | 3 | Sell 150 @ 155.00 | +50  | 151.00 | 155.00 | +600.00 | +200.00 |
 | 4 | Sell 50 @ 149.00  | 0    | —      | 149.00 | +500.00 | 0.00 |
 
----
+
 
 ## P&L Table Display
 
@@ -131,7 +131,7 @@ Columns: `Gateway | Symbol | Position | Avg Cost | Last Price | Realized | Unrea
 
 Positive P&L is shown in green, negative in red.
 
----
+
 
 ## clearing_report.csv
 
@@ -145,7 +145,7 @@ abc123,AAPL,ord-aaa,ord-bbb,GW01,GW02,150.50,100,2026-04-29T14:32:01.123
 This file persists across restarts — it is never truncated, giving a complete history
 of all trades for the day.
 
----
+
 
 ## Notes
 

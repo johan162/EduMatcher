@@ -9,7 +9,7 @@
     - How price discovery works at the open
     - What happens to resting orders at phase transitions
 
----
+
 
 ## The shape of a trading day
 
@@ -27,7 +27,7 @@ This structure exists because:
 - Auctions give all participants equal footing at key moments, preventing fast
   players from exploiting slow ones at the open and close.
 
----
+
 
 ## The five phases
 
@@ -51,7 +51,7 @@ This structure exists because:
 | `CLOSING_AUCTION` | Yes | No | + `TIF=ATC` (At-The-Close) |
 | `CLOSED` | No | No | — all orders rejected |
 
----
+
 
 ## Enabling or disabling session handling
 
@@ -73,7 +73,7 @@ When sessions are enabled, starting the engine outside configured session
 times will keep it closed until `pm-scheduler` sends a transition to an
 order-accepting phase.
 
----
+
 
 ## Specifying time for the daily session
 
@@ -113,7 +113,7 @@ effect.  With it set to `false`, the engine ignores all `session.transition`
 messages and stays in perpetual continuous mode regardless of the `schedule`
 block.
 
----
+
 
 ## Phase 1 — PRE_OPEN
 
@@ -129,7 +129,7 @@ NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=149.50
 
 The order is accepted and rests. No trade happens yet.
 
----
+
 
 ## Phase 2 — OPENING_AUCTION
 
@@ -189,7 +189,7 @@ After the uncross, ATO orders that didn't fill are **expired** (not cancelled
 by the trader — automatically removed by the engine). The market transitions
 to CONTINUOUS.
 
----
+
 
 ## Phase 3 — CONTINUOUS
 
@@ -215,7 +215,7 @@ STOP and TRAILING_STOP orders activate here when `last_trade_price` crosses
 their trigger levels. See [Stop Trigger Logic](../user-guide/04-order-types.md#9-stop-trigger-logic)
 for details.
 
----
+
 
 ## Phase 4 — CLOSING_AUCTION
 
@@ -241,7 +241,7 @@ NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=800|PRICE=151.50|TIF=ATC
 
 The uncross algorithm runs and produces the official closing price.
 
----
+
 
 ## Phase 5 — CLOSED
 
@@ -256,7 +256,7 @@ When the engine shuts down it:
 2. Publishes `order.expired` for all resting **DAY** orders (they are discarded at close).
 3. Publishes `system.eod` to all subscribers.
 
----
+
 
 ## What happens to my orders at each transition?
 
@@ -267,7 +267,7 @@ When the engine shuts down it:
 | `ATO` | **Expired** if unfilled at OPENING_AUCTION end | — |
 | `ATC` | — | **Expired** if unfilled at CLOSING_AUCTION end |
 
----
+
 
 ## Triggering phase transitions in EduMatcher
 
@@ -289,7 +289,7 @@ SESSION|TRANSITION=CLOSING_AUCTION
 SESSION|TRANSITION=CLOSED
 ```
 
----
+
 
 ## Putting it all together — a full-day scenario
 
@@ -305,6 +305,6 @@ SESSION|TRANSITION=CLOSED
 | 15:50–16:00 | CLOSING_AUCTION | Final accumulation |
 | 16:00 | → CLOSED | **Uncross at closing price**; ATC orders expired; GTC orders saved; DAY orders expired |
 
----
+
 
 [← Your First Trade](04-concepts-first-trade.md) | [Next: Glossary →](../glossary.md)

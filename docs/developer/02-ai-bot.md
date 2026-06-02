@@ -47,7 +47,7 @@ Bots consume the same data foundations that drive market displays:
 This ensures bot behavior is based on the same observable market reality as
 human operators.
 
----
+
 
 ## How to Control Each Trader
 
@@ -206,7 +206,7 @@ poetry run pm-ai-swarm \
   --duration 120
 ```
 
----
+
 
 ## Practical Notes
 

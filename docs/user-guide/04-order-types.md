@@ -16,25 +16,10 @@ EduMatcher supports **ten order types**, from the simplest market order to
 multi-leg combo/OCO orders used to execute strategies across multiple symbols
 atomically.
 
-## Contents
 
-- [1. MARKET](#1-market)
-- [2. LIMIT](#2-limit)
-- [3. STOP (Stop-Market)](#3-stop-stop-market)
-- [4. STOP_LIMIT](#4-stop_limit)
-- [5. FOK (Fill-or-Kill)](#5-fok-fill-or-kill)
-- [6. ICEBERG](#6-iceberg)
-- [7. COMBO](#7-combo)
-- [8. Time-in-Force (TIF)](#8-time-in-force-tif)
-- [9. Stop Trigger Logic](#9-stop-trigger-logic)
-- [10. IOC (Immediate-Or-Cancel)](#10-ioc-immediate-or-cancel)
-- [11. TRAILING_STOP](#11-trailing_stop)
-- [12. Order Amendment (AMEND)](#12-order-amendment-amend)
-- [13. OCO (One-Cancels-Other)](#13-oco-one-cancels-other)
 
----
 
-## 1. MARKET
+## MARKET
 
 [Back to Contents](#contents)
 
@@ -71,9 +56,9 @@ thin book (few resting orders, so liquidity is low), a large market order can
 move the price significantly — this is called **slippage** (the difference
 between expected execution price and actual average fill price).
 
----
 
-## 2. LIMIT
+
+## LIMIT
 
 [Back to Contents](#contents)
 
@@ -111,9 +96,9 @@ thin book (few resting orders, so liquidity is low), a large limit order may
 not fill immediately or at all, especially if the limit price is far from the
 current market price.
 
----
 
-## 3. STOP (Stop-Market)
+
+## STOP (Stop-Market)
 
 [Back to Contents](#contents)
 
@@ -146,9 +131,9 @@ NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP|QTY=100|STOP=148.00
 **Educational note**: Once triggered, a STOP becomes a MARKET order — execution price
 is not guaranteed, especially in fast markets.
 
----
 
-## 4. STOP_LIMIT
+
+## STOP_LIMIT
 
 [Back to Contents](#contents)
 
@@ -182,9 +167,9 @@ NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP_LIMIT|QTY=100|STOP=148.00|PRICE=147.50
 against market impact. If the market falls through 147.50 before the order fills, it remains
 unexecuted as a resting limit.
 
----
 
-## 5. FOK (Fill-or-Kill)
+
+## FOK (Fill-or-Kill)
 
 [Back to Contents](#contents)
 
@@ -218,9 +203,9 @@ NEW|SYM=AAPL|SIDE=BUY|TYPE=FOK|QTY=100|PRICE=150.00
 **Educational note**: FOK is used when partial fills are unacceptable — e.g. algorithmic
 strategies needing an exact block to execute a multi-leg trade atomically.
 
----
 
-## 6. ICEBERG
+
+## ICEBERG
 
 [Back to Contents](#contents)
 
@@ -261,9 +246,9 @@ without telegraphing their full size. Watch the book viewer as the iceberg refil
 qty at that price level resets to 100 after each 100-lot fill, but the order ID changes
 (new timestamp = new queue position).
 
----
 
-## 7. COMBO
+
+## COMBO
 
 [Back to Contents](#contents)
 
@@ -339,9 +324,9 @@ side fills while the other does not, leaving you with unintended directional
 exposure. See the [Combo Orders](05-combos.md) page for full details, examples,
 and the implied orders mechanism.
 
----
 
-## 8. Time-in-Force (TIF)
+
+## Time-in-Force (TIF)
 
 [Back to Contents](#contents)
 
@@ -377,9 +362,9 @@ Use TIF to align execution intent with horizon:
 NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=GTC
 ```
 
----
 
-## 9. Stop Trigger Logic
+
+## Stop Trigger Logic
 
 [Back to Contents](#contents)
 
@@ -519,9 +504,9 @@ All convert in sequence and are processed as active orders.
 - STOP_LIMIT prioritizes price control over fill certainty.
 - TRAILING_STOP adds adaptive trigger movement but still converts to MARKET on trigger.
 
----
 
-## 10. IOC (Immediate-Or-Cancel)
+
+## IOC (Immediate-Or-Cancel)
 
 [Back to Contents](#contents)
 
@@ -667,9 +652,9 @@ definition. The engine will reject an IOC during auction phases.
 | Price limit not specified | Not supported — IOC requires a `PRICE=` |
 | IOC against FOK resting order | Normal interaction; FOK would already have been rejected if it had no fill |
 
----
 
-## 11. TRAILING_STOP
+
+## TRAILING_STOP
 
 [Back to Contents](#contents)
 
@@ -836,9 +821,9 @@ NEW|SYM=AAPL|SIDE=SELL|TYPE=TRAILING_STOP|QTY=100|TRAIL=2.00
 | Triggered during uncross | The resulting MARKET order participates in the uncross matching round |
 | Multiple trailing stops on the same symbol | All are evaluated after every trade in O(t) time (t = number of trailing stops) |
 
----
 
-## 12. Order Amendment (AMEND)
+
+## Order Amendment (AMEND)
 
 [Back to Contents](#contents)
 
@@ -952,9 +937,9 @@ AMEND|ID=abc123...|QTY=60
 | OCO leg amended | Allowed — does not affect the OCO linkage |
 | Amend during auction phase | Allowed — the resting order's price/qty is updated in the book |
 
----
 
-## 13. OCO (One-Cancels-Other)
+
+## OCO (One-Cancels-Other)
 
 [Back to Contents](#contents)
 

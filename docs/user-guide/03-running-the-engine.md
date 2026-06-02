@@ -16,9 +16,9 @@
     [Commands](02-commands.md) — for the operator console used in the
     monitoring section.
 
----
 
-## 1. Minimum-viable configuration
+
+## Minimum-viable configuration
 
 Before starting anything, verify your configuration covers the mandatory
 fields.  A completely minimal `engine_config.yaml` looks like this:
@@ -103,9 +103,9 @@ Config OK
 | `tick_decimals` set correctly for each symbol | Controls price precision; wrong value means prices display wrong |
 | Each symbol that needs liquidity has a `market_maker_quotes` block referencing a `MARKET_MAKER`-role gateway | Without seeded quotes the book is empty on startup and traders have nothing to trade against |
 
----
 
-## 2. Starting the exchange
+
+## Starting the exchange
 
 ### Startup order
 
@@ -218,9 +218,9 @@ poetry run pm-ai-trader               # single bot
 poetry run pm-ai-swarm                # coordinated multi-bot swarm
 ```
 
----
 
-## 3. Process reference
+
+## Process reference
 
 | Process | Mandatory? | Ports | Purpose |
 |---------|-----------|-------|---------|
@@ -247,9 +247,9 @@ poetry run pm-ai-swarm                # coordinated multi-bot swarm
 | **5556** | PUB (engine) / SUB (clients) | Engine → All | All event-receiving processes |
 | **5557** | PUB (engine) / SUB (drop-copy subscribers) | Engine → Drop-copy | Per-participant fill feed; not used by core observer processes |
 
----
 
-## 4. The `tools/launch_all.sh` convenience launcher
+
+## The `tools/launch_all.sh` convenience launcher
 
 `tools/launch_all.sh` is a macOS-only shell script that opens **each process
 in its own Terminal window** using `osascript`.  It starts the standard
@@ -358,9 +358,9 @@ echo "Launched."
 On Linux, replace `osascript` with `gnome-terminal --`, `xterm -e`, or a `tmux`
 new-window command depending on your terminal emulator.
 
----
 
-## 5. Verifying the system is running correctly
+
+## Verifying the system is running correctly
 
 ### Immediate checks after startup
 
@@ -446,9 +446,9 @@ Every event in the system should appear here within a second of occurring.  If
 the file does not exist, `pm-audit` either was not started or failed to create
 the `data/` directory.
 
----
 
-## 6. Troubleshooting startup problems
+
+## Troubleshooting startup problems
 
 ### Engine exits immediately
 
@@ -530,9 +530,9 @@ print('Gateways:', sorted(cfg.fix_gateways.keys()) if cfg else 'None (unrestrict
 "
 ```
 
----
 
-## 7. Monitoring a running exchange
+
+## Monitoring a running exchange
 
 ### Continuous visual monitoring
 
@@ -692,9 +692,9 @@ grep '"session.state"' data/audit.log | tail -1 | jq '.payload'
 sqlite3 data/stats.db "SELECT symbol, open, high, low, close, volume FROM daily_stats ORDER BY symbol;"
 ```
 
----
 
-## 8. Frequently asked questions
+
+## Frequently asked questions
 
 ### Do I have to start all processes every time?
 

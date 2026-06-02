@@ -12,7 +12,7 @@
     - How the current release workflow is intended to work
     - Which common developer mistakes are easy to avoid
 
----
+
 
 ## 1. What kind of project you are joining
 
@@ -39,7 +39,7 @@ If you are new to the code base, start by reading these pages in order:
 3. [Architecture Overview](../architecture/01-architecture.md)
 4. [Verification](04-verification.md)
 
----
+
 
 ## 2. Development environment
 
@@ -88,7 +88,7 @@ You should have these available locally:
 If you plan to use the containerised docs workflow, you also need **Podman**
 for `scripts/docs-contctl.sh`.
 
----
+
 
 ## 3. Repository map
 
@@ -117,7 +117,7 @@ If you want to understand the runtime quickly, read:
 4. `src/edumatcher/models/message.py`
 5. `tests/test_*` files closest to the area you plan to change
 
----
+
 
 ## 4. Development workflow expectations
 
@@ -174,7 +174,7 @@ This repository values:
 If you notice unrelated technical debt while doing a focused task, note it, but
 do not silently expand the scope of your change.
 
----
+
 
 ## 5. Running a minimal system while developing
 
@@ -277,7 +277,7 @@ You should expect to see:
 - a visible two-sided book in `pm-viewer` after `MM01` connects
 - order acknowledgements and fills flowing back to the submitting gateway
 
----
+
 
 ## 6. Verification and test strategy
 
@@ -346,7 +346,7 @@ processing cost**, not total production wire latency.
 | Performance-sensitive hot-path change | Normal tests + performance tests |
 | Documentation-only change | `poetry run mkdocs build` |
 
----
+
 
 ## 7. Helper scripts under `scripts/` and `tools/`
 
@@ -380,7 +380,7 @@ scripts and script help texts still show traces of an older project name, so a
 developer should read them critically rather than assuming every string is up to
 date.
 
----
+
 
 ## 8. Documentation workflow
 
@@ -412,7 +412,7 @@ If you change:
 This repository already has a lot of explanatory documentation. Reuse it rather
 than duplicating large explanations in new pages.
 
----
+
 
 ## 9. Current release workflow
 
@@ -468,7 +468,7 @@ references. Always sanity-check:
 
 before pushing a real release.
 
----
+
 
 ## 10. Common pitfalls for new developers
 
@@ -509,7 +509,7 @@ A change that passes unit tests can still break:
 
 That is why a minimal live run is worth doing.
 
----
+
 
 ## 11. Suggested first-week path for a new developer
 
