@@ -3,7 +3,7 @@
 .PHONY: docs gen-examples update-version pdf-docs docs-serve \
  container-engine-check docs-container-build docs-container-start docs-container-stop \
  docs-container-restart docs-container-status docs-container-logs docs-deploy help clean really-clean \
- pdf-api-ref pdfs pdf-docs cover cover-light cover-dark \
+ pdfs pdf-docs cover cover-light cover-dark \
  cover-user-guide-a4-light cover-user-guide-a4-dark cover-user-guide-b5-light cover-user-guide-b5-dark
 
 
@@ -77,30 +77,30 @@ ifeq ($(PODMAN_COMPOSE),)
 endif
 
 # Check which container engine is running and set the appropriate tool
-PODMAN_RUNNING := $(shell podman info >/dev/null 2>&1 && echo "yes" || echo "no")
-DOCKER_RUNNING := $(shell docker info >/dev/null 2>&1 && echo "yes" || echo "no")
-NO_CONTAINER_ENGINE := $(shell if [ "$(PODMAN_RUNNING)" = "no" ] && [ "$(DOCKER_RUNNING)" = "no" ]; then echo "yes"; else echo "no"; fi)
-
-ifeq ($(PODMAN_RUNNING),yes)
-    CONTAINER_CMD := ${PODMAN}
-    CONTAINER_COMPOSE_CMD := ${PODMAN_COMPOSE}
-    $(info Using Podman as the container engine)
-else ifeq ($(DOCKER_RUNNING),yes)
-    CONTAINER_CMD := ${DOCKER}
-    CONTAINER_COMPOSE_CMD := ${DOCKER_COMPOSE}
-    $(info Using Docker as the container engine)
-else
-    $(info **WARNING** Neither Podman nor Docker engine is running. Please start one of them to use container-related targets.)
-endif
+# PODMAN_RUNNING := $(shell podman info >/dev/null 2>&1 && echo "yes" || echo "no")
+# DOCKER_RUNNING := $(shell docker info >/dev/null 2>&1 && echo "yes" || echo "no")
+# NO_CONTAINER_ENGINE := $(shell if [ "$(PODMAN_RUNNING)" = "no" ] && [ "$(DOCKER_RUNNING)" = "no" ]; then echo "yes"; else echo "no"; fi)
+# 
+# ifeq ($(PODMAN_RUNNING),yes)
+#     CONTAINER_CMD := ${PODMAN}
+#     CONTAINER_COMPOSE_CMD := ${PODMAN_COMPOSE}
+#     $(info Using Podman as the container engine)
+# else ifeq ($(DOCKER_RUNNING),yes)
+#     CONTAINER_CMD := ${DOCKER}
+#     CONTAINER_COMPOSE_CMD := ${DOCKER_COMPOSE}
+#     $(info Using Docker as the container engine)
+# else
+#     $(info **WARNING** Neither Podman nor Docker engine is running. Please start one of them to use container-related targets.)
+# endif
 
 # Check if we're behind a proxy (detect proxy environment variables and CA cert)
 PROXY_DETECTED := no
-ifneq ($(HTTP_PROXY)$(HTTPS_PROXY)$(http_proxy)$(https_proxy),)
-    PROXY_DETECTED := yes
-endif
-ifeq ($(shell [ -f ${PROXY_CA_FILE} ] && [ -s ${PROXY_CA_FILE} ] && echo "yes"),yes)
-    PROXY_DETECTED := yes
-endif
+# ifneq ($(HTTP_PROXY)$(HTTPS_PROXY)$(http_proxy)$(https_proxy),)
+#     PROXY_DETECTED := yes
+# endif
+# ifeq ($(shell [ -f ${PROXY_CA_FILE} ] && [ -s ${PROXY_CA_FILE} ] && echo "yes"),yes)
+#     PROXY_DETECTED := yes
+# endif
 
 ifeq ($(PROXY_DETECTED),yes)
     $(info Proxy environment detected - will use proxy CA certificate for container builds)
@@ -147,7 +147,6 @@ CONTAINER_NAME := $(PROJECT)
 
 # Temporary build directory for user guide PDF generation
 USER_GUIDE_BUILD_DIR := $(BUILD_DIR)/user-guide
-API_REF_BUILD_DIR := $(BUILD_DIR)/api-reference
 
 # User guide PDF output paths and templates
 # Variant-specific paths are derived by DEFINE_USER_GUIDE_VARS below.
@@ -162,7 +161,9 @@ API_REF_LUA_FILTER_FLAGS := --lua-filter $(API_REF_LUA_FILTER) --lua-filter $(AD
 # Keep this list markdown-only; non-markdown assets are tracked separately
 # via USER_GUIDE_PDF_DEPS so they trigger rebuilds without polluting content.
 USER_GUIDE_MD_SOURCES := \
-	$(sort $(wildcard $(DOCS_DIR)/user-guide/[0-9][0-9]_*.md))
+	$(sort $(wildcard $(DOCS_DIR)/user-guide/[0-9][0-9]-*.md))
+
+# $(info USER_GUIDE_MD_SOURCES: $(USER_GUIDE_MD_SOURCES))
 
 # Non-markdown assets that should still trigger a rebuild when changed.
 USER_GUIDE_PDF_DEPS := \
@@ -184,7 +185,7 @@ USER_GUIDE_PDF_DEPS := \
 #   file_sfx — lowercase with hyphens    (-b5, -dark, -dark-b5)   for all other file names
 # ============================================================================================
 define DEFINE_USER_GUIDE_VARS
-$(1)_TEMPLATE     := $$(DOCS_DIR)/user-guide/userguide_template$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]' '[:lower:]').tex
+$(1)_TEMPLATE     := $$(DOCS_DIR)/user-guide/template$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]' '[:lower:]').tex
 $(1)_PDF          := $$(DIST_DIR)/$$(PROJECT)_user-guide$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-')-$$(VERSION).pdf
 $(1)_CONCAT_MD    := $$(USER_GUIDE_BUILD_DIR)/user-guide_concat$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').md
 $(1)_BODY_TEX     := $$(USER_GUIDE_BUILD_DIR)/user-guide_body$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').tex
@@ -249,7 +250,7 @@ pdfs: pdf-docs ## Build all PDF documentation variants in parallel
 
 pdf-docs:  ## Build the user guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
 	@rm -rf $(USER_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
-	@rm $(DIST_DIR)/$(PROJECT)_user_guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
+	@rm $(DIST_DIR)/$(PROJECT)_user-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(USER_GUIDE_A4_PDF) $(USER_GUIDE_DARK_A4_PDF) $(USER_GUIDE_B5_PDF) $(USER_GUIDE_DARK_B5_PDF)
 	@$(MAKE) -j4 cover  # Adjust PDFs with cover image after all variants are built
 
@@ -320,6 +321,7 @@ $(eval $(call BUILD_USER_GUIDE_PDF,USER_GUIDE_DARK_B5,b5))
 
 # $(info USER_GUIDE_DARK_B5_TEMPLATE: $(USER_GUIDE_DARK_B5_TEMPLATE))
 # $(info USER_GUIDE_DARK_B5_PDF: $(USER_GUIDE_DARK_B5_PDF))
+# $(info USER_GUIDE_A4_PDF: $(USER_GUIDE_A4_PDF))
 # $(info USER_GUIDE_DARK_B5_CONCAT_MD: $(USER_GUIDE_DARK_B5_CONCAT_MD))
 # $(info USER_GUIDE_DARK_B5_BODY_TEX: $(USER_GUIDE_DARK_B5_BODY_TEX))
 # $(info USER_GUIDE_DARK_B5_TEX: $(USER_GUIDE_DARK_B5_TEX))
@@ -331,11 +333,11 @@ $(eval $(call BUILD_USER_GUIDE_PDF,USER_GUIDE_DARK_B5,b5))
 # the PDF when the cover image changes, and to allow parallel builds of all PDF variants 
 # before applying the cover.
 # ============================================================================================
-USER_GUIDE_COVER_IMAGE := ../assets/cover-user-guide.png
-USER_GUIDE_B5_PDF := ../dist/$(PROJECT)_user_guide-b5-$(VERSION).pdf
-USER_GUIDE_DARK_B5_PDF := ../dist/$(PROJECT)_user_guide-dark-b5-$(VERSION).pdf
-USER_GUIDE_A4_PDF := ../dist/$(PROJECT)_user_guide-a4-$(VERSION).pdf
-USER_GUIDE_DARK_A4_PDF := ../dist/$(PROJECT)_user_guide-dark-a4-$(VERSION).pdf
+USER_GUIDE_COVER_IMAGE := assets/cover-user-guide.png
+USER_GUIDE_B5_PDF := ../dist/$(PROJECT)_user-guide-b5-$(VERSION).pdf
+USER_GUIDE_DARK_B5_PDF := ../dist/$(PROJECT)_user-guide-dark-b5-$(VERSION).pdf
+USER_GUIDE_A4_PDF := ../dist/$(PROJECT)_user-guide-a4-$(VERSION).pdf
+USER_GUIDE_DARK_A4_PDF := ../dist/$(PROJECT)_user-guide-dark-a4-$(VERSION).pdf
 
 cover: cover-b5-light cover-b5-dark cover-a4-light cover-a4-dark ## Adjust all user guide PDFs with cover image in parallel
 	@:
