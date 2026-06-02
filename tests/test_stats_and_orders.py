@@ -210,7 +210,7 @@ class TestOnBook:
 
     def test_writes_snapshot_when_interval_elapsed(self, sp: StatsProcess) -> None:
         # Force interval to have elapsed (last snap was long ago)
-        sp._last_snap_ts["AAPL"] = 0.0
+        sp._last_snap_ts["AAPL"] = time.monotonic() - SNAPSHOT_INTERVAL_SEC - 1
         sp._on_book("AAPL", self._book_payload())
         rows = sp._conn.execute("SELECT * FROM price_snapshots").fetchall()
         assert len(rows) == 1
