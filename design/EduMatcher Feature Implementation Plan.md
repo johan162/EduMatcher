@@ -1,3 +1,9 @@
+Version: 0.1.0
+
+Date: 2026-04-09
+
+Status: Design and Research Proposal
+
 # EduMatcher — Feature Implementation Plan v2
 
 > **Audience:** A developer new to the codebase. Read this document top-to-bottom

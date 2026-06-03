@@ -1,3 +1,10 @@
+Version: 1.0.0
+
+Date: 2026-05-31
+
+Status: Design and Research Proposal
+
+
 # How a Financial Exchange Works
 
 **A Conceptual Introduction for Software Developers**

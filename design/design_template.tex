@@ -1,0 +1,92 @@
+\documentclass[10pt,a4paper,twoside,openright]{report}
+
+\usepackage{fontspec}
+%% \setmainfont{DejaVu Serif}
+\setsansfont{DejaVu Sans}
+\setmonofont{DejaVu Sans Mono}[Scale=MatchLowercase]
+\usepackage[a4paper,top=1.8cm,left=2.3cm,right=1.8cm,bottom=1.8cm]{geometry}
+\usepackage{graphicx}
+\usepackage{calc}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{amssymb}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xcolor}
+\usepackage{setspace}
+\usepackage{parskip}
+\usepackage{fancyvrb}
+\definecolor{codebg}{HTML}{F5F5F5}
+\definecolor{codeborder}{HTML}{C0C0C0}
+\fvset{fontsize=\small}
+
+% Shaded background for verbatim: manual minipage with colorbox
+\newenvironment{shadedverbatim}{%
+  \VerbatimEnvironment
+  \begin{minipage}{\dimexpr\linewidth-4mm}%
+  \columncolor{codebg}%
+  \begin{Verbatim}%
+}{%
+  \end{Verbatim}%
+  \end{minipage}%
+}
+
+% Override verbatim to use a snugshade-style background via save-box approach
+\newsavebox{\verbbox}
+\renewenvironment{verbatim}{%
+  \VerbatimEnvironment
+  \begin{lrbox}{\verbbox}%
+  \begin{minipage}{\dimexpr\linewidth-8mm}%
+  \begin{Verbatim}%
+}{%
+  \end{Verbatim}%
+  \end{minipage}%
+  \end{lrbox}%
+  \noindent\colorbox{codebg}{\usebox{\verbbox}}%
+}
+
+\setstretch{1.08}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.6em}
+
+% Pandoc may emit \tightlist in list environments.
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+\definecolor{brandblue}{HTML}{0E3A5D}
+\definecolor{brandgray}{HTML}{4B5563}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textcolor{brandgray}{Design Ideas}}
+\fancyhead[R]{\textcolor{brandgray}{\leftmark}}
+\fancyfoot[C]{\thepage}
+\setlength{\headheight}{14pt}
+
+\newcommand{\reportauthor}{Johan Persson  \texttt{<johan162@gmail.com>}}
+
+\begin{document}
+
+\begin{titlepage}
+  \centering
+  \vspace*{2.0cm}
+  {\Huge\bfseries\color{brandblue}Design Proposal\par}
+  \vspace{1.2cm}
+  {\Large {{TITLE}}\par}
+  \vspace{0.1cm}
+  {\Large {{VERSION}}\par}
+  \vspace{0.8cm}
+  
+  \vfill
+  {\large \reportauthor\par}
+  {\large Generated on \today\par}
+\end{titlepage}
+
+\tableofcontents
+\clearpage
+
+%%__DESIGN_CONTENT__%%
+
+\end{document}

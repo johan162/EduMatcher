@@ -1,3 +1,9 @@
+Version: 0.1.0
+
+Date: 2026-04-09
+
+Status: Design and Research Proposal
+
 # EduMatcher — Quotes Implementation Plan v5
 
 > **v5 note:** This version keeps the detailed implementation guidance from v1

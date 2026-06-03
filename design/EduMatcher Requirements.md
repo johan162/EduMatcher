@@ -1,8 +1,10 @@
-# EduMatcher — System Requirements Document
+Version: 1.1.0
 
-**Version:** 3.0  
-**Date:** 2026-05-05  
-**Purpose:** Complete specification for re-implementing the EduMatcher multi-process trading system in any programming language.
+Date: 2026-05-09
+
+Status: Design and Research Proposal
+
+# EduMatcher — System Requirements Document
 
 ---
 

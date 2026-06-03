@@ -1,3 +1,9 @@
+Version: 1.0.0
+
+Date: 2026-05-09
+
+Status: Design and Research Proposal
+
 # EduMatcher — Migration Plan v7 (Publication Edition): Integer Nanosecond Timestamps and Tick-Based Prices
 
 > **Audience:** A developer who knows Python well but may be new to financial

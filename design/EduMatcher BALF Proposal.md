@@ -1,9 +1,11 @@
-# BALF: Binary ALF Protocol — Design Proposal
+Version: 0.1.0
 
-**Status:** PROPOSAL — for discussion  
-**Version:** draft-0.1  
-**Date:** 1 June 2026  
-**Author:** Engineering  
+Date: 2026-04-09
+
+Status: Design and Research Proposal
+
+
+# BALF: Binary ALF Protocol — Design Proposal
 
 ---
 
