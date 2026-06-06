@@ -1,4 +1,5 @@
 \documentclass[10pt,a4paper,twoside,openright]{report}
+\raggedbottom
 
 \usepackage{fontspec}
 %% \setmainfont{DejaVu Serif}
@@ -13,8 +14,20 @@
 \usepackage{array}
 \usepackage{amssymb}
 \usepackage{fancyhdr}
-\usepackage[hidelinks]{hyperref}
-\usepackage{xcolor}
+
+\PassOptionsToPackage{hyphens}{url}
+\usepackage{xurl}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{hyperref}
+\urlstyle{same}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=RoyalBlue,   % internal links (TOC, refs)
+  urlcolor=BrickRed,     % external URLs
+  citecolor=ForestGreen, % citations
+  pdfborder={0 0 0}
+}
+
 \usepackage{setspace}
 \usepackage{parskip}
 \usepackage{fancyvrb}

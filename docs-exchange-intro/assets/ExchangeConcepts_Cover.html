@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Exchange Concepts Introduction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@0,700;1,400;1,600&family=DM+Mono:wght@300;400&family=Barlow+Condensed:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+
+@page { size: 210mm 297mm; margin: 0; }
+@media print {
+  * { -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important; }
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 210mm; height: 297mm;
+  overflow: hidden;
+  background: #0d1820;
+}
+
+/* ── Shell ──────────────────────────────────────────── */
+.cover {
+  position: relative;
+  width: 210mm; height: 297mm;
+  background: #0d1820;
+  overflow: hidden;
+  font-family: 'Barlow Condensed', sans-serif;
+  color: #f0ece3;
+}
+
+/* ── Subtle noise texture overlay ───────────────────── */
+.cover::before {
+  content: '';
+  position: absolute; inset: 0; z-index: 1;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-size: 150px 150px;
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* ── Top gold rule ──────────────────────────────────── */
+.top-rule {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3mm;
+  background: linear-gradient(to right, #d4a948, #e8c875, #d4a948);
+  z-index: 10;
+}
+
+/* ── Left accent stripe ─────────────────────────────── */
+.left-stripe {
+  position: absolute;
+  top: 3mm; left: 0; bottom: 0;
+  width: 5mm;
+  background: #d4a948;
+  z-index: 10;
+}
+
+/* ── Top area: EXCHANGE label + horizontal rule ─────── */
+.header-zone {
+  position: absolute;
+  top: 10mm; left: 13mm; right: 10mm;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4mm;
+}
+.header-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 4.4mm;
+  color: #d4a948;
+  letter-spacing: 1.2mm;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.header-rule {
+  flex: 1;
+  height: 0.3mm;
+  background: rgba(212,169,72,0.28);
+}
+.header-right {
+  font-family: 'DM Mono', monospace;
+  font-size: 4.4mm;
+  color: rgba(240,236,227,0.35);
+  letter-spacing: 0.5mm;
+}
+
+/* ── Candlestick chart area ──────────────────────────── */
+.chart-zone {
+  position: absolute;
+  top: 20mm; left: 8mm; right: 8mm;
+  height: 100mm;
+  z-index: 5;
+}
+
+/* ── Divider between chart and title ────────────────── */
+.mid-rule {
+  position: absolute;
+  top: 124mm; left: 13mm; right: 10mm;
+  height: 0.5mm;
+  background: linear-gradient(to right, #d4a948 0%, rgba(212,169,72,0.15) 100%);
+  z-index: 10;
+}
+
+/* ── Title block ────────────────────────────────────── */
+.title-zone {
+  position: absolute;
+  top: 132mm; left: 13mm; right: 10mm;
+  z-index: 10;
+}
+
+.eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 4.4mm;
+  color: rgba(212,169,72,0.75);
+  letter-spacing: 1mm;
+  text-transform: uppercase;
+  margin-bottom: 3.5mm;
+}
+
+.title-main {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 24mm;
+  line-height: 0.86;
+  color: #f0ece3;
+  letter-spacing: 0.5mm;
+  margin-bottom: 3mm;
+}
+.title-sub-word {
+  color: #d4a948;
+}
+
+.title-second {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 13.0mm;
+  color: rgba(240,236,227,0.72);
+  letter-spacing: 0.2mm;
+  margin-bottom: 7mm;
+}
+
+.body-rule {
+  width: 30mm; height: 0.4mm;
+  background: rgba(212,169,72,0.4);
+  margin-bottom: 6mm;
+}
+
+.description {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 300;
+  font-size: 7.25mm;
+  color: rgba(240,236,227,0.55);
+  line-height: 1.55;
+  max-width: 145mm;
+  letter-spacing: 0.1mm;
+}
+
+/* ── Bottom section ──────────────────────────────────── */
+.stats-zone {
+  position: absolute;
+  bottom: 28mm; left: 13mm; right: 10mm;
+  display: flex;
+  gap: 8mm;
+  z-index: 10;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1mm;
+}
+.stat-num {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 9.2mm;
+  color: #d4a948;
+  letter-spacing: 0.3mm;
+  line-height: 1;
+}
+.stat-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 2.9mm;
+  color: rgba(240,236,227,0.35);
+  letter-spacing: 0.5mm;
+  text-transform: uppercase;
+}
+.stat-sep {
+  width: 0.3mm;
+  background: rgba(212,169,72,0.22);
+  align-self: stretch;
+  margin: 0 1mm;
+}
+
+/* ── Footer ──────────────────────────────────────────── */
+.footer {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 24mm;
+  display: flex; align-items: center;
+  padding: 0 13mm 0 13mm;
+  border-top: 0.3mm solid rgba(212,169,72,0.2);
+  z-index: 10;
+}
+.footer-left {
+  font-family: 'DM Mono', monospace;
+  font-size: 3.1mm;
+  color: rgba(240,236,227,0.32);
+  letter-spacing: 0.4mm;
+  flex: 1;
+}
+.footer-center {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 4.4mm;
+  color: rgba(212,169,72,0.5);
+  text-align: center;
+  flex: 1;
+}
+.footer-right {
+  font-family: 'DM Mono', monospace;
+  font-size: 3.1mm;
+  color: rgba(240,236,227,0.32);
+  letter-spacing: 0.4mm;
+  text-align: right;
+  flex: 1;
+}
+
+/* ── Corner bracket (bottom-right) ──────────────────── */
+.corner-br {
+  position: absolute;
+  bottom: 3mm; right: 3mm;
+  width: 8mm; height: 8mm;
+  border-bottom: 0.4mm solid rgba(212,169,72,0.4);
+  border-right: 0.4mm solid rgba(212,169,72,0.4);
+  z-index: 20;
+}
+
+</style>
+</head>
+<body>
+<div class="cover">
+
+  <!-- Structure -->
+  <div class="top-rule"></div>
+  <div class="left-stripe"></div>
+  <div class="corner-br"></div>
+
+  <!-- Header row -->
+  <div class="header-zone">
+    <div class="header-label">Financial Infrastructure</div>
+    <div class="header-rule"></div>
+    <div class="header-right">A Software Developer's Guide</div>
+  </div>
+
+  <!-- Candlestick chart -->
+  <div class="chart-zone">
+    <svg viewBox="0 0 630 230" xmlns="http://www.w3.org/2000/svg"
+         width="100%" height="100%" preserveAspectRatio="none">
+
+      <!-- Background grid -->
+      <line x1="0" y1="210" x2="630" y2="210" stroke="rgba(212,169,72,0.08)" stroke-width="0.8"/>
+      <line x1="0" y1="158" x2="630" y2="158" stroke="rgba(212,169,72,0.08)" stroke-width="0.8"/>
+      <line x1="0" y1="105" x2="630" y2="105" stroke="rgba(212,169,72,0.08)" stroke-width="0.8"/>
+      <line x1="0" y1="53"  x2="630" y2="53"  stroke="rgba(212,169,72,0.08)" stroke-width="0.8"/>
+
+      <!-- Price labels (right axis) -->
+      <text x="618" y="213" font-family="DM Mono,monospace" font-size="13"
+            fill="rgba(212,169,72,0.40)">140</text>
+      <text x="618" y="161" font-family="DM Mono,monospace" font-size="13"
+            fill="rgba(212,169,72,0.40)">165</text>
+      <text x="618" y="108" font-family="DM Mono,monospace" font-size="13"
+            fill="rgba(212,169,72,0.40)">190</text>
+      <text x="618" y="56"  font-family="DM Mono,monospace" font-size="13"
+            fill="rgba(212,169,72,0.40)">215</text>
+
+      <!-- ── Candles (pre-computed, scale 1.85px/unit, y0=220 at price=120) ──
+           Up:   fill rgba(107,198,138,0.72)  wick #6bc68a
+           Down: fill rgba(212,120,114,0.72)  wick #d47876          -->
+
+      <!-- C1 x=55  open=150→199 high=175→153 low=140→209 close=168→178  UP  -->
+      <line x1="55" y1="153" x2="55" y2="209"
+            stroke="#6bc68a" stroke-width="1.5"/>
+      <rect x="33" y="178" width="44" height="21"
+            fill="rgba(107,198,138,0.72)" rx="1"/>
+
+      <!-- C2 x=120 open=168→178 high=182→148 low=155→194 close=158→187  DOWN -->
+      <line x1="120" y1="148" x2="120" y2="194"
+            stroke="#d47876" stroke-width="1.5"/>
+      <rect x="98" y="178" width="44" height="9"
+            fill="rgba(212,120,114,0.72)" rx="1"/>
+
+      <!-- C3 x=185 open=158→187 high=180→153 low=150→204 close=175→158  UP   -->
+      <line x1="185" y1="153" x2="185" y2="204"
+            stroke="#6bc68a" stroke-width="1.5"/>
+      <rect x="163" y="158" width="44" height="29"
+            fill="rgba(107,198,138,0.72)" rx="1"/>
+
+      <!-- C4 x=250 open=175→158 high=202→107 low=168→178 close=197→116  UP (strong) -->
+      <line x1="250" y1="107" x2="250" y2="178"
+            stroke="#6bc68a" stroke-width="1.5"/>
+      <rect x="228" y="116" width="44" height="42"
+            fill="rgba(107,198,138,0.82)" rx="1"/>
+
+      <!-- C5 x=315 open=197→116 high=210→92  low=183→143 close=186→140  DOWN -->
+      <line x1="315" y1="92"  x2="315" y2="143"
+            stroke="#d47876" stroke-width="1.5"/>
+      <rect x="293" y="116" width="44" height="24"
+            fill="rgba(212,120,114,0.72)" rx="1"/>
+
+      <!-- C6 x=380 open=186→140 high=203→109 low=179→150 close=200→112  UP   -->
+      <line x1="380" y1="109" x2="380" y2="150"
+            stroke="#6bc68a" stroke-width="1.5"/>
+      <rect x="358" y="112" width="44" height="28"
+            fill="rgba(107,198,138,0.72)" rx="1"/>
+
+      <!-- C7 x=445 open=200→112 high=228→60  low=194→123 close=222→68   UP (strong) -->
+      <line x1="445" y1="60"  x2="445" y2="123"
+            stroke="#6bc68a" stroke-width="1.5"/>
+      <rect x="423" y="68"  width="44" height="44"
+            fill="rgba(107,198,138,0.82)" rx="1"/>
+
+      <!-- C8 x=510 open=222→68  high=242→31  low=213→86  close=238→38   UP   -->
+      <line x1="510" y1="31"  x2="510" y2="86"
+            stroke="#6bc68a" stroke-width="1.5"/>
+      <rect x="488" y="38"  width="44" height="30"
+            fill="rgba(107,198,138,0.82)" rx="1"/>
+
+      <!-- C9 x=575 open=238→38  high=248→19  low=224→65  close=228→58   DOWN -->
+      <line x1="575" y1="19"  x2="575" y2="65"
+            stroke="#d47876" stroke-width="1.5"/>
+      <rect x="553" y="38"  width="44" height="20"
+            fill="rgba(212,120,114,0.72)" rx="1"/>
+
+      <!-- Moving average curve (smooth bezier through close prices) -->
+      <path d="M 55,178 C 88,182 100,184 120,187
+               C 145,190 165,173 185,158
+               C 210,141 230,125 250,116
+               C 272,107 295,127 315,140
+               C 340,153 360,120 380,112
+               C 408,102 425,80  445,68
+               C 472,53  492,43  510,38
+               C 540,31  560,48  575,58"
+            fill="none" stroke="rgba(212,169,72,0.65)"
+            stroke-width="1.8" stroke-linecap="round"/>
+
+      <!-- Volume bars (bottom, faint) -->
+      <rect x="33"  y="194" width="44" height="16" fill="rgba(107,198,138,0.18)" rx="1"/>
+      <rect x="98"  y="199" width="44" height="11" fill="rgba(212,120,114,0.18)" rx="1"/>
+      <rect x="163" y="196" width="44" height="14" fill="rgba(107,198,138,0.18)" rx="1"/>
+      <rect x="228" y="192" width="44" height="18" fill="rgba(107,198,138,0.22)" rx="1"/>
+      <rect x="293" y="198" width="44" height="12" fill="rgba(212,120,114,0.18)" rx="1"/>
+      <rect x="358" y="195" width="44" height="15" fill="rgba(107,198,138,0.18)" rx="1"/>
+      <rect x="423" y="191" width="44" height="19" fill="rgba(107,198,138,0.22)" rx="1"/>
+      <rect x="488" y="190" width="44" height="20" fill="rgba(107,198,138,0.22)" rx="1"/>
+      <rect x="553" y="197" width="44" height="13" fill="rgba(212,120,114,0.18)" rx="1"/>
+
+      <!-- Last price marker -->
+      <line x1="0" y1="58" x2="610" y2="58"
+            stroke="rgba(212,169,72,0.22)" stroke-width="0.8" stroke-dasharray="4,5"/>
+      <rect x="593" y="50" width="22" height="13" rx="2"
+            fill="rgba(212,169,72,0.18)" stroke="rgba(212,169,72,0.45)" stroke-width="0.5"/>
+      <text x="604" y="60" text-anchor="middle" font-family="DM Mono,monospace"
+            font-size="11" fill="#d4a948">228</text>
+
+      <!-- Bottom fade -->
+      <defs>
+        <linearGradient id="btm" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="70%" stop-color="#0d1820" stop-opacity="0"/>
+          <stop offset="100%" stop-color="#0d1820" stop-opacity="1"/>
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0" width="630" height="230" fill="url(#btm)"/>
+    </svg>
+  </div>
+
+  <!-- Mid divider -->
+  <div class="mid-rule"></div>
+
+  <!-- Title block -->
+  <div class="title-zone">
+    <div class="eyebrow">Financial Market Infrastructure</div>
+    <div class="title-main">
+      EXCHANGE<br>
+      <span class="title-sub-word">CONCEPTS</span>
+    </div>
+    <div class="title-second">Introduction</div>
+    <div class="body-rule"></div>
+    <div class="description">
+      A conceptual guide to financial exchange architecture,<br>
+      order books, matching engines, and market structure —<br>
+      for software developers.
+    </div>
+  </div>
+
+  <!-- Stats row -->
+  <div class="stats-zone">
+    <div class="stat">
+      <div class="stat-num">32</div>
+      <div class="stat-label">Parts</div>
+    </div>
+    <div class="stat-sep"></div>
+    <div class="stat">
+      <div class="stat-num">222</div>
+      <div class="stat-label">Glossary terms</div>
+    </div>
+    <div class="stat-sep"></div>
+    <div class="stat">
+      <div class="stat-num">10+</div>
+      <div class="stat-label">Real exchanges</div>
+    </div>
+    <div class="stat-sep"></div>
+    <div class="stat">
+      <div class="stat-num">No</div>
+      <div class="stat-label">Maths required</div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="footer-left">For Software Developers</div>
+    <div class="footer-center">Exchange Concepts Introduction</div>
+    <div class="footer-right">v8.7 &nbsp;·&nbsp; 2025</div>
+  </div>
+
+</div>
+</body>
+</html>

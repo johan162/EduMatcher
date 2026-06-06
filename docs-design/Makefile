@@ -178,27 +178,26 @@ endef
 # ============================================================================================
 SPRINT_PLANNING_PANDOC_FILTER := $(SCRIPTS_DIR)/pandoc_sprint_planning_table_widths.lua
 
-$(eval $(call DEFINE_DESIGN_DOC_VARS,BALF_PROPOSAL,EduMatcher BALF Proposal,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,FEATURE_IMPLEMENTATION,EduMatcher Feature Implementation Plan,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,MM_QUOTES_IMPLEMENTATION,EduMatcher MM Quotes Implementation Plan,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,TICK_MIGRATION_PLAN,EduMatcher Tick Migration Plan,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,EXCHANGE_INTRODUCTION,Exchange Concepts Introduction,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,BALF_PROPOSAL,EduMatcher-BALF_Proposal,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,FEATURE_IMPLEMENTATION,EduMatcher-Feature_Implementation_Plan,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,MM_QUOTES_IMPLEMENTATION,EduMatcher-MM_Quotes_Implementation_Plan,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,TICK_MIGRATION_PLAN,EduMatcher-Tick_Migration_Plan,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,EXCHANGE_INTRODUCTION,Exchange_Concepts_Introduction,,))
 
-$(eval $(call DEFINE_DESIGN_DOC_VARS,REQUIREMENTS,EduMatcher Requirements,,))
-
+$(eval $(call DEFINE_DESIGN_DOC_VARS,REQUIREMENTS,EduMatcher-Requirements,,))
 
 
 # ============================================================================================
 # Makefile Targets
 # ============================================================================================
 
-$(eval $(call DESIGN_DOC_PDF_RULE,BALF_PROPOSAL,"EduMatcher BALF Proposal"))
-$(eval $(call DESIGN_DOC_PDF_RULE,FEATURE_IMPLEMENTATION,"EduMatcher Feature Implementation Plan"))
-$(eval $(call DESIGN_DOC_PDF_RULE,MM_QUOTES_IMPLEMENTATION,"EduMatcher MM Quotes Implementation Plan"))
-$(eval $(call DESIGN_DOC_PDF_RULE,TICK_MIGRATION_PLAN,"EduMatcher Tick Migration Plan"))	
-$(eval $(call DESIGN_DOC_PDF_RULE,EXCHANGE_INTRODUCTION,"Exchange Concepts Introduction"))
+$(eval $(call DESIGN_DOC_PDF_RULE,BALF_PROPOSAL,"EduMatcher-BALF_Proposal"))
+$(eval $(call DESIGN_DOC_PDF_RULE,FEATURE_IMPLEMENTATION,"EduMatcher-Feature_Implementation_Plan"))
+$(eval $(call DESIGN_DOC_PDF_RULE,MM_QUOTES_IMPLEMENTATION,"EduMatcher-MM_Quotes_Implementation_Plan"))
+$(eval $(call DESIGN_DOC_PDF_RULE,TICK_MIGRATION_PLAN,"EduMatcher-Tick_Migration_Plan"))	
+$(eval $(call DESIGN_DOC_PDF_RULE,EXCHANGE_INTRODUCTION,"Exchange_Concepts_Introduction"))
 
-$(eval $(call DESIGN_DOC_PDF_RULE,REQUIREMENTS,"EduMatcher Requirements"))
+$(eval $(call DESIGN_DOC_PDF_RULE,REQUIREMENTS,"EduMatcher-Requirements"))
 
 
 PDF_DESIGN_DOCS := $(BALF_PROPOSAL_PDF) $(FEATURE_IMPLEMENTATION_PDF) $(MM_QUOTES_IMPLEMENTATION_PDF) \

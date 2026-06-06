@@ -152,10 +152,8 @@ USER_GUIDE_BUILD_DIR := $(BUILD_DIR)/user-guide
 # Variant-specific paths are derived by DEFINE_USER_GUIDE_VARS below.
 # USER_GUIDE_LUA_FILTER is shared across all variants.
 USER_GUIDE_LUA_FILTER := $(DOCS_DIR)/user-guide/pagebreaks.lua
-API_REF_LUA_FILTER := $(DOCS_DIR)/user-guide/pagebreaks.lua
 ADMONITIONS_LUA_FILTER := $(DOCS_DIR)/admonitions.lua
 USER_GUIDE_LUA_FILTER_FLAGS := --lua-filter $(USER_GUIDE_LUA_FILTER) --lua-filter $(ADMONITIONS_LUA_FILTER)
-API_REF_LUA_FILTER_FLAGS := --lua-filter $(API_REF_LUA_FILTER) --lua-filter $(ADMONITIONS_LUA_FILTER)
 
 # Markdown sources that are concatenated into the User Guide PDF body.
 # Keep this list markdown-only; non-markdown assets are tracked separately
