@@ -167,3 +167,28 @@ src/data/**
 
 project-review*
 
+# All LaTeX temporary files
+*.aux
+*.lof
+*.log
+*.lot
+*.fls
+*.out
+*.toc
+*.fmt
+*.fot
+*.cbl
+*.cbt
+*.lb
+*.glo
+*.idx
+*.ilg
+*.ind
+*.gls
+*.ist
+*.acn   
+*.fdb_latexmk
+*.synctex.gz
+*.nav
+*.snm
+*.vrb
