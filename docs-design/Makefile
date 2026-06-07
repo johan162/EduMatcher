@@ -182,7 +182,7 @@ $(eval $(call DEFINE_DESIGN_DOC_VARS,BALF_PROPOSAL,EduMatcher-BALF_Proposal,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,FEATURE_IMPLEMENTATION,EduMatcher-Feature_Implementation_Plan,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,MM_QUOTES_IMPLEMENTATION,EduMatcher-MM_Quotes_Implementation_Plan,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,TICK_MIGRATION_PLAN,EduMatcher-Tick_Migration_Plan,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,EXCHANGE_INTRODUCTION,Exchange_Concepts_Introduction,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,MARKET_DATA_PROTOCOL,EduMatcher-Market_Data_Protocol,,))
 
 $(eval $(call DEFINE_DESIGN_DOC_VARS,REQUIREMENTS,EduMatcher-Requirements,,))
 
@@ -195,13 +195,13 @@ $(eval $(call DESIGN_DOC_PDF_RULE,BALF_PROPOSAL,"EduMatcher-BALF_Proposal"))
 $(eval $(call DESIGN_DOC_PDF_RULE,FEATURE_IMPLEMENTATION,"EduMatcher-Feature_Implementation_Plan"))
 $(eval $(call DESIGN_DOC_PDF_RULE,MM_QUOTES_IMPLEMENTATION,"EduMatcher-MM_Quotes_Implementation_Plan"))
 $(eval $(call DESIGN_DOC_PDF_RULE,TICK_MIGRATION_PLAN,"EduMatcher-Tick_Migration_Plan"))	
-$(eval $(call DESIGN_DOC_PDF_RULE,EXCHANGE_INTRODUCTION,"Exchange_Concepts_Introduction"))
+$(eval $(call DESIGN_DOC_PDF_RULE,MARKET_DATA_PROTOCOL,"EduMatcher-Market_Data_Protocol"))
 
 $(eval $(call DESIGN_DOC_PDF_RULE,REQUIREMENTS,"EduMatcher-Requirements"))
 
 
 PDF_DESIGN_DOCS := $(BALF_PROPOSAL_PDF) $(FEATURE_IMPLEMENTATION_PDF) $(MM_QUOTES_IMPLEMENTATION_PDF) \
-$(TICK_MIGRATION_PLAN_PDF) $(EXCHANGE_INTRODUCTION_PDF)
+$(TICK_MIGRATION_PLAN_PDF) $(MARKET_DATA_PROTOCOL_PDF)
 
 help: ## Show this help message
 	@echo -e "$(DARKYELLOW)OneSelect - Makefile Targets$(NC)"
