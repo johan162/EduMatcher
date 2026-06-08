@@ -89,8 +89,10 @@ EXCHANGE_INTRO_LUA_FILTER_FLAGS := --lua-filter $(EXCHANGE_INTRO_LUA_FILTER) --l
 # Markdown sources that are concatenated into the User Guide PDF body.
 # Keep this list markdown-only; non-markdown assets are tracked separately
 # via EXCHANGE_INTRO_PDF_DEPS so they trigger rebuilds without polluting content.
+# NOTE: wildcard/sort split on spaces; use find + escaped spaces so filenames
+# like "00-Preface & Intro.md" remain a single list item in make.
 EXCHANGE_INTRO_MD_SOURCES := \
-	$(sort $(wildcard $(DOCS_DIR)/src/[0-9][0-9]-*.md))
+	$(shell find $(DOCS_DIR)/src -maxdepth 1 -type f -name '[0-9][0-9]-*.md' -print | sed 's/ /\\ /g' | sort)
 
 $(info EXCHANGE_INTRO_MD_SOURCES: $(EXCHANGE_INTRO_MD_SOURCES))
 
@@ -192,13 +194,16 @@ $$($1_PDF): $$(EXCHANGE_INTRO_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_TEMP
 	@mkdir -p $$(EXCHANGE_INTRO_BUILD_DIR)
 	@echo -e "$$(DARKYELLOW)  - Expanding shell command outputs in markdown sources...$$(NC)"
 	@mkdir -p $$($1_EXPANDED_DIR)
-	@poetry run python $$(SCRIPTS_DIR)/expand-shell-outputs.py \
-		--output-dir $$($1_EXPANDED_DIR) \
-		--cwd $$(SCRIPTS_DIR)/.. \
-		--format $(2) \
-		$$(EXCHANGE_INTRO_MD_SOURCES)
+	@find $(DOCS_DIR)/src -maxdepth 1 -type f -name '[0-9][0-9]-*.md' -print0 \
+		| sort -z \
+		| xargs -0 poetry run python $$(SCRIPTS_DIR)/expand-shell-outputs.py \
+			--output-dir $$($1_EXPANDED_DIR) \
+			--cwd $$(SCRIPTS_DIR)/.. \
+			--format $(2)
 	@echo -e "$$(DARKYELLOW)  - Concatenating markdown sources...$$(NC)"
-	@awk 'FNR==1 && NR!=1{print ""; print ""}1' $$(foreach f,$$(EXCHANGE_INTRO_MD_SOURCES),$$($1_EXPANDED_DIR)/$$(notdir $$f)) > $$($1_CONCAT_MD)
+	@find $$($1_EXPANDED_DIR) -maxdepth 1 -type f -name '[0-9][0-9]-*.md' -print0 \
+		| sort -z \
+		| xargs -0 awk 'FNR==1 && NR!=1{print ""; print ""}1' > $$($1_CONCAT_MD)
 	@echo -e "$$(DARKYELLOW)  - Converting concatenated markdown to LaTeX body...$$(NC)"
 	@pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none $$(EXCHANGE_INTRO_LUA_FILTER_FLAGS) --metadata paper_format=$(2) $$($1_CONCAT_MD) -o $$($1_BODY_TEX)
 	@sed -i.bak 's/\\def\\LTcaptype{none}/\\def\\LTcaptype{table}/g' $$($1_BODY_TEX)
@@ -221,7 +226,7 @@ $$($1_PDF): $$(EXCHANGE_INTRO_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_TEMP
 		     echo -e "$$(RED)  Last 30 lines of $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log):$$(NC)" >&2; \
 		     tail -30 $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log) >&2; exit 1; }
 	@cp $$($1_PDF_BUILT) $$($1_PDF)
-	@echo -e "$$(GREEN)✓ User guide PDF built: $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(GREEN)$$(NC)"
+	@echo -e "$$(GREEN)✓ Document PDF built: $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(GREEN)$$(NC)"
 endef
 
 
