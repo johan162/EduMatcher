@@ -84,7 +84,8 @@ EXCHANGE_INTRO_BUILD_DIR := $(BUILD_DIR)
 # EXCHANGE_INTRO_LUA_FILTER is shared across all variants.
 EXCHANGE_INTRO_LUA_FILTER := $(DOCS_DIR)/pagebreaks.lua
 ADMONITIONS_LUA_FILTER := $(DOCS_DIR)/admonitions.lua
-EXCHANGE_INTRO_LUA_FILTER_FLAGS := --lua-filter $(EXCHANGE_INTRO_LUA_FILTER) --lua-filter $(ADMONITIONS_LUA_FILTER)
+BOOK_STRUCTURE_LUA_FILTER := $(DOCS_DIR)/book_structure.lua
+EXCHANGE_INTRO_LUA_FILTER_FLAGS := --lua-filter $(BOOK_STRUCTURE_LUA_FILTER) --lua-filter $(EXCHANGE_INTRO_LUA_FILTER) --lua-filter $(ADMONITIONS_LUA_FILTER)
 
 # Markdown sources that are concatenated into the User Guide PDF body.
 # Keep this list markdown-only; non-markdown assets are tracked separately
@@ -98,6 +99,7 @@ $(info EXCHANGE_INTRO_MD_SOURCES: $(EXCHANGE_INTRO_MD_SOURCES))
 
 # Non-markdown assets that should still trigger a rebuild when changed.
 EXCHANGE_INTRO_PDF_DEPS := \
+	$(DOCS_DIR)/book_structure.lua \
 	$(DOCS_DIR)/pagebreaks.lua \
 	$(DOCS_DIR)/admonitions.lua \
 	$(DOCS_DIR)/template_a4.tex \

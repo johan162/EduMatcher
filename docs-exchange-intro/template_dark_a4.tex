@@ -1,4 +1,4 @@
-\documentclass[10pt,a4paper]{report}
+\documentclass[10pt,a4paper,twoside,openright]{book}
 \raggedbottom
 
 \usepackage{fontspec}
@@ -34,7 +34,7 @@
 \usepackage{fancyvrb}
 \usepackage{xcolor}
 \usepackage{shorttoc}
-\usepackage{titlesec}
+\usepackage[explicit]{titlesec}
 \usepackage[skins,breakable]{tcolorbox}
 \definecolor{codebg}{HTML}{404040}
 \definecolor{codeborder}{HTML}{C0C0C0}
@@ -89,13 +89,19 @@
     {\large\bfseries\color{brandblue} CHAPTER\ \thechapter}%
   }
   {8pt}
-  {\Huge\bfseries\color{brandblue}}
+  {\LARGE\bfseries\color{brandblue}\raggedright\parbox[t]{\linewidth}{#1}}
   [\vspace{4pt}{\color{brandblue}\noindent\rule{\linewidth}{1.5pt}}\vspace{2pt}]
+
+% Part pages for textbook-style structure.
+\titleformat{\part}[display]
+  {\normalfont\sffamily\centering}
+  {\Large\bfseries\color{brandgray}PART \thepart}
+  {0.7em}
+  {\Huge\bfseries\color{lightorange}\parbox[t]{\linewidth}{\centering #1}}
 
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\textcolor{brandgray}{EduMatcher User Guide}}
-\fancyhead[R]{\textcolor{brandgray}{\leftmark}}
+\fancyhead[L]{\textcolor{brandgray}{Exchange Introduction}}
 \fancyfoot[C]{\thepage}
 \setlength{\headheight}{14pt}
 
@@ -124,8 +130,7 @@
   \clearpage
 }
 
-\pagenumbering{roman}
-\setcounter{page}{1}
+\frontmatter
 
 \begin{titlepage}
   \centering
@@ -138,47 +143,20 @@
   {\large Generated on \today\par}
 \end{titlepage}
 
-% Ensure exactly one blank page after title before short TOC.
-% Locally downgrade chapter's openright behavior inside shorttoc.
+% Ensure exactly one blank page after title before front-matter TOCs.
 \clearpage
 \thispagestyle{empty}\null\clearpage
 \begingroup
-\let\cleardoublepage\clearpage
-
-% --- SHORT TOC ---
-% Command: \shorttoc{Title}{Depth}
-% Depth 0 = Chapters, 1 = Chapters + Sections, etc.
-\newcommand{\shorttocentry}[1]{%
-  {\makeatletter
-  \renewcommand{\numberline}[1]{\makebox[4.5em][l]{##1}}%
-  \MakeUppercase{#1}%
-  \makeatother}%
-}
-{%
-  \renewcommand{\contentsname}{Chapters}%
-  % Reduce top whitespace on short TOC page so all chapter entries fit.
-  \titlespacing*{\chapter}{0pt}{0pt}{0.8em}%
-  \makeatletter
-  \renewcommand{\l@chapter}[2]{%
-    \addvspace{5pt}%
-    \noindent{%
-      \sffamily\bfseries\large\color{brandblue}\shorttocentry{#1}%
-      \hfill{\normalsize\mdseries\color{brandgray}#2}%
-    }\par%
-  }%
-  \makeatother
-  \shorttoc{Chapters}{0}%
-}
+\shorttoc{Overview}{0}
 \endgroup
 \cleardoublepage
 
-
-
+\begingroup
+\setcounter{tocdepth}{2}
+\renewcommand{\contentsname}{Contents}
 \tableofcontents
+\endgroup
 \cleardoublepage
-
-\pagenumbering{arabic}
-\setcounter{page}{1}
 
 %%__EXCHANGE_INTRO_CONTENT__%% 
 

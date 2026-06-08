@@ -4,15 +4,18 @@
 *The engineering stack, distributed-systems concerns, market data, and the broader market ecology in which the exchange operates.*
 
 **Part Summary:**
+
 Examine the engineering reality of exchanges at scale: deterministic engines, messaging and market-data distribution, resilience patterns, and the fragmented multi-venue environment where routing and latency shape outcomes.
 
 **Learning Objectives:**
+
 - Understand the roles of gateways, matching engines, buses, and subscribers.
 - Evaluate resilience strategies such as replication, failover, and site architecture.
 - Explain how market data sequencing, replay, and snapshots preserve correctness.
 - Relate routing, venue fragmentation, and latency design to execution quality.
 
 **Content:**
+
 - Speed Bumps, Leveling the Playing Field
 - The Technology Architecture
 - Primary and Secondary Sites, Resilience Architecture
