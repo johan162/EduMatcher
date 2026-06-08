@@ -132,6 +132,7 @@ $(eval $(call DEFINE_EXCHANGE_INTRO_VARS,EXCHANGE_INTRO_DARK_B5))
 
 
 $(info EXCHANGE_INTRO_A4_PDF: $(EXCHANGE_INTRO_A4_PDF))
+$(info EXCHANGE_INTRO_A4_PDF_BUILT: $(EXCHANGE_INTRO_A4_PDF_BUILT))
 
 # Source and Test Files
 DOC_FILES :=  $(shell find $(DOCS_DIR) -name 'src/*.md' -o -name '*.yml' -o -name '*.yaml' -o -name '*.lua' -o -name '*.tex') 
@@ -186,7 +187,7 @@ clean: ## Remove all generated files (PDFs, build artifacts, stamps)
 # $(call) expansion and are resolved at recipe-execution time.
 # ============================================================================================
 define BUILD_EXCHANGE_INTRO_PDF
-$$($1_PDF): $$(EXCHANGE_INTRO_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_TEMPLATE) $$(EXCHANGE_INTRO_LUA_FILTER)
+$$($1_PDF): $$(EXCHANGE_INTRO_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_TEMPLATE) $$(EXCHANGE_INTRO_LUA_FILTER) | $$(DIST_DIR) 
 	@echo -e "$(DARKYELLOW)- Updating version number $(BRIGHTCYAN)v$(VERSION)$(DARKYELLOW) in LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW)...$(NC)"
 	@sed -i.bak -E 's/Version: [0-9]+(\.[0-9]+)*(rc[0-9]{1,2})?/Version: $(VERSION)/g' $$($1_TEMPLATE)
 	@rm -f $$($1_TEMPLATE).bak
@@ -225,7 +226,7 @@ $$($1_PDF): $$(EXCHANGE_INTRO_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_TEMP
 		|| { echo -e "$$(RED)✗ xelatex pass 2 failed for $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(RED).$$(NC)" >&2; \
 		     echo -e "$$(RED)  Last 30 lines of $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log):$$(NC)" >&2; \
 		     tail -30 $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log) >&2; exit 1; }
-	@cp $$($1_PDF_BUILT) $$($1_PDF)
+	cp $$($1_PDF_BUILT) $$($1_PDF)
 	@echo -e "$$(GREEN)✓ Document PDF built: $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(GREEN)$$(NC)"
 endef
 
