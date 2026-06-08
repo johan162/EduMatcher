@@ -1,7 +1,25 @@
 
 # Part III: Risk, Compliance, and Post-Trade
 
-The safeguards that protect markets and participants — before, during, and after each trade — and the regulatory obligations that underpin them.
+*The safeguards that protect markets and participants — before, during, and after each trade — and the regulatory obligations that underpin them.*
+
+**Part Summary:**
+Focus on market safety and accountability: the controls that prevent bad orders, the mechanisms that stabilize volatility, and the post-trade processes that make executed trades legally and financially final.
+
+**Learning Objectives:**
+- Explain why pre-trade controls are separated from matching in production architectures.
+- Understand circuit breakers, collars, SMP, and kill switches as layered protections.
+- Distinguish routine order-management actions from emergency risk interventions.
+- Follow the trade path beyond execution into clearing, settlement, and surveillance.
+
+**Content:**
+- Pre-Trade Risk Controls: Before the Matching Engine
+- Risk Controls, Protecting the Market
+- Self-Match Prevention, When You Would Trade with Yourself
+- Drop Copy, The Shadow Record
+- Clearing and Settlement, When the Trade Becomes Real
+- Regulatory Surveillance, Exchanges Are Not Passive
+- A Cautionary Tale, Knight Capital, August 1, 2012
 
 
 ## Pre-Trade Risk Controls: Before the Matching Engine

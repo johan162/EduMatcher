@@ -1,7 +1,30 @@
 
 # Part II: Orders, Matching, and the Trading Day
 
-How orders work, how the matching engine processes them, and how a complete trading day unfolds from open to close.
+*How orders work, how the matching engine processes them, and how a complete trading day unfolds from open to close.*
+
+**Part Summary:**
+Move from concepts to mechanics: how participant intent is encoded in order types, how matching logic enforces fairness, and how the trading session progresses from open through close.
+
+**Learning Objectives:**
+- Read an order ticket and understand each field's execution implications.
+- Compare major order types and time-in-force instructions by risk and behavior.
+- Trace how price-time priority and order book state changes produce trades.
+- Describe the end-to-end lifecycle of a trade across a full trading day.
+
+**Content:**
+- The Order: The Fundamental Unit
+- Order Types, The Vocabulary of Intent
+- Time-In-Force, How Long Should the Order Live?
+- The Order Book, The Exchange's Memory
+- Price-Time Priority, The Fairness Rule
+- The Matching Engine, The Heart of the Exchange
+- The Life of a Trade
+- Market Makers, The Providers of Liquidity
+- The Opening and Closing Auction
+- Trading Sessions, The Day in the Life of a Market
+- Putting It All Together
+
 
 ## The Order: The Fundamental Unit
 

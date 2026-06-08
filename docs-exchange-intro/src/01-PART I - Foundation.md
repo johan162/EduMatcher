@@ -1,7 +1,24 @@
 
 # Part I: Foundation — Markets, History, and Participants
 
-Context, vocabulary, and the people that define exchange markets — the foundation you need before the mechanics make sense.
+*Context, vocabulary, and the people that define exchange markets — the foundation you need before the mechanics make sense.*
+
+**Part Summary:**
+Build the conceptual base: why exchanges exist, how capital formation connects to secondary trading, how market language evolved, and who the key participants are in modern venues.
+
+**Learning Objectives:**
+- Explain the economic purpose of exchanges in the broader capital-raising cycle.
+- Distinguish primary vs secondary markets and debt vs equity at a practical level.
+- Use core market vocabulary confidently in historical and modern context.
+- Identify major participant types and their incentives in real-world exchange ecosystems.
+
+**Content:**
+- Before the Exchange: How Companies Raise Capital
+- What Is a Financial Exchange, and Why Does It Exist?
+- The Language of the Market: A Short History
+- The Participants
+- A Brief Tour of Real-World Exchanges
+
 
 
 ## Before the Exchange: How Companies Raise Capital
