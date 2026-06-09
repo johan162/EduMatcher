@@ -35,26 +35,17 @@ Everything in an exchange system revolves around the **order**. An order is an i
 
 Every order carries several key pieces of information:
 
-## Symbol
-Which instrument. "AAPL" means Apple shares; "MSFT" means Microsoft. The exchange handles a separate order book for each symbol.
+| Field | What it specifies | Notes |
+|---|---|---|
+| **Symbol** | Which instrument | "AAPL" = Apple; "ES" = E-mini S&P 500 futures. Each symbol has its own independent order book. |
+| **Side** | BUY or SELL | Defines everything about how the order interacts with the book. |
+| **Quantity** | How many units to trade | Typically a positive integer. The **lot** is the standard unit; for US equities one lot = one share; Asian markets often have lot sizes of 100 or 1,000 shares. |
+| **Price** | Limit price (for limit orders) | Maximum a buyer will pay, or minimum a seller will accept. Market orders carry no price. |
+| **Time-In-Force** | How long the order remains valid | So important it gets its own section below. |
+| **Arrival timestamp** | When the exchange received the order | Recorded to nanosecond precision. Not just metadata — it is the tiebreaker in price-time priority. |
+| **Identity** | Which gateway (participant) submitted it | Used for self-match prevention, kill switches, and regulatory reporting. |
 
-## Side
-**BUY** or **SELL**. Deceptively simple, but it defines everything about how the order interacts with the book.
 
-## Quantity
-How many shares (or contracts, or lots) the participant wants to trade. This is typically a positive integer. The term **lot** refers to the standard unit of quantity. For equities, one lot is usually one share, though some markets (particularly Asian exchanges) define a minimum lot size.
-
-## Price (for limit orders)
-The maximum price the buyer will pay, or the minimum price the seller will accept. Orders submitted without a specific price are **market orders** (described below).
-
-## Time-In-Force
-How long the order remains valid. This is so important it gets its own section below.
-
-## The Arrival Timestamp
-When the exchange received the order, recorded to nanosecond precision. This is not just metadata, it is a critical part of the fairness mechanism, as you will see when we discuss price-time priority.
-
-## Identity
-Which gateway (participant connection) submitted the order. The exchange uses this for self-match prevention, kill switches, and regulatory reporting.
 
 # Order Types, The Vocabulary of Intent
 
@@ -71,13 +62,31 @@ The word "limit" refers to the price limit the participant is imposing. If an in
 
 Limit orders are by far the most common order type in most markets.
 
+### Price Improvement
+
+An important and often surprising behaviour: **a limit order executes at the best available price, not necessarily at its own limit price**. This is called **price improvement**.
+
+Example: the best ask is $150.30 (someone is selling at $150.30). You submit a buy limit order at $150.40. Your order says "I am willing to pay up to $150.40" — but since the best available seller is only asking $150.30, you trade at $150.30. You receive $0.10 per share of price improvement relative to your limit. Your limit of $150.40 was the *worst* price you were willing to accept, not the target.
+
+This applies in both directions:
+- A buy limit at $150.40 crossing a $150.30 ask → fills at **$150.30** (better for the buyer)
+- A sell limit at $150.25 crossing a $150.30 bid → fills at **$150.30** (better for the seller)
+
+The limit price is a *floor* for sellers and a *ceiling* for buyers. The actual execution price is the best price available at the time, which will always be at least as good as the limit.
+
+Price improvement matters for execution quality analysis. Regulators (SEC Rule 605) require broker-dealers to publish statistics showing how often their clients received price improvement versus the quoted price when their orders were executed. Large retail brokers like Fidelity and Charles Schwab report that a significant percentage of their retail orders receive price improvement, particularly for small orders routed to market makers who can beat the NBBO [1].
+
 ## Market Orders
 
 A **market order** says: "Fill me immediately at whatever the current market price is." There is no price constraint. The exchange executes it against the best available resting orders immediately.
 
-Market orders maximise the probability of immediate execution, but execution is still subject to available liquidity, the current exchange state, risk controls, and regulatory protections. A market order submitted during a trading halt, against an empty book, or at a price outside a circuit-breaker band will not fill. In normal continuous trading conditions, market orders can be treated as effectively execution-guaranteed, but not price-guaranteed. If you submit a large market buy order in a thin market, you might sweep through several price levels and pay far more than intended, this is called **market impact** or **slippage**. Market orders are used when certainty of execution matters more than certainty of price.
+Market orders maximise the probability of immediate execution, but execution is still subject to available liquidity, the current exchange state, risk controls, and regulatory protections. A market order submitted during a trading halt, against an empty book, or at a price outside a circuit-breaker band will not fill. In normal continuous trading conditions, market orders can be treated as effectively execution-guaranteed, but not price-guaranteed. Market orders are used when certainty of execution matters more than certainty of price.
 
-Because they have no price to wait at, market orders cannot rest in the book. If they cannot immediately fill, they are cancelled.
+**The slippage danger in thin markets.** If you submit a market buy for 10,000 shares but only 100 shares are available at the best ask, your order sweeps through every available seller in order of price until 10,000 shares are filled. Each level you sweep through costs you more. In an extreme case, you may end up paying dramatically more than intended, this is called **market impact** or **slippage**.
+
+The most consequential real-world example occurred on 6 May 2010, the **Flash Crash**. At 2:45pm Eastern time, the E-mini S&P 500 futures contract (the most liquid futures product in the world at the time) fell approximately 6% in about five minutes, largely because a series of large market sell orders swept through a book that other participants had temporarily withdrawn from, leaving almost no resting bids. The joint SEC/CFTC investigation found that a single large sell algorithm had begun selling 75,000 E-mini contracts at market price, and as the price fell, other algorithms also began selling, creating a feedback loop. Some individual equities briefly traded at $0.01 or $100,000 during the chaos, because market orders crossed nearly empty books [SEC/CFTC Flash Crash Report, September 2010]. The circuit breaker mechanisms introduced after 2010 were specifically designed to prevent a recurrence.
+
+Because they have no price to wait at, market orders cannot rest in the book. If they cannot immediately fill (for example, if there are no sellers at all), they are cancelled.
 
 ## Stop Orders
 
@@ -366,6 +375,20 @@ Fill the **entire** quantity immediately, or cancel the entire order without any
 
 The exchange must verify available liquidity before executing any fills. In practice, the engine performs a **dry-run sweep**: it walks through the book checking whether the full quantity can be matched at acceptable prices, without committing any fills. Only if the full quantity is satisfiable does the engine execute the actual fills. If at any point the available depth is insufficient, including because part of the available liquidity belongs to the same participant (which SMP would cancel), the entire order is cancelled without a single fill occurring. This is more complex than a standard market order sweep: the engine must complete a full hypothetical assessment of the book before touching it.
 
+**IOC vs FOK in one sentence:** IOC accepts a partial fill and cancels the rest; FOK requires a full fill or cancels entirely. Both execute immediately and neither rests in the book.
+
+## TIF Quick Reference
+
+| TIF | Rests in book? | Accepts partial fill? | Valid period | Typical use case |
+|---|---|---|---|---|
+| **DAY** | Yes | Yes | Current session | Most orders; default |
+| **GTC** | Yes | Yes | Until cancelled | Long-term limit orders |
+| **GTD** | Yes | Yes | Until specified date | Event-driven; expires automatically |
+| **ATO** | Opening auction only | Yes | Opening auction | Participate in the open price |
+| **ATC** | Closing auction only | Yes | Closing auction | Benchmark to the close |
+| **IOC** | No | Yes (partial OK) | Immediate only | Aggressive, price-limited; remainder cancelled |
+| **FOK** | No | No (all or nothing) | Immediate only | Arbitrage, multi-leg strategies |
+
 # The Order Book, The Exchange's Memory
 
 
@@ -375,9 +398,20 @@ The **order book** (also called the **limit order book** or **LOB**) is the cent
 
 Think of it as two sorted lists:
 
-**The bid side**, all resting buy orders, sorted from the highest price (most attractive for sellers) down to the lowest. A buyer offering $150.30 is at the top of the bid side if no one else is offering more.
+**The bid side**, all resting buy orders, sorted from the highest price (most attractive for sellers) down to the lowest. A buyer offering $150.34 is at the top of the bid side if no one else is offering more.
 
 **The ask side** (also called the **offer side**), all resting sell orders, sorted from the lowest price (most attractive for buyers) up to the highest. A seller asking $150.35 is at the top of the ask side if no one is asking less.
+
+**What a real order book looks like.** At any given moment, a simplified snapshot of the AAPL book might be:
+
+| Bid Qty | Bid Price | | Ask Price | Ask Qty |
+|---:|:---:|---|:---:|:---|
+| 2,000 | $150.34 | ← **best bid** \| **best ask** → | $150.35 | 1,500 |
+| 1,500 | $150.33 | | $150.36 | 2,800 |
+| 3,200 | $150.32 | | $150.37 | 1,000 |
+| 800 | $150.31 | | $150.38 | 4,200 |
+
+The **spread** here is $150.35 − $150.34 = $0.01. The **mid price** is ($150.34 + $150.35) / 2 = $150.345. If a market sell order for 3,500 shares arrives, it sweeps: 1,500 shares at $150.34 (exhausting that level), then 2,000 of the 2,800 available at $150.33. The new best bid after the sweep is $150.33 with 800 shares remaining.
 
 ## The Spread
 
@@ -447,9 +481,13 @@ This means there are actually several distinct "prices" in play at any moment, e
 
 **Previous day's closing price.** Once the session ends, the **official closing price** from the closing auction becomes the reference price for the entire period the market is closed, typically overnight and across weekends. This is the price used to value portfolios at end of day, to calculate overnight P&L, to set the reference for the next day's static price collars, and to publish the figures that appear in newspapers, financial reports, and fund valuations.
 
->**Closing auction and Static Price Collar**
+> **Closing Auction and Static Price Collar**
 >
->Two terms in that paragraph will be unfamiliar at this point in the document, so a brief preview is warranted. The **closing >auction** is a special matching procedure that runs at the end of the trading day: rather than matching orders one at a time as they >arrive, the exchange collects all outstanding buy and sell interest over a short accumulation period and then computes the single >price at which the greatest number of shares can trade simultaneously, matching all eligible orders at that one price. This produces >a more authoritative closing price than simply taking the last trade of continuous trading, which might have been a small or unusual >transaction. The closing auction is covered in full in the *Opening and Closing Auction* section of Part II. A **static price collar** (also called a fat-finger filter) is a >pre-trade risk control that rejects any incoming order whose submitted price strays too far from the previous closing price, >protecting against obvious entry errors such as a misplaced decimal point. Because it uses the closing price as its benchmark, it >must be recalculated at the start of each new session. Static price collars are covered in full in the *Trading Sessions* section of Part II.
+> Two terms in that paragraph will be unfamiliar at this point in the document, so a brief preview is warranted.
+>
+> The **closing auction** is a special matching procedure that runs at the end of the trading day: rather than matching orders one at a time as they arrive, the exchange collects all outstanding buy and sell interest over a short accumulation period and then computes the single price at which the greatest number of shares can trade simultaneously, matching all eligible orders at that one price. This produces a more authoritative closing price than simply taking the last trade of continuous trading, which might have been a small or unusual transaction. The closing auction is covered in full in the *Opening and Closing Auction* section of Part II.
+>
+> A **static price collar** (also called a fat-finger filter) is a pre-trade risk control that rejects any incoming order whose submitted price strays too far from the previous closing price, protecting against obvious entry errors such as a misplaced decimal point. Because it uses the closing price as its benchmark, it must be recalculated at the start of each new session. Static price collars are covered in full in the *Trading Sessions* section of Part II.
 
 The closing price carries particular weight precisely because it is independently determined by a transparent auction process rather than by a single trade that could be anomalous or thin. A portfolio worth $10 million at 3:59pm might be marked at a slightly different value at 4:00pm if the closing auction produced a different price, but that closing price is considered more authoritative because it reflects the broadest simultaneous expression of supply and demand at that moment of the day.
 
@@ -483,7 +521,7 @@ Price-time priority is the default on NYSE, NASDAQ, CME, Eurex, LSE, and virtual
 - *Under FIFO:* Order X arrived first and has priority. It receives all 60 lots. Order Y receives nothing.
 - *Under pro-rata:* The 60 lots are distributed in proportion to order size. Total resting demand = 100 + 40 = 140 lots. Order X receives 60 × (100/140) ≈ 43 lots; Order Y receives 60 × (40/140) ≈ 17 lots. Both orders fill partially.
 
-Pro-rata rewards size over speed: a large order gets more even if it arrived later. It is common in interest-rate futures markets (where orders can be very large and the marginal value of nanosecond speed is lower) and in some options markets. FIFO rewards speed over size: whoever commits first at a price wins. Knowing which rule a venue uses matters for anyone building order-routing or execution logic.
+Pro-rata rewards size over speed: a large order gets more even if it arrived later. It is common in interest-rate futures markets (where orders can be very large and the marginal value of nanosecond speed is lower) and in some options markets. CME Group uses pro-rata allocation for its SOFR (Secured Overnight Financing Rate) futures and US Treasury futures, while using FIFO for its equity index futures (E-mini S&P 500, E-mini Nasdaq 100) [CME Group Matching Algorithm Guide, 2023]. Knowing which rule a venue uses matters enormously for anyone building order-routing or execution logic: an HFT firm optimising for FIFO markets (be first) must use entirely different strategies than one optimising for pro-rata markets (be large).
 
 For the exchange to implement price-time priority correctly, two things must be true: prices must be comparable without ambiguity (hence integer tick counts), and order arrival must be sequenced deterministically. Modern exchange systems use **nanosecond-precision timestamps** as one component of this sequencing. However, the timestamp alone does not fully guarantee fairness, what matters is the order in which messages are **accepted into the exchange system**, which also depends on network routing, gateway sequencing, and in high-performance systems, hardware timestamping infrastructure. The timestamp records when the exchange received the order; the sequencing infrastructure ensures that two orders arriving within the same nanosecond are ordered consistently and reproducibly.
 
@@ -561,7 +599,7 @@ By processing orders in a single thread, the engine guarantees that the outcome 
 
 > **Key idea:** Single-threaded design is a feature, not a limitation. It makes the matching engine auditable, replayable, and legally defensible. Performance comes from algorithmic efficiency, not parallelism.
 
-The performance requirement is achieved through algorithmic efficiency (correct data structures, avoiding unnecessary computation) rather than parallelism. The world's fastest matching engines can process orders in microseconds or even nanoseconds.
+The performance requirement is achieved through algorithmic efficiency (correct data structures, avoiding unnecessary computation) rather than parallelism. The world's fastest matching engines can process orders in microseconds or even nanoseconds. CME Globex handles approximately 30–35 million messages per day across all products [CME Group Market Statistics, 2023]. NASDAQ's matching engines acknowledge orders in under 100 microseconds in typical conditions; co-located HFT firms that respond to market data and submit an order may achieve round-trip latencies below 5 microseconds. These numbers drive the entire hardware and architecture design: no garbage-collected language, no dynamic memory allocation in the critical path, no operating system calls that can introduce variable latency.
 
 ## One Book Per Symbol
 
@@ -594,7 +632,7 @@ Let us trace a single trade from start to finish.
 
 ## Order Submission
 
-Participant A, connected through Gateway GW01, submits a limit buy order: "Buy 500 shares of AAPL at $150.30, DAY." The gateway validates the basic format and forwards it to the matching engine.
+Participant A, connected through Gateway GW01, submits a limit buy order: "Buy 500 shares of AAPL at $150.30, DAY." The order arrives as a **FIX message** (Financial Information eXchange — the standard protocol for order submission in financial markets, covered in full in the Technology Architecture section). The gateway validates the basic format and forwards it to the matching engine.
 
 The engine receives the order and assigns it:
 - A **unique order ID** (a system-wide identifier, discussed in detail in the architecture section)
@@ -695,13 +733,17 @@ The typical obligations, in descending order of fundamentality, are:
 
 ## The Two-Sided Dilemma: When One Side Is Taken
 
-The obligations above sound manageable until you think carefully about what happens at the moment of a fill. This is where market making becomes genuinely complex.
+The obligations above sound manageable until you think carefully about what happens at the moment of a fill. This is where market making becomes genuinely complex, and where the concept of **adverse selection** becomes central.
 
-Suppose a market maker is quoting AAPL:
+**Adverse selection** occurs when the participant trading against a market maker is doing so because they have information that the market maker lacks. The informed trader knows the price is about to move; the market maker does not. The market maker ends up buying at $150.30 just before the price falls, or selling at $150.35 just before the price rises. This is not bad luck; it is the systematic consequence of always being available to trade against anyone who shows up.
+
+The arithmetic makes the danger concrete. Suppose a market maker is quoting AAPL:
 - **Bid:** Buy 500 shares at $150.30
 - **Ask:** Sell 500 shares at $150.35
 
-An aggressive sell order arrives and hits the bid. The market maker has just bought 500 shares at $150.30. But their ask, "sell 500 shares at $150.35", is still live. The problem: this situation is no longer neutral. The seller was aggressive, they had a reason to sell urgently. If that reason is information (the price is about to fall), the market maker has been adversely selected. Their bid was hit at $150.30, the price may now fall, and they are still advertising a willingness to sell at $150.35, a price that may no longer reflect reality.
+An aggressive sell order arrives and hits the bid. The market maker has just bought 500 shares at $150.30. But their ask, "sell 500 shares at $150.35", is still live. The problem: this situation is no longer neutral. The seller was aggressive — they had a reason to sell urgently. If that reason is information (the price is about to fall), the market maker has been adversely selected.
+
+The arithmetic: if the true price falls to $150.10 after the fill, the market maker now holds 500 shares worth $150.10 that they paid $150.30 for. Loss: $0.20 × 500 = **$100**. Their entire spread revenue for this fill was $0.05 × 500 = **$25** (the half-spread). A single adverse selection event of $100 wipes out the spread revenue from four previous trades. If the informed seller keeps hitting the bid repeatedly before the market maker can react, the losses compound rapidly.
 
 The exchange system must have a defined policy about what to do with the surviving side, because these events occur in microseconds with no time for manual decisions.
 
@@ -723,9 +765,9 @@ Even with careful refresh policies, market makers face a specific danger: **adve
 
 When an algorithm with access to breaking news starts aggressively selling, it does not submit one large order, it sends many small orders in rapid succession, each hitting the market maker's bid before they can react. In milliseconds, the market maker has bought far more inventory than intended at prices that are about to move against them.
 
-**Market Maker Protection (MMP)** is the automated countermeasure. The exchange maintains a rolling time window per market maker and counts fills within it. If fills arrive faster than a configured threshold, say, five fills in one second, MMP fires automatically, cancelling all of that market maker's quotes without waiting for human intervention.
+**Market Maker Protection (MMP)** is the automated countermeasure. The exchange maintains a rolling time window per market maker and counts fills within it. If fills arrive faster than a configured threshold, MMP fires automatically, cancelling all of that market maker's quotes without waiting for human intervention.
 
-After MMP fires, the market maker enters a **protection period** to assess and decide before re-quoting. MMP parameters (fill count, time window) are configured per market maker per symbol and are formally specified in market maker agreements. Eurex's MMP framework, for example, is a contractually binding system with defined parameters and obligations on both sides.
+After MMP fires, the market maker enters a **protection period** to assess and decide before re-quoting. MMP parameters (fill count, time window) are configured per market maker per symbol and are formally specified in market maker agreements. In Eurex's framework, a typical MMP configuration might be "5 fills within 500 milliseconds" for a liquid equity option — if five fills occur faster than that, the system assumes the market maker is being picked off by an informed algorithm and activates protection automatically [Eurex T7 Market Maker Protection User Guide]. The parameters are different for each product: a highly liquid product like a major equity index option might allow more fills in a given window than an illiquid single-stock option.
 
 **Why exchanges provide MMP:** Without it, market makers would either quote much wider spreads (to compensate for adverse selection risk) or withdraw entirely. MMP is not a favour to market makers, it is infrastructure that makes tight spreads and deep liquidity sustainable for the whole market.
 
@@ -781,6 +823,22 @@ The equilibrium price is the price that maximises total traded volume, the **max
 
 The executable volume at each candidate price is `min(cumulative_bids, cumulative_asks)`. The price that maximises this is the equilibrium.
 
+**A worked example.** During the pre-open period, the following orders have accumulated:
+
+*Buy orders:* 500 shares at $152, 1,000 shares at $151, 800 shares at $150
+
+*Sell orders:* 600 shares at $150, 900 shares at $151, 800 shares at $152
+
+The equilibrium algorithm evaluates each candidate price:
+
+| Candidate Price | Buyers willing to pay ≥ price | Sellers willing to accept ≤ price | Executable (min) |
+|---|---|---|---|
+| $150 | 500+1,000+800 = 2,300 | 600 | **600** |
+| $151 | 500+1,000 = 1,500 | 600+900 = 1,500 | **1,500** ← maximum |
+| $152 | 500 | 600+900+800 = 2,300 | **500** |
+
+The equilibrium price is **$151** — the single price at which the most volume (1,500 shares) can trade. All buyers who bid $151 or more (1,500 shares total) and all sellers who asked $151 or less (1,500 shares total) trade simultaneously at $151, regardless of their individual limit prices. The buyer who bid $152 still pays only $151, receiving $1 per share of price improvement. The seller who asked $150 still receives $151, getting $1 above their minimum. The remaining 800-share sell order at $152 does not execute (too expensive; no buyers remain) and transitions to the continuous book.
+
 **Tie-breaking when multiple prices produce the same volume:** If two candidate prices both yield 500 shares executable, the algorithm must choose between them. The standard tie-breaking rules, applied in order, are:
 
 1. **Minimise the imbalance.** The imbalance is the unfilled quantity on the heavier side after the uncross. Prefer the price that leaves the smallest imbalance. If at $151 the buy side has 500 executable but 200 additional buy orders remain, the imbalance is 200. A price with a smaller imbalance is preferred.
@@ -795,7 +853,7 @@ The executable volume at each candidate price is `min(cumulative_bids, cumulativ
 
 ## The Closing Auction
 
-The closing auction works identically but at the end of the day, establishing the official **closing price**. This is one of the most important prices in the market, it is used to benchmark fund performance, price derivatives, and compute official valuations of positions. The NYSE closing auction is one of the most liquidity-rich events in the US equity market, regularly trading billions of dollars in seconds.
+The closing auction works identically but at the end of the day, establishing the official **closing price**. This is one of the most important prices in the market, it is used to benchmark fund performance, price derivatives, and compute official valuations of positions. The NYSE closing auction is one of the most liquidity-rich events in the US equity market: it regularly accounts for 10–15% of a stock's entire day's trading volume, compressed into a few seconds of uncrossing [NYSE Closing Auction Dynamics, 2023]. On some benchmark index rebalancing days the proportion is even higher, as index funds must trade at exactly the closing price to match their benchmarks.
 
 # Trading Sessions, The Day in the Life of a Market
 

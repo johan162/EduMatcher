@@ -31,11 +31,11 @@ Examine the engineering reality of exchanges at scale: deterministic engines, me
 # Speed Bumps, Leveling the Playing Field
 
 
-Not all exchange participants operate on equal footing. High-frequency trading (HFT) firms invest enormously in technology, co-location in exchange data centres, microwave and laser communication links between exchanges, custom hardware, to be a few microseconds faster than their competition. Being faster means they can see price changes and react before others can, which is profitable but controversial.
+Not all exchange participants operate on equal footing. High-frequency trading (HFT) firms invest heavily in co-location, low-latency network links between venues, and specialised hardware to be a few microseconds faster than competitors. Being faster often means seeing price changes and reacting before others, which can be profitable but is also controversial from a market-structure perspective.
 
 ## What Is a Speed Bump?
 
-A **speed bump** is a deliberate artificial delay introduced by the exchange to all incoming orders. By delaying every order by the same small amount (say, 350 microseconds), the exchange eliminates the advantage of being just slightly faster than everyone else. If both the HFT firm's order and the institutional investor's order are delayed by 350 microseconds, the time gap between them is irrelevant.
+A **speed bump** is a deliberate artificial delay introduced by the exchange to incoming orders. A fixed delay (for example, 350 microseconds) does **not** erase relative timing differences: if one order is 1 microsecond earlier before the delay, it is still 1 microsecond earlier after the delay. What the speed bump can do is reduce the value of ultra-small latency edges and make some short-horizon race strategies harder, especially when combined with venue rules on cancels, quote updates, and matching behavior.
 
 ## IEX: The Most Famous Speed Bump
 
@@ -86,7 +86,7 @@ The **gateway** is the participant-facing interface, the "door" through which pa
 - **Message translation:** Converting the participant's orders from their format (FIX protocol, binary, or text commands) into the exchange's internal format.
 - **Basic validation:** Checking that mandatory fields are present, that the symbol is valid, that quantities are positive.
 
-Importantly, the gateway does **not** validate tick alignment (whether prices are exact multiples of the tick size), it does not know the tick size for every symbol. That responsibility belongs to the engine.
+In many architectures, the gateway performs only structural and session checks, while instrument-specific validation (tick alignment, price collars, and auction/session constraints) is enforced in the matching engine or in a dedicated risk layer fed by reference data. Some venues do cache reference data in gateways and validate there too; the key requirement is consistent enforcement in exactly one authoritative path.
 
 **FIX Protocol:** The industry-standard format for order submission is FIX (Financial Information eXchange), a text-based protocol developed in the early 1990s. A FIX order message looks something like:
 ```
@@ -255,7 +255,7 @@ The order book and trade data produced by the matching engine are published as *
 
 ## Snapshots vs Incremental Updates
 
-A **snapshot** is a complete picture of the current book state: all resting price levels, their quantities, the last trade price, recent trade history. A **incremental update** (also called a **delta**) describes only what changed since the previous message, an order was added, a fill occurred, a level was removed.
+A **snapshot** is a complete picture of the current book state: all resting price levels, their quantities, the last trade price, recent trade history. An **incremental update** (also called a **delta**) describes only what changed since the previous message: an order was added, a fill occurred, or a level was removed.
 
 Sending full snapshots is wasteful, most of the book did not change. Production systems send incremental updates continuously and periodic full snapshots (e.g., every second or every 5 seconds) so that subscribers who missed messages can resynchronise.
 
@@ -264,6 +264,17 @@ Sending full snapshots is wasteful, most of the book did not change. Production 
 Every market data message carries a **sequence number**, a monotonically increasing integer. Subscribers track the last received sequence number. If a message with sequence number 1000 arrives followed by 1002, the subscriber knows message 1001 was lost (a **gap**). The subscriber must either request a replay of message 1001 or wait for the next full snapshot to resynchronise.
 
 Without sequence numbers, a subscriber has no reliable way to detect data loss. A subscriber that silently misses a cancellation event would have a stale view of the book, showing a resting order that no longer exists, and any trading decisions based on that view could be incorrect.
+
+## Sequencing Scope and Session Boundaries
+
+For production feeds, sequence semantics must be explicit in protocol documentation:
+
+- **Scope:** Is sequencing global, per symbol, per channel, or per partition?
+- **Reset policy:** Do sequence numbers reset at start-of-day, or continue indefinitely?
+- **Wrap behaviour:** What happens at integer limits?
+- **Recovery anchor:** Should clients request replay from a sequence number, timestamp, or both?
+
+Without these rules, two clients can implement different recovery logic and both appear correct in normal conditions, then diverge under packet loss or after a session restart.
 
 ## Gap Recovery and Replay
 
@@ -307,6 +318,15 @@ A **Smart Order Router (SOR)** is software that determines how to route an order
 4. Hold back remaining shares pending fills.
 
 The SOR must evaluate venue fees, available depth, likely price impact, and speed simultaneously. A naive router that always sends everything to the same exchange would often leave better prices on the table elsewhere.
+
+In real implementations, SOR logic also incorporates:
+
+- **Protected-quote obligations** (for example, US trade-through constraints)
+- **Queue position probability** (expected fill likelihood if posted passively)
+- **Venue toxicity signals** (adverse-selection risk by venue and time of day)
+- **Hidden-liquidity interaction** (dark midpoint opportunities versus lit certainty)
+
+These constraints are why production SORs are stateful optimisation systems rather than simple price sorters.
 
 ## Dark Pools and Hidden Liquidity
 
@@ -371,7 +391,7 @@ Market makers must continuously update their quotes faster than latency arbitrag
 
 ## Co-location
 
-**Co-location** is the practice of placing a participant's trading servers physically inside the same data centre as the exchange's matching engine. At the speed of light, the 40-kilometre round trip between a midtown Manhattan trading firm and the exchange data centre in New Jersey takes approximately 270 microseconds, a long time in electronic trading. A co-located server in the same rack as the matching engine has a round-trip latency of microseconds.
+**Co-location** is the practice of placing a participant's trading servers physically inside the same data centre as the exchange's matching engine. Even tens of kilometres of metro fibre typically add hundreds of microseconds of round-trip latency in real paths. A co-located server in the same facility can reduce this to low single-digit microseconds end-to-end on optimised networks.
 
 Exchanges provide co-location as a service: they sell rack space in their data centres to participants who want the lowest possible latency. NYSE's co-location facility in Mahwah, New Jersey, and NASDAQ's in Carteret, New Jersey, host servers for hundreds of trading firms. Eurex runs co-location at its Frankfurt data centre.
 
@@ -412,6 +432,36 @@ For developers building exchange infrastructure rather than trading clients, the
 When events across multiple machines must be compared, all machines must share a common, accurate time source. **PTP (IEEE 1588 Precision Time Protocol)** synchronises clocks across a network to sub-microsecond accuracy, far more precise than NTP (which achieves only millisecond accuracy). Exchange systems and co-location facilities use PTP or dedicated hardware timing signals (GPS-disciplined oscillators) to ensure that timestamps on events from different machines are directly comparable.
 
 > **Key idea:** In exchange infrastructure, latency is not just a performance metric, it determines who gets to trade at what price. Every architectural decision (data structures, networking, hardware) has latency implications. Understanding this context helps you make better design choices even in components not directly in the critical path.
+
+# Operational Observability and Incident Response
+
+Production readiness depends not only on matching correctness, but on fast, reliable detection and recovery when something degrades.
+
+## Core Production Signals
+
+At minimum, exchanges track and alert on:
+
+- End-to-end order ACK/fill latency (p50/p95/p99/p99.9)
+- Ingress queue depth and backlog age per gateway and per symbol partition
+- Market-data publish latency and subscriber lag
+- Replay buffer utilisation and replay hit/miss ratios
+- Reject rates by code (risk, syntax, session, throttling)
+- Failover readiness (replication lag, last durable offset, heartbeat health)
+
+These metrics should be broken out by venue session state (auction, continuous, halt), because acceptable baselines differ by phase.
+
+## Runbooks and Recovery Drills
+
+A professional venue maintains tested runbooks for:
+
+- Gateway degradation and targeted traffic shedding
+- Symbol-partition isolation (quarantine one partition without halting all trading)
+- Primary-to-secondary failover with deterministic replay verification
+- Market-data incident handling (gap storms, replay saturation, stale snapshots)
+
+Runbooks should include operator decision thresholds, not just command sequences. Drills should be rehearsed under load and during controlled session simulations, not only in staging idle conditions.
+
+> **Key idea:** Low latency is valuable, but operational predictability is what keeps markets open during stress. A venue is publishable and production-grade only when observability and incident response are engineered as first-class features.
 
 # Corporate Actions, When the Instrument Changes
 

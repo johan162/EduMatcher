@@ -95,7 +95,7 @@ EXCHANGE_INTRO_LUA_FILTER_FLAGS := --lua-filter $(BOOK_STRUCTURE_LUA_FILTER) --l
 EXCHANGE_INTRO_MD_SOURCES := \
 	$(shell find $(DOCS_DIR)/src -maxdepth 1 -type f -name '[0-9][0-9]-*.md' -print | sed 's/ /\\ /g' | sort)
 
-$(info EXCHANGE_INTRO_MD_SOURCES: $(EXCHANGE_INTRO_MD_SOURCES))
+# $(info EXCHANGE_INTRO_MD_SOURCES: $(EXCHANGE_INTRO_MD_SOURCES))
 
 # Non-markdown assets that should still trigger a rebuild when changed.
 EXCHANGE_INTRO_PDF_DEPS := \
@@ -133,8 +133,8 @@ $(eval $(call DEFINE_EXCHANGE_INTRO_VARS,EXCHANGE_INTRO_DARK_A4))
 $(eval $(call DEFINE_EXCHANGE_INTRO_VARS,EXCHANGE_INTRO_DARK_B5))
 
 
-$(info EXCHANGE_INTRO_A4_PDF: $(EXCHANGE_INTRO_A4_PDF))
-$(info EXCHANGE_INTRO_A4_PDF_BUILT: $(EXCHANGE_INTRO_A4_PDF_BUILT))
+# $(info EXCHANGE_INTRO_A4_PDF: $(EXCHANGE_INTRO_A4_PDF))
+# $(info EXCHANGE_INTRO_A4_PDF_BUILT: $(EXCHANGE_INTRO_A4_PDF_BUILT))
 
 # Source and Test Files
 DOC_FILES :=  $(shell find $(DOCS_DIR) -name 'src/*.md' -o -name '*.yml' -o -name '*.yaml' -o -name '*.lua' -o -name '*.tex') 
