@@ -90,12 +90,6 @@ function Header(el)
     return blocks
   end
 
-  -- Inside a part markdown file, treat level-2 as chapters and shift deeper levels up by one.
-  if in_part and el.level >= 2 then
-    el.level = el.level - 1
-    return el
-  end
-
   return nil
 end
 

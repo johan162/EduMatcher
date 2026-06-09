@@ -28,28 +28,28 @@ Examine the engineering reality of exchanges at scale: deterministic engines, me
 - Reference Data, The Exchange's Ground Truth
 
 
-## Speed Bumps, Leveling the Playing Field
+# Speed Bumps, Leveling the Playing Field
 
 
 Not all exchange participants operate on equal footing. High-frequency trading (HFT) firms invest enormously in technology, co-location in exchange data centres, microwave and laser communication links between exchanges, custom hardware, to be a few microseconds faster than their competition. Being faster means they can see price changes and react before others can, which is profitable but controversial.
 
-### What Is a Speed Bump?
+## What Is a Speed Bump?
 
 A **speed bump** is a deliberate artificial delay introduced by the exchange to all incoming orders. By delaying every order by the same small amount (say, 350 microseconds), the exchange eliminates the advantage of being just slightly faster than everyone else. If both the HFT firm's order and the institutional investor's order are delayed by 350 microseconds, the time gap between them is irrelevant.
 
-### IEX: The Most Famous Speed Bump
+## IEX: The Most Famous Speed Bump
 
 **IEX (Investors Exchange)**, founded in 2012 and launched as a regulated exchange in 2016, introduced the speed bump concept to mainstream exchange operation [6]. IEX routes all orders through 38 miles of coiled fibre-optic cable (housed in a small box called the "magic shoe") before they reach the matching engine. The cable introduces a fixed 350-microsecond delay.
 
 IEX's founders argued in the book *Flash Boys* (Lewis, 2014) [6] that speed advantages primarily benefit HFT firms at the expense of long-term investors. The speed bump was their answer. IEX gained significant market share and regulatory approval, demonstrating that speed bumps are a viable exchange design.
 
-### Speed Bumps in Broader Design
+## Speed Bumps in Broader Design
 
 Speed bumps can be applied selectively, for example, only to **cancel** messages but not to new orders. This prevents a practice called **last-look** where a market maker posts an order, and then when someone attempts to fill it, the market maker races to cancel before the fill completes. If cancels are delayed but the fill is immediate, the market maker cannot escape the fill.
 
 Several European venue operators and regulators have discussed asymmetric speed bump rules for cancel messages under MiFID II's framework for algorithmic trading controls, though no major European exchange has adopted a speed bump comparable to IEX's.
 
-## The Technology Architecture
+# The Technology Architecture
 
 
 Now let us look at how all these concepts are realised in a production technology stack.
@@ -77,7 +77,7 @@ flowchart LR
     PUB --> CL & AL & MD & ST & DC
 ```
 
-### The Gateway
+## The Gateway
 
 The **gateway** is the participant-facing interface, the "door" through which participants connect to the exchange. Each participant connects through their assigned gateway. The gateway's responsibilities:
 
@@ -112,11 +112,11 @@ All eleven fields in this message have meaning:
 
 Most exchanges accept FIX (or a compressed binary variant called FAST or ITCH for market data). A simplified FIX-inspired text format for internal gateway commands might look like: `NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.30`.
 
-### The Matching Engine
+## The Matching Engine
 
 The matching engine is the exchange's core computational component: the software that receives every incoming order, maintains the state of all order books, and executes trades when compatible buy and sell orders can be paired. It sits at the centre of the architecture, receiving from all gateways through a single serialised input queue and publishing results to all subscribers. A single-threaded design, one book per symbol, and deterministic processing are its defining characteristics, each discussed in detail in the *Matching Engine* section above. The gateway is the entry point into this pipeline; the engine is where the actual work happens.
 
-### The Message Bus
+## The Message Bus
 
 The matching engine communicates with all other components through a **message bus**, a pub/sub (publish/subscribe) messaging system. The engine publishes events (trades, order status changes, book snapshots) to topics, and subscribers connect to the topics they care about.
 
@@ -130,7 +130,7 @@ Topics on the PUB socket might include:
 
 Subscribers filter by topic, receiving only the events relevant to them.
 
-### Subscribers
+## Subscribers
 
 Any process that connects to the engine's PUB socket and processes events is a **subscriber**. Common subscribers:
 
@@ -143,7 +143,7 @@ Any process that connects to the engine's PUB socket and processes events is a *
 
 The key design principle: subscribers are passive receivers. They observe the market through event streams. They do not write to the order book.
 
-### Book Snapshots
+## Book Snapshots
 
 Subscribers that start up mid-session need a way to get caught up on current book state without replaying every event since the start of day. The engine periodically publishes **book snapshots**, a complete current view of all resting orders, aggregated by price level, to the market data feed. A subscriber that misses events can simply wait for the next snapshot, typically published every 500 milliseconds per symbol.
 
@@ -154,12 +154,12 @@ Snapshots include:
 - Recent trade history (a rolling window of the last N trades)
 - The current tick size for the symbol (so subscribers can correctly format prices)
 
-## Primary and Secondary Sites, Resilience Architecture
+# Primary and Secondary Sites, Resilience Architecture
 
 
 A financial exchange is critical infrastructure. If it goes down unexpectedly, due to hardware failure, software bug, network outage, or even a power cut, the consequences are severe: participants cannot trade, prices cannot be discovered, and confidence in the market is damaged. For this reason, exchanges operate with **redundancy**, duplicate systems at separate locations.
 
-### Primary and Secondary Sites
+## Primary and Secondary Sites
 
 A **primary site** (also called the **primary** or **production site**) is where the live matching engine runs. All orders are processed here, all trades happen here.
 
@@ -167,7 +167,7 @@ A **secondary site** (also called the **backup**, **disaster recovery site**, or
 
 Real exchanges take this very seriously. NASDAQ, for example, operates data centres in multiple states. The LSE has co-primary sites in Basildon (Essex) and a secondary site elsewhere in England. CME has sites in Aurora (Illinois) and other locations.
 
-### Synchronisation: Keeping the Secondary Current
+## Synchronisation: Keeping the Secondary Current
 
 For the secondary to be able to take over instantly, it must be an exact replica of the primary's state at all times. This means every order, trade, and state change on the primary must be reflected on the secondary with minimal delay.
 
@@ -179,7 +179,7 @@ Approaches include:
 
 **Consensus protocols:** In the most robust designs (used by clearing houses and critical infrastructure), a consensus algorithm like **Raft** or **Paxos** ensures both the primary and secondary agree on every event before it is considered "committed." Nothing is published to participants until both sites confirm they have the event. This guarantees zero data loss on failover but adds latency.
 
-### Failover
+## Failover
 
 **Failover** is the act of switching from the primary to the secondary. It may be:
 
@@ -191,30 +191,30 @@ Approaches include:
 
   True active-active matching engines are **rare in production exchanges** because distributed consensus introduces latency, and maintaining deterministic total ordering across two simultaneously-processing sites is a fundamentally hard problem. Most production exchanges prefer active-passive or shadow replication rather than active-active, accepting a brief failover window in exchange for simplicity and predictable latency.
 
-### The Geographic Trade-Off
+## The Geographic Trade-Off
 
 Placing the secondary site far from the primary protects against geographically localised disasters (earthquakes, floods, building fires). But distance means higher network latency, making synchronisation slower.
 
 A common compromise: a "near" site (same city or region, connected by dark fibre) provides fast synchronisation and fast failover, plus a "far" site (different country or continent) for true disaster recovery.
 
-## Load Balancing, Distributing the Work
+# Load Balancing, Distributing the Work
 
 
 A single exchange may serve dozens of gateways simultaneously, each handling orders from hundreds of participants. As trading volume grows, a single matching engine process may become a bottleneck.
 
-### Horizontal Scaling Across Symbols
+## Horizontal Scaling Across Symbols
 
 The most natural scaling approach for an exchange is to distribute different symbols across different matching engine instances. The AAPL book and the MSFT book are completely independent, they can run on different servers, different processes, even in different data centres.
 
 This is called **partitioning by symbol**. It scales well: adding a new server lets you handle more symbols, without requiring coordination between servers (since no order crosses symbol boundaries except through combo order handling at a higher level).
 
-### Gateway Load Balancing
+## Gateway Load Balancing
 
 Multiple gateway processes can run in parallel, each accepting connections from different participants. Gateways forward orders to the appropriate matching engine instance based on symbol. This allows gateway capacity to scale independently of matching engine capacity.
 
 A **load balancer** sits in front of the gateways, distributing incoming participant connections across the available gateway processes. Participants typically do not know which specific gateway process they are connected to, the load balancer makes this transparent.
 
-### The Unique Order Number Challenge
+## The Unique Order Number Challenge
 
 This is where scaling creates a genuinely complex problem, and it is worth understanding in detail.
 
@@ -240,7 +240,7 @@ The challenge: if the primary used IDs 1–50,000 before failing and the seconda
 
 **In practice:** Exchange systems typically use a hybrid approach, a system like pre-allocated ranges for transaction ordering (where strict monotonicity matters), and UUIDs for order IDs in internal databases (where uniqueness is paramount and ordering can be handled separately by timestamp). A common approach uses UUID-based order IDs combined with monotonically increasing nanosecond timestamps to achieve both uniqueness and chronological ordering.
 
-### Monotonic Timestamps Across Sites
+## Monotonic Timestamps Across Sites
 
 The nanosecond timestamp on each order must be monotonically increasing, not just within one machine, but across the entire system. If the primary is generating timestamps and then the secondary takes over, the secondary cannot start generating timestamps smaller than the last one the primary generated.
 
@@ -248,57 +248,57 @@ This requires clock synchronisation (NTP or PTP), monotonic enforcement via a wr
 
 **An important nuance:** in practice, deterministic sequencing identifiers matter more than absolute wall-clock timestamp precision. Production exchange systems frequently tolerate small amounts of clock drift and same-timestamp collisions, because the canonical ordering of events is defined by **sequencing infrastructure**, the order in which the single-threaded engine processes messages from its queue, not by the wall-clock value of the timestamp. Timestamps are primarily for auditability and observability; the sequencing of the input queue defines what actually happens. The monotonic enforcement described here prevents the most obvious failures (a clock jumping backward and assigning a "past" timestamp to a new order), but it is the engine's input queue, not the clock, that ultimately determines priority.
 
-## Market Data Architecture, How the Market Sees Itself
+# Market Data Architecture, How the Market Sees Itself
 
 
 The order book and trade data produced by the matching engine are published as **market data**, real-time feeds that participants and their systems consume to make trading decisions. Market data architecture is a significant engineering domain in its own right.
 
-### Snapshots vs Incremental Updates
+## Snapshots vs Incremental Updates
 
 A **snapshot** is a complete picture of the current book state: all resting price levels, their quantities, the last trade price, recent trade history. A **incremental update** (also called a **delta**) describes only what changed since the previous message, an order was added, a fill occurred, a level was removed.
 
 Sending full snapshots is wasteful, most of the book did not change. Production systems send incremental updates continuously and periodic full snapshots (e.g., every second or every 5 seconds) so that subscribers who missed messages can resynchronise.
 
-### Sequence Numbers
+## Sequence Numbers
 
 Every market data message carries a **sequence number**, a monotonically increasing integer. Subscribers track the last received sequence number. If a message with sequence number 1000 arrives followed by 1002, the subscriber knows message 1001 was lost (a **gap**). The subscriber must either request a replay of message 1001 or wait for the next full snapshot to resynchronise.
 
 Without sequence numbers, a subscriber has no reliable way to detect data loss. A subscriber that silently misses a cancellation event would have a stale view of the book, showing a resting order that no longer exists, and any trading decisions based on that view could be incorrect.
 
-### Gap Recovery and Replay
+## Gap Recovery and Replay
 
 Exchanges provide a **replay channel** or **retransmission service**: a subscriber can request resending of specific message sequence numbers it missed. Some exchanges use **multicast** delivery for the live feed (one packet sent to all subscribers simultaneously) and **unicast TCP** for retransmission (individual resend requests).
 
 The replay buffer typically holds the last N seconds of messages, enough to cover a brief network hiccup. A subscriber disconnected for several minutes may not be able to replay from the live feed and must wait for the next full snapshot.
 
-### Conflation
+## Conflation
 
 When the exchange is under high load, market data messages may queue behind each other. **Conflation** is the process of merging consecutive updates for the same price level into a single message, reducing message volume at the cost of losing intermediate states. A subscriber using conflated data may not see every individual order addition and cancellation, it only sees the net effect on each price level. This is acceptable for display purposes but not for analytical systems that need complete tick data.
 
-### Tick-to-Trade Latency
+## Tick-to-Trade Latency
 
 **Tick-to-trade latency** is the time from when a market data message leaves the exchange to when a trading decision based on that message results in an order being submitted and received by the exchange. It is a critical performance metric for market makers and HFT firms. Reducing tick-to-trade latency requires optimising every component in the path: network delivery, data parsing, decision logic, order serialisation, and order routing.
 
-### Top-of-Book vs Depth-of-Book
+## Top-of-Book vs Depth-of-Book
 
 Some participants subscribe only to **top-of-book** data (best bid and ask prices and quantities only, Level 1). Others subscribe to **depth-of-book** (multiple price levels, Level 2). Depth data requires more bandwidth and processing but enables more sophisticated analysis of near-term price pressure.
 
 > **Key idea:** Market data is not just a convenience, it is the primary input to every trading algorithm and market maker. Its correctness, latency, and sequencing directly affect the quality of market participants' decisions. Exchange developers must treat market data publishing with the same rigour as the matching engine itself.
 
-## Smart Order Routing and Market Fragmentation
+# Smart Order Routing and Market Fragmentation
 
 
 Modern equity markets are not a single exchange. In the US, there are over a dozen registered stock exchanges plus dozens of alternative trading venues, all trading the same stocks. This fragmentation has profound implications for participants and exchange systems.
 
-### Why Markets Are Fragmented
+## Why Markets Are Fragmented
 
 Regulatory choices drive fragmentation. In the US, **Regulation NMS** (National Market System), implemented in 2007, required that orders be filled at the best available price across all exchanges, creating strong incentives for new venues to compete with NYSE and NASDAQ. The EU's **MiFID II** directive had similar effects in European markets. Today, a stock like AAPL may have 5–15% of its volume on NYSE, 25–30% on NASDAQ, and the remainder distributed across CBOE, IEX, EDGX, EDGA, and other venues, plus dark pools and internalisers.
 
-### The National Best Bid and Offer (NBBO)
+## The National Best Bid and Offer (NBBO)
 
 In the US, regulators require that market participants be offered the best available price across all exchanges. The **National Best Bid and Offer (NBBO)** is the highest available bid price and the lowest available ask price, computed in real time across all exchanges. If AAPL's best bid is $150.30 on NYSE and $150.31 on NASDAQ, the NBBO bid is $150.31. A market sell order must be executed at the NBBO price or better, a broker cannot route it to NYSE at $150.30 when $150.31 is available elsewhere.
 
-### Smart Order Routing (SOR)
+## Smart Order Routing (SOR)
 
 A **Smart Order Router (SOR)** is software that determines how to route an order across multiple venues to achieve the best overall execution. For a large buy order, the SOR might:
 1. Route 200 shares to IEX (cheapest in fees).
@@ -308,7 +308,7 @@ A **Smart Order Router (SOR)** is software that determines how to route an order
 
 The SOR must evaluate venue fees, available depth, likely price impact, and speed simultaneously. A naive router that always sends everything to the same exchange would often leave better prices on the table elsewhere.
 
-### Dark Pools and Hidden Liquidity
+## Dark Pools and Hidden Liquidity
 
 A **dark pool** is a trading venue, often operated by a bank or broker-dealer, where orders are not displayed in a public order book. Participants submit orders to the dark pool and are matched against other participants' dark pool orders, typically at the midpoint of the NBBO. The trade is only publicly reported after it occurs.
 
@@ -320,7 +320,7 @@ The existence of dark pools explains why the displayed order book is not the who
 
 > **Key idea:** When working on exchange software, be aware that "the market" is larger than "the exchange." Smart order routing, fragmented liquidity, and dark pools are the reality in which the exchange you are building operates. Features like the NBBO, order routing decisions, and market data aggregation all exist because of fragmentation.
 
-### Payment for Order Flow (PFOF)
+## Payment for Order Flow (PFOF)
 
 **Payment for Order Flow (PFOF)** is a practice in which retail brokers sell their clients' order flow to wholesale market makers, large firms such as Citadel Securities, Virtu Financial, and G1 Execution Services, rather than routing orders to lit exchanges. The market maker pays the broker a per-share fee for the right to execute the orders internally.
 
@@ -332,7 +332,7 @@ Why do brokers accept PFOF instead of routing to exchanges? The payment from mar
 
 PFOF is **banned in the United Kingdom and the European Union** under MiFID II, which requires all brokers to achieve best execution and prohibits inducements that conflict with client interests. In the US, the SEC proposed significant restrictions on PFOF in 2022 as part of a broader equity market structure reform. As of 2024 the regulatory landscape is evolving; developers building exchange or brokerage infrastructure should be aware that PFOF rules may change.
 
-### Best Execution, The Regulatory Foundation
+## Best Execution, The Regulatory Foundation
 
 **Best execution** is the regulatory obligation for brokers and investment firms to take all reasonable steps to achieve the best possible outcome for their clients when executing orders. "Best" is not simply the highest price or lowest cost in isolation, regulators define it as the best overall result considering price, execution costs, speed, likelihood of execution, market impact, and other relevant factors.
 
@@ -342,7 +342,7 @@ Best execution is the regulatory foundation that makes smart order routing neces
 
 For exchange developers, best execution manifests in several observable ways: exchanges must be fast (slow fills mean worse prices), transparent (firms need accurate data to compare venues), and competitive on fees. An exchange that is consistently expensive or slow will be deprioritised by SOR systems fulfilling their best execution duty.
 
-### Execution Algorithms, Slicing Large Orders
+## Execution Algorithms, Slicing Large Orders
 
 An individual investor buying 100 shares submits a single order. An institutional investor buying 5 million shares cannot. Sending a single 5-million-share market order would sweep through every level of the book, move the price dramatically, and fill at disastrous average prices. Instead, institutions break large orders into many small pieces and execute them over time, typically using standardised **execution algorithms** (called **algos**).
 
@@ -358,30 +358,30 @@ Understanding execution algorithms matters for exchange developers because they 
 
 > **Key idea:** The vast majority of exchange order flow originates from execution algorithms, not from humans pressing buttons. Understanding how these algos work helps explain patterns visible in market data, clustering of activity near the open and close (VWAP/ATC algos), evenly-spaced order arrivals (TWAP), and bursts of activity when prices move (IS algos increasing urgency).
 
-## Latency and Co-location, The Speed Dimension
+# Latency and Co-location, The Speed Dimension
 
 
 Speed is not incidental to electronic markets, it is a primary competitive dimension. Understanding why latency matters, and what mechanisms exchange systems use to minimise it, is essential background for exchange developers.
 
-### Why Latency Matters
+## Why Latency Matters
 
 At any moment, the same stock is trading on multiple exchanges simultaneously. If the price of AAPL changes on NYSE, that information takes time to propagate to NASDAQ. During that window, even if only 50 microseconds, participants who know the price has changed on NYSE can trade on NASDAQ before NASDAQ's quotes adjust. This is called **latency arbitrage**.
 
 Market makers must continuously update their quotes faster than latency arbitrageurs can act. A market maker whose quotes are 10 microseconds stale will find themselves adversely selected on the stale side. The entire market structure is shaped by this dynamic: venue design, technology choices, and the physical geography of data centres all aim to reduce or equalise latency.
 
-### Co-location
+## Co-location
 
 **Co-location** is the practice of placing a participant's trading servers physically inside the same data centre as the exchange's matching engine. At the speed of light, the 40-kilometre round trip between a midtown Manhattan trading firm and the exchange data centre in New Jersey takes approximately 270 microseconds, a long time in electronic trading. A co-located server in the same rack as the matching engine has a round-trip latency of microseconds.
 
 Exchanges provide co-location as a service: they sell rack space in their data centres to participants who want the lowest possible latency. NYSE's co-location facility in Mahwah, New Jersey, and NASDAQ's in Carteret, New Jersey, host servers for hundreds of trading firms. Eurex runs co-location at its Frankfurt data centre.
 
-### Microwave and Laser Links
+## Microwave and Laser Links
 
 The speed of light in fibre-optic cable is approximately 70% of the speed of light in a vacuum, light travels somewhat slower through glass than through air. For data links between distant locations (Chicago to New York, London to Frankfurt), microwave and millimetre-wave radio links are faster than fibre because radio waves travel at nearly the speed of light through air.
 
 Multiple firms have built dedicated microwave networks between major financial data centres. The Chicago-to-New-York microwave path (approximately 1,200km) takes around 4 milliseconds by microwave versus 6–7ms by fibre, a meaningful advantage in latency-sensitive trading. Experimental laser links (which travel through air but require line-of-sight and clear weather) can be even faster.
 
-### Hardware Acceleration
+## Hardware Acceleration
 
 For the most latency-sensitive operations, software running on general-purpose CPUs is too slow. Exchange systems and trading firms use:
 
@@ -407,18 +407,18 @@ For developers building exchange infrastructure rather than trading clients, the
 
 **Deterministic latency:** In high-frequency systems, not just average latency but **worst-case latency** matters. A response that is usually 5 microseconds but occasionally spikes to 500 microseconds due to garbage collection or OS scheduling jitter is unacceptable. Systems are designed with deterministic, bounded latency using techniques like memory pre-allocation, real-time OS scheduling, and CPU pinning.
 
-### PTP Clock Synchronisation
+## PTP Clock Synchronisation
 
 When events across multiple machines must be compared, all machines must share a common, accurate time source. **PTP (IEEE 1588 Precision Time Protocol)** synchronises clocks across a network to sub-microsecond accuracy, far more precise than NTP (which achieves only millisecond accuracy). Exchange systems and co-location facilities use PTP or dedicated hardware timing signals (GPS-disciplined oscillators) to ensure that timestamps on events from different machines are directly comparable.
 
 > **Key idea:** In exchange infrastructure, latency is not just a performance metric, it determines who gets to trade at what price. Every architectural decision (data structures, networking, hardware) has latency implications. Understanding this context helps you make better design choices even in components not directly in the critical path.
 
-## Corporate Actions, When the Instrument Changes
+# Corporate Actions, When the Instrument Changes
 
 
 An exchange does not just serve static instruments. Companies whose shares trade on an exchange undergo **corporate actions**, events that change the structure of the instrument itself. These events have significant operational consequences for every component of an exchange system.
 
-### Stock Splits
+## Stock Splits
 
 A **stock split** divides each existing share into multiple new shares, reducing the price proportionally. If AAPL trades at $200 and does a 4-for-1 split, each shareholder receives 4 shares for every 1 they held; the price adjusts to approximately $50. The total market capitalisation is unchanged.
 
@@ -430,21 +430,21 @@ Exchange implications:
 
 A **reverse split** works in the opposite direction: multiple shares are consolidated into one, and the price rises proportionally. A company trading at $0.50 might do a 10-for-1 reverse split to bring the price to $5, typically to meet exchange listing requirements.
 
-### Dividends
+## Dividends
 
 When a company declares a dividend, shares trade **cum-dividend** (with dividend entitlement) up to the **ex-dividend date**, after which they trade **ex-dividend** (without dividend entitlement). The price typically drops by approximately the dividend amount on the ex-dividend date.
 
 Open orders spanning the ex-dividend date may require handling, some exchanges cancel all open orders; others adjust prices.
 
-### Mergers and Acquisitions
+## Mergers and Acquisitions
 
 When a company is acquired, its shares may be converted to shares in the acquirer, cash, or a combination. The target company's shares are eventually **delisted**, removed from trading on the exchange. All open orders in the target must be cancelled. Open positions must be settled.
 
-### Symbol Changes and Delistings
+## Symbol Changes and Delistings
 
 Companies change their ticker symbols (rebranding, mergers). Systems that track positions and orders by symbol must handle symbol remapping without losing continuity. **Delistings** require orderly unwinding of all open orders and positions in the symbol.
 
-### Why Corporate Actions Matter to Developers
+## Why Corporate Actions Matter to Developers
 
 Corporate actions are among the most operationally complex events an exchange system handles. They require coordination across: the order book engine (cancel or adjust open orders), the clearing system (adjust positions and cost bases), the market data system (update reference data), the audit trail (record the adjustment events), and downstream applications that may have cached the old instrument parameters.
 
@@ -452,12 +452,12 @@ A developer who underestimates corporate action complexity will eventually face 
 
 > **Key idea:** Instruments are not static. Every system that touches order, position, or price data must be prepared to handle corporate action adjustments. Reference data management is a discipline in its own right in production exchange systems.
 
-## Determinism, Replay, and Persistence, The Exchange Must Not Forget
+# Determinism, Replay, and Persistence, The Exchange Must Not Forget
 
 
 These three properties, determinism, replay, and persistence, are the engineering foundations that allow an exchange to be trusted over long periods. They are closely related and each depends on the others.
 
-### Deterministic Replay
+## Deterministic Replay
 
 A matching engine is **deterministic** if, given the same initial state and the same ordered sequence of input messages, it always produces exactly the same outputs: the same fills, the same cancellations, the same book state, and the same sequence of events.
 
@@ -473,7 +473,7 @@ The key implication for software design: the matching engine must have no hidden
 
 > **Key idea:** The matching engine's determinism is a design requirement, not an implementation detail. Every decision that could introduce non-determinism, reading the clock, using a hash map with randomised iteration order, calling OS functions, must be carefully controlled.
 
-### Sequence Numbers
+## Sequence Numbers
 
 Exchange systems use **sequence numbers** pervasively. Every message on every channel carries a monotonically increasing sequence number. This enables:
 
@@ -484,7 +484,7 @@ Exchange systems use **sequence numbers** pervasively. Every message on every ch
 
 Sequence numbers are distinct from order IDs. An order ID identifies an order throughout its lifetime; a sequence number identifies a message in a specific channel at a specific moment. The same order generates multiple messages (new, partial fill, fill, cancel), each message has its own sequence number.
 
-### Persistence and Recovery
+## Persistence and Recovery
 
 A production exchange cannot lose state across restarts or failures. This requires deliberate persistence design.
 
@@ -500,14 +500,14 @@ A production exchange cannot lose state across restarts or failures. This requir
 
 > **Key idea:** The exchange cannot lose a single order or trade. Persistence is not optional. Every production exchange system is built around the assumption that hardware will fail, software will crash, and the system must recover to exactly the state it had before the failure.
 
-## Reference Data, The Exchange's Ground Truth
+# Reference Data, The Exchange's Ground Truth
 
 
 Every component of an exchange system depends on a common set of facts about the instruments it handles: what symbols exist, what their tick sizes are, what their trading hours are, and dozens of other parameters. This is called **reference data** (also called **static data** or **instrument master data**), and it is the foundational layer that every other component reads from.
 
 Reference data is not glamorous. It does not move prices or fill orders. But a disproportionate fraction of real exchange outages, including some very expensive ones, originate from bad reference data, not from bugs in the matching engine. A matching engine with perfect logic will produce wrong results if given incorrect tick sizes, wrong price scales, or stale contract specifications.
 
-### What Reference Data Contains
+## What Reference Data Contains
 
 For each tradeable symbol, the exchange maintains:
 
@@ -539,7 +539,7 @@ For each tradeable symbol, the exchange maintains:
 - **Circuit breaker thresholds:** How much the price must move in a window before a halt is triggered.
 - **Position limits:** Maximum position any single participant may hold.
 
-### Why Reference Data Is So Dangerous to Get Wrong
+## Why Reference Data Is So Dangerous to Get Wrong
 
 Because reference data is read by every component, matching engine, gateway, clearing, market data, surveillance, a single wrong value can corrupt all of them simultaneously.
 
@@ -553,7 +553,7 @@ Because reference data is read by every component, matching engine, gateway, cle
 
 All of these have happened in real exchanges. Reference data errors have caused trading halts, regulatory interventions, and significant financial losses.
 
-### Reference Data as an Exchange Engineering Problem
+## Reference Data as an Exchange Engineering Problem
 
 For developers, reference data has several important architectural properties:
 

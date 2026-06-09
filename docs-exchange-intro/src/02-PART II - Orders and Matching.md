@@ -29,38 +29,38 @@ Move from concepts to mechanics: how participant intent is encoded in order type
 - Putting It All Together
 
 
-## The Order: The Fundamental Unit
+# The Order: The Fundamental Unit
 
 Everything in an exchange system revolves around the **order**. An order is an instruction from a participant to the exchange: "I want to buy (or sell) a certain quantity of a certain instrument, subject to certain conditions."
 
 Every order carries several key pieces of information:
 
-### Symbol
+## Symbol
 Which instrument. "AAPL" means Apple shares; "MSFT" means Microsoft. The exchange handles a separate order book for each symbol.
 
-### Side
+## Side
 **BUY** or **SELL**. Deceptively simple, but it defines everything about how the order interacts with the book.
 
-### Quantity
+## Quantity
 How many shares (or contracts, or lots) the participant wants to trade. This is typically a positive integer. The term **lot** refers to the standard unit of quantity. For equities, one lot is usually one share, though some markets (particularly Asian exchanges) define a minimum lot size.
 
-### Price (for limit orders)
+## Price (for limit orders)
 The maximum price the buyer will pay, or the minimum price the seller will accept. Orders submitted without a specific price are **market orders** (described below).
 
-### Time-In-Force
+## Time-In-Force
 How long the order remains valid. This is so important it gets its own section below.
 
-### The Arrival Timestamp
+## The Arrival Timestamp
 When the exchange received the order, recorded to nanosecond precision. This is not just metadata, it is a critical part of the fairness mechanism, as you will see when we discuss price-time priority.
 
-### Identity
+## Identity
 Which gateway (participant connection) submitted the order. The exchange uses this for self-match prevention, kill switches, and regulatory reporting.
 
-## Order Types, The Vocabulary of Intent
+# Order Types, The Vocabulary of Intent
 
 The type of an order describes the conditions under which it should execute. Understanding order types is fundamental to understanding exchange system code, because the matching engine has different logic for each type.
 
-### Limit Orders
+## Limit Orders
 
 A **limit order** says: "I am willing to trade at this price or better, but no worse."
 
@@ -71,7 +71,7 @@ The word "limit" refers to the price limit the participant is imposing. If an in
 
 Limit orders are by far the most common order type in most markets.
 
-### Market Orders
+## Market Orders
 
 A **market order** says: "Fill me immediately at whatever the current market price is." There is no price constraint. The exchange executes it against the best available resting orders immediately.
 
@@ -79,7 +79,7 @@ Market orders maximise the probability of immediate execution, but execution is 
 
 Because they have no price to wait at, market orders cannot rest in the book. If they cannot immediately fill, they are cancelled.
 
-### Stop Orders
+## Stop Orders
 
 A **stop order** sits dormant until the market price reaches a specified trigger level (the **stop price**). When triggered, it converts to another order type and enters the book.
 
@@ -88,7 +88,7 @@ A **stop order** sits dormant until the market price reaches a specified trigger
 
 Stop orders do not sit in the regular bid/ask book, they are held in a separate dormant queue and injected into the book only when triggered. It is worth noting that stop orders are not universally supported natively at the exchange level: some exchanges handle stops internally as described here; others leave stop order logic to brokers or client-side systems, sending only the resulting limit or market order to the exchange once the trigger is reached. The exchange system you are building handles stops natively, this is a deliberate design choice.
 
-### Stop-Limit Orders
+## Stop-Limit Orders
 
 A **stop-limit order** is a stop order that, when triggered, converts to a **limit order** rather than a market order. This gives the trader price protection but introduces the risk of non-execution.
 
@@ -96,7 +96,7 @@ Example: A sell stop-limit with a stop price of $145 and a limit price of $144. 
 
 Neither is universally better; the choice depends on whether the trader prioritises execution certainty (stop-market) or price certainty (stop-limit).
 
-### Trailing Stop Orders
+## Trailing Stop Orders
 
 A **trailing stop** is a stop order with a twist: the stop price automatically adjusts as the market moves in a favourable direction, but freezes when it moves against the position.
 
@@ -104,7 +104,7 @@ Example: You bought shares at $150. You set a sell trailing stop with an offset 
 
 The mechanism that advances the stop in the favourable direction is called the **ratchet**, like a mechanical ratchet that only moves in one direction. The trail offset is stored as a fixed distance, and the ratchet advances by subtracting this offset from each new high-water-mark price.
 
-### How a Trailing Stop Actually Executes
+## How a Trailing Stop Actually Executes
 
 This is a point of frequent confusion, so it deserves careful explanation.
 
@@ -122,7 +122,7 @@ To make this concrete with the example above: the stop price has ratcheted up to
 
 Trailing stop logic is not universally implemented at the exchange level. On some venues it is handled client-side (the trading algorithm tracks the high-water mark and adjusts the stop price manually), on others broker-side, and on others natively within the matching engine. Wherever it is implemented, the ratchet behaviour and the dormant-then-market-order execution model are the same.
 
-### Iceberg Orders
+## Iceberg Orders
 
 An **iceberg order** (also called a **reserve order** or **hidden order**) is a large order that conceals most of its size. It shows only a small visible portion, the **peak** or **tip**, to other participants. When the visible portion is consumed by fills, the order automatically replenishes from its hidden reserve, showing a new peak.
 
@@ -132,7 +132,7 @@ The trade-off is **queue priority**: each replenishment gets a fresh timestamp a
 
 Iceberg orders are widely used by institutional investors and market makers on exchanges like the LSE, Euronext, and Deutsche Börse.
 
-### Hidden Liquidity, Priority Rules, and Midpoint Orders
+## Hidden Liquidity, Priority Rules, and Midpoint Orders
 
 Different exchanges treat hidden liquidity differently, and the rules matter for developers building order management systems.
 
@@ -199,7 +199,7 @@ On IEX (a lit exchange), midpoint pegs work slightly differently. The midpoint p
 
 The matching engine must handle midpoint pegs as a separate priority queue that sits parallel to the regular price-time priority book. The mid price must be recalculated on every book update (every time the best bid or best ask changes). The midpoint peg queue must be checked against incoming orders and against each other. The fill price for a midpoint peg match is not a stored order price, it is computed dynamically at match time as (best_bid + best_ask) / 2, requiring care with rounding to the nearest valid tick.
 
-### OCO Orders (One-Cancels-Other)
+## OCO Orders (One-Cancels-Other)
 
 An **OCO order** is a pair of orders linked together by a rule: if either order fills (or is cancelled), the other is automatically cancelled.
 
@@ -212,7 +212,7 @@ Only one of A or B will ever execute. Whichever triggers first cancels the other
 
 OCO orders are a standard feature of most professional trading platforms and are supported by exchanges including CME and CBOE.
 
-### Combo Orders
+## Combo Orders
 
 A **combo order** (also called a **spread order** or **strategy order**) is a single instruction to simultaneously execute orders in multiple instruments. Each component is called a **leg**. [12]
 
@@ -222,7 +222,7 @@ Combo orders are critical in derivatives markets. On CME, a futures trader might
 
 The execution challenge is **leg risk**: if one leg fills and the other does not, the trader is left with an unintended one-sided position. Production exchange systems handle this with sophisticated combo matching engines; simpler systems accept the leg risk explicitly.
 
-### Implied Orders, Synthetic Liquidity from Existing Orders
+## Implied Orders, Synthetic Liquidity from Existing Orders
 
 This concept trips up almost every developer encountering derivatives exchange systems for the first time. Read it slowly.
 
@@ -232,7 +232,7 @@ In a market with both outright order books (January futures, February futures) a
 
 The critical thing to understand before the example: **implied orders do not create liquidity from nowhere.** They are a different expression of liquidity that already exists. This distinction will become completely clear through the example.
 
-#### A Step-by-Step Implied Order Example
+### A Step-by-Step Implied Order Example
 
 **The instruments.** We have three order books:
 
@@ -308,13 +308,13 @@ In both cases, the February implied offer is entirely derived from the other two
 
 Now remove Trader A's January order and watch what happens: the implied February offer disappears instantly, because one of its two components is gone. This is the definitive proof that the implied book holds no independent liquidity.
 
-#### The Two Directions of Implied Matching
+### The Two Directions of Implied Matching
 
 The example above is **implied-in**: an outright order plus a spread order imply a new outright in the other month.
 
 The reverse is **implied-out**: two outright orders imply a spread. If there is a January buyer at $75 and a February seller at $77, the engine can see an implied spread sell at $75 − $77 = −$2. This implied spread sell can match a resting spread buyer at −$2. CME Globex supports both implied-in and implied-out across all its major futures products.
 
-#### Developer Implications
+### Developer Implications
 
 Implied matching creates several engineering challenges that are absent from simple outright matching:
 
@@ -328,45 +328,45 @@ Implied matching creates several engineering challenges that are absent from sim
 
 > **Key idea:** Implied orders are not free liquidity. They are a mechanism for expressing in one market the combined willingness already committed in two other markets. When an implied order matches, it consumes real orders from real books. The total liquidity in the system decreases by exactly the quantity matched, just as it would in any ordinary trade.
 
-## Time-In-Force, How Long Should the Order Live?
+# Time-In-Force, How Long Should the Order Live?
 
 
 Every order must specify how long it should remain active if not immediately filled. This is called **Time-In-Force (TIF)** and is a standard attribute on every order in every major exchange system.
 
-### DAY
+## DAY
 The order is valid only for the current trading session. At the end of the session, it is automatically cancelled. This is the default and most common TIF.
 
-### GTC, Good-Till-Cancelled
+## GTC, Good-Till-Cancelled
 The order remains active until it is completely filled or explicitly cancelled by the participant. It survives overnight, across weekends, and across holidays. This requires special handling by the exchange: GTC orders must be persisted to durable storage at the end of each session and reloaded at the start of the next.
 
 The risk for the participant: a GTC order placed when a stock was at $100 might unexpectedly fill at a different point in the market cycle if the participant forgets about it.
 
-### GTD, Good-Till-Date
+## GTD, Good-Till-Date
 A variant of GTC with a specified expiry date and time. The order remains active until it is completely filled, explicitly cancelled, or the specified expiry date arrives, whichever comes first. On the expiry date the order is automatically cancelled regardless of fill status.
 
 GTD is standard on most professional trading platforms and widely used by institutional investors who want the persistence of GTC without the open-ended risk of an order remaining active indefinitely. A fund manager expecting a news event on a specific date might place limit orders to accumulate a position and use GTD to ensure they expire automatically if not filled by the event date.
 
 From an engineering perspective GTD behaves like GTC with an additional scheduled cancellation task: the exchange's session scheduler must track each GTD order's expiry and issue the cancellation at the right moment, even if no other event in the system triggers it.
 
-### ATO, At-The-Open
+## ATO, At-The-Open
 The order is valid only during the **opening auction** (the special matching procedure that establishes the first price of the day). If not filled in the opening auction, it is cancelled. On NYSE, these are sometimes called **Market-At-Open (MOO)** or **Limit-At-Open (LOO)** orders depending on whether they carry a price limit.
 
 An important restriction: ATO orders submitted after the opening auction has concluded are rejected, the TIF cannot be satisfied after the moment it targets has passed. Some exchanges accept ATO orders throughout the pre-open period; others impose a cutoff time before the auction begins.
 
-### ATC, At-The-Close
+## ATC, At-The-Close
 Valid only during the **closing auction**. Extremely common among institutional investors who need to trade at or near the official closing price, many funds are benchmarked against closing prices. On NYSE, the closing auction on a typical day handles a substantial portion of the day's entire volume in the final moments of trading [See NYSE Closing Auction Dynamics, 2023].
 
 Like ATO, ATC orders submitted after the closing auction has already run are rejected. Unlike DAY orders, ATC orders cannot accumulate position through the continuous session, they are specifically targeting the single closing price that emerges from the auction uncross.
 
-### IOC, Immediate-Or-Cancel
+## IOC, Immediate-Or-Cancel
 Fill as much as possible immediately; cancel any unfilled remainder instantly. Unlike a market order, an IOC can carry a limit price: "Fill whatever you can at $150.30 or better right now; cancel the rest." IOC orders never rest in the book.
 
-### FOK, Fill-Or-Kill
+## FOK, Fill-Or-Kill
 Fill the **entire** quantity immediately, or cancel the entire order without any partial fill. Used when partial fills are unacceptable, for instance, an arbitrage strategy that only works if the full quantity executes simultaneously across legs.
 
 The exchange must verify available liquidity before executing any fills. In practice, the engine performs a **dry-run sweep**: it walks through the book checking whether the full quantity can be matched at acceptable prices, without committing any fills. Only if the full quantity is satisfiable does the engine execute the actual fills. If at any point the available depth is insufficient, including because part of the available liquidity belongs to the same participant (which SMP would cancel), the entire order is cancelled without a single fill occurring. This is more complex than a standard market order sweep: the engine must complete a full hypothetical assessment of the book before touching it.
 
-## The Order Book, The Exchange's Memory
+# The Order Book, The Exchange's Memory
 
 
 The **order book** (also called the **limit order book** or **LOB**) is the central data structure of a matching engine [1] [2]. It is the live record of every resting order in the market, all the buyers waiting to buy and all the sellers waiting to sell, organised by price.
@@ -379,7 +379,7 @@ Think of it as two sorted lists:
 
 **The ask side** (also called the **offer side**), all resting sell orders, sorted from the lowest price (most attractive for buyers) up to the highest. A seller asking $150.35 is at the top of the ask side if no one is asking less.
 
-### The Spread
+## The Spread
 
 The **spread** is the gap between the best bid (highest buy offer) and the best ask (lowest sell offer). If the best bid is $150.30 and the best ask is $150.35, the spread is $0.05.
 
@@ -389,13 +389,13 @@ A **tight spread** (small gap) indicates a liquid, efficiently-priced market. A 
 
 The **mid price** is the arithmetic average of the best bid and best ask: (150.30 + 150.35) / 2 = $150.325. This is often used as the "current price" of an instrument when no trade has occurred recently.
 
-### Depth
+## Depth
 
 **Depth** refers to how much quantity is resting at each price level. A market with 50,000 shares resting within $0.05 of the best bid is "deep", you can trade a large size without moving the price much. A market with only 100 shares available near the best price is "shallow", a single large order will sweep through multiple price levels.
 
 **Level 1 data** shows only the best bid price, best ask price, and quantities. **Level 2 data** (also called **market depth** or the full order book) shows all resting price levels. Professional traders subscribe to Level 2 data because depth reveals information about near-term price pressure.
 
-### Measuring Depth
+## Measuring Depth
 
 Depth is not a single number, it is a shape. Practitioners and algorithms use several derived measures to quantify it for different purposes.
 
@@ -431,11 +431,11 @@ The **market impact** is the difference between this average and the initial bes
 
 **Volume-at-touch vs total book depth.** A useful distinction: *volume at touch* is only the best bid and ask (Level 1). *Total book depth* includes all visible levels. An iceberg order contributes only its visible peak to displayed depth, so total book depth may understate available liquidity if icebergs are present. This is why dark pool liquidity (invisible until matched) and iceberg reserves (invisible until refreshed) are relevant even to participants who believe they can read the full book.
 
-### Price Levels
+## Price Levels
 
 A **price level** is a single specific price at which one or more orders are resting. All orders at $150.30 form one price level on the bid side. When all orders at a given price level have been filled or cancelled, that price level disappears from the book.
 
-### The Order Book Is Not the Market Price
+## The Order Book Is Not the Market Price
 
 This is a subtle but important point: the order book shows only **resting orders**, orders that have not yet traded. The current market price, as quoted in news tickers and trading apps, is typically the price of the **most recent actual trade**, not the price of any resting order. After a trade happens, the market price updates. Between trades, the price is conventionally shown as the mid of the book.
 
@@ -455,11 +455,11 @@ The closing price carries particular weight precisely because it is independentl
 
 For exchange developers, the closing price has several concrete implications. It is the reference that the static price collar compares each new day's orders against. It is the benchmark that performance reports are measured against. It is the number that triggers overnight margin calls if positions have moved far enough. And it is the price that must be persisted at end of session, broadcast to all downstream systems, and made available when the exchange reopens the following morning.
 
-### What the World Sees vs What the Engine Knows
+## What the World Sees vs What the Engine Knows
 
 Most market participants see only an **aggregated view** of the book: total quantity at each price level, without knowing how many individual orders make up that quantity or who placed them. The exchange itself knows the full detail, every individual order, its owner, its arrival time, its type. Publishing the aggregated view is part of the exchange's **market data** service; it's how participants observe the market.
 
-## Price-Time Priority, The Fairness Rule
+# Price-Time Priority, The Fairness Rule
 
 
 One of the most fundamental questions an exchange must answer is: when multiple resting orders are at the same price, which one gets filled first?
@@ -487,7 +487,7 @@ Pro-rata rewards size over speed: a large order gets more even if it arrived lat
 
 For the exchange to implement price-time priority correctly, two things must be true: prices must be comparable without ambiguity (hence integer tick counts), and order arrival must be sequenced deterministically. Modern exchange systems use **nanosecond-precision timestamps** as one component of this sequencing. However, the timestamp alone does not fully guarantee fairness, what matters is the order in which messages are **accepted into the exchange system**, which also depends on network routing, gateway sequencing, and in high-performance systems, hardware timestamping infrastructure. The timestamp records when the exchange received the order; the sequencing infrastructure ensures that two orders arriving within the same nanosecond are ordered consistently and reproducibly.
 
-### How Order Amendments Affect Priority
+## How Order Amendments Affect Priority
 
 Orders do not always stay unchanged from submission to fill. Participants modify their orders, adjusting price, changing quantity, or occasionally altering other attributes. The question of how an amendment affects queue priority is important, and the rules are consistent across almost all major exchanges.
 
@@ -509,7 +509,7 @@ These rules hold on NYSE, NASDAQ, CME, Eurex, LSE, and virtually every other maj
 
 **Implications for software:** the exchange engine must apply the correct priority rule based on the type of amendment. A modify message that contains only a quantity decrease should leave the order's timestamp unchanged. Any other modification, price change, quantity increase, TIF change, or unknown field change, should assign a new timestamp. The simplest safe implementation: treat all amendments other than quantity decrease as cancel-plus-new-order.
 
-### Ticks: The Minimum Price Increment
+## Ticks: The Minimum Price Increment
 
 Prices in financial markets do not move continuously. They move in discrete steps called **ticks**. The minimum price movement is the **tick size**.
 
@@ -523,12 +523,12 @@ The standard solution is to store prices as **integer tick counts**: the number 
 
 **What happens when a non-aligned price is submitted?** If a participant submits a limit buy at $150.305 when the tick size is $0.01, the price is not a valid tick multiple. The pre-trade validation layer rejects the order before it reaches the matching engine and returns an error message identifying the nearest valid prices on either side ($150.30 and $150.31) so the participant can resubmit correctly. The order receives REJECTED status and never enters the book. This becomes especially important at larger tick sizes, a futures product with a $0.25 tick makes it easy to accidentally submit a price like $150.10 that falls between valid multiples.
 
-## The Matching Engine, The Heart of the Exchange
+# The Matching Engine, The Heart of the Exchange
 
 
 The **matching engine** is the software that receives orders, manages the order book, and executes trades when buy and sell orders are compatible. It is the exchange's most critical, performance-sensitive component.
 
-### The Core Loop
+## The Core Loop
 
 At its simplest, the matching engine runs an endless loop:
 1. Receive an incoming order.
@@ -538,7 +538,7 @@ At its simplest, the matching engine runs an endless loop:
 5. Check if any dormant stop orders have now been triggered by the new trade price.
 6. Publish the results (trades, order status changes) to participants and subscribers.
 
-### The Sweep
+## The Sweep
 
 When an aggressive order arrives and begins filling against the resting book, this process is called **sweeping** the book. The aggressive order works through price levels one by one, from best to worst, until either it is fully filled or it reaches its limit price (or the book runs out of orders).
 
@@ -551,7 +551,7 @@ For example, a market buy order for 5,000 shares arrives:
 
 The price impact of sweeping through multiple levels is called **slippage** or **market impact**, the large order moved the effective price away from the initial best ask.
 
-### Single-Threaded by Design
+## Single-Threaded by Design
 
 Perhaps counterintuitively, most matching engines are **single-threaded**, they process orders one at a time, in strict sequence, with no parallel processing of orders. This is not a performance limitation; it is a deliberate design choice.
 
@@ -563,7 +563,7 @@ By processing orders in a single thread, the engine guarantees that the outcome 
 
 The performance requirement is achieved through algorithmic efficiency (correct data structures, avoiding unnecessary computation) rather than parallelism. The world's fastest matching engines can process orders in microseconds or even nanoseconds.
 
-### One Book Per Symbol
+## One Book Per Symbol
 
 The matching engine maintains one order book per tradeable symbol. AAPL trades in one book, MSFT in another. These books are entirely independent, an order in the AAPL book cannot interact directly with an order in the MSFT book (combo orders handle cross-symbol interaction at a higher level).
 
@@ -581,18 +581,18 @@ Conceptually, one logical order book per symbol is the correct mental model. In 
 
 For exchange system developers, this means the "separate process per symbol" architecture that works cleanly for single-instrument matching must be extended, or wrapped with a higher-level combinator, to handle any multi-leg or implied matching requirements.
 
-### The Role of Data Structures
+## The Role of Data Structures
 
 The order book needs to answer one question extremely fast: "What is the best available price right now?" Priority queues and heap-like structures are conceptually useful for understanding this, a heap gives O(1) access to the minimum or maximum element, and O(log n) insertion and deletion, which suits the matching engine's primary operations well.
 
 Production exchange engines, however, often use more specialised data structures optimised for FIFO ordering within price levels, cache locality, and deterministic latency: balanced trees, skip lists, or intrusive linked lists indexed by price level are common. The conceptual model of "best price always accessible in O(1)" is correct regardless of the underlying structure; the heap is a pedagogically useful approximation of what these structures achieve.
 
-## The Life of a Trade
+# The Life of a Trade
 
 
 Let us trace a single trade from start to finish.
 
-### Order Submission
+## Order Submission
 
 Participant A, connected through Gateway GW01, submits a limit buy order: "Buy 500 shares of AAPL at $150.30, DAY." The gateway validates the basic format and forwards it to the matching engine.
 
@@ -603,7 +603,7 @@ The engine receives the order and assigns it:
 
 The engine publishes an **acknowledgment (ACK)** back to GW01 confirming the order is live. The order now rests in the book.
 
-### The Match
+## The Match
 
 Moments later, Participant B, connected through Gateway GW02, submits a sell limit order: "Sell 500 shares of AAPL at $150.30, DAY." Or perhaps a market sell order. Either way, the engine determines that this sell order can match the resting buy order.
 
@@ -625,15 +625,15 @@ A **trade record** is created, capturing:
 
 The aggressor field is more than just a label. It matters for several reasons. First, for **fee calculation**: most exchanges charge takers (aggressors) a fee and pay makers (resting orders) a rebate, so correctly identifying which side was aggressive determines the billing for each trade. Second, for **regulatory reporting**: in some jurisdictions, trades must be classified as "buy-initiated" or "sell-initiated" based on which side was the aggressor. Third, for **market analysis**: the sequence of buyer-initiated and seller-initiated trades is a standard input to microstructure models that infer order flow direction and predict short-term price movement. Fourth, for **clearing**: in some clearing architectures, the aggressor side may have different margin or settlement obligations.
 
-### Partial Fills
+## Partial Fills
 
 If Order A was for 500 shares but only 300 shares were available at $150.30, a **partial fill** occurs: 300 shares trade, Order A's status becomes **PARTIAL** with 200 shares remaining, and it continues resting at $150.30 waiting for more sellers.
 
-### Publication
+## Publication
 
 Every trade is immediately published over the market data feed to all subscribers. The viewer, board, stats database, clearing system, and any other subscriber all receive the trade notification within microseconds of it occurring.
 
-### Order Status Lifecycle
+## Order Status Lifecycle
 
 An order passes through a defined set of statuses during its lifetime. Understanding these is essential for anyone building order management, reporting, or audit systems.
 
@@ -668,14 +668,14 @@ stateDiagram-v2
 
 > **Key idea for developers:** REJECTED is fundamentally different from CANCELLED. A rejected order never existed in the book; a cancelled order did. Audit trails must record both, but they have different implications for position tracking (a rejected order has no position impact) and for regulatory reporting.
 
-## Market Makers, The Providers of Liquidity
+# Market Makers, The Providers of Liquidity
 
 
 Earlier we introduced market makers conceptually as liquidity providers. In this section we examine their operational interaction with the exchange in much greater detail: quote lifecycles, formal obligations, protection mechanisms, inventory risk, and the software implications of supporting them.
 
 > **Key idea:** Market making is not a passive activity. The market maker's position, risk, and obligations change with every fill, every second of elapsed quoting time, and every price movement in the market. The exchange system must enforce all of this automatically, in real time, without manual intervention.
 
-### Market Maker Obligations
+## Market Maker Obligations
 
 Being a designated market maker is not a free lunch. The exchange grants privileges, reduced fees, faster data access, and in some markets priority access to certain order flow, but in return imposes binding contractual obligations. These are monitored continuously in real time. Failing to meet them results in financial penalties or loss of market maker status.
 
@@ -693,7 +693,7 @@ The typical obligations, in descending order of fundamentality, are:
 
 **6. Re-quoting obligation.** After either side of a quote is filled, the market maker must post a fresh replacement quote within a specified maximum delay, typically a few hundred milliseconds to a few seconds depending on the product and exchange. The exchange system must track fill events and monitor whether replacement quotes arrive in time.
 
-### The Two-Sided Dilemma: When One Side Is Taken
+## The Two-Sided Dilemma: When One Side Is Taken
 
 The obligations above sound manageable until you think carefully about what happens at the moment of a fill. This is where market making becomes genuinely complex.
 
@@ -705,7 +705,7 @@ An aggressive sell order arrives and hits the bid. The market maker has just bou
 
 The exchange system must have a defined policy about what to do with the surviving side, because these events occur in microseconds with no time for manual decisions.
 
-### Quote Refresh Policies
+## Quote Refresh Policies
 
 The **quote refresh policy** is the rule governing what happens to the surviving leg of a two-sided quote when the other leg fills.
 
@@ -717,7 +717,7 @@ The **quote refresh policy** is the rule governing what happens to the surviving
 
 The exchange system must implement all variants, configurable per market maker per product, typically via a quote refresh policy setting checked each time a quote leg fills.
 
-### Market Maker Protection (MMP)
+## Market Maker Protection (MMP)
 
 Even with careful refresh policies, market makers face a specific danger: **adverse selection at high speed**.
 
@@ -731,7 +731,7 @@ After MMP fires, the market maker enters a **protection period** to assess and d
 
 In a typical implementation a fill-counter function tracks fills against the rolling window, and an MMP activation function cancels all resting quotes for that market maker when the threshold is exceeded.
 
-### The Full Lifecycle of a Market Maker Quote
+## The Full Lifecycle of a Market Maker Quote
 
 ```mermaid
 flowchart TD
@@ -752,12 +752,12 @@ flowchart TD
 
 This cycle, repeating dozens of times per minute per symbol, is what "providing liquidity" means operationally. A professional market maker runs sophisticated algorithms that evaluate every fill, update pricing models, and decide within microseconds whether and at what prices to re-quote.
 
-## The Opening and Closing Auction
+# The Opening and Closing Auction
 
 
 Trading does not simply start at 9:30am and stop at 4:00pm (for US equities). The transition between closed and open trading is managed through a **call auction**, also called a **fixing** or **uncross**.
 
-### The Problem an Auction Solves
+## The Problem an Auction Solves
 
 Imagine the exchange has been closed overnight. Many participants have new orders to submit. If the exchange simply opened and started matching immediately, the first few orders would define the opening price, which would be arbitrary and potentially far from "fair value" based on overnight news.
 
@@ -773,7 +773,7 @@ Instead, exchanges run an **opening auction**:
 
 The result is a fair opening price that reflects the overnight information available to all participants simultaneously, rather than favouring whoever happened to submit their order a few milliseconds earlier.
 
-### Finding the Equilibrium Price
+## Finding the Equilibrium Price
 
 The equilibrium price is the price that maximises total traded volume, the **maximum executable volume rule**. For each candidate price, the algorithm calculates:
 - How many buy orders would trade at that price or better (buyers willing to pay at least that much)
@@ -793,40 +793,40 @@ The executable volume at each candidate price is `min(cumulative_bids, cumulativ
 
 **Auction imbalance messaging:** Exchanges often publish the **imbalance**, how many more shares are on the buy side than the sell side at the indicative price, to help participants decide whether to submit offsetting orders before the uncross. NYSE publishes closing auction imbalances starting at 3:45pm, giving participants 15 minutes to respond before the 4:00pm uncross.
 
-### The Closing Auction
+## The Closing Auction
 
 The closing auction works identically but at the end of the day, establishing the official **closing price**. This is one of the most important prices in the market, it is used to benchmark fund performance, price derivatives, and compute official valuations of positions. The NYSE closing auction is one of the most liquidity-rich events in the US equity market, regularly trading billions of dollars in seconds.
 
-## Trading Sessions, The Day in the Life of a Market
+# Trading Sessions, The Day in the Life of a Market
 
 
 A trading day is structured into distinct phases, each with different rules about what is allowed.
 
-### Pre-Open / Pre-Market
+## Pre-Open / Pre-Market
 
 Before the formal opening, some exchanges accept orders for the day (limit orders, ATO orders, GTC orders from previous days). No matching occurs. This is the accumulation phase for the opening auction.
 
-### Opening Auction
+## Opening Auction
 
 As described above, orders collected, equilibrium computed, uncross executed, continuous trading begins.
 
-### Continuous Trading (the main session)
+## Continuous Trading (the main session)
 
 The normal matching mode. Orders arrive continuously, the engine matches them in real time, trades happen as soon as compatible orders meet. This is the primary trading session, NYSE runs from 9:30am to 4:00pm Eastern time, LSE from 8:00am to 4:30pm London time.
 
-### Intraday Auction (optional)
+## Intraday Auction (optional)
 
 Some exchanges run a brief mid-day auction to handle large orders or specific instruments. Eurex runs scheduled intraday auctions for certain futures products.
 
-### Closing Auction
+## Closing Auction
 
 As described above, continuous trading pauses, orders for the closing price accumulate, equilibrium computed, uncross executed.
 
-### Post-Close
+## Post-Close
 
 After the formal close, some exchanges allow limited after-hours trading (though with wider spreads and lower liquidity). GTC orders that didn't fill are persisted for the next day. The book is saved.
 
-### State Machine
+## State Machine
 
 A well-designed exchange system models these transitions as a **state machine**, a finite set of states with explicit rules about which transitions are allowed. You cannot jump from PRE_OPEN directly to CLOSED without going through OPENING_AUCTION and CONTINUOUS. This prevents bugs where the engine enters an impossible state due to a software error or out-of-order messages. If the transition is not in the allowed list, the system rejects it.
 
@@ -857,7 +857,7 @@ stateDiagram-v2
 
 Each arrow represents a permitted transition. Any attempt to trigger a transition not shown is rejected as invalid. This state machine is enforced in the exchange's session scheduler, which issues state change commands to the matching engine at the appropriate times.
 
-## Putting It All Together
+# Putting It All Together
 
 
 Let us trace the life of a complex event through the entire system using the vocabulary we have now built.

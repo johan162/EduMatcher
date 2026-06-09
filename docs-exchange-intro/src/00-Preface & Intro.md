@@ -15,16 +15,19 @@ Status: Published
 
 # Preface
 
-You have been asked to work on a financial exchange system. The codebase is full of words like "bid," "ask," "FOK," "the book," "OCO," "circuit breaker," "drop copy," and "kill switch," and many more. These are not arbitrary names, each one represents a concept that evolved over decades of real-world market operation, regulation, and hard-won lessons about what can go wrong when large amounts of money change hands at high speed.
+This is a book for anyone who find themselves having been asked to work on a financial exchange system, and yet, has no financial background. Scary. The codebase is full of words like "bid," "ask," "FOK," "the book," "OCO," "circuit breaker," "drop copy," and "kill switch," and many more. These are not arbitrary names, each one represents a concept that evolved over decades of real-world market operation, regulation, and hard-won lessons about what can go wrong when large amounts of money change hands at high speed. You just happened be "unlucky" enough to start when all these terms have already been defined. Had you instead started 50:ish years ago all the terms did not yet exist and you would instead had seen them come to live organically.
 
-This document is a conceptual map. It will not show you a single line of code. Instead, it will walk you through the world your code inhabits: the participants, the rules, the safeguards, and the architecture that together constitute a financial exchange. By the end, you should be able to read a description of a market event, "GW01 submitted a GTC iceberg order that triggered a circuit breaker halt; the matching engine moved to CLOSING_AUCTION state and the scheduler notified all subscribers via the PUB socket", and understand every word of it.
+This document is a conceptual map. It will not, on purpose, show you a single line of code. Instead, it will walk you through the world your code inhabits: the participants, the rules, the safeguards, and the architecture that together constitute the outlines of a financial exchange. By the end, you should be able to read a description of a market event, "GW01 submitted a GTC iceberg order that triggered a circuit breaker halt; the matching engine moved to CLOSING_AUCTION state and the scheduler notified all subscribers via the PUB socket", and understand every word of it.
 
 By necessity most of the concepts are only very briefly discussed. Any fuller discussion would render 100's of pages of hard-core finance literature and the point of this document is not to be a complete introduction to finance (if even such a thing is possible). Instead you will find excellent academic references (that I have drawn upon in writing this) that do indeed have 100's of pages of, sometimes very complex math, at the end of this document.
 
 Real exchanges are referenced throughout to anchor the concepts in reality. The NYSE (New York Stock Exchange), CME Group (Chicago Mercantile Exchange), Eurex, LSE (London Stock Exchange), NASDAQ, and IEX are among the most influential exchanges in the world, and each has contributed to the vocabulary and practices you will encounter here. 
 
+In other words, this document is an introduction to financial exchange systems aimed at persons with no prior professional financial background that will need to understands these concepts, on occasions even on a very detailed level. The concepts described here apply equally to production exchange systems at NYSE, NASDAQ, CME, Eurex, LSE, and any other regulated marketplace. The regulations, market structures, and specific rules of real exchanges are often much more complex than described here, this document is only an introduction, not a complete specification. When in doubt, consult the official rulebooks of the relevant exchange.
 
-*This document is a conceptual introduction to financial exchange systems for software developers. The concepts described here apply equally to production exchange systems at NYSE, NASDAQ, CME, Eurex, LSE, and any other regulated marketplace. The regulations, market structures, and specific rules of real exchanges are more complex than described here, this document is an introduction, not a complete specification. When in doubt, consult the official rulebooks of the relevant exchange.*
+
+Johan Persson,
+July 2026, Järnboås, Bergslagen
 
 
 # Table of Contents

@@ -25,16 +25,16 @@ Focus on market safety and accountability: the controls that prevent bad orders,
 - A Cautionary Tale, Knight Capital, August 1, 2012
 
 
-## Pre-Trade Risk Controls: Before the Matching Engine
+# Pre-Trade Risk Controls: Before the Matching Engine
 
 
 The matching engine is the heart of the exchange, but many orders never reach it. A layer of **pre-trade risk controls** sits between the participant and the matching engine, rejecting orders that violate size, price, or credit constraints before any matching logic runs. This separation matters architecturally: the matching engine is optimised purely for speed; risk checking is separated so that it can be comprehensive without slowing the core matching path.
 
-### Why a Separate Risk Layer?
+## Why a Separate Risk Layer?
 
 A professional trading firm may submit thousands of orders per second. Even a brief software malfunction, a misconfigured algorithm, a bad data feed, a network glitch causing order duplication, can flood the exchange with harmful orders. If each of these reached the matching engine, the damage could propagate to other participants through filled trades that cannot easily be reversed. Pre-trade risk controls are the exchange's first line of defence.
 
-### Common Pre-Trade Checks
+## Common Pre-Trade Checks
 
 **Maximum order quantity.** An order for 1 billion shares is almost certainly an error. Every exchange imposes an upper limit on the quantity of any single order. The limit may be absolute (no order may exceed X shares) or relative (no order may exceed Y% of the recent average daily volume).
 
@@ -48,7 +48,7 @@ A professional trading firm may submit thousands of orders per second. Even a br
 
 **Self-match prevention (SMP).** Detects when an incoming order would match against a resting order from the same participant, a "wash trade." Applied as a pre-trade check or within the matching engine depending on implementation.
 
-### The Gateway as Risk Layer
+## The Gateway as Risk Layer
 
 In most production architectures, the gateway performs these checks. The gateway is the first system to touch an incoming order; it can reject it immediately without the order ever reaching the matching engine's single-threaded queue. This keeps the matching engine clean and fast.
 
@@ -56,12 +56,12 @@ The consequence for software design: the gateway and the matching engine have di
 
 > **Key idea:** The matching engine is optimised for speed, not safety. Safety is enforced before the order arrives. Developers working on gateway code must treat pre-trade checks as first-class functionality, not as an afterthought.
 
-## Risk Controls, Protecting the Market
+# Risk Controls, Protecting the Market
 
 
 An exchange has a duty not just to its participants but to market stability as a whole. The risk controls described in this section exist because markets can go very wrong, very fast.
 
-### Circuit Breakers
+## Circuit Breakers
 
 A **circuit breaker** (also known [Trading Curb](https://share.google/ueieYolUF9JVVvu3V) in regulatory terms ) is a mechanism that automatically halts trading when prices move too fast. The name comes from electrical circuit breakers, they "trip" to prevent damage when current (activity) becomes excessive.
 
@@ -69,7 +69,7 @@ A **circuit breaker** (also known [Trading Curb](https://share.google/ueieYolUF9
 
 **The basic mechanism:** After each trade, the exchange calculates how much the price has moved relative to a reference price (typically the most recent auction price, or the price at the start of a defined time window). If the movement exceeds a configured threshold in either direction, trading in that symbol is halted. During the halt, new orders can still be submitted and will rest in the book, but no matching occurs. When the halt ends, trading resumes through a **resumption auction** rather than instantly returning to continuous matching, this ensures that the first post-halt price is determined by the broadest available supply and demand, not by a single resting order that happens to be at the top of a thin book.
 
-### Should Halt Duration Be Fixed or Proportional to Move Size?
+## Should Halt Duration Be Fixed or Proportional to Move Size?
 
 This is a genuine design question, and the answer, confirmed by how major markets actually operate, is that both the trigger thresholds *and* the halt durations should be graduated by severity. The reasoning is straightforward: the purpose of a halt is to allow participants enough time to respond. A 0.5% move may reflect a momentary liquidity gap that resolves in two minutes. A 15% move may reflect genuine macroeconomic news that requires participants to read announcements, consult risk managers, recalculate valuations, and obtain fresh margin collateral, a process that cannot be completed in two minutes no matter how urgently it proceeds.
 
@@ -79,7 +79,7 @@ There is also a clearing-house dimension: a large move triggers margin calls at 
 
 The practical resolution used by many exchanges is a **minimum halt with conditional extension**: the halt lasts at least the minimum duration, but the resumption auction can be extended in fixed increments (say, 2 minutes at a time) if the indicative uncross price is still far from the reference price when the auction is about to close. This bounds the uncertainty (participants know the halt is at least N minutes) while preventing a forced uncross at a price nobody believes in.
 
-### Tiered Thresholds and Durations: How Major Markets Actually Work
+## Tiered Thresholds and Durations: How Major Markets Actually Work
 
 **US market-wide circuit breakers (S&P 500 index)**
 
@@ -107,7 +107,7 @@ For individual stocks, the US LULD system takes a complementary approach: rather
 
 If the price moves outside the band, a 15-second monitoring period begins. If the price does not return inside the band within 15 seconds, a 5-minute trading pause is triggered. The halt duration is fixed at 5 minutes regardless of how far the price moved, but the threshold that triggers the halt reflects the instrument's normal volatility characteristics.
 
-### Historical circuit breaker 
+## Historical circuit breaker 
 
 In March 2020, the *Level 1* market-wide circuit breaker was triggered 4 times within a two-week period due to pandemic-related panic and an oil price war.
 
@@ -150,7 +150,7 @@ Eurex uses **volatility interruptions** for individual futures and options produ
 
 JPX (Japan Exchange Group) uses a different paradigm: instead of a halt, the exchange imposes **daily price limits** that prevent the price from moving more than a set percentage from the previous close. If the price hits the limit (up or down), trading can continue at that price but cannot move beyond it. This is a continuous constraint rather than a discrete halt, the market remains open but price movement is bounded. If the next day opens near the limit, the limit is widened. This approach prioritises continuity over interruption.
 
-### Design Implications for Exchange System Developers
+## Design Implications for Exchange System Developers
 
 A well-designed circuit breaker subsystem is not a single boolean "halt or not halt." It is a configurable, multi-tier system with the following parameters per instrument (or instrument group):
 
@@ -169,7 +169,7 @@ All of these should be stored in reference data and readable at runtime without 
 
 
 
-### Price Collars (Collar Bands)
+## Price Collars (Collar Bands)
 
 **Price collars** are price filters that reject individual orders whose submitted price is too far from a reference price.
 
@@ -185,7 +185,7 @@ The two collars serve different purposes:
 - The static collar protects against outright mistakes (orders many times the current price).
 - The dynamic collar protects against gradual manipulation or runaway algorithms.
 
-### Self-Match Prevention (SMP)
+## Self-Match Prevention (SMP)
 
 A participant should not be able to trade with themselves. If you have a resting sell order at $150.35 and you submit a buy order at $150.40, those orders would match, but both sides belong to you. No real change of ownership has occurred; you have simply generated artificial trading volume. This is called **wash trading** and is illegal under most exchange regulations.
 
@@ -197,7 +197,7 @@ A participant should not be able to trade with themselves. If you have a resting
 
 Different strategies suit different circumstances. A market maker who is re-quoting (sending new bids and asks continuously) might prefer Cancel Resting to ensure their latest quote is the active one. A participant who wants to protect their standing orders would choose Cancel Aggressor.
 
-### Kill Switch
+## Kill Switch
 
 A **kill switch** is an emergency control that immediately cancels every resting order and quote associated with a specific participant or gateway connection.
 
@@ -210,7 +210,7 @@ After a kill switch, the participant's connection is typically marked as **inact
 
 Kill switches are mandatory features under regulations like MiFID II (the European Union's Markets in Financial Instruments Directive) and are audited by regulators. Every exchange must demonstrate the ability to cancel a participant's orders immediately when required.
 
-### Mass Cancel, Not the Same as a Kill Switch
+## Mass Cancel, Not the Same as a Kill Switch
 
 These two mechanisms are frequently confused because they both result in orders being cancelled. They serve entirely different purposes and have entirely different consequences for the participant.
 
@@ -242,12 +242,12 @@ A kill switch is invoked when a system is out of control. A mass cancel is invok
 
 > **Key idea:** Use a kill switch when something has gone wrong and a human must intervene before trading resumes. Use a mass cancel when a participant wants to cancel orders as part of normal operation. The difference is not just functional, it is architectural: the kill switch changes the gateway state; the mass cancel does not.
 
-## Self-Match Prevention, When You Would Trade with Yourself
+# Self-Match Prevention, When You Would Trade with Yourself
 
 
 **Self-match prevention (SMP)** deserves its own treatment because it is one of the most commonly misunderstood features of exchange systems, and because it has both regulatory and operational dimensions.
 
-### The Problem
+## The Problem
 
 Imagine a market maker who runs two algorithms simultaneously, one placing bids, another sweeping asks. If the bid algorithm quotes $150.30 and the ask algorithm routes a buy order at $150.30 or higher, the two sides match against each other. No ownership has changed hands; no real trade has occurred. Both sides belong to the same firm.
 
@@ -257,7 +257,7 @@ This is called a **wash trade**. It is problematic for several reasons:
 - It creates artificial price pressure (many wash trades in sequence can move a price without genuine supply/demand).
 - It is illegal under market manipulation regulations in most jurisdictions (the EU's Market Abuse Regulation, the US SEC's Rule 10b-5, and others explicitly prohibit wash trading).
 
-### The SMP Mechanism
+## The SMP Mechanism
 
 SMP detects the wash condition and applies one of several policies before any fill occurs:
 
@@ -269,23 +269,23 @@ SMP detects the wash condition and applies one of several policies before any fi
 
 **Allow the match (no SMP)**: Some systems permit self-matching in testing environments or for specific account structures where the "two sides" are legally distinct entities despite sharing a gateway ID. In most production environments, SMP is always on.
 
-### How SMP Identifies a Self-Match
+## How SMP Identifies a Self-Match
 
 The matching engine identifies orders from the same participant by their **gateway ID** (the identifier of the connection through which the order was submitted). Two orders with the same gateway ID constitute a potential self-match. The SMP action specified on the incoming order governs what happens.
 
-### Why This Matters for Developers
+## Why This Matters for Developers
 
 SMP is implemented inside the matching sweep loop, it runs after price compatibility is checked but before any fill is committed. The code path must handle all three cancellation outcomes, generate appropriate event notifications (the cancelled order receives a cancellation event, not a fill), and continue the sweep to look for non-self counterparties if the resting order was cancelled.
 
 > **Key idea:** SMP is not just a courtesy feature, it is a legal requirement on regulated exchanges. An exchange that facilitates wash trading faces regulatory action. Every exchange system must implement it correctly.
 
-## Drop Copy, The Shadow Record
+# Drop Copy, The Shadow Record
 
 A **drop copy** is a real-time copy of all order lifecycle events for a participant, sent simultaneously to a designated recipient, typically a **clearing broker**, **prime broker**, **risk management system**, or directly to a **regulator**.
 
 The name comes from the physical world: the exchange, or the trader, used to drop a "carbon copy" of each order event to the designated desk as it happened. 
 
-### Why Drop Copy Exists
+## Why Drop Copy Exists
 
 A large institutional investor might have dozens of trading desks, each submitting orders to the exchange through its own gateway. The firm's central risk management system needs to see all order and fill activity in real time to monitor aggregate position and exposure. But having the risk system receive from dozens of separate gateways is complex. Instead, the exchange provides a single drop copy feed that aggregates all activity for that firm, regardless of which gateway originated it.
 
@@ -293,13 +293,13 @@ Clearing brokers use drop copy to see fills on behalf of their clients in real t
 
 Regulators can mandate drop copy access to monitor for suspicious activity in real time.
 
-### Drop Copy vs Market Data
+## Drop Copy vs Market Data
 
 Drop copy is a **private** feed, it contains information about a specific participant's orders, which they would not want published to the whole market. Market data (the order book, trades) is **public**, published to all subscribers. Drop copy is delivered on a separate, secured channel.
 
 Each event in the drop copy includes a **sequence number**, a monotonically increasing counter. If the recipient momentarily loses their connection and reconnects, they can request a replay of any missed events using the sequence number.
 
-## Clearing and Settlement, When the Trade Becomes Real
+# Clearing and Settlement, When the Trade Becomes Real
 
 
 Matching an order creates a **trade agreement**, two parties have committed to exchange shares and money. But the matching is just the beginning. Before ownership actually changes hands, the trade must be **cleared** and **settled**. Many engineers initially believe that matching equals completion. In reality, matching, clearing, and settlement are three distinct processes with different institutions, different timelines, and different risks.
@@ -328,7 +328,7 @@ sequenceDiagram
     Note over Buy,Sell: Ownership legally transferred
 ```
 
-### What Matching Creates
+## What Matching Creates
 
 When the matching engine fills two orders, it creates a **trade record**, an agreement that Participant A will sell X shares to Participant B at price P. At this point:
 - The shares have not moved.
@@ -337,7 +337,7 @@ When the matching engine fills two orders, it creates a **trade record**, an agr
 
 Both parties are now **counterparties** to each other. If either defaults, fails to deliver the shares or fails to pay, the other party suffers.
 
-### Clearing: Guaranteeing the Trade
+## Clearing: Guaranteeing the Trade
 
 **Clearing** is the process by which a third party, the **Central Counterparty Clearing House (CCP)**, steps between the buyer and seller and guarantees the trade will settle, even if one party defaults.
 
@@ -356,7 +356,7 @@ This is transformative for market structure: it means participants can trade wit
 - **Eurex Clearing:** Clears Eurex derivatives and selected equity trades.
 - **CME Clearing:** Clears futures and options on CME Group exchanges.
 
-### Margin: The Clearing House's Protection
+## Margin: The Clearing House's Protection
 
 If the CCP guarantees every trade, how does it protect itself from losses if a participant defaults? The answer is **margin**, collateral that participants must post to cover their potential losses.
 
@@ -368,25 +368,25 @@ If the CCP guarantees every trade, how does it protect itself from losses if a p
 
 Margin is especially important for derivatives (futures, options) where positions are leveraged and losses can exceed the initial investment. The 2008 financial crisis demonstrated what happens when margin requirements are inadequate, the collapse of multiple financial institutions stemmed partly from insufficient collateral for OTC derivatives positions.
 
-### Delivery versus Payment (DvP)
+## Delivery versus Payment (DvP)
 
 **Delivery versus payment (DvP)** is the settlement principle that the transfer of securities and the transfer of cash happen simultaneously and conditionally. Neither the securities nor the cash are released until both are available. This eliminates the risk of one party delivering while the other fails to pay, the most fundamental settlement risk.
 
 Without DvP, a seller might deliver shares and then find the buyer has defaulted before paying. DvP ensures atomicity: either both transfers happen or neither does.
 
-### Settlement: The Actual Transfer
+## Settlement: The Actual Transfer
 
 **Settlement** is the final exchange, shares move from the seller's custody account to the buyer's, and cash moves from the buyer's account to the seller's. After settlement, ownership has legally changed.
 
 US equities currently settle on **T+1**, one business day after the trade date. The market previously operated on T+5 (paper certificates and bicycle messengers), then T+3, then T+2 as settlement infrastructure was digitised, and moved to T+1 in 2024 [8]. Some markets (certain money market funds, US Treasury securities) already settle same-day. Same-day settlement eliminates settlement risk entirely but requires that cash and securities be available at the moment of trading.
 
-### Failed Settlement
+## Failed Settlement
 
 Not all trades settle on time. A **failed settlement** occurs when one party cannot deliver, the seller lacks the shares (perhaps their own purchase has not yet settled), or the buyer lacks the cash. Failed settlements create a cascading chain of problems, since other participants may be counting on receiving those shares to fulfil their own obligations.
 
 **Buy-ins** are a remedy: if a seller fails to deliver shares, the buyer has the right to purchase the shares in the open market at the seller's expense. Buy-ins are relatively rare in liquid markets but are a meaningful operational risk in illiquid or small-cap stocks.
 
-### Custody and Depositories
+## Custody and Depositories
 
 **Custody** refers to the safekeeping of securities on behalf of investors. Most investors do not directly hold share certificates, their broker holds shares in a nominee account at a **depository**. The depository maintains the master record of who owns what.
 
@@ -394,18 +394,18 @@ In the US, the **DTCC's Depository Trust Company (DTC)** is the central securiti
 
 This dematerialisation (replacing paper certificates with electronic records) is what made T+5→T+3→T+2→T+1 settlement possible. When settlement meant physically moving certificates, five days was genuinely necessary. With electronic records, same-day settlement is technically feasible.
 
-### VWAP and P&L
+## VWAP and P&L
 
 A clearing system tracks each participant's **position** (how many shares they hold, positive for long, negative for short) and their **Profit and Loss (P&L)**.
 
 **VWAP (Volume-Weighted Average Price)** is the average price paid for a position, weighted by quantity. If you buy 100 shares at $150 and then 50 more at $160, your VWAP is (100×$150 + 50×$160) / 150 = $153.33. Your break-even price is $153.33; selling above this generates profit, below generates a loss.
 
-## Regulatory Surveillance, Exchanges Are Not Passive
+# Regulatory Surveillance, Exchanges Are Not Passive
 
 
 An exchange does not simply match orders and publish data. It actively monitors for market abuse and is legally required to report suspicious activity to regulators. This section introduces the concepts; developers working on exchange infrastructure will eventually need to understand them because audit trail and surveillance requirements shape the design of event logging, data retention, and monitoring systems.
 
-### Types of Market Abuse
+## Types of Market Abuse
 
 **Spoofing.** A participant places a large order with no genuine intention to trade, they want to move the visible order book in a way that influences other participants' decisions. Once the desired movement occurs, they cancel the spoof order before it can fill. Spoofing was used extensively in electronic markets before regulatory crackdowns; it is now illegal in the US (the Dodd-Frank Act, 2010) and the EU (Market Abuse Regulation, 2016).
 
@@ -419,7 +419,7 @@ An exchange does not simply match orders and publish data. It actively monitors 
 
 **Quote stuffing.** Flooding the exchange with a high volume of orders and cancellations to consume the matching engine's bandwidth and slow down competitors. A high-frequency trading abuse pattern.
 
-### How Exchanges Detect Abuse
+## How Exchanges Detect Abuse
 
 Exchanges run **market surveillance systems**, separate processes that consume the complete audit trail of all events and apply pattern detection algorithms. The key inputs are:
 
@@ -429,7 +429,7 @@ Exchanges run **market surveillance systems**, separate processes that consume t
 
 Modern surveillance systems flag suspicious patterns (a large order placed and cancelled within milliseconds, many times in sequence) for human review. Some use machine learning to detect patterns that do not match known abuse templates.
 
-### The Audit Trail
+## The Audit Trail
 
 The **audit trail** is the exchange's complete, immutable record of every event. Every order that arrives, every modification, every fill, every cancellation, every rejection, each is written to the audit log with a high-precision timestamp. The audit trail must be:
 
@@ -442,16 +442,16 @@ This replayability requirement is not incidental. It is the reason exchange syst
 
 > **Key idea:** Every event in the exchange system should be written to the audit log before the response is sent to the participant. The audit log is primary; the matching engine state is derived from it.
 
-## A Cautionary Tale, Knight Capital, August 1, 2012
+# A Cautionary Tale, Knight Capital, August 1, 2012
 
 
 Everything in the *Pre-Trade Risk Controls* section, maximum quantity limits, position limits, kill switches, deployment discipline, exists partly because of what happened to one firm on one morning. The story of Knight Capital is the most important cautionary tale in the history of electronic trading, and every developer who touches exchange-adjacent code should know it.
 
-### The Company
+## The Company
 
 In the summer of 2012, Knight Capital Group was one of the most important firms in US equity markets. As a market maker and broker, Knight handled approximately 10–15% of all US equity trading volume, billions of shares every day across thousands of stocks. It was a highly regarded, well-capitalised firm at the centre of the market structure that had emerged after electronic trading matured.
 
-### The Morning
+## The Morning
 
 On August 1, 2012, the NYSE launched a new feature called the **Retail Liquidity Program (RLP)**, designed to attract more retail order flow to the exchange by offering price improvements. Participating firms were required to deploy new software to handle the RLP order types.
 
@@ -465,7 +465,7 @@ On the one misconfigured server, old code, a legacy module called **SMARS (Smart
 
 Power Peg, as activated, executed a simple but lethal loop: for each incoming RLP trigger, it would buy shares at the market offer price and then immediately sell them at the market bid price, buying high and selling low, over and over again. It was, in effect, a machine programmed to continuously pay the spread.
 
-### 45 Minutes
+## 45 Minutes
 
 At 9:30am, the NYSE opened for trading.
 
@@ -481,11 +481,11 @@ By 10:15am, Knight had lost approximately **$440 million**, in 45 minutes.
 
 To put that number in context: Knight's entire net equity capital before August 1 was approximately $400 million. The firm had destroyed slightly more than its total equity in less than one trading session.
 
-### The Aftermath
+## The Aftermath
 
 Knight survived only through an emergency capital injection arranged over the following two days. A consortium of investment firms provided $400 million in rescue financing in exchange for equity stakes that gave them majority ownership. Effectively, Knight Capital ceased to exist as an independent firm. Several months later, what remained of Knight merged with Getco LLC to form KCG Holdings, which was eventually acquired by Virtu Financial in 2017.
 
-### What Went Wrong: A Technical Post-Mortem
+## What Went Wrong: A Technical Post-Mortem
 
 The SEC conducted a detailed investigation and published its findings in 2013. The root causes, in the order they would need to have been addressed to prevent the disaster:
 
@@ -501,7 +501,7 @@ The SEC conducted a detailed investigation and published its findings in 2013. T
 
 **6. The exchange cannot protect you from yourself.** This deserves particular emphasis. NYSE processed every single one of Knight's 4 million orders correctly. None of them violated any exchange rule. The exchange is not in a position to determine whether a participant's trading strategy makes business sense, only whether the orders are technically valid. Pre-trade risk controls at the exchange level (quantity limits, fat-finger price filters, rate limits) exist to protect the market as a whole from clearly erroneous orders. They are not a substitute for participant-side risk management. Knight's situation could not have been prevented at the exchange level alone.
 
-### The Legacy
+## The Legacy
 
 The Knight Capital incident triggered a wave of regulatory attention to algorithmic trading risk. The SEC's 2013 Market Access Rule (Rule 15c3-5), which had been in effect at the time of the incident, required broker-dealers to have risk controls for market access, but the incident demonstrated that the rule's requirements were insufficient or that compliance was inadequate.
 
