@@ -3,6 +3,14 @@
 
 *The safeguards that protect markets and participants — before, during, and after each trade — and the regulatory obligations that underpin them.*
 
+---
+
+On the morning of 23 February 1995, Peter Baring, chairman of Barings Bank, called the Bank of England. The bank — founded in 1762, banker to the British royal family, and widely regarded as one of the most respected financial institutions in the world — had a problem. One of its traders in Singapore, a 28-year-old named **Nick Leeson**, had accumulated positions in Nikkei 225 futures that nobody at headquarters knew about. The positions totalled approximately $7 billion in notional exposure. Leeson had hidden the losses in an error account numbered 88888, exploiting gaps in the firm's controls and the geographic distance between Singapore and London. When the 1995 Kobe earthquake sent Japanese equity markets sharply lower, Leeson's positions collapsed. Barings' total losses were £827 million. Three days after Peter Baring's phone call, the bank was placed in administration. It was eventually sold to ING for £1. The UK's oldest merchant bank had ceased to exist [Bank of England, February 1995].
+
+Barings had pre-trade risk controls. They were simply not checking position limits at the firm level, not monitoring the error account's exposure, and not asking why a single trader in Singapore was generating such unusual patterns of activity.
+
+Every section of Part III is, in some sense, the answer to the question: "What would have stopped Nick Leeson?" Pre-trade position limits would have flagged his accumulation. A firm-level kill switch, properly monitored, could have halted his trading. A drop copy feed to an independent risk team would have revealed the hidden positions. Regulatory surveillance would have detected the anomalous patterns. And the Knight Capital story at the end of this Part shows that a firm can implement all of these controls, and still fail — if a kill switch takes 45 minutes to operate when a system is running out of control.
+
 **Part Summary:**
 
 Focus on market safety and accountability: the controls that prevent bad orders, the mechanisms that stabilize volatility, and the post-trade processes that make executed trades legally and financially final.
@@ -69,6 +77,43 @@ The sequence in which pre-trade checks run is not arbitrary. Checks requiring ex
 
 Failing at step 1 takes nanoseconds. Failing at step 7 takes longer because it requires consulting external state. Running all checks in parallel wastes resources on orders that would be rejected at step 1; running them in this sequence minimises latency for both accepted and rejected orders.
 
+```mermaid
+flowchart TD
+    A["Incoming order\nfrom participant"] --> B
+
+    B{"1. Format &\nsyntax valid?"}
+    B -->|No| R1["REJECTED\nMalformed message"]
+    B -->|Yes| C
+
+    C{"2. Symbol\nvalid & tradeable?"}
+    C -->|No| R2["REJECTED\nUnknown / halted symbol"]
+    C -->|Yes| D
+
+    D{"3. Within rate\nlimit for gateway?"}
+    D -->|No| R3["REJECTED or QUEUED\nThrottle limit exceeded"]
+    D -->|Yes| E
+
+    E{"4. Price within\nfat-finger band?"}
+    E -->|No| R4["REJECTED\nPrice too far from reference"]
+    E -->|Yes| F
+
+    F{"5. Quantity &\nnotional within limits?"}
+    F -->|No| R5["REJECTED\nSize / value limit exceeded"]
+    F -->|Yes| G
+
+    G{"6. Short sale\nflag correct?"}
+    G -->|No| R6["REJECTED\nReg SHO violation"]
+    G -->|Yes| H
+
+    H{"7. Position &\ncredit limits OK?"}
+    H -->|No| R7["REJECTED\nPosition / credit limit breached"]
+    H -->|Yes| I
+
+    I{"8. SMP\npre-check"}
+    I -->|Self-match| R8["CANCELLED\nper SMP policy"]
+    I -->|Clear| J["→ Matching Engine"]
+```
+
 ## The Gateway as Risk Layer
 
 In most production architectures, the gateway performs these checks. The gateway is the first system to touch an incoming order; it can reject it immediately without the order ever reaching the matching engine's single-threaded queue. This keeps the matching engine clean and fast.
@@ -90,7 +135,23 @@ A **circuit breaker** (also called a **trading curb** in some regulatory context
 
 The origin of circuit breakers is the **Black Monday crash of 19 October 1987**, when US markets fell 22.6% in a single day. The Presidential Task Force on Market Mechanisms (the Brady Commission) recommended coordinated market-wide pause mechanisms in its January 1988 report, directly leading to the first exchange circuit breakers being implemented. The full history is in the *Black Monday and the Origin of Circuit Breakers* section of Part I.
 
-**The basic mechanism:** After each trade, the exchange calculates how much the price has moved relative to a reference price (typically the most recent auction price, or the price at the start of a defined time window). If the movement exceeds a configured threshold in either direction, trading in that symbol is halted. During the halt, new orders can still be submitted and will rest in the book, but no matching occurs. When the halt ends, trading resumes through a **resumption auction** rather than instantly returning to continuous matching, this ensures that the first post-halt price is determined by the broadest available supply and demand, not by a single resting order that happens to be at the top of a thin book.
+**The basic mechanism:** After each trade, the exchange calculates how much the price has moved relative to a reference price (typically the most recent auction price, or the price at the start of a defined time window). If the movement exceeds a configured threshold in either direction, trading in that symbol is halted. During the halt, new orders can still be submitted and will rest in the book, but no matching occurs. When the halt ends, trading resumes through a **resumption auction** rather than instantly returning to continuous matching — this ensures that the first post-halt price is determined by the broadest available supply and demand, not by a single resting order that happens to be at the top of a thin book.
+
+The circuit breaker introduces its own state machine within the trading session:
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    CONTINUOUS --> HALTED : Price moves beyond\nthreshold from reference
+    HALTED --> RESUMPTION_AUCTION : Halt duration expires\n(min + possible extension)
+    RESUMPTION_AUCTION --> CONTINUOUS : Equilibrium found\nuncross complete
+    RESUMPTION_AUCTION --> RESUMPTION_AUCTION : Indicative price still\noutside extension band\n(auction extended)
+    HALTED --> CLOSED : End-of-day signal\nduring halt (Level 3)
+    note right of HALTED : Orders rest but\nno matching occurs
+    note right of RESUMPTION_AUCTION : Price discovery\nbefore resuming
+```
+
+Note that this is a sub-machine nested within the full trading session state machine (which is described in Part II). A halt can occur multiple times during a single session; each time the circuit breaker trips in CONTINUOUS, the session cycles through HALTED → RESUMPTION_AUCTION → CONTINUOUS before continuing.
 
 ## Should Halt Duration Be Fixed or Proportional to Move Size?
 
@@ -293,7 +354,7 @@ SMP is implemented inside the matching sweep loop, it runs after price compatibi
 
 A **drop copy** is a real-time copy of all order lifecycle events for a participant, sent simultaneously to a designated recipient, typically a **clearing broker**, **prime broker**, **risk management system**, or directly to a **regulator**.
 
-The name comes from the physical world: the exchange, or the trader, used to drop a "carbon copy" of each order event to the designated desk as it happened. 
+The name comes from the physical world: the exchange, or the trader, used to drop a "carbon copy" of each order event to the designated desk as it happened.
 
 ## Why Drop Copy Exists
 
@@ -301,13 +362,44 @@ A large institutional investor might have dozens of trading desks, each submitti
 
 Clearing brokers use drop copy to see fills on behalf of their clients in real time, so they can begin the clearing and settlement process immediately without waiting for end-of-day reports.
 
-Regulators can mandate drop copy access to monitor for suspicious activity in real time.
+Regulators can mandate drop copy access to monitor for suspicious activity in real time. Under the SEC's 15c3-5 Market Access Rule, broker-dealers are required to have real-time monitoring capabilities; a drop copy feed to an independent risk system is one of the standard ways to satisfy this requirement.
+
+## What a Drop Copy Message Contains
+
+A drop copy event is a complete record of the order lifecycle event. A typical fill notification on the drop copy feed includes:
+
+| Field | Purpose |
+|---|---|
+| **Sequence number** | Monotonically increasing counter for this feed |
+| **Timestamp** | Nanosecond-precision time of the event |
+| **Order ID** | The exchange-assigned unique order identifier |
+| **Client Order ID** | The participant's own order reference |
+| **Gateway ID** | Which connection submitted the order |
+| **Symbol** | Which instrument |
+| **Side** | BUY or SELL |
+| **Order type** | LIMIT, MARKET, etc. |
+| **Original quantity** | What the order was for |
+| **Filled quantity** | How much filled in this event |
+| **Remaining quantity** | What is left after this fill |
+| **Fill price** | Price at which this fill occurred |
+| **Order status** | NEW / PARTIAL / FILLED / CANCELLED |
+| **Aggressor flag** | Was this order the aggressive (taker) side? |
+
+The fill price and aggressor flag are used by the clearing broker to calculate real-time P&L and determine fee billing.
 
 ## Drop Copy vs Market Data
 
-Drop copy is a **private** feed, it contains information about a specific participant's orders, which they would not want published to the whole market. Market data (the order book, trades) is **public**, published to all subscribers. Drop copy is delivered on a separate, secured channel.
+Drop copy is a **private** feed — it contains information about a specific participant's orders, which they would not want published to the whole market. Market data (the order book, trades) is **public**, published to all subscribers. Drop copy is delivered on a separate, secured channel, typically authenticated with the participant's credentials.
 
-Each event in the drop copy includes a **sequence number**, a monotonically increasing counter. If the recipient momentarily loses their connection and reconnects, they can request a replay of any missed events using the sequence number.
+## Sequence Numbers and Gap Recovery
+
+Each event in the drop copy includes a **sequence number**, a monotonically increasing counter. If the recipient momentarily loses their connection and reconnects, they can request a replay of missed events using the last received sequence number.
+
+Worked example: the clearing broker's risk system receives sequence numbers 1, 2, 3, 4 and then loses connectivity briefly. When it reconnects, it sees sequence number 7 arrive. It immediately knows events 5 and 6 were missed. It sends a retransmission request: "resend from sequence 5." The exchange replays events 5, 6, 7 over a separate unicast channel. The risk system processes them in order and is now fully caught up before sequence 8 arrives.
+
+Without sequence numbers, the risk system would have no reliable way to detect the gap. It might operate with a stale position view — showing a position of, say, 5,000 shares when the true position is 7,000 — until the next end-of-day reconciliation. For a real-time risk management system, this is unacceptable.
+
+> **Key idea:** The drop copy sequence number is the risk manager's safety net. A system that processes drop copy events without checking sequence numbers for gaps will eventually make risk decisions based on incorrect positions. Sequence integrity monitoring is not optional.
 
 # Clearing and Settlement, When the Trade Becomes Real
 

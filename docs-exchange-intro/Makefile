@@ -1,6 +1,6 @@
 # Makefile for building Documentation for the MCProjSim project
 
-.PHONY: pdfs pdf-docs help clean really-clean
+.PHONY: pdfs _pdf-docs help clean
 
 
 # Makefile itself as a dependency to ensure it is re-evaluated when changed
@@ -170,7 +170,7 @@ pdfs: _pdf-docs | $(DIST_DIR) ## Build all PDF documentation variants in paralle
 _pdf-docs:  ## Build the exchange intro in all PDF variants (A4 light/dark, B5 light/dark) in parallel
 	@rm -rf $(EXCHANGE_INTRO_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm $(DIST_DIR)/$(PROJECT)-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
-	@$(MAKE) $(EXCHANGE_INTRO_A4_PDF) $(EXCHANGE_INTRO_DARK_A4_PDF) $(EXCHANGE_INTRO_B5_PDF) $(EXCHANGE_INTRO_DARK_B5_PDF)
+	@$(MAKE) -j4 $(EXCHANGE_INTRO_A4_PDF) $(EXCHANGE_INTRO_DARK_A4_PDF) $(EXCHANGE_INTRO_B5_PDF) $(EXCHANGE_INTRO_DARK_B5_PDF)
 	@echo -e "$(GREEN)✓ Cover rendering is handled directly in LaTeX templates$(NC)"
 
 

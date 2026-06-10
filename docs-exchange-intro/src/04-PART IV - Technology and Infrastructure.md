@@ -3,6 +3,14 @@
 
 *The engineering stack, distributed-systems concerns, market data, and the broader market ecology in which the exchange operates.*
 
+---
+
+In 1983, NASDAQ sent **Thomas Peterffy** a letter. Peterffy, a Hungarian-born engineer who had become a prolific options trader, had done something the exchange had never anticipated: he had wired a workstation terminal directly to a computer that automatically generated and submitted options orders based on his models. NASDAQ's rules required that a terminal be operated by a human hand. The letter demanded he comply.
+
+Peterffy's response was to hire a typist to sit at the keyboard and type the computer's output into the terminal as fast as the computer generated it. The absurdity lasted a few months before NASDAQ changed the rules to accommodate electronic order submission. Peterffy — who eventually founded Interactive Brokers and became a billionaire — had glimpsed the future of market infrastructure. Every exchange in the world is now built on exactly the principle that NASDAQ once tried to prohibit: automated, computer-generated orders, submitted at machine speed, processed by machine logic, without a human hand in the loop [Interactive Brokers company history].
+
+Part IV is the technical story of how that future was built. It covers the gateway that receives those automated orders, the matching engine that processes them in microseconds, the market data infrastructure that broadcasts results to thousands of subscribers simultaneously, and the resilience, latency, and operational systems that keep it all running twenty-four hours before the opening bell rings on the next trading day.
+
 **Part Summary:**
 
 Examine the engineering reality of exchanges at scale: deterministic engines, messaging and market-data distribution, resilience patterns, and the fragmented multi-venue environment where routing and latency shape outcomes.
@@ -138,6 +146,23 @@ Market data uses **UDP multicast**. UDP (User Datagram Protocol) has no reliabil
 
 How does UDP's unreliability get handled? Through **sequence numbers**. Every ITCH/MDP3 message carries a sequence number. If a subscriber receives message 1000 followed by 1002, it knows 1001 was lost. It requests a retransmission via a separate **TCP unicast recovery channel** (specifically for replay requests). This hybrid design — UDP multicast for the live feed, TCP unicast for recovery — is standard across all major exchange market data architectures.
 
+```mermaid
+flowchart LR
+    ME["Matching Engine"]
+    UDP["UDP Multicast\n(live feed)"]
+    SUB1["Subscriber A"]
+    SUB2["Subscriber B"]
+    SUB3["Subscriber C"]
+    TCP["TCP Unicast\n(replay channel)"]
+
+    ME -- "Seq 1,2,3…\nBroadcast to all" --> UDP
+    UDP --> SUB1 & SUB2 & SUB3
+    SUB3 -- "Gap detected!\nResend seq 47" --> TCP
+    TCP -- "seq 47 retransmitted" --> SUB3
+```
+
+Order submission uses the reverse pattern — TCP from participant to exchange — because every order must be reliably received and acknowledged.
+
 ## The Matching Engine
 
 The matching engine is the exchange's core computational component: the software that receives every incoming order, maintains the state of all order books, and executes trades when compatible buy and sell orders can be paired. It sits at the centre of the architecture, receiving from all gateways through a single serialised input queue and publishing results to all subscribers. A single-threaded design, one book per symbol, and deterministic processing are its defining characteristics, each discussed in detail in the *Matching Engine* section above. The gateway is the entry point into this pipeline; the engine is where the actual work happens.
@@ -214,6 +239,23 @@ Approaches include:
 ## Failover
 
 **Failover** is the act of switching from the primary to the secondary. It may be:
+
+```mermaid
+flowchart TD
+    P["Primary Site\n(ACTIVE)\nAccepts orders\nPublishes events"]
+    W["WAL\n(Write-Ahead Log)"]
+    S["Secondary Site\n(PASSIVE / SHADOW)\nFollows WAL silently\nDoes not publish"]
+    HB["Heartbeat\nMonitor"]
+    FO["Failover Decision"]
+    SA["Secondary Promotes\nto ACTIVE\nResumes from WAL tail\nBegins publishing"]
+
+    P -- "Every event written\nbefore processing" --> W
+    W -- "Streamed in real time" --> S
+    P -- "Heartbeat every N ms" --> HB
+    HB -->|"Heartbeat missed\n(timeout)" | FO
+    FO -->|"Manual or automatic\npromotion"| SA
+    SA -->|"Sequence continues\nno gap to participants"| SA
+```
 
 - **Automatic (active-passive):** The system detects the primary has stopped responding (via heartbeat monitoring) and automatically promotes the secondary to primary, alerting participants. The challenge: detecting a true failure vs. a temporary network partition without making hasty decisions — the **split-brain problem**: if both sites think the other is dead, both might try to become primary simultaneously, resulting in two active engines accepting conflicting orders.
 

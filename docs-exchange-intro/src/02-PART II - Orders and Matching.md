@@ -3,6 +3,14 @@
 
 *How orders work, how the matching engine processes them, and how a complete trading day unfolds from open to close.*
 
+---
+
+In the summer of 1929, **Jesse Livermore** — then the most famous speculator in America — began quietly selling short. He had been watching the tape for weeks, reading the continuous stream of prices and volumes that printed on the stock ticker, and he had seen something that troubled him: large blocks of stock were appearing at the top of rallies, absorbed by relentless selling pressure that the public could not see. The great bull market felt unstoppable, but the tape told a different story. Livermore increased his short positions through September and October. When the crash came in late October 1929, he made approximately $100 million — in 1929 dollars — in weeks [Reminiscences of a Stock Operator, Edwin Lefèvre, 1923].
+
+Livermore did not know about matching engines, FIX protocols, or price-time priority. But he understood, intuitively and empirically, exactly what this entire Part formalises: that every trade is the intersection of a buyer's intent and a seller's intent, encoded in an order; that the order book is a record of unresolved intentions; that the sequence and size of fills reveals information about who is doing what; and that the rules governing when and how orders match determine the character of the market.
+
+Part II is the technical formalisation of what Livermore read in the tape.
+
 **Part Summary:**
 
 Move from concepts to mechanics: how participant intent is encoded in order types, how matching logic enforces fairness, and how the trading session progresses from open through close.
@@ -576,6 +584,29 @@ At its simplest, the matching engine runs an endless loop:
 5. Check if any dormant stop orders have now been triggered by the new trade price.
 6. Publish the results (trades, order status changes) to participants and subscribers.
 
+```mermaid
+flowchart TD
+    A["Dequeue next message\nfrom input queue"]
+    B{"Message\ntype?"}
+    C{"Can order match\nagainst resting orders?"}
+    D["Execute sweep\nfill one or more levels"]
+    E{"Order\nfully filled?"}
+    F["Publish FILLED event\nRemove from book"]
+    G["Publish PARTIAL event\nRest remainder in book"]
+    H["Place order\nin book at price level\nPublish ACK"]
+    I["Process cancel\nor modification\nPublish event"]
+    J["Check dormant stops:\ndid last_trade_price trigger any?"]
+    K["Publish all events\nto PUB socket"]
+
+    A --> B
+    B -->|New order| C
+    B -->|Cancel / Modify| I --> K --> A
+    C -->|Yes| D --> E
+    E -->|Yes| F --> J --> K --> A
+    E -->|No| G --> J --> K --> A
+    C -->|No| H --> K --> A
+```
+
 ## The Sweep
 
 When an aggressive order arrives and begins filling against the resting book, this process is called **sweeping** the book. The aggressive order works through price levels one by one, from best to worst, until either it is fully filled or it reaches its limit price (or the book runs out of orders).
@@ -874,15 +905,25 @@ The normal matching mode. Orders arrive continuously, the engine matches them in
 
 ## Intraday Auction (optional)
 
-Some exchanges run a brief mid-day auction to handle large orders or specific instruments. Eurex runs scheduled intraday auctions for certain futures products.
+Some exchanges run a brief scheduled auction during the continuous session, typically at a fixed time such as noon or 1:00pm. These **intraday auctions** serve several purposes.
 
-## Closing Auction
+For exchanges that handle both liquid and illiquid instruments, an intraday auction gives participants a chance to trade illiquid stocks against a concentrated pool of interest, rather than relying on sparse continuous liquidity throughout the day. Large institutional orders that are difficult to execute in continuous trading can be "parked" to the intraday auction where counterparties are known to aggregate.
 
-As described above, continuous trading pauses, orders for the closing price accumulate, equilibrium computed, uncross executed.
+For derivatives markets, intraday auctions are also used as **volatility auctions** — if a futures contract moves rapidly during continuous trading and triggers a volatility interruption (not a full halt, but a brief pause), the exchange may resume through a short auction rather than returning immediately to continuous matching. Eurex runs scheduled intraday auctions for certain futures products and uses volatility-triggered auctions as a softer alternative to full circuit breaker halts.
+
+From the exchange system perspective, an intraday auction is mechanically identical to the opening or closing auction: orders accumulate during the auction call period, the engine computes the equilibrium price, and the uncross executes simultaneously.
 
 ## Post-Close
 
-After the formal close, some exchanges allow limited after-hours trading (though with wider spreads and lower liquidity). GTC orders that didn't fill are persisted for the next day. The book is saved.
+After the formal close, several important processes run:
+
+**After-hours trading.** Some exchanges, particularly US equity venues, allow limited after-hours trading through electronic communication networks (ECNs). Volume and liquidity are substantially lower than during the regular session, spreads are wider, and price moves can be exaggerated. Not all order types are supported. The exchange may operate a separate "extended hours" trading mode with different rules from the main session.
+
+**GTC order persistence.** Good-Till-Cancelled orders that did not fill during the session must be saved to durable storage so they can be reloaded into the order book when the next session begins. This is a non-trivial operation: each GTC order must be written to a persistent store with all its parameters (symbol, side, price, quantity, participant ID, original submission timestamp). At start-of-day, these orders are reloaded before the pre-open period begins, and each is re-acknowledged to the originating participant. If a GTC order's participant has disconnected overnight, the exchange must decide whether to hold the order or cancel it.
+
+**End-of-day batch processes.** The close of session triggers a cascade of batch processes: the official closing price is published and broadcast to downstream systems; daily P&L is calculated for all participants; clearing reports are generated; statistics (OHLCV — Open, High, Low, Close, Volume) are finalised and archived; surveillance reports are run against the day's audit trail. These processes are not in the matching engine's critical path, but they must complete before the next session begins. Their failure can delay the next day's open.
+
+**Book state save.** The complete state of the order book — including all resting limit orders that will carry forward — is written to disk. This is the snapshot that will be used as the starting point for warm restart if needed.
 
 ## State Machine
 
@@ -950,4 +991,41 @@ Let us trace the life of a complex event through the entire system using the voc
 **Step 12:** The 12,000-share remainder of the institutional investor's sell order continues resting on the ask side at $150.20 and will fill when buyers willing to pay $150.20 or more appear.
 
 In this single scenario, we used: limit orders, GTC orders, iceberg orders, fill notifications, last trade price, last sell price, stop orders, circuit breakers, collar bands, automatic market maker quote cancellation on halt, drop copy, clearing, P&L, trading sessions, and the state machine. Every piece of vocabulary we have discussed had a role to play.
+
+The message flow between components in steps 1–10 can be visualised as follows:
+
+```mermaid
+sequenceDiagram
+    participant INV as Institutional Investor
+    participant GW3 as Gateway GW03
+    participant ME as Matching Engine
+    participant GW1 as Gateway GW01 (MM)
+    participant PUB as PUB Socket
+    participant DC as Drop Copy
+    participant CL as Clearing
+
+    INV->>GW3: FIX: SELL 50,000 AAPL LIMIT $150.20
+    GW3->>ME: Validated order (internal format)
+    ME->>GW3: ACK — order NEW (UUID assigned)
+    GW3->>INV: Execution report: NEW
+
+    loop Sweep bids $150.35 → $150.20
+        ME->>PUB: Trade event (price, qty, both sides)
+        PUB->>GW1: Fill notification → market maker FILLED
+        PUB->>GW3: Fill notification → investor PARTIAL
+        PUB->>DC: Drop copy fill event (seq numbered)
+        PUB->>CL: Position update
+    end
+
+    ME->>ME: last_trade_price < collar band → HALT
+    ME->>PUB: Session state: CONTINUOUS → HALTED
+    PUB->>GW1: Cancel all MM quotes (stale during halt)
+    PUB->>DC: HALT event (seq numbered)
+
+    Note over ME,CL: 5-minute halt period
+
+    ME->>ME: Scheduler: RESUME
+    ME->>PUB: Session state: HALTED → CONTINUOUS
+    GW1->>ME: Fresh two-sided quote re-submitted
+```
 
