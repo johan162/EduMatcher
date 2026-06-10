@@ -98,6 +98,7 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 COVER_PDF="$WORK/cover.pdf"
+INTERIOR_PDF="$WORK/interior.pdf"
 MERGED_PDF="$WORK/merged.pdf"
 
 # ---------------------------------------------------------------------------
@@ -154,19 +155,30 @@ fi
     "$COVER_PDF"
 
 # ---------------------------------------------------------------------------
-# Step 3: Merge cover PDF + interior PDF
+# Step 3: Replace the dummy first page with the real cover
 # ---------------------------------------------------------------------------
 if command -v pdftk >/dev/null 2>&1; then
-    pdftk "$COVER_PDF" "$PDF" cat output "$MERGED_PDF"
+    pdftk A="$COVER_PDF" B="$PDF" cat A1 B2-end output "$MERGED_PDF"
 elif command -v gs >/dev/null 2>&1; then
-    gs -q -dNOPAUSE -dBATCH -dNOSAFER \
+    gs -q -dNOPAUSE -dBATCH -dSAFER \
+        -sDEVICE=pdfwrite \
+        -sPageList=2- \
+        -sOutputFile="$INTERIOR_PDF" \
+        "$PDF"
+    gs -q -dNOPAUSE -dBATCH -dSAFER \
         -sDEVICE=pdfwrite \
         -sOutputFile="$MERGED_PDF" \
-        "$COVER_PDF" "$PDF"
-elif command -v pdfunite >/dev/null 2>&1; then
-    pdfunite "$COVER_PDF" "$PDF" "$MERGED_PDF"
+        "$COVER_PDF" "$INTERIOR_PDF"
+elif command -v pdfseparate >/dev/null 2>&1 && command -v pdfunite >/dev/null 2>&1; then
+    pdfseparate "$PDF" "$WORK/page-%d.pdf"
+    find "$WORK" -maxdepth 1 -type f -name 'page-*.pdf' | sort -V | tail -n +2 > "$WORK/interior-pages.txt"
+    if [[ ! -s "$WORK/interior-pages.txt" ]]; then
+        cp "$COVER_PDF" "$MERGED_PDF"
+    else
+        pdfunite "$COVER_PDF" $(cat "$WORK/interior-pages.txt") "$MERGED_PDF"
+    fi
 else
-    echo "Error: no PDF merge tool found — install pdftk, ghostscript, or poppler (pdfunite)" >&2
+    echo "Error: no PDF page-selection tool found — install pdftk, ghostscript, or poppler (pdfseparate/pdfunite)" >&2
     exit 1
 fi
 

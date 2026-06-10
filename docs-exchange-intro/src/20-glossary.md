@@ -3,9 +3,12 @@
 
 The following definitions are written to be concise and standalone, useful as a quick reference after reading the document.
 
+```{=latex}
+\setcounter{secnumdepth}{1}
+\renewcommand{\thesection}{}
+```
 
-
-## A
+## A {#glossary-a}
 
 **Adverse Selection:** The risk a market maker faces when their quote is hit by a counterparty who has superior information about where prices are heading, causing the market maker to trade at a price that will quickly move against them. A market maker who is repeatedly adversely selected will lose money even while quoting at "correct" prices. MMP exists specifically to limit adverse selection damage.
 
@@ -28,7 +31,7 @@ The following definitions are written to be concise and standalone, useful as a 
 **Audit Trail:** The complete, immutable, time-ordered record of every event in the exchange system, every order, fill, cancellation, and rejection, with precise timestamps. Required for regulatory reporting and replay-based recovery.
 
 
-## B
+## B {#glossary-b}
 
 **Basis:** In derivatives and futures markets, the price difference between two related instruments, most commonly between the spot/cash price and a futures price on the same underlying, or between two futures contracts with different expiry dates. In the implied order example in this document (the *Order Types* section of Part II), the spread price of −$2 between the January and February WTI contracts is the basis between those two contract months: January is $2 cheaper than February. The basis is not fixed; it changes continuously as supply and demand for the near and far months evolve independently. **Basis risk** is the risk that the expected relationship between two instruments diverges unexpectedly, a spread trader who expected the two legs to move together may find they do not, leaving an unintended net exposure. See *Implied Order*, *Calendar Spread*.
 
@@ -55,7 +58,7 @@ The following definitions are written to be concise and standalone, useful as a 
 **Buy-In:** A remedy for failed settlement: if a seller cannot deliver securities, the buyer purchases them in the open market at the seller's expense.
 
 
-## C
+## C {#glossary-c}
 
 **Calendar Spread:** A derivatives strategy involving the simultaneous purchase and sale of contracts on the same underlying instrument but with different expiry dates, for example, buy the March futures contract, sell the June futures contract. Used to profit from expected changes in the price difference (the "spread") between contract months. Requires cross-symbol coordination in the matching engine.
 
@@ -96,7 +99,7 @@ The following definitions are written to be concise and standalone, useful as a 
 **Custody:** The safekeeping of securities on behalf of investors by a broker or custodian bank, with records maintained at a central securities depository.
 
 
-## D
+## D {#glossary-d}
 
 **Dark Fibre:** Unused optical fibre cable already laid in the ground but not yet carrying data traffic ("lit"). Trading firms and data providers lease dark fibre from infrastructure companies and run their own optical transceivers, creating private, dedicated network links between financial data centres. Dark fibre links are used between major exchange co-location sites (e.g., NYSE in Mahwah and NASDAQ in Carteret) to reduce cross-venue latency for arbitrage and hedging strategies.
 
@@ -125,7 +128,7 @@ The following definitions are written to be concise and standalone, useful as a 
 **Dynamic Price Collar (Reference Price Filter):** A pre-trade risk control that rejects any order whose submitted price deviates more than a configured percentage from the most recent traded price. Protects against algorithms that walk the price incrementally through a series of small trades. Contrast with *Static Price Collar*, which uses the last close as the reference. Together, the two collars provide overlapping protection against both sudden errors and gradual drift.
 
 
-## E
+## E {#glossary-e}
 
 **ECN (Electronic Communication Network):** An electronic trading system that automatically matches buy and sell orders, typically with narrower spreads than exchanges but less regulatory oversight.
 
@@ -140,7 +143,7 @@ The following definitions are written to be concise and standalone, useful as a 
 **Execution Algorithm (Algo):** Software that breaks a large institutional order into smaller pieces and executes them over time to minimise market impact and achieve a target average price. Common types include VWAP (match the day's volume-weighted average price), TWAP (distribute uniformly over time), Implementation Shortfall (minimise the gap between decision price and execution price), and POV/In-Line (participate at a fixed percentage of market volume). Execution algorithms generate the majority of order flow on modern exchanges.
 
 
-## F
+## F {#glossary-f}
 
 **Face Value (Bond):** The principal amount of a bond, the amount the issuer promises to repay at maturity, and the basis on which coupon payments are calculated.
 
@@ -165,7 +168,7 @@ The following definitions are written to be concise and standalone, useful as a 
 **Futures Contract:** A standardised agreement to buy or sell a specified quantity of an underlying asset (commodity, index, currency, interest rate) at a predetermined price on a specified future date. Obligations are legally binding. Futures are exchange-traded, margined, and marked-to-market daily. Unlike equity ownership, futures do not represent ownership of an underlying asset, they represent an obligation about a future transaction.
 
 
-## G
+## G {#glossary-g}
 
 **Gap (Market Data):** A missing sequence number in a market data feed, indicating a lost message. Subscribers must request retransmission or resynchronise from the next full snapshot.
 
@@ -180,14 +183,14 @@ The following definitions are written to be concise and standalone, useful as a 
 **GTD (Good-Till-Date):** An order Time-In-Force variant that keeps an order active until it fills, is explicitly cancelled, or reaches a specified expiry date, whichever comes first. On the expiry date the order is automatically cancelled. Provides the persistence of GTC without the open-ended risk of an order remaining active indefinitely. Requires the exchange scheduler to track each GTD order's expiry and issue the cancellation at the right time.
 
 
-## H
+## H {#glossary-h}
 
 **Heap:** A data structure that gives O(1) access to the minimum (or maximum) element. Used in matching engines to efficiently maintain best price access.
 
 **High-Frequency Trading (HFT):** Automated trading strategies that execute very large numbers of orders at extremely high speeds, typically holding positions for milliseconds or seconds rather than minutes or days. HFT firms invest heavily in low-latency infrastructure (co-location, microwave links, FPGAs) to gain speed advantages. Strategies include latency arbitrage, market making, and statistical arbitrage. Controversial because speed advantages can disadvantage slower participants; the subject of the IEX speed bump.
 
 
-## I
+## I {#glossary-i}
 
 **Iceberg Order / Hidden Order / Reserve Order:** An order that shows only a small visible peak while hiding a large reserve. Each time the visible portion fills, the order replenishes from the reserve.
 
@@ -222,14 +225,14 @@ The following definitions are written to be concise and standalone, useful as a 
 **ISIN (International Securities Identification Number):** A 12-character global identifier for a security, independent of the exchange it trades on. A single company has one ISIN regardless of where its shares are listed.
 
 
-## K
+## K {#glossary-k}
 
 **Kernel Bypass:** Technology that allows a network application to communicate directly with network hardware, bypassing the operating system kernel and reducing latency from microseconds to sub-microsecond.
 
 **Kill Switch:** An emergency control that immediately cancels all resting orders and quotes for a specific participant AND marks their gateway as inactive, preventing new order submission until the participant reconnects and re-authenticates. Triggered by the participant (emergency self-halt), the exchange operator, or automatically on gateway disconnect. Mandatory under most exchange regulations including MiFID II. Contrast with *Mass Cancel*, which cancels orders but leaves the gateway active.
 
 
-## L
+## L {#glossary-l}
 
 **Latency:** The time delay between an action and its effect. In exchanges, latency is measured in microseconds or nanoseconds. Low latency is a competitive advantage.
 
@@ -258,7 +261,7 @@ The following definitions are written to be concise and standalone, useful as a 
 **Lot:** The standard unit of quantity for an instrument.
 
 
-## M
+## M {#glossary-m}
 
 **Maintenance Margin:** The minimum collateral balance that must be maintained in a margin account. Falling below this level triggers a margin call.
 
@@ -299,7 +302,7 @@ The following definitions are written to be concise and standalone, useful as a 
 **Monotonic:** Strictly non-decreasing. A monotonic sequence is one where each value is equal to or greater than all previous values. A strictly monotonic sequence is one where each value is strictly greater.
 
 
-## N
+## N {#glossary-n}
 
 **Naked Short Selling:** Selling shares short without first locating and arranging to borrow them. The seller delivers nothing at settlement, creating a "fail to deliver." Illegal in most jurisdictions under short sale regulations (Regulation SHO in the US). Distinguished from covered short selling, where shares have been located and borrowed.
 
@@ -312,7 +315,7 @@ The following definitions are written to be concise and standalone, useful as a 
 **NTP (Network Time Protocol):** A protocol for synchronising computer clocks over a network. Basic NTP achieves millisecond accuracy; higher-precision variants achieve sub-millisecond.
 
 
-## O
+## O {#glossary-o}
 
 **OCC (Options Clearing Corporation):** The central clearing house for equity options in the US.
 
@@ -331,7 +334,7 @@ The following definitions are written to be concise and standalone, useful as a 
 **OTC (Over-the-Counter):** Trading that occurs directly between two parties without going through an exchange. OTC trades are less transparent and subject to different regulations than exchange-traded transactions.
 
 
-## P
+## P {#glossary-p}
 
 **P&L (Profit and Loss):** The financial gain or loss on a trading position.
 
@@ -368,7 +371,7 @@ The following definitions are written to be concise and standalone, useful as a 
 **Public Company:** A company whose shares are listed on a stock exchange and available to any investor.
 
 
-## Q
+## Q {#glossary-q}
 
 **Quote:** A two-sided order submitted by a market maker containing both a bid (buy) and an ask (sell) simultaneously. Unlike a regular order, the two legs are linked, what happens to one (a fill, a cancellation) triggers a defined response on the other according to the quote refresh policy.
 
@@ -379,7 +382,7 @@ The following definitions are written to be concise and standalone, useful as a 
 **Quote Stuffing:** A market manipulation practice where a participant rapidly submits and cancels a very large number of orders to consume exchange bandwidth, slow down competitors' systems, and create artificial confusion in market data. A form of denial-of-service abuse in electronic markets.
 
 
-## R
+## R {#glossary-r}
 
 **Ratchet:** The mechanism in a trailing stop that advances the stop price in the favourable direction but freezes it when the market reverses.
 
@@ -404,7 +407,7 @@ The following definitions are written to be concise and standalone, useful as a 
 **Rolling Window (MMP):** The time period over which fills are counted for Market Maker Protection purposes. Fills older than the window are discarded from the count; only fills within the current window matter. For example, a 1-second rolling window means: "if more than N fills have arrived in any sliding 1-second period, MMP fires."
 
 
-## S
+## S {#glossary-s}
 
 **Secondary Market:** Where existing securities are traded between investors. The issuing company does not receive proceeds. Stock exchanges are secondary markets.
 
@@ -459,7 +462,7 @@ The following definitions are written to be concise and standalone, useful as a 
 **Sweeping:** The process of an aggressive order filling against resting orders at successive price levels.
 
 
-## T
+## T {#glossary-t}
 
 **T+1 / T+2 Settlement:** Settlement occurring 1 or 2 business days after the trade date. The US moved from T+3 to T+2 in 2017 and to T+1 in 2024.
 
@@ -490,12 +493,12 @@ The following definitions are written to be concise and standalone, useful as a 
 **Two-Sided Quote:** A market maker's simultaneous bid and ask for the same instrument. Both sides must be live at the same time to fulfil the two-sided quoting obligation. A one-sided quote (only bid or only ask) is a contractual breach of market maker obligations.
 
 
-## U
+## U {#glossary-u}
 
 **UUID (Universally Unique Identifier):** A 128-bit identifier designed to be unique without central coordination. UUID v4 is randomly generated; UUID v1 incorporates the current time and network address.
 
 
-## V
+## V {#glossary-v}
 
 **Variation Margin:** Daily cash payments reflecting mark-to-market gains and losses on open positions. Prevents losses from accumulating to unmanageable levels before settlement.
 
@@ -508,13 +511,13 @@ The following definitions are written to be concise and standalone, useful as a 
 **VWAP Algorithm:** An execution algorithm that slices a large order and executes it throughout the day in proportion to expected trading volume, more during high-volume periods (open, close) and less during low-volume periods (mid-day). The goal is to achieve an average execution price close to or better than the day's volume-weighted average price. The most widely used institutional execution benchmark. Distinct from *VWAP (Volume-Weighted Average Price)*, which is a measurement; the VWAP algorithm is the execution strategy aimed at matching that measurement.
 
 
-## W
+## W {#glossary-w}
 
 **Wash Trading / Wash Trade:** A transaction where the same participant is on both sides, generating artificial trading volume with no real change of ownership. Illegal in all major jurisdictions under market manipulation regulations (the EU's Market Abuse Regulation, the US SEC's Rule 10b-5, and others). Also called a wash sale. Sometimes performed accidentally, see *Self-Match Prevention (SMP)*, but when deliberate, it is a form of market abuse used to inflate trading volume figures or create false impressions of liquidity.
 
 **Write-Ahead Log (WAL):** A persistent, append-only log of all input messages to the matching engine. Written before processing; used for recovery and replay. The source of truth from which all derived state (the in-memory order book) can be reconstructed.
 
 
-## Z
+## Z {#glossary-z}
 
 **ZeroMQ (ZMQ):** A messaging library providing efficient pub/sub, push/pull, and other communication patterns. Commonly used as the message bus in exchange systems.

@@ -1,8 +1,6 @@
 # Makefile for building Documentation for the MCProjSim project
 
-.PHONY: pdfs pdf-docs help clean really-clean \
- cover cover-light cover-dark \
- cover-exchange-intro-a4-light cover-exchange-intro-a4-dark cover-exchange-intro-b5-light cover-exchange-intro-b5-dark
+.PHONY: pdfs pdf-docs help clean really-clean
 
 
 # Makefile itself as a dependency to ensure it is re-evaluated when changed
@@ -173,7 +171,7 @@ _pdf-docs:  ## Build the exchange intro in all PDF variants (A4 light/dark, B5 l
 	@rm -rf $(EXCHANGE_INTRO_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm $(DIST_DIR)/$(PROJECT)-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) $(EXCHANGE_INTRO_A4_PDF) $(EXCHANGE_INTRO_DARK_A4_PDF) $(EXCHANGE_INTRO_B5_PDF) $(EXCHANGE_INTRO_DARK_B5_PDF)
-	@$(MAKE) cover  # Adjust PDFs with cover image after all variants are built
+	@echo -e "$(GREEN)✓ Cover rendering is handled directly in LaTeX templates$(NC)"
 
 
 clean: ## Remove all generated files (PDFs, build artifacts, stamps)
@@ -217,7 +215,7 @@ $$($1_PDF): $$(EXCHANGE_INTRO_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_TEMP
 		{ print } \
 		END { if (!inserted) { print "Template placeholder %%__EXCHANGE_INTRO_CONTENT__%% not found" > "/dev/stderr"; exit 2 } }' \
 		$$($1_TEMPLATE) > $$($1_TEX)
-	@echo -e "$$(DARKYELLOW)  - Compiling $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(DARKYELLOW) with xelatex (2 passes for references/TOC)...$$(NC)"
+	@echo -e "$$(DARKYELLOW)  - Compiling $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(DARKYELLOW) with xelatex (3 passes for references/TOC with shorttoc)...$$(NC)"
 	@xelatex -interaction=nonstopmode -halt-on-error -output-directory $$(EXCHANGE_INTRO_BUILD_DIR) $$($1_TEX) \
 		> $$($1_PDF_BUILT:.pdf=-xelatex-pass1.log) 2>&1 \
 		|| { echo -e "$$(RED)✗ xelatex pass 1 failed for $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(RED).$$(NC)" >&2; \
@@ -228,6 +226,11 @@ $$($1_PDF): $$(EXCHANGE_INTRO_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_TEMP
 		|| { echo -e "$$(RED)✗ xelatex pass 2 failed for $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(RED).$$(NC)" >&2; \
 		     echo -e "$$(RED)  Last 30 lines of $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log):$$(NC)" >&2; \
 		     tail -30 $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log) >&2; exit 1; }
+	@xelatex -interaction=nonstopmode -halt-on-error -output-directory $$(EXCHANGE_INTRO_BUILD_DIR) $$($1_TEX) \
+		> $$($1_PDF_BUILT:.pdf=-xelatex-pass3.log) 2>&1 \
+		|| { echo -e "$$(RED)✗ xelatex pass 3 failed for $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(RED).$$(NC)" >&2; \
+		     echo -e "$$(RED)  Last 30 lines of $$($1_PDF_BUILT:.pdf=-xelatex-pass3.log):$$(NC)" >&2; \
+		     tail -30 $$($1_PDF_BUILT:.pdf=-xelatex-pass3.log) >&2; exit 1; }
 	cp $$($1_PDF_BUILT) $$($1_PDF)
 	@echo -e "$$(GREEN)✓ Document PDF built: $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(GREEN)$$(NC)"
 endef
@@ -255,42 +258,6 @@ $(eval $(call BUILD_EXCHANGE_INTRO_PDF,EXCHANGE_INTRO_DARK_B5,b5))
 # $(info EXCHANGE_INTRO_DARK_B5_BODY_TEX: $(EXCHANGE_INTRO_DARK_B5_BODY_TEX))
 # $(info EXCHANGE_INTRO_DARK_B5_TEX: $(EXCHANGE_INTRO_DARK_B5_TEX))
 # $(info EXCHANGE_INTRO_DARK_B5_PDF_BUILT: $(EXCHANGE_INTRO_DARK_B5_PDF_BUILT))
-
-# ============================================================================================
-# Adjust the Exchange Intro PDF by adding cover image to the Exchange Intro PDFs. 
-# This is done as a separate step after PDF generation to avoid triggering a full rebuild of 
-# the PDF when the cover image changes, and to allow parallel builds of all PDF variants 
-# before applying the cover.
-# ============================================================================================
-EXCHANGE_INTRO_COVER_IMAGE := assets/cover_exchange_intro.png
-EXCHANGE_INTRO_B5_PDF := ./dist/$(PROJECT)-b5-$(VERSION).pdf
-EXCHANGE_INTRO_DARK_B5_PDF := ./dist/$(PROJECT)-dark-b5-$(VERSION).pdf
-EXCHANGE_INTRO_A4_PDF := ./dist/$(PROJECT)-a4-$(VERSION).pdf
-EXCHANGE_INTRO_DARK_A4_PDF := ./dist/$(PROJECT)-dark-a4-$(VERSION).pdf
-
-cover: cover-b5-light cover-b5-dark cover-a4-light cover-a4-dark ## Adjust all Exchange Intro PDFs with cover image in parallel
-	@:
-
-cover-b5-light: ## Adjust the PDF by adding cover image
-	@echo -e "$(DARKYELLOW)- Adjusting $(BRIGHTCYAN)\"$(notdir $(EXCHANGE_INTRO_B5_PDF))\"$(DARKYELLOW) with cover image...$(NC)"
-	@$(SCRIPTS_DIR)/mkcover.sh -q --dpi 300 $(EXCHANGE_INTRO_COVER_IMAGE) $(EXCHANGE_INTRO_B5_PDF)
-	@echo -e "$(GREEN)✓ PDF $(BRIGHTCYAN)\"$(notdir $(EXCHANGE_INTRO_B5_PDF))\"$(GREEN) adjusted with cover image$(NC)"
-
-cover-b5-dark: ## Adjust the PDF by adding cover image
-	@echo -e "$(DARKYELLOW)- Adjusting $(BRIGHTCYAN)\"$(notdir $(EXCHANGE_INTRO_DARK_B5_PDF))\"$(DARKYELLOW) with cover image...$(NC)"
-	@$(SCRIPTS_DIR)/mkcover.sh -q --dpi 300 $(EXCHANGE_INTRO_COVER_IMAGE) $(EXCHANGE_INTRO_DARK_B5_PDF)
-	@echo -e "$(GREEN)✓ PDF $(BRIGHTCYAN)\"$(notdir $(EXCHANGE_INTRO_DARK_B5_PDF))\"$(GREEN) adjusted with cover image$(NC)"
-
-cover-a4-light: ## Adjust the PDF by adding cover image
-	@echo -e "$(DARKYELLOW)- Adjusting $(BRIGHTCYAN)\"$(notdir $(EXCHANGE_INTRO_A4_PDF))\"$(DARKYELLOW) with cover image...$(NC)"
-	@$(SCRIPTS_DIR)/mkcover.sh -q --dpi 300 $(EXCHANGE_INTRO_COVER_IMAGE) $(EXCHANGE_INTRO_A4_PDF)
-	@echo -e "$(GREEN)✓ PDF $(BRIGHTCYAN)\"$(notdir $(EXCHANGE_INTRO_A4_PDF))\"$(GREEN) adjusted with cover image$(NC)"
-
-cover-a4-dark: ## Adjust the PDF by adding cover image
-	@echo -e "$(DARKYELLOW)- Adjusting $(BRIGHTCYAN)\"$(notdir $(EXCHANGE_INTRO_DARK_A4_PDF))\"$(DARKYELLOW) with cover image...$(NC)"
-	@$(SCRIPTS_DIR)/mkcover.sh -q --dpi 300 $(EXCHANGE_INTRO_COVER_IMAGE) $(EXCHANGE_INTRO_DARK_A4_PDF)
-	@echo -e "$(GREEN)✓ PDF $(BRIGHTCYAN)\"$(notdir $(EXCHANGE_INTRO_DARK_A4_PDF))\"$(GREEN) adjusted with cover image$(NC)"
-
 
 # EOF
 

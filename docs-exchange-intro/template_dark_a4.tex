@@ -8,6 +8,7 @@
 \usepackage[a4paper,top=2cm,left=0.8cm,right=1cm,bottom=1.8cm]{geometry}
 \usepackage{graphicx}
 \usepackage{calc}
+\usepackage{eso-pic}
 \usepackage{amsmath}
 \usepackage{booktabs}
 \usepackage{longtable}
@@ -26,6 +27,7 @@
   linkcolor=RoyalBlue,   % internal links (TOC, refs)
   urlcolor=BrickRed,     % external URLs
   citecolor=ForestGreen, % citations
+  hypertexnames=false,
   pdfborder={0 0 0}
 }
 
@@ -34,6 +36,7 @@
 \usepackage{fancyvrb}
 \usepackage{xcolor}
 \usepackage{shorttoc}
+\usepackage{etoolbox}
 \usepackage[explicit]{titlesec}
 \usepackage[skins,breakable]{tcolorbox}
 \definecolor{codebg}{HTML}{404040}
@@ -76,6 +79,11 @@
 % Pandoc 3.x may wrap images with \pandocbounded{...}.
 \providecommand{\pandocbounded}[1]{#1}
 
+% Ensure unnumbered sections (e.g. glossary letters) get distinct hyper targets.
+\makeatletter
+\pretocmd{\section}{\phantomsection}{}{}
+\makeatother
+
 \definecolor{brandblue}{HTML}{129ADD}
 \definecolor{brandgray}{HTML}{6B7583}
 \definecolor{lightorange}{HTML}{FFA500}
@@ -111,6 +119,18 @@
 \color[rgb]{0.80,0.80,0.80}
 
 \begin{document}
+
+% dummy-first-page-cover
+{%
+  \thispagestyle{empty}%
+  \IfFileExists{assets/cover_exchange_intro.png}{%
+    \AddToShipoutPictureBG*{\AtPageLowerLeft{\includegraphics[width=\paperwidth,height=\paperheight]{assets/cover_exchange_intro.png}}}%
+    \null
+  }{%
+    \null\vfill
+  }%
+  \clearpage
+}
 
 % Cover verso / imprint page.
 % A bare \newpage does not ship out an empty page; TeX needs actual content.
