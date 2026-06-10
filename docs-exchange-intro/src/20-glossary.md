@@ -224,6 +224,8 @@ The following definitions are written to be concise and standalone, useful as a 
 
 **ISIN (International Securities Identification Number):** A 12-character global identifier for a security, independent of the exchange it trades on. A single company has one ISIN regardless of where its shares are listed.
 
+**ITCH (NASDAQ TotalView-ITCH):** NASDAQ's binary, message-based market data feed protocol for order book dissemination. ITCH publishes sequenced events such as add order, modify/replace, cancel/delete, executions, and auction/trade messages so subscribers can reconstruct the full limit order book deterministically from the stream. Official specification: [NASDAQ TotalView-ITCH 5.0](https://www.nasdaqtrader.com/content/technicalsupport/specifications/dataproducts/nasdaq_totalview_itch50.pdf).
+
 
 ## K {#glossary-k}
 
@@ -332,6 +334,8 @@ The following definitions are written to be concise and standalone, useful as a 
 **Order ID:** A unique identifier assigned to each order upon submission. Must be unique across the entire system.
 
 **OTC (Over-the-Counter):** Trading that occurs directly between two parties without going through an exchange. OTC trades are less transparent and subject to different regulations than exchange-traded transactions.
+
+**OUCH (NASDAQ OUCH):** NASDAQ's high-performance binary order entry protocol used by member firms and low-latency trading systems to submit, modify, cancel, and manage orders directly at the matching engine. OUCH is session-based and message-oriented, with exchange acknowledgments and execution/cancel responses that let clients track the full order lifecycle deterministically. Official specification: [NASDAQ OUCH 5.0](https://www.nasdaqtrader.com/content/technicalsupport/specifications/TradingProducts/OUCH5.0.pdf).
 
 
 ## P {#glossary-p}
