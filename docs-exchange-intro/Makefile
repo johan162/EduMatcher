@@ -1,4 +1,13 @@
 # Makefile for building Documentation for the MCProjSim project
+#
+# For mermain rendering we use a mermaid Node filter so there is a need to install Node and the mermaid package:
+# npm install --save-dev mermaid-filter @mermaid-js/mermaid-cli
+
+NODE_MODULES_PATH := node_modules
+MERMAID_FILTER := node_modules/.bin/mermaid-filter
+PUPPETER_EXECUTABLE_PATH ?= /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+MERMAID_FILTER_FORMAT ?= pdf
+MERMAID_FILTER_WIDTH ?= 380
 
 .PHONY: pdfs _pdf-docs help clean
 
@@ -187,7 +196,7 @@ clean: ## Remove all generated files (PDFs, build artifacts, stamps)
 # $(call) expansion and are resolved at recipe-execution time.
 # ============================================================================================
 define BUILD_EXCHANGE_INTRO_PDF
-$$($1_PDF): $$(EXCHANGE_INTRO_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_TEMPLATE) $$(EXCHANGE_INTRO_LUA_FILTER) | $$(DIST_DIR) 
+$$($1_PDF): $$(EXCHANGE_INTRO_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_TEMPLATE) $$(EXCHANGE_INTRO_LUA_FILTER) | $(DIST_DIR) $(NODE_MODULES_PATH)
 	@echo -e "$(DARKYELLOW)- Updating version number $(BRIGHTCYAN)v$(VERSION)$(DARKYELLOW) in LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW)...$(NC)"
 	@sed -i.bak -E 's/Version: [0-9]+(\.[0-9]+)*(rc[0-9]{1,2})?/Version: $(VERSION)/g' $$($1_TEMPLATE)
 	@rm -f $$($1_TEMPLATE).bak
@@ -206,7 +215,12 @@ $$($1_PDF): $$(EXCHANGE_INTRO_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_TEMP
 		| sort -z \
 		| xargs -0 awk 'FNR==1 && NR!=1{print ""; print ""}1' > $$($1_CONCAT_MD)
 	@echo -e "$$(DARKYELLOW)  - Converting concatenated markdown to LaTeX body...$$(NC)"
-	@pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none $$(EXCHANGE_INTRO_LUA_FILTER_FLAGS) --metadata paper_format=$(2) $$($1_CONCAT_MD) -o $$($1_BODY_TEX)
+	@mkdir -p $$($1_EXPANDED_DIR)/.mermaid-img
+	@PUPPETEER_EXECUTABLE_PATH="$(PUPPETER_EXECUTABLE_PATH)" \
+	MERMAID_FILTER_FORMAT="$(MERMAID_FILTER_FORMAT)" \
+	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
+	MERMAID_FILTER_LOC="$$($1_EXPANDED_DIR)/.mermaid-img" \
+	pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none --filter "$(MERMAID_FILTER)"  $$(EXCHANGE_INTRO_LUA_FILTER_FLAGS) --metadata paper_format=$(2) $$($1_CONCAT_MD) -o $$($1_BODY_TEX)
 	@sed -i.bak 's/\\def\\LTcaptype{none}/\\def\\LTcaptype{table}/g' $$($1_BODY_TEX)
 	@rm -f $$($1_BODY_TEX).bak
 	@echo -e "$$(DARKYELLOW)  - Injecting body into handcrafted LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW) ...$$(NC)"
@@ -258,6 +272,12 @@ $(eval $(call BUILD_EXCHANGE_INTRO_PDF,EXCHANGE_INTRO_DARK_B5,b5))
 # $(info EXCHANGE_INTRO_DARK_B5_BODY_TEX: $(EXCHANGE_INTRO_DARK_B5_BODY_TEX))
 # $(info EXCHANGE_INTRO_DARK_B5_TEX: $(EXCHANGE_INTRO_DARK_B5_TEX))
 # $(info EXCHANGE_INTRO_DARK_B5_PDF_BUILT: $(EXCHANGE_INTRO_DARK_B5_PDF_BUILT))
+
+
+$(NODE_MODULES_PATH):
+	@echo -e "$(DARKYELLOW)- Installing Node dependencies for Mermaid rendering...$(NC)"
+	@npm install --save-dev mermaid-filter @mermaid-js/mermaid-cli
+	@echo -e "$(GREEN)✓ Node dependencies installed$(NC)"
 
 # EOF
 
