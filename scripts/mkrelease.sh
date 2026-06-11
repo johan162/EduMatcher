@@ -365,15 +365,15 @@ else
     }
 
     echo "  ✓ Checking if these files exist:"
-    echo "./dist/${PROGRAMNAME}_user_guide-a4-${VERSION}.pdf"
-    echo "./dist/${PROGRAMNAME}_user_guide-dark-a4-${VERSION}.pdf"
-    echo "./dist/${PROGRAMNAME}_user_guide-b5-${VERSION}.pdf"
-    echo "./dist/${PROGRAMNAME}_user_guide-dark-b5-${VERSION}.pdf"
+    echo "./dist/${PROGRAMNAME}_user-guide-a4-${VERSION}.pdf"
+    echo "./dist/${PROGRAMNAME}_user-guide-dark-a4-${VERSION}.pdf"
+    echo "./dist/${PROGRAMNAME}_user-guide-b5-${VERSION}.pdf"
+    echo "./dist/${PROGRAMNAME}_user-guide-dark-b5-${VERSION}.pdf"
 
-    if [[ ! -f "./dist/${PROGRAMNAME}_user_guide-a4-${VERSION}.pdf" \
-          || ! -f "./dist/${PROGRAMNAME}_user_guide-dark-a4-${VERSION}.pdf" \
-          || ! -f "./dist/${PROGRAMNAME}_user_guide-b5-${VERSION}.pdf" \
-          || ! -f "./dist/${PROGRAMNAME}_user_guide-dark-b5-${VERSION}.pdf" ]]; then
+    if [[ ! -f "./dist/${PROGRAMNAME}_user-guide-a4-${VERSION}.pdf" \
+          || ! -f "./dist/${PROGRAMNAME}_user-guide-dark-a4-${VERSION}.pdf" \
+          || ! -f "./dist/${PROGRAMNAME}_user-guide-b5-${VERSION}.pdf" \
+          || ! -f "./dist/${PROGRAMNAME}_user-guide-dark-b5-${VERSION}.pdf" ]]; then
         print_error_colored "Expected PDF not found at ./dist directory"
         exit 1;
     fi    
