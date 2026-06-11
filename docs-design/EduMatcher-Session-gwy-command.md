@@ -1,4 +1,4 @@
-Version: 1.0.0
+Version: 1.1.0
 
 Date: 2026-06-13
 
@@ -82,13 +82,13 @@ Gateway                              Engine (PULL socket)
   │  and calls _print_session_status(payload)                   │
 ```
 
-This is the same fire-and-forget + async response pattern used by `SYMBOLS` and `ORDERS`. The gateway never blocks waiting for the reply — the background listener thread handles it.
+This follows the same fire-and-forget + async response pattern used by `SYMBOLS`: the gateway sends a request over PUSH and the background listener thread handles the PUB response asynchronously. It is **not** the same as the interactive `ORDERS` command, which prints the gateway's local order cache. The gateway never blocks waiting for the `SESSION` reply.
 
 ---
 
 ## 5. Changes Required in `gateway/main.py`
 
-There are four places to edit in this single file.
+There are six small edits in this single file.
 
 ### 5.1 — Add `"SESSION"` to the top-level command list
 
@@ -158,7 +158,7 @@ Without this subscription the gateway's SUB socket will silently drop the engine
 
 ### 5.3 — Add the `SESSION` dispatch case in `_parse_and_send`
 
-In `_parse_and_send`, the method that routes user commands, add a handler for `SESSION` alongside the existing `SYMBOLS` handler. The import for `make_session_state_request_msg` is already present at the top of the file — just add the handler:
+In `_parse_and_send`, the method that routes user commands, add a handler for `SESSION` alongside the existing `SYMBOLS` handler. This also requires `make_session_state_request_msg` to be imported from `edumatcher.models.message` at the top of the file:
 
 ```python
 if cmd == "SYMBOLS":
@@ -249,6 +249,7 @@ In the `_HELP_TEXT` string, add a line for `SESSION` in the list of operational 
 |---|---|
 | `gateway/main.py` | Add `"SESSION"` to `_TOP_LEVEL_CMDS` |
 | `gateway/main.py` | Add `f"system.session_status.{self.gateway_id}"` to `make_subscriber(...)` in `__init__` |
+| `gateway/main.py` | Add `make_session_state_request_msg` to the `edumatcher.models.message` import block |
 | `gateway/main.py` | Add `SESSION` dispatch block in `_parse_and_send` |
 | `gateway/main.py` | Add `elif "system.session_status" in topic` branch in `_handle_event` |
 | `gateway/main.py` | Add `_SESSION_DESCRIPTIONS` module-level constant |
@@ -261,17 +262,17 @@ No changes are required to `models/message.py`, `engine/main.py`, or any other f
 
 ## 7. Imports
 
-The import for `make_session_state_request_msg` is already present in `gateway/main.py`. Verify by checking the import block for `edumatcher.models.message`:
+Add `make_session_state_request_msg` to the import block in `gateway/main.py`.
 
 ```python
 from edumatcher.models.message import (
     ...
-    make_session_state_request_msg,   # already imported
+    make_session_state_request_msg,
     ...
 )
 ```
 
-If for any reason it is missing, add it there.
+At the time of writing this design, the gateway already imports `make_orders_request_msg` and `make_symbols_request_msg`, but **does not yet import** `make_session_state_request_msg`.
 
 
 
@@ -292,7 +293,7 @@ If for any reason it is missing, add it there.
 
 **Sessions disabled:** When the engine is started without session gating (default for simple demos), `sessions_enabled` will be `False` in the payload. The gateway should still display the current state, with the `[sessions gating disabled]` note appended.
 
-**Engine not running:** If the engine is not reachable, no response will arrive. The gateway will appear to hang silently after the user types `SESSION` — this is the same behaviour as `SYMBOLS` and `ORDERS`. No special error handling is needed here; the existing pattern is intentional.
+**Engine not running:** If the engine is not reachable, no response will arrive. The gateway will appear to hang silently after the user types `SESSION` — this is the same behaviour as `SYMBOLS`. No special error handling is needed here; the existing pattern is intentional.
 
 **Testing manually:**
 1. Start the engine: `poetry run pm-engine`
@@ -301,4 +302,29 @@ If for any reason it is missing, add it there.
 4. In another terminal, start the scheduler in rapid mode: `poetry run pm-scheduler --now`
 5. Go back to the gateway and type `SESSION` several times as the scheduler fires transitions — the output should change from `PRE_OPEN` → `OPENING_AUCTION` → `CONTINUOUS` → `CLOSING_AUCTION` → `CLOSED`.
 
-**Testing via the command client (automated):** The `ExchangeCommandClient` in `src/edumatcher/commands/client.py` already has a `session_status()` method that exercises the same engine handler. See `tests/test_commands.py` — `TestSessionStatus` — for the existing test cases. You do not need to write engine-level tests; the gateway change is thin UI plumbing.
+**Testing via the command client (automated):** The `ExchangeCommandClient` in `src/edumatcher/commands/client.py` already has a `session_status()` method that exercises the same engine handler. See `tests/test_commands.py` — `TestSessionStatus` — for the existing test cases. These tests confirm the engine-side request/response path already works.
+
+**What still needs manual gateway verification:** The command-client tests do **not** verify the gateway-specific changes in `gateway/main.py`. After implementation, manually confirm all of the following:
+
+1. Typing `SESS<Tab>` completes to `SESSION`.
+2. Typing `HELP` shows a `SESSION` command entry.
+3. Typing `SESSION` sends a request and prints a status line when the response arrives.
+4. The printed line changes as the scheduler advances the session state.
+5. When sessions are disabled, the output includes `[sessions gating disabled]`.
+
+You do not need new engine tests for this feature, but you do need to verify the gateway wiring and terminal output.
+
+---
+
+## 10. Acceptance Checklist
+
+The work should be considered complete only when all of the following are true:
+
+- `SESSION` is listed in `_TOP_LEVEL_CMDS`.
+- `make_session_state_request_msg` is imported in `gateway/main.py`.
+- `system.session_status.{GW_ID}` is subscribed in `Gateway.__init__`.
+- `_parse_and_send("SESSION")` sends the session-state request.
+- `_handle_event(...)` dispatches `system.session_status` payloads.
+- `_handle_session_status(...)` prints a human-readable line without crashing on unknown/missing fields.
+- `_HELP_TEXT` documents the command.
+- Manual test from a real gateway prompt succeeds.
