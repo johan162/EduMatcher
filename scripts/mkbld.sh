@@ -342,6 +342,13 @@ run_command "poetry build" "Building package"
 # Step 4.3: Check package with twine
 run_command "poetry run twine check dist/*" "Validating package with twine"
 
+# Step 4.4: Build Exchange Intro PDF (if applicable)
+if [ -d "docs-exchange-intro" ]; then
+    print_sub_step "Building Exchange Intro Booklet"
+    run_command "make -C docs-exchange-intro -j4" "Building Exchange Intro Booklet"
+else
+    print_warning "docs-exchange-intro directory not found; skipping Exchange Intro PDF build"
+fi
 
 # =======================================
 # PHASE 5: BUILD SUMMARY

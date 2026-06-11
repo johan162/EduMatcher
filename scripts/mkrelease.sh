@@ -553,9 +553,10 @@ else
     
     # Zip-the PDFs into one User-guide-bundle for easier distribution and upload to GitHub releases
     echo "  ✓ Creating ZIP bundles of generated PDFs for release assets..."
-    (cd ./dist && zip -9 "${PROGRAMNAME}_user_guide_bundle-${VERSION}.zip" "${PROGRAMNAME}_user_guide-${VERSION}.pdf" "${PROGRAMNAME}_user_guide-dark-${VERSION}.pdf" "${PROGRAMNAME}_user_guide-b5-${VERSION}.pdf" "${PROGRAMNAME}_user_guide-dark-b5-${VERSION}.pdf")
+    (cd ./dist && zip -9 "${PROGRAMNAME}_user-guide-bundle-${VERSION}.zip" "${PROGRAMNAME}_user-guide-a4-${VERSION}.pdf" "${PROGRAMNAME}_user-guide-b5-${VERSION}.pdf" "${PROGRAMNAME}_user-guide-dark-a4-${VERSION}.pdf"  "${PROGRAMNAME}_user-guide-dark-b5-${VERSION}.pdf")
     (cd ./dist && rm *.pdf)
-
+    (cd docs-exchange-intro/dist && zip -9 exchange-intro-bundle.zip exchange-intro*.pdf)
+    (mv docs-exchange-intro/dist/exchange-intro-bundle.zip dist/)
 fi
 
 # =====================================
