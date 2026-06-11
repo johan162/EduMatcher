@@ -1,3 +1,17 @@
+## [v0.1.3] - 2026-06-11
+
+Release Type: patch
+
+### 📋 Summary
+This patch release fixes issues in the GitHub release automation flow and stabilizes post-release branch synchronization after v0.1.2.
+
+### 🐛 Bug Fixes
+- Fixed GitHub release script behavior for release creation flow
+
+### 🛠 Internal
+- Updated release branch synchronization after v0.1.2
+
+
 ## [v0.1.2] - 2026-06-11
 
 Release Type: patch
