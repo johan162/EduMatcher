@@ -1,0 +1,2630 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A multi-process Python trading system for learning order matching and market microstructure.">
+      
+      
+        <meta name="author" content="Johan Persson <johan162@gmail.com>">
+      
+      
+      
+        <link rel="prev" href="../07-pnl-clearing/">
+      
+      
+        <link rel="next" href="../09-messages/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Gateway Commands - EduMatcher — Educational Trading System</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#gateway-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-header__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EduMatcher — Educational Trading System
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Gateway Commands
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../how-exchange-works/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  How an Exchange Works
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/01-concepts-order-book/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../01-configuration/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/01-architecture/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../developer/01-dev-practice/" class="md-tabs__link">
+          
+  
+  
+  Developer Info
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../glossary/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Glossary
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  FAQ
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-nav__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    EduMatcher — Educational Trading System
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-exchange-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How an Exchange Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/01-concepts-order-book/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/03-concepts-mm-quotes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MM Quotes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/04-concepts-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/05-concepts-trading-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Full Trading Day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../01-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../02-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Controlling the Exchange
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../03-running-the-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../04-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-combos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../06-auctions-scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auctions & Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../07-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gateway Commands
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gateway Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#background-gateways-in-real-exchange-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Background — Gateways in Real Exchange Architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Background — Gateways in Real Exchange Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-is-a-gateway" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is a gateway?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#industry-standard-gateway-protocols" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Industry-standard gateway protocols
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-user-per-gateway-a-learning-simplification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One user per gateway — a learning simplification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multiple-gateways-and-arrival-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multiple gateways and arrival order
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#starting-a-gateway" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Starting a Gateway
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#command-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Format
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Command Format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#quote-submitreplace-a-two-sided-mm-quote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        QUOTE — Submit/Replace A Two-Sided MM Quote
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quote_cancel-cancel-active-quote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        QUOTE_CANCEL — Cancel Active Quote
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kill-trigger-kill-switch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KILL — Trigger Kill-Switch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#new-submit-an-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NEW — Submit an Order
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="NEW — Submit an Order">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#required-fields-by-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Required fields by type
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#new-combo-submit-a-multi-leg-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NEW (Combo) — Submit a Multi-Leg Order
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="NEW (Combo) — Submit a Multi-Leg Order">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#combo-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Combo fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Constraints
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cancel-cancel-a-resting-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CANCEL — Cancel a Resting Order
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cancel-cancel-a-combo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CANCEL — Cancel a Combo
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#orders-view-this-sessions-orders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ORDERS — View This Session's Orders
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pos-view-current-positions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POS — View Current Positions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#symbols-list-active-instruments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SYMBOLS — List Active Instruments
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#help-command-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HELP — Command Reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exit-quit-disconnect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EXIT / QUIT — Disconnect
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gateway-responses" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gateway Responses
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Gateway Responses">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#order-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order Events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#combo-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Combo Events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#session-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Session Events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#system-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System Events
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multiple-gateways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multiple Gateways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interactive-features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interactive Features
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Interactive Features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tab-completion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tab Completion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#command-history" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command History
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#background-event-display" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Background Event Display
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tickns-migration-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tick/Ns Migration Notes
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../09-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../10-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../11-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../12-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../13-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../20-app-alf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix - ALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/01-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/02-architecture-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detailed Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Info
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer Info
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/01-dev-practice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Practice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/02-ai-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Bot Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/03-experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/04-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="gateway-reference">Gateway Reference<a class="headerlink" href="#gateway-reference" title="Permanent link">&para;</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Learning objectives</p>
+<p>After reading this page you will understand:</p>
+<ul>
+<li>What a gateway is and what role it plays in an exchange architecture</li>
+<li>Why real exchanges offer multiple gateway protocols and what the major
+  industry-standard formats are</li>
+<li>How EduMatcher simplifies the real-world concepts of users, participants,
+  and members — and what those concepts mean in production</li>
+<li>Why arrival order at the matching engine matters and how real exchanges are
+  legally obligated to handle it fairly</li>
+<li>How to start a gateway, submit every order type, manage positions, and read
+  responses</li>
+</ul>
+</div>
+<h2 id="background-gateways-in-real-exchange-architecture">Background — Gateways in Real Exchange Architecture<a class="headerlink" href="#background-gateways-in-real-exchange-architecture" title="Permanent link">&para;</a></h2>
+<h3 id="what-is-a-gateway">What is a gateway?<a class="headerlink" href="#what-is-a-gateway" title="Permanent link">&para;</a></h3>
+<p>An exchange <strong>gateway</strong> is the entry point through which external participants
+send orders and receive market data and execution reports.  It translates the
+external message format (FIX, binary, proprietary) into the internal format the
+matching engine understands, authenticates the sender, applies pre-trade risk
+checks, and routes messages to the right destination.</p>
+<p>The gateway is deliberately kept outside the matching engine.  The engine's
+only job is to match orders; it must not be slowed down by format parsing,
+session management, or rate limiting.  Separating these concerns also allows
+the exchange to offer multiple gateway protocols simultaneously — an HFT firm
+and a retail broker can both connect to the same engine while speaking
+completely different wire formats.</p>
+<h3 id="industry-standard-gateway-protocols">Industry-standard gateway protocols<a class="headerlink" href="#industry-standard-gateway-protocols" title="Permanent link">&para;</a></h3>
+<p>Real exchanges offer a range of gateway types.  Each targets a different
+client population:</p>
+<table>
+<thead>
+<tr>
+<th>Protocol</th>
+<th>Type</th>
+<th>Used by</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>FIX 4.2 / 4.4 / 5.0</strong></td>
+<td>Text (tag=value)</td>
+<td>Brokers, buy-side OMS</td>
+<td>The lingua franca of institutional order routing; every major venue supports it; verbose but universally understood</td>
+</tr>
+<tr>
+<td><strong>OUCH (Nasdaq)</strong></td>
+<td>Binary</td>
+<td>HFT, proprietary traders</td>
+<td>Ultra-low latency; fixed-length binary fields; single-digit microsecond round trips</td>
+</tr>
+<tr>
+<td><strong>ITCH (Nasdaq)</strong></td>
+<td>Binary (market data only)</td>
+<td>Market data consumers</td>
+<td>One-way feed; used for direct order book reconstruction at co-location</td>
+</tr>
+<tr>
+<td><strong>FAST / SBE</strong></td>
+<td>Binary</td>
+<td>Market data consumers</td>
+<td>Simple Binary Encoding; used by CME, Eurex for market data</td>
+</tr>
+<tr>
+<td><strong>BOE (CBOE/BATS)</strong></td>
+<td>Binary</td>
+<td>HFT</td>
+<td>Binary Order Entry; competes with OUCH</td>
+</tr>
+<tr>
+<td><strong>ETI (Eurex)</strong></td>
+<td>Binary</td>
+<td>European derivatives traders</td>
+<td>Enhanced Transaction Interface; supports complex derivatives workflows</td>
+</tr>
+<tr>
+<td><strong>Proprietary REST/WebSocket</strong></td>
+<td>Text / JSON</td>
+<td>Retail, algorithmic</td>
+<td>Used by crypto exchanges and some retail venues; easy to integrate</td>
+</tr>
+</tbody>
+</table>
+<p>EduMatcher's gateway speaks a <strong>FIX-inspired pipe-delimited text format</strong> that
+we call <strong>ALF</strong> (<strong>AL</strong>most <strong>F</strong>ix):
+<code>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00</code>.
+It borrows FIX's field=value concept but uses a simplified subset - no session
+layer, no checksums, no sequence numbers, and no standard FIX message set.
+A production FIX gateway would add all of these.</p>
+<div class="admonition note">
+<p class="admonition-title">Formal protocol reference</p>
+<p>This page explains ALF from the gateway user's point of view.
+The formal syntax and semantics of the ALF protocol are defined in
+<a href="../20-app-alf-protocol/">Appendix: ALF Protocol Reference</a>.</p>
+</div>
+<h3 id="one-user-per-gateway-a-learning-simplification">One user per gateway — a learning simplification<a class="headerlink" href="#one-user-per-gateway-a-learning-simplification" title="Permanent link">&para;</a></h3>
+<p>EduMatcher maps one gateway process to one user.  In a real exchange, the
+relationship between gateways, users, and legal entities has several layers:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Exchange
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  └─ Member firm  (legal entity; signed exchange rules; financial responsibility)
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>       ├─ Participant  (trading desk or system within the firm)
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>       │    ├─ User  (individual trader or algorithm)
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>       │    └─ User
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>       └─ Participant
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>            └─ User
+</code></pre></div>
+<p>A single FIX session (one TCP connection to the exchange) can carry orders for
+many users in the same firm, tagged with a <code>SenderSubID</code> or <code>Account</code> field to
+identify the individual.  Risk limits may be set at the firm level, the desk
+level, or the individual user level.  Pre-trade checks (position limits, fat-finger
+checks, credit checks) can be applied independently at each layer.</p>
+<p>EduMatcher collapses all of this:</p>
+<ul>
+<li>There is no concept of a member firm or legal entity.</li>
+<li>There is no concept of a "user" separate from the gateway.</li>
+<li>The gateway ID (<code>--id GW01</code>) is the only identity the engine knows.</li>
+<li>All orders from <code>GW01</code> are treated as one account for position tracking and
+  self-match prevention purposes.</li>
+</ul>
+<p>This makes the system much easier to learn and operate, at the cost of the
+access-control and risk-management structures that real venues require.</p>
+<h3 id="multiple-gateways-and-arrival-order">Multiple gateways and arrival order<a class="headerlink" href="#multiple-gateways-and-arrival-order" title="Permanent link">&para;</a></h3>
+<p>When two gateways submit orders at almost the same moment, the engine processes
+them in the order the messages arrive at its PULL socket.  On localhost with
+ZeroMQ, this is effectively FIFO — but only at the network level, not at the
+wall-clock level of the original submission.</p>
+<p>In production this is a critical fairness issue:</p>
+<ul>
+<li>Two orders submitted at the same microsecond by two different participants on
+  opposite sides of a co-location facility do not arrive at the engine at the
+  same time.</li>
+<li>The order that traverses fewer network hops, or whose gateway server sits
+  closer to the matching engine, will arrive first.</li>
+<li>This is the economics behind <strong>co-location</strong> services: participants pay to
+  place their servers in the same data centre as the exchange, minimising the
+  physical distance their messages travel.</li>
+</ul>
+<p><strong>Legal fairness obligations</strong></p>
+<p>Regulated exchanges are legally required to treat all participants fairly and
+without discrimination.  In practice this means:</p>
+<ul>
+<li><strong>Deterministic FIFO processing</strong>: the engine must process messages in the
+  exact sequence they are received; it cannot re-order them for any reason.</li>
+<li><strong>No preferential access</strong>: the exchange must offer the same co-location
+  facilities and network connections to any participant willing to pay the
+  published fee.</li>
+<li><strong>Timestamping</strong>: many regulators (MiFID II in Europe, FINRA/SEC in the US)
+  require the exchange to log a nanosecond-precision hardware timestamp
+  ("gateway receipt timestamp") on every inbound message and include it in
+  execution reports.  This creates an auditable record of arrival order that
+  can be reviewed by regulators after any suspicious trading pattern.</li>
+<li><strong>Speed bumps</strong>: some venues (IEX, Cboe EDGA) deliberately introduce a short
+  delay (350 microseconds for IEX's "Magic Shoebox") on certain order types to
+  level the playing field between speed-optimised HFT and slower participants.</li>
+</ul>
+<p>EduMatcher has none of these mechanisms.  The engine processes messages in
+ZeroMQ arrival order with no timestamps beyond the wall clock of the machine
+running the test.  For a learning system on localhost this is irrelevant; for a
+regulated venue it would be a compliance failure.</p>
+<p>The gateway (<code>pm-gateway</code>) is your trading terminal. Each gateway instance represents
+one user connecting to the trading system. Multiple gateways can run simultaneously.</p>
+<h2 id="starting-a-gateway">Starting a Gateway<a class="headerlink" href="#starting-a-gateway" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW01
+</code></pre></div>
+<p>The <code>--id</code> flag sets your gateway identifier. It appears on all orders and fills.
+The ID must be preconfigured in <code>engine_config.yaml</code> under <code>gateways.alf</code>.</p>
+<p>On startup, the gateway:</p>
+<ol>
+<li>Connects PUSH socket to the engine PULL port (5555)</li>
+<li>Connects SUB socket to the engine PUB port (5556)</li>
+<li>Subscribes to: <code>order.ack.{ID}</code>, <code>order.fill.{ID}</code>, <code>order.amended.{ID}</code>, <code>order.cancelled.{ID}</code>, <code>order.expired.{ID}</code>, <code>order.orders.{ID}</code>, <code>combo.ack.{ID}</code>, <code>combo.status.{ID}</code>, <code>oco.ack.{ID}</code>, <code>oco.cancelled.{ID}</code>, <code>quote.ack.{ID}</code>, <code>quote.status.{ID}</code>, <code>risk.kill_switch_ack.{ID}</code>, <code>system.symbols.{ID}</code>, <code>system.gateway_auth.{ID}</code>, <code>trade.executed</code></li>
+<li>Sends <code>system.gateway_connect</code> and waits up to <strong>3 seconds</strong> for the auth response</li>
+<li>If accepted: enters the interactive prompt loop</li>
+<li>If rejected: prints the reason and exits immediately</li>
+<li>If timeout (engine not running): exits with "Gateway authentication timed out"</li>
+</ol>
+<p>The gateway does <strong>not</strong> subscribe to <code>session.state</code>. Use <code>pm-audit</code>,
+<code>pm-viewer</code>, <code>pm-orders</code>, or the scheduler output if you need to watch trading
+phase transitions live.</p>
+<p>Allowed gateway IDs are configured in <code>engine_config.yaml</code> under <code>gateways.alf</code>.</p>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">gateways</span><span class="p">:</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="nt">alf</span><span class="p">:</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">            </span><span class="l l-Scalar l-Scalar-Plain">description</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">The first trader</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER02</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">            </span><span class="l l-Scalar l-Scalar-Plain">description</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">High frequency</span>
+</code></pre></div>
+<p>If a gateway starts with an ID that is not listed there, the engine refuses
+the connection and the gateway exits.</p>
+<h2 id="command-format">Command Format<a class="headerlink" href="#command-format" title="Permanent link">&para;</a></h2>
+<p>All commands use the ALF pipe-separated key=value format.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For the precise ALF grammar, parser rules, field semantics, and full command
+catalog, see <a href="../20-app-alf-protocol/">Appendix: ALF Protocol Reference</a>.</p>
+</div>
+<h3 id="quote-submitreplace-a-two-sided-mm-quote">QUOTE — Submit/Replace A Two-Sided MM Quote<a class="headerlink" href="#quote-submitreplace-a-two-sided-mm-quote" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>QUOTE|SYM=&lt;symbol&gt;|BID=&lt;price&gt;|ASK=&lt;price&gt;|BID_QTY=&lt;n&gt;|ASK_QTY=&lt;n&gt;[|TIF=&lt;DAY|GTC&gt;][|QUOTE_ID=&lt;label&gt;]
+</code></pre></div>
+<p>Rules:</p>
+<ul>
+<li><code>BID</code> must be strictly less than <code>ASK</code></li>
+<li><code>BID_QTY</code> and <code>ASK_QTY</code> must be positive integers</li>
+<li>Existing quote for the same gateway+symbol is replaced</li>
+</ul>
+<h3 id="quote_cancel-cancel-active-quote">QUOTE_CANCEL — Cancel Active Quote<a class="headerlink" href="#quote_cancel-cancel-active-quote" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>QUOTE_CANCEL|SYM=&lt;symbol&gt;
+</code></pre></div>
+<h3 id="kill-trigger-kill-switch">KILL — Trigger Kill-Switch<a class="headerlink" href="#kill-trigger-kill-switch" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>KILL
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>KILL|SYM=&lt;symbol&gt;
+</code></pre></div>
+<p><code>KILL</code> cancels active quote legs and non-quote resting orders for the gateway.</p>
+<h3 id="new-submit-an-order">NEW — Submit an Order<a class="headerlink" href="#new-submit-an-order" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>NEW|SYM=&lt;symbol&gt;|SIDE=&lt;BUY|SELL&gt;|TYPE=&lt;order-type&gt;|QTY=&lt;quantity&gt;[|PRICE=&lt;price&gt;][|STOP=&lt;price&gt;][|TIF=&lt;DAY|GTC&gt;][|VISIBLE=&lt;n&gt;][|SMP=&lt;action&gt;]
+</code></pre></div>
+<p><strong>SMP</strong> (Self Match Prevention) values: <code>NONE</code> (default), <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code>.
+SMP prevents you from accidentally trading against your own resting orders.</p>
+<div class="admonition note">
+<p class="admonition-title">ATO / ATC orders</p>
+<p>The <code>ATO</code> (At-The-Open) and <code>ATC</code> (At-The-Close) TIF values are accepted by
+the engine during the appropriate auction phase but are <strong>not exposed</strong> in the
+gateway’s tab completion. To submit an ATO/ATC order, type the TIF value
+manually: <code>TIF=ATO</code> or <code>TIF=ATC</code>. These orders are only valid during
+<code>OPENING_AUCTION</code> and <code>CLOSING_AUCTION</code> phases respectively.</p>
+</div>
+<h4 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Order Type</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Market buy</td>
+<td><code>NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=MARKET\|QTY=100</code></td>
+</tr>
+<tr>
+<td>Limit sell</td>
+<td><code>NEW\|SYM=AAPL\|SIDE=SELL\|TYPE=LIMIT\|QTY=100\|PRICE=152.00</code></td>
+</tr>
+<tr>
+<td>GTC limit</td>
+<td><code>NEW\|SYM=MSFT\|SIDE=BUY\|TYPE=LIMIT\|QTY=200\|PRICE=310.00\|TIF=GTC</code></td>
+</tr>
+<tr>
+<td>Stop-loss</td>
+<td><code>NEW\|SYM=AAPL\|SIDE=SELL\|TYPE=STOP\|QTY=100\|STOP=148.00</code></td>
+</tr>
+<tr>
+<td>Stop-limit</td>
+<td><code>NEW\|SYM=AAPL\|SIDE=SELL\|TYPE=STOP_LIMIT\|QTY=100\|STOP=148.00\|PRICE=147.50</code></td>
+</tr>
+<tr>
+<td>FOK</td>
+<td><code>NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=FOK\|QTY=100\|PRICE=150.00</code></td>
+</tr>
+<tr>
+<td>Iceberg</td>
+<td><code>NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=ICEBERG\|QTY=1000\|PRICE=150.00\|VISIBLE=100</code></td>
+</tr>
+<tr>
+<td>With SMP</td>
+<td><code>NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=LIMIT\|QTY=100\|PRICE=150.00\|SMP=CANCEL_RESTING</code></td>
+</tr>
+</tbody>
+</table>
+<h4 id="required-fields-by-type">Required fields by type<a class="headerlink" href="#required-fields-by-type" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Required fields</th>
+<th>Optional</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MARKET</td>
+<td>SYM, SIDE, QTY</td>
+<td>SMP</td>
+</tr>
+<tr>
+<td>LIMIT</td>
+<td>SYM, SIDE, QTY, PRICE</td>
+<td>TIF, SMP</td>
+</tr>
+<tr>
+<td>STOP</td>
+<td>SYM, SIDE, QTY, STOP</td>
+<td>TIF, SMP</td>
+</tr>
+<tr>
+<td>STOP_LIMIT</td>
+<td>SYM, SIDE, QTY, STOP, PRICE</td>
+<td>TIF, SMP</td>
+</tr>
+<tr>
+<td>FOK</td>
+<td>SYM, SIDE, QTY, PRICE</td>
+<td>SMP</td>
+</tr>
+<tr>
+<td>ICEBERG</td>
+<td>SYM, SIDE, QTY, PRICE, VISIBLE (must be &lt; QTY)</td>
+<td>TIF, SMP</td>
+</tr>
+</tbody>
+</table>
+<h3 id="new-combo-submit-a-multi-leg-order">NEW (Combo) — Submit a Multi-Leg Order<a class="headerlink" href="#new-combo-submit-a-multi-leg-order" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>NEW|TYPE=COMBO|COMBO_ID=&lt;label&gt;|COMBO_TYPE=AON|TIF=&lt;DAY|GTC&gt;|LEG_COUNT=&lt;n&gt;|LEG0.SYM=&lt;sym&gt;|LEG0.SIDE=&lt;BUY|SELL&gt;|LEG0.QTY=&lt;n&gt;|LEG0.PRICE=&lt;p&gt;|LEG1.SYM=...
+</code></pre></div>
+<h4 id="combo-fields">Combo fields<a class="headerlink" href="#combo-fields" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TYPE=COMBO</code></td>
+<td>Yes</td>
+<td>Signals multi-leg order</td>
+</tr>
+<tr>
+<td><code>COMBO_ID=&lt;label&gt;</code></td>
+<td>Yes</td>
+<td>Your tracking label (used for cancel)</td>
+</tr>
+<tr>
+<td><code>COMBO_TYPE=AON</code></td>
+<td>Yes</td>
+<td>All-or-none semantics</td>
+</tr>
+<tr>
+<td><code>TIF=DAY\|GTC</code></td>
+<td>No</td>
+<td>Time-in-force (default DAY), applies to all legs</td>
+</tr>
+<tr>
+<td><code>LEG_COUNT=&lt;n&gt;</code></td>
+<td>Yes</td>
+<td>Number of legs (2–10)</td>
+</tr>
+<tr>
+<td><code>LEG&lt;i&gt;.SYM</code></td>
+<td>Yes</td>
+<td>Symbol for leg <em>i</em> (0-indexed)</td>
+</tr>
+<tr>
+<td><code>LEG&lt;i&gt;.SIDE</code></td>
+<td>Yes</td>
+<td>BUY or SELL</td>
+</tr>
+<tr>
+<td><code>LEG&lt;i&gt;.QTY</code></td>
+<td>Yes</td>
+<td>Quantity</td>
+</tr>
+<tr>
+<td><code>LEG&lt;i&gt;.PRICE</code></td>
+<td>Yes*</td>
+<td>Limit price (*required for LIMIT type)</td>
+</tr>
+<tr>
+<td><code>LEG&lt;i&gt;.TYPE</code></td>
+<td>No</td>
+<td>Order type (default LIMIT)</td>
+</tr>
+</tbody>
+</table>
+<h4 id="examples_1">Examples<a class="headerlink" href="#examples_1" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Strategy</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pairs trade</td>
+<td><code>NEW\|TYPE=COMBO\|COMBO_ID=PAIR-001\|COMBO_TYPE=AON\|TIF=GTC\|LEG_COUNT=2\|LEG0.SYM=MSFT\|LEG0.SIDE=BUY\|LEG0.QTY=100\|LEG0.PRICE=415.00\|LEG1.SYM=AAPL\|LEG1.SIDE=SELL\|LEG1.QTY=100\|LEG1.PRICE=210.00</code></td>
+</tr>
+<tr>
+<td>3-leg arb</td>
+<td><code>NEW\|TYPE=COMBO\|COMBO_ID=ARB-01\|COMBO_TYPE=AON\|TIF=DAY\|LEG_COUNT=3\|LEG0.SYM=AAPL\|LEG0.SIDE=BUY\|LEG0.QTY=200\|LEG0.PRICE=210.00\|LEG1.SYM=MSFT\|LEG1.SIDE=SELL\|LEG1.QTY=100\|LEG1.PRICE=415.00\|LEG2.SYM=GOOG\|LEG2.SIDE=SELL\|LEG2.QTY=50\|LEG2.PRICE=170.00</code></td>
+</tr>
+</tbody>
+</table>
+<h4 id="constraints">Constraints<a class="headerlink" href="#constraints" title="Permanent link">&para;</a></h4>
+<ul>
+<li>2–10 legs per combo</li>
+<li>No duplicate symbols (each leg must be a different instrument)</li>
+<li>All legs validated against <code>engine_config.yaml</code> symbol allowlist</li>
+</ul>
+<h3 id="cancel-cancel-a-resting-order">CANCEL — Cancel a Resting Order<a class="headerlink" href="#cancel-cancel-a-resting-order" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>CANCEL|ID=&lt;full-order-id&gt;
+</code></pre></div>
+<p>The full order ID is shown in the <code>ORDERS</code> table. Only the first 8 characters are shown
+in inline messages — use <code>ORDERS</code> to copy the full ID.</p>
+<h3 id="cancel-cancel-a-combo">CANCEL — Cancel a Combo<a class="headerlink" href="#cancel-cancel-a-combo" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>CANCEL|COMBO_ID=&lt;combo-label&gt;
+</code></pre></div>
+<p>Cancels the combo and all its resting child legs atomically. Fills that already
+occurred are not reversed.</p>
+<h3 id="orders-view-this-sessions-orders">ORDERS — View This Session's Orders<a class="headerlink" href="#orders-view-this-sessions-orders" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>ORDERS
+</code></pre></div>
+<p>Prints a rich table of all <strong>single-leg</strong> orders submitted in this gateway session with
+current status, remaining quantity, and last update time.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Combo orders are not shown in the <code>ORDERS</code> table. Their lifecycle is tracked
+via real-time <code>combo.ack</code> and <code>combo.status</code> messages printed as they arrive.
+To see all order activity (including combo children), use <code>pm-orders</code>.</p>
+</div>
+<h3 id="pos-view-current-positions">POS — View Current Positions<a class="headerlink" href="#pos-view-current-positions" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>POS
+</code></pre></div>
+<p>Displays a position summary table showing net quantity, average entry cost,
+last trade price, unrealized P&amp;L, and realized P&amp;L for each symbol traded:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>┌─────────────────────────────────────────────────────────────────────────┐
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>│                            Positions                                     │
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>├──────────┬─────────┬──────────┬──────────┬────────────┬─────────────────┤
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>│ Symbol   │ Net Qty │ Avg Cost │  Last Px │ Unreal P&amp;L │     Real P&amp;L    │
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>├──────────┼─────────┼──────────┼──────────┼────────────┼─────────────────┤
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>│ AAPL     │    +100 │   150.25 │   151.00 │     +75.00 │          +0.00  │
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>│ MSFT     │     -50 │   415.00 │   414.50 │     +25.00 │        +120.00  │
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>│ TSLA     │       0 │        — │        — │          — │        +340.00  │
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>└──────────┴─────────┴──────────┴──────────┴────────────┴─────────────────┘
+</code></pre></div>
+<p><strong>How it works:</strong></p>
+<ul>
+<li>Positions are accumulated locally from <code>order.fill</code> events received by this gateway</li>
+<li>Last price per symbol is tracked from the <code>trade.executed</code> feed (all trades, not just this gateway's)</li>
+<li>Unrealized P&amp;L = (last price − avg cost) × net quantity</li>
+<li>Realized P&amp;L is booked when reducing or closing a position (average cost method)</li>
+<li>Flat positions (net qty = 0) with non-zero realized P&amp;L are shown dimmed</li>
+<li>Positions reset when the gateway disconnects (they are session-local)</li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Use <code>POS</code> after each fill to monitor your exposure without switching to <code>pm-orders</code>.</p>
+</div>
+<h3 id="symbols-list-active-instruments">SYMBOLS — List Active Instruments<a class="headerlink" href="#symbols-list-active-instruments" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>SYMBOLS
+</code></pre></div>
+<p>Requests the list of all symbols that currently have an active order book in the engine.
+The gateway sends the request and the engine replies with the current instrument list,
+which is printed as a rich table:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>┌─────────────────────┐
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>│  Active Instruments │
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>├────┬────────────────┤
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>│  1 │ AAPL           │
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>│  2 │ MSFT           │
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>│  3 │ TSLA           │
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>└────┴────────────────┘
+</code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code>SYMBOLS</code> returns symbols that have at least one active order book (created
+when the first order for a symbol arrives or when market-maker orders are
+injected at startup). It does NOT list all symbols from <code>engine_config.yaml</code>
+unless those symbols already have orders.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Gateway authorization</p>
+<p><code>SYMBOLS</code> and all trading commands are available only after successful
+startup authentication. If your ID is not listed under <code>gateways.alf</code>,
+the engine refuses the connection.</p>
+</div>
+<h3 id="help-command-reference">HELP — Command Reference<a class="headerlink" href="#help-command-reference" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>HELP
+</code></pre></div>
+<h3 id="exit-quit-disconnect">EXIT / QUIT — Disconnect<a class="headerlink" href="#exit-quit-disconnect" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>EXIT
+</code></pre></div>
+<h2 id="gateway-responses">Gateway Responses<a class="headerlink" href="#gateway-responses" title="Permanent link">&para;</a></h2>
+<p>The gateway prints responses inline as events arrive from the engine:</p>
+<h3 id="order-events">Order Events<a class="headerlink" href="#order-events" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ACK  &lt;id&gt;  order accepted</code></td>
+<td>Engine received and registered the order</td>
+</tr>
+<tr>
+<td><code>REJECTED  &lt;id&gt;  &lt;reason&gt;</code></td>
+<td>Order was rejected (e.g. FOK: insufficient liquidity)</td>
+</tr>
+<tr>
+<td><code>FILL  &lt;id&gt;  qty=50 @150.50  remaining=50  [PARTIAL]</code></td>
+<td>Partial fill</td>
+</tr>
+<tr>
+<td><code>FILL  &lt;id&gt;  qty=100 @150.50  remaining=0  [FILLED]</code></td>
+<td>Full fill</td>
+</tr>
+<tr>
+<td><code>AMENDED  &lt;id&gt;  price=151.0 qty=100 remaining=100</code></td>
+<td>Amendment confirmed</td>
+</tr>
+<tr>
+<td><code>CANCELLED  &lt;id&gt;</code></td>
+<td>Cancel confirmed</td>
+</tr>
+<tr>
+<td><code>EXPIRED  &lt;id&gt;  (DAY order — trading day ended)</code></td>
+<td>Engine shut down or session phase change</td>
+</tr>
+</tbody>
+</table>
+<h3 id="combo-events">Combo Events<a class="headerlink" href="#combo-events" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>COMBO ACK  &lt;combo_id&gt;  accepted</code></td>
+<td>Combo validated, child orders posted to books</td>
+</tr>
+<tr>
+<td><code>COMBO REJECTED  &lt;combo_id&gt;  &lt;reason&gt;</code></td>
+<td>Combo failed validation (e.g. "Duplicate symbols")</td>
+</tr>
+<tr>
+<td><code>COMBO STATUS  &lt;combo_id&gt;  PARTIALLY_MATCHED</code></td>
+<td>At least one leg has filled</td>
+</tr>
+<tr>
+<td><code>COMBO STATUS  &lt;combo_id&gt;  MATCHED</code></td>
+<td>All legs fully filled</td>
+</tr>
+<tr>
+<td><code>COMBO STATUS  &lt;combo_id&gt;  FAILED  &lt;reason&gt;</code></td>
+<td>A leg was cancelled/expired; siblings cascade-cancelled</td>
+</tr>
+<tr>
+<td><code>COMBO STATUS  &lt;combo_id&gt;  CANCELLED</code></td>
+<td>User-initiated cancel completed</td>
+</tr>
+</tbody>
+</table>
+<h3 id="session-events">Session Events<a class="headerlink" href="#session-events" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SESSION  OPENING_AUCTION</code></td>
+<td>Trading phase changed (orders accumulate, no matching)</td>
+</tr>
+<tr>
+<td><code>SESSION  CONTINUOUS</code></td>
+<td>Continuous matching resumed</td>
+</tr>
+<tr>
+<td><code>SESSION  CLOSING_AUCTION</code></td>
+<td>Closing auction started</td>
+</tr>
+<tr>
+<td><code>SESSION  CLOSED</code></td>
+<td>Trading session ended</td>
+</tr>
+</tbody>
+</table>
+<h3 id="system-events">System Events<a class="headerlink" href="#system-events" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Active Instruments</code> table</td>
+<td>Response to <code>SYMBOLS</code> command</td>
+</tr>
+</tbody>
+</table>
+<h2 id="multiple-gateways">Multiple Gateways<a class="headerlink" href="#multiple-gateways" title="Permanent link">&para;</a></h2>
+<p>Run as many gateways as needed — each in its own terminal window:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># Terminal A</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="c1"># Terminal B  </span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER02
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="c1"># Terminal C</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER03
+</code></pre></div>
+<p>Before starting a new gateway ID (for example <code>TRADER03</code>), add it to
+<code>engine_config.yaml</code> in <code>gateways.alf</code> and restart the engine.</p>
+<p>Each gateway only receives events for its own orders. Use <code>pm-orders</code> to see all
+gateways' activity.</p>
+<h2 id="interactive-features">Interactive Features<a class="headerlink" href="#interactive-features" title="Permanent link">&para;</a></h2>
+<h3 id="tab-completion">Tab Completion<a class="headerlink" href="#tab-completion" title="Permanent link">&para;</a></h3>
+<p>The gateway provides <strong>context-aware tab completion</strong>:</p>
+<ul>
+<li>First position: top-level commands (<code>NEW</code>, <code>CANCEL</code>, <code>ORDERS</code>, <code>SYMBOLS</code>, <code>HELP</code>, <code>EXIT</code>)</li>
+<li>After <code>NEW|</code>: field names (<code>SYM=</code>, <code>SIDE=</code>, <code>TYPE=</code>, <code>QTY=</code>, <code>PRICE=</code>, <code>STOP=</code>, <code>TIF=</code>, <code>VISIBLE=</code>, <code>SMP=</code>)</li>
+<li>After a <code>KEY=</code>: value suggestions (e.g., <code>SIDE=</code> suggests <code>BUY</code> / <code>SELL</code>; <code>TYPE=</code> suggests all order types; <code>SMP=</code> suggests all SMP actions)</li>
+<li><code>SYM=</code> suggests known symbols (populated from the last <code>SYMBOLS</code> response)</li>
+</ul>
+<p>Press <strong>Tab</strong> to cycle through suggestions.</p>
+<h3 id="command-history">Command History<a class="headerlink" href="#command-history" title="Permanent link">&para;</a></h3>
+<p>Press <strong>↑</strong> / <strong>↓</strong> arrow keys to navigate through previously entered commands
+(in-memory, session-scoped — history is not persisted across gateway restarts).</p>
+<h3 id="background-event-display">Background Event Display<a class="headerlink" href="#background-event-display" title="Permanent link">&para;</a></h3>
+<p>A background thread listens on the SUB socket and prints events (fills, cancels,
+combo status changes, session transitions) in real-time, interleaved cleanly with
+the command prompt. You can continue typing while events arrive.</p>
+<h2 id="tickns-migration-notes">Tick/Ns Migration Notes<a class="headerlink" href="#tickns-migration-notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Gateway commands remain decimal-friendly (<code>PRICE=150.25</code>, <code>STOP=149.50</code>).</li>
+<li>Engine boundary logic converts these values to ticks before matching.</li>
+<li>Returned prices remain readable decimals.</li>
+<li>Timestamp displays in gateway views are seconds-based renderings derived from
+  internal nanosecond timestamps.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+        <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+      
+        <script src="../../javascripts/mermaid-init.js"></script>
+      
+    
+  </body>
+</html>

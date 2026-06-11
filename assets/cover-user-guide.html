@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>EduMatcher — How a Financial Exchange Works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Playfair+Display:ital,wght@0,700;1,400;1,700&family=DM+Mono:wght@300;400;500&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ─── Print setup ─────────────────────────────────────────── */
+@page { size: 210mm 297mm; margin: 0; }
+@media print {
+  * { -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important; }
+  canvas { image-rendering: crisp-edges; }
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html {
+  width: 210mm; height: 297mm;
+  background: #020c1b;
+}
+body {
+  width: 210mm; height: 297mm;
+  overflow: hidden;
+  font-family: 'Barlow Condensed', sans-serif;
+  background: #020c1b;
+}
+
+/* ─── Cover shell ─────────────────────────────────────────── */
+.cover {
+  position: relative;
+  width: 210mm; height: 297mm;
+  overflow: hidden;
+  background: #020c1b;
+}
+
+/* ─── Gradient mesh background ────────────────────────────── */
+.bg {
+  position: absolute; inset: 0; z-index: 0;
+  background:
+    radial-gradient(ellipse 130% 70% at 28% 28%,
+      rgba(0, 70, 160, 0.45) 0%, transparent 55%),
+    radial-gradient(ellipse 90% 60% at 80% 65%,
+      rgba(0, 35, 100, 0.35) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 40% at 55% 15%,
+      rgba(0, 120, 220, 0.18) 0%, transparent 45%),
+    radial-gradient(ellipse 50% 35% at 15% 85%,
+      rgba(0, 50, 110, 0.25) 0%, transparent 50%),
+    linear-gradient(168deg, #020c1b 0%, #040f22 45%, #020c1b 100%);
+}
+
+/* ─── Fine grid overlay ───────────────────────────────────── */
+.grid {
+  position: absolute; inset: 0; z-index: 1;
+  background-image:
+    linear-gradient(rgba(0, 190, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 190, 255, 0.045) 1px, transparent 1px);
+  background-size: 18mm 18mm;
+}
+
+/* ─── Network canvas ──────────────────────────────────────── */
+#net {
+  position: absolute;
+  top: 0; left: 0;
+  width: 210mm; height: 152mm;
+  z-index: 2;
+}
+
+/* ─── Fade from network into title zone ───────────────────── */
+.fade {
+  position: absolute;
+  top: 115mm; left: 0; right: 0; height: 37mm;
+  z-index: 3;
+  background: linear-gradient(to bottom,
+    transparent 0%, rgba(2, 12, 27, 0.55) 20%, #020c1b 42%, #020c1b 100%);
+}
+
+/* ─── Top header bar ──────────────────────────────────────── */
+.header {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 17mm;
+  display: flex; align-items: center;
+  padding: 0 8mm;
+  z-index: 20;
+  border-bottom: 0.35mm solid rgba(0, 210, 255, 0.22);
+  background: linear-gradient(to bottom,
+    rgba(2, 12, 27, 0.88) 0%, rgba(2, 12, 27, 0.60) 100%);
+  backdrop-filter: blur(2px);
+}
+
+.brand {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 9.5mm;
+  letter-spacing: 2.8mm;
+  color: #ffffff;
+  line-height: 1;
+}
+.brand em { color: #00d4ff; font-style: normal; }
+
+.header-mid { flex: 1; }
+
+.header-tag {
+  font-family: 'DM Mono', monospace;
+  font-size: 2.3mm;
+  color: rgba(0, 212, 255, 0.65);
+  letter-spacing: 0.55mm;
+  text-transform: uppercase;
+  border: 0.28mm solid rgba(0, 212, 255, 0.28);
+  padding: 0.9mm 2.4mm;
+}
+
+/* ─── Ticker bar ──────────────────────────────────────────── */
+.ticker {
+  position: absolute;
+  top: 17mm; left: 0; right: 0;
+  height: 7.5mm;
+  display: flex; align-items: center;
+  padding: 0 8mm; gap: 5mm;
+  z-index: 20;
+  background: rgba(0, 18, 40, 0.72);
+  border-bottom: 0.28mm solid rgba(0, 210, 255, 0.13);
+  overflow: hidden;
+}
+.t { font-family: 'DM Mono', monospace; font-size: 2.4mm;
+     display: flex; gap: 1.8mm; align-items: baseline; white-space: nowrap; }
+.ts { color: rgba(200, 225, 255, 0.8); }
+.tu { color: #00e676; }
+.td { color: #ff3d5a; }
+.tk { color: rgba(0, 210, 255, 0.28); font-size: 2mm; }
+
+/* ─── Solid backdrop behind title (above canvas/fade, below title text) ─ */
+.title-backdrop {
+  position: absolute;
+  top: 108mm; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(to bottom, transparent 0%, #020c1b 14%);
+  z-index: 7;
+}
+
+/* ─── Title section ───────────────────────────────────────── */
+.title-zone {
+  position: absolute;
+  top: 135mm; left: 0; right: 0;
+  padding: 0 9mm;
+  z-index: 10;
+}
+
+.eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 2.6mm;
+  color: #00d4ff;
+  letter-spacing: 1.4mm;
+  text-transform: uppercase;
+  margin-bottom: 3.5mm;
+  display: flex; align-items: center; gap: 3mm;
+}
+.eyebrow::before {
+  content: '';
+  width: 7mm; height: 0.4mm;
+  background: #00d4ff;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.main-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 19.5mm;
+  line-height: 0.88;
+  color: #ffffff;
+  letter-spacing: 0.8mm;
+  margin-bottom: 4.5mm;
+  text-shadow: 0 0 50mm rgba(0, 180, 255, 0.25);
+}
+.main-title .accent { color: #00d4ff; }
+
+.subtitle {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 5mm;
+  color: rgba(210, 230, 255, 0.80);
+  line-height: 1.45;
+  letter-spacing: 0.1mm;
+  margin-bottom: 5mm;
+  max-width: 140mm;
+}
+
+.series {
+  font-family: 'DM Mono', monospace;
+  font-size: 2.4mm;
+  color: rgba(0, 212, 255, 0.42);
+  letter-spacing: 0.7mm;
+  text-transform: uppercase;
+}
+
+/* ─── Divider ─────────────────────────────────────────────── */
+.divider {
+  position: absolute;
+  top: 231mm; left: 9mm; right: 9mm;
+  height: 0.3mm;
+  background: linear-gradient(to right,
+    transparent, rgba(0,210,255,0.35) 20%,
+    rgba(0,210,255,0.35) 80%, transparent);
+  z-index: 10;
+}
+
+/* ─── Order book section ──────────────────────────────────── */
+.ob-zone {
+  position: absolute;
+  top: 232.5mm; left: 0; right: 0;
+  height: 42mm;
+  z-index: 10;
+  padding: 3.5mm 9mm 0;
+}
+
+.ob-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 2.5mm;
+}
+.ob-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 2.2mm;
+  color: rgba(0,210,255,0.5);
+  letter-spacing: 0.6mm;
+  text-transform: uppercase;
+}
+.ob-price {
+  font-family: 'DM Mono', monospace;
+  font-size: 5mm;
+  color: #ffffff;
+}
+.ob-price small {
+  font-size: 3mm;
+  color: rgba(0,210,255,0.6);
+}
+.ob-change {
+  font-family: 'DM Mono', monospace;
+  font-size: 3mm;
+  color: #00e676;
+}
+
+.ob-chart { width: 100%; }
+
+/* ─── Footer ──────────────────────────────────────────────── */
+.footer {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 16mm;
+  display: flex; align-items: center;
+  padding: 0 9mm;
+  z-index: 10;
+  border-top: 0.28mm solid rgba(0,210,255,0.15);
+  background: rgba(2,12,27,0.5);
+  gap: 3mm;
+}
+.f-left, .f-right {
+  font-family: 'DM Mono', monospace;
+  font-size: 2.1mm;
+  color: rgba(0,210,255,0.38);
+  letter-spacing: 0.35mm;
+}
+.f-left { flex: 1; }
+.f-center {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 3mm;
+  color: rgba(180,210,255,0.38);
+  text-align: center;
+  flex: 1;
+}
+.f-right { text-align: right; flex: 1; }
+
+/* ─── Corner brackets ─────────────────────────────────────── */
+.br { position: absolute; width: 10mm; height: 10mm; z-index: 25; }
+.br-tl { top: 3mm; left: 3mm;
+  border-top: 0.5mm solid rgba(0,210,255,0.45);
+  border-left: 0.5mm solid rgba(0,210,255,0.45); }
+.br-tr { top: 3mm; right: 3mm;
+  border-top: 0.5mm solid rgba(0,210,255,0.45);
+  border-right: 0.5mm solid rgba(0,210,255,0.45); }
+.br-bl { bottom: 3mm; left: 3mm;
+  border-bottom: 0.5mm solid rgba(0,210,255,0.45);
+  border-left: 0.5mm solid rgba(0,210,255,0.45); }
+.br-br { bottom: 3mm; right: 3mm;
+  border-bottom: 0.5mm solid rgba(0,210,255,0.45);
+  border-right: 0.5mm solid rgba(0,210,255,0.45); }
+
+/* ─── Scan-line vignette ──────────────────────────────────── */
+.vignette {
+  position: absolute; inset: 0; z-index: 4; pointer-events: none;
+  background: radial-gradient(ellipse 110% 100% at 50% 50%,
+    transparent 55%, rgba(2,8,20,0.65) 100%);
+}
+</style>
+</head>
+<body>
+<div class="cover">
+
+  <!-- Background layers -->
+  <div class="bg"></div>
+  <div class="grid"></div>
+
+  <!-- Network canvas -->
+  <canvas id="net"></canvas>
+
+  <!-- Fade zone -->
+  <div class="fade"></div>
+  <div class="vignette"></div>
+
+  <!-- Corner brackets -->
+  <div class="br br-tl"></div>
+  <div class="br br-tr"></div>
+  <div class="br br-bl"></div>
+  <div class="br br-br"></div>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="brand">EDU<em>MATCHER</em></div>
+    <div class="header-mid"></div>
+    <div class="header-tag">User Guide</div>
+  </div>
+
+  <!-- Ticker bar -->
+  <div class="ticker">
+    <div class="t"><span class="ts">NYSE</span><span class="tu">+0.31%</span></div>
+    <div class="tk">·</div>
+    <div class="t"><span class="ts">NASDAQ</span><span class="tu">+0.47%</span></div>
+    <div class="tk">·</div>
+    <div class="t"><span class="ts">LSE</span><span class="td">-0.12%</span></div>
+    <div class="tk">·</div>
+    <div class="t"><span class="ts">Eurex</span><span class="tu">+0.18%</span></div>
+    <div class="tk">·</div>
+    <div class="t"><span class="ts">JPX</span><span class="tu">+0.22%</span></div>
+    <div class="tk">·</div>
+    <div class="t"><span class="ts">HKEX</span><span class="td">-0.08%</span></div>
+    <div class="tk">·</div>
+    <div class="t"><span class="ts">CME</span><span class="tu">+0.55%</span></div>
+    <div class="tk">·</div>
+    <div class="t"><span class="ts">SGX</span><span class="tu">+0.11%</span></div>
+    <div class="tk">·</div>
+    <div class="t"><span class="ts">ASX</span><span class="td">-0.04%</span></div>
+  </div>
+
+  <!-- Guaranteed dark backdrop behind title zone -->
+  <div class="title-backdrop"></div>
+
+  <!-- Title -->
+  <div class="title-zone">
+    <div class="eyebrow">Financial Market Infrastructure</div>
+    <div class="main-title">
+      HOW A<br>
+      <span class="accent">FINANCIAL</span><br>
+      EXCHANGE<br>
+      WORKS
+    </div>
+    <div class="subtitle">
+      A Developer's Complete Guide to Exchange<br>
+      Architecture, Market Structure &amp; Systems Design
+    </div>
+  </div>
+
+  <!-- Divider -->
+  <div class="divider"></div>
+
+  <!-- Order book -->
+  <div class="ob-zone">
+    <div class="ob-header">
+      <div class="ob-label">Market Depth &nbsp;·&nbsp; AAPL</div>
+      <div class="ob-change">+1.24 &nbsp;+0.83%</div>
+    </div>
+    <svg class="ob-chart" viewBox="0 0 760 130" xmlns="http://www.w3.org/2000/svg"
+         preserveAspectRatio="none">
+      <!-- Column headers -->
+      <text x="188" y="13" text-anchor="end" font-family="DM Mono,monospace"
+            font-size="9" fill="rgba(0,230,118,0.55)" letter-spacing="1">BID QTY</text>
+      <text x="290" y="13" text-anchor="middle" font-family="DM Mono,monospace"
+            font-size="9" fill="rgba(0,210,255,0.55)" letter-spacing="1">PRICE</text>
+      <text x="394" y="13" text-anchor="start" font-family="DM Mono,monospace"
+            font-size="9" fill="rgba(255,61,90,0.55)" letter-spacing="1">ASK QTY</text>
+
+      <!-- Bid bars (right-aligned from centre line at x=222) -->
+      <!-- Row 1: price 150.35 -->
+      <rect x="64"  y="19" width="158" height="14" fill="rgba(0,230,118,0.13)" rx="1"/>
+      <text x="188" y="30" text-anchor="end" font-family="DM Mono,monospace"
+            font-size="10" fill="#00e676">8,340</text>
+      <text x="290" y="30" text-anchor="middle" font-family="DM Mono,monospace"
+            font-size="10" fill="rgba(255,255,255,0.90)">150.35</text>
+      <rect x="360" y="19" width="120" height="14" fill="rgba(255,61,90,0.13)" rx="1"/>
+      <text x="394" y="30" text-anchor="start" font-family="DM Mono,monospace"
+            font-size="10" fill="#ff3d5a">3,920</text>
+
+      <!-- Row 2: price 150.34 -->
+      <rect x="80"  y="36" width="142" height="14" fill="rgba(0,230,118,0.11)" rx="1"/>
+      <text x="188" y="47" text-anchor="end" font-family="DM Mono,monospace"
+            font-size="10" fill="#00e676">7,210</text>
+      <text x="290" y="47" text-anchor="middle" font-family="DM Mono,monospace"
+            font-size="10" fill="rgba(255,255,255,0.90)">150.34</text>
+      <rect x="360" y="36" width="156" height="14" fill="rgba(255,61,90,0.11)" rx="1"/>
+      <text x="394" y="47" text-anchor="start" font-family="DM Mono,monospace"
+            font-size="10" fill="#ff3d5a">5,100</text>
+
+      <!-- Row 3: price 150.33 -->
+      <rect x="104" y="53" width="118" height="14" fill="rgba(0,230,118,0.10)" rx="1"/>
+      <text x="188" y="64" text-anchor="end" font-family="DM Mono,monospace"
+            font-size="10" fill="#00e676">5,820</text>
+      <text x="290" y="64" text-anchor="middle" font-family="DM Mono,monospace"
+            font-size="10" fill="rgba(255,255,255,0.90)">150.33</text>
+      <rect x="360" y="53" width="196" height="14" fill="rgba(255,61,90,0.10)" rx="1"/>
+      <text x="394" y="64" text-anchor="start" font-family="DM Mono,monospace"
+            font-size="10" fill="#ff3d5a">6,400</text>
+
+      <!-- Row 4: price 150.32 — LAST TRADE (highlight) -->
+      <rect x="0"   y="70" width="222" height="15" fill="rgba(0,230,118,0.18)" rx="1"/>
+      <text x="188" y="82" text-anchor="end" font-family="DM Mono,monospace"
+            font-size="11" fill="#00e676" font-weight="500">12,100</text>
+      <text x="290" y="82" text-anchor="middle" font-family="DM Mono,monospace"
+            font-size="11" fill="#ffffff" font-weight="500">150.32</text>
+      <rect x="360" y="70" width="240" height="15" fill="rgba(255,61,90,0.18)" rx="1"/>
+      <text x="394" y="82" text-anchor="start" font-family="DM Mono,monospace"
+            font-size="11" fill="#ff3d5a" font-weight="500">7,840</text>
+
+      <!-- Row 5: price 150.31 -->
+      <rect x="130" y="88" width="92"  height="14" fill="rgba(0,230,118,0.08)" rx="1"/>
+      <text x="188" y="99" text-anchor="end" font-family="DM Mono,monospace"
+            font-size="10" fill="#00e676">4,420</text>
+      <text x="290" y="99" text-anchor="middle" font-family="DM Mono,monospace"
+            font-size="10" fill="rgba(255,255,255,0.90)">150.31</text>
+      <rect x="360" y="88" width="310" height="14" fill="rgba(255,61,90,0.08)" rx="1"/>
+      <text x="394" y="99" text-anchor="start" font-family="DM Mono,monospace"
+            font-size="10" fill="#ff3d5a">10,220</text>
+
+      <!-- Row 6: price 150.30 -->
+      <rect x="152" y="105" width="70" height="14" fill="rgba(0,230,118,0.06)" rx="1"/>
+      <text x="188" y="116" text-anchor="end" font-family="DM Mono,monospace"
+            font-size="10" fill="#00e676">3,200</text>
+      <text x="290" y="116" text-anchor="middle" font-family="DM Mono,monospace"
+            font-size="10" fill="rgba(255,255,255,0.90)">150.30</text>
+      <rect x="360" y="105" width="390" height="14" fill="rgba(255,61,90,0.06)" rx="1"/>
+      <text x="394" y="116" text-anchor="start" font-family="DM Mono,monospace"
+            font-size="10" fill="#ff3d5a">12,800</text>
+
+      <!-- Centre line -->
+      <line x1="222" y1="16" x2="222" y2="122"
+            stroke="rgba(0,210,255,0.25)" stroke-width="0.8"
+            stroke-dasharray="3,4"/>
+
+      <!-- Last price label on centre line -->
+      <rect x="200" y="67" width="44" height="20" rx="2"
+            fill="rgba(0,210,255,0.15)" stroke="rgba(0,210,255,0.4)" stroke-width="0.6"/>
+      <text x="222" y="81" text-anchor="middle" font-family="DM Mono,monospace"
+            font-size="8" fill="#00d4ff">LAST</text>
+    </svg>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="f-left">Financial Markets Technology</div>
+    <div class="f-center">A Software Developer's Introduction</div>
+    <div class="f-right">ISBN &nbsp;·&nbsp; 978-x-xxx-xxxxx-x</div>
+  </div>
+
+</div><!-- /cover -->
+
+<script>
+// ─── Canvas network visualization ──────────────────────────────────────────
+(function () {
+  const canvas = document.getElementById('net');
+  const DPR = window.devicePixelRatio || 2;
+  const CW_MM = 210, CH_MM = 152;
+  const MM_TO_PX = 96 / 25.4;
+  const CW_CSS = CW_MM * MM_TO_PX;
+  const CH_CSS = CH_MM * MM_TO_PX;
+
+  canvas.style.width  = CW_MM + 'mm';
+  canvas.style.height = CH_MM + 'mm';
+  canvas.width  = CW_CSS * DPR;
+  canvas.height = CH_CSS * DPR;
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(DPR, DPR);
+
+  // Exchange nodes — positions as fraction of canvas CSS dims
+  const EX = [
+    { id:'NYSE',     x:0.185, y:0.50, r:6.2, label:'NYSE',     labelDx:9,   labelDy:3 },
+    { id:'NASDAQ',   x:0.215, y:0.36, r:5.4, label:'NASDAQ',   labelDx:9,   labelDy:3 },
+    { id:'CME',      x:0.125, y:0.60, r:4.8, label:'CME',      labelDx:9,   labelDy:3 },
+    { id:'TSX',      x:0.195, y:0.23, r:3.8, label:'TSX',      labelDx:9,   labelDy:3 },
+    { id:'B3',       x:0.245, y:0.815,r:3.4, label:'B3',       labelDx:9,   labelDy:3 },
+    { id:'LSE',      x:0.462, y:0.30, r:5.8, label:'LSE',      labelDx:9,   labelDy:3 },
+    { id:'Euronext', x:0.492, y:0.365,r:4.0, label:'Euronext', labelDx:9,   labelDy:3 },
+    { id:'Eurex',    x:0.535, y:0.41, r:4.2, label:'Eurex',    labelDx:9,   labelDy:3 },
+    { id:'DFM',      x:0.605, y:0.50, r:3.2, label:'DFM',      labelDx:9,   labelDy:3 },
+    { id:'JPX',      x:0.825, y:0.36, r:5.2, label:'JPX',      labelDx:9,   labelDy:3 },
+    { id:'HKEX',     x:0.775, y:0.52, r:5.6, label:'HKEX',     labelDx:9,   labelDy:3 },
+    { id:'SGX',      x:0.735, y:0.665,r:4.0, label:'SGX',      labelDx:9,   labelDy:3 },
+    { id:'ASX',      x:0.800, y:0.815,r:3.6, label:'ASX',      labelDx:9,   labelDy:3 },
+  ];
+
+  function pos(id) {
+    const e = EX.find(x => x.id === id);
+    return { x: e.x * CW_CSS, y: e.y * CH_CSS };
+  }
+
+  // Connections: [from, to, curvature_fraction, isMajor]
+  const ROUTES = [
+    ['NYSE',   'LSE',      -0.26, true ],
+    ['NASDAQ', 'Eurex',    -0.18, true ],
+    ['CME',    'Eurex',    -0.14, false],
+    ['TSX',    'NASDAQ',    0.18, false],
+    ['LSE',    'Eurex',     0.12, false],
+    ['LSE',    'Euronext',  0.08, false],
+    ['LSE',    'DFM',       0.10, false],
+    ['DFM',    'JPX',      -0.08, false],
+    ['DFM',    'HKEX',     -0.05, true ],
+    ['Eurex',  'JPX',      -0.22, true ],
+    ['JPX',    'HKEX',      0.18, false],
+    ['HKEX',   'SGX',       0.12, false],
+    ['SGX',    'ASX',       0.14, false],
+    ['NYSE',   'HKEX',      0.28, true ],
+    ['NYSE',   'B3',        0.10, false],
+    ['NASDAQ', 'TSX',      -0.15, false],
+    ['CME',    'LSE',      -0.20, false],
+    ['Euronext','Eurex',    0.08, false],
+    ['JPX',    'ASX',       0.15, false],
+  ];
+
+  // Animated pulses
+  const PULSES = ROUTES.map(([from, to, cur, major]) => ({
+    from, to, cur,
+    t: Math.random(),
+    speed: major ? 0.0018 + Math.random() * 0.0012
+                 : 0.0010 + Math.random() * 0.0010,
+    major,
+  }));
+
+  function ctrlPt(p1, p2, c) {
+    const mx = (p1.x + p2.x) / 2;
+    const my = (p1.y + p2.y) / 2;
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    return { x: mx - dy * c, y: my + dx * c };
+  }
+
+  function bezier(p1, cp, p2, t) {
+    return {
+      x: (1-t)*(1-t)*p1.x + 2*(1-t)*t*cp.x + t*t*p2.x,
+      y: (1-t)*(1-t)*p1.y + 2*(1-t)*t*cp.y + t*t*p2.y,
+    };
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, CW_CSS, CH_CSS);
+
+    // ── Background
+    ctx.fillStyle = '#020c1b';
+    ctx.fillRect(0, 0, CW_CSS, CH_CSS);
+
+    // ── Ambient glow pools
+    [
+      [0.30, 0.40, 0.42, 'rgba(0,70,160,0.38)'],
+      [0.75, 0.55, 0.35, 'rgba(0,40,110,0.30)'],
+      [0.52, 0.25, 0.28, 'rgba(0,90,180,0.18)'],
+    ].forEach(([fx, fy, fr, col]) => {
+      const g = ctx.createRadialGradient(
+        fx*CW_CSS, fy*CH_CSS, 0,
+        fx*CW_CSS, fy*CH_CSS, fr*CW_CSS
+      );
+      g.addColorStop(0, col); g.addColorStop(1, 'rgba(2,12,27,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, CW_CSS, CH_CSS);
+    });
+
+    // ── Grid
+    ctx.strokeStyle = 'rgba(0,190,255,0.042)';
+    ctx.lineWidth = 0.6;
+    const gs = 28;
+    for (let x = 0; x < CW_CSS; x += gs) {
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x, CH_CSS); ctx.stroke();
+    }
+    for (let y = 0; y < CH_CSS; y += gs) {
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(CW_CSS,y); ctx.stroke();
+    }
+
+    // ── Routes: base arcs
+    ROUTES.forEach(([from, to, cur, major]) => {
+      const p1 = pos(from), p2 = pos(to);
+      const cp = ctrlPt(p1, p2, cur);
+      ctx.beginPath();
+      ctx.moveTo(p1.x, p1.y);
+      ctx.quadraticCurveTo(cp.x, cp.y, p2.x, p2.y);
+      ctx.strokeStyle = major
+        ? 'rgba(0,170,255,0.18)'
+        : 'rgba(0,130,220,0.10)';
+      ctx.lineWidth = major ? 1.1 : 0.7;
+      ctx.setLineDash(major ? [] : [5, 9]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+
+    // ── Pulses
+    PULSES.forEach(p => {
+      const p1 = pos(p.from), p2 = pos(p.to);
+      const cp = ctrlPt(p1, p2, p.cur);
+      const pt = bezier(p1, cp, p2, p.t);
+      const r  = p.major ? 9 : 6;
+      const g  = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, r);
+      g.addColorStop(0, p.major ? 'rgba(0,220,255,0.95)' : 'rgba(0,190,255,0.70)');
+      g.addColorStop(0.4, p.major ? 'rgba(0,150,255,0.35)' : 'rgba(0,130,255,0.20)');
+      g.addColorStop(1,   'rgba(0,100,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(pt.x, pt.y, r, 0, Math.PI*2); ctx.fill();
+
+      // Trailing glow comet tail
+      const t2 = Math.max(0, p.t - 0.04);
+      const pt2 = bezier(p1, cp, p2, t2);
+      ctx.beginPath();
+      ctx.moveTo(pt2.x, pt2.y); ctx.lineTo(pt.x, pt.y);
+      const tg = ctx.createLinearGradient(pt2.x, pt2.y, pt.x, pt.y);
+      tg.addColorStop(0, 'rgba(0,210,255,0)');
+      tg.addColorStop(1, p.major ? 'rgba(0,210,255,0.55)' : 'rgba(0,200,255,0.30)');
+      ctx.strokeStyle = tg;
+      ctx.lineWidth = p.major ? 1.8 : 1.2;
+      ctx.stroke();
+
+      p.t += p.speed;
+      if (p.t > 1) p.t = 0;
+    });
+
+    // ── Node glows
+    EX.forEach(e => {
+      const x = e.x * CW_CSS, y = e.y * CH_CSS;
+      // Outer halo
+      const outer = ctx.createRadialGradient(x, y, 0, x, y, e.r * 4.5);
+      outer.addColorStop(0, 'rgba(0,200,255,0.22)');
+      outer.addColorStop(1, 'rgba(0,200,255,0)');
+      ctx.fillStyle = outer;
+      ctx.beginPath(); ctx.arc(x, y, e.r * 4.5, 0, Math.PI*2); ctx.fill();
+
+      // Ring
+      ctx.beginPath(); ctx.arc(x, y, e.r + 2.5, 0, Math.PI*2);
+      ctx.strokeStyle = 'rgba(0,200,255,0.35)';
+      ctx.lineWidth = 0.8; ctx.stroke();
+
+      // Main dot
+      const dot = ctx.createRadialGradient(x, y, 0, x, y, e.r);
+      dot.addColorStop(0, '#ffffff');
+      dot.addColorStop(0.4, '#80e8ff');
+      dot.addColorStop(1, '#00a8d4');
+      ctx.fillStyle = dot;
+      ctx.beginPath(); ctx.arc(x, y, e.r, 0, Math.PI*2); ctx.fill();
+    });
+
+    // ── Node labels
+    ctx.font = `500 ${Math.round(CW_CSS * 0.016)}px 'DM Mono', monospace`;
+    EX.forEach(e => {
+      const x = e.x * CW_CSS + e.r + 5;
+      const y = e.y * CH_CSS + 4;
+      // Shadow
+      ctx.fillStyle = 'rgba(2,12,27,0.75)';
+      ctx.fillText(e.label, x + 1, y + 1);
+      // Label
+      ctx.fillStyle = 'rgba(200,230,255,0.88)';
+      ctx.fillText(e.label, x, y);
+    });
+
+    // ── Bottom gradient wipe (blends into title zone)
+    const wipe = ctx.createLinearGradient(0, CH_CSS * 0.72, 0, CH_CSS);
+    wipe.addColorStop(0, 'rgba(2,12,27,0)');
+    wipe.addColorStop(1, 'rgba(2,12,27,0.92)');
+    ctx.fillStyle = wipe;
+    ctx.fillRect(0, 0, CW_CSS, CH_CSS);
+
+    requestAnimationFrame(draw);
+  }
+
+  // Initial static render immediately (for print)
+  // Give fonts a moment to load then start loop
+  setTimeout(draw, 80);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,3513 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A multi-process Python trading system for learning order matching and market microstructure.">
+      
+      
+        <meta name="author" content="Johan Persson <johan162@gmail.com>">
+      
+      
+      
+        <link rel="prev" href="../01-concepts-order-book/">
+      
+      
+        <link rel="next" href="../03-concepts-mm-quotes/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>The Order Book Deep Dive - EduMatcher — Educational Trading System</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#edumatcher-orderbook-deep-dive-for-python-programmers" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-header__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EduMatcher — Educational Trading System
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              The Order Book Deep Dive
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../how-exchange-works/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  How an Exchange Works
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../01-concepts-order-book/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../user-guide/01-configuration/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/01-architecture/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../developer/01-dev-practice/" class="md-tabs__link">
+          
+  
+  
+  Developer Info
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../glossary/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Glossary
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  FAQ
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-nav__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    EduMatcher — Educational Trading System
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-exchange-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How an Exchange Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../01-concepts-order-book/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#short-financial-glossary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Short Financial Glossary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-an-order-book" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Is an Order Book?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#background-the-heap-data-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Background: The Heap Data Structure
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Background: The Heap Data Structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-a-heap-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a Heap Is
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-a-heap-for-an-order-book" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why a Heap For an Order Book?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-min-heap-max-heap-trick" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Min-Heap / Max-Heap Trick
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#price-time-priority-as-a-tuple-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Price-Time Priority as a Tuple Key
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-_heapentry-wrapper" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The _HeapEntry Wrapper
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The _HeapEntry Wrapper">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-not-put-orders-directly-on-the-heap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Not Put Orders Directly on the Heap?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-valid-flag-lazy-deletion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The valid Flag — Lazy Deletion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#__slots__-on-_heapentry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        __slots__ on _HeapEntry
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-orderbook-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The OrderBook Class
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The OrderBook Class">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-data-structures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Data Structures
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Data Structures">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_bids-and-_asks-the-price-time-queues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        _bids and _asks — The Price-Time Queues
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_order_index-fast-lookup-by-order-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        _order_index — Fast Lookup by Order ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_entry_index-fast-lookup-by-entry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        _entry_index — Fast Lookup by Entry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_bid_qty-and-_ask_qty-the-price-level-quantity-index" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        _bid_qty and _ask_qty — The Price-Level Quantity Index
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iceberg-orders-and-the-fok-undercount" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Iceberg Orders and the FOK Undercount
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-synchronisation-invariant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Synchronisation Invariant
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Synchronisation Invariant">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_buy_stops-and-_sell_stops-the-stop-heaps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        _buy_stops and _sell_stops — The Stop Heaps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_trailing_stops-the-trailing-stop-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        _trailing_stops — The Trailing Stop List
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recent_trades-the-rolling-trade-window" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        recent_trades — The Rolling Trade Window
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#walking-through-process-the-main-entry-point" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Walking Through process() — The Main Entry Point
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Walking Through process() — The Main Entry Point">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-1-compute-the-timestamp-once" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1: Compute the Timestamp Once
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-no-matching-mode-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2: No-Matching Mode Check
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-dispatch-to-the-right-handler" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3: Dispatch to the Right Handler
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-4-check-stops-after-every-trade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 4: Check Stops After Every Trade
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hot-path-risk-checks-in-the-matching-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hot-Path Risk Checks in the Matching Engine
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Hot-Path Risk Checks in the Matching Engine">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#gateway-allowlist-and-connectionauth-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gateway allowlist and connection/auth status
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#symbol-allowlist-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Symbol allowlist check
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#session-state-and-auction-phase-gating" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Session-state and auction phase gating
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#circuit-breaker-halt-gate-pre-trade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Circuit-breaker halt gate (pre-trade)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#price-collar-validation-pre-trade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Price-collar validation (pre-trade)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#no-matching-mode-hard-rejections-for-immediate-only-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        No-matching mode hard rejections for immediate-only types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kill-switch-and-disconnect-behavior-flow-level-risk-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Kill-switch and disconnect behavior (flow-level risk control)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#circuit-breaker-monitor-post-trade-in-the-hot-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Circuit-breaker monitor (post-trade in the hot path)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other-correctness-checks-in-the-same-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other correctness checks in the same path
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#performance-impact-and-why-there-is-no-real-alternative" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance Impact and Why There Is No Real Alternative
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-sweep-loop-_sweep" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Sweep Loop — _sweep()
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Sweep Loop — _sweep()">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#caching-attributes-as-locals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Caching Attributes as Locals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-main-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Main Loop
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_apply_fill-what-happens-when-two-orders-trade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        _apply_fill() — What Happens When Two Orders Trade
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="_apply_fill() — What Happens When Two Orders Trade">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-three-last-price-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Three "Last Price" Fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_peek-lazy-deletion-in-practice" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        _peek() — Lazy Deletion in Practice
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_rest-placing-a-resting-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        _rest() — Placing a Resting Order
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#amend_order-modifying-a-resting-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        amend_order() — Modifying a Resting Order
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#iceberg-orders-replenishment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Iceberg Orders — Replenishment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#self-match-prevention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Self-Match Prevention
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stop-orders-two-heaps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stop Orders — Two Heaps
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#trailing-stops-the-ratchet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trailing Stops — The Ratchet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-snapshot-method" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The snapshot() Method
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The snapshot() Method">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#spread-and-mid-price-are-derived-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Spread and Mid Price Are Derived Values
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-structure-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Structure Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#complexity-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complexity Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../03-concepts-mm-quotes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MM Quotes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../04-concepts-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../05-concepts-trading-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Full Trading Day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/01-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/02-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Controlling the Exchange
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/03-running-the-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/04-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/05-combos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/06-auctions-scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auctions & Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/07-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/08-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gateway Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/09-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/10-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/11-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/12-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/13-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/20-app-alf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix - ALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/01-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/02-architecture-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detailed Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Info
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer Info
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/01-dev-practice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Practice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/02-ai-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Bot Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/03-experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/04-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="edumatcher-orderbook-deep-dive-for-python-programmers">EduMatcher OrderBook — Deep Dive for Python Programmers<a class="headerlink" href="#edumatcher-orderbook-deep-dive-for-python-programmers" title="Permanent link">&para;</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Learning objectives</p>
+<p>After reading this page you will thoroughly understand:</p>
+<ul>
+<li><strong>What an order book is</strong> — the fundamental data structure at the heart of every
+  financial exchange, and what problem it solves</li>
+<li><strong>The heap data structure</strong> — what it is, how Python's <code>heapq</code> module works, and
+  why a heap is the right tool for a matching engine's price queue</li>
+<li><strong>Lazy deletion</strong> — why we never remove entries from the middle of a heap, and how
+  to mark entries as invalid instead</li>
+<li><strong>The dual-index pattern</strong> — why a matching engine maintains two parallel data
+  structures (the heap and a flat dictionary) and what each one is responsible for</li>
+<li><strong>Price-time priority</strong> — how we encode "best price first, then earliest time" into
+  a heap key using a simple tuple trick</li>
+<li><strong>The <code>__slots__</code> optimisation</strong> — what Python object memory looks like by default,
+  and how <code>__slots__</code> trades flexibility for speed and lower memory</li>
+<li><strong>Stop and trailing stop order mechanics</strong> — how two separate heaps replace a linear
+  scan for triggered stops, and why each heap uses a different sort direction</li>
+<li><strong>The three "last price" fields</strong> — why <code>last_trade_price</code>, <code>last_buy_price</code>, and
+  <code>last_sell_price</code> are three distinct fields serving three distinct purposes</li>
+<li><strong>The iceberg FOK undercount</strong> — a concrete limitation of the visible-only quantity
+  index and what it means for Fill-Or-Kill availability checks</li>
+<li><strong>Spread and mid price as derived values</strong> — why the order book stores neither, and
+  what happens when one side of the book is empty</li>
+<li><strong>The synchronisation invariant</strong> — the four data structures that must always be
+  updated together, and what breaks if any one is missed</li>
+<li><strong>Self-match prevention</strong> — why an exchange needs to detect when a participant would
+  trade against themselves, and how the three cancellation strategies work</li>
+<li><strong>No-matching mode</strong> — how the same order book collects interest during an auction
+  without executing any trades</li>
+</ul>
+</div>
+<h2 id="short-financial-glossary">Short Financial Glossary<a class="headerlink" href="#short-financial-glossary" title="Permanent link">&para;</a></h2>
+<p>Read this before anything else. Every term below appears in this document. If you
+already work in finance, skip ahead — these definitions are deliberately simplified
+for software developers.</p>
+<p><strong>Instrument / Symbol</strong> — the thing being traded. Could be a share of Apple stock
+(symbol: <code>AAPL</code>), a currency pair (symbol: <code>EURUSD</code>), or a futures contract. An
+order book exists per symbol.</p>
+<p><strong>Order</strong> — an instruction to buy or sell a quantity of an instrument at a specified
+price or better.</p>
+<p><strong>Bid</strong> — a buyer's offer. A bid of $150.30 means: "I am willing to buy at $150.30
+or cheaper." The collection of all active bids forms the buy side of the book.</p>
+<p><strong>Ask</strong> (also called an <strong>offer</strong>) — a seller's offer. An ask of $150.35 means: "I
+am willing to sell at $150.35 or higher." The collection of all active asks forms
+the sell side of the book.</p>
+<p><strong>Spread</strong> — the difference between the best (lowest) ask and the best (highest) bid.
+If the best bid is $150.30 and the best ask is $150.35, the spread is $0.05. A
+tighter spread means more liquid, cheaper-to-trade market.</p>
+<p><strong>Resting order</strong> (also called a <strong>passive order</strong>) — an order that has been accepted
+by the exchange and is sitting in the book waiting for a counterparty. It does not
+execute immediately.</p>
+<p><strong>Aggressive order</strong> (also called a <strong>taker</strong>) — an incoming order that immediately
+trades against resting orders. It "sweeps" the book.</p>
+<p><strong>Price level</strong> — all the resting orders at the same price. If three buyers have all
+placed bids at $150.30, they are all at the same price level. Their combined quantity
+is the depth at that level.</p>
+<p><strong>Depth</strong> — how much quantity is resting at a given price level (or within a price
+range). Deep books have large quantities at each price, making it hard to move the
+price by trading. Shallow books are easier to move.</p>
+<p><strong>Market data</strong> — the continuous stream of information about what is happening in the
+book: what prices orders are resting at, how much quantity, and what trades have
+happened. Display tools (viewer, board, ticker) consume market data.</p>
+<p><strong>Trade</strong> (also called a <strong>fill</strong> or <strong>execution</strong>) — the event that occurs when a
+buyer and seller agree on a price and quantity. A trade record contains: the
+instrument, the price, the quantity, and which orders were involved.</p>
+<p><strong>Limit order</strong> — an order with a price constraint. A buy limit order at $150.30
+will only execute at $150.30 or lower — the buyer is setting the maximum price they
+will pay. A sell limit order at $150.35 will only execute at $150.35 or higher.
+Limit orders that cannot immediately match rest in the book.</p>
+<p><strong>Market order</strong> — an order with no price constraint. "Buy 100 shares at whatever
+price is available right now." Market orders execute immediately against the best
+available resting orders. Because they have no price limit, they cannot rest in the
+book — there is no price to put them at.</p>
+<p><strong>IOC (Immediate-Or-Cancel)</strong> — an order that must execute immediately. Any portion
+that cannot be immediately filled is cancelled on the spot. Unlike a market order,
+an IOC can have a price limit ("fill what you can at $150.35 or better, cancel the
+rest").</p>
+<p><strong>FOK (Fill-Or-Kill)</strong> — an order that must be entirely filled immediately, or not
+at all. If the book does not have enough quantity to fill the full order, the entire
+order is cancelled without any partial fill.</p>
+<p><strong>GTC (Good-Till-Cancelled)</strong> — a Time-In-Force (TIF) instruction on an order.
+A GTC order stays in the book indefinitely until it fills or the participant
+explicitly cancels it. It survives engine restarts.</p>
+<p><strong>DAY</strong> — another TIF instruction. A DAY order expires at the end of the trading
+session if not filled.</p>
+<p><strong>Stop order</strong> — a conditional order that is dormant until the market price reaches
+a specified trigger level (the stop price), at which point it converts to a market
+or limit order and enters the book. Used to automatically exit a position if the
+price moves against you.</p>
+<p><strong>Trailing stop</strong> — a stop order whose trigger price moves automatically as the
+market moves in a favourable direction. See the dedicated section below.</p>
+<p><strong>Iceberg order</strong> — an order that shows only a small visible portion (the "peak")
+to the market while hiding a large reserve behind it. When the visible portion is
+consumed by a fill, the order automatically replenishes from the reserve. Used by
+large traders who do not want to reveal the full size of their position, which would
+move the market against them.</p>
+<p><strong>Lot</strong> — a unit of quantity. For equities, one lot typically means one share. For
+futures, one lot is one contract. In this document, "100 lots" means a quantity of
+100.</p>
+<p><strong>Firm</strong> — a trading company or financial institution. In SMP (Self-Match
+Prevention) context, a "firm" is a single participant whose orders all share the
+same <code>gateway_id</code>.</p>
+<p><strong>Auction</strong> — a trading session mode used at market open and close. During an
+auction, orders are collected but not immediately matched. At the end of the auction
+period, all eligible orders execute simultaneously at a single equilibrium price.</p>
+<h2 id="what-is-an-order-book">What Is an Order Book?<a class="headerlink" href="#what-is-an-order-book" title="Permanent link">&para;</a></h2>
+<p>Before looking at any code, build the conceptual model.</p>
+<p>An exchange is a marketplace where buyers and sellers meet. The order book is the
+exchange's record of every unmet offer — all the buyers who want to buy but haven't
+found a seller yet, and all the sellers who want to sell but haven't found a buyer.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>                  THE ORDER BOOK FOR AAPL
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  ┌─────────────────────────────────────────────────────┐
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  │  BUY SIDE (BIDS)            SELL SIDE (ASKS)        │
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  │                                                     │
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>  │  $150.28 × 200 shares       $150.31 × 500 shares   │
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  │  $150.27 × 100 shares       $150.33 × 200 shares   │
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  │  $150.25 × 400 shares       $150.35 × 300 shares   │
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>  │           ↑                          ↑              │
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>  │      Best bid                   Best ask            │
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>  │      (highest buyer)            (lowest seller)     │
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>  │                                                     │
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>  │            SPREAD = $150.31 - $150.28 = $0.03       │
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>  └─────────────────────────────────────────────────────┘
+</code></pre></div>
+<p>When a new buy order arrives at $150.31 or higher, it crosses the spread and
+matches against the best ask. A trade happens. Both orders are updated. The engine
+checks for more matches.</p>
+<p>When a new buy order arrives at $150.27, it cannot match (the cheapest seller wants
+$150.31). The order rests on the bid side, joining the queue.</p>
+<p>The <code>OrderBook</code> class in <code>engine/order_book.py</code> implements all of this.</p>
+<h2 id="background-the-heap-data-structure">Background: The Heap Data Structure<a class="headerlink" href="#background-the-heap-data-structure" title="Permanent link">&para;</a></h2>
+<p>Before reading any code, you need a solid mental model of what a heap is. Everything
+else in this file builds on it.</p>
+<h3 id="what-a-heap-is">What a Heap Is<a class="headerlink" href="#what-a-heap-is" title="Permanent link">&para;</a></h3>
+<p>A heap is a list that maintains one guarantee: <strong>the smallest element is always at
+index 0.</strong> That is the entire contract. The rest of the list is not sorted — it is
+just arranged so that the minimum can be found in O(1) and added or removed in
+O(log n).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Unsorted list:  [5, 2, 8, 1, 4, 9, 3]
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>After heapify:  [1, 2, 3, 5, 4, 9, 8]
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>                 ^
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>                 Always the minimum — instantly accessible
+</code></pre></div>
+<p>Python's <code>heapq</code> module gives you three operations:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">heapq</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">heap</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>   <span class="c1"># insert 4 — O(log n)</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>   <span class="c1"># insert 1 — O(log n)</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="mi">7</span><span class="p">)</span>   <span class="c1"># insert 7 — O(log n)</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="n">heap</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>                   <span class="c1"># peek at minimum — O(1), does NOT remove</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span>       <span class="c1"># remove and return minimum — O(log n)</span>
+</code></pre></div>
+<p><strong>What "amortised O(1)" means:</strong> Some operations are listed as "O(1) amortised"
+in the complexity table at the end. This means the operation is not always O(1), but
+the <em>average</em> cost across many calls is O(1). Lazy deletion is a good example: most
+calls to <code>_peek()</code> are O(1) (one valid entry at the top), but occasionally a call
+must discard several stale entries, each costing O(log n). Spread across all calls,
+the average is O(1) per <code>_peek()</code> call.</p>
+<h3 id="why-a-heap-for-an-order-book">Why a Heap For an Order Book?<a class="headerlink" href="#why-a-heap-for-an-order-book" title="Permanent link">&para;</a></h3>
+<p>A matching engine needs to answer one question repeatedly and very fast:</p>
+<blockquote>
+<p>"What is the best resting order right now?"</p>
+</blockquote>
+<p>For bids, "best" means the <strong>highest price</strong> — the most a buyer is willing to pay.
+For asks, "best" means the <strong>lowest price</strong> — the least a seller will accept.</p>
+<p>A heap gives us O(1) access to the best element. Inserting a new order is O(log n).
+This is the right tradeoff for a matching engine where <code>peek at best</code> and <code>insert new
+order</code> are the dominant operations.</p>
+<h3 id="the-min-heap-max-heap-trick">The Min-Heap / Max-Heap Trick<a class="headerlink" href="#the-min-heap-max-heap-trick" title="Permanent link">&para;</a></h3>
+<p>Python's <code>heapq</code> is a <strong>min-heap</strong> — it always puts the smallest element first.
+This is perfect for asks (we want the lowest ask first) but backwards for bids
+(we want the highest bid first).</p>
+<p>The standard solution: <strong>negate the price for bids.</strong></p>
+<blockquote>
+<p><strong>Note:</strong> Since the tick migration, all prices in EduMatcher are stored as
+integer tick counts (e.g. <code>$100.02</code> is <code>10002</code> for a symbol with
+<code>tick_decimals=2</code>). The heap key arithmetic works identically — negation of
+an <code>int</code> is still an <code>int</code>. The examples below use readable decimal prices for
+clarity, but the actual values in the code are integers.</p>
+</blockquote>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Ask heap — natural min-heap, lowest ask first</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">asks</span><span class="p">,</span> <span class="p">(</span><span class="mi">10002</span><span class="p">,</span> <span class="n">timestamp</span><span class="p">,</span> <span class="n">order</span><span class="p">))</span>  <span class="c1"># $100.02 = 10002 ticks</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">asks</span><span class="p">,</span> <span class="p">(</span><span class="mi">10005</span><span class="p">,</span> <span class="n">timestamp</span><span class="p">,</span> <span class="n">order</span><span class="p">))</span>  <span class="c1"># $100.05 = 10005 ticks  ← will be second</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">asks</span><span class="p">,</span> <span class="p">(</span><span class="mi">10008</span><span class="p">,</span> <span class="n">timestamp</span><span class="p">,</span> <span class="n">order</span><span class="p">))</span>  <span class="c1"># $100.08 = 10008 ticks</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="n">asks</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># → (10002, ...)  ✓ lowest ask is first</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="c1"># Bid heap — negate price so highest bid sorts first</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">bids</span><span class="p">,</span> <span class="p">(</span><span class="o">-</span><span class="mi">9998</span><span class="p">,</span> <span class="n">timestamp</span><span class="p">,</span> <span class="n">order</span><span class="p">))</span>   <span class="c1"># $99.98 = 9998 ticks</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">bids</span><span class="p">,</span> <span class="p">(</span><span class="o">-</span><span class="mi">10000</span><span class="p">,</span> <span class="n">timestamp</span><span class="p">,</span> <span class="n">order</span><span class="p">))</span>  <span class="c1"># $100.00 = 10000 ticks ← will be first</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">bids</span><span class="p">,</span> <span class="p">(</span><span class="o">-</span><span class="mi">9995</span><span class="p">,</span> <span class="n">timestamp</span><span class="p">,</span> <span class="n">order</span><span class="p">))</span>   <span class="c1"># $99.95 = 9995 ticks</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="n">bids</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># → (-10000, ...)  ✓ negated, so highest bid is first</span>
+</code></pre></div>
+<p>Negating bids is a standard Python pattern. You will see it throughout this codebase.</p>
+<h3 id="price-time-priority-as-a-tuple-key">Price-Time Priority as a Tuple Key<a class="headerlink" href="#price-time-priority-as-a-tuple-key" title="Permanent link">&para;</a></h3>
+<p>A matching engine sorts orders by price first, then by arrival time as a tiebreaker.
+This is called <strong>price-time priority</strong>. We encode both into a single tuple:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">price</span><span class="p">,</span> <span class="n">timestamp</span><span class="p">)</span>
+</code></pre></div>
+<p>Python compares tuples element by element. If two orders have the same price, the
+one with the smaller timestamp (earlier arrival) wins. This naturally implements
+price-time priority in a single heap with no special logic:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Two asks at the same price — earlier one sorts first</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="c1"># Timestamps are int nanoseconds from monotonic_ns()</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">key_a</span> <span class="o">=</span> <span class="p">(</span><span class="mi">10002</span><span class="p">,</span> <span class="mi">1_748_000_000_000_000_000</span><span class="p">)</span>   <span class="c1"># arrived first</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">key_b</span> <span class="o">=</span> <span class="p">(</span><span class="mi">10002</span><span class="p">,</span> <span class="mi">1_748_000_000_000_005_000</span><span class="p">)</span>   <span class="c1"># arrived 5 microseconds later</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="n">key_a</span> <span class="o">&lt;</span> <span class="n">key_b</span>  <span class="c1"># True — key_a is &quot;better&quot; and will be at top of heap</span>
+</code></pre></div>
+<p>For bids we negate the price:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="n">price_ticks</span><span class="p">,</span> <span class="n">timestamp_ns</span><span class="p">)</span>
+</code></pre></div>
+<p>This gives us highest price first, then earliest timestamp among equal prices. Both
+in one heap, no special cases. Because both elements are integers, comparisons are
+exact — no floating-point representation edge cases.</p>
+<p><strong>Why price-time priority?</strong> It is the fairest rule: better prices should win, and
+among equal prices, whoever arrived first should win. It prevents a participant from
+"cutting the queue" by submitting an order at the same price as someone who was
+already waiting.</p>
+<h2 id="the-_heapentry-wrapper">The <code>_HeapEntry</code> Wrapper<a class="headerlink" href="#the-_heapentry-wrapper" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">_HeapEntry</span><span class="p">:</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;key&quot;</span><span class="p">,</span> <span class="s2">&quot;order&quot;</span><span class="p">,</span> <span class="s2">&quot;valid&quot;</span><span class="p">)</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">valid</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">key</span> <span class="o">=</span> <span class="n">key</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="n">order</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">valid</span> <span class="o">=</span> <span class="n">valid</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__lt__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">key</span> <span class="o">&lt;</span> <span class="n">other</span><span class="o">.</span><span class="n">key</span>
+</code></pre></div>
+<h3 id="why-not-put-orders-directly-on-the-heap">Why Not Put Orders Directly on the Heap?<a class="headerlink" href="#why-not-put-orders-directly-on-the-heap" title="Permanent link">&para;</a></h3>
+<p>Python's <code>heapq</code> compares elements when sorting. If you put <code>Order</code> objects directly
+on the heap, Python would try to compare them with <code>&lt;</code>. But <code>Order</code> objects are
+dataclasses with many fields — there is no natural ordering between two orders
+(should a BUY order be "less than" a SELL order?). Python would raise a <code>TypeError</code>.</p>
+<p><code>_HeapEntry</code> solves this by:</p>
+<ol>
+<li>Storing the sort key separately (<code>self.key = (price, timestamp)</code>)</li>
+<li>Implementing <code>__lt__</code> to compare only keys — <code>heapq</code> uses <code>__lt__</code> internally</li>
+<li>Carrying the <code>Order</code> as a passenger — never compared, just stored</li>
+</ol>
+<h3 id="the-valid-flag-lazy-deletion">The <code>valid</code> Flag — Lazy Deletion<a class="headerlink" href="#the-valid-flag-lazy-deletion" title="Permanent link">&para;</a></h3>
+<p>This is the most important field in <code>_HeapEntry</code>. Understand it deeply.</p>
+<p>The <code>valid</code> flag is <code>True</code> when the entry should be considered, <code>False</code> when it
+should be ignored. When an order is cancelled or filled, <strong>we do not remove its
+entry from the heap.</strong> We just set <code>entry.valid = False</code>.</p>
+<p>Why? Because Python's <code>heapq</code> has no <code>remove()</code> operation. Removing an arbitrary
+element from the middle of a heap requires finding it first (O(n) scan) and then
+re-heapifying (O(log n)). Together that is O(n) — too slow for a hot path.</p>
+<p>Instead we use <strong>lazy deletion</strong>: mark as invalid, leave in the heap, and skip
+invalid entries the next time <code>_peek()</code> is called.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Cancelling an order — O(1)</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">entry</span><span class="o">.</span><span class="n">valid</span> <span class="o">=</span> <span class="kc">False</span>          <span class="c1"># mark invalid</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">order</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">CANCELLED</span>     <span class="c1"># update the order</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="c1"># The entry is still physically in the heap, but _peek() will skip it</span>
+</code></pre></div>
+<p>This is a well-known pattern in competitive programming and high-performance systems.
+The heap may contain "garbage" entries, but they cost nothing until they surface at
+the top, at which point they are discarded in O(log n).</p>
+<h3 id="__slots__-on-_heapentry"><code>__slots__</code> on <code>_HeapEntry</code><a class="headerlink" href="#__slots__-on-_heapentry" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">_HeapEntry</span><span class="p">:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;key&quot;</span><span class="p">,</span> <span class="s2">&quot;order&quot;</span><span class="p">,</span> <span class="s2">&quot;valid&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>By default, every Python object stores its attributes in a dictionary (<code>__dict__</code>).
+Accessing <code>entry.valid</code> involves a hash table lookup inside that dict.</p>
+<p><code>__slots__</code> replaces the dict with a fixed C array. Attribute access becomes a
+direct memory offset — like accessing <code>struct.field</code> in C. This is approximately
+30% faster per access and uses significantly less memory per instance.</p>
+<p><code>_HeapEntry</code> is instantiated once per resting order. In a book with thousands of
+resting orders, this saving compounds meaningfully.</p>
+<h2 id="the-orderbook-class">The <code>OrderBook</code> Class<a class="headerlink" href="#the-orderbook-class" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">OrderBook</span><span class="p">:</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">(</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>        <span class="s2">&quot;symbol&quot;</span><span class="p">,</span> <span class="s2">&quot;_bids&quot;</span><span class="p">,</span> <span class="s2">&quot;_asks&quot;</span><span class="p">,</span> <span class="s2">&quot;_buy_stops&quot;</span><span class="p">,</span> <span class="s2">&quot;_sell_stops&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>        <span class="s2">&quot;_trailing_stops&quot;</span><span class="p">,</span> <span class="s2">&quot;_bid_qty&quot;</span><span class="p">,</span> <span class="s2">&quot;_ask_qty&quot;</span><span class="p">,</span> <span class="s2">&quot;_order_index&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>        <span class="s2">&quot;_entry_index&quot;</span><span class="p">,</span> <span class="s2">&quot;last_trade_price&quot;</span><span class="p">,</span> <span class="s2">&quot;last_trade_qty&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>        <span class="s2">&quot;last_buy_price&quot;</span><span class="p">,</span> <span class="s2">&quot;last_sell_price&quot;</span><span class="p">,</span> <span class="s2">&quot;recent_trades&quot;</span><span class="p">,</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>    <span class="p">)</span>
+</code></pre></div>
+<p><code>__slots__</code> on <code>OrderBook</code> itself gives the same benefit — faster attribute access
+on every <code>self.xxx</code> reference inside the matching loop.</p>
+<h3 id="the-data-structures">The Data Structures<a class="headerlink" href="#the-data-structures" title="Permanent link">&para;</a></h3>
+<p>The <code>OrderBook</code> maintains ten distinct data structures. Each answers a different
+question. They are all updated in sync — if you update one, you must update the
+others. This is the key discipline of the order book implementation.</p>
+<h4 id="_bids-and-_asks-the-price-time-queues"><code>_bids</code> and <code>_asks</code> — The Price-Time Queues<a class="headerlink" href="#_bids-and-_asks-the-price-time-queues" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">_bids</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_HeapEntry</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>   <span class="c1"># max-heap via negated price</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_asks</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_HeapEntry</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>   <span class="c1"># min-heap</span>
+</code></pre></div>
+<p>These are the two sides of the order book. Every resting limit order lives in one
+of these heaps as a <code>_HeapEntry</code>.</p>
+<p><strong><code>_bids</code></strong> is a max-heap (via negated price). <code>_bids[0]</code> always gives the highest
+bid — the most a buyer is currently willing to pay.</p>
+<p><strong><code>_asks</code></strong> is a min-heap. <code>_asks[0]</code> always gives the lowest ask — the least a
+seller will accept.</p>
+<p>When the matching engine needs to fill an incoming buy order, it looks at <code>_asks[0]</code>.
+When filling an incoming sell order, it looks at <code>_bids[0]</code>. Both are O(1) lookups.</p>
+<h4 id="_order_index-fast-lookup-by-order-id"><code>_order_index</code> — Fast Lookup by Order ID<a class="headerlink" href="#_order_index-fast-lookup-by-order-id" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">_order_index</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Order</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+</code></pre></div>
+<p>A flat dictionary mapping every resting order's ID to the <code>Order</code> object itself.</p>
+<p>This answers: <strong>"Given an order ID, give me the Order."</strong></p>
+<p>Used for cancels, amends, and any operation that arrives with an order ID and needs
+to find the order quickly. Without this, you would have to scan the entire heap —
+O(n). With this dictionary, it is O(1).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Cancel arrives with just an order_id</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_order_index</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">order_id</span><span class="p">)</span>   <span class="c1"># O(1) — no heap scan needed</span>
+</code></pre></div>
+<h4 id="_entry_index-fast-lookup-by-entry"><code>_entry_index</code> — Fast Lookup by Entry<a class="headerlink" href="#_entry_index-fast-lookup-by-entry" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">_entry_index</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_HeapEntry</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+</code></pre></div>
+<p>A flat dictionary mapping every order ID to its <code>_HeapEntry</code> in the heap.</p>
+<p>This answers: <strong>"Given an order ID, give me its heap entry so I can invalidate it."</strong></p>
+<p>This is the second half of the lazy deletion pattern. When you cancel an order, you
+need both the <code>Order</code> (to update its status) and the <code>_HeapEntry</code> (to set
+<code>entry.valid = False</code>). The <code>_order_index</code> gives you the first, <code>_entry_index</code> gives
+you the second.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># Cancel path — two O(1) lookups, no heap scan</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_order_index</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">order_id</span><span class="p">)</span>   <span class="c1"># get the Order</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entry_index</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">order_id</span><span class="p">)</span>   <span class="c1"># get the HeapEntry</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="n">entry</span><span class="o">.</span><span class="n">valid</span> <span class="o">=</span> <span class="kc">False</span>                        <span class="c1"># lazy deletion</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="n">order</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">CANCELLED</span>       <span class="c1"># update status</span>
+</code></pre></div>
+<p>Why two separate dicts instead of one? Because <code>Order</code> and <code>_HeapEntry</code> serve
+different purposes and have different lifetimes. Stop orders, for example, are in
+<code>_order_index</code> but not in <code>_entry_index</code> (they use different heaps with different
+management). Keeping them separate avoids conflation.</p>
+<h4 id="_bid_qty-and-_ask_qty-the-price-level-quantity-index"><code>_bid_qty</code> and <code>_ask_qty</code> — The Price-Level Quantity Index<a class="headerlink" href="#_bid_qty-and-_ask_qty-the-price-level-quantity-index" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>   <span class="c1"># price_ticks → total resting qty at that price</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_ask_qty</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+</code></pre></div>
+<p>These dictionaries map each price level to the total quantity resting there. They
+are maintained in parallel with the heaps and kept exactly in sync.</p>
+<p>They answer: <strong>"How much total quantity is available at price X?"</strong></p>
+<p>Used for two things:</p>
+<p><strong>FOK pre-check</strong> — a Fill-Or-Kill order must be fully fillable before any fills
+execute. The check scans this index to add up all available quantity at or better
+than the FOK's limit price. Without this index, checking availability requires
+scanning the entire heap. With this index, it is O(P) where P is the number of
+distinct price levels — much faster.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_available_qty</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">heap</span><span class="p">,</span> <span class="n">price_limit</span><span class="p">,</span> <span class="n">side</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>    <span class="n">qty_index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ask_qty</span> <span class="k">if</span> <span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>    <span class="n">total</span> <span class="o">=</span> <span class="mi">0</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>    <span class="k">for</span> <span class="n">price</span><span class="p">,</span> <span class="n">qty</span> <span class="ow">in</span> <span class="n">qty_index</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>        <span class="k">if</span> <span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span>  <span class="ow">and</span> <span class="n">price</span> <span class="o">&lt;=</span> <span class="n">price_limit</span><span class="p">:</span> <span class="n">total</span> <span class="o">+=</span> <span class="n">qty</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>        <span class="k">if</span> <span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">SELL</span> <span class="ow">and</span> <span class="n">price</span> <span class="o">&gt;=</span> <span class="n">price_limit</span><span class="p">:</span> <span class="n">total</span> <span class="o">+=</span> <span class="n">qty</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>    <span class="k">return</span> <span class="n">total</span>
+</code></pre></div>
+<p><code>qty_index</code> is chosen based on which side is being checked: a BUY order needs to
+know how much sell-side liquidity is available, so it reads <code>_ask_qty</code>. The price
+filter then checks whether each level is within the order's limit price.</p>
+<p><strong>Depth snapshots</strong> — computing the available depth at a range of prices iterates
+this index rather than the heap, avoiding the O(n) cost of scanning all heap entries.</p>
+<h3 id="iceberg-orders-and-the-fok-undercount">Iceberg Orders and the FOK Undercount<a class="headerlink" href="#iceberg-orders-and-the-fok-undercount" title="Permanent link">&para;</a></h3>
+<p>There is an important limitation: <code>_bid_qty</code> and <code>_ask_qty</code> track only the
+<strong>visible</strong> quantity of iceberg orders, not their hidden reserve.</p>
+<p>When an iceberg order is placed via <code>_rest()</code>, the code adds only <code>displayed_qty</code>
+(the visible peak) to the quantity index:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="n">qty</span> <span class="o">=</span> <span class="p">(</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>    <span class="n">order</span><span class="o">.</span><span class="n">displayed_qty</span>    <span class="c1"># iceberg: only the visible peak is counted here</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">ICEBERG</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>    <span class="k">else</span> <span class="n">order</span><span class="o">.</span><span class="n">remaining_qty</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="p">)</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">qty</span>
+</code></pre></div>
+<p>This means <code>_available_qty()</code> — which the FOK check calls — will <strong>undercount</strong>
+available liquidity whenever icebergs are present at price levels within the FOK's
+range.</p>
+<p><strong>Concrete example:</strong> Suppose a FOK BUY order for 2,500 shares arrives at $150.30.
+At that price level there are:
+- One regular LIMIT order for 800 shares
+- One ICEBERG order with 300 visible and 2,700 hidden (3,000 total)</p>
+<p><code>_bid_qty[150.30]</code> = 800 + 300 = 1,100 (only visible counted)</p>
+<p><code>_available_qty()</code> returns 1,100 — less than the 2,500 needed — so the FOK is
+rejected. But the iceberg could actually fill 3,000 shares; if regular orders were
+also present at better prices the aggregate might reach 2,500 easily.</p>
+<p>This is a known, intentional design simplification in EduMatcher. Correct iceberg-
+aware FOK checking would require scanning the heap entries at each relevant price
+level (to sum visible + hidden), which trades O(P) for O(n) on the FOK path. For
+an educational system, the visible-only approximation is acceptable.</p>
+<h3 id="the-synchronisation-invariant">The Synchronisation Invariant<a class="headerlink" href="#the-synchronisation-invariant" title="Permanent link">&para;</a></h3>
+<p>Every operation that adds or removes a resting order must update <strong>all four
+structures</strong> together, or the book becomes inconsistent:</p>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>heap</th>
+<th><code>_order_index</code></th>
+<th><code>_entry_index</code></th>
+<th>qty index</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>_rest()</code> — new order</td>
+<td><code>heappush</code></td>
+<td>add</td>
+<td>add</td>
+<td><code>+= qty</code></td>
+</tr>
+<tr>
+<td>cancel / <code>_apply_fill</code> (full fill)</td>
+<td><code>entry.valid = False</code></td>
+<td><code>pop</code></td>
+<td><code>pop</code></td>
+<td><code>-= qty</code>, delete if 0</td>
+</tr>
+<tr>
+<td><code>amend_order</code> (price/qty change)</td>
+<td>invalidate old, <code>heappush</code> new</td>
+<td>no change</td>
+<td>update to new entry</td>
+<td><code>±= qty_delta</code></td>
+</tr>
+<tr>
+<td>iceberg replenish</td>
+<td>invalidate old, <code>heappush</code> new</td>
+<td>no change</td>
+<td>update to new entry</td>
+<td><code>+= new_peak</code></td>
+</tr>
+</tbody>
+</table>
+<p>Missing any one of these in any code path causes a silent bug that may not manifest
+immediately. For example, leaving a stale entry in <code>_bid_qty</code> would cause the FOK
+check to see phantom liquidity that has already been cancelled. Leaving an entry in
+<code>_order_index</code> after a fill would cause a cancel request on that order ID to find
+a filled order and send a confusing response.</p>
+<h4 id="_buy_stops-and-_sell_stops-the-stop-heaps"><code>_buy_stops</code> and <code>_sell_stops</code> — The Stop Heaps<a class="headerlink" href="#_buy_stops-and-_sell_stops-the-stop-heaps" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">_buy_stops</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_HeapEntry</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>    <span class="c1"># min-heap by stop_price</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_sell_stops</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_HeapEntry</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>   <span class="c1"># max-heap by -stop_price</span>
+</code></pre></div>
+<p>Stop orders (defined in the glossary above) are not resting in the bid/ask book.
+They wait in their own heaps and convert to market or limit orders when triggered.</p>
+<p><strong><code>_buy_stops</code></strong> — min-heap by stop price. A buy stop fires when the market price
+rises to or above the stop price. The min-heap means the stop with the lowest
+trigger price surfaces first — the next one to fire as price rises.</p>
+<p><strong>Why is this correct?</strong> As the market price rises from, say, $100 to $110, the
+first buy stop to trigger is the one with the lowest stop price (say $102), because
+$100 → $102 is crossed before $100 → $108. The min-heap puts the lowest price at
+the top, so the first entry to check is the right one. A break out of the while
+loop fires because <code>self.last_trade_price &lt; stop_price</code> — if even the lowest stop
+hasn't triggered, none of the others have either.</p>
+<p><strong><code>_sell_stops</code></strong> — max-heap by negated stop price. A sell stop fires when the
+market price falls to or below the stop price. The max-heap (via negation) means
+the stop with the highest trigger price surfaces first — the next one to fire as
+price falls.</p>
+<p><strong>Why is this correct?</strong> As the market price falls from $100 to $90, the first sell
+stop to trigger is the one with the highest stop price (say $98), because $100 →
+$98 is crossed before $100 → $92. The max-heap puts the highest price at the top.
+A break fires because <code>self.last_trade_price &gt; stop_price</code> — if even the highest
+stop hasn't triggered, none of the others have either.</p>
+<p>The pattern is: for each stop heap, "the entry closest to the current price" is also
+"the entry most likely to have just triggered" — and that is always at <code>heap[0]</code>.</p>
+<p>Two separate heaps mean triggering is O(k log k) where k is the number of stops
+that actually fire — typically zero or one. Without the split, you would need to
+check both heaps for every trade.</p>
+<h4 id="_trailing_stops-the-trailing-stop-list"><code>_trailing_stops</code> — The Trailing Stop List<a class="headerlink" href="#_trailing_stops-the-trailing-stop-list" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">_trailing_stops</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Order</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+</code></pre></div>
+<p>A plain list of all active trailing stop orders. Unlike regular stops, the trigger
+price of a trailing stop changes every time the market price moves, so a heap is
+not useful here — we must scan all of them on every trade to update their trigger
+prices. In practice, trailing stop lists are short.</p>
+<h4 id="recent_trades-the-rolling-trade-window"><code>recent_trades</code> — The Rolling Trade Window<a class="headerlink" href="#recent_trades-the-rolling-trade-window" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">recent_trades</span><span class="p">:</span> <span class="n">deque</span><span class="p">[</span><span class="n">Trade</span><span class="p">]</span> <span class="o">=</span> <span class="n">deque</span><span class="p">(</span><span class="n">maxlen</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+</code></pre></div>
+<p>A bounded deque that holds the last 20 trades for this symbol. When the deque
+is full, the oldest trade is automatically evicted when a new one is appended —
+no manual housekeeping needed.</p>
+<p>Used by <code>snapshot()</code> to include recent trade history in book snapshots.</p>
+<p><strong>Why this matters for display processes.</strong> A viewer or board process that starts
+up mid-session — say, at 11:47am when trading has been running since 9:30am —
+receives book snapshots and trade events going forward from the moment it connects.
+But it needs to show the user <em>some</em> recent history immediately on startup, not just
+the very first trade that happens to occur after it connects.</p>
+<p><code>recent_trades</code> solves this: the very first book snapshot the process receives
+includes up to 20 recent trades, giving the display an immediate picture of recent
+activity without querying the stats database.</p>
+<p><strong>Why maxlen=20?</strong> The bound is a deliberate network efficiency choice. Every book
+snapshot message includes this list serialised as JSON. At 20 trades per snapshot,
+and snapshots publishing every 500ms per symbol, the overhead is modest. Too few
+trades (say, 5) and the initial display looks sparse; too many (say, 200) and the
+snapshot message grows significantly. 20 is sufficient for a "recent tape" display
+without inflating message sizes.</p>
+<p><strong><code>recent_trades</code> is the only trade source for reconnecting processes.</strong> There is no
+"replay last N trades" API in EduMatcher. If a display process restarts and needs
+trade history, <code>recent_trades</code> in the next snapshot is all it gets from the engine.
+The stats database (<code>data/stats.db</code>) has the full OHLCV history, but display
+processes do not query it directly.</p>
+<h2 id="walking-through-process-the-main-entry-point">Walking Through <code>process()</code> — The Main Entry Point<a class="headerlink" href="#walking-through-process-the-main-entry-point" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+</code></pre></div>
+<p>Every incoming order enters through this single method. Let us walk through what
+happens for the most common case: an incoming limit order.</p>
+<h3 id="step-1-compute-the-timestamp-once">Step 1: Compute the Timestamp Once<a class="headerlink" href="#step-1-compute-the-timestamp-once" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="k">if</span> <span class="n">now</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>    <span class="n">now</span> <span class="o">=</span> <span class="n">monotonic_ns</span><span class="p">()</span>   <span class="c1"># from models/clock.py</span>
+</code></pre></div>
+<p><code>monotonic_ns()</code> is a thin wrapper around <code>time.time_ns()</code> that guarantees a
+strictly increasing integer nanosecond timestamp even if the system clock steps
+backward (due to NTP or a virtual machine hypervisor). It is a system call, and
+system calls are expensive (~300-500 nanoseconds each).</p>
+<p>A single aggressive order that triggers stop orders can go through <code>process()</code>
+recursively several times. Computing <code>now</code> once at the top and passing it through
+avoids repeated calls.</p>
+<p>This is a micro-optimisation but it is the right instinct: <strong>identify the expensive
+operation, call it once, pass the result everywhere.</strong></p>
+<h3 id="step-2-no-matching-mode-check">Step 2: No-Matching Mode Check<a class="headerlink" href="#step-2-no-matching-mode-check" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">match</span><span class="p">:</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="ow">in</span> <span class="p">(</span><span class="n">OrderType</span><span class="o">.</span><span class="n">MARKET</span><span class="p">,</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">FOK</span><span class="p">,</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">IOC</span><span class="p">):</span>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>        <span class="n">order</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">REJECTED</span>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>        <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>        <span class="k">return</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span>
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_rest</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a>    <span class="k">return</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span>
+</code></pre></div>
+<p>When <code>match=False</code>, the engine is in <strong>auction mode</strong> — the phase at the start and
+end of the trading day when orders are collected but not yet executed. During an
+auction, orders queue up so there is plenty of interest to trade when the auction
+ends and a single equilibrium price is computed.</p>
+<p>Market, FOK, and IOC orders are rejected during an auction because they require
+immediate execution, which is not possible when no matching is happening. Limit and
+iceberg orders are accepted and placed directly onto the heap with no sweep attempt.</p>
+<h3 id="step-3-dispatch-to-the-right-handler">Step 3: Dispatch to the Right Handler<a class="headerlink" href="#step-3-dispatch-to-the-right-handler" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">MARKET</span><span class="p">:</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_match_market</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">)</span>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="k">elif</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">LIMIT</span><span class="p">:</span>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_match_limit</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">)</span>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="c1"># ... etc</span>
+</code></pre></div>
+<p>Each order type has its own handler. They all ultimately call <code>_sweep()</code> or a
+variant of it, but differ in what happens to any quantity that cannot immediately
+fill:</p>
+<ul>
+<li><strong>MARKET</strong> — discard the unfilled remainder. A market order has no price limit,
+  so there is no sensible price to rest it at. If the book runs out of resting
+  orders, the remainder is cancelled.</li>
+<li><strong>LIMIT</strong> — rest the unfilled remainder on the book at the specified price. This
+  is the most common case.</li>
+<li><strong>IOC</strong> — cancel the unfilled remainder immediately. Same as MARKET for the
+  remainder, but with a price limit on what can fill.</li>
+<li><strong>FOK</strong> — pre-check that the full quantity is available in the book before
+  sweeping at all. If not enough quantity exists, cancel the entire order without
+  doing any fills.</li>
+</ul>
+<h3 id="step-4-check-stops-after-every-trade">Step 4: Check Stops After Every Trade<a class="headerlink" href="#step-4-check-stops-after-every-trade" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="k">if</span> <span class="n">trades</span><span class="p">:</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>    <span class="n">triggered</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_stops</span><span class="p">(</span><span class="n">now</span><span class="p">)</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>    <span class="n">triggered</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_trailing_stops</span><span class="p">(</span><span class="n">now</span><span class="p">)</span>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>    <span class="k">for</span> <span class="n">t_order</span> <span class="ow">in</span> <span class="n">triggered</span><span class="p">:</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>        <span class="n">sub_trades</span><span class="p">,</span> <span class="n">sub_events</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">t_order</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="n">now</span><span class="p">)</span>
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>        <span class="n">trades</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">sub_trades</span><span class="p">)</span>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a>        <span class="n">events</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">sub_events</span><span class="p">)</span>
+</code></pre></div>
+<p>After any fills occur, we check whether any stop orders should now trigger. This
+check only runs if <code>trades</code> is non-empty — no trades means prices did not move,
+so no stops can trigger.</p>
+<p>Note the <strong>recursive call</strong> to <code>self.process()</code>. A triggered stop becomes a new
+market or limit order and goes back through the full matching logic. The <code>now</code>
+timestamp is passed through to avoid more calls inside the recursive call.</p>
+<p>This recursion is bounded in practice — triggered orders rarely trigger further
+stops — but it is worth being aware of for deep stop cascades.</p>
+<h2 id="hot-path-risk-checks-in-the-matching-engine">Hot-Path Risk Checks in the Matching Engine<a class="headerlink" href="#hot-path-risk-checks-in-the-matching-engine" title="Permanent link">&para;</a></h2>
+<p>Important architectural point: the <code>OrderBook</code> is not the first line of defense.
+In EduMatcher, <code>Engine._handle_new_order()</code> performs a sequence of checks before
+an order reaches <code>book.process()</code>, and <code>_publish_trade()</code> applies an additional
+post-trade risk check after every fill.</p>
+<p>This means the true hot path is:</p>
+<ol>
+<li><strong>Ingress validation + risk gates</strong> (<code>_handle_new_order</code>)</li>
+<li><strong>Matching</strong> (<code>book.process</code> / <code>_sweep</code>)</li>
+<li><strong>Post-trade risk reaction</strong> (<code>_publish_trade</code> -&gt; <code>_check_circuit_breaker</code>)</li>
+</ol>
+<p>The checks below are intentionally in this path because they prevent invalid,
+unsafe, or policy-violating state transitions. Moving them to an async sidecar
+would be faster, but would permit trades that should have been blocked.</p>
+<h3 id="gateway-allowlist-and-connectionauth-status">Gateway allowlist and connection/auth status<a class="headerlink" href="#gateway-allowlist-and-connectionauth-status" title="Permanent link">&para;</a></h3>
+<p>The engine first verifies that the sender gateway is allowed and currently
+connected/authenticated (fast-path via <code>_connected_fix_gateways</code>, fallback to
+<code>_gateway_status</code>).</p>
+<p>Why this must be here:</p>
+<ul>
+<li>Without it, disconnected or unauthorized participants could inject live orders.</li>
+<li>Any downstream risk logic would be operating on already-accepted bad flow.</li>
+<li>A reject-early check avoids wasted matching work for invalid participants.</li>
+</ul>
+<h3 id="symbol-allowlist-check">Symbol allowlist check<a class="headerlink" href="#symbol-allowlist-check" title="Permanent link">&para;</a></h3>
+<p>If <code>_allowed_symbols</code> is configured, the symbol must be in that set or the order
+is rejected.</p>
+<p>Why this must be here:</p>
+<ul>
+<li>Prevents accidental trading in unconfigured instruments.</li>
+<li>Enforces operational scope (for example, staged rollouts per symbol).</li>
+<li>Protects all downstream components from unknown-symbol state.</li>
+</ul>
+<h3 id="session-state-and-auction-phase-gating">Session-state and auction phase gating<a class="headerlink" href="#session-state-and-auction-phase-gating" title="Permanent link">&para;</a></h3>
+<p>The engine enforces market lifecycle rules before matching:</p>
+<ul>
+<li><code>accepts_orders(self._session_state)</code> for open/closed behavior</li>
+<li><code>ATO</code> accepted only in <code>OPENING_AUCTION</code></li>
+<li><code>ATC</code> accepted only in <code>CLOSING_AUCTION</code></li>
+</ul>
+<p>Why this must be here:</p>
+<ul>
+<li>Session violations are market-structure errors, not business preferences.</li>
+<li>You cannot "fix" a wrongly accepted closed-market order after execution.</li>
+<li>Correct auction behavior requires pre-trade admission control.</li>
+</ul>
+<h3 id="circuit-breaker-halt-gate-pre-trade">Circuit-breaker halt gate (pre-trade)<a class="headerlink" href="#circuit-breaker-halt-gate-pre-trade" title="Permanent link">&para;</a></h3>
+<p>If <code>self._halted_symbols[symbol]</code> is true:</p>
+<ul>
+<li><code>MARKET</code>, <code>IOC</code>, <code>FOK</code> are rejected</li>
+<li><code>LIMIT</code>/<code>ICEBERG</code> may be accepted to rest, but matching is disabled</li>
+</ul>
+<p>Why this must be here:</p>
+<ul>
+<li>A halt is a hard safety boundary for immediate executions.</li>
+<li>Letting aggressive orders through during a halt would defeat the breaker.</li>
+<li>Allowing passive rest preserves auction-style interest for controlled resume.</li>
+</ul>
+<h3 id="price-collar-validation-pre-trade">Price-collar validation (pre-trade)<a class="headerlink" href="#price-collar-validation-pre-trade" title="Permanent link">&para;</a></h3>
+<p>For priced orders, <code>validate_collar(...)</code> is called when collars are enabled.
+This applies static/dynamic band checks using collar config and last-trade state.</p>
+<p>Why this must be here:</p>
+<ul>
+<li>Price collars are anti-fat-finger controls.</li>
+<li>If checked after matching, the damage (bad prints) is already done.</li>
+<li>Collar rejects protect both participants and reference prices used by other
+    controls.</li>
+</ul>
+<h3 id="no-matching-mode-hard-rejections-for-immediate-only-types">No-matching mode hard rejections for immediate-only types<a class="headerlink" href="#no-matching-mode-hard-rejections-for-immediate-only-types" title="Permanent link">&para;</a></h3>
+<p>If matching is disabled (<code>do_match=False</code>), the engine rejects immediate-execution
+types (<code>MARKET</code>, <code>IOC</code>, <code>FOK</code>) because they cannot legally rest.</p>
+<p>Why this must be here:</p>
+<ul>
+<li>Prevents semantic corruption of order types.</li>
+<li>Ensures predictable participant behavior in auctions and halts.</li>
+<li>Avoids pseudo-accepting orders that can never satisfy their contract.</li>
+</ul>
+<h3 id="kill-switch-and-disconnect-behavior-flow-level-risk-control">Kill-switch and disconnect behavior (flow-level risk control)<a class="headerlink" href="#kill-switch-and-disconnect-behavior-flow-level-risk-control" title="Permanent link">&para;</a></h3>
+<p>Two engine controls rapidly remove participant exposure:</p>
+<ul>
+<li><code>risk.kill_switch</code> -&gt; <code>_handle_kill_switch</code>: cancel all (or symbol-filtered)
+    non-quote orders and active quotes for that gateway</li>
+<li><code>_handle_gateway_disconnect</code>: depending on configured disconnect behavior,
+    auto-cancel quotes and optionally all resting participant orders</li>
+</ul>
+<p>Why this must be in/next to the hot path:</p>
+<ul>
+<li>This is emergency brake functionality; latency to cancel matters.</li>
+<li>It bounds risk from broken algos, network partitions, or runaway quoting.</li>
+<li>A slow/offline reconciliation loop is not an acceptable substitute.</li>
+</ul>
+<h3 id="circuit-breaker-monitor-post-trade-in-the-hot-path">Circuit-breaker monitor (post-trade in the hot path)<a class="headerlink" href="#circuit-breaker-monitor-post-trade-in-the-hot-path" title="Permanent link">&para;</a></h3>
+<p>After each trade publish, <code>_publish_trade()</code> performs:</p>
+<ul>
+<li>per-symbol breaker lookup</li>
+<li><code>_check_circuit_breaker(symbol, trade_price, trade_timestamp)</code></li>
+</ul>
+<p>If triggered, the engine halts the symbol, cancels resting quotes for that symbol,
+broadcasts halt state, and marks the book dirty for snapshot publication.</p>
+<p>Why this must be synchronous with trade flow:</p>
+<ul>
+<li>Triggering depends on the latest executed price and time window.</li>
+<li>Delayed checks allow extra trades past the intended halt threshold.</li>
+<li>Deterministic halt timing is part of market integrity.</li>
+</ul>
+<h3 id="other-correctness-checks-in-the-same-path">Other correctness checks in the same path<a class="headerlink" href="#other-correctness-checks-in-the-same-path" title="Permanent link">&para;</a></h3>
+<p>Not all checks are "risk controls" in the regulatory sense, but they still protect
+market correctness and participant safety:</p>
+<ul>
+<li>order-type-specific requirements (for example trailing-stop stop-price derivation
+    from <code>last_trade_price</code>)</li>
+<li>SMP-triggered cancellation handling in event publication path</li>
+<li>OCO/combo cascade checks after fills/cancels</li>
+</ul>
+<p>These checks also cost CPU, but prevent logical contradictions such as self-trades,
+orphaned linked orders, or malformed triggered orders.</p>
+<h3 id="performance-impact-and-why-there-is-no-real-alternative">Performance Impact and Why There Is No Real Alternative<a class="headerlink" href="#performance-impact-and-why-there-is-no-real-alternative" title="Permanent link">&para;</a></h3>
+<p>Yes, these checks materially slow the hot path. Every branch, dictionary lookup,
+and validation call adds latency and reduces maximum TPS versus a "pure matching"
+micro-benchmark.</p>
+<p>However, there is no credible alternative if the goal is correct risk management.
+Any design that defers these controls until after matching converts hard pre-trade
+guarantees into best-effort post-trade cleanup, which is too late for market
+integrity. In real exchanges and in EduMatcher, <strong>correctness and risk containment
+must dominate raw throughput</strong>.</p>
+<h2 id="the-sweep-loop-_sweep">The Sweep Loop — <code>_sweep()</code><a class="headerlink" href="#the-sweep-loop-_sweep" title="Permanent link">&para;</a></h2>
+<p>This is the innermost loop of the matching engine. It runs for every aggressive
+order (one that immediately tries to fill against resting orders on the opposite
+side of the book).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_sweep</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aggressor</span><span class="p">,</span> <span class="n">opposite_heap</span><span class="p">,</span> <span class="n">price_limit</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">):</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>    <span class="n">_side</span> <span class="o">=</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">side</span>
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>    <span class="n">_smp_action</span> <span class="o">=</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">smp_action</span>
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>    <span class="n">_gw_id</span> <span class="o">=</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">gateway_id</span>
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>    <span class="n">_peek</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_peek</span>
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>    <span class="n">_apply_fill</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply_fill</span>
+</code></pre></div>
+<h3 id="caching-attributes-as-locals">Caching Attributes as Locals<a class="headerlink" href="#caching-attributes-as-locals" title="Permanent link">&para;</a></h3>
+<p>The first thing <code>_sweep</code> does is copy several attributes and method references into
+local variables. Why?</p>
+<p>In Python, accessing <code>self.something</code> is an attribute lookup — Python looks up
+<code>something</code> in the object's slot (or dict). This costs roughly 50-70 nanoseconds.
+Accessing a local variable costs roughly 30 nanoseconds.</p>
+<p>In a loop that may iterate dozens of times for a single aggressive order, accessing
+<code>aggressor.side</code> on every iteration costs more than accessing the local <code>_side</code>.
+By copying to locals before the loop, each loop iteration saves ~20-40 nanoseconds.</p>
+<p>This is a genuine optimisation in CPython (the standard Python interpreter). It is
+standard practice in performance-sensitive Python loops.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1"># Without caching — attribute lookup every iteration</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="k">while</span> <span class="o">...</span><span class="p">:</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>    <span class="k">if</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span> <span class="ow">and</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span> <span class="o">&gt;</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">price</span><span class="p">:</span>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>        <span class="k">break</span>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="c1"># With caching — local variable access every iteration</span>
+<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="n">_side</span> <span class="o">=</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">side</span>
+<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a><span class="k">while</span> <span class="o">...</span><span class="p">:</span>
+<a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a>    <span class="k">if</span> <span class="n">_side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span> <span class="ow">and</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span> <span class="o">&gt;</span> <span class="n">price_limit</span><span class="p">:</span>
+<a id="__codelineno-28-10" name="__codelineno-28-10" href="#__codelineno-28-10"></a>        <span class="k">break</span>
+</code></pre></div>
+<h3 id="the-main-loop">The Main Loop<a class="headerlink" href="#the-main-loop" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="k">while</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">opposite_heap</span><span class="p">:</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>    <span class="n">best</span> <span class="o">=</span> <span class="n">_peek</span><span class="p">(</span><span class="n">opposite_heap</span><span class="p">)</span>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>    <span class="k">if</span> <span class="n">best</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>        <span class="k">break</span>
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>    <span class="c1"># Price check</span>
+<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a>    <span class="k">if</span> <span class="n">price_limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>        <span class="k">if</span> <span class="n">_side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span> <span class="ow">and</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span> <span class="o">&gt;</span> <span class="n">price_limit</span><span class="p">:</span>
+<a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a>            <span class="k">break</span>
+<a id="__codelineno-29-10" name="__codelineno-29-10" href="#__codelineno-29-10"></a>        <span class="k">if</span> <span class="n">_side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">SELL</span> <span class="ow">and</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span> <span class="o">&lt;</span> <span class="n">price_limit</span><span class="p">:</span>
+<a id="__codelineno-29-11" name="__codelineno-29-11" href="#__codelineno-29-11"></a>            <span class="k">break</span>
+<a id="__codelineno-29-12" name="__codelineno-29-12" href="#__codelineno-29-12"></a>
+<a id="__codelineno-29-13" name="__codelineno-29-13" href="#__codelineno-29-13"></a>    <span class="c1"># Self-match check</span>
+<a id="__codelineno-29-14" name="__codelineno-29-14" href="#__codelineno-29-14"></a>    <span class="k">if</span> <span class="n">_smp_action</span> <span class="o">!=</span> <span class="n">SmpAction</span><span class="o">.</span><span class="n">NONE</span> <span class="ow">and</span> <span class="n">_gw_id</span> <span class="o">==</span> <span class="n">best</span><span class="o">.</span><span class="n">gateway_id</span><span class="p">:</span>
+<a id="__codelineno-29-15" name="__codelineno-29-15" href="#__codelineno-29-15"></a>        <span class="c1"># ... handle SMP</span>
+<a id="__codelineno-29-16" name="__codelineno-29-16" href="#__codelineno-29-16"></a>        <span class="k">pass</span>
+<a id="__codelineno-29-17" name="__codelineno-29-17" href="#__codelineno-29-17"></a>
+<a id="__codelineno-29-18" name="__codelineno-29-18" href="#__codelineno-29-18"></a>    <span class="n">fill_qty</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">,</span> <span class="n">best</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">)</span>
+<a id="__codelineno-29-19" name="__codelineno-29-19" href="#__codelineno-29-19"></a>    <span class="n">fill_price</span> <span class="o">=</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span>
+<a id="__codelineno-29-20" name="__codelineno-29-20" href="#__codelineno-29-20"></a>    <span class="n">_apply_fill</span><span class="p">(</span><span class="n">aggressor</span><span class="p">,</span> <span class="n">best</span><span class="p">,</span> <span class="n">fill_qty</span><span class="p">,</span> <span class="n">fill_price</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">)</span>
+</code></pre></div>
+<p>Each iteration:</p>
+<ol>
+<li><strong>Peek at the best resting order</strong> — O(1), but <code>_peek</code> does lazy deletion
+   (see below)</li>
+<li><strong>Price check</strong> — stop sweeping if the best available price is worse than
+   our limit. A buy order stops when asks are too expensive; a sell order stops
+   when bids are too low.</li>
+<li><strong>Self-match check</strong> — if the aggressor and the resting order came from the
+   same gateway (i.e., the same firm), apply the SMP action before filling.</li>
+<li><strong>Fill</strong> — take the smaller of what the aggressor needs and what the resting
+   order has. The fill price is always the resting order's price (the passive side
+   sets the price; the aggressive side takes it).</li>
+</ol>
+<h2 id="_apply_fill-what-happens-when-two-orders-trade"><code>_apply_fill()</code> — What Happens When Two Orders Trade<a class="headerlink" href="#_apply_fill-what-happens-when-two-orders-trade" title="Permanent link">&para;</a></h2>
+<p><code>_apply_fill()</code> is called for every partial or full fill between an aggressive order
+and a resting order. It is the moment a trade is born.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_apply_fill</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aggressor</span><span class="p">,</span> <span class="n">passive</span><span class="p">,</span> <span class="n">fill_qty</span><span class="p">,</span> <span class="n">fill_price</span><span class="p">,</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>                <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">):</span>
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>    <span class="c1"># Reduce quantities on both orders</span>
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>    <span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">-=</span> <span class="n">fill_qty</span>
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>    <span class="n">passive</span><span class="o">.</span><span class="n">remaining_qty</span>   <span class="o">-=</span> <span class="n">fill_qty</span>
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>    <span class="c1"># Update price-level quantity index</span>
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>    <span class="n">qty_index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span> <span class="k">if</span> <span class="n">passive</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ask_qty</span>
+<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a>    <span class="n">qty_index</span><span class="p">[</span><span class="n">fill_price</span><span class="p">]</span> <span class="o">-=</span> <span class="n">fill_qty</span>
+<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a>    <span class="k">if</span> <span class="n">qty_index</span><span class="p">[</span><span class="n">fill_price</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a>        <span class="k">del</span> <span class="n">qty_index</span><span class="p">[</span><span class="n">fill_price</span><span class="p">]</span>   <span class="c1"># price level is now empty</span>
+<a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a>
+<a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a>    <span class="c1"># If passive is fully consumed, mark it and remove from indexes</span>
+<a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a>    <span class="k">if</span> <span class="n">passive</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-30-15" name="__codelineno-30-15" href="#__codelineno-30-15"></a>        <span class="n">passive</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">FILLED</span>
+<a id="__codelineno-30-16" name="__codelineno-30-16" href="#__codelineno-30-16"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_order_index</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">passive</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+<a id="__codelineno-30-17" name="__codelineno-30-17" href="#__codelineno-30-17"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_entry_index</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">passive</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+<a id="__codelineno-30-18" name="__codelineno-30-18" href="#__codelineno-30-18"></a>        <span class="c1"># The heap entry is already invalid from _peek() cleanup</span>
+<a id="__codelineno-30-19" name="__codelineno-30-19" href="#__codelineno-30-19"></a>
+<a id="__codelineno-30-20" name="__codelineno-30-20" href="#__codelineno-30-20"></a>    <span class="c1"># If aggressor is fully filled</span>
+<a id="__codelineno-30-21" name="__codelineno-30-21" href="#__codelineno-30-21"></a>    <span class="k">if</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-30-22" name="__codelineno-30-22" href="#__codelineno-30-22"></a>        <span class="n">aggressor</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">FILLED</span>
+<a id="__codelineno-30-23" name="__codelineno-30-23" href="#__codelineno-30-23"></a>
+<a id="__codelineno-30-24" name="__codelineno-30-24" href="#__codelineno-30-24"></a>    <span class="c1"># Create the trade record</span>
+<a id="__codelineno-30-25" name="__codelineno-30-25" href="#__codelineno-30-25"></a>    <span class="n">trade</span> <span class="o">=</span> <span class="n">Trade</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+<a id="__codelineno-30-26" name="__codelineno-30-26" href="#__codelineno-30-26"></a>        <span class="n">symbol</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">symbol</span><span class="p">,</span>
+<a id="__codelineno-30-27" name="__codelineno-30-27" href="#__codelineno-30-27"></a>        <span class="n">buy_order_id</span><span class="o">=...</span><span class="p">,</span>
+<a id="__codelineno-30-28" name="__codelineno-30-28" href="#__codelineno-30-28"></a>        <span class="n">sell_order_id</span><span class="o">=...</span><span class="p">,</span>
+<a id="__codelineno-30-29" name="__codelineno-30-29" href="#__codelineno-30-29"></a>        <span class="n">price</span><span class="o">=</span><span class="n">fill_price</span><span class="p">,</span>      <span class="c1"># int ticks — the resting order&#39;s price</span>
+<a id="__codelineno-30-30" name="__codelineno-30-30" href="#__codelineno-30-30"></a>        <span class="n">quantity</span><span class="o">=</span><span class="n">fill_qty</span><span class="p">,</span>
+<a id="__codelineno-30-31" name="__codelineno-30-31" href="#__codelineno-30-31"></a>        <span class="n">now</span><span class="o">=</span><span class="n">now</span><span class="p">,</span>
+<a id="__codelineno-30-32" name="__codelineno-30-32" href="#__codelineno-30-32"></a>    <span class="p">)</span>
+<a id="__codelineno-30-33" name="__codelineno-30-33" href="#__codelineno-30-33"></a>    <span class="n">trades</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">trade</span><span class="p">)</span>
+<a id="__codelineno-30-34" name="__codelineno-30-34" href="#__codelineno-30-34"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">recent_trades</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">trade</span><span class="p">)</span>
+<a id="__codelineno-30-35" name="__codelineno-30-35" href="#__codelineno-30-35"></a>
+<a id="__codelineno-30-36" name="__codelineno-30-36" href="#__codelineno-30-36"></a>    <span class="c1"># Update last trade reference prices (used by stop trigger checks)</span>
+<a id="__codelineno-30-37" name="__codelineno-30-37" href="#__codelineno-30-37"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">last_trade_price</span> <span class="o">=</span> <span class="n">fill_price</span>
+<a id="__codelineno-30-38" name="__codelineno-30-38" href="#__codelineno-30-38"></a>    <span class="k">if</span> <span class="n">passive</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span><span class="p">:</span>
+<a id="__codelineno-30-39" name="__codelineno-30-39" href="#__codelineno-30-39"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">last_buy_price</span>  <span class="o">=</span> <span class="n">fill_price</span>
+<a id="__codelineno-30-40" name="__codelineno-30-40" href="#__codelineno-30-40"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-30-41" name="__codelineno-30-41" href="#__codelineno-30-41"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">last_sell_price</span> <span class="o">=</span> <span class="n">fill_price</span>
+<a id="__codelineno-30-42" name="__codelineno-30-42" href="#__codelineno-30-42"></a>
+<a id="__codelineno-30-43" name="__codelineno-30-43" href="#__codelineno-30-43"></a>    <span class="c1"># Notify both sides</span>
+<a id="__codelineno-30-44" name="__codelineno-30-44" href="#__codelineno-30-44"></a>    <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">aggressor</span><span class="p">)</span>
+<a id="__codelineno-30-45" name="__codelineno-30-45" href="#__codelineno-30-45"></a>    <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">passive</span><span class="p">)</span>
+</code></pre></div>
+<p>Key points:</p>
+<ul>
+<li><strong>The resting order sets the price.</strong> The passive (resting) side determines the
+  fill price. This is why limit orders guarantee a price: if you rest a sell order
+  at $150.35, any fill on that order happens at $150.35 or better.</li>
+<li><strong>Both sides are partially or fully consumed.</strong> <code>remaining_qty</code> is decremented on
+  both the aggressor and passive.</li>
+<li><strong>The price-level index is decremented immediately.</strong> If the last order at a price
+  level is filled, the entry is deleted entirely.</li>
+<li><strong>A <code>Trade</code> record is created</strong> — this is what gets published to the clearing
+  process and stats database.</li>
+<li><strong>Three reference prices are updated</strong> — explained in detail below.</li>
+</ul>
+<h3 id="the-three-last-price-fields">The Three "Last Price" Fields<a class="headerlink" href="#the-three-last-price-fields" title="Permanent link">&para;</a></h3>
+<p><code>_apply_fill</code> updates three separate price fields on the <code>OrderBook</code>. They look
+similar but serve completely different purposes:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">last_trade_price</span> <span class="o">=</span> <span class="n">fill_price</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="k">if</span> <span class="n">passive</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span><span class="p">:</span>
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">last_buy_price</span>  <span class="o">=</span> <span class="n">fill_price</span>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">last_sell_price</span> <span class="o">=</span> <span class="n">fill_price</span>
+</code></pre></div>
+<p><strong><code>last_trade_price</code></strong> — updated on every single fill, regardless of which side was
+aggressive. This is the field that stop-trigger checks use. After each fill,
+<code>_check_stops()</code> compares <code>last_trade_price</code> against the stop prices of all waiting
+stop orders to decide whether any should fire. It answers: "what price did the most
+recent trade happen at?"</p>
+<p><strong><code>last_buy_price</code></strong> — updated only when the passive (resting) order was on the BUY
+side. This means the fill was initiated by an aggressive SELL order hitting a resting
+bid. It records: "the most recent price at which a sell aggressor hit a standing
+bid." Used by market statistics and circuit breakers.</p>
+<p><strong><code>last_sell_price</code></strong> — updated only when the passive order was on the SELL side,
+meaning an aggressive BUY order hit a resting ask. Records: "the most recent price
+at which a buy aggressor hit a standing offer."</p>
+<p><strong>Why have both <code>last_buy_price</code> and <code>last_sell_price</code>?</strong> The direction of the last
+aggression — whether a buyer swept into sellers or a seller swept into buyers — is a
+meaningful signal in market microstructure. A sequence of aggressive buys hitting
+asks (rising <code>last_sell_price</code>) suggests upward pressure; a sequence of aggressive
+sells hitting bids (rising <code>last_buy_price</code>) suggests downward pressure. These
+separate fields let statistics and display tools show this directionality without
+needing to examine the full trade history.</p>
+<h2 id="_peek-lazy-deletion-in-practice"><code>_peek()</code> — Lazy Deletion in Practice<a class="headerlink" href="#_peek-lazy-deletion-in-practice" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_peek</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">heap</span><span class="p">):</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>    <span class="k">while</span> <span class="n">heap</span><span class="p">:</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>        <span class="n">entry</span> <span class="o">=</span> <span class="n">heap</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">entry</span><span class="o">.</span><span class="n">valid</span><span class="p">:</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>            <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span>
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>            <span class="k">continue</span>
+<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a>        <span class="n">o</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">order</span>
+<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a>        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">status</span> <span class="ow">in</span> <span class="p">(</span><span class="n">FILLED</span><span class="p">,</span> <span class="n">CANCELLED</span><span class="p">,</span> <span class="n">REJECTED</span><span class="p">,</span> <span class="n">EXPIRED</span><span class="p">):</span>
+<a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a>            <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span>
+<a id="__codelineno-32-10" name="__codelineno-32-10" href="#__codelineno-32-10"></a>            <span class="n">entry</span><span class="o">.</span><span class="n">valid</span> <span class="o">=</span> <span class="kc">False</span>
+<a id="__codelineno-32-11" name="__codelineno-32-11" href="#__codelineno-32-11"></a>            <span class="k">continue</span>
+<a id="__codelineno-32-12" name="__codelineno-32-12" href="#__codelineno-32-12"></a>        <span class="k">return</span> <span class="n">o</span>
+<a id="__codelineno-32-13" name="__codelineno-32-13" href="#__codelineno-32-13"></a>    <span class="k">return</span> <span class="kc">None</span>
+</code></pre></div>
+<p>This is where lazy deletion pays off. <code>_peek</code> does not just return <code>heap[0].order</code>.
+It loops, discarding invalid or terminal entries, until it finds a valid resting order
+or exhausts the heap.</p>
+<p>The statuses it discards:
+- <strong>FILLED</strong> — fully consumed by a previous match
+- <strong>CANCELLED</strong> — explicitly cancelled by the participant or the engine
+- <strong>REJECTED</strong> — rejected at submission (should not be in the heap, but defensive)
+- <strong>EXPIRED</strong> — a DAY order that was not filled by end of session</p>
+<p>The key insight: entries accumulate in the heap over time as orders fill, cancel, or
+expire. Rather than removing them at the moment they become invalid (expensive), we
+leave them in place and clean them up lazily here. Each invalid entry costs one
+<code>heappop</code> — O(log n) — but that cost is paid only once, when the entry finally
+surfaces at the top.</p>
+<p>In a busy book where orders fill and cancel frequently, this avoids O(n) removal
+operations and replaces them with O(log n) cleanup spread across many calls to
+<code>_peek</code>.</p>
+<h2 id="_rest-placing-a-resting-order"><code>_rest()</code> — Placing a Resting Order<a class="headerlink" href="#_rest-placing-a-resting-order" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_rest</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="p">):</span>
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>    <span class="k">assert</span> <span class="n">order</span><span class="o">.</span><span class="n">price</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>    <span class="c1"># INVARIANT: order.timestamp is strictly monotonically increasing thanks to</span>
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>    <span class="c1"># monotonic_ns() (models/clock.py). No two orders share a timestamp, so</span>
+<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>    <span class="c1"># price-time priority within a price level is always deterministic.</span>
+<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a>    <span class="n">qty</span> <span class="o">=</span> <span class="p">(</span>
+<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a>        <span class="n">order</span><span class="o">.</span><span class="n">displayed_qty</span>
+<a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a>        <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">ICEBERG</span>
+<a id="__codelineno-33-9" name="__codelineno-33-9" href="#__codelineno-33-9"></a>        <span class="k">else</span> <span class="n">order</span><span class="o">.</span><span class="n">remaining_qty</span>
+<a id="__codelineno-33-10" name="__codelineno-33-10" href="#__codelineno-33-10"></a>    <span class="p">)</span>
+<a id="__codelineno-33-11" name="__codelineno-33-11" href="#__codelineno-33-11"></a>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span><span class="p">:</span>
+<a id="__codelineno-33-12" name="__codelineno-33-12" href="#__codelineno-33-12"></a>        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="n">order</span><span class="o">.</span><span class="n">timestamp</span><span class="p">)</span>
+<a id="__codelineno-33-13" name="__codelineno-33-13" href="#__codelineno-33-13"></a>        <span class="n">heap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bids</span>
+<a id="__codelineno-33-14" name="__codelineno-33-14" href="#__codelineno-33-14"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">qty</span>
+<a id="__codelineno-33-15" name="__codelineno-33-15" href="#__codelineno-33-15"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-33-16" name="__codelineno-33-16" href="#__codelineno-33-16"></a>        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="n">order</span><span class="o">.</span><span class="n">timestamp</span><span class="p">)</span>
+<a id="__codelineno-33-17" name="__codelineno-33-17" href="#__codelineno-33-17"></a>        <span class="n">heap</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_asks</span>
+<a id="__codelineno-33-18" name="__codelineno-33-18" href="#__codelineno-33-18"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_ask_qty</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ask_qty</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="n">qty</span>
+<a id="__codelineno-33-19" name="__codelineno-33-19" href="#__codelineno-33-19"></a>
+<a id="__codelineno-33-20" name="__codelineno-33-20" href="#__codelineno-33-20"></a>    <span class="n">entry</span> <span class="o">=</span> <span class="n">_HeapEntry</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">)</span>
+<a id="__codelineno-33-21" name="__codelineno-33-21" href="#__codelineno-33-21"></a>    <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="n">entry</span><span class="p">)</span>
+<a id="__codelineno-33-22" name="__codelineno-33-22" href="#__codelineno-33-22"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_order_index</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">order</span>
+<a id="__codelineno-33-23" name="__codelineno-33-23" href="#__codelineno-33-23"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_entry_index</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">entry</span>
+</code></pre></div>
+<p>When an order rests on the book, five things happen in the same function call:</p>
+<ol>
+<li>A <code>_HeapEntry</code> is created with the correct sort key</li>
+<li>The entry is pushed onto the appropriate heap</li>
+<li>The order is registered in <code>_order_index</code> (for cancel/amend lookup)</li>
+<li>The entry is registered in <code>_entry_index</code> (for lazy deletion on cancel)</li>
+<li>The quantity is added to <code>_bid_qty</code> or <code>_ask_qty</code> (for FOK and depth checks)</li>
+</ol>
+<p>All five data structures are updated within the same function call to stay in sync.
+This is the discipline that keeps the book consistent — every operation that touches
+the book must update all relevant structures.</p>
+<p>Note the iceberg special case: an iceberg order rests its <code>displayed_qty</code> (the
+visible peak) rather than its full <code>remaining_qty</code>. The hidden reserve is invisible
+to other participants.</p>
+<h2 id="amend_order-modifying-a-resting-order"><code>amend_order()</code> — Modifying a Resting Order<a class="headerlink" href="#amend_order-modifying-a-resting-order" title="Permanent link">&para;</a></h2>
+<p>Amending a resting order's price or quantity is more complex than it appears
+because of queue priority rules. EduMatcher implements the same rules used by
+real exchanges:</p>
+<ul>
+<li><strong>Quantity decrease only, same price</strong> → priority is <strong>preserved</strong>. The order
+  stays at its position in the queue. Reducing size is not aggressive and should
+  not be penalised. The participant is giving up some of their position — they
+  should not lose their place in line as a result.</li>
+<li><strong>Price change, or quantity increase</strong> → priority is <strong>lost</strong>. The order gets a
+  new timestamp and goes to the back of the queue at the new price level. Changing
+  the price is a meaningful change to the order's competitiveness; increasing the
+  quantity means the participant wants to trade more at the same price, which is
+  treated as a new competitive act.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">amend_order</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order_id</span><span class="p">,</span> <span class="n">new_price</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">new_qty</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>    <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_order_index</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">order_id</span><span class="p">)</span>
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>    <span class="o">...</span>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a>    <span class="n">price_changed</span> <span class="o">=</span> <span class="n">price</span> <span class="o">!=</span> <span class="n">old_price</span>
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>    <span class="n">qty_increased</span> <span class="o">=</span> <span class="n">qty</span> <span class="o">&gt;</span> <span class="n">old_qty</span>
+<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a>    <span class="n">priority_reset</span> <span class="o">=</span> <span class="n">price_changed</span> <span class="ow">or</span> <span class="n">qty_increased</span>
+<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a>
+<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a>    <span class="k">if</span> <span class="n">priority_reset</span><span class="p">:</span>
+<a id="__codelineno-34-9" name="__codelineno-34-9" href="#__codelineno-34-9"></a>        <span class="n">order</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="n">now</span>        <span class="c1"># new timestamp → back of queue</span>
+<a id="__codelineno-34-10" name="__codelineno-34-10" href="#__codelineno-34-10"></a>        <span class="n">entry</span><span class="o">.</span><span class="n">valid</span> <span class="o">=</span> <span class="kc">False</span>          <span class="c1"># lazy-delete the old heap entry</span>
+<a id="__codelineno-34-11" name="__codelineno-34-11" href="#__codelineno-34-11"></a>        <span class="c1"># Re-insert with new key (new price and/or new timestamp)</span>
+<a id="__codelineno-34-12" name="__codelineno-34-12" href="#__codelineno-34-12"></a>        <span class="n">new_entry</span> <span class="o">=</span> <span class="n">_HeapEntry</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">new_key</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">)</span>
+<a id="__codelineno-34-13" name="__codelineno-34-13" href="#__codelineno-34-13"></a>        <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="n">new_entry</span><span class="p">)</span>
+<a id="__codelineno-34-14" name="__codelineno-34-14" href="#__codelineno-34-14"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_entry_index</span><span class="p">[</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_entry</span>
+<a id="__codelineno-34-15" name="__codelineno-34-15" href="#__codelineno-34-15"></a>    <span class="c1"># If not priority_reset, just update the qty index — no heap change needed</span>
+</code></pre></div>
+<p>The <code>priority_reset</code> branch is why <code>_entry_index</code> exists. Without it, we would
+have no way to invalidate the old heap entry when the order is re-inserted at a
+new key.</p>
+<h2 id="iceberg-orders-replenishment">Iceberg Orders — Replenishment<a class="headerlink" href="#iceberg-orders-replenishment" title="Permanent link">&para;</a></h2>
+<p>An iceberg order (defined in the glossary) has a fixed visible peak (e.g. 100 lots)
+backed by a hidden reserve (e.g. 900 lots). When the visible slice is fully consumed
+in a fill, it replenishes from the hidden reserve and goes to the <strong>back of the queue</strong>
+at its price level.</p>
+<p><strong>Why do iceberg orders lose queue priority on replenishment?</strong> Fairness. Other
+participants who were waiting in line at the same price should not be indefinitely
+displaced by a large iceberg that keeps recycling to the front. Once a slice is
+consumed, the iceberg must take its turn again.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="c1"># In _apply_fill, after filling a passive iceberg:</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="k">if</span> <span class="n">passive</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">passive</span><span class="o">.</span><span class="n">displayed_qty</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>    <span class="n">new_peak</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">passive</span><span class="o">.</span><span class="n">visible_qty</span><span class="p">,</span> <span class="n">passive</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">)</span>
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a>    <span class="n">passive</span><span class="o">.</span><span class="n">displayed_qty</span> <span class="o">=</span> <span class="n">new_peak</span>
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>    <span class="n">passive</span><span class="o">.</span><span class="n">timestamp</span> <span class="o">=</span> <span class="n">now</span>   <span class="c1"># ← back of queue</span>
+<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_reinsert_iceberg</span><span class="p">(</span><span class="n">passive</span><span class="p">)</span>
+</code></pre></div>
+<p>The timestamp update is the key mechanism. By setting <code>passive.timestamp = now</code>,
+the replenished iceberg gets a new, later timestamp. When <code>_rest()</code> is called again,
+its heap key becomes <code>(price, now)</code> — sorting behind any other resting orders at
+the same price that arrived earlier. This correctly implements the exchange rule that
+iceberg replenishment loses queue priority.</p>
+<p><code>_reinsert_iceberg</code> invalidates the old heap entry (lazy deletion) and pushes a new
+one with the updated timestamp and quantity.</p>
+<h2 id="self-match-prevention">Self-Match Prevention<a class="headerlink" href="#self-match-prevention" title="Permanent link">&para;</a></h2>
+<p><strong>Why self-matching matters:</strong> Exchanges prohibit a participant from trading with
+themselves because it creates a false impression of market activity (the participant
+is generating artificial volume) and could be used to manipulate prices. In
+EduMatcher, a "participant" corresponds to a <code>gateway_id</code>.</p>
+<p>When a firm's own orders might trade against each other, the exchange can apply one
+of three strategies:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">SmpAction</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">Enum</span><span class="p">):</span>
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>    <span class="n">NONE</span>             <span class="o">=</span> <span class="s2">&quot;NONE&quot;</span>             <span class="c1"># no SMP — let the trade happen</span>
+<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>    <span class="n">CANCEL_AGGRESSOR</span> <span class="o">=</span> <span class="s2">&quot;CANCEL_AGGRESSOR&quot;</span> <span class="c1"># cancel the incoming order</span>
+<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a>    <span class="n">CANCEL_RESTING</span>   <span class="o">=</span> <span class="s2">&quot;CANCEL_RESTING&quot;</span>  <span class="c1"># cancel the resting order, try next</span>
+<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>    <span class="n">CANCEL_BOTH</span>      <span class="o">=</span> <span class="s2">&quot;CANCEL_BOTH&quot;</span>     <span class="c1"># cancel both orders</span>
+</code></pre></div>
+<p>Detection is simple — compare <code>gateway_id</code> of the aggressor and the resting order:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="k">if</span> <span class="n">_smp_action</span> <span class="o">!=</span> <span class="n">SmpAction</span><span class="o">.</span><span class="n">NONE</span> <span class="ow">and</span> <span class="n">_gw_id</span> <span class="o">==</span> <span class="n">best</span><span class="o">.</span><span class="n">gateway_id</span><span class="p">:</span>
+<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a>    <span class="k">if</span> <span class="n">_smp_action</span> <span class="o">==</span> <span class="n">SmpAction</span><span class="o">.</span><span class="n">CANCEL_AGGRESSOR</span><span class="p">:</span>
+<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a>        <span class="n">aggressor</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">CANCELLED</span>
+<a id="__codelineno-37-4" name="__codelineno-37-4" href="#__codelineno-37-4"></a>        <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">aggressor</span><span class="p">)</span>
+<a id="__codelineno-37-5" name="__codelineno-37-5" href="#__codelineno-37-5"></a>        <span class="k">return</span>                    <span class="c1"># stop sweeping entirely</span>
+<a id="__codelineno-37-6" name="__codelineno-37-6" href="#__codelineno-37-6"></a>
+<a id="__codelineno-37-7" name="__codelineno-37-7" href="#__codelineno-37-7"></a>    <span class="k">elif</span> <span class="n">_smp_action</span> <span class="o">==</span> <span class="n">SmpAction</span><span class="o">.</span><span class="n">CANCEL_RESTING</span><span class="p">:</span>
+<a id="__codelineno-37-8" name="__codelineno-37-8" href="#__codelineno-37-8"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_smp_cancel_resting</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="n">events</span><span class="p">)</span>
+<a id="__codelineno-37-9" name="__codelineno-37-9" href="#__codelineno-37-9"></a>        <span class="k">continue</span>                  <span class="c1"># skip this resting order, try next</span>
+<a id="__codelineno-37-10" name="__codelineno-37-10" href="#__codelineno-37-10"></a>
+<a id="__codelineno-37-11" name="__codelineno-37-11" href="#__codelineno-37-11"></a>    <span class="k">elif</span> <span class="n">_smp_action</span> <span class="o">==</span> <span class="n">SmpAction</span><span class="o">.</span><span class="n">CANCEL_BOTH</span><span class="p">:</span>
+<a id="__codelineno-37-12" name="__codelineno-37-12" href="#__codelineno-37-12"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_smp_cancel_resting</span><span class="p">(</span><span class="n">best</span><span class="p">,</span> <span class="n">events</span><span class="p">)</span>
+<a id="__codelineno-37-13" name="__codelineno-37-13" href="#__codelineno-37-13"></a>        <span class="n">aggressor</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">CANCELLED</span>
+<a id="__codelineno-37-14" name="__codelineno-37-14" href="#__codelineno-37-14"></a>        <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">aggressor</span><span class="p">)</span>
+<a id="__codelineno-37-15" name="__codelineno-37-15" href="#__codelineno-37-15"></a>        <span class="k">return</span>                    <span class="c1"># stop sweeping entirely</span>
+</code></pre></div>
+<p><code>CANCEL_RESTING</code> is the most interesting case — it removes the conflicting resting
+order and <strong>continues</strong> the sweep loop with <code>continue</code>, looking for the next resting
+order which may belong to a different participant and can fill legitimately.</p>
+<p><code>_smp_cancel_resting()</code> sets the resting order's status to CANCELLED, removes it
+from both indexes (<code>_order_index</code>, <code>_entry_index</code>), decrements the qty index, and
+appends the cancelled order to <code>events</code> so the gateway is notified.</p>
+<h2 id="stop-orders-two-heaps">Stop Orders — Two Heaps<a class="headerlink" href="#stop-orders-two-heaps" title="Permanent link">&para;</a></h2>
+<p>After every trade, <code>_check_stops</code> runs:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_check_stops</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">now</span><span class="p">):</span>
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_trade_price</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a>        <span class="k">return</span> <span class="p">[]</span>
+<a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a>
+<a id="__codelineno-38-5" name="__codelineno-38-5" href="#__codelineno-38-5"></a>    <span class="n">triggered</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-38-6" name="__codelineno-38-6" href="#__codelineno-38-6"></a>
+<a id="__codelineno-38-7" name="__codelineno-38-7" href="#__codelineno-38-7"></a>    <span class="c1"># BUY stops: fire when price rises to/above stop_price</span>
+<a id="__codelineno-38-8" name="__codelineno-38-8" href="#__codelineno-38-8"></a>    <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buy_stops</span><span class="p">:</span>
+<a id="__codelineno-38-9" name="__codelineno-38-9" href="#__codelineno-38-9"></a>        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buy_stops</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-38-10" name="__codelineno-38-10" href="#__codelineno-38-10"></a>        <span class="n">stop_price</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">key</span>
+<a id="__codelineno-38-11" name="__codelineno-38-11" href="#__codelineno-38-11"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_trade_price</span> <span class="o">&lt;</span> <span class="n">stop_price</span><span class="p">:</span>
+<a id="__codelineno-38-12" name="__codelineno-38-12" href="#__codelineno-38-12"></a>            <span class="k">break</span>            <span class="c1"># ← min-heap: if top hasn&#39;t triggered, none will</span>
+<a id="__codelineno-38-13" name="__codelineno-38-13" href="#__codelineno-38-13"></a>        <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_buy_stops</span><span class="p">)</span>
+<a id="__codelineno-38-14" name="__codelineno-38-14" href="#__codelineno-38-14"></a>        <span class="c1"># convert to MARKET or LIMIT and add to triggered list</span>
+<a id="__codelineno-38-15" name="__codelineno-38-15" href="#__codelineno-38-15"></a>        <span class="o">...</span>
+<a id="__codelineno-38-16" name="__codelineno-38-16" href="#__codelineno-38-16"></a>
+<a id="__codelineno-38-17" name="__codelineno-38-17" href="#__codelineno-38-17"></a>    <span class="c1"># SELL stops: fire when price falls to/below stop_price</span>
+<a id="__codelineno-38-18" name="__codelineno-38-18" href="#__codelineno-38-18"></a>    <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sell_stops</span><span class="p">:</span>
+<a id="__codelineno-38-19" name="__codelineno-38-19" href="#__codelineno-38-19"></a>        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sell_stops</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<a id="__codelineno-38-20" name="__codelineno-38-20" href="#__codelineno-38-20"></a>        <span class="n">neg_stop_price</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">key</span>
+<a id="__codelineno-38-21" name="__codelineno-38-21" href="#__codelineno-38-21"></a>        <span class="n">stop_price</span> <span class="o">=</span> <span class="o">-</span><span class="n">neg_stop_price</span>
+<a id="__codelineno-38-22" name="__codelineno-38-22" href="#__codelineno-38-22"></a>        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">last_trade_price</span> <span class="o">&gt;</span> <span class="n">stop_price</span><span class="p">:</span>
+<a id="__codelineno-38-23" name="__codelineno-38-23" href="#__codelineno-38-23"></a>            <span class="k">break</span>            <span class="c1"># ← max-heap: if top hasn&#39;t triggered, none will</span>
+<a id="__codelineno-38-24" name="__codelineno-38-24" href="#__codelineno-38-24"></a>        <span class="o">...</span>
+</code></pre></div>
+<p>The <code>break</code> statement is the crucial insight. Because the heap is sorted:</p>
+<ul>
+<li><strong>Buy stops min-heap</strong>: if the stop at the top has a higher trigger price than
+  the last trade, all remaining stops also have higher trigger prices. None will
+  fire. We can stop immediately.</li>
+<li><strong>Sell stops max-heap</strong>: same logic inverted.</li>
+</ul>
+<p>This makes stop checking O(1) in the common case (no stops triggered) and O(k log k)
+when k stops fire. A naive linear scan over all pending stops would be O(s) on every
+trade, where s is the total number of pending stops.</p>
+<h2 id="trailing-stops-the-ratchet">Trailing Stops — The Ratchet<a class="headerlink" href="#trailing-stops-the-ratchet" title="Permanent link">&para;</a></h2>
+<p><strong>A concrete scenario:</strong> You bought 100 shares of AAPL at $150.00. You want to
+protect your profit but also let the position run if the stock keeps rising. You set
+a sell trailing stop with a trail offset of $2.00.</p>
+<ul>
+<li>Market at $150.00 → stop trigger at $148.00 (= $150.00 - $2.00)</li>
+<li>Market rises to $155.00 → stop ratchets up to $153.00 (= $155.00 - $2.00)</li>
+<li>Market rises to $160.00 → stop ratchets up to $158.00 (= $160.00 - $2.00)</li>
+<li>Market then falls to $158.00 → stop FIRES, position is sold</li>
+</ul>
+<p>The key rule: the stop only ever tightens (moves to protect more profit), never
+loosens. If the market falls from $160 to $159, the stop stays at $158.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="k">for</span> <span class="n">order</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_trailing_stops</span><span class="p">:</span>
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">SELL</span><span class="p">:</span>
+<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a>        <span class="c1"># Ratchet up: if price rises, tighten the stop</span>
+<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a>        <span class="n">candidate</span> <span class="o">=</span> <span class="n">trade_price</span> <span class="o">-</span> <span class="n">order</span><span class="o">.</span><span class="n">trail_offset</span>
+<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a>        <span class="k">if</span> <span class="n">candidate</span> <span class="o">&gt;</span> <span class="n">order</span><span class="o">.</span><span class="n">stop_price</span><span class="p">:</span>
+<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a>            <span class="n">order</span><span class="o">.</span><span class="n">stop_price</span> <span class="o">=</span> <span class="n">candidate</span>   <span class="c1"># stop rises, never falls</span>
+<a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a>
+<a id="__codelineno-39-8" name="__codelineno-39-8" href="#__codelineno-39-8"></a>        <span class="c1"># Trigger if price has fallen to the stop</span>
+<a id="__codelineno-39-9" name="__codelineno-39-9" href="#__codelineno-39-9"></a>        <span class="k">if</span> <span class="n">trade_price</span> <span class="o">&lt;=</span> <span class="n">order</span><span class="o">.</span><span class="n">stop_price</span><span class="p">:</span>
+<a id="__codelineno-39-10" name="__codelineno-39-10" href="#__codelineno-39-10"></a>            <span class="c1"># convert to MARKET and add to triggered</span>
+<a id="__codelineno-39-11" name="__codelineno-39-11" href="#__codelineno-39-11"></a>            <span class="o">...</span>
+</code></pre></div>
+<p>The ratchet rule: <strong>the stop only tightens, never loosens.</strong> For a sell trailing
+stop, if the market rises the stop rises with it (protecting more profit). But if
+the market falls, the stop stays where it is and may trigger.</p>
+<p>Trailing stops are kept in a simple list rather than a heap because their trigger
+price changes on every trade — maintaining heap order would require re-heapifying
+on every price update, which is expensive. The list is iterated in full on every
+trade, but trailing stop lists are typically short.</p>
+<p>In EduMatcher, both <code>trade_price</code> and <code>order.trail_offset</code> are integer tick counts,
+so the subtraction <code>candidate = trade_price - order.trail_offset</code> is exact integer
+arithmetic with no floating-point drift.</p>
+<h2 id="the-snapshot-method">The <code>snapshot()</code> Method<a class="headerlink" href="#the-snapshot-method" title="Permanent link">&para;</a></h2>
+<p><code>snapshot()</code> builds the view of the order book that gets published as market data to
+display processes (viewer, board, ticker). It produces the aggregated picture a
+market participant would see on their screen — total quantities at each price level,
+not individual orders.</p>
+<h3 id="spread-and-mid-price-are-derived-values">Spread and Mid Price Are Derived Values<a class="headerlink" href="#spread-and-mid-price-are-derived-values" title="Permanent link">&para;</a></h3>
+<p>The <code>OrderBook</code> stores no <code>spread</code> or <code>mid_price</code> field. These are always computed
+fresh from the heap:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">snapshot</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>    <span class="n">best_bid</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_peek</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bids</span><span class="p">)</span>   <span class="c1"># O(1) — top of bid heap</span>
+<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>    <span class="n">best_ask</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_peek</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_asks</span><span class="p">)</span>   <span class="c1"># O(1) — top of ask heap</span>
+<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a>
+<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a>    <span class="n">spread</span>   <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a>    <span class="n">mid</span>      <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a>    <span class="k">if</span> <span class="n">best_bid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">best_ask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a>        <span class="n">spread</span> <span class="o">=</span> <span class="n">best_ask</span><span class="o">.</span><span class="n">price</span> <span class="o">-</span> <span class="n">best_bid</span><span class="o">.</span><span class="n">price</span>      <span class="c1"># e.g. 21 - 20 = 1 tick</span>
+<a id="__codelineno-40-9" name="__codelineno-40-9" href="#__codelineno-40-9"></a>        <span class="n">mid</span>    <span class="o">=</span> <span class="p">(</span><span class="n">best_ask</span><span class="o">.</span><span class="n">price</span> <span class="o">+</span> <span class="n">best_bid</span><span class="o">.</span><span class="n">price</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
+</code></pre></div>
+<p><strong>Why derive rather than store?</strong> The best bid and best ask change every time an
+order is added, cancelled, or filled. Keeping a <code>spread</code> field in sync would require
+updating it in <code>_rest()</code>, <code>cancel_order()</code>, and <code>_apply_fill()</code> — three places that
+already have enough to update. Deriving it in <code>snapshot()</code> is both correct and
+free: <code>_peek()</code> is O(1) and <code>snapshot()</code> is already doing those peeks to build
+the price level lists.</p>
+<p><strong>What if one side is empty?</strong> If there are no resting asks (all sellers have left),
+<code>best_ask is None</code>, so there is no spread and no mid price. The snapshot is
+published with <code>spread: null</code> and <code>mid: null</code>. Display tools must handle this case
+and not divide by zero or assume a mid exists.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>    <span class="n">bids</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>    <span class="n">asks</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>
+<a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a>    <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bids</span><span class="p">:</span>
+<a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">entry</span><span class="o">.</span><span class="n">valid</span><span class="p">:</span>
+<a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a>            <span class="k">continue</span>
+<a id="__codelineno-41-7" name="__codelineno-41-7" href="#__codelineno-41-7"></a>        <span class="n">o</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">order</span>
+<a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a>        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">status</span> <span class="ow">in</span> <span class="p">(</span><span class="n">FILLED</span><span class="p">,</span> <span class="n">CANCELLED</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
+<a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a>            <span class="k">continue</span>
+<a id="__codelineno-41-10" name="__codelineno-41-10" href="#__codelineno-41-10"></a>        <span class="c1"># For iceberg: show only the visible peak, not the hidden reserve</span>
+<a id="__codelineno-41-11" name="__codelineno-41-11" href="#__codelineno-41-11"></a>        <span class="n">qty</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">displayed_qty</span> <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">ICEBERG</span> <span class="k">else</span> <span class="n">o</span><span class="o">.</span><span class="n">remaining_qty</span>
+<a id="__codelineno-41-12" name="__codelineno-41-12" href="#__codelineno-41-12"></a>        <span class="c1"># Aggregate into price levels</span>
+<a id="__codelineno-41-13" name="__codelineno-41-13" href="#__codelineno-41-13"></a>        <span class="n">lvl</span> <span class="o">=</span> <span class="n">bids</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;price&quot;</span><span class="p">:</span> <span class="n">o</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="s2">&quot;qty&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;count&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">})</span>
+<a id="__codelineno-41-14" name="__codelineno-41-14" href="#__codelineno-41-14"></a>        <span class="n">lvl</span><span class="p">[</span><span class="s2">&quot;qty&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="n">qty</span>
+<a id="__codelineno-41-15" name="__codelineno-41-15" href="#__codelineno-41-15"></a>        <span class="n">lvl</span><span class="p">[</span><span class="s2">&quot;count&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+<a id="__codelineno-41-16" name="__codelineno-41-16" href="#__codelineno-41-16"></a>    <span class="o">...</span>
+</code></pre></div>
+<p><code>snapshot()</code> iterates the entire heap — O(n) — to build the aggregated price
+levels needed for market data publication. This is correct but expensive if called
+on every trade.</p>
+<p>Note that <code>snapshot()</code> shows only <code>displayed_qty</code> for icebergs — the same visible
+portion that <code>_bid_qty</code> tracks. A market participant viewing the snapshot sees 300
+shares at a price level where an iceberg has 3,000 hidden shares. This is
+intentional: icebergs are supposed to be hidden. But it means the public depth view
+has the same undercount as the FOK check.</p>
+<p>For high-frequency market data publishing, use the <code>_bid_qty</code> / <code>_ask_qty</code> price-
+level index instead — it gives total visible quantity per price level in O(P) without
+iterating individual orders. Reserve <code>snapshot()</code> for full depth snapshots needed
+less frequently, such as when a client connects and needs the full current book
+state.</p>
+<h2 id="data-structure-summary">Data Structure Summary<a class="headerlink" href="#data-structure-summary" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Structure</th>
+<th>Type</th>
+<th>Key</th>
+<th>Value</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>_bids</code></td>
+<td>Heap</td>
+<td><code>(-price_ticks, timestamp_ns)</code></td>
+<td><code>_HeapEntry</code></td>
+<td>Best bid, price-time order</td>
+</tr>
+<tr>
+<td><code>_asks</code></td>
+<td>Heap</td>
+<td><code>(price_ticks, timestamp_ns)</code></td>
+<td><code>_HeapEntry</code></td>
+<td>Best ask, price-time order</td>
+</tr>
+<tr>
+<td><code>_buy_stops</code></td>
+<td>Heap</td>
+<td><code>(stop_price_ticks, ts_ns)</code></td>
+<td><code>_HeapEntry</code></td>
+<td>Buy stop triggers</td>
+</tr>
+<tr>
+<td><code>_sell_stops</code></td>
+<td>Heap</td>
+<td><code>(-stop_price_ticks, ts_ns)</code></td>
+<td><code>_HeapEntry</code></td>
+<td>Sell stop triggers</td>
+</tr>
+<tr>
+<td><code>_trailing_stops</code></td>
+<td>List</td>
+<td>—</td>
+<td><code>Order</code></td>
+<td>Trailing stop ratchet updates</td>
+</tr>
+<tr>
+<td><code>_order_index</code></td>
+<td>Dict</td>
+<td><code>order_id</code></td>
+<td><code>Order</code></td>
+<td>O(1) order lookup by ID</td>
+</tr>
+<tr>
+<td><code>_entry_index</code></td>
+<td>Dict</td>
+<td><code>order_id</code></td>
+<td><code>_HeapEntry</code></td>
+<td>O(1) lazy deletion</td>
+</tr>
+<tr>
+<td><code>_bid_qty</code></td>
+<td>Dict</td>
+<td><code>price_ticks</code></td>
+<td><code>int</code></td>
+<td>O(P) depth / FOK check</td>
+</tr>
+<tr>
+<td><code>_ask_qty</code></td>
+<td>Dict</td>
+<td><code>price_ticks</code></td>
+<td><code>int</code></td>
+<td>O(P) depth / FOK check</td>
+</tr>
+<tr>
+<td><code>recent_trades</code></td>
+<td>Deque</td>
+<td>—</td>
+<td><code>Trade</code></td>
+<td>Rolling last-20-trades window</td>
+</tr>
+</tbody>
+</table>
+<h2 id="complexity-summary">Complexity Summary<a class="headerlink" href="#complexity-summary" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Complexity</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Insert resting order</td>
+<td>O(log n)</td>
+<td>heappush + 2 index dict entries + 1 qty dict update</td>
+</tr>
+<tr>
+<td>Peek best order</td>
+<td>O(1) amortised</td>
+<td>lazy deletion in <code>_peek</code>; stale entries cleaned on the way</td>
+</tr>
+<tr>
+<td>Cancel order</td>
+<td>O(1)</td>
+<td>two dict lookups + <code>valid=False</code></td>
+</tr>
+<tr>
+<td>Amend order (price change or qty increase)</td>
+<td>O(log n)</td>
+<td>invalidate old entry + re-insert</td>
+</tr>
+<tr>
+<td>Amend order (qty decrease, same price)</td>
+<td>O(1)</td>
+<td>preserve priority, update qty index only</td>
+</tr>
+<tr>
+<td>FOK availability check</td>
+<td>O(P)</td>
+<td>iterate <code>_bid_qty</code> / <code>_ask_qty</code></td>
+</tr>
+<tr>
+<td>Full book snapshot</td>
+<td>O(n)</td>
+<td>iterate all heap entries</td>
+</tr>
+<tr>
+<td>Depth metrics</td>
+<td>O(P)</td>
+<td>iterate qty index only</td>
+</tr>
+<tr>
+<td>Stop trigger check</td>
+<td>O(1) amortised</td>
+<td>heap peek + early break when top hasn't triggered</td>
+</tr>
+<tr>
+<td>Stop trigger (k fired)</td>
+<td>O(k log k)</td>
+<td>k heappops + recursive <code>process()</code> call</td>
+</tr>
+</tbody>
+</table>
+<p>Where n = total resting orders, P = distinct price levels (typically P &lt;&lt; n).</p>
+<p><em>Part of the EduMatcher documentation series. v4 — May 2026.</em></p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+        <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+      
+        <script src="../../javascripts/mermaid-init.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,2617 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A multi-process Python trading system for learning order matching and market microstructure.">
+      
+      
+        <meta name="author" content="Johan Persson <johan162@gmail.com>">
+      
+      
+      
+        <link rel="prev" href="../../architecture/02-architecture-guide/">
+      
+      
+        <link rel="next" href="../02-ai-bot/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Development Practice - EduMatcher — Educational Trading System</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#development-practice-and-release-process" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-header__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EduMatcher — Educational Trading System
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Development Practice
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../how-exchange-works/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  How an Exchange Works
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/01-concepts-order-book/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../user-guide/01-configuration/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../architecture/01-architecture/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  
+  Developer Info
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../glossary/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Glossary
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  FAQ
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-nav__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    EduMatcher — Educational Trading System
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-exchange-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How an Exchange Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/01-concepts-order-book/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/03-concepts-mm-quotes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MM Quotes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/04-concepts-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/05-concepts-trading-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Full Trading Day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/01-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/02-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Controlling the Exchange
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/03-running-the-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/04-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/05-combos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/06-auctions-scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auctions & Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/07-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/08-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gateway Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/09-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/10-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/11-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/12-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/13-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/20-app-alf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix - ALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/01-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/02-architecture-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detailed Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Info
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer Info
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Practice
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Practice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-kind-of-project-you-are-joining" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What kind of project you are joining
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#development-environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Development environment
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Development environment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#recommended-python-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommended Python version
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#canonical-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Canonical setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#optional-helper-script" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Optional helper script
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#basic-toolchain-expectations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basic toolchain expectations
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#repository-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Repository map
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Repository map">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#good-first-files-to-read" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Good first files to read
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#development-workflow-expectations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Development workflow expectations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Development workflow expectations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#default-working-style" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Default working style
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#code-quality-gates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code quality gates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#standards-enforced-by-the-repo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Standards enforced by the repo
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-to-preserve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What to preserve
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-a-minimal-system-while-developing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running a minimal system while developing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running a minimal system while developing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#minimal-reference-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Minimal reference data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recommended-startup-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommended startup order
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#macos-convenience-launcher" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        macOS convenience launcher
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quick-signs-the-system-is-healthy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick signs the system is healthy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verification-and-test-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verification and test strategy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Verification and test strategy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#normal-regression-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Normal regression tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deterministic-engine-verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deterministic engine verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#performance-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-to-run-which-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to run which check
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#helper-scripts-under-scripts-and-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Helper scripts under scripts/ and tools/
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Helper scripts under scripts/ and tools/">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-scripts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core scripts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-practical-rule-of-thumb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A practical rule of thumb
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation workflow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Documentation workflow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fast-documentation-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fast documentation loop
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#one-shot-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One-shot validation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-to-update-when-behavior-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What to update when behavior changes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#current-release-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current release workflow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Current release workflow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-by-step" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step-by-step
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-mkreleasesh-expects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What mkrelease.sh expects
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#release-caution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Release caution
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-pitfalls-for-new-developers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common pitfalls for new developers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common pitfalls for new developers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#starting-clients-before-the-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Starting clients before the engine
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#using-a-gateway-id-that-is-not-in-engine_configyaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using a gateway ID that is not in engine_config.yaml
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#forgetting-that-observer-processes-depend-on-each-other" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forgetting that observer processes depend on each other
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assuming-docs-only-changes-need-no-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Assuming docs-only changes need no validation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#treating-helper-scripts-as-canonical-truth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Treating helper scripts as canonical truth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ignoring-end-to-end-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ignoring end-to-end behavior
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#suggested-first-week-path-for-a-new-developer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Suggested first-week path for a new developer
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../02-ai-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Bot Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../03-experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../04-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="development-practice-and-release-process">Development Practice and Release Process<a class="headerlink" href="#development-practice-and-release-process" title="Permanent link">&para;</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Learning objectives</p>
+<p>After reading this page you will understand:</p>
+<ul>
+<li>How to set up a local Python development environment for EduMatcher</li>
+<li>Which quality gates are expected before you commit or release</li>
+<li>How the code base is structured and where to start reading it</li>
+<li>Which helper scripts exist under <code>scripts/</code> and <code>tools/</code>, and when to use them</li>
+<li>How to run a minimal exchange while developing</li>
+<li>How to run deterministic verification and performance tests</li>
+<li>How the current release workflow is intended to work</li>
+<li>Which common developer mistakes are easy to avoid</li>
+</ul>
+</div>
+<h2 id="what-kind-of-project-you-are-joining">What kind of project you are joining<a class="headerlink" href="#what-kind-of-project-you-are-joining" title="Permanent link">&para;</a></h2>
+<p>EduMatcher is a <strong>multi-process educational exchange</strong>. It is not just a single
+matching function or a toy order-book exercise. The repository contains:</p>
+<ul>
+<li>a matching engine</li>
+<li>interactive gateways</li>
+<li>market-data and monitoring processes</li>
+<li>persistence and reporting components</li>
+<li>developer tooling, benchmarks, and deterministic verification tools</li>
+</ul>
+<p>That matters for development style. Most changes should be thought about at
+three levels:</p>
+<ol>
+<li><strong>Core matching logic</strong> — order validation, book state, fills, session rules</li>
+<li><strong>Process boundaries</strong> — ZeroMQ topics, startup order, persistence, observers</li>
+<li><strong>Documentation and operability</strong> — can another developer understand, run, and verify the change?</li>
+</ol>
+<p>If you are new to the code base, start by reading these pages in order:</p>
+<ol>
+<li><a href="../../how-exchange-works/">How an Exchange Works</a></li>
+<li><a href="../../user-guide/03-running-the-engine/">Running the Exchange</a></li>
+<li><a href="../../architecture/01-architecture/">Architecture Overview</a></li>
+<li><a href="../04-verification/">Verification</a></li>
+</ol>
+<h2 id="development-environment">Development environment<a class="headerlink" href="#development-environment" title="Permanent link">&para;</a></h2>
+<h3 id="recommended-python-version">Recommended Python version<a class="headerlink" href="#recommended-python-version" title="Permanent link">&para;</a></h3>
+<p><code>pyproject.toml</code> currently allows Python <code>^3.11</code>, but the type-checking and
+formatting configuration targets <strong>Python 3.13</strong>. In practice, <strong>Python 3.13 is
+the safest development target</strong> because it matches the repo's strict-analysis
+configuration.</p>
+<h3 id="canonical-setup">Canonical setup<a class="headerlink" href="#canonical-setup" title="Permanent link">&para;</a></h3>
+<p>The project is <strong>Poetry-first</strong>. The most reliable setup path is:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>poetry<span class="w"> </span>config<span class="w"> </span>virtualenvs.in-project<span class="w"> </span><span class="nb">true</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>poetry<span class="w"> </span>install<span class="w"> </span>--with<span class="w"> </span>dev,docs
+</code></pre></div>
+<p>Then activate the environment if you want shell-local tools:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">source</span><span class="w"> </span>.venv/bin/activate
+</code></pre></div>
+<h3 id="optional-helper-script">Optional helper script<a class="headerlink" href="#optional-helper-script" title="Permanent link">&para;</a></h3>
+<p>The repository also contains <code>scripts/verify_setup.sh</code>. It is useful as a
+smoke-check helper, especially on a fresh machine, but it still contains some
+older inherited messages and command names from a previous project. Treat the
+<strong>Poetry commands above as the source of truth</strong>, and use the script as a
+convenience wrapper rather than as the canonical definition of the environment.</p>
+<h3 id="basic-toolchain-expectations">Basic toolchain expectations<a class="headerlink" href="#basic-toolchain-expectations" title="Permanent link">&para;</a></h3>
+<p>You should have these available locally:</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Why you need it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python 3.13</td>
+<td>Matches the repo's linting and typing targets</td>
+</tr>
+<tr>
+<td>Poetry</td>
+<td>Dependency and virtualenv management</td>
+</tr>
+<tr>
+<td>Git</td>
+<td>Branching, release, and tag workflow</td>
+</tr>
+<tr>
+<td><code>gh</code></td>
+<td>Used by the GitHub release script</td>
+</tr>
+<tr>
+<td>MkDocs</td>
+<td>Installed through Poetry docs dependencies</td>
+</tr>
+</tbody>
+</table>
+<p>If you plan to use the containerised docs workflow, you also need <strong>Podman</strong>
+for <code>scripts/docs-contctl.sh</code>.</p>
+<h2 id="repository-map">Repository map<a class="headerlink" href="#repository-map" title="Permanent link">&para;</a></h2>
+<p>When you are orienting yourself, this is the practical top-level map:</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>What lives there</th>
+<th>Typical reason to open it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/edumatcher/engine/</code></td>
+<td>Matching engine, config loading, persistence, risk logic</td>
+<td>Core exchange behavior</td>
+</tr>
+<tr>
+<td><code>src/edumatcher/gateway/</code></td>
+<td>Interactive gateway and command parsing</td>
+<td>Trader entry workflow</td>
+</tr>
+<tr>
+<td><code>src/edumatcher/models/</code></td>
+<td>Shared message, order, and domain models</td>
+<td>Data structures and message payloads</td>
+</tr>
+<tr>
+<td><code>src/edumatcher/clearing/</code></td>
+<td>P&amp;L and trade-settlement logic</td>
+<td>Post-trade reporting</td>
+</tr>
+<tr>
+<td><code>src/edumatcher/viewer/</code>, <code>board/</code>, <code>ticker/</code>, <code>orders/</code>, <code>audit/</code>, <code>stats/</code></td>
+<td>Read-side processes and UIs</td>
+<td>Operational visibility</td>
+</tr>
+<tr>
+<td><code>src/edumatcher/scheduler/</code></td>
+<td>Session transitions</td>
+<td>Trading-day lifecycle</td>
+</tr>
+<tr>
+<td><code>tests/</code></td>
+<td>Unit, integration, and performance tests</td>
+<td>Regression protection</td>
+</tr>
+<tr>
+<td><code>tools/</code></td>
+<td>Verification utilities and launch helpers</td>
+<td>Deterministic validation, scripted demos</td>
+</tr>
+<tr>
+<td><code>scripts/</code></td>
+<td>Build, release, docs, and maintenance helpers</td>
+<td>Automation</td>
+</tr>
+<tr>
+<td><code>docs/</code></td>
+<td>User, architecture, concept, and developer documentation</td>
+<td>Documentation updates</td>
+</tr>
+</tbody>
+</table>
+<h3 id="good-first-files-to-read">Good first files to read<a class="headerlink" href="#good-first-files-to-read" title="Permanent link">&para;</a></h3>
+<p>If you want to understand the runtime quickly, read:</p>
+<ol>
+<li><code>src/edumatcher/engine/main.py</code></li>
+<li><code>src/edumatcher/engine/config_loader.py</code></li>
+<li><code>src/edumatcher/gateway/main.py</code></li>
+<li><code>src/edumatcher/models/message.py</code></li>
+<li><code>tests/test_*</code> files closest to the area you plan to change</li>
+</ol>
+<h2 id="development-workflow-expectations">Development workflow expectations<a class="headerlink" href="#development-workflow-expectations" title="Permanent link">&para;</a></h2>
+<h3 id="default-working-style">Default working style<a class="headerlink" href="#default-working-style" title="Permanent link">&para;</a></h3>
+<p>For most changes, follow this loop:</p>
+<ol>
+<li>Understand the existing behavior in code and tests</li>
+<li>Make the smallest complete change that solves the problem</li>
+<li>Run the narrowest relevant tests first</li>
+<li>Run the standard quality gate before considering the work done</li>
+<li>Update documentation if behavior, commands, or configuration changed</li>
+</ol>
+<h3 id="code-quality-gates">Code quality gates<a class="headerlink" href="#code-quality-gates" title="Permanent link">&para;</a></h3>
+<p>These are the checks a developer is expected to run regularly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>black<span class="w"> </span>--check<span class="w"> </span>src<span class="w"> </span>tests
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>flake8<span class="w"> </span>src<span class="w"> </span>tests
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>mypy<span class="w"> </span>src<span class="w"> </span>tests
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;not perf&quot;</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>build
+</code></pre></div>
+<p>The Makefile provides wrappers if you prefer shorter commands:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>make<span class="w"> </span>install
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>make<span class="w"> </span>check
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>make<span class="w"> </span><span class="nb">test</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>make<span class="w"> </span>docs
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>make<span class="w"> </span>build
+</code></pre></div>
+<h3 id="standards-enforced-by-the-repo">Standards enforced by the repo<a class="headerlink" href="#standards-enforced-by-the-repo" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Formatting</strong>: <code>black</code>, line length 88</li>
+<li><strong>Linting</strong>: <code>flake8</code></li>
+<li><strong>Typing</strong>: <code>mypy</code> in strict mode</li>
+<li><strong>Testing</strong>: <code>pytest</code></li>
+<li><strong>Coverage gate</strong>: <code>make test</code> enforces <strong>85%</strong></li>
+<li><strong>Docs build</strong>: <code>mkdocs build</code> should pass after doc changes</li>
+</ul>
+<h3 id="what-to-preserve">What to preserve<a class="headerlink" href="#what-to-preserve" title="Permanent link">&para;</a></h3>
+<p>This repository values:</p>
+<ul>
+<li>exact behavior over speculative abstraction</li>
+<li>deterministic tests over hand-wavy correctness</li>
+<li>documentation that matches the real code</li>
+<li>small, reviewable changes instead of large refactors</li>
+</ul>
+<p>If you notice unrelated technical debt while doing a focused task, note it, but
+do not silently expand the scope of your change.</p>
+<h2 id="running-a-minimal-system-while-developing">Running a minimal system while developing<a class="headerlink" href="#running-a-minimal-system-while-developing" title="Permanent link">&para;</a></h2>
+<p>It is worth keeping a <strong>small live system</strong> available during development. Even
+when unit tests pass, a real end-to-end run catches startup, wiring, and event
+flow mistakes early.</p>
+<h3 id="minimal-reference-data">Minimal reference data<a class="headerlink" href="#minimal-reference-data" title="Permanent link">&para;</a></h3>
+<p>EduMatcher uses <code>engine_config.yaml</code> for reference data. A one-symbol minimal
+configuration can look like this:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">gateways</span><span class="p">:</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">First trader</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM01</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Market maker</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW_ADMIN</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Operator console</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="w">    </span><span class="nt">last_buy_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">149.90</span>
+<a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="w">    </span><span class="nt">last_sell_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">150.10</span>
+<a id="__codelineno-4-17" name="__codelineno-4-17" href="#__codelineno-4-17"></a><span class="w">    </span><span class="nt">market_maker_quotes</span><span class="p">:</span>
+<a id="__codelineno-4-18" name="__codelineno-4-18" href="#__codelineno-4-18"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM01</span>
+<a id="__codelineno-4-19" name="__codelineno-4-19" href="#__codelineno-4-19"></a><span class="w">        </span><span class="nt">bid_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">149.90</span>
+<a id="__codelineno-4-20" name="__codelineno-4-20" href="#__codelineno-4-20"></a><span class="w">        </span><span class="nt">ask_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">150.10</span>
+<a id="__codelineno-4-21" name="__codelineno-4-21" href="#__codelineno-4-21"></a><span class="w">        </span><span class="nt">bid_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
+<a id="__codelineno-4-22" name="__codelineno-4-22" href="#__codelineno-4-22"></a><span class="w">        </span><span class="nt">ask_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
+<a id="__codelineno-4-23" name="__codelineno-4-23" href="#__codelineno-4-23"></a><span class="w">        </span><span class="nt">tif</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DAY</span>
+<a id="__codelineno-4-24" name="__codelineno-4-24" href="#__codelineno-4-24"></a><span class="w">        </span><span class="nt">quote_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM-AAPL-SEED</span>
+</code></pre></div>
+<p>See <a href="../../user-guide/01-configuration/">Configuration</a> for the full schema.</p>
+<h3 id="recommended-startup-order">Recommended startup order<a class="headerlink" href="#recommended-startup-order" title="Permanent link">&para;</a></h3>
+<p>Start the engine first. All other processes depend on its sockets being bound.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Terminal 1 — matching engine</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Terminal 2 — optional scheduler</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--now
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># Terminal 3 — market maker gateway</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>MM01
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="c1"># Terminal 4 — trader gateway</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="c1"># Terminal 5 — operator console</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="c1"># Terminal 6 — live order book</span>
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a>
+<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a><span class="c1"># Terminal 7 — audit log</span>
+<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-audit<span class="w"> </span>--terminal
+<a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a>
+<a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="c1"># Terminal 8 — clearing / P&amp;L</span>
+<a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-clearing
+</code></pre></div>
+<p>Optional observers you will often add:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-orders
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-stats
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-ticker<span class="w"> </span>--interval<span class="w"> </span><span class="m">15</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-board
+</code></pre></div>
+<h3 id="macos-convenience-launcher">macOS convenience launcher<a class="headerlink" href="#macos-convenience-launcher" title="Permanent link">&para;</a></h3>
+<p>For demos or quick manual runs on macOS, use:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./tools/launch_all.sh
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>./tools/launch_all.sh<span class="w"> </span>AAPL<span class="w"> </span>MSFT
+</code></pre></div>
+<p><code>tools/launch_all.sh</code> opens one Terminal window per process using AppleScript.
+It is convenient, but it is <strong>macOS-only</strong> and it launches the standard demo
+layout, not a custom research topology.</p>
+<h3 id="quick-signs-the-system-is-healthy">Quick signs the system is healthy<a class="headerlink" href="#quick-signs-the-system-is-healthy" title="Permanent link">&para;</a></h3>
+<p>You should expect to see:</p>
+<ul>
+<li>engine startup banner with bound ports <code>5555</code>, <code>5556</code>, and <code>5557</code></li>
+<li>successful gateway authentication</li>
+<li>a visible two-sided book in <code>pm-viewer</code> after <code>MM01</code> connects</li>
+<li>order acknowledgements and fills flowing back to the submitting gateway</li>
+</ul>
+<h2 id="verification-and-test-strategy">Verification and test strategy<a class="headerlink" href="#verification-and-test-strategy" title="Permanent link">&para;</a></h2>
+<p>There are three different kinds of checks in this repository, and they answer
+different questions.</p>
+<h3 id="normal-regression-tests">Normal regression tests<a class="headerlink" href="#normal-regression-tests" title="Permanent link">&para;</a></h3>
+<p>Run these continuously while developing:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;not perf&quot;</span>
+</code></pre></div>
+<p>These are the default correctness tests and should remain fast enough for
+frequent reruns.</p>
+<h3 id="deterministic-engine-verification">Deterministic engine verification<a class="headerlink" href="#deterministic-engine-verification" title="Permanent link">&para;</a></h3>
+<p>EduMatcher includes a dedicated replay-and-compare verification flow under
+<code>tools/</code>. This is the right choice when you need confidence that the production
+engine still agrees with the paper-trading oracle.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>bash<span class="w"> </span>tools/verify_matching.sh
+</code></pre></div>
+<p>Useful variants:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>bash<span class="w"> </span>tools/verify_matching.sh<span class="w"> </span>--seed<span class="w"> </span><span class="m">7</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>bash<span class="w"> </span>tools/verify_matching.sh<span class="w"> </span>--count<span class="w"> </span><span class="m">500</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>bash<span class="w"> </span>tools/verify_matching.sh<span class="w"> </span>--tolerance<span class="w"> </span><span class="m">0</span>.01
+</code></pre></div>
+<p>Read <a href="../04-verification/">Verification</a> before changing this flow. It explains
+why deterministic replay is hard and how the repository avoids common traps such
+as clocks, ACK ordering, and persisted GTC state.</p>
+<h3 id="performance-tests">Performance tests<a class="headerlink" href="#performance-tests" title="Permanent link">&para;</a></h3>
+<p>Performance tests are intentionally separate from the normal CI path. They
+measure engine behavior, not the full end-to-end network stack.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># Full perf run</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>-o<span class="w"> </span><span class="nv">addopts</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="w"> </span>tests/test_perf.py<span class="w"> </span>-v<span class="w"> </span>-s<span class="w"> </span>-m<span class="w"> </span>perf<span class="w"> </span>-p<span class="w"> </span>no:cov
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># Throughput-focused view</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>-o<span class="w"> </span><span class="nv">addopts</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="w"> </span>tests/test_perf.py<span class="w"> </span>-v<span class="w"> </span>-s<span class="w"> </span>-m<span class="w"> </span>perf<span class="w"> </span>-k<span class="w"> </span>max_tps<span class="w"> </span>-p<span class="w"> </span>no:cov
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># Normal test run without perf tests</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;not perf&quot;</span>
+</code></pre></div>
+<p>Important interpretation rule: the performance tests primarily measure <strong>engine
+processing cost</strong>, not total production wire latency.</p>
+<h3 id="when-to-run-which-check">When to run which check<a class="headerlink" href="#when-to-run-which-check" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>Minimum check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Small logic change in one module</td>
+<td>Narrow tests for that area, then <code>pytest tests/ -m "not perf"</code></td>
+</tr>
+<tr>
+<td>Message schema or process wiring change</td>
+<td>Normal tests + a live minimal-system run</td>
+</tr>
+<tr>
+<td>Matching-engine algorithm change</td>
+<td>Normal tests + <code>tools/verify_matching.sh</code></td>
+</tr>
+<tr>
+<td>Performance-sensitive hot-path change</td>
+<td>Normal tests + performance tests</td>
+</tr>
+<tr>
+<td>Documentation-only change</td>
+<td><code>poetry run mkdocs build</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="helper-scripts-under-scripts-and-tools">Helper scripts under <code>scripts/</code> and <code>tools/</code><a class="headerlink" href="#helper-scripts-under-scripts-and-tools" title="Permanent link">&para;</a></h2>
+<p>The repo includes useful helper scripts, but not all of them are equally
+authoritative. In general:</p>
+<ul>
+<li>prefer <strong>Poetry and Makefile commands</strong> for day-to-day work</li>
+<li>use scripts for automation, release flow, or convenience wrappers</li>
+<li>read a script before trusting it in a new CI or release workflow</li>
+</ul>
+<h3 id="core-scripts">Core scripts<a class="headerlink" href="#core-scripts" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Script</th>
+<th>Use it for</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>scripts/mkbld.sh</code></td>
+<td>Full local build / validation pipeline</td>
+<td>Runs tests, lint, typing, formatting, build, and package validation</td>
+</tr>
+<tr>
+<td><code>scripts/mkchlogentry.sh</code></td>
+<td>Create a new <code>CHANGELOG.md</code> release template</td>
+<td>Intended before <code>mkrelease.sh</code></td>
+</tr>
+<tr>
+<td><code>scripts/mkrelease.sh</code></td>
+<td>Local release workflow</td>
+<td>Expects a clean <code>develop</code> branch and an existing changelog entry</td>
+</tr>
+<tr>
+<td><code>scripts/mkghrelease.sh</code></td>
+<td>Publish the GitHub release after tagging and CI</td>
+<td>Uses <code>gh</code> and release artifacts in <code>dist/</code></td>
+</tr>
+<tr>
+<td><code>scripts/mkdocs.sh</code></td>
+<td>Serve, build, deploy, or clean MkDocs docs</td>
+<td>Helpful for docs-only work</td>
+</tr>
+<tr>
+<td><code>scripts/mkcovupd.sh</code></td>
+<td>Update the README coverage badge from <code>coverage.xml</code></td>
+<td>Secondary helper; inspect output before committing</td>
+</tr>
+<tr>
+<td><code>scripts/verify_setup.sh</code></td>
+<td>Smoke-check a local environment</td>
+<td>Contains some inherited naming; use with caution</td>
+</tr>
+<tr>
+<td><code>scripts/docs-contctl.sh</code></td>
+<td>Run docs in a Podman container</td>
+<td>Useful when validating the containerised docs image</td>
+</tr>
+<tr>
+<td><code>tools/verify_matching.sh</code></td>
+<td>Deterministic engine verification</td>
+<td>Strong confidence check for engine changes</td>
+</tr>
+<tr>
+<td><code>tools/launch_all.sh</code></td>
+<td>macOS demo/process launcher</td>
+<td>Good for manual demos, not for production orchestration</td>
+</tr>
+</tbody>
+</table>
+<h3 id="a-practical-rule-of-thumb">A practical rule of thumb<a class="headerlink" href="#a-practical-rule-of-thumb" title="Permanent link">&para;</a></h3>
+<p>If a script's behavior disagrees with <code>pyproject.toml</code>, <code>Makefile</code>, or the
+current docs, trust the <strong>project configuration and live code first</strong>. Several
+scripts and script help texts still show traces of an older project name, so a
+developer should read them critically rather than assuming every string is up to
+date.</p>
+<h2 id="documentation-workflow">Documentation workflow<a class="headerlink" href="#documentation-workflow" title="Permanent link">&para;</a></h2>
+<p>Developer-facing work is not finished until the docs still build cleanly.</p>
+<h3 id="fast-documentation-loop">Fast documentation loop<a class="headerlink" href="#fast-documentation-loop" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>serve
+</code></pre></div>
+<h3 id="one-shot-validation">One-shot validation<a class="headerlink" href="#one-shot-validation" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>build
+</code></pre></div>
+<h3 id="what-to-update-when-behavior-changes">What to update when behavior changes<a class="headerlink" href="#what-to-update-when-behavior-changes" title="Permanent link">&para;</a></h3>
+<p>If you change:</p>
+<ul>
+<li><strong>configuration semantics</strong> → update <code>docs/user-guide/01-configuration.md</code></li>
+<li><strong>runtime commands or startup behavior</strong> → update <code>docs/user-guide/03-running-the-engine.md</code></li>
+<li><strong>gateway commands</strong> → update <code>docs/user-guide/08-gateway.md</code></li>
+<li><strong>message payloads or topics</strong> → update <code>docs/user-guide/09-messages.md</code></li>
+<li><strong>risk, MM quotes, persistence, or drop copy</strong> → update the corresponding user-guide page</li>
+<li><strong>developer workflow</strong> → update this page and related developer docs</li>
+</ul>
+<p>This repository already has a lot of explanatory documentation. Reuse it rather
+than duplicating large explanations in new pages.</p>
+<h2 id="current-release-workflow">Current release workflow<a class="headerlink" href="#current-release-workflow" title="Permanent link">&para;</a></h2>
+<p>The intended release flow is:</p>
+<ol>
+<li>Prepare and review the changelog entry</li>
+<li>Run the scripted release locally from <code>develop</code></li>
+<li>Tag and push the release to <code>main</code></li>
+<li>Wait for CI and artifacts</li>
+<li>Create the GitHub release</li>
+</ol>
+<h3 id="step-by-step">Step-by-step<a class="headerlink" href="#step-by-step" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># 1. Create the changelog template</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>./scripts/mkchlogentry.sh<span class="w"> </span><span class="m">0</span>.2.0rc5<span class="w"> </span>minor
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1"># 2. Edit CHANGELOG.md and replace the placeholder bullets</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="c1"># 3. Preview the release actions</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>./scripts/mkrelease.sh<span class="w"> </span><span class="m">0</span>.2.0rc5<span class="w"> </span>minor<span class="w"> </span>--dry-run
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="c1"># 4. Execute the local release flow</span>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>./scripts/mkrelease.sh<span class="w"> </span><span class="m">0</span>.2.0rc5<span class="w"> </span>minor
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="c1"># 5. After CI is green and artifacts exist in dist/, create the GitHub release</span>
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>./scripts/mkghrelease.sh
+</code></pre></div>
+<h3 id="what-mkreleasesh-expects">What <code>mkrelease.sh</code> expects<a class="headerlink" href="#what-mkreleasesh-expects" title="Permanent link">&para;</a></h3>
+<p>The script is designed around this model:</p>
+<ul>
+<li>you are on a <strong>clean <code>develop</code> branch</strong></li>
+<li>the requested version is not already tagged</li>
+<li><code>CHANGELOG.md</code> already contains an entry for that version</li>
+<li>quality gates pass</li>
+<li>release artifacts can be built and validated</li>
+</ul>
+<p>The scripted workflow also assumes a <strong><code>develop</code> → squash-merge into <code>main</code></strong>
+style release model, followed by syncing <code>main</code> back into <code>develop</code>.</p>
+<h3 id="release-caution">Release caution<a class="headerlink" href="#release-caution" title="Permanent link">&para;</a></h3>
+<p>Some release scripts still contain inherited project-name strings and old help
+references. Always sanity-check:</p>
+<ul>
+<li>version number</li>
+<li>package name in <code>pyproject.toml</code></li>
+<li>changelog entry content</li>
+<li>branch and tag targets</li>
+<li>contents of <code>dist/</code></li>
+</ul>
+<p>before pushing a real release.</p>
+<h2 id="common-pitfalls-for-new-developers">Common pitfalls for new developers<a class="headerlink" href="#common-pitfalls-for-new-developers" title="Permanent link">&para;</a></h2>
+<h3 id="starting-clients-before-the-engine">Starting clients before the engine<a class="headerlink" href="#starting-clients-before-the-engine" title="Permanent link">&para;</a></h3>
+<p>Most processes assume the engine sockets already exist. Start <code>pm-engine</code> first.</p>
+<h3 id="using-a-gateway-id-that-is-not-in-engine_configyaml">Using a gateway ID that is not in <code>engine_config.yaml</code><a class="headerlink" href="#using-a-gateway-id-that-is-not-in-engine_configyaml" title="Permanent link">&para;</a></h3>
+<p><code>pm-gateway --id SOMEONE</code> only works if that gateway is configured.</p>
+<h3 id="forgetting-that-observer-processes-depend-on-each-other">Forgetting that observer processes depend on each other<a class="headerlink" href="#forgetting-that-observer-processes-depend-on-each-other" title="Permanent link">&para;</a></h3>
+<p><code>pm-ticker</code> and <code>pm-board</code> rely on statistics written by <code>pm-stats</code>.</p>
+<h3 id="assuming-docs-only-changes-need-no-validation">Assuming docs-only changes need no validation<a class="headerlink" href="#assuming-docs-only-changes-need-no-validation" title="Permanent link">&para;</a></h3>
+<p>They still need:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>build
+</code></pre></div>
+<h3 id="treating-helper-scripts-as-canonical-truth">Treating helper scripts as canonical truth<a class="headerlink" href="#treating-helper-scripts-as-canonical-truth" title="Permanent link">&para;</a></h3>
+<p>Some scripts are polished automation; others still show drift from earlier repo
+history. Read before relying on them.</p>
+<h3 id="ignoring-end-to-end-behavior">Ignoring end-to-end behavior<a class="headerlink" href="#ignoring-end-to-end-behavior" title="Permanent link">&para;</a></h3>
+<p>A change that passes unit tests can still break:</p>
+<ul>
+<li>startup order</li>
+<li>message topics</li>
+<li>gateway acknowledgements</li>
+<li>persistence restore</li>
+<li>UI observers</li>
+</ul>
+<p>That is why a minimal live run is worth doing.</p>
+<h2 id="suggested-first-week-path-for-a-new-developer">Suggested first-week path for a new developer<a class="headerlink" href="#suggested-first-week-path-for-a-new-developer" title="Permanent link">&para;</a></h2>
+<p>If you are onboarding, this is a good sequence:</p>
+<ol>
+<li>Set up Poetry and build the docs</li>
+<li>Run the minimal live system once</li>
+<li>Submit a few manual orders through <code>pm-gateway</code></li>
+<li>Run the normal test suite</li>
+<li>Read the deterministic verification page</li>
+<li>Pick one small bug fix or documentation improvement</li>
+<li>Run the full quality gate before opening a PR</li>
+</ol>
+<p>That path teaches both the <strong>theory</strong> and the <strong>operational shape</strong> of the
+system before you attempt deeper engine work.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+        <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+      
+        <script src="../../javascripts/mermaid-init.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,3584 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A multi-process Python trading system for learning order matching and market microstructure.">
+      
+      
+        <meta name="author" content="Johan Persson <johan162@gmail.com>">
+      
+      
+      
+        <link rel="prev" href="../../user-guide/20-app-alf-protocol/">
+      
+      
+        <link rel="next" href="../02-architecture-guide/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Overview - EduMatcher — Educational Trading System</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#architecture" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-header__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EduMatcher — Educational Trading System
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Overview
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../how-exchange-works/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  How an Exchange Works
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/01-concepts-order-book/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../user-guide/01-configuration/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../developer/01-dev-practice/" class="md-tabs__link">
+          
+  
+  
+  Developer Info
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../glossary/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Glossary
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../faq/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  FAQ
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="EduMatcher — Educational Trading System" class="md-nav__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    EduMatcher — Educational Trading System
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-exchange-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How an Exchange Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/01-concepts-order-book/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/03-concepts-mm-quotes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MM Quotes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/04-concepts-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/05-concepts-trading-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Full Trading Day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/01-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/02-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Controlling the Exchange
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/03-running-the-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/04-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/05-combos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/06-auctions-scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auctions & Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/07-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/08-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gateway Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/09-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/10-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/11-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/12-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/13-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/20-app-alf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix - ALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-this-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why This Architecture?
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Why This Architecture?">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#three-ways-to-build-a-trading-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three ways to build a trading system
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#core-messaging-concepts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core messaging concepts
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#zmq-topology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ZMQ Topology
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#message-topics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Topics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#process-roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Process Roles
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#order-book-data-structures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order Book Data Structures
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Order Book Data Structures">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#visual-order-depth-at-each-price-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Visual: order depth at each price level
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#internal-representation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Internal representation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#thread-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Thread Model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#core-matching-algorithm-in-depth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Matching Algorithm — In Depth
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Core Matching Algorithm — In Depth">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#order-book-organization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order Book Organization
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#heap-entry-and-lazy-deletion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Heap Entry and Lazy Deletion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#matching-algorithm-the-sweep" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Matching Algorithm: The Sweep
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Matching Algorithm: The Sweep">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pseudocode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pseudocode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#visual-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Visual Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#order-type-dispatch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order-Type Dispatch
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#apply-fill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Apply Fill
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stop-order-trigger-mechanism" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stop Order Trigger Mechanism
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resting-an-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resting an Order
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cancellation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cancellation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#time-complexity-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Time Complexity Summary
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#combo-orders-data-structures-and-tracking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Combo Orders — Data Structures and Tracking
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Combo Orders — Data Structures and Tracking">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#combo-lifecycle-state-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Combo Lifecycle State Machine
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#combo-entry-algorithm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Combo Entry Algorithm
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#combo-status-update-after-any-child-event" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Combo Status Update (after any child event)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cascade-cancel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cascade Cancel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#combo-event-propagation-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Combo Event Propagation Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#combo-time-complexity-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Combo Time Complexity Summary
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#session-state-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Session State Machine
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Session State Machine">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#states-and-transitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        States and Transitions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase Behavior
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#handling-a-transition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Handling a Transition
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#auction-uncross-algorithm-equilibrium-price" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auction Uncross Algorithm — Equilibrium Price
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Auction Uncross Algorithm — Equilibrium Price">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#algorithm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Algorithm
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#complexity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complexity
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gateway-authentication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gateway Authentication
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#engine-event-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Engine Event Loop
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#performance-optimizations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Performance Optimizations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Performance Optimizations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-to-read-the-numbers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to read the numbers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#__slots__-on-hot-path-classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        __slots__ on hot-path classes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fast-enum-lookup-dictionaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fast enum lookup dictionaries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#single-timetime-call-per-order-cached-timestamp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single time.time() call per order (cached timestamp)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monotonic-integer-trade-ids-replacing-uuid4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monotonic integer trade IDs (replacing uuid4())
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#orjson-instead-of-stdlib-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        orjson instead of stdlib json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eliminate-redundant-serialization-to_dict-removal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Eliminate redundant serialization (to_dict() removal)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inlined-message-construction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inlined message construction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pre-cached-topic-bytes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pre-cached topic bytes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#local-variable-caching-in-tight-loops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Local variable caching in tight loops
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#__new__-for-fast-deserialization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        __new__ for fast deserialization
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tick-and-time-representation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tick And Time Representation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../02-architecture-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detailed Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Info
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer Info
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/01-dev-practice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Practice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/02-ai-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Bot Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/03-experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/04-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../faq/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Learning objectives</p>
+<p>After reading this page you will understand:</p>
+<ul>
+<li>Why a multi-process message-passing architecture was chosen over a monolith or
+  a shared-memory design, and how this mirrors real trading systems</li>
+<li>The fundamental messaging concepts: topics, publish/subscribe, point-to-point,
+  broadcast, and subscription filters</li>
+<li>How the ZeroMQ brokerless topology connects all processes in EduMatcher</li>
+<li>The internal data structures of an order book — heaps, lazy deletion, price-level
+  indexes — and how to read a visual order book depth diagram</li>
+<li>The time complexity of every core operation: insert, match, cancel, stop trigger</li>
+</ul>
+</div>
+<h2 id="why-this-architecture">Why This Architecture?<a class="headerlink" href="#why-this-architecture" title="Permanent link">&para;</a></h2>
+<h3 id="three-ways-to-build-a-trading-system">Three ways to build a trading system<a class="headerlink" href="#three-ways-to-build-a-trading-system" title="Permanent link">&para;</a></h3>
+<p>Before looking at what EduMatcher does, it helps to understand the alternatives
+and why they fall short for this use case.</p>
+<p><strong>Option 1 — Monolith</strong>
+: One process, one program.  The user types an order, matching runs, results print.
+  Simple to build, simple to debug.  Falls apart as soon as two users need to trade
+  simultaneously, or when you want to add an audit log without touching the matching code.</p>
+<p><strong>Option 2 — Shared memory / threads</strong>
+: Multiple threads share an in-process order book protected by a lock.
+  Common in C++ HFT cores.  Fast, but extremely hard to reason about:
+  lock contention, priority inversion, and data races all wait to bite you.
+  Also single-machine — you can't run the viewer on a separate screen
+  without redesigning everything.</p>
+<p><strong>Option 3 — Multi-process message passing</strong>
+: Each process owns its own state and communicates by sending messages.
+  No shared memory, no locks.  Processes can run on different machines.
+  Adding a new observer (an audit logger, a new data feed) means writing a
+  new subscriber — the engine doesn't change.</p>
+<p>EduMatcher uses Option 3.  It is also how most real exchange systems are
+actually built: a matching engine core that publishes every event on an internal
+bus, with a fleet of downstream consumers (clearing, risk, market data
+distribution, surveillance) that subscribe to the topics they care about.</p>
+<h3 id="core-messaging-concepts">Core messaging concepts<a class="headerlink" href="#core-messaging-concepts" title="Permanent link">&para;</a></h3>
+<p>Before reading the topology diagram, it is worth having clear definitions:</p>
+<p><strong>Topic</strong>
+: A string label attached to every message that identifies what kind of event it
+  carries.  Examples: <code>trade.executed</code>, <code>order.fill.GW01</code>, <code>book.AAPL</code>.
+  Think of it like the subject line of an email — the sender sets it, the
+  receiver uses it to decide whether to read the body.</p>
+<p><strong>Publish / Subscribe (PUB/SUB)</strong>
+: One sender, many potential receivers.  The sender <em>publishes</em> to a topic; every
+  process that has <em>subscribed</em> to that topic receives a copy.  Processes that have
+  not subscribed never see the message.  This is how the engine broadcasts book
+  updates: one <code>book.AAPL</code> message is published; the viewer, the stats recorder,
+  and the board all receive it independently.</p>
+<p><strong>Subscription filter</strong>
+: A subscriber declares which topics it wants to receive.  In ZeroMQ, the filter is
+  a simple prefix match: a subscription for <code>"order.fill.GW01"</code> receives only
+  messages whose topic starts with that string.  A subscription for <code>"book."</code> receives
+  book updates for all symbols.  An empty-string subscription receives everything.</p>
+<p><strong>Broadcast</strong>
+: A message sent to all subscribers simultaneously with no specific address.
+  The engine broadcasts <code>session.state</code> when the trading phase changes — every
+  process (gateways, viewers, stats, board) reacts according to its own logic.</p>
+<p><strong>Point-to-point (PUSH/PULL)</strong>
+: One sender, exactly one receiver.  EduMatcher uses PUSH/PULL for order
+  submission: a gateway <em>pushes</em> an order message and the engine <em>pulls</em> it.
+  No other process sees that message; no routing table is needed because the
+  engine is the only process that ever binds the PULL socket.</p>
+<p><strong>Message routing</strong>
+: In a broker-based system, the broker reads the topic and decides which queue
+  to put the message in.  In EduMatcher, routing is done by the ZeroMQ
+  layer using the subscription filter — no broker, no routing table, no extra
+  process.</p>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>EduMatcher uses a <strong>broker-less ZeroMQ</strong> topology.<br />
+The matching engine is the only process that <em>binds</em> sockets — all other processes <em>connect</em> to it.<br />
+No ZMQ broker daemon, no message queue server, no external dependencies beyond ZMQ itself.</p>
+<h2 id="zmq-topology">ZMQ Topology<a class="headerlink" href="#zmq-topology" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>                          ┌─────────────────────────────┐
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                          │      Matching Engine         │
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  Gateway(s)              │                             │
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  ──PUSH──────────────►   │  PULL :5555  receives orders │
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>                          │  PUB  :5556  broadcasts events│
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  Scheduler               │                             │
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  ──PUSH──────────────►   └───────────┬─────────────────┘
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                                      │ PUB :5556
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>                    ┌─────────────────┼──────────────────────┐
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>                    │                 │                       │
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>              ┌─────▼──────┐  ┌──────▼──────┐  ┌────────────▼──────┐
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>              │ Gateway(s) │  │  Viewer(s)  │  │  pm-orders        │
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>              │ SUB        │  │  SUB        │  │  SUB              │
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>              │ order.*    │  │  book.*     │  │  order.*          │
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>              │ combo.*    │  │             │  │  (all gateways)   │
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>              │ session.*  │  │             │  │                   │
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>              └────────────┘  └─────────────┘  └───────────────────┘
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>                    │
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>              ┌─────▼──────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>              │  Audit     │  │  Clearing   │  │  Stats      │  │  Board      │
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>              │  SUB       │  │  SUB        │  │  SUB        │  │  SUB        │
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>              │  (all)     │  │  trade.*    │  │  trade.*    │  │  book.*     │
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>              └────────────┘  └─────────────┘  │  book.*     │  │  trade.*    │
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>                                               └─────────────┘  └─────────────┘
+</code></pre></div>
+<h2 id="message-topics">Message Topics<a class="headerlink" href="#message-topics" title="Permanent link">&para;</a></h2>
+<p>All messages are two-frame ZMQ multipart:</p>
+<ul>
+<li><strong>frame[0]</strong> — topic string (used for SUB filtering)</li>
+<li><strong>frame[1]</strong> — JSON payload</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Direction</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>order.new</code></td>
+<td>GW → Engine</td>
+<td>New order submission</td>
+</tr>
+<tr>
+<td><code>order.cancel</code></td>
+<td>GW → Engine</td>
+<td>Cancel request</td>
+</tr>
+<tr>
+<td><code>order.combo</code></td>
+<td>GW → Engine</td>
+<td>Submit multi-leg combo order</td>
+</tr>
+<tr>
+<td><code>order.combo_cancel</code></td>
+<td>GW → Engine</td>
+<td>Cancel a combo and all its legs</td>
+</tr>
+<tr>
+<td><code>session.transition</code></td>
+<td>Scheduler → Engine</td>
+<td>Request session phase change</td>
+</tr>
+<tr>
+<td><code>system.gateway_connect</code></td>
+<td>GW → Engine</td>
+<td>Gateway authentication request</td>
+</tr>
+<tr>
+<td><code>system.symbols_request</code></td>
+<td>Any → Engine</td>
+<td>Request active symbol list</td>
+</tr>
+<tr>
+<td><code>book.snapshot_request</code></td>
+<td>Any → Engine</td>
+<td>Request immediate book snapshot</td>
+</tr>
+<tr>
+<td><code>order.orders_request</code></td>
+<td>GW → Engine</td>
+<td>Request resting orders for a gateway</td>
+</tr>
+<tr>
+<td><code>order.ack.{GW_ID}</code></td>
+<td>Engine → GW</td>
+<td>Order accepted or rejected</td>
+</tr>
+<tr>
+<td><code>order.fill.{GW_ID}</code></td>
+<td>Engine → GW</td>
+<td>Partial or full fill</td>
+</tr>
+<tr>
+<td><code>order.cancelled.{GW_ID}</code></td>
+<td>Engine → GW</td>
+<td>Cancel confirmed</td>
+</tr>
+<tr>
+<td><code>order.expired.{GW_ID}</code></td>
+<td>Engine → GW</td>
+<td>Order expired (DAY/ATO/ATC at phase change or shutdown)</td>
+</tr>
+<tr>
+<td><code>order.orders.{GW_ID}</code></td>
+<td>Engine → GW</td>
+<td>Response: list of resting orders</td>
+</tr>
+<tr>
+<td><code>combo.ack.{GW_ID}</code></td>
+<td>Engine → GW</td>
+<td>Combo accepted or rejected</td>
+</tr>
+<tr>
+<td><code>combo.status.{GW_ID}</code></td>
+<td>Engine → GW</td>
+<td>Combo lifecycle status change</td>
+</tr>
+<tr>
+<td><code>system.gateway_auth.{GW_ID}</code></td>
+<td>Engine → GW</td>
+<td>Authentication response</td>
+</tr>
+<tr>
+<td><code>system.symbols.{GW_ID}</code></td>
+<td>Engine → Requestor</td>
+<td>Response: list of symbols</td>
+</tr>
+<tr>
+<td><code>session.state</code></td>
+<td>Engine → all</td>
+<td>Current session phase broadcast</td>
+</tr>
+<tr>
+<td><code>auction.result.{SYMBOL}</code></td>
+<td>Engine → all</td>
+<td>Auction uncross result</td>
+</tr>
+<tr>
+<td><code>trade.executed</code></td>
+<td>Engine → all</td>
+<td>Trade occurred</td>
+</tr>
+<tr>
+<td><code>book.{SYMBOL}</code></td>
+<td>Engine → all</td>
+<td>Order book snapshot after each change</td>
+</tr>
+<tr>
+<td><code>system.eod</code></td>
+<td>Engine → all</td>
+<td>End-of-day shutdown broadcast</td>
+</tr>
+</tbody>
+</table>
+<h2 id="process-roles">Process Roles<a class="headerlink" href="#process-roles" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Process</th>
+<th>ZMQ Sockets</th>
+<th>Binds/Connects</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Engine</td>
+<td>PULL :5555, PUB :5556</td>
+<td><strong>Binds</strong> both</td>
+<td>Matching, session state, combo tracking</td>
+</tr>
+<tr>
+<td>Gateway</td>
+<td>PUSH→5555, SUB→5556</td>
+<td>Connects</td>
+<td>User order entry, authenticates on connect</td>
+</tr>
+<tr>
+<td>Scheduler</td>
+<td>PUSH→5555</td>
+<td>Connects</td>
+<td>Drives session phase transitions</td>
+</tr>
+<tr>
+<td>Viewer</td>
+<td>SUB→5556</td>
+<td>Connects</td>
+<td>Real-time book display (per symbol)</td>
+</tr>
+<tr>
+<td>pm-orders</td>
+<td>SUB→5556</td>
+<td>Connects</td>
+<td>Order status monitor (all gateways)</td>
+</tr>
+<tr>
+<td>Audit</td>
+<td>SUB→5556</td>
+<td>Connects</td>
+<td>Universal event logging</td>
+</tr>
+<tr>
+<td>Clearing</td>
+<td>SUB→5556</td>
+<td>Connects</td>
+<td>P&amp;L tracking, trade settlement</td>
+</tr>
+<tr>
+<td>Stats</td>
+<td>SUB→5556</td>
+<td>Connects</td>
+<td>OHLCV statistics, SQLite persistence</td>
+</tr>
+<tr>
+<td>Ticker</td>
+<td>SUB→5556</td>
+<td>Connects</td>
+<td>Scrolling market data display</td>
+</tr>
+<tr>
+<td>Board</td>
+<td>SUB→5556</td>
+<td>Connects</td>
+<td>Multi-symbol paged market display (all symbols)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="order-book-data-structures">Order Book Data Structures<a class="headerlink" href="#order-book-data-structures" title="Permanent link">&para;</a></h2>
+<h3 id="visual-order-depth-at-each-price-level">Visual: order depth at each price level<a class="headerlink" href="#visual-order-depth-at-each-price-level" title="Permanent link">&para;</a></h3>
+<p>Before looking at the heap internals, here is what an order book actually looks like
+from a market participant's perspective.  Each price level accumulates all the resting
+orders placed at that price.  Time priority determines which order fills first within
+a level.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>        BID SIDE                            ASK SIDE
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  (buyers waiting to buy)            (sellers waiting to sell)
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>  Price    Qty   Orders               Price    Qty   Orders
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>  ──────  ─────  ──────               ──────  ─────  ──────
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>  150.00   800     3    ◄── best bid  150.25   500     1    ◄── best ask
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>  149.75   650     2                  150.50   300     2
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>  149.50   200     1                  150.75   450     3
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>  149.25   500     2                  151.00   200     1
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>  149.00   300     1                  151.25   350     2
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>                    ▲                  ▲
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>                    └── SPREAD ────────┘
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>                       (150.25 - 150.00 = 0.25)
+</code></pre></div>
+<p>Reading this table:</p>
+<ul>
+<li>The <strong>best bid</strong> (150.00) and <strong>best ask</strong> (150.25) define the current spread.</li>
+<li>A MARKET BUY would consume the ask side top-down (best ask first): 500 @ 150.25,
+  then 300 @ 150.50, etc., until its quantity is filled.</li>
+<li>A MARKET SELL would consume the bid side top-down: 800 @ 150.00, then 650 @ 149.75, etc.</li>
+<li>A LIMIT BUY at 150.10 would <em>not</em> cross the spread (best ask is 150.25 &gt; 150.10),
+  so it would rest on the bid side at a new level between 150.00 and 150.25.</li>
+<li>Within the 150.00 bid level, 3 separate orders are resting.  The order with the
+  earliest timestamp fills first when a sell aggressor arrives.</li>
+</ul>
+<p>The "Qty" column shows <strong>total visible quantity</strong> at that level.  Iceberg orders
+only contribute their <code>visible_qty</code> (the current peak); the hidden reserve is
+not shown.</p>
+<h3 id="internal-representation">Internal representation<a class="headerlink" href="#internal-representation" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>OrderBook (per symbol)
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>├── _bids        max-heap  [(-price, timestamp, order), ...]
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>├── _asks        min-heap  [( price, timestamp, order), ...]
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>├── _buy_stops   min-heap  [( stop_price, timestamp, order), ...]
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>├── _sell_stops   max-heap  [(-stop_price, timestamp, order), ...]
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>├── _order_index  dict[order_id → Order]   (all resting orders)
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>└── _entry_index  dict[order_id → HeapEntry] (bid/ask heap entries)
+</code></pre></div>
+<p><strong>Price-time priority</strong>: within the same price level, earlier-submitted orders are filled first.
+Lazy deletion is used — heap entries are marked invalid on cancel/fill and skipped on next access.</p>
+<h2 id="thread-model">Thread Model<a class="headerlink" href="#thread-model" title="Permanent link">&para;</a></h2>
+<p>Each process is <strong>single-process, single-thread</strong> for the main logic, with one optional background
+thread for ZMQ receiving in interactive processes (gateway, viewer, orders, clearing).</p>
+<p>The engine runs a single-threaded event loop using <code>zmq.Poller</code> with a 200 ms timeout,
+making it safe from concurrent modification without locks.</p>
+<h2 id="core-matching-algorithm-in-depth">Core Matching Algorithm — In Depth<a class="headerlink" href="#core-matching-algorithm-in-depth" title="Permanent link">&para;</a></h2>
+<p>This section describes the exact data structures, algorithms, and time complexities
+used by the matching engine.</p>
+<h3 id="order-book-organization">Order Book Organization<a class="headerlink" href="#order-book-organization" title="Permanent link">&para;</a></h3>
+<p>Each symbol gets its own <code>OrderBook</code> instance.  Internally it maintains <strong>six primary data structures</strong> organized for fast price-time-priority matching:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>OrderBook(&quot;AAPL&quot;)
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>│
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>├── _bids          max-heap  [HeapEntry(-price, timestamp, order), ...]
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>├── _asks          min-heap  [HeapEntry( price, timestamp, order), ...]
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>│
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>├── _buy_stops     min-heap  [(stop_price, timestamp, order), ...]
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>├── _sell_stops    max-heap  [(-stop_price, timestamp, order), ...]
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>│
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>├── _bid_qty       dict[float, int]    price → total visible resting qty
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>├── _ask_qty       dict[float, int]    price → total visible resting qty
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>│
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>├── _order_index   dict[order_id, Order]       all resting orders (fast cancel lookup)
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>└── _entry_index   dict[order_id, HeapEntry]   heap entry pointers (lazy delete)
+</code></pre></div>
+<p><strong>Why heaps?</strong>  Python's <code>heapq</code> gives us O(log n) insertion and O(1) peek at best price.
+Since we always match against the best available price, a heap is the natural choice.</p>
+<p><strong>Bids use negated prices</strong> so that <code>heapq</code> (a min-heap) pops the <em>highest</em> bid first:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Bid key:  (-price, timestamp)  →  highest price wins, ties broken by earliest time</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="c1"># Ask key:  ( price, timestamp)  →  lowest  price wins, ties broken by earliest time</span>
+</code></pre></div>
+<p><strong>Price-level quantity indexes</strong> (<code>_bid_qty</code>, <code>_ask_qty</code>) are auxiliary <code>dict[price, int]</code>
+maps that track the aggregate visible quantity at each price level.  They enable O(p)
+FOK pre-checks (where p = number of distinct price levels) instead of walking every
+heap entry.</p>
+<h3 id="heap-entry-and-lazy-deletion">Heap Entry and Lazy Deletion<a class="headerlink" href="#heap-entry-and-lazy-deletion" title="Permanent link">&para;</a></h3>
+<p>Each heap entry is a wrapper object:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nd">@dataclass</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">HeapEntry</span><span class="p">:</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">key</span><span class="p">:</span>   <span class="nb">tuple</span>       <span class="c1"># (-price, ts) for bids; (price, ts) for asks</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">order</span><span class="p">:</span> <span class="n">Order</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">valid</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span> <span class="c1"># set False on cancel/fill → &quot;tombstone&quot;</span>
+</code></pre></div>
+<p>When an order is cancelled or filled, we do <strong>not</strong> remove it from the heap immediately
+(which would require O(n) search + O(log n) sift).  Instead we mark <code>entry.valid = False</code>
+(O(1)).  Stale entries are garbage-collected lazily when they bubble to the top during
+<code>_peek()</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>┌────────────────────────────────────────────────────────┐
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>│               _asks min-heap                           │
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>│                                                        │
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>│   top → [100.0, t=1, VALID]  ← best ask               │
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>│          [100.0, t=3, INVALID]  ← tombstone, skipped   │
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>│          [101.5, t=2, VALID]                           │
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>│          [102.0, t=4, VALID]                           │
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>└────────────────────────────────────────────────────────┘
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>_peek() pops invalid entries until a valid one is at the top.
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>Amortized O(1) access to the best price.
+</code></pre></div>
+<h3 id="matching-algorithm-the-sweep">Matching Algorithm: The Sweep<a class="headerlink" href="#matching-algorithm-the-sweep" title="Permanent link">&para;</a></h3>
+<p>The core of the matching engine is the <code>_sweep()</code> function.  It is called by
+MARKET, LIMIT, FOK, and ICEBERG order types.</p>
+<h4 id="pseudocode">Pseudocode<a class="headerlink" href="#pseudocode" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>function SWEEP(aggressor, opposite_heap, price_limit):
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    while aggressor.remaining_qty &gt; 0:
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>        best ← PEEK(opposite_heap)        // O(1) amortized (lazy GC)
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>        if best is None:
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>            break                          // no more resting orders
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>        if price_limit exists:
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>            if BUY  and best.price &gt; price_limit: break
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>            if SELL and best.price &lt; price_limit: break
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>        // Self-match prevention (SMP)
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>        if aggressor.gateway_id == best.gateway_id and SMP enabled:
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>            handle SMP action (cancel aggressor / resting / both)
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a>            continue or return
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>        fill_qty   ← min(aggressor.remaining_qty, best.remaining_qty)
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>        fill_price ← best.price             // passive price wins (maker gets their price)
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>        APPLY_FILL(aggressor, best, fill_qty, fill_price)
+</code></pre></div>
+<h4 id="visual-flow">Visual Flow<a class="headerlink" href="#visual-flow" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>                 Incoming BUY LIMIT @ 101.0, qty=25
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>                              │
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>                              ▼
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>          ┌─────── ASKS HEAP (min-heap) ──────────┐
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>          │                                       │
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>          │  [100.0, t=1, qty=10]  ← best ask     │ ← fills 10 @ 100.0
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>          │  [100.5, t=2, qty=8 ]  ← next best    │ ← fills 8  @ 100.5
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>          │  [101.0, t=3, qty=20]  ← crosses      │ ← fills 7  @ 101.0
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>          │  [102.0, t=4, qty=5 ]  ← above limit  │ ← STOP: price &gt; 101.0
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>          │                                       │
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>          └───────────────────────────────────────┘
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>                              │
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>                              ▼
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>          Result: 3 trades (10+8+7 = 25 filled), aggressor FILLED
+</code></pre></div>
+<h4 id="order-type-dispatch">Order-Type Dispatch<a class="headerlink" href="#order-type-dispatch" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>incoming order
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>      │
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>      ├─ MARKET  ──→ SWEEP(no price_limit) → discard unfilled remainder
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>      │
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>      ├─ LIMIT   ──→ SWEEP(price=order.price) → REST unfilled portion on own side
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>      │
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>      ├─ FOK     ──→ PRE-CHECK available qty via _bid_qty/_ask_qty
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>      │                 if insufficient → REJECT immediately
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>      │                 else → SWEEP(price=order.price)
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>      │
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>      ├─ ICEBERG ──→ SWEEP visible slice → replenish peak from hidden qty → REST
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>      │
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>      └─ STOP / STOP_LIMIT ──→ add to stop heap → no immediate match
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>                                 triggers later when last_trade_price crosses stop_price
+</code></pre></div>
+<h3 id="apply-fill">Apply Fill<a class="headerlink" href="#apply-fill" title="Permanent link">&para;</a></h3>
+<p>When a match is found, <code>_apply_fill</code> performs these updates atomically:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>function APPLY_FILL(aggressor, passive, fill_qty, fill_price):
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>    1. Create Trade object (symbol, buyer/seller, price, qty, timestamp)
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    2. Update last_trade_price, last_buy/sell_price
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    3. aggressor.remaining_qty -= fill_qty
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>       → status = FILLED if 0 else PARTIAL
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>    4. passive.remaining_qty   -= fill_qty
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>       → status = FILLED if 0 else PARTIAL
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>       → if FILLED: mark HeapEntry.valid = False (tombstone)
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>    5. Deduct fill_qty from price-level qty index (_bid_qty / _ask_qty)
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>    6. If passive is ICEBERG and displayed_qty exhausted:
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>       → replenish displayed_qty from hidden remainder
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>       → update timestamp (loses time priority — back of queue)
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>       → re-insert into heap with fresh key
+</code></pre></div>
+<h3 id="stop-order-trigger-mechanism">Stop Order Trigger Mechanism<a class="headerlink" href="#stop-order-trigger-mechanism" title="Permanent link">&para;</a></h3>
+<p>Stop orders live in <strong>separate heaps</strong>, sorted by trigger price:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>_buy_stops:  min-heap by ( stop_price, timestamp) — triggers when price RISES to/above
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>_sell_stops: max-heap by (-stop_price, timestamp) — triggers when price FALLS to/below
+</code></pre></div>
+<p>After every trade, <code>_check_stops()</code> peeks at both heaps:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>function CHECK_STOPS(last_trade_price):
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>    triggered = []
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>    // BUY stops: sorted cheapest first; fire all where last_price &gt;= stop
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>    while _buy_stops not empty:
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>        if top.stop_price &gt; last_trade_price: break
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>        pop entry
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>        convert STOP → MARKET (or STOP_LIMIT → LIMIT)
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>        triggered.append(order)
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>    // SELL stops: sorted most expensive first; fire all where last_price &lt;= stop
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>    while _sell_stops not empty:
+<a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a>        if top.stop_price &lt; last_trade_price: break
+<a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>        pop entry
+<a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a>        convert STOP → MARKET (or STOP_LIMIT → LIMIT)
+<a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a>        triggered.append(order)
+<a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a>
+<a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a>    // Re-process each triggered order through the book
+<a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a>    for order in triggered:
+<a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a>        process(order)  → may produce additional trades → may trigger more stops (recursion)
+</code></pre></div>
+<h3 id="resting-an-order">Resting an Order<a class="headerlink" href="#resting-an-order" title="Permanent link">&para;</a></h3>
+<p>When a LIMIT order does not fully cross the spread, its remainder is placed on the book:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>function REST(order):
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>    if BUY:
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>        key = (-order.price, order.timestamp)   # negated → max-heap behavior
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>        heappush(_bids, HeapEntry(key, order))
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>        _bid_qty[order.price] += order.remaining_qty
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>    else:
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>        key = (order.price, order.timestamp)
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>        heappush(_asks, HeapEntry(key, order))
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>        _ask_qty[order.price] += order.remaining_qty
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>    _order_index[order.id] = order
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>    _entry_index[order.id] = entry
+</code></pre></div>
+<h3 id="cancellation">Cancellation<a class="headerlink" href="#cancellation" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>function CANCEL(order_id):
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>    order = _order_index[order_id]          // O(1) lookup
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    entry = _entry_index[order_id]          // O(1) lookup
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    entry.valid = False                     // tombstone — O(1)
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>    deduct remaining qty from _bid_qty or _ask_qty
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>    order.status = CANCELLED
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>    return order
+</code></pre></div>
+<p>No heap restructuring needed — lazy deletion handles cleanup on next <code>_peek()</code>.</p>
+<h3 id="time-complexity-summary">Time Complexity Summary<a class="headerlink" href="#time-complexity-summary" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Complexity</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Insert (rest on book)</td>
+<td>O(log n)</td>
+<td><code>heapq.heappush</code></td>
+</tr>
+<tr>
+<td>Best-price access</td>
+<td>O(1) amortized</td>
+<td><code>_peek()</code> with lazy GC of tombstones</td>
+</tr>
+<tr>
+<td>Match one level</td>
+<td>O(log n)</td>
+<td>Pop from heap</td>
+</tr>
+<tr>
+<td>Full sweep (k fills)</td>
+<td>O(k log n)</td>
+<td>k = number of resting orders matched</td>
+</tr>
+<tr>
+<td>Cancel</td>
+<td>O(1)</td>
+<td>Tombstone + dict lookup</td>
+</tr>
+<tr>
+<td>FOK pre-check</td>
+<td>O(p)</td>
+<td>p = distinct price levels (via qty index)</td>
+</tr>
+<tr>
+<td>Stop trigger check</td>
+<td>O(k log s)</td>
+<td>k triggered stops out of s total</td>
+</tr>
+<tr>
+<td>Snapshot (book image)</td>
+<td>O(n)</td>
+<td>Walk all valid entries</td>
+</tr>
+<tr>
+<td>Order lookup by ID</td>
+<td>O(1)</td>
+<td><code>_order_index</code> dict</td>
+</tr>
+</tbody>
+</table>
+<p>Where <strong>n</strong> = total resting orders on one side of one book.</p>
+<h3 id="combo-orders-data-structures-and-tracking">Combo Orders — Data Structures and Tracking<a class="headerlink" href="#combo-orders-data-structures-and-tracking" title="Permanent link">&para;</a></h3>
+<p>Combo orders are <strong>parent containers</strong> that decompose into normal child orders.
+The engine uses two dictionaries to track the parent-child relationship:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>Engine
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>├── _combos           dict[combo_internal_id → ComboOrder]
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>└── _order_to_combo   dict[child_order_id → combo_internal_id]
+</code></pre></div>
+<p>A <code>ComboOrder</code> holds per-leg state:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>ComboOrder
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>├── id                 str (internal UUID)
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>├── combo_id           str (user label)
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>├── gateway_id         str
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>├── combo_type         AON
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>├── tif                DAY | GTC
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>├── legs               list[ComboLeg]        (2–10 entries)
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>├── status             PENDING | PARTIALLY_MATCHED | MATCHED | FAILED | CANCELLED
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>├── child_order_ids    list[str]             (parallel to legs by index)
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a>├── leg_fill_qty       dict[leg_index → int] (filled qty per leg)
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a>└── leg_statuses       dict[leg_index → str] (OrderStatus.value per leg)
+</code></pre></div>
+<h4 id="combo-lifecycle-state-machine">Combo Lifecycle State Machine<a class="headerlink" href="#combo-lifecycle-state-machine" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>                     ┌─── all legs fill ────► MATCHED
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>                     │
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>   PENDING ──► PARTIALLY_MATCHED ──┤
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>     │                              │
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>     │                              └─── leg cancelled/expired ──► FAILED
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>     │                                           │
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>     │                                           ▼
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>     │                                   cascade-cancel siblings
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>     │
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>     └── user cancels ──► CANCELLED (+ cascade-cancel siblings)
+</code></pre></div>
+<h4 id="combo-entry-algorithm">Combo Entry Algorithm<a class="headerlink" href="#combo-entry-algorithm" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>function HANDLE_COMBO_ORDER(payload):
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>    combo = ComboOrder.from_dict(payload)
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>    // === Validation phase ===
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>    validate gateway auth                            O(1)
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a>    validate 2 ≤ legs ≤ 10                          O(1)
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a>    validate no duplicate symbols                    O(L) where L=leg count
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a>    validate all symbols in allowlist                O(L)
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a>    validate each leg (qty &gt; 0, price if needed)    O(L)
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a>    ACK combo to gateway
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a>
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a>    // === Child order creation phase ===
+<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a>    for i, leg in enumerate(combo.legs):             O(L)
+<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a>        child = Order.create(from leg fields)
+<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a>        child.combo_parent_id = combo.id
+<a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a>        child.leg_index = i
+<a id="__codelineno-18-18" name="__codelineno-18-18" href="#__codelineno-18-18"></a>
+<a id="__codelineno-18-19" name="__codelineno-18-19" href="#__codelineno-18-19"></a>        combo.child_order_ids.append(child.id)       O(1)
+<a id="__codelineno-18-20" name="__codelineno-18-20" href="#__codelineno-18-20"></a>        _order_to_combo[child.id] = combo.id         O(1)
+<a id="__codelineno-18-21" name="__codelineno-18-21" href="#__codelineno-18-21"></a>        _order_symbol[child.id]   = leg.symbol       O(1)
+<a id="__codelineno-18-22" name="__codelineno-18-22" href="#__codelineno-18-22"></a>
+<a id="__codelineno-18-23" name="__codelineno-18-23" href="#__codelineno-18-23"></a>        trades, events = book.process(child)         O(k log n) per leg
+<a id="__codelineno-18-24" name="__codelineno-18-24" href="#__codelineno-18-24"></a>
+<a id="__codelineno-18-25" name="__codelineno-18-25" href="#__codelineno-18-25"></a>        // Publish fills/rejects for immediate matches
+<a id="__codelineno-18-26" name="__codelineno-18-26" href="#__codelineno-18-26"></a>        for event in events:
+<a id="__codelineno-18-27" name="__codelineno-18-27" href="#__codelineno-18-27"></a>            publish fill/reject messages
+<a id="__codelineno-18-28" name="__codelineno-18-28" href="#__codelineno-18-28"></a>
+<a id="__codelineno-18-29" name="__codelineno-18-29" href="#__codelineno-18-29"></a>        combo.leg_statuses[i] = child.status.value
+<a id="__codelineno-18-30" name="__codelineno-18-30" href="#__codelineno-18-30"></a>        combo.leg_fill_qty[i] = filled amount
+<a id="__codelineno-18-31" name="__codelineno-18-31" href="#__codelineno-18-31"></a>
+<a id="__codelineno-18-32" name="__codelineno-18-32" href="#__codelineno-18-32"></a>    _combos[combo.id] = combo                        O(1)
+<a id="__codelineno-18-33" name="__codelineno-18-33" href="#__codelineno-18-33"></a>    UPDATE_COMBO_STATUS(combo)                       O(L)
+</code></pre></div>
+<h4 id="combo-status-update-after-any-child-event">Combo Status Update (after any child event)<a class="headerlink" href="#combo-status-update-after-any-child-event" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>function CHECK_COMBO_AFTER_CHILD_EVENT(child_order):
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>    combo_id = _order_to_combo[child_order.id]       O(1)
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>    combo    = _combos[combo_id]                     O(1)
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>    idx = child_order.leg_index
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>    combo.leg_statuses[idx] = child_order.status
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a>    combo.leg_fill_qty[idx] = filled amount
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a>    if child_order.status in (CANCELLED, EXPIRED):
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a>        CASCADE_CANCEL(combo, FAILED)                O(L)
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a>        return
+<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a>
+<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a>    UPDATE_COMBO_STATUS(combo)                       O(L)
+<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a>
+<a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a>function UPDATE_COMBO_STATUS(combo):
+<a id="__codelineno-19-16" name="__codelineno-19-16" href="#__codelineno-19-16"></a>    if all leg_statuses == FILLED:                   O(L)
+<a id="__codelineno-19-17" name="__codelineno-19-17" href="#__codelineno-19-17"></a>        combo.status = MATCHED
+<a id="__codelineno-19-18" name="__codelineno-19-18" href="#__codelineno-19-18"></a>        publish combo.status MATCHED
+<a id="__codelineno-19-19" name="__codelineno-19-19" href="#__codelineno-19-19"></a>    elif any leg has PARTIAL or FILLED fill:
+<a id="__codelineno-19-20" name="__codelineno-19-20" href="#__codelineno-19-20"></a>        combo.status = PARTIALLY_MATCHED
+<a id="__codelineno-19-21" name="__codelineno-19-21" href="#__codelineno-19-21"></a>        publish combo.status PARTIALLY_MATCHED
+</code></pre></div>
+<h4 id="cascade-cancel">Cascade Cancel<a class="headerlink" href="#cascade-cancel" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>function CASCADE_CANCEL(combo, terminal_status):
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>    combo.status = terminal_status
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>    for child_id in combo.child_order_ids:           O(L)
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>        symbol = _order_symbol[child_id]             O(1)
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>        book   = books[symbol]                       O(1)
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a>        book.cancel_order(child_id)                  O(1) — tombstone
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>        publish order.cancelled
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a>        remove from _order_symbol, _order_to_combo   O(1)
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a>
+<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a>    publish combo.status
+</code></pre></div>
+<h4 id="combo-event-propagation-flow">Combo Event Propagation Flow<a class="headerlink" href="#combo-event-propagation-flow" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>  ┌─────────────────────────────────────────────────────────────────────┐
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>  │                       MATCHING ENGINE                                │
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>  │                                                                     │
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>  │   incoming order ──► OrderBook.process()                            │
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>  │         │                    │                                       │
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>  │         │              fills/trades                                  │
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a>  │         │                    │                                       │
+<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a>  │         ▼                    ▼                                       │
+<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a>  │   publish fill       was this a combo child?                        │
+<a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a>  │   publish trade       │                                             │
+<a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a>  │                       ├── NO  → done                                │
+<a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a>  │                       └── YES → _check_combo_after_child_event()    │
+<a id="__codelineno-21-13" name="__codelineno-21-13" href="#__codelineno-21-13"></a>  │                                      │                              │
+<a id="__codelineno-21-14" name="__codelineno-21-14" href="#__codelineno-21-14"></a>  │                         ┌────────────┴────────────┐                 │
+<a id="__codelineno-21-15" name="__codelineno-21-15" href="#__codelineno-21-15"></a>  │                         │                         │                 │
+<a id="__codelineno-21-16" name="__codelineno-21-16" href="#__codelineno-21-16"></a>  │                    child FILLED?            child CANCELLED?         │
+<a id="__codelineno-21-17" name="__codelineno-21-17" href="#__codelineno-21-17"></a>  │                         │                         │                 │
+<a id="__codelineno-21-18" name="__codelineno-21-18" href="#__codelineno-21-18"></a>  │                         ▼                         ▼                 │
+<a id="__codelineno-21-19" name="__codelineno-21-19" href="#__codelineno-21-19"></a>  │                  update leg_fill_qty       CASCADE_CANCEL            │
+<a id="__codelineno-21-20" name="__codelineno-21-20" href="#__codelineno-21-20"></a>  │                  update leg_statuses         │                       │
+<a id="__codelineno-21-21" name="__codelineno-21-21" href="#__codelineno-21-21"></a>  │                         │                    ├── cancel siblings     │
+<a id="__codelineno-21-22" name="__codelineno-21-22" href="#__codelineno-21-22"></a>  │                         ▼                    └── publish FAILED      │
+<a id="__codelineno-21-23" name="__codelineno-21-23" href="#__codelineno-21-23"></a>  │                  all legs FILLED?                                    │
+<a id="__codelineno-21-24" name="__codelineno-21-24" href="#__codelineno-21-24"></a>  │                    │          │                                      │
+<a id="__codelineno-21-25" name="__codelineno-21-25" href="#__codelineno-21-25"></a>  │                   YES         NO                                     │
+<a id="__codelineno-21-26" name="__codelineno-21-26" href="#__codelineno-21-26"></a>  │                    │          │                                      │
+<a id="__codelineno-21-27" name="__codelineno-21-27" href="#__codelineno-21-27"></a>  │                    ▼          ▼                                      │
+<a id="__codelineno-21-28" name="__codelineno-21-28" href="#__codelineno-21-28"></a>  │              publish      publish                                    │
+<a id="__codelineno-21-29" name="__codelineno-21-29" href="#__codelineno-21-29"></a>  │              MATCHED    PARTIALLY_MATCHED                            │
+<a id="__codelineno-21-30" name="__codelineno-21-30" href="#__codelineno-21-30"></a>  │                                                                     │
+<a id="__codelineno-21-31" name="__codelineno-21-31" href="#__codelineno-21-31"></a>  └─────────────────────────────────────────────────────────────────────┘
+</code></pre></div>
+<h4 id="combo-time-complexity-summary">Combo Time Complexity Summary<a class="headerlink" href="#combo-time-complexity-summary" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Complexity</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Validate combo</td>
+<td>O(L)</td>
+<td>L = leg count (2–10, bounded constant)</td>
+</tr>
+<tr>
+<td>Create &amp; post all children</td>
+<td>O(L × k log n)</td>
+<td>k matches per leg</td>
+</tr>
+<tr>
+<td>Lookup child→combo parent</td>
+<td>O(1)</td>
+<td><code>_order_to_combo</code> dict</td>
+</tr>
+<tr>
+<td>Update combo status</td>
+<td>O(L)</td>
+<td>Iterate leg_statuses</td>
+</tr>
+<tr>
+<td>Cascade-cancel</td>
+<td>O(L)</td>
+<td>One tombstone per child</td>
+</tr>
+<tr>
+<td>Combo cancel by user</td>
+<td>O(L)</td>
+<td>Lookup by combo_id is O(C) worst-case*</td>
+</tr>
+</tbody>
+</table>
+<p>* User-facing cancel searches <code>_combos</code> by <code>combo_id</code> string (not internal UUID).
+With C active combos, worst-case is O(C).  In practice C is small and could be
+indexed if needed.</p>
+<p>Since L is bounded at 10, all combo-specific operations are effectively <strong>O(1)</strong> in
+big-O terms relative to book size n.</p>
+<h3 id="session-state-machine">Session State Machine<a class="headerlink" href="#session-state-machine" title="Permanent link">&para;</a></h3>
+<p>The engine manages a session state that controls which order types are accepted and
+whether matching occurs.  The scheduler process drives transitions by sending
+<code>session.transition</code> messages.</p>
+<h4 id="states-and-transitions">States and Transitions<a class="headerlink" href="#states-and-transitions" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>   ┌──────────┐         ┌──────────────────┐         ┌────────────┐
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>   │ PRE_OPEN │────────►│ OPENING_AUCTION  │────────►│ CONTINUOUS │
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>   │          │         │                  │         │            │
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>   └──────────┘         └──────────────────┘         └─────┬──────┘
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>        ▲                                                   │
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>        │                                                   ▼
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>   ┌────┴─────┐         ┌──────────────────┐         ┌────────────┐
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>   │  CLOSED  │◄────────│ CLOSING_AUCTION  │◄────────│            │
+<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>   │          │         │                  │         │            │
+<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a>   └──────────┘         └──────────────────┘         └────────────┘
+</code></pre></div>
+<p>Additional valid shortcuts: <code>PRE_OPEN → CONTINUOUS</code>, <code>CONTINUOUS → CLOSED</code>.</p>
+<h4 id="phase-behavior">Phase Behavior<a class="headerlink" href="#phase-behavior" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Matching?</th>
+<th>Accepts</th>
+<th>Rejects</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PRE_OPEN</td>
+<td>No</td>
+<td>LIMIT, STOP, STOP_LIMIT, ICEBERG</td>
+<td>MARKET, FOK, ATO, ATC</td>
+</tr>
+<tr>
+<td>OPENING_AUCTION</td>
+<td>No</td>
+<td>Same as PRE_OPEN + ATO</td>
+<td>MARKET, FOK, ATC</td>
+</tr>
+<tr>
+<td>CONTINUOUS</td>
+<td>Yes</td>
+<td>All types</td>
+<td>ATO, ATC</td>
+</tr>
+<tr>
+<td>CLOSING_AUCTION</td>
+<td>No</td>
+<td>Same as PRE_OPEN + ATC</td>
+<td>MARKET, FOK, ATO</td>
+</tr>
+<tr>
+<td>CLOSED</td>
+<td>—</td>
+<td>Nothing</td>
+<td>All</td>
+</tr>
+</tbody>
+</table>
+<p>During no-matching phases, accepted orders rest on the book but the sweep is never called.
+Stop orders are stored but do not fire (no trades occur to trigger them).</p>
+<h4 id="handling-a-transition">Handling a Transition<a class="headerlink" href="#handling-a-transition" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>function HANDLE_SESSION_TRANSITION(to_state):
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>    if transition not in VALID_TRANSITIONS[current_state]:
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>        log warning, ignore
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>        return
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>    prev_state = current_state
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>    current_state = to_state
+<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>
+<a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a>    // If exiting an auction phase → uncross all books
+<a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a>    if prev_state in (OPENING_AUCTION, CLOSING_AUCTION):
+<a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a>        for each symbol book:
+<a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a>            UNCROSS(book)
+<a id="__codelineno-23-13" name="__codelineno-23-13" href="#__codelineno-23-13"></a>
+<a id="__codelineno-23-14" name="__codelineno-23-14" href="#__codelineno-23-14"></a>    // Expire phase-specific orders
+<a id="__codelineno-23-15" name="__codelineno-23-15" href="#__codelineno-23-15"></a>    if prev_state == OPENING_AUCTION:
+<a id="__codelineno-23-16" name="__codelineno-23-16" href="#__codelineno-23-16"></a>        expire all ATO orders → publish order.expired
+<a id="__codelineno-23-17" name="__codelineno-23-17" href="#__codelineno-23-17"></a>    if prev_state == CLOSING_AUCTION:
+<a id="__codelineno-23-18" name="__codelineno-23-18" href="#__codelineno-23-18"></a>        expire all ATC orders → publish order.expired
+<a id="__codelineno-23-19" name="__codelineno-23-19" href="#__codelineno-23-19"></a>
+<a id="__codelineno-23-20" name="__codelineno-23-20" href="#__codelineno-23-20"></a>    publish session.state { state, prev_state }
+</code></pre></div>
+<h3 id="auction-uncross-algorithm-equilibrium-price">Auction Uncross Algorithm — Equilibrium Price<a class="headerlink" href="#auction-uncross-algorithm-equilibrium-price" title="Permanent link">&para;</a></h3>
+<p>When exiting an auction phase, accumulated orders execute at a <strong>single equilibrium price</strong>.
+This is the price that maximizes total traded quantity.</p>
+<h4 id="algorithm">Algorithm<a class="headerlink" href="#algorithm" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>function UNCROSS(book):
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>    // 1. Collect all candidate prices (every distinct bid and ask price)
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>    candidates = sorted(unique(bid_prices ∪ ask_prices))
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>    best_price    = None
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>    best_exec_qty = 0
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a>    best_surplus  = ∞
+<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>
+<a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a>    // 2. Evaluate each candidate
+<a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a>    for P in candidates:
+<a id="__codelineno-24-11" name="__codelineno-24-11" href="#__codelineno-24-11"></a>        buy_qty  = Σ resting bid qty where bid_price ≥ P
+<a id="__codelineno-24-12" name="__codelineno-24-12" href="#__codelineno-24-12"></a>        sell_qty = Σ resting ask qty where ask_price ≤ P
+<a id="__codelineno-24-13" name="__codelineno-24-13" href="#__codelineno-24-13"></a>        exec_qty = min(buy_qty, sell_qty)
+<a id="__codelineno-24-14" name="__codelineno-24-14" href="#__codelineno-24-14"></a>        surplus  = |buy_qty − sell_qty|
+<a id="__codelineno-24-15" name="__codelineno-24-15" href="#__codelineno-24-15"></a>
+<a id="__codelineno-24-16" name="__codelineno-24-16" href="#__codelineno-24-16"></a>        // 3. Selection: maximize exec_qty, then minimize surplus, then lowest price
+<a id="__codelineno-24-17" name="__codelineno-24-17" href="#__codelineno-24-17"></a>        if exec_qty &gt; best_exec_qty:
+<a id="__codelineno-24-18" name="__codelineno-24-18" href="#__codelineno-24-18"></a>            best_price, best_exec_qty, best_surplus = P, exec_qty, surplus
+<a id="__codelineno-24-19" name="__codelineno-24-19" href="#__codelineno-24-19"></a>        elif exec_qty == best_exec_qty and surplus &lt; best_surplus:
+<a id="__codelineno-24-20" name="__codelineno-24-20" href="#__codelineno-24-20"></a>            best_price, best_exec_qty, best_surplus = P, exec_qty, surplus
+<a id="__codelineno-24-21" name="__codelineno-24-21" href="#__codelineno-24-21"></a>        elif exec_qty == best_exec_qty and surplus == best_surplus and P &lt; best_price:
+<a id="__codelineno-24-22" name="__codelineno-24-22" href="#__codelineno-24-22"></a>            best_price = P
+<a id="__codelineno-24-23" name="__codelineno-24-23" href="#__codelineno-24-23"></a>
+<a id="__codelineno-24-24" name="__codelineno-24-24" href="#__codelineno-24-24"></a>    if best_exec_qty == 0:
+<a id="__codelineno-24-25" name="__codelineno-24-25" href="#__codelineno-24-25"></a>        publish auction.result { eq_price: null, eq_qty: 0 }
+<a id="__codelineno-24-26" name="__codelineno-24-26" href="#__codelineno-24-26"></a>        return
+<a id="__codelineno-24-27" name="__codelineno-24-27" href="#__codelineno-24-27"></a>
+<a id="__codelineno-24-28" name="__codelineno-24-28" href="#__codelineno-24-28"></a>    // 4. Execute: fill orders at equilibrium price using price-time priority
+<a id="__codelineno-24-29" name="__codelineno-24-29" href="#__codelineno-24-29"></a>    remaining = best_exec_qty
+<a id="__codelineno-24-30" name="__codelineno-24-30" href="#__codelineno-24-30"></a>    while remaining &gt; 0:
+<a id="__codelineno-24-31" name="__codelineno-24-31" href="#__codelineno-24-31"></a>        // match best bid against best ask, fill_price = best_price
+<a id="__codelineno-24-32" name="__codelineno-24-32" href="#__codelineno-24-32"></a>        best_bid = PEEK(bids)
+<a id="__codelineno-24-33" name="__codelineno-24-33" href="#__codelineno-24-33"></a>        best_ask = PEEK(asks)
+<a id="__codelineno-24-34" name="__codelineno-24-34" href="#__codelineno-24-34"></a>        fill_qty = min(best_bid.remaining, best_ask.remaining, remaining)
+<a id="__codelineno-24-35" name="__codelineno-24-35" href="#__codelineno-24-35"></a>        APPLY_FILL(best_bid, best_ask, fill_qty, best_price)
+<a id="__codelineno-24-36" name="__codelineno-24-36" href="#__codelineno-24-36"></a>        remaining -= fill_qty
+<a id="__codelineno-24-37" name="__codelineno-24-37" href="#__codelineno-24-37"></a>
+<a id="__codelineno-24-38" name="__codelineno-24-38" href="#__codelineno-24-38"></a>    publish auction.result { eq_price, eq_qty, trades_count, imbalance_side, imbalance_qty }
+</code></pre></div>
+<p><strong>Key difference from continuous matching</strong>: In continuous mode, each fill happens at the
+<strong>resting</strong> order's price (price improvement for the aggressor).  In auction uncross, ALL
+fills happen at the same computed equilibrium price — neither the bid's limit nor the ask's
+limit is used directly.</p>
+<h4 id="complexity">Complexity<a class="headerlink" href="#complexity" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Complexity</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Collect candidates</td>
+<td>O(n)</td>
+<td>Scan all resting orders</td>
+</tr>
+<tr>
+<td>Evaluate all candidates</td>
+<td>O(p × n)</td>
+<td>p prices × n cumulative sums (optimizable to O(n) with prefix sums)</td>
+</tr>
+<tr>
+<td>Execute fills</td>
+<td>O(k log n)</td>
+<td>k fills at equilibrium price</td>
+</tr>
+</tbody>
+</table>
+<p>Where p = distinct price levels, n = total resting orders, k = orders matched.</p>
+<h3 id="gateway-authentication">Gateway Authentication<a class="headerlink" href="#gateway-authentication" title="Permanent link">&para;</a></h3>
+<p>Before a gateway can submit orders, it must authenticate with the engine.
+If the engine has a <code>gateways.alf</code> section in its config, only listed gateway IDs are accepted.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>Gateway                              Engine
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>   │                                    │
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>   │─── system.gateway_connect ────────►│  { gateway_id: &quot;GW01&quot; }
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>   │    (PUSH → PULL)                   │
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>   │                                    │  check config allowlist
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>   │                                    │
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>   │◄── system.gateway_auth.GW01 ──────│  { accepted: true, description: &quot;...&quot; }
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>   │    (PUB → SUB)                     │
+<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a>   │                                    │
+<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a>   │─── order.new ─────────────────────►│  (now allowed)
+<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a>   │                                    │
+</code></pre></div>
+<p>If <code>accepted: false</code>, the gateway prints the rejection reason and exits.
+If no <code>gateways.alf</code> section exists in config, all gateway IDs are auto-accepted
+(backward-compatible mode).</p>
+<p>Orders from gateways that have not completed the auth handshake are rejected with
+reason "Gateway not connected: {GW_ID}".</p>
+<h3 id="engine-event-loop">Engine Event Loop<a class="headerlink" href="#engine-event-loop" title="Permanent link">&para;</a></h3>
+<p>The engine processes messages sequentially in a single thread:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>function RUN():
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>    restore_gtc()          // reload GTC orders + combos from disk
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>    load_config()          // seed stats, inject MM orders
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>    loop:
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>        poll PULL socket (200 ms timeout)
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a>
+<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>        if message available:
+<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a>            topic, payload = decode(message)
+<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a>            dispatch:
+<a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a>                &quot;order.new&quot;              → _handle_new_order(payload)
+<a id="__codelineno-26-12" name="__codelineno-26-12" href="#__codelineno-26-12"></a>                &quot;order.cancel&quot;           → _handle_cancel(payload)
+<a id="__codelineno-26-13" name="__codelineno-26-13" href="#__codelineno-26-13"></a>                &quot;order.combo&quot;            → _handle_combo_order(payload)
+<a id="__codelineno-26-14" name="__codelineno-26-14" href="#__codelineno-26-14"></a>                &quot;order.combo_cancel&quot;     → _handle_combo_cancel(payload)
+<a id="__codelineno-26-15" name="__codelineno-26-15" href="#__codelineno-26-15"></a>                &quot;session.transition&quot;     → _handle_session_transition(payload)
+<a id="__codelineno-26-16" name="__codelineno-26-16" href="#__codelineno-26-16"></a>                &quot;system.gateway_connect&quot; → _handle_gateway_connect(payload)
+<a id="__codelineno-26-17" name="__codelineno-26-17" href="#__codelineno-26-17"></a>                &quot;system.symbols_request&quot; → _handle_symbols_request(payload)
+<a id="__codelineno-26-18" name="__codelineno-26-18" href="#__codelineno-26-18"></a>                &quot;book.snapshot_request&quot;  → _handle_snapshot_request(payload)
+<a id="__codelineno-26-19" name="__codelineno-26-19" href="#__codelineno-26-19"></a>                &quot;order.orders_request&quot;   → _handle_orders_request(payload)
+<a id="__codelineno-26-20" name="__codelineno-26-20" href="#__codelineno-26-20"></a>
+<a id="__codelineno-26-21" name="__codelineno-26-21" href="#__codelineno-26-21"></a>        flush_snapshots()  // publish throttled book images for dirty symbols
+<a id="__codelineno-26-22" name="__codelineno-26-22" href="#__codelineno-26-22"></a>
+<a id="__codelineno-26-23" name="__codelineno-26-23" href="#__codelineno-26-23"></a>        if shutdown requested:
+<a id="__codelineno-26-24" name="__codelineno-26-24" href="#__codelineno-26-24"></a>            _shutdown()    // save GTC, expire DAY, save combos, publish EOD
+<a id="__codelineno-26-25" name="__codelineno-26-25" href="#__codelineno-26-25"></a>            break
+</code></pre></div>
+<p>No locks, no shared memory, no race conditions.  The sequential dispatch guarantees
+that combo status transitions and cascade-cancels are atomic from the system's
+perspective.</p>
+<h2 id="performance-optimizations">Performance Optimizations<a class="headerlink" href="#performance-optimizations" title="Permanent link">&para;</a></h2>
+<p>The matching engine was optimized from <strong>~57,000 orders/second</strong> to <strong>~160,000
+orders/second</strong> — a 2.8× improvement — using only pure-Python changes (no C
+extensions, no Cython, no multiprocessing).  This section explains each technique
+and <em>why</em> it works.</p>
+<h3 id="how-to-read-the-numbers">How to read the numbers<a class="headerlink" href="#how-to-read-the-numbers" title="Permanent link">&para;</a></h3>
+<p>Every number below was measured with the engine running in a single thread,
+processing orders through the full hot path (deserialize → validate → match →
+build messages → publish).  "µs" means microseconds (one millionth of a second).</p>
+<h3 id="__slots__-on-hot-path-classes"><code>__slots__</code> on hot-path classes<a class="headerlink" href="#__slots__-on-hot-path-classes" title="Permanent link">&para;</a></h3>
+<p><strong>What it does:</strong>  By default, Python objects store their attributes in a hidden
+dictionary (<code>__dict__</code>).  When you add <code>__slots__ = ('x', 'y')</code> to a class,
+Python stores attributes in a fixed-size C array instead.</p>
+<p><strong>Why it's faster:</strong></p>
+<ul>
+<li>Attribute access goes from a hash-table lookup (~60–80 ns) to a direct offset
+  lookup (~30 ns) — roughly 2× faster per access.</li>
+<li>Each instance uses ~40% less memory (no per-object dict allocation), which
+  means less work for the garbage collector.</li>
+</ul>
+<p><strong>Where we applied it:</strong></p>
+<ul>
+<li><code>Order</code> (the most common object — one per incoming request)</li>
+<li><code>Trade</code> (one per fill)</li>
+<li><code>_HeapEntry</code> (internal wrapper — thousands live on the book at once)</li>
+<li><code>OrderBook</code> (only a few instances, but accessed on every single order)</li>
+</ul>
+<p><strong>Before/after for a dataclass:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="c1"># Before</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="nd">@dataclass</span>
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">Order</span><span class="p">:</span>
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>    <span class="n">symbol</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>    <span class="o">...</span>
+<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>
+<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a><span class="c1"># After — just add slots=True</span>
+<a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-27-10" name="__codelineno-27-10" href="#__codelineno-27-10"></a><span class="k">class</span><span class="w"> </span><span class="nc">Order</span><span class="p">:</span>
+<a id="__codelineno-27-11" name="__codelineno-27-11" href="#__codelineno-27-11"></a>    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-27-12" name="__codelineno-27-12" href="#__codelineno-27-12"></a>    <span class="n">symbol</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-27-13" name="__codelineno-27-13" href="#__codelineno-27-13"></a>    <span class="o">...</span>
+</code></pre></div>
+<p>For classes that aren't dataclasses (like <code>_HeapEntry</code>), you define it manually:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">_HeapEntry</span><span class="p">:</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;key&#39;</span><span class="p">,</span> <span class="s1">&#39;order&#39;</span><span class="p">,</span> <span class="s1">&#39;valid&#39;</span><span class="p">)</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">valid</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">key</span>   <span class="o">=</span> <span class="n">key</span>
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="n">order</span>
+<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">valid</span> <span class="o">=</span> <span class="n">valid</span>
+</code></pre></div>
+<p><strong>Drawbacks:</strong>  You can no longer add arbitrary attributes at runtime (e.g.
+<code>order.debug_tag = "test"</code> will raise <code>AttributeError</code>).  Multiple inheritance
+becomes tricky — all parent classes must also declare <code>__slots__</code> or you lose
+the benefit.  Adding a new field requires updating the <code>__slots__</code> tuple, which
+is easy to forget.</p>
+<h3 id="fast-enum-lookup-dictionaries">Fast enum lookup dictionaries<a class="headerlink" href="#fast-enum-lookup-dictionaries" title="Permanent link">&para;</a></h3>
+<p><strong>What it does:</strong>  Replaces <code>Side("BUY")</code> with a pre-built dictionary lookup
+<code>_SIDE_MAP["BUY"]</code>.</p>
+<p><strong>Why it's faster:</strong>  Python's <code>Enum(value)</code> constructor iterates through <em>all</em>
+members comparing each string (~600–800 ns).  A dictionary lookup is ~50 ns.
+With 5 enums per order, this saves ~3 µs per deserialization call.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="c1"># Build once at module load time</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="n">_SIDE_MAP</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="o">.</span><span class="n">value</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">Side</span><span class="p">}</span>      <span class="c1"># {&quot;BUY&quot;: Side.BUY, &quot;SELL&quot;: Side.SELL}</span>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="n">_TYPE_MAP</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="o">.</span><span class="n">value</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">OrderType</span><span class="p">}</span>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="c1"># Then in from_dict():</span>
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="n">side</span> <span class="o">=</span> <span class="n">_SIDE_MAP</span><span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;side&quot;</span><span class="p">]]</span>   <span class="c1"># ~50 ns instead of Side(&quot;BUY&quot;) at ~700 ns</span>
+</code></pre></div>
+<p><strong>Drawbacks:</strong>  If you add a new enum member, you must remember that the lookup
+dict was built at import time — it won't automatically include the new member
+unless you rebuild it.  Also, an invalid value like <code>_SIDE_MAP["INVALID"]</code> raises
+a <code>KeyError</code> instead of the more descriptive <code>ValueError</code> that <code>Side("INVALID")</code>
+would give, making debugging slightly harder.</p>
+<h3 id="single-timetime-call-per-order-cached-timestamp">Single <code>time.time()</code> call per order (cached timestamp)<a class="headerlink" href="#single-timetime-call-per-order-cached-timestamp" title="Permanent link">&para;</a></h3>
+<p><strong>What it does:</strong>  Calls <code>time.time()</code> once at the top of the hot path and passes
+the result (<code>now</code>) down to every function that needs a timestamp.</p>
+<p><strong>Why it's faster:</strong>  <code>time.time()</code> is a system call — it crosses from Python into
+the OS kernel and back.  On macOS this costs ~300–500 ns.  A single aggressive
+order that triggers stops could call <code>time.time()</code> 4–6 times.  By caching it,
+we pay the cost exactly once.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_handle_new_order</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">payload</span><span class="p">):</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>    <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>                    <span class="c1"># one syscall</span>
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>    <span class="o">...</span>
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>    <span class="n">trades</span><span class="p">,</span> <span class="n">events</span> <span class="o">=</span> <span class="n">book</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="n">now</span><span class="p">)</span>  <span class="c1"># passed through</span>
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="c1"># Inside the order book:</span>
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">_apply_fill</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aggressor</span><span class="p">,</span> <span class="n">passive</span><span class="p">,</span> <span class="n">qty</span><span class="p">,</span> <span class="n">price</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">):</span>
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>    <span class="n">trade</span> <span class="o">=</span> <span class="n">Trade</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="n">now</span><span class="p">)</span>   <span class="c1"># reuses cached timestamp</span>
+</code></pre></div>
+<p><strong>Drawbacks:</strong>  All fills and stop triggers within the same order share the exact
+same timestamp, even if matching takes a few microseconds.  This means you lose
+sub-microsecond precision for sequencing events within a single order.  It also
+pollutes the function signatures — every internal method now carries an extra
+<code>now</code> parameter, making the code slightly harder to read and test.</p>
+<h3 id="monotonic-integer-trade-ids-replacing-uuid4">Monotonic integer trade IDs (replacing <code>uuid4()</code>)<a class="headerlink" href="#monotonic-integer-trade-ids-replacing-uuid4" title="Permanent link">&para;</a></h3>
+<p><strong>What it does:</strong>  Generates trade IDs as sequential integers (<code>1</code>, <code>2</code>, <code>3</code>, ...)
+instead of random UUIDs.</p>
+<p><strong>Why it's faster:</strong>  <code>uuid.uuid4()</code> reads from <code>/dev/urandom</code> (a kernel call) and
+then formats 128 random bits into a hyphenated string — total cost ~1.5 µs.
+<code>next(counter)</code> is a pure-Python operation costing ~30 ns.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">itertools</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="n">_trade_counter</span> <span class="o">=</span> <span class="n">itertools</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="nd">@classmethod</span>
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
+<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a>    <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="n">_trade_counter</span><span class="p">)),</span> <span class="o">...</span><span class="p">)</span>
+</code></pre></div>
+<blockquote>
+<p>Trade IDs only need to be unique within a single engine session, not globally,
+so a monotonic counter is safe here.</p>
+</blockquote>
+<p><strong>Drawbacks:</strong>  IDs are no longer globally unique — if you restart the engine,
+counter resets to 1 and old trade IDs may collide with new ones.  This makes it
+unsafe to merge trade logs from multiple sessions without adding a session prefix.
+Also, sequential IDs leak information (e.g. competitors can estimate your trade
+volume by observing the ID gap between two of their fills).</p>
+<h3 id="orjson-instead-of-stdlib-json"><code>orjson</code> instead of stdlib <code>json</code><a class="headerlink" href="#orjson-instead-of-stdlib-json" title="Permanent link">&para;</a></h3>
+<p><strong>What it does:</strong>  Replaces <code>json.dumps(payload).encode()</code> with <code>orjson.dumps(payload)</code>.</p>
+<p><strong>Why it's faster:</strong>  <code>orjson</code> is a C-extension JSON serializer that:</p>
+<ul>
+<li>Encodes directly to <code>bytes</code> (no intermediate <code>str</code> → <code>.encode()</code> step)</li>
+<li>Uses SIMD instructions for string escaping</li>
+<li>Is ~9× faster than stdlib json for typical 10-key dictionaries</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Serializer</th>
+<th>Cost per call</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>json.dumps().encode()</code></td>
+<td>~2,100 ns</td>
+</tr>
+<tr>
+<td><code>orjson.dumps()</code></td>
+<td>~230 ns</td>
+</tr>
+</tbody>
+</table>
+<p>With 2–4 messages published per order, this alone saved ~4–7 µs on aggressive
+orders.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">orjson</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_dumps</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span> <span class="k">return</span> <span class="n">orjson</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_dumps</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span> <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+</code></pre></div>
+<p>The fallback ensures the code works in environments where <code>orjson</code> isn't
+installed — it just runs slower.</p>
+<p><strong>Drawbacks:</strong>  Adds a third-party dependency (<code>orjson</code>) that must be installed
+and kept updated.  <code>orjson</code> is stricter than stdlib <code>json</code> — it rejects <code>NaN</code>,
+<code>Infinity</code>, and non-string dict keys that stdlib silently accepts.  If your
+payloads ever contain these edge cases, you'll get a <code>TypeError</code> at runtime.
+The library is also platform-specific (compiled C/Rust), so it may not be
+available on all architectures (e.g. some Alpine Docker images).</p>
+<h3 id="eliminate-redundant-serialization-to_dict-removal">Eliminate redundant serialization (<code>to_dict()</code> removal)<a class="headerlink" href="#eliminate-redundant-serialization-to_dict-removal" title="Permanent link">&para;</a></h3>
+<p><strong>What it does:</strong>  Instead of calling <code>order.to_dict()</code> to build a full 18-key
+dictionary and then passing it to a message function, we build only the keys the
+message actually needs, directly from object attributes.</p>
+<p><strong>Why it's faster:</strong>  <code>to_dict()</code> unconditionally copies all 18 fields and calls
+<code>.value</code> on every enum — cost ~3–4 µs.  The ack message only needs 6 of those
+fields.  Building a minimal dict inline costs ~250 ns.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="c1"># Before — wasteful</span>
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">pub_sock</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span>
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>    <span class="n">make_fill_msg</span><span class="p">(</span><span class="n">evt</span><span class="o">.</span><span class="n">gateway_id</span><span class="p">,</span> <span class="n">evt</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="o">...</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">evt</span><span class="o">.</span><span class="n">to_dict</span><span class="p">())</span>
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="p">)</span>
+<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>
+<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a><span class="c1"># After — only the fields the consumer needs</span>
+<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a><span class="bp">self</span><span class="o">.</span><span class="n">pub_sock</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">([</span>
+<a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a>    <span class="n">fill_topic_bytes</span><span class="p">,</span>
+<a id="__codelineno-33-9" name="__codelineno-33-9" href="#__codelineno-33-9"></a>    <span class="n">_dumps</span><span class="p">({</span>
+<a id="__codelineno-33-10" name="__codelineno-33-10" href="#__codelineno-33-10"></a>        <span class="s2">&quot;order_id&quot;</span><span class="p">:</span> <span class="n">evt</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+<a id="__codelineno-33-11" name="__codelineno-33-11" href="#__codelineno-33-11"></a>        <span class="s2">&quot;fill_qty&quot;</span><span class="p">:</span> <span class="n">evt</span><span class="o">.</span><span class="n">quantity</span> <span class="o">-</span> <span class="n">evt</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">,</span>
+<a id="__codelineno-33-12" name="__codelineno-33-12" href="#__codelineno-33-12"></a>        <span class="s2">&quot;status&quot;</span><span class="p">:</span>   <span class="n">evt</span><span class="o">.</span><span class="n">status</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+<a id="__codelineno-33-13" name="__codelineno-33-13" href="#__codelineno-33-13"></a>        <span class="o">...</span>
+<a id="__codelineno-33-14" name="__codelineno-33-14" href="#__codelineno-33-14"></a>    <span class="p">}),</span>
+<a id="__codelineno-33-15" name="__codelineno-33-15" href="#__codelineno-33-15"></a><span class="p">])</span>
+</code></pre></div>
+<p><strong>Drawbacks:</strong>  The message schema is now implicitly defined at each call site
+instead of in one canonical <code>to_dict()</code> method.  If a downstream consumer adds a
+field requirement, you need to find and update every inline dict that builds that
+message type.  Forgetting one is a subtle bug.  It also makes writing integration
+tests harder — you can't just mock <code>to_dict()</code> and check its output.</p>
+<h3 id="inlined-message-construction">Inlined message construction<a class="headerlink" href="#inlined-message-construction" title="Permanent link">&para;</a></h3>
+<p><strong>What it does:</strong>  Bypasses helper functions like <code>make_ack_msg()</code> and builds the
+two-frame ZMQ message (<code>[topic_bytes, payload_bytes]</code>) directly at the call site.</p>
+<p><strong>Why it's faster:</strong>  Each helper function allocates a dict, conditionally merges
+fields via <code>.update()</code>, then calls <code>encode()</code> which does <em>another</em> function call.
+That's 3 function calls + 2 dict allocations.  Inlining collapses all of that
+into a single dict literal + one <code>orjson.dumps()</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Approach</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>make_ack_msg(...)</code></td>
+<td>~950 ns</td>
+</tr>
+<tr>
+<td>Inlined with <code>_dumps()</code></td>
+<td>~450 ns</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Drawbacks:</strong>  Code duplication — the message format is now repeated at each
+call site instead of living in one helper.  If the message protocol changes
+(e.g. adding a <code>"version"</code> field to all messages), you must update every inline
+construction point.  The engine code also becomes longer and denser, making
+code reviews harder.  For low-frequency messages (rejects, cancels), the savings
+are negligible and the readability cost isn't justified.</p>
+<h3 id="pre-cached-topic-bytes">Pre-cached topic bytes<a class="headerlink" href="#pre-cached-topic-bytes" title="Permanent link">&para;</a></h3>
+<p><strong>What it does:</strong>  ZMQ topic strings like <code>"order.ack.GW01"</code> are the same for every
+message sent to a given gateway.  We encode them once and store the <code>bytes</code> in a
+dictionary, avoiding repeated <code>f"order.ack.{gw}".encode()</code> calls.</p>
+<p><strong>Why it's faster:</strong>  <code>f-string + .encode()</code> costs ~100 ns per call.  With 3–4
+messages per order, that's ~300–400 ns wasted on creating the same bytes.  A dict
+lookup is ~50 ns total.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="c1"># Populate on first use</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_topic_cache</span><span class="p">[</span><span class="n">gw</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;order.ack.</span><span class="si">{</span><span class="n">gw</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="c1"># Hot path</span>
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a><span class="n">topic</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_topic_cache</span><span class="p">[</span><span class="n">gw</span><span class="p">]</span>  <span class="c1"># ~50 ns instead of ~100 ns</span>
+</code></pre></div>
+<p><strong>Drawbacks:</strong>  The cache grows unboundedly — if gateways connect and disconnect
+frequently with unique IDs, the dict accumulates stale entries (a minor memory
+leak).  In practice this is a non-issue since gateway IDs are static, but in a
+general-purpose system you'd want eviction logic.  It also adds a layer of
+indirection that can confuse readers unfamiliar with the pattern.</p>
+<h3 id="local-variable-caching-in-tight-loops">Local variable caching in tight loops<a class="headerlink" href="#local-variable-caching-in-tight-loops" title="Permanent link">&para;</a></h3>
+<p><strong>What it does:</strong>  Before entering the matching loop, we copy frequently-accessed
+object attributes into local variables.</p>
+<p><strong>Why it's faster:</strong>  In CPython, local variable access (<code>LOAD_FAST</code> bytecode) is a
+direct array-index operation (~30 ns).  Attribute access (<code>LOAD_ATTR</code>) involves a
+descriptor lookup even with <code>__slots__</code> (~50–70 ns).  In a loop that runs 5–50
+iterations, this adds up.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_sweep</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aggressor</span><span class="p">,</span> <span class="n">opposite_heap</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>    <span class="c1"># Cache once before the loop</span>
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>    <span class="n">_side</span>       <span class="o">=</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">side</span>         <span class="c1"># LOAD_FAST inside loop</span>
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a>    <span class="n">_smp_action</span> <span class="o">=</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">smp_action</span>
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>    <span class="n">_peek</span>       <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_peek</span>             <span class="c1"># avoid self.__dict__ lookup per iteration</span>
+<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a>
+<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a>    <span class="k">while</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">opposite_heap</span><span class="p">:</span>
+<a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a>        <span class="n">best</span> <span class="o">=</span> <span class="n">_peek</span><span class="p">(</span><span class="n">opposite_heap</span><span class="p">)</span>      <span class="c1"># local call, not self._peek(...)</span>
+<a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a>        <span class="k">if</span> <span class="n">_side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span> <span class="ow">and</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span> <span class="o">&gt;</span> <span class="n">price_limit</span><span class="p">:</span>
+<a id="__codelineno-35-10" name="__codelineno-35-10" href="#__codelineno-35-10"></a>            <span class="k">break</span>
+<a id="__codelineno-35-11" name="__codelineno-35-11" href="#__codelineno-35-11"></a>        <span class="o">...</span>
+</code></pre></div>
+<p><strong>Drawbacks:</strong>  Makes the code less obvious — a reader seeing <code>_peek(heap)</code> has
+to scroll up to understand it's actually <code>self._peek</code>.  If the cached attribute
+is mutable and gets reassigned on <code>self</code> during the loop (unlikely here, but
+possible in other contexts), the local copy becomes stale and introduces bugs.
+Debugging is also harder because inspecting <code>self._peek</code> in a debugger won't
+show the value actually used inside the loop.</p>
+<h3 id="__new__-for-fast-deserialization"><code>__new__</code> for fast deserialization<a class="headerlink" href="#__new__-for-fast-deserialization" title="Permanent link">&para;</a></h3>
+<p><strong>What it does:</strong>  Uses <code>object.__new__(cls)</code> + direct slot writes instead of
+calling the dataclass-generated <code>__init__</code> with 19 keyword arguments.</p>
+<p><strong>Why it's faster:</strong>  CPython's function-call machinery needs to parse and bind
+each keyword argument — with 19 kwargs this alone costs ~400 ns.  <code>__new__</code>
+creates a bare instance in ~80 ns, and then each <code>o.field = value</code> is a simple
+<code>STORE_ATTR</code> (~30 ns with slots).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="nd">@classmethod</span>
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Order&quot;</span><span class="p">:</span>
+<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>    <span class="n">o</span> <span class="o">=</span> <span class="nb">object</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a>    <span class="n">o</span><span class="o">.</span><span class="n">id</span>         <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]</span>
+<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>    <span class="n">o</span><span class="o">.</span><span class="n">symbol</span>     <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;symbol&quot;</span><span class="p">]</span>
+<a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a>    <span class="n">o</span><span class="o">.</span><span class="n">side</span>       <span class="o">=</span> <span class="n">_SIDE_MAP</span><span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;side&quot;</span><span class="p">]]</span>
+<a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a>    <span class="o">...</span>
+<a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a>    <span class="k">return</span> <span class="n">o</span>
+</code></pre></div>
+<p><strong>Drawbacks:</strong>  Completely bypasses <code>__init__</code>, so any validation, default value
+assignment, or <code>__post_init__</code> logic in the dataclass is skipped.  If you later
+add a new field with a default value to the dataclass, <code>from_dict</code> won't
+automatically pick it up — you'll get an <code>AttributeError</code> on first access.
+This pattern also breaks the implicit contract that dataclass instances are
+always fully initialized, which can confuse static analysis tools like mypy.</p>
+<h3 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Technique</th>
+<th>Savings per order</th>
+<th>Applies to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>__slots__</code></td>
+<td>~1.5–2 µs</td>
+<td>All hot-path objects</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Enum lookup dicts</td>
+<td>~3 µs</td>
+<td><code>Order.from_dict()</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Cached timestamp</td>
+<td>~1–2 µs</td>
+<td>Fills + stop triggers</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Monotonic trade IDs</td>
+<td>~1.5 µs</td>
+<td>Every fill</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>orjson</code></td>
+<td>~4–7 µs</td>
+<td>Every published message</td>
+</tr>
+<tr>
+<td>6</td>
+<td>No redundant <code>to_dict()</code></td>
+<td>~3 µs</td>
+<td>Ack + fill messages</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Inlined messages</td>
+<td>~500 ns</td>
+<td>Ack + fill + trade</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Pre-cached topic bytes</td>
+<td>~300 ns</td>
+<td>All messages</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Local var caching</td>
+<td>~200–800 ns</td>
+<td>Sweep loop</td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>__new__</code> deserialization</td>
+<td>~400 ns</td>
+<td><code>Order.from_dict()</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Result:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Before</th>
+<th>After</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Throughput</td>
+<td>57,000 TPS</td>
+<td>160,000 TPS</td>
+<td><strong>+180%</strong></td>
+</tr>
+<tr>
+<td>Median latency</td>
+<td>23.5 µs</td>
+<td>8.5 µs</td>
+<td><strong>−64%</strong></td>
+</tr>
+<tr>
+<td>P90 latency</td>
+<td>25.7 µs</td>
+<td>10.0 µs</td>
+<td><strong>−61%</strong></td>
+</tr>
+</tbody>
+</table>
+<p>All of these improvements are <strong>pure Python</strong> — no C extensions, no multi-threading,
+no unsafe hacks.  The key insight is that in a tight loop, small costs (100 ns here,
+200 ns there) compound rapidly.  At 160,000 orders/second, each order has a budget
+of only <strong>6.25 µs</strong> — every nanosecond matters.</p>
+<h2 id="tick-and-time-representation">Tick And Time Representation<a class="headerlink" href="#tick-and-time-representation" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Internal prices are stored as integer ticks in core engine/model logic.</li>
+<li>Internal timestamps are stored as integer nanoseconds (<code>time_ns</code>).</li>
+<li>Conversion happens at boundaries only:<ul>
+<li>Inbound user/config prices (decimal) -&gt; ticks.</li>
+<li>Outbound UI/messages/reporting values -&gt; decimal prices.</li>
+<li>Outbound display timestamps use seconds derived from ns (<code>ns / 1e9</code>).</li>
+</ul>
+</li>
+<li>Matching, queue priority, auction price selection, and stop logic all operate
+    on integer values to avoid float drift.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+        <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+      
+        <script src="../../javascripts/mermaid-init.js"></script>
+      
+    
+  </body>
+</html>

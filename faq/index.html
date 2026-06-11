@@ -1,0 +1,2122 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A multi-process Python trading system for learning order matching and market microstructure.">
+      
+      
+        <meta name="author" content="Johan Persson <johan162@gmail.com>">
+      
+      
+      
+        <link rel="prev" href="../glossary/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>FAQ - EduMatcher — Educational Trading System</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#faq-common-mistakes" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="EduMatcher — Educational Trading System" class="md-header__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EduMatcher — Educational Trading System
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              FAQ
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="cyan"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../how-exchange-works/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  How an Exchange Works
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../concepts/01-concepts-order-book/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../user-guide/01-configuration/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../architecture/01-architecture/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../developer/01-dev-practice/" class="md-tabs__link">
+          
+  
+  
+  Developer Info
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../glossary/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Glossary
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  FAQ
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="EduMatcher — Educational Trading System" class="md-nav__button md-logo" aria-label="EduMatcher — Educational Trading System" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    EduMatcher — Educational Trading System
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../how-exchange-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How an Exchange Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/01-concepts-order-book/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Order Book Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/03-concepts-mm-quotes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MM Quotes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/04-concepts-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/05-concepts-trading-day/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Full Trading Day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/01-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/02-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Controlling the Exchange
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/03-running-the-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/04-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/05-combos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/06-auctions-scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auctions & Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/07-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/08-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gateway Commands
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/09-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/10-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/11-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/12-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/13-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/20-app-alf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix - ALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/01-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/02-architecture-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Detailed Walkthrough
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Info
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer Info
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../developer/01-dev-practice/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Practice
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../developer/02-ai-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Bot Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../developer/03-experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../developer/04-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FAQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#orders-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Orders &amp; Execution
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Orders &amp; Execution">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-was-my-ioc-order-rejected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why was my IOC order rejected?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-didnt-my-stop-order-trigger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why didn't my STOP order trigger?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-did-my-stop_limit-order-trigger-but-not-fill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why did my STOP_LIMIT order trigger but not fill?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#my-fok-order-was-rejected-even-though-there-was-liquidity-why" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        My FOK order was rejected even though there was liquidity. Why?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-is-my-limit-order-filling-at-a-different-price-than-i-specified" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why is my LIMIT order filling at a different price than I specified?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#i-submitted-a-market-order-but-it-only-partially-filled-where-did-the-rest-go" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        I submitted a MARKET order but it only partially filled. Where did the rest go?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pl-position" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P&amp;L &amp; Position
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="P&amp;L &amp; Position">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-is-my-unrealized-pl-different-from-my-realized-pl" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why is my unrealized P&amp;L different from my realized P&amp;L?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-does-my-average-cost-change-when-i-buy-more-shares" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does my average cost change when I buy more shares?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-do-i-have-a-negative-position" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why do I have a negative position?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sessions-orders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sessions &amp; Orders
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Sessions &amp; Orders">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-happens-to-my-open-orders-when-the-market-closes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What happens to my open orders when the market closes?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#my-gtc-orders-didnt-reload-after-restart-why" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        My GTC orders didn't reload after restart. Why?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-is-my-order-rejected-with-gateway-not-authenticated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why is my order rejected with "Gateway not authenticated"?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#self-match-prevention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Self-Match Prevention
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Self-Match Prevention">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-is-smp-and-why-did-my-order-get-cancelled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is SMP and why did my order get cancelled?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture &amp; Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Architecture &amp; Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-engine-started-but-gateways-cant-connect-whats-wrong" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The engine started but gateways can't connect. What's wrong?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-is-my-viewer-empty-even-though-it-started-correctly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why is my viewer empty even though it started correctly?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-did-pm-scheduler-config-exit-immediately" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why did pm-scheduler --config ... exit immediately?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-doesnt-launch_allsh-work-on-my-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why doesn't ./launch_all.sh work on my machine?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-do-i-need-five-terminal-windows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why do I need five terminal windows?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-do-i-see-what-messages-are-flowing-between-processes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How do I see what messages are flowing between processes?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-does-the-engine-use-integer-ticks-instead-of-float-prices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does the engine use integer ticks instead of float prices?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-were-timestamps-changed-to-nanoseconds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why were timestamps changed to nanoseconds?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#do-i-need-to-clean-persisted-files-for-the-migration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Do I need to clean persisted files for the migration?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="faq-common-mistakes">FAQ &amp; Common Mistakes<a class="headerlink" href="#faq-common-mistakes" title="Permanent link">&para;</a></h1>
+<p>Common questions and gotchas when learning EduMatcher.</p>
+<hr />
+<h2 id="orders-execution">Orders &amp; Execution<a class="headerlink" href="#orders-execution" title="Permanent link">&para;</a></h2>
+<h3 id="why-was-my-ioc-order-rejected">Why was my IOC order rejected?<a class="headerlink" href="#why-was-my-ioc-order-rejected" title="Permanent link">&para;</a></h3>
+<p>IOC (Immediate-Or-Cancel) orders <strong>cannot rest on the book</strong>, so they are
+rejected during any non-matching phase (PRE_OPEN, OPENING_AUCTION,
+CLOSING_AUCTION, CLOSED). IOC is only valid during <code>CONTINUOUS</code> trading.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[GW01] order.ack: accepted=false reason=&quot;IOC rejected outside CONTINUOUS phase&quot;
+</code></pre></div>
+<p><strong>Fix:</strong> The gateway has no <code>SESSION</code> command. Watch the scheduler output,
+run <code>pm-audit --terminal</code>, or use <code>pm-viewer</code> / <code>pm-orders</code> to see
+<code>session.state</code> events, then wait for CONTINUOUS or switch to a <code>LIMIT</code> order
+with <code>TIF=DAY</code> if you're willing to have the order rest.</p>
+<hr />
+<h3 id="why-didnt-my-stop-order-trigger">Why didn't my STOP order trigger?<a class="headerlink" href="#why-didnt-my-stop-order-trigger" title="Permanent link">&para;</a></h3>
+<p>STOP orders only trigger from <strong>last trade price</strong> events. If no trades have
+occurred since you submitted the STOP, the trigger is never evaluated —
+regardless of the current bid/ask quotes.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a># This SELL STOP at 148 won&#39;t fire if no trades have happened yet
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP|QTY=100|STOP=148.00
+</code></pre></div>
+<p><strong>Fix:</strong> Check whether any trades have printed in the engine output (<code>--verbose</code>
+mode) or in the audit log. A stop only becomes relevant once the market is
+actively trading through its trigger level.</p>
+<p>Also check the trigger direction. A <strong>SELL STOP</strong> triggers when <code>last_trade_price &lt;= stop_price</code>.
+If the market is above your stop, it won't fire until price falls <em>to</em> or <em>through</em> it.</p>
+<p>See <a href="../user-guide/04-order-types/#9-stop-trigger-logic">Stop Trigger Logic</a> for full details.</p>
+<hr />
+<h3 id="why-did-my-stop_limit-order-trigger-but-not-fill">Why did my STOP_LIMIT order trigger but not fill?<a class="headerlink" href="#why-did-my-stop_limit-order-trigger-but-not-fill" title="Permanent link">&para;</a></h3>
+<p>This is expected behaviour. When a STOP_LIMIT triggers, it converts to a
+<strong>LIMIT order at your specified <code>PRICE=</code></strong>. If the market has moved past that
+limit price before the converted order can match, it sits on the book unfilled.</p>
+<p><strong>Example:</strong> SELL STOP_LIMIT with <code>STOP=148.00</code> and <code>PRICE=147.50</code>.
+If the market gaps down to $146.00 before the converted limit can fill,
+your order rests at $147.50 — but nobody is bidding that high. You are
+protected from filling at $146.00, but you may not fill at all.</p>
+<p><strong>Tradeoff:</strong> STOP gives fill certainty. STOP_LIMIT gives price certainty.
+Neither gives both.</p>
+<hr />
+<h3 id="my-fok-order-was-rejected-even-though-there-was-liquidity-why">My FOK order was rejected even though there was liquidity. Why?<a class="headerlink" href="#my-fok-order-was-rejected-even-though-there-was-liquidity-why" title="Permanent link">&para;</a></h3>
+<p>FOK checks whether the <strong>entire quantity</strong> can be filled at the limit price
+<em>before</em> executing. It does not execute at all unless the full size is
+available.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a># Book has only 80 shares at 150.00, but you want 100
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=FOK|QTY=100|PRICE=150.00
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a># → REJECTED because 80 &lt; 100
+</code></pre></div>
+<p><strong>Fix:</strong> Reduce <code>QTY</code> to match available liquidity, or use a <code>LIMIT</code> order
+and accept a partial fill.</p>
+<hr />
+<h3 id="why-is-my-limit-order-filling-at-a-different-price-than-i-specified">Why is my LIMIT order filling at a different price than I specified?<a class="headerlink" href="#why-is-my-limit-order-filling-at-a-different-price-than-i-specified" title="Permanent link">&para;</a></h3>
+<p>Your limit price is the <strong>worst</strong> price you'll accept — not necessarily the
+price you'll get. If better prices are available, you fill at those better
+prices.</p>
+<p><strong>Example:</strong> You submit <code>BUY LIMIT QTY=100 PRICE=151.00</code> but the book has asks
+at 149.90 and 150.20. You fill at 149.90 and 150.20 (both better than your
+limit of 151.00), not at 151.00.</p>
+<p>This is called <strong>price improvement</strong> — you get a better deal than the worst
+price you were willing to accept.</p>
+<hr />
+<h3 id="i-submitted-a-market-order-but-it-only-partially-filled-where-did-the-rest-go">I submitted a MARKET order but it only partially filled. Where did the rest go?<a class="headerlink" href="#i-submitted-a-market-order-but-it-only-partially-filled-where-did-the-rest-go" title="Permanent link">&para;</a></h3>
+<p>A MARKET order sweeps the book until it runs out of liquidity. If the book
+does not have enough resting orders to fill the entire quantity, the
+unfilled remainder is <strong>discarded</strong> (not rested). You will receive one or
+more partial fill events, then a cancellation for the remaining quantity.</p>
+<p><strong>Fix:</strong> If you need guaranteed full execution at whatever price, use FOK
+and ensure liquidity is available. If you're comfortable with partial fills,
+MARKET is correct — just understand the remainder is discarded, not queued.</p>
+<hr />
+<h2 id="pl-position">P&amp;L &amp; Position<a class="headerlink" href="#pl-position" title="Permanent link">&para;</a></h2>
+<h3 id="why-is-my-unrealized-pl-different-from-my-realized-pl">Why is my unrealized P&amp;L different from my realized P&amp;L?<a class="headerlink" href="#why-is-my-unrealized-pl-different-from-my-realized-pl" title="Permanent link">&para;</a></h3>
+<p>They measure different things:</p>
+<ul>
+<li><strong>Unrealized P&amp;L</strong>: paper gain/loss on shares you still hold, calculated as
+  <code>(current_price - avg_cost) × position</code>. This changes every time a trade
+  prints and updates the last trade price.</li>
+<li><strong>Realized P&amp;L</strong>: profit/loss locked in when you <em>closed</em> part of your
+  position (sold shares you were long, or bought back a short). This never
+  changes after the trade.</li>
+</ul>
+<p>Until you close your position, your gains are "on paper" — the market can
+take them back. Once realized, they are yours regardless of subsequent
+price moves.</p>
+<hr />
+<h3 id="why-does-my-average-cost-change-when-i-buy-more-shares">Why does my average cost change when I buy more shares?<a class="headerlink" href="#why-does-my-average-cost-change-when-i-buy-more-shares" title="Permanent link">&para;</a></h3>
+<p>When you add to an existing position, your <strong>VWAP average cost</strong> updates to
+reflect the new shares at the new price. This is standard practice for
+tracking the true cost basis of a position built over multiple trades.</p>
+<p><strong>Example:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Buy 100 shares @ 150.00  →  avg_cost = 150.00
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Buy 100 shares @ 152.00  →  avg_cost = (150 × 100 + 152 × 100) / 200 = 151.00
+</code></pre></div></p>
+<p>See <a href="../user-guide/07-pnl-clearing/#vwap-average-cost">P&amp;L &amp; Clearing — VWAP Average Cost</a>.</p>
+<hr />
+<h3 id="why-do-i-have-a-negative-position">Why do I have a negative position?<a class="headerlink" href="#why-do-i-have-a-negative-position" title="Permanent link">&para;</a></h3>
+<p>A negative position means you are <strong>short</strong> — you have sold shares you did not
+own. This can happen if you submit a SELL order without first having bought any
+shares. In a real brokerage this requires a margin account and stock borrowing;
+EduMatcher does not enforce these constraints, so short positions are allowed
+freely.</p>
+<hr />
+<h2 id="sessions-orders">Sessions &amp; Orders<a class="headerlink" href="#sessions-orders" title="Permanent link">&para;</a></h2>
+<h3 id="what-happens-to-my-open-orders-when-the-market-closes">What happens to my open orders when the market closes?<a class="headerlink" href="#what-happens-to-my-open-orders-when-the-market-closes" title="Permanent link">&para;</a></h3>
+<p>It depends on their time-in-force:</p>
+<table>
+<thead>
+<tr>
+<th>TIF</th>
+<th>At market close</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DAY</code></td>
+<td>Expired and removed. You receive <code>order.expired</code> events.</td>
+</tr>
+<tr>
+<td><code>GTC</code></td>
+<td>Saved to <code>data/gtc_orders.json</code> and reloaded on next engine start.</td>
+</tr>
+<tr>
+<td><code>ATO</code></td>
+<td>Expired when OPENING_AUCTION phase ends.</td>
+</tr>
+<tr>
+<td><code>ATC</code></td>
+<td>Expired when CLOSING_AUCTION phase ends.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="my-gtc-orders-didnt-reload-after-restart-why">My GTC orders didn't reload after restart. Why?<a class="headerlink" href="#my-gtc-orders-didnt-reload-after-restart-why" title="Permanent link">&para;</a></h3>
+<p>GTC orders are written to <code>data/gtc_orders.json</code> <strong>on engine shutdown</strong> (when
+you press Ctrl-C or the scheduler sends a CLOSED transition). If the engine was
+killed forcefully (<code>kill -9</code> or a crash), the file was not written.</p>
+<p><strong>Fix:</strong> Check whether <code>data/gtc_orders.json</code> exists and has recent content.
+If the engine was killed mid-session, the file may be stale or missing.</p>
+<hr />
+<h3 id="why-is-my-order-rejected-with-gateway-not-authenticated">Why is my order rejected with "Gateway not authenticated"?<a class="headerlink" href="#why-is-my-order-rejected-with-gateway-not-authenticated" title="Permanent link">&para;</a></h3>
+<p>Your gateway ID is not in the engine's allowlist. Gateway IDs must be
+pre-configured in <code>engine_config.yaml</code> under <code>gateways.alf</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">gateways</span><span class="p">:</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span><span class="nt">alf</span><span class="p">:</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW01</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">          </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">My first trader</span>
+</code></pre></div>
+<p>Restart the engine after editing the config.</p>
+<hr />
+<h2 id="self-match-prevention">Self-Match Prevention<a class="headerlink" href="#self-match-prevention" title="Permanent link">&para;</a></h2>
+<h3 id="what-is-smp-and-why-did-my-order-get-cancelled">What is SMP and why did my order get cancelled?<a class="headerlink" href="#what-is-smp-and-why-did-my-order-get-cancelled" title="Permanent link">&para;</a></h3>
+<p><strong>Self Match Prevention (SMP)</strong> stops you from accidentally trading against
+your own resting orders. If you submit a buy that would match a sell you
+already have on the same book, SMP kicks in.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a># Submit a buy that would cross with your own resting sell
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=151.00|SMP=CANCEL_AGGRESSOR
+</code></pre></div>
+<p>With <code>SMP=CANCEL_AGGRESSOR</code>, the incoming buy is cancelled instead of
+filling against your own sell. Options:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NONE</code></td>
+<td>No SMP — you can trade against yourself</td>
+</tr>
+<tr>
+<td><code>CANCEL_AGGRESSOR</code></td>
+<td>The incoming order is cancelled</td>
+</tr>
+<tr>
+<td><code>CANCEL_RESTING</code></td>
+<td>The resting order is cancelled</td>
+</tr>
+<tr>
+<td><code>CANCEL_BOTH</code></td>
+<td>Both orders are cancelled</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="architecture-setup">Architecture &amp; Setup<a class="headerlink" href="#architecture-setup" title="Permanent link">&para;</a></h2>
+<h3 id="the-engine-started-but-gateways-cant-connect-whats-wrong">The engine started but gateways can't connect. What's wrong?<a class="headerlink" href="#the-engine-started-but-gateways-cant-connect-whats-wrong" title="Permanent link">&para;</a></h3>
+<p>Check that:
+1. The engine is running <em>before</em> the gateways try to connect.
+2. ZMQ ports 5555 and 5556 are not blocked by a firewall or in use by another
+    process: <code>lsof -i :5555 -i :5556</code>
+3. The gateway ID exists in <code>engine_config.yaml</code>.</p>
+<p>If the engine is down or unreachable, <code>pm-gateway</code> exits after about three
+seconds with <code>Gateway authentication timed out</code>.</p>
+<hr />
+<h3 id="why-is-my-viewer-empty-even-though-it-started-correctly">Why is my viewer empty even though it started correctly?<a class="headerlink" href="#why-is-my-viewer-empty-even-though-it-started-correctly" title="Permanent link">&para;</a></h3>
+<p>An empty viewer usually means the symbol has no resting orders yet. <code>pm-viewer</code>
+subscribes to <code>book.&lt;SYMBOL&gt;</code> and then requests an initial snapshot, but if the
+book is empty the snapshot is also empty.</p>
+<p><strong>Fix:</strong> Submit a resting order, enable market-maker quote seeds for that
+symbol, or verify that you are watching a configured symbol.</p>
+<hr />
+<h3 id="why-did-pm-scheduler-config-exit-immediately">Why did <code>pm-scheduler --config ...</code> exit immediately?<a class="headerlink" href="#why-did-pm-scheduler-config-exit-immediately" title="Permanent link">&para;</a></h3>
+<p>An explicit <code>--config</code> path is treated strictly. If the file does not exist,
+the scheduler exits with a fatal error instead of silently falling back.</p>
+<p>If you omit <code>--config</code>, the scheduler uses <code>engine_config.yaml</code> when present and
+otherwise falls back to its built-in default times.</p>
+<hr />
+<h3 id="why-doesnt-launch_allsh-work-on-my-machine">Why doesn't <code>./launch_all.sh</code> work on my machine?<a class="headerlink" href="#why-doesnt-launch_allsh-work-on-my-machine" title="Permanent link">&para;</a></h3>
+<p><code>launch_all.sh</code> is macOS-specific. It uses <code>osascript</code> to open Terminal windows,
+so it does not behave like a generic Linux or Windows launcher.</p>
+<p>Use the manual process commands from the home page if you are not on macOS.</p>
+<hr />
+<h3 id="why-do-i-need-five-terminal-windows">Why do I need five terminal windows?<a class="headerlink" href="#why-do-i-need-five-terminal-windows" title="Permanent link">&para;</a></h3>
+<p>Each process is an independent OS process communicating over ZeroMQ. They
+cannot run inside a single terminal because each blocks on its own event loop.
+For convenience, use the provided <code>./launch_all.sh</code> script which starts
+the standard setup in separate Terminal windows on macOS.</p>
+<hr />
+<h3 id="how-do-i-see-what-messages-are-flowing-between-processes">How do I see what messages are flowing between processes?<a class="headerlink" href="#how-do-i-see-what-messages-are-flowing-between-processes" title="Permanent link">&para;</a></h3>
+<p>Run <code>pm-audit --terminal</code> in a separate window. It subscribes to <strong>all</strong>
+ZeroMQ messages and prints them to stdout, giving a full real-time trace of
+every event in the system.</p>
+<hr />
+<h3 id="why-does-the-engine-use-integer-ticks-instead-of-float-prices">Why does the engine use integer ticks instead of float prices?<a class="headerlink" href="#why-does-the-engine-use-integer-ticks-instead-of-float-prices" title="Permanent link">&para;</a></h3>
+<p>Float arithmetic can introduce tiny representation errors in comparisons and
+aggregation. Using integer ticks makes price-time matching and level math exact.</p>
+<h3 id="why-were-timestamps-changed-to-nanoseconds">Why were timestamps changed to nanoseconds?<a class="headerlink" href="#why-were-timestamps-changed-to-nanoseconds" title="Permanent link">&para;</a></h3>
+<p>Nanosecond integer timestamps improve event ordering precision and avoid
+float-second precision loss at high message rates.</p>
+<h3 id="do-i-need-to-clean-persisted-files-for-the-migration">Do I need to clean persisted files for the migration?<a class="headerlink" href="#do-i-need-to-clean-persisted-files-for-the-migration" title="Permanent link">&para;</a></h3>
+<p>Yes, for the no-backward-compatibility cutover remove:</p>
+<ul>
+<li><code>data/gtc_orders.json</code></li>
+<li><code>data/book_stats.json</code></li>
+<li><code>data/gtc_combos.json</code></li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "toc.integrate", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+        <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+      
+        <script src="../javascripts/mermaid-init.js"></script>
+      
+    
+  </body>
+</html>
