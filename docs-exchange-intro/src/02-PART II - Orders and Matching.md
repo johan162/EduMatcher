@@ -806,16 +806,16 @@ In a typical implementation a fill-counter function tracks fills against the rol
 
 ## The Full Lifecycle of a Market Maker Quote
 
-```mermaid
+```{.mermaid width=350}
 flowchart TD
-    A["**1. Submit two-sided quote**\nBid and ask resting in the book"]
-    B["**2. Quote rests**\nParticipants may trade against either leg"]
-    C["**3. Fill event occurs**\nOne leg hit by an aggressive order"]
-    D["**4. Refresh policy fires**\nSurviving leg cancelled or left active"]
-    E{"**5. MMP check**\nNth fill in rolling window?"}
-    F["**6. Re-quoting window starts**\nExchange tracks deadline for fresh quote"]
-    G["**MMP fires**\nAll quotes cancelled, protection period"]
-    H["**7. Fresh quote submitted**\nNew bid and ask at updated prices"]
+    A["1. Submit two-sided quote\nBid and ask resting in the book"]
+    B["2. Quote rests\nParticipants may trade against either leg"]
+    C["3. Fill event occurs\nOne leg hit by an aggressive order"]
+    D["4. Refresh policy fires\nSurviving leg cancelled or left active"]
+    E{"5. MMP check\nNth fill in rolling window?"}
+    F["6. Re-quoting window starts\nExchange tracks deadline for fresh quote"]
+    G["MMP fires\nAll quotes cancelled, protection period"]
+    H["7. Fresh quote submitted\nNew bid and ask at updated prices"]
 
     A --> B --> C --> D --> E
     E -- No --> F
@@ -929,7 +929,7 @@ After the formal close, several important processes run:
 
 A well-designed exchange system models these transitions as a **state machine**, a finite set of states with explicit rules about which transitions are allowed. You cannot jump from PRE_OPEN directly to CLOSED without going through OPENING_AUCTION and CONTINUOUS. This prevents bugs where the engine enters an impossible state due to a software error or out-of-order messages. If the transition is not in the allowed list, the system rejects it.
 
-```mermaid
+```{.mermaid width=600}
 stateDiagram-v2
     direction TB
     [*] --> PRE_OPEN
@@ -994,7 +994,7 @@ In this single scenario, we used: limit orders, GTC orders, iceberg orders, fill
 
 The message flow between components in steps 1–10 can be visualised as follows:
 
-```mermaid
+```{.mermaid width=600}
 sequenceDiagram
     participant INV as Institutional Investor
     participant GW3 as Gateway GW03

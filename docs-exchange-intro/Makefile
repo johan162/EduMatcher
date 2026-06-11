@@ -7,7 +7,7 @@ NODE_MODULES_PATH := node_modules
 MERMAID_FILTER := node_modules/.bin/mermaid-filter
 PUPPETER_EXECUTABLE_PATH ?= /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
 MERMAID_FILTER_FORMAT ?= pdf
-MERMAID_FILTER_WIDTH ?= 380
+MERMAID_FILTER_WIDTH ?= 600
 
 .PHONY: pdfs _pdf-docs help clean
 

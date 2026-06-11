@@ -146,7 +146,7 @@ Who would invest in a company's IPO if they knew they could never sell their sha
 
 The stock exchange, the subject of this entire document, is the infrastructure that makes this cycle turn.
 
-```mermaid
+```{.mermaid width=400}
 flowchart TD
     CO["🏢 Company"]
     PM["Primary Market\nIPO / follow-on offering\nCompany receives cash"]
