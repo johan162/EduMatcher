@@ -493,7 +493,7 @@ VERSION_NUMBER=${LATEST_TAG#v}
 
 # Strip the '-' from the version for pre-releases
 FILE_VERSION_NUMBER=${VERSION_NUMBER//-rc/rc}
-EXPECTED_USER_GUIDE_BUNDLE_ZIP="${DIST_DIR}/${PROGRAMNAME}_user_guide_bundle-${FILE_VERSION_NUMBER}.zip"
+EXPECTED_USER_GUIDE_BUNDLE_ZIP="${DIST_DIR}/${PROGRAMNAME}_user-guide-bundle-${FILE_VERSION_NUMBER}.zip"
 
 # 4.4: Fail fast if required release artifacts are missing
 print_sub_step "Checking required release artifacts..."
@@ -503,6 +503,15 @@ if [[ ! -f "$EXPECTED_USER_GUIDE_BUNDLE_ZIP" ]]; then
     exit 1
 fi
 print_success "Required artifacts found: $(basename "$EXPECTED_USER_GUIDE_BUNDLE_ZIP")"
+
+EXCHANGE_INTRO_BUNDLE_ZIP="${DIST_DIR}/exchange-intro-bundle.zip"
+if [[ ! -f "$EXCHANGE_INTRO_BUNDLE_ZIP" ]]; then
+    print_error "Exchange Intro bundle not found: $EXCHANGE_INTRO_BUNDLE_ZIP"
+    exit 1
+else
+    print_success "Found Exchange Intro bundle: $(basename "$EXCHANGE_INTRO_BUNDLE_ZIP")"
+fi
+
 
 # 4.5: Find expected artifacts
 print_sub_step "Locating artifacts with version $FILE_VERSION_NUMBER..."
@@ -601,7 +610,8 @@ GH_RELEASE_CMD="gh release create \"$LATEST_TAG\" \
     --notes-file \"$RELEASE_NOTES_FILE\" \
     \"$WHEEL_FILE\" \
     \"$SDIST_FILE\" \
-    \"$USER_GUIDE_BUNDLE_ZIP\""
+    \"$USER_GUIDE_BUNDLE_ZIP\" \
+    \"$EXCHANGE_INTRO_BUNDLE_ZIP\""
 
 if [[ "$IS_PRE_RELEASE" == "true" ]]; then
     GH_RELEASE_CMD="$GH_RELEASE_CMD --prerelease"
