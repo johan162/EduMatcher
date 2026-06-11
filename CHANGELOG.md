@@ -1,3 +1,15 @@
+## [v0.1.1] - 2026-06-11
+
+Release Type: patch
+
+📋 Summary
+This patch release hardens the first-time release workflow after the initial public launch. It focuses on branch initialization and merge-path clarity so releases from develop to main complete predictably.
+
+🛠 Internal
+- Improved release script messaging around preconditions for squash merges
+- Updated release process checks to surface branch-state issues earlier
+
+
 ## [v0.1.0] - 2026-06-11
 
 Release Type: minor
