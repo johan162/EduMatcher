@@ -1,4 +1,6 @@
-# How a Financial Exchange Works
+
+
+## How a Financial Exchange Works
 
 **A Conceptual Introduction for Software Developers**
 
@@ -6,23 +8,37 @@
 
 
 
-## Preface
+### Preface
 
-You have been asked to work on a financial exchange system. The codebase is full of words like "bid," "ask," "FOK," "the book," "OCO," "circuit breaker," "drop copy," and "kill switch," and many more. These are not arbitrary names, each one represents a concept that evolved over decades of real-world market operation, regulation, and hard-won lessons about what can go wrong when large amounts of money change hands at high speed.
+This is a book for anyone who find themselves having been asked to work on a financial exchange system, and yet, has no financial background. Scary. The codebase is full of words like "bid," "ask," "FOK," "the book," "OCO," "circuit breaker," "drop copy," and "kill switch," and many more. These are not arbitrary names, each one represents a concept that evolved over decades of real-world market operation, regulation, and hard-won lessons about what can go wrong when large amounts of money change hands at high speed. You just happened be "unlucky" enough to start when all these terms have already been defined. Had you instead started 50:ish years ago all the terms did not yet exist and you would instead had seen them come to live organically.
 
-This document is a conceptual map. It will not show you a single line of code. Instead, it will walk you through the world your code inhabits: the participants, the rules, the safeguards, and the architecture that together constitute a financial exchange. By the end, you should be able to read a description of a market event, "GW01 submitted a GTC iceberg order that triggered a circuit breaker halt; the matching engine moved to CLOSING_AUCTION state and the scheduler notified all subscribers via the PUB socket", and understand every word of it.
+This document is a conceptual map. It will not, on purpose, show you a single line of code. Instead, it will walk you through the world your code inhabits: the participants, the rules, the safeguards, and the architecture that together constitute the outlines of a financial exchange. By the end, you should be able to read a description of a market event, "GW01 submitted a GTC iceberg order that triggered a circuit breaker halt; the matching engine moved to CLOSING_AUCTION state and the scheduler notified all subscribers via the PUB socket", and understand every word of it.
 
-By necessity most of the concepts are only very briefly discussed. Any fuller discussion would render hundreds of pages of hard-core finance literature and the point of this document is not to be a complete introduction to finance (if even such a thing is possible). Instead you will find excellent academic references (that I have drawn upon in writing this) that do indeed have hundreds of pages of, sometimes very complex math, at the end of this document.
+By necessity most of the concepts are only very briefly discussed. Any fuller discussion would render 100's of pages of hard-core finance literature and the point of this document is not to be a complete introduction to finance (if even such a thing is possible). Instead you will find excellent academic references (that I have drawn upon in writing this) that do indeed have 100's of pages of, sometimes very complex math, at the end of this document.
 
 Real exchanges are referenced throughout to anchor the concepts in reality. The NYSE (New York Stock Exchange), CME Group (Chicago Mercantile Exchange), Eurex, LSE (London Stock Exchange), NASDAQ, and IEX are among the most influential exchanges in the world, and each has contributed to the vocabulary and practices you will encounter here. 
 
-*This document is a conceptual introduction to financial exchange systems for software developers. The concepts described here apply equally to production exchange systems at NYSE, NASDAQ, CME, Eurex, LSE, and any other regulated marketplace. The regulations, market structures, and specific rules of real exchanges are more complex than described here, this document is an introduction, not a complete specification. When in doubt, consult the official rulebooks of the relevant exchange.*
+In other words, this document is an introduction to financial exchange systems aimed at persons with no prior professional financial background that will need to understands these concepts, on occasions even on a very detailed level. The concepts described here apply equally to production exchange systems at NYSE, NASDAQ, CME, Eurex, LSE, and any other regulated marketplace. The regulations, market structures, and specific rules of real exchanges are often much more complex than described here, this document is only an introduction, not a complete specification. When in doubt, consult the official rulebooks of the relevant exchange.
 
 
-## Table of Contents
+Johan Persson,
+July 2026, Järnboås, Bergslagen
+
+
+### Table of Contents
 
 **Part I: Foundation — Markets, History, and Participants**
 
+**Part Summary:**
+Build the conceptual base: why exchanges exist, how capital formation connects to secondary trading, how market language evolved, and who the key participants are in modern venues.
+
+**Learning Objectives:**
+- Explain the economic purpose of exchanges in the broader capital-raising cycle.
+- Distinguish primary vs secondary markets and debt vs equity at a practical level.
+- Use core market vocabulary confidently in historical and modern context.
+- Identify major participant types and their incentives in real-world exchange ecosystems.
+
+**Content:**
 - Before the Exchange: How Companies Raise Capital
 - What Is a Financial Exchange, and Why Does It Exist?
 - The Language of the Market: A Short History
@@ -31,6 +47,16 @@ Real exchanges are referenced throughout to anchor the concepts in reality. The 
 
 **Part II: Orders, Matching, and the Trading Day**
 
+**Part Summary:**
+Move from concepts to mechanics: how participant intent is encoded in order types, how matching logic enforces fairness, and how the trading session progresses from open through close.
+
+**Learning Objectives:**
+- Read an order ticket and understand each field's execution implications.
+- Compare major order types and time-in-force instructions by risk and behavior.
+- Trace how price-time priority and order book state changes produce trades.
+- Describe the end-to-end lifecycle of a trade across a full trading day.
+
+**Content:**
 - The Order: The Fundamental Unit
 - Order Types, The Vocabulary of Intent
 - Time-In-Force, How Long Should the Order Live?
@@ -45,6 +71,16 @@ Real exchanges are referenced throughout to anchor the concepts in reality. The 
 
 **Part III: Risk, Compliance, and Post-Trade**
 
+**Part Summary:**
+Focus on market safety and accountability: the controls that prevent bad orders, the mechanisms that stabilize volatility, and the post-trade processes that make executed trades legally and financially final.
+
+**Learning Objectives:**
+- Explain why pre-trade controls are separated from matching in production architectures.
+- Understand circuit breakers, collars, SMP, and kill switches as layered protections.
+- Distinguish routine order-management actions from emergency risk interventions.
+- Follow the trade path beyond execution into clearing, settlement, and surveillance.
+
+**Content:**
 - Pre-Trade Risk Controls: Before the Matching Engine
 - Risk Controls, Protecting the Market
 - Self-Match Prevention, When You Would Trade with Yourself
@@ -55,9 +91,18 @@ Real exchanges are referenced throughout to anchor the concepts in reality. The 
 
 **Part IV: Technology, Infrastructure, and Market Ecology**
 
+**Part Summary:**
+Examine the engineering reality of exchanges at scale: deterministic engines, messaging and market-data distribution, resilience patterns, and the fragmented multi-venue environment where routing and latency shape outcomes.
+
+**Learning Objectives:**
+- Understand the roles of gateways, matching engines, buses, and subscribers.
+- Evaluate resilience strategies such as replication, failover, and site architecture.
+- Explain how market data sequencing, replay, and snapshots preserve correctness.
+- Relate routing, venue fragmentation, and latency design to execution quality.
+
+**Content:**
 - Speed Bumps, Leveling the Playing Field
 - The Technology Architecture
-- Exchange Connectivity Protocols, How Orders and Data Reach the Exchange
 - Primary and Secondary Sites, Resilience Architecture
 - Load Balancing, Distributing the Work
 - Market Data Architecture, How the Market Sees Itself
@@ -73,27 +118,53 @@ Real exchanges are referenced throughout to anchor the concepts in reality. The 
 
 ## Part I: Foundation — Markets, History, and Participants
 
-Context, vocabulary, and the people that define exchange markets — the foundation you need before the mechanics make sense.
+*Context, vocabulary, and the people that define exchange markets — the foundation you need before the mechanics make sense.*
+
+---
+
+In 1609, a Dutch merchant named Isaac Le Maire organised a consortium of traders to sell shares in the Dutch East India Company (VOC) that they did not yet own. The plan was to drive down the price and buy the shares back cheaply before delivery, the first recorded large-scale short selling operation in financial history. The scheme was brazen enough that the Amsterdam city council attempted to ban short selling the following year. The ban failed. Le Maire was undaunted: he had grasped something fundamental about financial markets that would take regulators centuries to fully accept. Markets are not just places where things are bought and sold. They are environments in which participants constantly probe the rules, exploit information asymmetries, and invent instruments to express views that the market has never had to handle before. The job of exchange infrastructure — the order books, the matching engines, the risk controls, and the audit trails, is to provide a fair, stable, and trustworthy arena for all of this to happen, without breaking when the participants are clever, aggressive, or occasionally reckless.
+
+Every section of this Part can be traced, directly or indirectly, back to what was happening in Amsterdam in 1602 when the VOC issued the world's first publicly traded shares. The primary market, the secondary market, the concept of equity, the vocabulary of long and short, the role of brokers, the need for a central marketplace — it was all there, in embryonic form, four centuries ago. Part I builds that foundation.
+
+**Part Summary:**
+
+Build the conceptual base: why exchanges exist, how capital formation connects to secondary trading, how market language evolved, and who the key participants are in modern venues.
+
+**Learning Objectives:**
+
+- Explain the economic purpose of exchanges in the broader capital-raising cycle.
+- Distinguish primary vs secondary markets and debt vs equity at a practical level.
+- Use core market vocabulary confidently in historical and modern context.
+- Identify major participant types and their incentives in real-world exchange ecosystems.
+
+**Content:**
+
+- Before the Exchange: How Companies Raise Capital
+- What Is a Financial Exchange, and Why Does It Exist?
+- The Language of the Market: A Short History
+- The Participants
+- A Brief Tour of Real-World Exchanges
 
 
-### Before the Exchange: How Companies Raise Capital
+
+## Before the Exchange: How Companies Raise Capital
 
 
 To understand why a financial exchange exists, you first need to understand why anyone bothers issuing shares in the first place. This section is a brief detour into basic corporate finance, the world your exchange is built to serve.
 
-#### The Problem of Growth
+### The Problem of Growth
 
 Imagine a small software company. It has a product, a team, and paying customers, but it wants to grow: hire more engineers, open offices in new countries, and invest in research that will take three years to generate revenue. All of that costs money, far more money than the company currently earns in a month or a quarter.
 
 Where does that money come from? There are three broad categories of answer, and real companies use all three at different stages of their lives.
 
-#### Option 1: Retained Earnings (Self-Funding)
+### Option 1: Retained Earnings (Self-Funding)
 
 The simplest source of capital is the company's own profits. If the company earns more than it spends, it can save that surplus and invest it in growth. This is called **retained earnings**, profits "retained" in the business rather than distributed to owners.
 
 Self-funding is attractive because it involves no outside parties and no obligations. The problem is that it is slow. If the opportunity is time-sensitive, a competitor is building the same product, or a market window is closing, waiting years to accumulate enough internal cash may mean losing the race. Most high-growth opportunities require more capital, faster, than retained earnings can provide.
 
-#### Option 2: Debt, Loans and Bonds
+### Option 2: Debt, Loans and Bonds
 
 The second option is to borrow money. Borrowed money must be repaid, with interest [3]. The cost of borrowing (the interest rate) depends on how creditworthy the borrower is: established, profitable companies with predictable revenues can borrow cheaply; young, risky startups may not be able to borrow at all, or only at very high interest rates.
 
@@ -105,7 +176,7 @@ A large company might issue millions of these bonds simultaneously, raising hund
 
 **The key characteristic of debt:** the company has an unconditional obligation to make the promised payments. If it cannot, it is in default, which can lead to bankruptcy proceedings. Bondholders are **creditors**: they have a legal claim against the company's assets. In a bankruptcy, creditors get paid before the company's owners.
 
-#### Option 3: Equity, Selling Ownership
+### Option 3: Equity, Selling Ownership
 
 The third option is fundamentally different in character: instead of borrowing money and promising to repay it, the company sells a piece of itself.
 
@@ -123,13 +194,21 @@ Here is the important distinction from debt: **there is no promise of repayment*
 
 - **Limited liability:** If the company goes bankrupt, shareholders can lose the money they invested, but nothing more. They are not personally liable for the company's debts. This protection ("limited liability") is a fundamental feature of the modern corporation and one reason equity investment became widespread.
 
+- **Market capitalisation (market cap):** The total market value of all a company's outstanding shares, calculated as share price multiplied by the total number of shares in existence. If Apple has approximately 15.4 billion shares outstanding and each trades at $190, Apple's market cap is roughly $2.9 trillion [1]. Market cap is the most widely used shorthand for a company's size. When rankings refer to "the world's largest exchange by listed market cap," they are summing the market caps of every company listed there.
+
 **What does ownership mean for the company?**
 
 Issuing equity capital has an important advantage over debt: the company is not obligated to make regular payments, and there is no maturity date on which it must repay anything. This flexibility is why many high-growth companies prefer equity, they can invest in long-term projects without the burden of fixed interest payments.
 
 The trade-off is **dilution**: selling shares means selling a portion of the company. The founders and early investors own a smaller fraction of the whole. If a founder owned 100% of a company worth $1 million and raises $250,000 by selling a 20% stake to new investors, the company is now worth $1.25 million ($1 million of existing business value plus the $250,000 cash just raised). The founder owns 80% of $1.25 million, still $1 million in absolute terms, but a smaller fraction of the whole. The investors own 20% of $1.25 million = $250,000, exactly what they paid. Managed carefully, dilution is acceptable; managed carelessly, founders can lose control of their own companies.
 
-#### The Difference Between Debt and Equity
+**Common stock and preferred stock**
+
+In practice, not all shares are equal. Most retail investors hold **common stock** (called **ordinary shares** in UK and European markets), which carries voting rights and a residual claim on profits. **Preferred stock** (or **preference shares**) is a different class: typically no voting rights, but a higher-priority claim on dividends and assets in a liquidation. Preferred holders are paid before common stockholders, though still after bondholders. Venture capital investors almost always receive preferred stock in early-stage companies, giving them downside protection that common stockholders lack [3].
+
+When a company IPOs, most preferred shares convert to common shares. For exchange system developers, the class distinction matters because instruments are classified, regulated, and referenced differently. When you see "AAPL" on an exchange, it refers specifically to Apple's common stock. Preferred shares, if listed, trade under a different ticker (typically something like "AAPL-PRA").
+
+### The Difference Between Debt and Equity
 
 A useful mental model: when a company issues bonds, it is renting capital, borrowing it with the obligation to return it. When a company issues equity, it is selling a permanent stake, the investor becomes a partial owner, sharing in the future of the business.
 
@@ -147,21 +226,21 @@ The consequence:
 
 A sophisticated investor builds a **portfolio** that mixes both: bonds for predictable income and capital preservation, equities for growth potential. The entire investment industry, pension funds, mutual funds, hedge funds, is built around managing this balance.
 
-#### Going Public: The Initial Public Offering (IPO)
+### Going Public: The Initial Public Offering (IPO)
 
 Early in a company's life, its shares are held by a small, private group: the founders, early employees (who often receive shares as part of their compensation), and **venture capital (VC) investors** who provided early funding in exchange for equity stakes. These shares are not available to the general public; the company is **private**.
 
 At some point, usually when the company has proven its business model and needs a large infusion of capital for the next phase of growth, the company may choose to **go public**: to offer its shares for sale to anyone who wants to buy them. This event is called the **Initial Public Offering (IPO)**.
 
 In an IPO:
-1. The company works with investment banks to determine an appropriate share price and to market the offering to large institutional investors.
+1. The company works with **investment banks** to **underwrite** the offering. Underwriting means the banks agree to buy all the shares at a guaranteed price and immediately sell them on. This guarantee means the company receives its cash even if investor demand is weaker than expected. In practice, the banks first conduct a **roadshow**, a series of presentations to large institutional investors, to gauge demand and set the final price. They rarely actually get stuck holding the shares.
 2. New shares are created and sold, with the proceeds going directly to the company (or to early investors who are "cashing out" their stakes).
 3. The company's shares are listed on a stock exchange, NYSE, NASDAQ, LSE, or another regulated market.
 4. From that moment, anyone can buy or sell the shares through the exchange.
 
-Recent famous IPOs include Airbnb (2020), Snowflake (2020), and Arm Holdings (2023). Each of these companies raised billions of dollars through their IPOs.
+Some of the largest IPOs in history by proceeds raised illustrate the scale: Saudi Aramco raised $25.6 billion in its 2019 IPO on the Saudi Exchange (Tadawul), still the largest in history [1]; Alibaba raised $21.8 billion on NYSE in 2014 [1]; Arm Holdings raised $4.9 billion on NASDAQ in September 2023 [1]. Each of these companies brought enormous new pools of capital onto public markets.
 
-#### The Primary Market vs. the Secondary Market
+### The Primary Market vs. the Secondary Market
 
 This distinction is critical, and it is where the exchange fits in.
 
@@ -184,7 +263,7 @@ Who would invest in a company's IPO if they knew they could never sell their sha
 
 The stock exchange, the subject of this entire document, is the infrastructure that makes this cycle turn.
 
-```mermaid
+```{.mermaid width=400}
 flowchart TD
     CO["🏢 Company"]
     PM["Primary Market\nIPO / follow-on offering\nCompany receives cash"]
@@ -198,7 +277,7 @@ flowchart TD
     EX -. "No cash flows back\nto the company" .-> CO
 ```
 
-#### A Word on Other Instruments
+### A Word on Other Instruments
 
 The same framework applies to other instruments:
 
@@ -208,16 +287,18 @@ The same framework applies to other instruments:
 
 - **Exchange-Traded Funds (ETFs)** are baskets of shares (or bonds, or commodities) that themselves trade as a single share. iShares, Vanguard, and SPDR products are examples. ETFs trade on exchanges exactly like individual stocks.
 
+- **Market indices** are calculated measures of the aggregate performance of a defined basket of securities. The **S&P 500** tracks 500 large US companies and is the most closely followed equity index in the world, first published in its current form by Standard & Poor's in 1957. The **Dow Jones Industrial Average (DJIA)**, dating to 1896, tracks 30 large US companies. The **NASDAQ Composite** tracks all stocks listed on NASDAQ. Indices themselves are not directly tradeable, but **index futures** (on CME), **index options** (on Cboe), and **index ETFs** allow investors to trade the performance of a whole index with a single instrument. When a portfolio manager says "the market is up 0.8% today," they almost always mean the S&P 500. When exchange system developers build risk calculations or position monitors, index levels are frequently the benchmark against which positions are marked.
+
 With this foundation in place, understanding what a share is, why companies issue them, and what role the exchange plays, we can now look at the mechanics of how an exchange actually operates.
 
-### What Is a Financial Exchange, and Why Does It Exist?
+## What Is a Financial Exchange, and Why Does It Exist?
 
 
-#### The Core Problem
+### The Core Problem
 
 Imagine you own 1,000 shares of a technology company (you understand now what that means: you own a tiny fraction of that company, acquired when you bought the shares from a previous owner on the secondary market) and you want to sell them. Somewhere out there, someone wants to buy exactly 1,000 shares of that same company at roughly the price you have in mind. The problem is finding each other.
 
-Before modern exchanges existed, this "finding" problem was enormous. Stock trading happened in coffee houses, in the street ("Exchange Alley Coffeehouses"), or through networks of personal contacts. One of the first places on record was "Jonathan's Coffee House" (The Forerunner to the Stock Exchange) founded around 1680 by Jonathan Miles, Jonathan's became the primary gathering place for stock brokers, [Jonathan's Coffee-House](https://grokipedia.com/page/Jonathan's_Coffee-House).  Prices were inconsistent, you might sell at one price while, moments later, someone else sold the same shares at a very different price. There was no guarantee you were getting a fair deal, and there was no way to know what "fair" even meant.
+Before modern exchanges existed, this "finding" problem was enormous. Stock trading happened in coffee houses, in the street ("Exchange Alley Coffeehouses"), or through networks of personal contacts. One of the first places on record was "Jonathan's Coffee House" (The Forerunner to the London Stock Exchange) founded around 1680 by Jonathan Miles, Jonathan's became the primary gathering place for stock brokers, [Jonathan's Coffee-House](https://grokipedia.com/page/Jonathan's_Coffee-House).  Prices were inconsistent, you might sell at one price while, moments later, someone else sold the same shares at a very different price. There was no guarantee you were getting a fair deal, and there was no way to know what "fair" even meant.
 
 > **Auctions by the Candle**
 >
@@ -231,23 +312,37 @@ A financial exchange solves this problem by acting as a **centralised marketplac
 
 It is worth noting that exchanges are among the most visible matching venues, but not the only ones. **Over-the-counter (OTC) markets** (where participants negotiate directly), **Alternative Trading Systems (ATSs)**, **Electronic Communication Networks (ECNs)**, and **internalisers** (brokers who match client orders internally against their own inventory) all also match trades. The concepts in this document apply most directly to regulated exchanges, but the same vocabulary, order book, spread, price-time priority, is used across all these venues.
 
-#### The Three Promises of an Exchange
+### The Three Promises of an Exchange
 
 Every exchange makes three implicit promises to its participants:
 
 **1. Price discovery.** At any moment, the current price of an asset reflects the aggregate opinion of all participants currently willing to trade it. You can look at the market and see what "fair value" is right now.
 
-That does **not** mean the market has discovered some permanent "true" value. It means the exchange has produced the best currently available consensus price given the orders visible at that moment. In a fast market, that discovered price can legitimately change many times per second as new information arrives.
-
 **2. Liquidity.** You can convert your asset into cash (or vice versa) quickly, without having to wait indefinitely for a counterparty to appear. The exchange provides the infrastructure that makes counterparties findable.
-
-Liquidity is also **size-dependent**. Selling 100 shares of a liquid stock may happen instantly with almost no price impact; selling 5 million shares may still be possible, but only by moving through multiple price levels or slicing the order over time.
 
 **3. Fairness and transparency.** The rules for who trades first and at what price are known in advance, applied consistently, and visible to all participants equally. There is no backroom dealing.
 
-Fairness does not mean every participant gets the same result. It means the same published rules apply to everyone: if two orders arrive under identical conditions, the exchange must resolve them according to the same deterministic priority rules regardless of who submitted them.
+### How Exchanges Are Regulated
 
-#### Instruments: What Is Being Traded?
+Exchanges do not operate by custom alone. They are licensed and supervised by government regulators whose rules directly shape how exchange systems are designed and built.
+
+In the United States, equity exchanges are overseen by the **Securities and Exchange Commission (SEC)**, established by the Securities Exchange Act of 1934 in the aftermath of the 1929 crash and subsequent Great Depression. The crash and its causes deserve a sentence of context here, because they explain why the SEC's mandate is what it is.
+
+Between 1928 and September 1929, the US stock market had doubled. Investors were buying heavily on **margin**, borrowing money to buy more stock than they could afford outright. When prices began to fall in October 1929, margin calls forced widespread selling. Selling drove prices lower, which triggered more margin calls, which drove more selling — the same feedback loop that automated portfolio insurance would recreate in 1987. The Dow Jones Industrial Average fell 89% from its 1929 peak to its 1932 trough. Thousands of banks failed. Millions lost their savings. The subsequent investigation found rampant stock manipulation, insider trading, misleading corporate disclosures, and conflicts of interest at every level of the market. The Securities Act of 1933 and the Securities Exchange Act of 1934 were Congress's direct response: transparency requirements, registration of securities, prohibition of fraud, and the creation of the SEC to enforce the rules. The exchange system you are building operates under the regulatory framework those 1930s laws set in motion.
+
+Several regulations appear throughout this document and in most exchange codebases. It is worth naming them here:
+
+- **Regulation NMS (National Market System, 2005):** Requires that equity orders receive the nationally best available price across all registered trading venues. This single rule is the reason the US has 16+ registered equity exchanges competing for order flow, and the reason **smart order routing** exists — brokers must route to wherever the best price is, not just the closest or the cheapest.
+
+- **Regulation SHO (2005):** Governs short sales, including the **locate** requirement (broker-dealers must verify shares can be borrowed before accepting a short sale order) and delivery obligations.
+
+- **Market Access Rule (Rule 15c3-5, 2010):** Requires broker-dealers providing market access to have pre-trade risk controls: maximum order sizes, credit limits, and kill switches. Enacted directly in response to the 2010 Flash Crash.
+
+In Europe, the equivalent framework is **MiFID II (Markets in Financial Instruments Directive II, 2018)**, which mandates best execution, algorithmic trading controls (including mandatory kill switch testing), trade reporting, and systematic internaliser reporting. Any exchange system intended to operate in EU markets must comply.
+
+Understanding which regulator and which rules apply is not just a legal matter. It is an engineering specification: audit trail formats, kill switch accessibility, pre-trade check requirements, and market data publication rules are all regulatory mandates, not optional features.
+
+### Instruments: What Is Being Traded?
 
 An exchange does not trade "things" in a physical sense. It trades **instruments**, standardised financial contracts representing ownership or obligation. The most common are:
 
@@ -261,12 +356,12 @@ An exchange does not trade "things" in a physical sense. It trades **instruments
 
 An equity exchange handles each **symbol** (like AAPL, MSFT, or TSLA) as a separate tradeable instrument, each with its own independent order book.
 
-### The Language of the Market: A Short History
+## The Language of the Market: A Short History
 
 
 Before you read about participants, orders, and matching engines, it is worth pausing on something that will serve you well throughout your career working on exchange systems: **much of the language you will encounter in this codebase has historical roots that no longer match the physical reality**. Terms that sound arbitrary or old-fashioned are fossil words, the language of a world of wooden desks, brass bells, and paper ledgers that gradually evolved into the nanosecond world of today. Understanding where the words came from will make them stick, and will save you from wondering why a system full of cutting-edge software keeps referring to things like "the book," "the tape," and "the floor."
 
-#### The Physical Book
+### The Physical Book
 
 Before electronic trading systems, every major exchange operated a physical trading floor, and on that floor, for every stock, there was a person responsible for maintaining order: in NYSE's terminology, this was called the **specialist**. The specialist's job was to act as a market maker for their assigned stocks, and to maintain, literally on paper, a record of every outstanding buy and sell order that had been submitted but not yet filled.
 
@@ -276,7 +371,7 @@ When a broker wanted to buy shares and asked "what's the market in IBM?", the sp
 
 The physical book is gone. Every exchange in the world now maintains its order book in computer memory, with data structures designed for nanosecond access. But the **name** has survived completely intact. When developers and traders today say "the book," "working an order into the book," "resting in the book," or "taking from the book," they are using the exact same language that floor traders used when pointing at a physical ledger. The order book is one of the purest examples of terminology that crossed from physical to digital without losing a syllable.
 
-#### Open Outcry and the Pit
+### Open Outcry and the Pit
 
 On exchange floors like CME Group's in Chicago, trading in futures contracts was conducted through **open outcry**, a method where traders stood in a sunken circular area called a **pit** and literally shouted their bids and asks at each other, using a combination of voice and hand signals to communicate price, quantity, and direction. The noise was enormous. The system worked because the pit was small enough that everyone could hear and see everyone else.
 
@@ -284,7 +379,7 @@ The CME Group operated open outcry pits for decades. Some products, particularly
 
 The terms survive in documentation, regulations, and informal industry speech even though the pits themselves are mostly silent now.
 
-#### The Ticker Tape
+### The Ticker Tape
 
 Before electronic screens, prices of completed trades were published via the **stock ticker**, a telegraph-based machine, invented by Edward Calahan in 1867 [15] and later improved by Thomas Edison, that printed a continuous stream of abbreviated stock symbols and trade prices on a narrow paper tape. The tape moved fast (hence "ticker", the machine made a ticking sound) and the strip of paper would pile up on the floor of brokerages around the country as trades printed in real time.
 
@@ -294,13 +389,51 @@ In 1878, the phone was invented. In 1929, the first electronic ticker was instal
 
 When you see terms like "tick" (the minimum price movement), "tick data" (a record of every trade), or "ticker plant" (the server infrastructure that publishes market data), you are using the language of a machine that ran on telegraph cables and printed on paper strips.
 
-#### Settling Up: Settlement Periods and Why They Exist
+### The Language Lives in the Code
+
+These historical terms are not just in trading rooms and textbooks. They are in the source code. A developer reading an exchange codebase for the first time will find:
+
+- `bid_price`, `ask_price`, `spread` — the physical ledger's two columns, reduced to struct fields
+- `lot_size`, `tick_size` — the standardisation introduced by the early commodity pits
+- `aggressor_side` — which party crossed the spread; matters for fee calculation and regulatory reporting
+- `book.add_order()`, `book.cancel_order()`, `book.sweep()` — the specialist's actions, now function calls
+- `GTC`, `DAY`, `IOC` — time-in-force codes whose full names (Good-Till-Cancelled, Day, Immediate-or-Cancel) are rarely spoken, used daily in hundreds of millions of orders
+- `tape_price`, `last_trade_price` — what the ticker printed, now a field in a trade record
+- `long_position`, `short_position` — the Amsterdam merchant's grain warehouse, abstracted to a signed integer
+
+Every time you read a function name or a variable name in exchange software that sounds like it belongs in a different century, it does. The codebase is the physical exchange, translated.
+
+### Black Monday and the Origin of Circuit Breakers
+
+On 19 October 1987, US stock markets fell **22.6%** in a single day, the largest single-day percentage drop in the history of the Dow Jones Industrial Average. This event, known as **Black Monday**, remains the most severe one-day market crash on record. A more detailed account of this is described in secion [18.4 Historical circuit breaker](03-PART%20III%20-%20Risk%20and%20Compliance.md#historical-circuit-breaker)
+
+The crash was not driven by a single piece of bad news. It was amplified by automated **portfolio insurance** programmes, algorithmic selling strategies designed to protect institutional portfolios by automatically selling futures contracts as prices fell. As these programmes sold, prices fell further, triggering more programme selling, which pushed prices further down — a feedback loop that human traders could not interrupt. The lack of any coordinated mechanism to pause trading made the spiral self-reinforcing.
+
+The Presidential Task Force on Market Mechanisms (the "Brady Commission"), reporting to President Reagan in January 1988, concluded that the absence of circuit breakers and coordinated pause mechanisms across markets had allowed the panic to become catastrophic. Its central recommendation was explicit: create automatic trading halts that could interrupt the feedback loop and give participants time to assess [Brady Commission Report, January 1988].
+
+NYSE introduced the first market-wide circuit breakers in 1988 directly in response. The specific thresholds have been adjusted several times since (most recently after March 2020, when Level 1 was triggered four times in two weeks during the COVID-19 crash), but the mechanism traces directly to that January 1988 report.
+
+This history matters for exchange system developers because circuit breakers are not bureaucratic decorations. They are the engineering response to a proven systemic failure mode: automated systems amplifying each other into a catastrophic spiral. Every halt threshold, every resumption auction, every "do not accept orders during HALTED state" condition in a matching engine exists because of what happened on 19 October 1987.
+
+### Settling Up: Settlement Periods and Why They Exist
 
 The historical reason settlement took multiple days has nothing to do with technology and everything to do with physical logistics. In the era of paper stock certificates, when you sold your shares, you had to physically deliver a paper certificate to the buyer, and they had to physically deliver cash or a cheque to you. Messengers on bicycles carried these documents between brokerage firms on Wall Street. Giving everyone five business days (the original settlement period was T+5) provided time for paperwork to move across Manhattan, be checked, and be processed.
 
 As the industry moved to dematerialisation (electronic records replacing paper certificates) and electronic funds transfer, settlement windows shrank: T+5 became T+3 in the 1990s, T+2 in 2017, and T+1 in 2024 in the US [8]. The "T+N" notation remains standard even as the N shrinks. Some markets are exploring same-day (T+0) settlement, though this requires that cash and securities be available at the exact moment of trading, a more demanding operational requirement.
 
-#### Blue Chips, Bulls, and Bears
+### The Bid, the Ask, and the Spread
+
+The two most fundamental prices in any market are the **bid** and the **ask** (also called the **offer** in some contexts). These are ancient words in the context of markets.
+
+**Bid** comes from Old English *beodan*, meaning to announce, command, or offer. To bid for something is to announce the price you are willing to pay. A bidder at an auction makes a bid; a trader in a market makes a bid. The word has been used in commercial contexts for over a thousand years.
+
+**Ask** (or offer) is the counterpart: the price at which someone is willing to sell. Asking a price for goods is as old as commerce.
+
+The **spread** is the difference between the best bid and the best ask at any moment: if the best bid is $150.30 and the best ask is $150.35, the spread is $0.05. The spread is both a measure of market quality (tight spreads mean the market is liquid and efficient; wide spreads mean it is illiquid or uncertain) and the primary source of income for market makers, who earn the spread by continuously standing ready to buy at the bid and sell at the ask.
+
+The phrase **"crossing the spread"** means submitting an order aggressive enough to immediately match against a resting order. An investor who submits a buy order at $150.35 (the ask) rather than waiting at $150.30 (the bid) is crossing the spread and paying for the privilege of immediate execution. This small payment — a few cents, or a fraction of a cent in liquid markets — is the cost of immediacy, and it is the foundation of the market maker's business model.
+
+### Blue Chips, Bulls, and Bears
 
 Not all inherited terminology has to do with physical infrastructure. Some comes from adjacent worlds:
 
@@ -320,7 +453,7 @@ The Dutch East India Company (VOC), founded in 1602 and traded on the Amsterdam 
 
 "Long" and "short" thus carry the physical memory of a world where trading meant moving real goods between warehouses and ships. A developer reading `last_sell_price` or `position += signed_qty` in the matching engine's clearing code is working with concepts that a 17th-century spice merchant would have recognised immediately, even if the technology would be unrecognisable to them.
 
-#### The Operational Mechanics of Short Selling, Borrow and Locate
+### The Operational Mechanics of Short Selling, Borrow and Locate
 
 The historical explanation above describes the *economics* of short selling. The modern operational reality involves several additional steps that are invisible in the exchange's order book but fundamental to how clearing and settlement actually work.
 
@@ -338,44 +471,44 @@ The historical explanation above describes the *economics* of short selling. The
 
 **Broker** itself is an old word. The word "broker" traces back to Middle English (brocour) and Anglo-Norman (abrocour), originally referring to a middleman, small trader, or wine merchant. It referred originally to a person who "broaches" (opens) a cask and sells the wine retail, an intermediary between producer and consumer. By the late medieval period it had generalised to any trade intermediary, and it has carried that meaning into finance.
 
-#### Wall Street
+### Wall Street
 
 **Wall Street** is named after an actual wall, a wooden palisade built in 1653 by Dutch colonists along the northern edge of their settlement (then called New Amsterdam, now Lower Manhattan) to protect against British and Native American incursions. The wall is long gone; the street that replaced it became the financial centre of America, and now "Wall Street" is a metonym for the entire US financial industry, regardless of where the actual firms are physically located.
 
-#### Why This Matters for You
+### Why This Matters for You
 
 When you encounter a term in the codebase that seems oddly concrete for a piece of software, "the book," "the tape," "the spread," "the floor price," "tick by tick", the reason it sounds physical is that it *was* physical. These words have been used continuously, with the same meanings, through every technological revolution the industry has undergone, because the underlying concepts remained constant even as the implementation changed completely.
 
 This is also why you will find financial terminology resistant to renaming even when better alternatives exist. Saying "priority queue" instead of "the book" would be technically precise but professionally unintelligible. Finance is a conservative industry with deep institutional memory, and the vocabulary is part of that memory. Learning the words, and where they came from, is learning the culture.
 
-### The Participants
+## The Participants
 
 
 Before diving into mechanics, it helps to know who is actually in the room.
 
-```mermaid
-flowchart LR
-    INV["Investor / Trader"]
-    BR["Broker"]
-    MM["Market Maker"]
-    EX["Exchange"]
-    CCP["Clearing House / CCP"]
-    REG["Regulator / Surveillance"]
+### Traders and Investors
 
-    INV -->|"Submits order via"| BR
-    BR -->|"Routes order to"| EX
-    MM -->|"Quotes directly into"| EX
-    EX -->|"Reports matched trades to"| CCP
-    EX -->|"Reports market activity to"| REG
-```
+The broadest category of participant is anyone who buys or sells for themselves, whether they are profit-seeking or managing risk.
 
-This is a deliberately simplified map of *roles*, not network topology. The investor cares about execution, the broker about access and client handling, the market maker about continuous quoting, the exchange about matching and rule enforcement, and the CCP about guaranteeing settlement after the trade.
+**Retail investors** are individuals trading their own money, typically through brokerage apps (Robinhood, Fidelity, Schwab, eToro). Retail orders tend to be small (a few hundred shares at most), arrive randomly throughout the day, and — critically — are considered **uninformed flow** by market makers, meaning they are statistically unlikely to be based on superior information about the company's near-term prospects. Retail flow is therefore profitable to serve: the spread can be captured with low adverse selection risk.
 
-#### Traders (Regular Participants)
+**Institutional investors** are organisations managing money on behalf of others: pension funds, mutual funds, hedge funds, insurance companies, sovereign wealth funds, endowments. They trade in sizes that can move markets — a pension fund rebalancing its portfolio may need to buy or sell millions of shares over days or weeks without moving the price against itself. Their orders are typically routed through execution desks that use VWAP algorithms, dark pools, and smart order routing to minimise market impact. The largest institutional investors (BlackRock manages over $10 trillion in assets [1]) have more market influence than many sovereign nations.
 
-The most familiar participant is someone with a view on a stock's future price, they want to buy low and sell high, or sell high and buy back cheap. Individual investors, hedge funds, and asset managers all fall into this category. In exchange terminology, when they submit an aggressive order that immediately executes against resting orders in the order book (the digital ledger of all outstanding buy and sell orders, see *The Language of the Market* in Part I), they are called **takers**, they are "taking" liquidity that was already available.
+The distinction between retail and institutional matters for exchange designers because the two populations have different latency tolerances, different order sizes, different information sets, and different legal frameworks governing their trading. Payment for Order Flow (PFOF) exists because retail flow is genuinely more profitable to service than institutional flow, and this shapes the routing decisions of retail brokers.
 
-#### Market Makers
+In exchange terminology, when a participant submits an aggressive order that immediately executes against a resting order in the book, they are called a **taker** — they are "taking" liquidity that was already available. The participant whose resting order was filled is the **maker** (they "made" liquidity available).
+
+### High-Frequency Trading (HFT) and Proprietary Trading Firms
+
+A distinct and important participant type that does not fit neatly into the retail/institutional or maker/taker classification is the **high-frequency trading (HFT) firm** and broader class of **proprietary trading firms** (often called "prop shops").
+
+These firms trade entirely for their own account, with their own capital, using automated strategies. They do not manage client money and do not act as brokers. Well-known firms include Citadel Securities, Virtu Financial, Jane Street, Jump Trading, and IMC. Some (like Citadel Securities and Virtu) are primarily market makers; others run arbitrage and statistical arbitrage strategies.
+
+HFT firms are estimated to account for approximately 50% of equity trading volume on US exchanges [1], and a significant portion of derivatives volume. They make markets extremely tight (narrow spreads) in liquid products because competition between HFT market makers is intense. They also create controversy: critics argue that latency arbitrage gives them an unfair structural advantage over slower participants; defenders argue that their market making activity lowers costs for everyone.
+
+For exchange developers, HFT firms are the most technically demanding participants. Their latency requirements drive the design of co-location services, the nanosecond timestamping standards, and the deterministic processing guarantees that define high-performance matching engine architecture. When an exchange system must process millions of messages per second with microsecond response times, it is largely because HFT participants require it.
+
+### Market Makers
 
 This is a concept worth understanding deeply, because it is central to how exchanges actually work in practice, and because the exchange system you are building contains a significant amount of code dedicated specifically to managing market makers.
 
@@ -385,92 +518,161 @@ NYSE has what it calls **Designated Market Makers (DMMs)**, specific firms assig
 
 > **Key idea:** Market makers earn the spread by continuously providing two-sided quotes, a standing bid and ask, making it possible for others to trade immediately at any time. They are not passive: their position changes with every fill, and they must manage inventory and information risk in real time. The *Market Makers* section of Part II examines the full operational detail: formal obligations, what happens when a quote is hit, protection mechanisms, and the software implications of supporting them.
 
-#### Brokers
+### Brokers
 
-A broker does not trade for their own account. They act as an intermediary: they receive orders from clients and submit them to the exchange on the client's behalf. Prime brokers provide additional services like lending and clearing.
+A broker does not trade for their own account. They act as an intermediary: they receive orders from clients and submit them to the exchange on the client's behalf. Retail brokerages (Fidelity, Schwab, eToro) aggregate small orders from millions of individuals. Institutional brokers (Goldman Sachs, Morgan Stanley, JPMorgan) execute large block orders for institutional clients with minimum market impact.
 
-#### The Exchange Itself
+**Prime brokers** are a specific tier of broker providing a package of services to sophisticated clients, primarily hedge funds: securities lending (enabling short selling), leveraged financing, consolidated clearing and custody across multiple brokers, and sometimes execution services. Without a prime broker relationship, a hedge fund could not efficiently short sell or use leverage. The major prime brokers are divisions of the large investment banks.
+
+### The Exchange Itself
 
 The exchange is not a passive infrastructure provider. It is a regulated entity that enforces rules, monitors for manipulation, reports trades to regulators, and ensures the market functions fairly. In many jurisdictions, exchanges are themselves public companies listed on exchanges (NYSE's parent company, ICE, is listed on NYSE; NASDAQ lists on Nasdaq).
 
+A significant historical shift: exchanges used to be **member-owned mutuals**, non-profit organisations run for the benefit of their broker-dealer members. Over the past 30 years, most major exchanges have **demutualised**, converting to for-profit public companies. NYSE demutualised and listed in 2006; London Stock Exchange demutualised in 2001. This shift changed the incentive structure of exchanges: they now compete for order flow and listing fees, and their technology investment decisions are driven partly by shareholder returns.
+
+### Regulators
+
+Regulators are not participants in the traditional sense, they do not submit orders, but they are the most consequential stakeholders in exchange system design. Every audit trail format, kill switch requirement, pre-trade check, and trade report exists to satisfy a regulatory obligation.
+
+In the US, the **SEC** oversees equity exchanges and broker-dealers. The **CFTC** oversees futures and derivatives exchanges. **FINRA** (Financial Industry Regulatory Authority) is a self-regulatory organisation that oversees broker-dealers. Exchanges themselves are also self-regulatory organisations (SROs): they have obligations to monitor their own markets and report suspicious activity.
+
+Internationally: the **FCA** (Financial Conduct Authority) in the UK, **ESMA** (European Securities and Markets Authority) and national regulators under MiFID II in the EU, the **FSA** in Japan, the **SFC** in Hong Kong, and ASIC in Australia.
+
+For exchange developers, the practical implication is that regulatory requirements are non-negotiable features. A matching engine that produces a legally insufficient audit trail is not a working matching engine, regardless of its throughput. Understanding which regulator and which ruleset governs a given exchange is part of the technical specification.
+
 > **Note, quotes vs orders:** Throughout this document, the terms "order" and "quote" are sometimes used to describe resting instructions in the book. Operationally they are different: a **quote** is a two-sided bid/ask pair submitted by a market maker (a single instruction generating two linked legs), while an **order** is a one-sided instruction submitted by any participant. A quote may internally generate one or two order records with linked identifiers; quote IDs and order IDs may differ. The *Market Makers* section of Part II covers this distinction in detail.
 
-### A Brief Tour of Real-World Exchanges
+## A Brief Tour of Real-World Exchanges
 
 
 To ground these concepts in reality, here is a brief overview of the exchanges most relevant to exchange system developers.
 
-#### NYSE (New York Stock Exchange)
-Founded in 1792, NYSE is the world's largest equity exchange by market capitalisation of listed companies. NYSE is a **hybrid market**, it combines electronic order matching with **Designated Market Makers (DMMs)** who have responsibilities to maintain fair and orderly markets and can intervene manually in certain situations. NYSE uses price-time priority and runs opening and closing auctions. Its closing auction is one of the most important pricing events in global finance.
+### NYSE (New York Stock Exchange)
 
-#### NASDAQ
+Founded in 1792, NYSE is the world's largest equity exchange by market capitalisation of listed companies. Its founding is traced to the **Buttonwood Agreement** of 17 May 1792, when 24 stockbrokers signed a document under a buttonwood tree on Wall Street agreeing to trade securities only among themselves and at fixed commission rates [10]. This agreement established the principle of a closed, rule-governed professional market — the model that all regulated exchanges follow today.
+
+NYSE is a **hybrid market**: it combines electronic order matching with **Designated Market Makers (DMMs)** who have responsibilities to maintain fair and orderly markets and can intervene manually in certain situations. NYSE uses price-time priority and runs opening and closing auctions. Its closing auction is among the most important pricing events in global finance, determining the official closing prices that benchmark trillions of dollars of fund performance.
+
+Despite being the iconic "stock exchange," NYSE handles only a fraction of total US equity volume. Due to fragmentation under Reg NMS, NYSE typically accounts for roughly 20–25% of US equity volume [1]; the rest routes to NASDAQ, Cboe, and dozens of other venues. This is not a sign of weakness — it reflects the fragmented, competitive nature of modern US equity markets.
+
+### NASDAQ
 NASDAQ launched in 1971 as the world's first fully electronic stock exchange. It is home to many of the world's largest technology companies (Apple, Microsoft, Amazon, Google). NASDAQ is a pure electronic market, no floor traders, no DMMs in the traditional sense. It pioneered the technology approach to exchange operation and drove down transaction costs dramatically.
 
-#### CME Group (Chicago Mercantile Exchange)
+### CME Group (Chicago Mercantile Exchange)
 CME Group is the world's largest futures exchange, operating CME, CBOT (Chicago Board of Trade), NYMEX, and COMEX. Futures contracts on everything from interest rates to agricultural commodities to weather indices trade here. CME uses the Globex electronic trading platform, which processes millions of orders per day. CME uses both price-time priority and pro-rata allocation depending on the product.
 
-#### Eurex
+### Eurex
 Part of Deutsche Börse Group, Eurex is Europe's largest derivatives exchange, headquartered in Frankfurt. Eurex is known for its sophisticated market making programmes and its strict but fair treatment of high-frequency trading. The Eurex T7 trading system is used by multiple exchanges globally. Eurex introduced the concept of formally structured market maker obligations with MMP protection.
 
-#### LSE (London Stock Exchange)
+### LSE (London Stock Exchange)
 The LSE is one of Europe's oldest exchanges, dating to the 17th century coffee houses. It trades equities, bonds, and ETFs. The LSE uses the SETS (Stock Exchange Electronic Trading System) for liquid equities and runs opening and closing auctions. The LSE's Millennium Exchange technology platform is used by dozens of exchanges globally.
 
-#### IEX (Investors Exchange)
-IEX launched as a dark pool in 2013 and became a registered national securities exchange in 2016. It is the exchange that popularised the speed bump, deliberately leveling the playing field between HFT firms and institutional investors. IEX remains smaller than NYSE and NASDAQ but influential in ongoing debates about market structure fairness.
+### Euronext
 
-#### Cboe (Chicago Board Options Exchange)
+Euronext is Europe's largest exchange group by number of listed companies, operating markets in Amsterdam, Brussels, Paris, Lisbon, Dublin, Oslo, and Milan. Originally formed in 2000 by the merger of the Paris, Amsterdam, and Brussels exchanges, it expanded significantly through subsequent acquisitions including the Milan Stock Exchange (Borsa Italiana) in 2021. Euronext uses the **Optiq** trading platform and operates under MiFID II. Its Amsterdam exchange is historically notable as the successor to the world's first stock exchange (the Amsterdam Exchange, 1602).
+
+### Nasdaq Stockholm (Stockholmsbörsen, STO)
+
+Nasdaq Stockholm is Sweden's primary regulated securities exchange and one of the core venues in the Nordic region. The original Stockholm Stock Exchange dates to 1863, and the modern market became part of the Nasdaq group through Nasdaq's acquisition of OMX in 2008. Today, Nasdaq Stockholm operates as part of the wider Nasdaq Nordic market structure alongside Copenhagen, Helsinki, and Icelandic venues.
+
+For exchange developers, Nasdaq Stockholm is a useful real-world reference because it combines deep local equity liquidity with a highly standardised pan-Nordic technology model. The market is fully electronic, supports auction phases (including opening and closing auctions), and runs under the same MiFID II transparency and best-execution regime as other EU venues.
+
+The venue's best-known benchmark is the **OMXS30** index, which tracks the 30 most traded shares on Nasdaq Stockholm. The exchange is the home listing venue for many major Swedish and Nordic companies, including names such as Ericsson, Volvo, Atlas Copco, and Investor AB, making it central to Nordic equity price discovery.
+
+From an infrastructure perspective, Nasdaq Stockholm aligns with broader Nasdaq market technology standards (including INET-based matching architecture for cash equities) and interoperates with regional post-trade infrastructure such as Euroclear Sweden for securities settlement. In practical terms, this makes it a strong example of how a national exchange can preserve local market identity while operating inside a larger cross-border technology and regulatory framework.Nasdaq Stockholm is Sweden's primary regulated securities exchange and one of the core venues in the Nordic region. The original Stockholm Stock Exchange dates to 1863, and the modern market became part of the Nasdaq group through Nasdaq's acquisition of OMX in 2008. Today, Nasdaq Stockholm operates as part of the wider Nasdaq Nordic market structure alongside Copenhagen, Helsinki, and Icelandic venues.
+
+For exchange developers, Nasdaq Stockholm is a useful real-world reference because it combines deep local equity liquidity with a highly standardised pan-Nordic technology model. The market is fully electronic, supports auction phases (including opening and closing auctions), and runs under the same MiFID II transparency and best-execution regime as other EU venues.
+
+The venue's best-known benchmark is the **OMXS30** index, which tracks the 30 most traded shares on Nasdaq Stockholm. The exchange is the home listing venue for many major Swedish and Nordic companies, including names such as Ericsson, Volvo, Atlas Copco, and Investor AB, making it central to Nordic equity price discovery.
+
+From an infrastructure perspective, Nasdaq Stockholm aligns with broader Nasdaq market technology standards (including INET-based matching architecture for cash equities) and interoperates with regional post-trade infrastructure such as Euroclear Sweden for securities settlement. In practical terms, this makes it a strong example of how a national exchange can preserve local market identity while operating inside a larger cross-border technology and regulatory framework.
+
+### IEX (Investors Exchange)
+
+IEX launched as a dark pool in 2013 and became a registered national securities exchange in 2016. It is the exchange that popularised the **speed bump**: a deliberate 350-microsecond delay applied to incoming orders, designed to level the playing field between HFT latency arbitrage strategies and slower institutional investors. IEX was the subject of Michael Lewis's 2014 book *Flash Boys*, which brought widespread public attention to HFT and exchange structure debates.
+
+The speed bump attracted significant institutional support from large asset managers who believed it reduced predatory latency arbitrage. However, IEX has consistently captured a relatively small share of US equity volume (typically 2–3%) [1], suggesting that the speed bump's appeal did not translate into dominant market share. Whether this reflects genuine limitations of the model or simply the difficulty of displacing entrenched incumbent exchanges remains debated in market structure circles. IEX remains disproportionately influential in regulatory discussions given its size, having prompted rule-making discussions at the SEC around speed bumps and exchange access fees.
+
+### Cboe (Chicago Board Options Exchange)
 Cboe is the world's largest options exchange, operating Cboe, C2, BZX, BYX, EDGX, and EDGA exchanges. Cboe invented the listed options market in 1973. It calculates the VIX (Volatility Index, the "fear gauge" of the market) from options prices.
 
-#### JPX (Japan Exchange Group)
+### JPX (Japan Exchange Group)
 JPX was formed in 2013 by merging the Tokyo Stock Exchange (TSE) and Osaka Securities Exchange. It is the world's third-largest exchange by market capitalisation of listed companies, behind NYSE and NASDAQ. JPX operates on an all-electronic platform called arrowhead. Japanese markets have their own session structure, tick size rules, and circuit breaker conventions; the daily price limit system (where trading in a stock is suspended if it moves more than a set amount from the previous close) differs from the US LULD approach.
 
-#### HKEX (Hong Kong Exchanges and Clearing)
+### HKEX (Hong Kong Exchanges and Clearing)
 HKEX is the primary exchange for Hong Kong-listed equities and also provides the main electronic gateway for mainland China stocks through the Shanghai-Hong Kong Stock Connect and Shenzhen-Hong Kong Stock Connect programmes. Stock Connect allows international investors to trade China A-shares (mainland China stocks) and allows mainland investors to trade Hong Kong-listed stocks through a northbound/southbound quota system, a unique regulatory and technical arrangement that requires matching engines on both sides to coordinate.
 
-#### SGX (Singapore Exchange)
+### SGX (Singapore Exchange)
 
 SGX is Southeast Asia's largest exchange, trading equities, derivatives, and fixed income. It is notable as a hub for Asian futures contracts, Nikkei 225 futures, MSCI Asia index futures, and iron ore contracts all trade on SGX. SGX acquired Scientific Beta (factor indices) and has invested heavily in data analytics services alongside its exchange operations.
 
-#### ASX (Australian Securities Exchange)
+### ASX (Australian Securities Exchange)
 
 ASX serves the Australian equity and derivatives markets. It became notable in the technology community for its attempt to replace its CHESS (Clearing House Electronic Subregister System) settlement platform with a blockchain-based system, a project that was eventually cancelled in 2022 after years of development, at significant cost. The cancellation is a cautionary tale for exchange technologists about the risks of replacing proven settlement infrastructure with unproven technology.
 
+
+
 ## Part II: Orders, Matching, and the Trading Day
 
-How orders work, how the matching engine processes them, and how a complete trading day unfolds from open to close.
+*How orders work, how the matching engine processes them, and how a complete trading day unfolds from open to close.*
 
-### The Order: The Fundamental Unit
+---
+
+In the summer of 1929, **Jesse Livermore** — then the most famous speculator in America began quietly selling short. He had been watching the tape for weeks, reading the continuous stream of prices and volumes that printed on the stock ticker, and he had seen something that troubled him: large blocks of stock were appearing at the top of rallies, absorbed by relentless selling pressure that the public could not see. The great bull market felt unstoppable, but the tape told a different story. Livermore increased his short positions through September and October. When the crash came in late October 1929, he made approximately $100 million, in 1929 dollars, in weeks [Reminiscences of a Stock Operator, Edwin Lefèvre, 1923].
+
+Livermore did not know about matching engines, FIX protocols, or price-time priority. But he understood, intuitively and empirically, exactly what this entire Part formalises: that every trade is the intersection of a buyer's intent and a seller's intent, encoded in an order; that the order book is a record of unresolved intentions; that the sequence and size of fills reveals information about who is doing what; and that the rules governing when and how orders match determine the character of the market.
+
+Part II is the technical formalisation of what Livermore read in the tape.
+
+**Part Summary:**
+
+Move from concepts to mechanics: how participant intent is encoded in order types, how matching logic enforces fairness, and how the trading session progresses from open through close.
+
+**Learning Objectives:**
+
+- Read an order ticket and understand each field's execution implications.
+- Compare major order types and time-in-force instructions by risk and behavior.
+- Trace how price-time priority and order book state changes produce trades.
+- Describe the end-to-end lifecycle of a trade across a full trading day.
+
+**Content:**
+
+- The Order: The Fundamental Unit
+- Order Types, The Vocabulary of Intent
+- Time-In-Force, How Long Should the Order Live?
+- The Order Book, The Exchange's Memory
+- Price-Time Priority, The Fairness Rule
+- The Matching Engine, The Heart of the Exchange
+- The Life of a Trade
+- Market Makers, The Providers of Liquidity
+- The Opening and Closing Auction
+- Trading Sessions, The Day in the Life of a Market
+- Putting It All Together
+
+
+## The Order: The Fundamental Unit
 
 Everything in an exchange system revolves around the **order**. An order is an instruction from a participant to the exchange: "I want to buy (or sell) a certain quantity of a certain instrument, subject to certain conditions."
 
 Every order carries several key pieces of information:
 
-#### Symbol
-Which instrument. "AAPL" means Apple shares; "MSFT" means Microsoft. The exchange handles a separate order book for each symbol.
+| Field | What it specifies | Notes |
+|---|---|---|
+| **Symbol** | Which instrument | "AAPL" = Apple; "ES" = E-mini S&P 500 futures. Each symbol has its own independent order book. |
+| **Side** | BUY or SELL | Defines everything about how the order interacts with the book. |
+| **Quantity** | How many units to trade | Typically a positive integer. The **lot** is the standard unit; for US equities one lot = one share; Asian markets often have lot sizes of 100 or 1,000 shares. |
+| **Price** | Limit price (for limit orders) | Maximum a buyer will pay, or minimum a seller will accept. Market orders carry no price. |
+| **Time-In-Force** | How long the order remains valid | So important it gets its own section below. |
+| **Arrival timestamp** | When the exchange received the order | Recorded to nanosecond precision. Not just metadata — it is the tiebreaker in price-time priority. |
+| **Identity** | Which gateway (participant) submitted it | Used for self-match prevention, kill switches, and regulatory reporting. |
 
-#### Side
-**BUY** or **SELL**. Deceptively simple, but it defines everything about how the order interacts with the book.
 
-#### Quantity
-How many shares (or contracts, or lots) the participant wants to trade. This is typically a positive integer. The term **lot** refers to the standard unit of quantity. For equities, one lot is usually one share, though some markets (particularly Asian exchanges) define a minimum lot size.
 
-#### Price (for limit orders)
-The maximum price the buyer will pay, or the minimum price the seller will accept. Orders submitted without a specific price are **market orders** (described below).
-
-#### Time-In-Force
-How long the order remains valid. This is so important it gets its own section below.
-
-#### The Arrival Timestamp
-When the exchange received the order, recorded to nanosecond precision. This is not just metadata, it is a critical part of the fairness mechanism, as you will see when we discuss price-time priority.
-
-#### Identity
-Which gateway (participant connection) submitted the order. The exchange uses this for self-match prevention, kill switches, and regulatory reporting.
-
-### Order Types, The Vocabulary of Intent
+## Order Types, The Vocabulary of Intent
 
 The type of an order describes the conditions under which it should execute. Understanding order types is fundamental to understanding exchange system code, because the matching engine has different logic for each type.
 
-#### Limit Orders
+### Limit Orders
 
 A **limit order** says: "I am willing to trade at this price or better, but no worse."
 
@@ -481,15 +683,33 @@ The word "limit" refers to the price limit the participant is imposing. If an in
 
 Limit orders are by far the most common order type in most markets.
 
-#### Market Orders
+#### Price Improvement
+
+An important and often surprising behaviour: **a limit order executes at the best available price, not necessarily at its own limit price**. This is called **price improvement**.
+
+Example: the best ask is $150.30 (someone is selling at $150.30). You submit a buy limit order at $150.40. Your order says "I am willing to pay up to $150.40" — but since the best available seller is only asking $150.30, you trade at $150.30. You receive $0.10 per share of price improvement relative to your limit. Your limit of $150.40 was the *worst* price you were willing to accept, not the target.
+
+This applies in both directions:
+- A buy limit at $150.40 crossing a $150.30 ask → fills at **$150.30** (better for the buyer)
+- A sell limit at $150.25 crossing a $150.30 bid → fills at **$150.30** (better for the seller)
+
+The limit price is a *floor* for sellers and a *ceiling* for buyers. The actual execution price is the best price available at the time, which will always be at least as good as the limit.
+
+Price improvement matters for execution quality analysis. Regulators (SEC Rule 605) require broker-dealers to publish statistics showing how often their clients received price improvement versus the quoted price when their orders were executed. Large retail brokers like Fidelity and Charles Schwab report that a significant percentage of their retail orders receive price improvement, particularly for small orders routed to market makers who can beat the NBBO [1].
+
+### Market Orders
 
 A **market order** says: "Fill me immediately at whatever the current market price is." There is no price constraint. The exchange executes it against the best available resting orders immediately.
 
-Market orders maximise the probability of immediate execution, but execution is still subject to available liquidity, the current exchange state, risk controls, and regulatory protections. A market order submitted during a trading halt, against an empty book, or at a price outside a circuit-breaker band will not fill. In normal continuous trading conditions, market orders can be treated as effectively execution-guaranteed, but not price-guaranteed. If you submit a large market buy order in a thin market, you might sweep through several price levels and pay far more than intended, this is called **market impact** or **slippage**. Market orders are used when certainty of execution matters more than certainty of price.
+Market orders maximise the probability of immediate execution, but execution is still subject to available liquidity, the current exchange state, risk controls, and regulatory protections. A market order submitted during a trading halt, against an empty book, or at a price outside a circuit-breaker band will not fill. In normal continuous trading conditions, market orders can be treated as effectively execution-guaranteed, but not price-guaranteed. Market orders are used when certainty of execution matters more than certainty of price.
 
-Because they have no price to wait at, market orders cannot rest in the book. If they cannot immediately fill, they are cancelled.
+**The slippage danger in thin markets.** If you submit a market buy for 10,000 shares but only 100 shares are available at the best ask, your order sweeps through every available seller in order of price until 10,000 shares are filled. Each level you sweep through costs you more. In an extreme case, you may end up paying dramatically more than intended, this is called **market impact** or **slippage**.
 
-#### Stop Orders
+The most consequential real-world example occurred on 6 May 2010, the **Flash Crash**. At 2:45pm Eastern time, the E-mini S&P 500 futures contract (the most liquid futures product in the world at the time) fell approximately 6% in about five minutes, largely because a series of large market sell orders swept through a book that other participants had temporarily withdrawn from, leaving almost no resting bids. The joint SEC/CFTC investigation found that a single large sell algorithm had begun selling 75,000 E-mini contracts at market price, and as the price fell, other algorithms also began selling, creating a feedback loop. Some individual equities briefly traded at $0.01 or $100,000 during the chaos, because market orders crossed nearly empty books [SEC/CFTC Flash Crash Report, September 2010]. The circuit breaker mechanisms introduced after 2010 were specifically designed to prevent a recurrence.
+
+Because they have no price to wait at, market orders cannot rest in the book. If they cannot immediately fill (for example, if there are no sellers at all), they are cancelled.
+
+### Stop Orders
 
 A **stop order** sits dormant until the market price reaches a specified trigger level (the **stop price**). When triggered, it converts to another order type and enters the book.
 
@@ -498,7 +718,7 @@ A **stop order** sits dormant until the market price reaches a specified trigger
 
 Stop orders do not sit in the regular bid/ask book, they are held in a separate dormant queue and injected into the book only when triggered. It is worth noting that stop orders are not universally supported natively at the exchange level: some exchanges handle stops internally as described here; others leave stop order logic to brokers or client-side systems, sending only the resulting limit or market order to the exchange once the trigger is reached. The exchange system you are building handles stops natively, this is a deliberate design choice.
 
-#### Stop-Limit Orders
+### Stop-Limit Orders
 
 A **stop-limit order** is a stop order that, when triggered, converts to a **limit order** rather than a market order. This gives the trader price protection but introduces the risk of non-execution.
 
@@ -506,7 +726,7 @@ Example: A sell stop-limit with a stop price of $145 and a limit price of $144. 
 
 Neither is universally better; the choice depends on whether the trader prioritises execution certainty (stop-market) or price certainty (stop-limit).
 
-#### Trailing Stop Orders
+### Trailing Stop Orders
 
 A **trailing stop** is a stop order with a twist: the stop price automatically adjusts as the market moves in a favourable direction, but freezes when it moves against the position.
 
@@ -514,7 +734,7 @@ Example: You bought shares at $150. You set a sell trailing stop with an offset 
 
 The mechanism that advances the stop in the favourable direction is called the **ratchet**, like a mechanical ratchet that only moves in one direction. The trail offset is stored as a fixed distance, and the ratchet advances by subtracting this offset from each new high-water-mark price.
 
-#### How a Trailing Stop Actually Executes
+### How a Trailing Stop Actually Executes
 
 This is a point of frequent confusion, so it deserves careful explanation.
 
@@ -532,7 +752,7 @@ To make this concrete with the example above: the stop price has ratcheted up to
 
 Trailing stop logic is not universally implemented at the exchange level. On some venues it is handled client-side (the trading algorithm tracks the high-water mark and adjusts the stop price manually), on others broker-side, and on others natively within the matching engine. Wherever it is implemented, the ratchet behaviour and the dormant-then-market-order execution model are the same.
 
-#### Iceberg Orders
+### Iceberg Orders
 
 An **iceberg order** (also called a **reserve order** or **hidden order**) is a large order that conceals most of its size. It shows only a small visible portion, the **peak** or **tip**, to other participants. When the visible portion is consumed by fills, the order automatically replenishes from its hidden reserve, showing a new peak.
 
@@ -542,7 +762,7 @@ The trade-off is **queue priority**: each replenishment gets a fresh timestamp a
 
 Iceberg orders are widely used by institutional investors and market makers on exchanges like the LSE, Euronext, and Deutsche Börse.
 
-#### Hidden Liquidity, Priority Rules, and Midpoint Orders
+### Hidden Liquidity, Priority Rules, and Midpoint Orders
 
 Different exchanges treat hidden liquidity differently, and the rules matter for developers building order management systems.
 
@@ -609,7 +829,7 @@ On IEX (a lit exchange), midpoint pegs work slightly differently. The midpoint p
 
 The matching engine must handle midpoint pegs as a separate priority queue that sits parallel to the regular price-time priority book. The mid price must be recalculated on every book update (every time the best bid or best ask changes). The midpoint peg queue must be checked against incoming orders and against each other. The fill price for a midpoint peg match is not a stored order price, it is computed dynamically at match time as (best_bid + best_ask) / 2, requiring care with rounding to the nearest valid tick.
 
-#### OCO Orders (One-Cancels-Other)
+### OCO Orders (One-Cancels-Other)
 
 An **OCO order** is a pair of orders linked together by a rule: if either order fills (or is cancelled), the other is automatically cancelled.
 
@@ -622,7 +842,7 @@ Only one of A or B will ever execute. Whichever triggers first cancels the other
 
 OCO orders are a standard feature of most professional trading platforms and are supported by exchanges including CME and CBOE.
 
-#### Combo Orders
+### Combo Orders
 
 A **combo order** (also called a **spread order** or **strategy order**) is a single instruction to simultaneously execute orders in multiple instruments. Each component is called a **leg**. [12]
 
@@ -632,7 +852,7 @@ Combo orders are critical in derivatives markets. On CME, a futures trader might
 
 The execution challenge is **leg risk**: if one leg fills and the other does not, the trader is left with an unintended one-sided position. Production exchange systems handle this with sophisticated combo matching engines; simpler systems accept the leg risk explicitly.
 
-#### Implied Orders, Synthetic Liquidity from Existing Orders
+### Implied Orders, Synthetic Liquidity from Existing Orders
 
 This concept trips up almost every developer encountering derivatives exchange systems for the first time. Read it slowly.
 
@@ -642,7 +862,7 @@ In a market with both outright order books (January futures, February futures) a
 
 The critical thing to understand before the example: **implied orders do not create liquidity from nowhere.** They are a different expression of liquidity that already exists. This distinction will become completely clear through the example.
 
-##### A Step-by-Step Implied Order Example
+#### A Step-by-Step Implied Order Example
 
 **The instruments.** We have three order books:
 
@@ -718,13 +938,13 @@ In both cases, the February implied offer is entirely derived from the other two
 
 Now remove Trader A's January order and watch what happens: the implied February offer disappears instantly, because one of its two components is gone. This is the definitive proof that the implied book holds no independent liquidity.
 
-##### The Two Directions of Implied Matching
+#### The Two Directions of Implied Matching
 
 The example above is **implied-in**: an outright order plus a spread order imply a new outright in the other month.
 
 The reverse is **implied-out**: two outright orders imply a spread. If there is a January buyer at $75 and a February seller at $77, the engine can see an implied spread sell at $75 − $77 = −$2. This implied spread sell can match a resting spread buyer at −$2. CME Globex supports both implied-in and implied-out across all its major futures products.
 
-##### Developer Implications
+#### Developer Implications
 
 Implied matching creates several engineering challenges that are absent from simple outright matching:
 
@@ -738,45 +958,59 @@ Implied matching creates several engineering challenges that are absent from sim
 
 > **Key idea:** Implied orders are not free liquidity. They are a mechanism for expressing in one market the combined willingness already committed in two other markets. When an implied order matches, it consumes real orders from real books. The total liquidity in the system decreases by exactly the quantity matched, just as it would in any ordinary trade.
 
-### Time-In-Force, How Long Should the Order Live?
+## Time-In-Force, How Long Should the Order Live?
 
 
 Every order must specify how long it should remain active if not immediately filled. This is called **Time-In-Force (TIF)** and is a standard attribute on every order in every major exchange system.
 
-#### DAY
+### DAY
 The order is valid only for the current trading session. At the end of the session, it is automatically cancelled. This is the default and most common TIF.
 
-#### GTC, Good-Till-Cancelled
+### GTC, Good-Till-Cancelled
 The order remains active until it is completely filled or explicitly cancelled by the participant. It survives overnight, across weekends, and across holidays. This requires special handling by the exchange: GTC orders must be persisted to durable storage at the end of each session and reloaded at the start of the next.
 
 The risk for the participant: a GTC order placed when a stock was at $100 might unexpectedly fill at a different point in the market cycle if the participant forgets about it.
 
-#### GTD, Good-Till-Date
+### GTD, Good-Till-Date
 A variant of GTC with a specified expiry date and time. The order remains active until it is completely filled, explicitly cancelled, or the specified expiry date arrives, whichever comes first. On the expiry date the order is automatically cancelled regardless of fill status.
 
 GTD is standard on most professional trading platforms and widely used by institutional investors who want the persistence of GTC without the open-ended risk of an order remaining active indefinitely. A fund manager expecting a news event on a specific date might place limit orders to accumulate a position and use GTD to ensure they expire automatically if not filled by the event date.
 
 From an engineering perspective GTD behaves like GTC with an additional scheduled cancellation task: the exchange's session scheduler must track each GTD order's expiry and issue the cancellation at the right moment, even if no other event in the system triggers it.
 
-#### ATO, At-The-Open
+### ATO, At-The-Open
 The order is valid only during the **opening auction** (the special matching procedure that establishes the first price of the day). If not filled in the opening auction, it is cancelled. On NYSE, these are sometimes called **Market-At-Open (MOO)** or **Limit-At-Open (LOO)** orders depending on whether they carry a price limit.
 
 An important restriction: ATO orders submitted after the opening auction has concluded are rejected, the TIF cannot be satisfied after the moment it targets has passed. Some exchanges accept ATO orders throughout the pre-open period; others impose a cutoff time before the auction begins.
 
-#### ATC, At-The-Close
+### ATC, At-The-Close
 Valid only during the **closing auction**. Extremely common among institutional investors who need to trade at or near the official closing price, many funds are benchmarked against closing prices. On NYSE, the closing auction on a typical day handles a substantial portion of the day's entire volume in the final moments of trading [See NYSE Closing Auction Dynamics, 2023].
 
 Like ATO, ATC orders submitted after the closing auction has already run are rejected. Unlike DAY orders, ATC orders cannot accumulate position through the continuous session, they are specifically targeting the single closing price that emerges from the auction uncross.
 
-#### IOC, Immediate-Or-Cancel
+### IOC, Immediate-Or-Cancel
 Fill as much as possible immediately; cancel any unfilled remainder instantly. Unlike a market order, an IOC can carry a limit price: "Fill whatever you can at $150.30 or better right now; cancel the rest." IOC orders never rest in the book.
 
-#### FOK, Fill-Or-Kill
+### FOK, Fill-Or-Kill
 Fill the **entire** quantity immediately, or cancel the entire order without any partial fill. Used when partial fills are unacceptable, for instance, an arbitrage strategy that only works if the full quantity executes simultaneously across legs.
 
 The exchange must verify available liquidity before executing any fills. In practice, the engine performs a **dry-run sweep**: it walks through the book checking whether the full quantity can be matched at acceptable prices, without committing any fills. Only if the full quantity is satisfiable does the engine execute the actual fills. If at any point the available depth is insufficient, including because part of the available liquidity belongs to the same participant (which SMP would cancel), the entire order is cancelled without a single fill occurring. This is more complex than a standard market order sweep: the engine must complete a full hypothetical assessment of the book before touching it.
 
-### The Order Book, The Exchange's Memory
+**IOC vs FOK in one sentence:** IOC accepts a partial fill and cancels the rest; FOK requires a full fill or cancels entirely. Both execute immediately and neither rests in the book.
+
+### TIF Quick Reference
+
+| TIF | Rests in book? | Accepts partial fill? | Valid period | Typical use case |
+|---|---|---|---|---|
+| **DAY** | Yes | Yes | Current session | Most orders; default |
+| **GTC** | Yes | Yes | Until cancelled | Long-term limit orders |
+| **GTD** | Yes | Yes | Until specified date | Event-driven; expires automatically |
+| **ATO** | Opening auction only | Yes | Opening auction | Participate in the open price |
+| **ATC** | Closing auction only | Yes | Closing auction | Benchmark to the close |
+| **IOC** | No | Yes (partial OK) | Immediate only | Aggressive, price-limited; remainder cancelled |
+| **FOK** | No | No (all or nothing) | Immediate only | Arbitrage, multi-leg strategies |
+
+## The Order Book, The Exchange's Memory
 
 
 The **order book** (also called the **limit order book** or **LOB**) is the central data structure of a matching engine [1] [2]. It is the live record of every resting order in the market, all the buyers waiting to buy and all the sellers waiting to sell, organised by price.
@@ -785,11 +1019,22 @@ The **order book** (also called the **limit order book** or **LOB**) is the cent
 
 Think of it as two sorted lists:
 
-**The bid side**, all resting buy orders, sorted from the highest price (most attractive for sellers) down to the lowest. A buyer offering $150.30 is at the top of the bid side if no one else is offering more.
+**The bid side**, all resting buy orders, sorted from the highest price (most attractive for sellers) down to the lowest. A buyer offering $150.34 is at the top of the bid side if no one else is offering more.
 
 **The ask side** (also called the **offer side**), all resting sell orders, sorted from the lowest price (most attractive for buyers) up to the highest. A seller asking $150.35 is at the top of the ask side if no one is asking less.
 
-#### The Spread
+**What a real order book looks like.** At any given moment, a simplified snapshot of the AAPL book might be:
+
+| Bid Qty | Bid Price | | Ask Price | Ask Qty |
+|---:|:---:|---|:---:|:---|
+| 2,000 | $150.34 | ← **best bid** \| **best ask** → | $150.35 | 1,500 |
+| 1,500 | $150.33 | | $150.36 | 2,800 |
+| 3,200 | $150.32 | | $150.37 | 1,000 |
+| 800 | $150.31 | | $150.38 | 4,200 |
+
+The **spread** here is $150.35 − $150.34 = $0.01. The **mid price** is ($150.34 + $150.35) / 2 = $150.345. If a market sell order for 3,500 shares arrives, it sweeps: 1,500 shares at $150.34 (exhausting that level), then 2,000 of the 2,800 available at $150.33. The new best bid after the sweep is $150.33 with 800 shares remaining.
+
+### The Spread
 
 The **spread** is the gap between the best bid (highest buy offer) and the best ask (lowest sell offer). If the best bid is $150.30 and the best ask is $150.35, the spread is $0.05.
 
@@ -799,13 +1044,13 @@ A **tight spread** (small gap) indicates a liquid, efficiently-priced market. A 
 
 The **mid price** is the arithmetic average of the best bid and best ask: (150.30 + 150.35) / 2 = $150.325. This is often used as the "current price" of an instrument when no trade has occurred recently.
 
-#### Depth
+### Depth
 
 **Depth** refers to how much quantity is resting at each price level. A market with 50,000 shares resting within $0.05 of the best bid is "deep", you can trade a large size without moving the price much. A market with only 100 shares available near the best price is "shallow", a single large order will sweep through multiple price levels.
 
 **Level 1 data** shows only the best bid price, best ask price, and quantities. **Level 2 data** (also called **market depth** or the full order book) shows all resting price levels. Professional traders subscribe to Level 2 data because depth reveals information about near-term price pressure.
 
-#### Measuring Depth
+### Measuring Depth
 
 Depth is not a single number, it is a shape. Practitioners and algorithms use several derived measures to quantify it for different purposes.
 
@@ -841,11 +1086,11 @@ The **market impact** is the difference between this average and the initial bes
 
 **Volume-at-touch vs total book depth.** A useful distinction: *volume at touch* is only the best bid and ask (Level 1). *Total book depth* includes all visible levels. An iceberg order contributes only its visible peak to displayed depth, so total book depth may understate available liquidity if icebergs are present. This is why dark pool liquidity (invisible until matched) and iceberg reserves (invisible until refreshed) are relevant even to participants who believe they can read the full book.
 
-#### Price Levels
+### Price Levels
 
 A **price level** is a single specific price at which one or more orders are resting. All orders at $150.30 form one price level on the bid side. When all orders at a given price level have been filled or cancelled, that price level disappears from the book.
 
-#### The Order Book Is Not the Market Price
+### The Order Book Is Not the Market Price
 
 This is a subtle but important point: the order book shows only **resting orders**, orders that have not yet traded. The current market price, as quoted in news tickers and trading apps, is typically the price of the **most recent actual trade**, not the price of any resting order. After a trade happens, the market price updates. Between trades, the price is conventionally shown as the mid of the book.
 
@@ -857,19 +1102,23 @@ This means there are actually several distinct "prices" in play at any moment, e
 
 **Previous day's closing price.** Once the session ends, the **official closing price** from the closing auction becomes the reference price for the entire period the market is closed, typically overnight and across weekends. This is the price used to value portfolios at end of day, to calculate overnight P&L, to set the reference for the next day's static price collars, and to publish the figures that appear in newspapers, financial reports, and fund valuations.
 
->**Closing auction and Static Price Collar**
+> **Closing Auction and Static Price Collar**
 >
->Two terms in that paragraph will be unfamiliar at this point in the document, so a brief preview is warranted. The **closing >auction** is a special matching procedure that runs at the end of the trading day: rather than matching orders one at a time as they >arrive, the exchange collects all outstanding buy and sell interest over a short accumulation period and then computes the single >price at which the greatest number of shares can trade simultaneously, matching all eligible orders at that one price. This produces >a more authoritative closing price than simply taking the last trade of continuous trading, which might have been a small or unusual >transaction. The closing auction is covered in full in the *Opening and Closing Auction* section of Part II. A **static price collar** (also called a fat-finger filter) is a >pre-trade risk control that rejects any incoming order whose submitted price strays too far from the previous closing price, >protecting against obvious entry errors such as a misplaced decimal point. Because it uses the closing price as its benchmark, it >must be recalculated at the start of each new session. Static price collars are covered in full in the *Trading Sessions* section of Part II.
+> Two terms in that paragraph will be unfamiliar at this point in the document, so a brief preview is warranted.
+>
+> The **closing auction** is a special matching procedure that runs at the end of the trading day: rather than matching orders one at a time as they arrive, the exchange collects all outstanding buy and sell interest over a short accumulation period and then computes the single price at which the greatest number of shares can trade simultaneously, matching all eligible orders at that one price. This produces a more authoritative closing price than simply taking the last trade of continuous trading, which might have been a small or unusual transaction. The closing auction is covered in full in the *Opening and Closing Auction* section of Part II.
+>
+> A **static price collar** (also called a fat-finger filter) is a pre-trade risk control that rejects any incoming order whose submitted price strays too far from the previous closing price, protecting against obvious entry errors such as a misplaced decimal point. Because it uses the closing price as its benchmark, it must be recalculated at the start of each new session. Static price collars are covered in full in the *Trading Sessions* section of Part II.
 
 The closing price carries particular weight precisely because it is independently determined by a transparent auction process rather than by a single trade that could be anomalous or thin. A portfolio worth $10 million at 3:59pm might be marked at a slightly different value at 4:00pm if the closing auction produced a different price, but that closing price is considered more authoritative because it reflects the broadest simultaneous expression of supply and demand at that moment of the day.
 
 For exchange developers, the closing price has several concrete implications. It is the reference that the static price collar compares each new day's orders against. It is the benchmark that performance reports are measured against. It is the number that triggers overnight margin calls if positions have moved far enough. And it is the price that must be persisted at end of session, broadcast to all downstream systems, and made available when the exchange reopens the following morning.
 
-#### What the World Sees vs What the Engine Knows
+### What the World Sees vs What the Engine Knows
 
 Most market participants see only an **aggregated view** of the book: total quantity at each price level, without knowing how many individual orders make up that quantity or who placed them. The exchange itself knows the full detail, every individual order, its owner, its arrival time, its type. Publishing the aggregated view is part of the exchange's **market data** service; it's how participants observe the market.
 
-### Price-Time Priority, The Fairness Rule
+## Price-Time Priority, The Fairness Rule
 
 
 One of the most fundamental questions an exchange must answer is: when multiple resting orders are at the same price, which one gets filled first?
@@ -893,11 +1142,11 @@ Price-time priority is the default on NYSE, NASDAQ, CME, Eurex, LSE, and virtual
 - *Under FIFO:* Order X arrived first and has priority. It receives all 60 lots. Order Y receives nothing.
 - *Under pro-rata:* The 60 lots are distributed in proportion to order size. Total resting demand = 100 + 40 = 140 lots. Order X receives 60 × (100/140) ≈ 43 lots; Order Y receives 60 × (40/140) ≈ 17 lots. Both orders fill partially.
 
-Pro-rata rewards size over speed: a large order gets more even if it arrived later. It is common in interest-rate futures markets (where orders can be very large and the marginal value of nanosecond speed is lower) and in some options markets. FIFO rewards speed over size: whoever commits first at a price wins. Knowing which rule a venue uses matters for anyone building order-routing or execution logic.
+Pro-rata rewards size over speed: a large order gets more even if it arrived later. It is common in interest-rate futures markets (where orders can be very large and the marginal value of nanosecond speed is lower) and in some options markets. CME Group uses pro-rata allocation for its SOFR (Secured Overnight Financing Rate) futures and US Treasury futures, while using FIFO for its equity index futures (E-mini S&P 500, E-mini Nasdaq 100) [CME Group Matching Algorithm Guide, 2023]. Knowing which rule a venue uses matters enormously for anyone building order-routing or execution logic: an HFT firm optimising for FIFO markets (be first) must use entirely different strategies than one optimising for pro-rata markets (be large).
 
 For the exchange to implement price-time priority correctly, two things must be true: prices must be comparable without ambiguity (hence integer tick counts), and order arrival must be sequenced deterministically. Modern exchange systems use **nanosecond-precision timestamps** as one component of this sequencing. However, the timestamp alone does not fully guarantee fairness, what matters is the order in which messages are **accepted into the exchange system**, which also depends on network routing, gateway sequencing, and in high-performance systems, hardware timestamping infrastructure. The timestamp records when the exchange received the order; the sequencing infrastructure ensures that two orders arriving within the same nanosecond are ordered consistently and reproducibly.
 
-#### How Order Amendments Affect Priority
+### How Order Amendments Affect Priority
 
 Orders do not always stay unchanged from submission to fill. Participants modify their orders, adjusting price, changing quantity, or occasionally altering other attributes. The question of how an amendment affects queue priority is important, and the rules are consistent across almost all major exchanges.
 
@@ -919,7 +1168,7 @@ These rules hold on NYSE, NASDAQ, CME, Eurex, LSE, and virtually every other maj
 
 **Implications for software:** the exchange engine must apply the correct priority rule based on the type of amendment. A modify message that contains only a quantity decrease should leave the order's timestamp unchanged. Any other modification, price change, quantity increase, TIF change, or unknown field change, should assign a new timestamp. The simplest safe implementation: treat all amendments other than quantity decrease as cancel-plus-new-order.
 
-#### Ticks: The Minimum Price Increment
+### Ticks: The Minimum Price Increment
 
 Prices in financial markets do not move continuously. They move in discrete steps called **ticks**. The minimum price movement is the **tick size**.
 
@@ -933,12 +1182,12 @@ The standard solution is to store prices as **integer tick counts**: the number 
 
 **What happens when a non-aligned price is submitted?** If a participant submits a limit buy at $150.305 when the tick size is $0.01, the price is not a valid tick multiple. The pre-trade validation layer rejects the order before it reaches the matching engine and returns an error message identifying the nearest valid prices on either side ($150.30 and $150.31) so the participant can resubmit correctly. The order receives REJECTED status and never enters the book. This becomes especially important at larger tick sizes, a futures product with a $0.25 tick makes it easy to accidentally submit a price like $150.10 that falls between valid multiples.
 
-### The Matching Engine, The Heart of the Exchange
+## The Matching Engine, The Heart of the Exchange
 
 
 The **matching engine** is the software that receives orders, manages the order book, and executes trades when buy and sell orders are compatible. It is the exchange's most critical, performance-sensitive component.
 
-#### The Core Loop
+### The Core Loop
 
 At its simplest, the matching engine runs an endless loop:
 1. Receive an incoming order.
@@ -948,7 +1197,30 @@ At its simplest, the matching engine runs an endless loop:
 5. Check if any dormant stop orders have now been triggered by the new trade price.
 6. Publish the results (trades, order status changes) to participants and subscribers.
 
-#### The Sweep
+```mermaid
+flowchart TD
+    A["Dequeue next message\nfrom input queue"]
+    B{"Message\ntype?"}
+    C{"Can order match\nagainst resting orders?"}
+    D["Execute sweep\nfill one or more levels"]
+    E{"Order\nfully filled?"}
+    F["Publish FILLED event\nRemove from book"]
+    G["Publish PARTIAL event\nRest remainder in book"]
+    H["Place order\nin book at price level\nPublish ACK"]
+    I["Process cancel\nor modification\nPublish event"]
+    J["Check dormant stops:\ndid last_trade_price trigger any?"]
+    K["Publish all events\nto PUB socket"]
+
+    A --> B
+    B -->|New order| C
+    B -->|Cancel / Modify| I --> K --> A
+    C -->|Yes| D --> E
+    E -->|Yes| F --> J --> K --> A
+    E -->|No| G --> J --> K --> A
+    C -->|No| H --> K --> A
+```
+
+### The Sweep
 
 When an aggressive order arrives and begins filling against the resting book, this process is called **sweeping** the book. The aggressive order works through price levels one by one, from best to worst, until either it is fully filled or it reaches its limit price (or the book runs out of orders).
 
@@ -961,7 +1233,7 @@ For example, a market buy order for 5,000 shares arrives:
 
 The price impact of sweeping through multiple levels is called **slippage** or **market impact**, the large order moved the effective price away from the initial best ask.
 
-#### Single-Threaded by Design
+### Single-Threaded by Design
 
 Perhaps counterintuitively, most matching engines are **single-threaded**, they process orders one at a time, in strict sequence, with no parallel processing of orders. This is not a performance limitation; it is a deliberate design choice.
 
@@ -971,9 +1243,9 @@ By processing orders in a single thread, the engine guarantees that the outcome 
 
 > **Key idea:** Single-threaded design is a feature, not a limitation. It makes the matching engine auditable, replayable, and legally defensible. Performance comes from algorithmic efficiency, not parallelism.
 
-The performance requirement is achieved through algorithmic efficiency (correct data structures, avoiding unnecessary computation) rather than parallelism. The world's fastest matching engines can process orders in microseconds or even nanoseconds.
+The performance requirement is achieved through algorithmic efficiency (correct data structures, avoiding unnecessary computation) rather than parallelism. The world's fastest matching engines can process orders in microseconds or even nanoseconds. CME Globex handles approximately 30–35 million messages per day across all products [CME Group Market Statistics, 2023]. NASDAQ's matching engines acknowledge orders in under 100 microseconds in typical conditions; co-located HFT firms that respond to market data and submit an order may achieve round-trip latencies below 5 microseconds. These numbers drive the entire hardware and architecture design: no garbage-collected language, no dynamic memory allocation in the critical path, no operating system calls that can introduce variable latency.
 
-#### One Book Per Symbol
+### One Book Per Symbol
 
 The matching engine maintains one order book per tradeable symbol. AAPL trades in one book, MSFT in another. These books are entirely independent, an order in the AAPL book cannot interact directly with an order in the MSFT book (combo orders handle cross-symbol interaction at a higher level).
 
@@ -991,20 +1263,20 @@ Conceptually, one logical order book per symbol is the correct mental model. In 
 
 For exchange system developers, this means the "separate process per symbol" architecture that works cleanly for single-instrument matching must be extended, or wrapped with a higher-level combinator, to handle any multi-leg or implied matching requirements.
 
-#### The Role of Data Structures
+### The Role of Data Structures
 
 The order book needs to answer one question extremely fast: "What is the best available price right now?" Priority queues and heap-like structures are conceptually useful for understanding this, a heap gives O(1) access to the minimum or maximum element, and O(log n) insertion and deletion, which suits the matching engine's primary operations well.
 
 Production exchange engines, however, often use more specialised data structures optimised for FIFO ordering within price levels, cache locality, and deterministic latency: balanced trees, skip lists, or intrusive linked lists indexed by price level are common. The conceptual model of "best price always accessible in O(1)" is correct regardless of the underlying structure; the heap is a pedagogically useful approximation of what these structures achieve.
 
-### The Life of a Trade
+## The Life of a Trade
 
 
 Let us trace a single trade from start to finish.
 
-#### Order Submission
+### Order Submission
 
-Participant A, connected through Gateway GW01, submits a limit buy order: "Buy 500 shares of AAPL at $150.30, DAY." The gateway validates the basic format and forwards it to the matching engine.
+Participant A, connected through Gateway GW01, submits a limit buy order: "Buy 500 shares of AAPL at $150.30, DAY." The order arrives as a **FIX message** (Financial Information eXchange — the standard protocol for order submission in financial markets, covered in full in the Technology Architecture section). The gateway validates the basic format and forwards it to the matching engine.
 
 The engine receives the order and assigns it:
 - A **unique order ID** (a system-wide identifier, discussed in detail in the architecture section)
@@ -1013,7 +1285,7 @@ The engine receives the order and assigns it:
 
 The engine publishes an **acknowledgment (ACK)** back to GW01 confirming the order is live. The order now rests in the book.
 
-#### The Match
+### The Match
 
 Moments later, Participant B, connected through Gateway GW02, submits a sell limit order: "Sell 500 shares of AAPL at $150.30, DAY." Or perhaps a market sell order. Either way, the engine determines that this sell order can match the resting buy order.
 
@@ -1035,15 +1307,15 @@ A **trade record** is created, capturing:
 
 The aggressor field is more than just a label. It matters for several reasons. First, for **fee calculation**: most exchanges charge takers (aggressors) a fee and pay makers (resting orders) a rebate, so correctly identifying which side was aggressive determines the billing for each trade. Second, for **regulatory reporting**: in some jurisdictions, trades must be classified as "buy-initiated" or "sell-initiated" based on which side was the aggressor. Third, for **market analysis**: the sequence of buyer-initiated and seller-initiated trades is a standard input to microstructure models that infer order flow direction and predict short-term price movement. Fourth, for **clearing**: in some clearing architectures, the aggressor side may have different margin or settlement obligations.
 
-#### Partial Fills
+### Partial Fills
 
 If Order A was for 500 shares but only 300 shares were available at $150.30, a **partial fill** occurs: 300 shares trade, Order A's status becomes **PARTIAL** with 200 shares remaining, and it continues resting at $150.30 waiting for more sellers.
 
-#### Publication
+### Publication
 
 Every trade is immediately published over the market data feed to all subscribers. The viewer, board, stats database, clearing system, and any other subscriber all receive the trade notification within microseconds of it occurring.
 
-#### Order Status Lifecycle
+### Order Status Lifecycle
 
 An order passes through a defined set of statuses during its lifetime. Understanding these is essential for anyone building order management, reporting, or audit systems.
 
@@ -1078,14 +1350,14 @@ stateDiagram-v2
 
 > **Key idea for developers:** REJECTED is fundamentally different from CANCELLED. A rejected order never existed in the book; a cancelled order did. Audit trails must record both, but they have different implications for position tracking (a rejected order has no position impact) and for regulatory reporting.
 
-### Market Makers, The Providers of Liquidity
+## Market Makers, The Providers of Liquidity
 
 
 Earlier we introduced market makers conceptually as liquidity providers. In this section we examine their operational interaction with the exchange in much greater detail: quote lifecycles, formal obligations, protection mechanisms, inventory risk, and the software implications of supporting them.
 
 > **Key idea:** Market making is not a passive activity. The market maker's position, risk, and obligations change with every fill, every second of elapsed quoting time, and every price movement in the market. The exchange system must enforce all of this automatically, in real time, without manual intervention.
 
-#### Market Maker Obligations
+### Market Maker Obligations
 
 Being a designated market maker is not a free lunch. The exchange grants privileges, reduced fees, faster data access, and in some markets priority access to certain order flow, but in return imposes binding contractual obligations. These are monitored continuously in real time. Failing to meet them results in financial penalties or loss of market maker status.
 
@@ -1103,19 +1375,23 @@ The typical obligations, in descending order of fundamentality, are:
 
 **6. Re-quoting obligation.** After either side of a quote is filled, the market maker must post a fresh replacement quote within a specified maximum delay, typically a few hundred milliseconds to a few seconds depending on the product and exchange. The exchange system must track fill events and monitor whether replacement quotes arrive in time.
 
-#### The Two-Sided Dilemma: When One Side Is Taken
+### The Two-Sided Dilemma: When One Side Is Taken
 
-The obligations above sound manageable until you think carefully about what happens at the moment of a fill. This is where market making becomes genuinely complex.
+The obligations above sound manageable until you think carefully about what happens at the moment of a fill. This is where market making becomes genuinely complex, and where the concept of **adverse selection** becomes central.
 
-Suppose a market maker is quoting AAPL:
+**Adverse selection** occurs when the participant trading against a market maker is doing so because they have information that the market maker lacks. The informed trader knows the price is about to move; the market maker does not. The market maker ends up buying at $150.30 just before the price falls, or selling at $150.35 just before the price rises. This is not bad luck; it is the systematic consequence of always being available to trade against anyone who shows up.
+
+The arithmetic makes the danger concrete. Suppose a market maker is quoting AAPL:
 - **Bid:** Buy 500 shares at $150.30
 - **Ask:** Sell 500 shares at $150.35
 
-An aggressive sell order arrives and hits the bid. The market maker has just bought 500 shares at $150.30. But their ask, "sell 500 shares at $150.35", is still live. The problem: this situation is no longer neutral. The seller was aggressive, they had a reason to sell urgently. If that reason is information (the price is about to fall), the market maker has been adversely selected. Their bid was hit at $150.30, the price may now fall, and they are still advertising a willingness to sell at $150.35, a price that may no longer reflect reality.
+An aggressive sell order arrives and hits the bid. The market maker has just bought 500 shares at $150.30. But their ask, "sell 500 shares at $150.35", is still live. The problem: this situation is no longer neutral. The seller was aggressive — they had a reason to sell urgently. If that reason is information (the price is about to fall), the market maker has been adversely selected.
+
+The arithmetic: if the true price falls to $150.10 after the fill, the market maker now holds 500 shares worth $150.10 that they paid $150.30 for. Loss: $0.20 × 500 = **$100**. Their entire spread revenue for this fill was $0.05 × 500 = **$25** (the half-spread). A single adverse selection event of $100 wipes out the spread revenue from four previous trades. If the informed seller keeps hitting the bid repeatedly before the market maker can react, the losses compound rapidly.
 
 The exchange system must have a defined policy about what to do with the surviving side, because these events occur in microseconds with no time for manual decisions.
 
-#### Quote Refresh Policies
+### Quote Refresh Policies
 
 The **quote refresh policy** is the rule governing what happens to the surviving leg of a two-sided quote when the other leg fills.
 
@@ -1127,32 +1403,32 @@ The **quote refresh policy** is the rule governing what happens to the surviving
 
 The exchange system must implement all variants, configurable per market maker per product, typically via a quote refresh policy setting checked each time a quote leg fills.
 
-#### Market Maker Protection (MMP)
+### Market Maker Protection (MMP)
 
 Even with careful refresh policies, market makers face a specific danger: **adverse selection at high speed**.
 
 When an algorithm with access to breaking news starts aggressively selling, it does not submit one large order, it sends many small orders in rapid succession, each hitting the market maker's bid before they can react. In milliseconds, the market maker has bought far more inventory than intended at prices that are about to move against them.
 
-**Market Maker Protection (MMP)** is the automated countermeasure. The exchange maintains a rolling time window per market maker and counts fills within it. If fills arrive faster than a configured threshold, say, five fills in one second, MMP fires automatically, cancelling all of that market maker's quotes without waiting for human intervention.
+**Market Maker Protection (MMP)** is the automated countermeasure. The exchange maintains a rolling time window per market maker and counts fills within it. If fills arrive faster than a configured threshold, MMP fires automatically, cancelling all of that market maker's quotes without waiting for human intervention.
 
-After MMP fires, the market maker enters a **protection period** to assess and decide before re-quoting. MMP parameters (fill count, time window) are configured per market maker per symbol and are formally specified in market maker agreements. Eurex's MMP framework, for example, is a contractually binding system with defined parameters and obligations on both sides.
+After MMP fires, the market maker enters a **protection period** to assess and decide before re-quoting. MMP parameters (fill count, time window) are configured per market maker per symbol and are formally specified in market maker agreements. In Eurex's framework, a typical MMP configuration might be "5 fills within 500 milliseconds" for a liquid equity option — if five fills occur faster than that, the system assumes the market maker is being picked off by an informed algorithm and activates protection automatically [Eurex T7 Market Maker Protection User Guide]. The parameters are different for each product: a highly liquid product like a major equity index option might allow more fills in a given window than an illiquid single-stock option.
 
 **Why exchanges provide MMP:** Without it, market makers would either quote much wider spreads (to compensate for adverse selection risk) or withdraw entirely. MMP is not a favour to market makers, it is infrastructure that makes tight spreads and deep liquidity sustainable for the whole market.
 
 In a typical implementation a fill-counter function tracks fills against the rolling window, and an MMP activation function cancels all resting quotes for that market maker when the threshold is exceeded.
 
-#### The Full Lifecycle of a Market Maker Quote
+### The Full Lifecycle of a Market Maker Quote
 
-```mermaid
+```{.mermaid width=350}
 flowchart TD
-    A["**1. Submit two-sided quote**\nBid and ask resting in the book"]
-    B["**2. Quote rests**\nParticipants may trade against either leg"]
-    C["**3. Fill event occurs**\nOne leg hit by an aggressive order"]
-    D["**4. Refresh policy fires**\nSurviving leg cancelled or left active"]
-    E{"**5. MMP check**\nNth fill in rolling window?"}
-    F["**6. Re-quoting window starts**\nExchange tracks deadline for fresh quote"]
-    G["**MMP fires**\nAll quotes cancelled, protection period"]
-    H["**7. Fresh quote submitted**\nNew bid and ask at updated prices"]
+    A["1. Submit two-sided quote\nBid and ask resting in the book"]
+    B["2. Quote rests\nParticipants may trade against either leg"]
+    C["3. Fill event occurs\nOne leg hit by an aggressive order"]
+    D["4. Refresh policy fires\nSurviving leg cancelled or left active"]
+    E{"5. MMP check\nNth fill in rolling window?"}
+    F["6. Re-quoting window starts\nExchange tracks deadline for fresh quote"]
+    G["MMP fires\nAll quotes cancelled, protection period"]
+    H["7. Fresh quote submitted\nNew bid and ask at updated prices"]
 
     A --> B --> C --> D --> E
     E -- No --> F
@@ -1162,12 +1438,12 @@ flowchart TD
 
 This cycle, repeating dozens of times per minute per symbol, is what "providing liquidity" means operationally. A professional market maker runs sophisticated algorithms that evaluate every fill, update pricing models, and decide within microseconds whether and at what prices to re-quote.
 
-### The Opening and Closing Auction
+## The Opening and Closing Auction
 
 
 Trading does not simply start at 9:30am and stop at 4:00pm (for US equities). The transition between closed and open trading is managed through a **call auction**, also called a **fixing** or **uncross**.
 
-#### The Problem an Auction Solves
+### The Problem an Auction Solves
 
 Imagine the exchange has been closed overnight. Many participants have new orders to submit. If the exchange simply opened and started matching immediately, the first few orders would define the opening price, which would be arbitrary and potentially far from "fair value" based on overnight news.
 
@@ -1183,13 +1459,29 @@ Instead, exchanges run an **opening auction**:
 
 The result is a fair opening price that reflects the overnight information available to all participants simultaneously, rather than favouring whoever happened to submit their order a few milliseconds earlier.
 
-#### Finding the Equilibrium Price
+### Finding the Equilibrium Price
 
 The equilibrium price is the price that maximises total traded volume, the **maximum executable volume rule**. For each candidate price, the algorithm calculates:
 - How many buy orders would trade at that price or better (buyers willing to pay at least that much)
 - How many sell orders would trade at that price or better (sellers willing to accept at most that much)
 
 The executable volume at each candidate price is `min(cumulative_bids, cumulative_asks)`. The price that maximises this is the equilibrium.
+
+**A worked example.** During the pre-open period, the following orders have accumulated:
+
+*Buy orders:* 500 shares at $152, 1,000 shares at $151, 800 shares at $150
+
+*Sell orders:* 600 shares at $150, 900 shares at $151, 800 shares at $152
+
+The equilibrium algorithm evaluates each candidate price:
+
+| Candidate Price | Buyers willing to pay ≥ price | Sellers willing to accept ≤ price | Executable (min) |
+|---|---|---|---|
+| $150 | 500+1,000+800 = 2,300 | 600 | **600** |
+| $151 | 500+1,000 = 1,500 | 600+900 = 1,500 | **1,500** ← maximum |
+| $152 | 500 | 600+900+800 = 2,300 | **500** |
+
+The equilibrium price is **$151** — the single price at which the most volume (1,500 shares) can trade. All buyers who bid $151 or more (1,500 shares total) and all sellers who asked $151 or less (1,500 shares total) trade simultaneously at $151, regardless of their individual limit prices. The buyer who bid $152 still pays only $151, receiving $1 per share of price improvement. The seller who asked $150 still receives $151, getting $1 above their minimum. The remaining 800-share sell order at $152 does not execute (too expensive; no buyers remain) and transitions to the continuous book.
 
 **Tie-breaking when multiple prices produce the same volume:** If two candidate prices both yield 500 shares executable, the algorithm must choose between them. The standard tie-breaking rules, applied in order, are:
 
@@ -1203,44 +1495,54 @@ The executable volume at each candidate price is `min(cumulative_bids, cumulativ
 
 **Auction imbalance messaging:** Exchanges often publish the **imbalance**, how many more shares are on the buy side than the sell side at the indicative price, to help participants decide whether to submit offsetting orders before the uncross. NYSE publishes closing auction imbalances starting at 3:45pm, giving participants 15 minutes to respond before the 4:00pm uncross.
 
-#### The Closing Auction
+### The Closing Auction
 
-The closing auction works identically but at the end of the day, establishing the official **closing price**. This is one of the most important prices in the market, it is used to benchmark fund performance, price derivatives, and compute official valuations of positions. The NYSE closing auction is one of the most liquidity-rich events in the US equity market, regularly trading billions of dollars in seconds.
+The closing auction works identically but at the end of the day, establishing the official **closing price**. This is one of the most important prices in the market, it is used to benchmark fund performance, price derivatives, and compute official valuations of positions. The NYSE closing auction is one of the most liquidity-rich events in the US equity market: it regularly accounts for 10–15% of a stock's entire day's trading volume, compressed into a few seconds of uncrossing [NYSE Closing Auction Dynamics, 2023]. On some benchmark index rebalancing days the proportion is even higher, as index funds must trade at exactly the closing price to match their benchmarks.
 
-### Trading Sessions, The Day in the Life of a Market
+## Trading Sessions, The Day in the Life of a Market
 
 
 A trading day is structured into distinct phases, each with different rules about what is allowed.
 
-#### Pre-Open / Pre-Market
+### Pre-Open / Pre-Market
 
 Before the formal opening, some exchanges accept orders for the day (limit orders, ATO orders, GTC orders from previous days). No matching occurs. This is the accumulation phase for the opening auction.
 
-#### Opening Auction
+### Opening Auction
 
 As described above, orders collected, equilibrium computed, uncross executed, continuous trading begins.
 
-#### Continuous Trading (the main session)
+### Continuous Trading (the main session)
 
 The normal matching mode. Orders arrive continuously, the engine matches them in real time, trades happen as soon as compatible orders meet. This is the primary trading session, NYSE runs from 9:30am to 4:00pm Eastern time, LSE from 8:00am to 4:30pm London time.
 
-#### Intraday Auction (optional)
+### Intraday Auction (optional)
 
-Some exchanges run a brief mid-day auction to handle large orders or specific instruments. Eurex runs scheduled intraday auctions for certain futures products.
+Some exchanges run a brief scheduled auction during the continuous session, typically at a fixed time such as noon or 1:00pm. These **intraday auctions** serve several purposes.
 
-#### Closing Auction
+For exchanges that handle both liquid and illiquid instruments, an intraday auction gives participants a chance to trade illiquid stocks against a concentrated pool of interest, rather than relying on sparse continuous liquidity throughout the day. Large institutional orders that are difficult to execute in continuous trading can be "parked" to the intraday auction where counterparties are known to aggregate.
 
-As described above, continuous trading pauses, orders for the closing price accumulate, equilibrium computed, uncross executed.
+For derivatives markets, intraday auctions are also used as **volatility auctions** — if a futures contract moves rapidly during continuous trading and triggers a volatility interruption (not a full halt, but a brief pause), the exchange may resume through a short auction rather than returning immediately to continuous matching. Eurex runs scheduled intraday auctions for certain futures products and uses volatility-triggered auctions as a softer alternative to full circuit breaker halts.
 
-#### Post-Close
+From the exchange system perspective, an intraday auction is mechanically identical to the opening or closing auction: orders accumulate during the auction call period, the engine computes the equilibrium price, and the uncross executes simultaneously.
 
-After the formal close, some exchanges allow limited after-hours trading (though with wider spreads and lower liquidity). GTC orders that didn't fill are persisted for the next day. The book is saved.
+### Post-Close
 
-#### State Machine
+After the formal close, several important processes run:
+
+**After-hours trading.** Some exchanges, particularly US equity venues, allow limited after-hours trading through electronic communication networks (ECNs). Volume and liquidity are substantially lower than during the regular session, spreads are wider, and price moves can be exaggerated. Not all order types are supported. The exchange may operate a separate "extended hours" trading mode with different rules from the main session.
+
+**GTC order persistence.** Good-Till-Cancelled orders that did not fill during the session must be saved to durable storage so they can be reloaded into the order book when the next session begins. This is a non-trivial operation: each GTC order must be written to a persistent store with all its parameters (symbol, side, price, quantity, participant ID, original submission timestamp). At start-of-day, these orders are reloaded before the pre-open period begins, and each is re-acknowledged to the originating participant. If a GTC order's participant has disconnected overnight, the exchange must decide whether to hold the order or cancel it.
+
+**End-of-day batch processes.** The close of session triggers a cascade of batch processes: the official closing price is published and broadcast to downstream systems; daily P&L is calculated for all participants; clearing reports are generated; statistics (OHLCV — Open, High, Low, Close, Volume) are finalised and archived; surveillance reports are run against the day's audit trail. These processes are not in the matching engine's critical path, but they must complete before the next session begins. Their failure can delay the next day's open.
+
+**Book state save.** The complete state of the order book — including all resting limit orders that will carry forward — is written to disk. This is the snapshot that will be used as the starting point for warm restart if needed.
+
+### State Machine
 
 A well-designed exchange system models these transitions as a **state machine**, a finite set of states with explicit rules about which transitions are allowed. You cannot jump from PRE_OPEN directly to CLOSED without going through OPENING_AUCTION and CONTINUOUS. This prevents bugs where the engine enters an impossible state due to a software error or out-of-order messages. If the transition is not in the allowed list, the system rejects it.
 
-```mermaid
+```{.mermaid width=600}
 stateDiagram-v2
     direction TB
     [*] --> PRE_OPEN
@@ -1267,7 +1569,7 @@ stateDiagram-v2
 
 Each arrow represents a permitted transition. Any attempt to trigger a transition not shown is rejected as invalid. This state machine is enforced in the exchange's session scheduler, which issues state change commands to the matching engine at the appropriate times.
 
-### Putting It All Together
+## Putting It All Together
 
 
 Let us trace the life of a complex event through the entire system using the vocabulary we have now built.
@@ -1303,21 +1605,89 @@ Let us trace the life of a complex event through the entire system using the voc
 
 In this single scenario, we used: limit orders, GTC orders, iceberg orders, fill notifications, last trade price, last sell price, stop orders, circuit breakers, collar bands, automatic market maker quote cancellation on halt, drop copy, clearing, P&L, trading sessions, and the state machine. Every piece of vocabulary we have discussed had a role to play.
 
+The message flow between components in steps 1–10 can be visualised as follows:
+
+```{.mermaid width=600}
+sequenceDiagram
+    participant INV as Institutional Investor
+    participant GW3 as Gateway GW03
+    participant ME as Matching Engine
+    participant GW1 as Gateway GW01 (MM)
+    participant PUB as PUB Socket
+    participant DC as Drop Copy
+    participant CL as Clearing
+
+    INV->>GW3: FIX: SELL 50,000 AAPL LIMIT $150.20
+    GW3->>ME: Validated order (internal format)
+    ME->>GW3: ACK — order NEW (UUID assigned)
+    GW3->>INV: Execution report: NEW
+
+    loop Sweep bids $150.35 → $150.20
+        ME->>PUB: Trade event (price, qty, both sides)
+        PUB->>GW1: Fill notification → market maker FILLED
+        PUB->>GW3: Fill notification → investor PARTIAL
+        PUB->>DC: Drop copy fill event (seq numbered)
+        PUB->>CL: Position update
+    end
+
+    ME->>ME: last_trade_price < collar band → HALT
+    ME->>PUB: Session state: CONTINUOUS → HALTED
+    PUB->>GW1: Cancel all MM quotes (stale during halt)
+    PUB->>DC: HALT event (seq numbered)
+
+    Note over ME,CL: 5-minute halt period
+
+    ME->>ME: Scheduler: RESUME
+    ME->>PUB: Session state: HALTED → CONTINUOUS
+    GW1->>ME: Fresh two-sided quote re-submitted
+```
+
+
+
 ## Part III: Risk, Compliance, and Post-Trade
 
-The safeguards that protect markets and participants — before, during, and after each trade — and the regulatory obligations that underpin them.
+*The safeguards that protect markets and participants — before, during, and after each trade — and the regulatory obligations that underpin them.*
+
+---
+
+On the morning of 23 February 1995, Peter Baring, chairman of Barings Bank, called the Bank of England. The bank, founded in 1762, banker to the British royal family, and widely regarded as one of the most respected financial institutions in the world had a problem. One of its traders in Singapore, a 28-year-old named **Nick Leeson**, had accumulated positions in Nikkei 225 futures that nobody at headquarters knew about. The positions totalled approximately $7 billion in notional exposure. Leeson had hidden the losses in an error account numbered 88888, exploiting gaps in the firm's controls and the geographic distance between Singapore and London. When the 1995 Kobe earthquake sent Japanese equity markets sharply lower, Leeson's positions collapsed. Barings' total losses were £827 million. Three days after Peter Baring's phone call, the bank was placed in administration. It was eventually sold to ING for £1. The UK's oldest merchant bank had ceased to exist [Bank of England, February 1995].
+
+Barings had pre-trade risk controls. They were simply not checking position limits at the firm level, not monitoring the error account's exposure, and not asking why a single trader in Singapore was generating such unusual patterns of activity.
+
+Every section of Part III is, in some sense, the answer to the question: "What would have stopped Nick Leeson?" Pre-trade position limits would have flagged his accumulation. A firm-level kill switch, properly monitored, could have halted his trading. A drop copy feed to an independent risk team would have revealed the hidden positions. Regulatory surveillance would have detected the anomalous patterns. And the Knight Capital story at the end of this Part shows that a firm can implement all of these controls, and still fail — if a kill switch takes 45 minutes to operate when a system is running out of control.
+
+**Part Summary:**
+
+Focus on market safety and accountability: the controls that prevent bad orders, the mechanisms that stabilize volatility, and the post-trade processes that make executed trades legally and financially final.
+
+**Learning Objectives:**
+
+- Explain why pre-trade controls are separated from matching in production architectures.
+- Understand circuit breakers, collars, SMP, and kill switches as layered protections.
+- Distinguish routine order-management actions from emergency risk interventions.
+- Follow the trade path beyond execution into clearing, settlement, and surveillance.
+
+**Content:**
+
+- Pre-Trade Risk Controls: Before the Matching Engine
+- Risk Controls, Protecting the Market
+- Self-Match Prevention, When You Would Trade with Yourself
+- Drop Copy, The Shadow Record
+- Clearing and Settlement, When the Trade Becomes Real
+- Regulatory Surveillance, Exchanges Are Not Passive
+- A Cautionary Tale, Knight Capital, August 1, 2012
 
 
-### Pre-Trade Risk Controls: Before the Matching Engine
+## Pre-Trade Risk Controls: Before the Matching Engine
 
 
 The matching engine is the heart of the exchange, but many orders never reach it. A layer of **pre-trade risk controls** sits between the participant and the matching engine, rejecting orders that violate size, price, or credit constraints before any matching logic runs. This separation matters architecturally: the matching engine is optimised purely for speed; risk checking is separated so that it can be comprehensive without slowing the core matching path.
 
-#### Why a Separate Risk Layer?
+### Why a Separate Risk Layer?
 
 A professional trading firm may submit thousands of orders per second. Even a brief software malfunction, a misconfigured algorithm, a bad data feed, a network glitch causing order duplication, can flood the exchange with harmful orders. If each of these reached the matching engine, the damage could propagate to other participants through filled trades that cannot easily be reversed. Pre-trade risk controls are the exchange's first line of defence.
 
-#### Common Pre-Trade Checks
+### Common Pre-Trade Checks
 
 **Maximum order quantity.** An order for 1 billion shares is almost certainly an error. Every exchange imposes an upper limit on the quantity of any single order. The limit may be absolute (no order may exceed X shares) or relative (no order may exceed Y% of the recent average daily volume).
 
@@ -1325,13 +1695,71 @@ A professional trading firm may submit thousands of orders per second. Even a br
 
 **Fat-finger price filter.** Orders whose submitted price is far from the current market price are rejected before reaching the matching engine. This catches typographical errors (an extra zero, a misplaced decimal point) before they touch the book. The fat-finger filter is calibrated per instrument based on its typical price range and volatility.
 
-**Credit and position limits.** The exchange (or the clearing broker) maintains a real-time record of each participant's current positions and open orders. If accepting a new order would cause the participant to exceed their credit limit or position limit (e.g., they are already long 50,000 shares and this order would take them to 100,000 when their limit is 75,000), the order is rejected.
+**Position limits and credit limits.** These two controls are frequently grouped together but measure different things and require different data to evaluate.
+
+*Position limits* cap the number of units a participant may hold in a given instrument, long or short. A position limit of 500,000 shares means a participant cannot hold more than 500,000 shares long or be more than 500,000 shares short at any time. Checking a position limit requires knowing the participant's current settled and unsettled position — data fed from the clearing system into the gateway as a continuously updated parameter. They are designed to prevent any single participant from accumulating a position large enough to create settlement or market concentration risk.
+
+*Credit limits* (also called notional or exposure limits) cap the total financial obligation outstanding at any moment: the mark-to-market value of current positions plus the notional value of all open orders not yet filled. A credit limit of $10 million means the sum of position value plus unfilled order commitments cannot exceed $10 million. Credit limits are harder to check in real time than position limits because they require tracking the full "open order book" — every outstanding order submission and cancellation — as well as settled positions. The example above: already long 50,000 shares, new order would take you to 100,000, limit is 75,000 — that is a position limit breach. A separate check might reject an order because the notional value of all outstanding orders already exceeds the credit threshold, even if the eventual position itself would be within limits.
 
 **Rate limiting / throttling.** Each participant connection (gateway) is permitted to submit at most N orders per second. If submissions arrive faster than this rate, excess orders are queued or rejected. This protects the exchange from denial-of-service conditions, whether deliberate or accidental.
 
-**Self-match prevention (SMP).** Detects when an incoming order would match against a resting order from the same participant, a "wash trade." Applied as a pre-trade check or within the matching engine depending on implementation.
+**Short sale flagging.** In the United States, Regulation SHO (2005) requires that any sell order where the seller does not own the shares be explicitly marked as a **short sale** in the FIX message. The gateway must validate two things: (1) that the "short" flag is correctly present on any sell order for shares the participant does not hold, and (2) that the participant has a valid **locate** confirming shares are available to borrow. Accepting a short sale without a locate is a Reg SHO violation. As described in the *Short Selling* section of Part I, the locate process itself happens in prime brokerage infrastructure outside the exchange, but the gateway enforces that the flag is present before forwarding to the matching engine.
 
-#### The Gateway as Risk Layer
+**Self-match prevention (SMP).** Detects when an incoming order would match against a resting order from the same participant, a "wash trade." Described fully in the *Self-Match Prevention* section of this Part.
+
+### Check Ordering: Fail-Fast by Cost
+
+The sequence in which pre-trade checks run is not arbitrary. Checks requiring external state lookups are more expensive than checks that can be performed on the order message alone. The standard pattern is to fail-fast with the cheapest checks first:
+
+1. **Format and syntax** — Is the message well-formed? Are required fields present and correctly typed? Zero external lookups. Cheapest possible rejection.
+2. **Symbol validity** — Is the symbol known, active, and in a session state that accepts orders? Requires only a reference data table lookup.
+3. **Rate limiting** — Is this gateway within its message rate allowance? In-memory counter per gateway, no external state.
+4. **Fat-finger price check** — Is the submitted price within a configured percentage of the reference price? Requires only a cached reference price per symbol.
+5. **Quantity and notional limits** — Does the order exceed size or value thresholds? Requires only the order fields and configured thresholds.
+6. **Short sale flag check** — If the order is a sell, is the flag correctly set and locate valid?
+7. **Position and credit limits** — Would this order breach the participant's position or credit limits? Requires current position data from the clearing system — the most expensive check.
+8. **SMP pre-check** — Does an obvious self-match with a resting order exist?
+
+Failing at step 1 takes nanoseconds. Failing at step 7 takes longer because it requires consulting external state. Running all checks in parallel wastes resources on orders that would be rejected at step 1; running them in this sequence minimises latency for both accepted and rejected orders.
+
+```mermaid
+flowchart TD
+    A["Incoming order\nfrom participant"] --> B
+
+    B{"1. Format &\nsyntax valid?"}
+    B -->|No| R1["REJECTED\nMalformed message"]
+    B -->|Yes| C
+
+    C{"2. Symbol\nvalid & tradeable?"}
+    C -->|No| R2["REJECTED\nUnknown / halted symbol"]
+    C -->|Yes| D
+
+    D{"3. Within rate\nlimit for gateway?"}
+    D -->|No| R3["REJECTED or QUEUED\nThrottle limit exceeded"]
+    D -->|Yes| E
+
+    E{"4. Price within\nfat-finger band?"}
+    E -->|No| R4["REJECTED\nPrice too far from reference"]
+    E -->|Yes| F
+
+    F{"5. Quantity &\nnotional within limits?"}
+    F -->|No| R5["REJECTED\nSize / value limit exceeded"]
+    F -->|Yes| G
+
+    G{"6. Short sale\nflag correct?"}
+    G -->|No| R6["REJECTED\nReg SHO violation"]
+    G -->|Yes| H
+
+    H{"7. Position &\ncredit limits OK?"}
+    H -->|No| R7["REJECTED\nPosition / credit limit breached"]
+    H -->|Yes| I
+
+    I{"8. SMP\npre-check"}
+    I -->|Self-match| R8["CANCELLED\nper SMP policy"]
+    I -->|Clear| J["→ Matching Engine"]
+```
+
+### The Gateway as Risk Layer
 
 In most production architectures, the gateway performs these checks. The gateway is the first system to touch an incoming order; it can reject it immediately without the order ever reaching the matching engine's single-threaded queue. This keeps the matching engine clean and fast.
 
@@ -1339,20 +1767,38 @@ The consequence for software design: the gateway and the matching engine have di
 
 > **Key idea:** The matching engine is optimised for speed, not safety. Safety is enforced before the order arrives. Developers working on gateway code must treat pre-trade checks as first-class functionality, not as an afterthought.
 
-### Risk Controls, Protecting the Market
+## Risk Controls, Protecting the Market
 
 
 An exchange has a duty not just to its participants but to market stability as a whole. The risk controls described in this section exist because markets can go very wrong, very fast.
 
-#### Circuit Breakers
+### Circuit Breakers
 
-A **circuit breaker** (also known [Trading Curb](https://share.google/ueieYolUF9JVVvu3V) in regulatory terms ) is a mechanism that automatically halts trading when prices move too fast. The name comes from electrical circuit breakers, they "trip" to prevent damage when current (activity) becomes excessive.
+A **circuit breaker** (also called a **trading curb** in some regulatory contexts) is a mechanism that automatically halts trading when prices move too fast. The name comes from electrical circuit breakers, they "trip" to prevent damage when current (activity) becomes excessive.
 
 **Why they exist:** In modern electronic markets, automated trading algorithms can drive prices far from fundamental value in seconds. The **2010 Flash Crash** saw the Dow Jones Industrial Average fall nearly 1,000 points in minutes before recovering [7]. Circuit breakers prevent such cascades from becoming permanent damage by imposing a mandatory pause during which participants can assess the situation, cancel erroneous orders, re-price their quotes, and allow the market to find equilibrium. A halt that lasts five minutes can prevent a price dislocation that might otherwise take hours or days to unwind.
 
-**The basic mechanism:** After each trade, the exchange calculates how much the price has moved relative to a reference price (typically the most recent auction price, or the price at the start of a defined time window). If the movement exceeds a configured threshold in either direction, trading in that symbol is halted. During the halt, new orders can still be submitted and will rest in the book, but no matching occurs. When the halt ends, trading resumes through a **resumption auction** rather than instantly returning to continuous matching, this ensures that the first post-halt price is determined by the broadest available supply and demand, not by a single resting order that happens to be at the top of a thin book.
+The origin of circuit breakers is the **Black Monday crash of 19 October 1987**, when US markets fell 22.6% in a single day. The Presidential Task Force on Market Mechanisms (the Brady Commission) recommended coordinated market-wide pause mechanisms in its January 1988 report, directly leading to the first exchange circuit breakers being implemented. The full history is in the *Black Monday and the Origin of Circuit Breakers* section of Part I.
 
-#### Should Halt Duration Be Fixed or Proportional to Move Size?
+**The basic mechanism:** After each trade, the exchange calculates how much the price has moved relative to a reference price (typically the most recent auction price, or the price at the start of a defined time window). If the movement exceeds a configured threshold in either direction, trading in that symbol is halted. During the halt, new orders can still be submitted and will rest in the book, but no matching occurs. When the halt ends, trading resumes through a **resumption auction** rather than instantly returning to continuous matching — this ensures that the first post-halt price is determined by the broadest available supply and demand, not by a single resting order that happens to be at the top of a thin book.
+
+The circuit breaker introduces its own state machine within the trading session:
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    CONTINUOUS --> HALTED : Price moves beyond\nthreshold from reference
+    HALTED --> RESUMPTION_AUCTION : Halt duration expires\n(min + possible extension)
+    RESUMPTION_AUCTION --> CONTINUOUS : Equilibrium found\nuncross complete
+    RESUMPTION_AUCTION --> RESUMPTION_AUCTION : Indicative price still\noutside extension band\n(auction extended)
+    HALTED --> CLOSED : End-of-day signal\nduring halt (Level 3)
+    note right of HALTED : Orders rest but\nno matching occurs
+    note right of RESUMPTION_AUCTION : Price discovery\nbefore resuming
+```
+
+Note that this is a sub-machine nested within the full trading session state machine (which is described in Part II). A halt can occur multiple times during a single session; each time the circuit breaker trips in CONTINUOUS, the session cycles through HALTED → RESUMPTION_AUCTION → CONTINUOUS before continuing.
+
+### Should Halt Duration Be Fixed or Proportional to Move Size?
 
 This is a genuine design question, and the answer, confirmed by how major markets actually operate, is that both the trigger thresholds *and* the halt durations should be graduated by severity. The reasoning is straightforward: the purpose of a halt is to allow participants enough time to respond. A 0.5% move may reflect a momentary liquidity gap that resolves in two minutes. A 15% move may reflect genuine macroeconomic news that requires participants to read announcements, consult risk managers, recalculate valuations, and obtain fresh margin collateral, a process that cannot be completed in two minutes no matter how urgently it proceeds.
 
@@ -1362,7 +1808,7 @@ There is also a clearing-house dimension: a large move triggers margin calls at 
 
 The practical resolution used by many exchanges is a **minimum halt with conditional extension**: the halt lasts at least the minimum duration, but the resumption auction can be extended in fixed increments (say, 2 minutes at a time) if the indicative uncross price is still far from the reference price when the auction is about to close. This bounds the uncertainty (participants know the halt is at least N minutes) while preventing a forced uncross at a price nobody believes in.
 
-#### Tiered Thresholds and Durations: How Major Markets Actually Work
+### Tiered Thresholds and Durations: How Major Markets Actually Work
 
 **US market-wide circuit breakers (S&P 500 index)**
 
@@ -1386,43 +1832,30 @@ For individual stocks, the US LULD system takes a complementary approach: rather
 |---|---|---|---|
 | **Tier 1** | S&P 500, Russell 1000, selected ETFs | ±5% | ±10% |
 | **Tier 2** | Other NMS stocks | ±10% | ±20% |
-| **Leveraged ETFs** | Multiply the applicable tier by the leverage factor | Up to ±75% for very leveraged instruments |, |
+| **Leveraged ETFs** | Multiply the applicable tier by the leverage factor | Up to ±75% for very leveraged instruments | — |
 
 If the price moves outside the band, a 15-second monitoring period begins. If the price does not return inside the band within 15 seconds, a 5-minute trading pause is triggered. The halt duration is fixed at 5 minutes regardless of how far the price moved, but the threshold that triggers the halt reflects the instrument's normal volatility characteristics.
 
-#### Historical circuit breaker 
+### The 2020 COVID-19 Circuit Breaker Events
 
-In March 2020, the *Level 1* market-wide circuit breaker was triggered 4 times within a two-week period due to pandemic-related panic and an oil price war.
+The most recent real-world test of the US market-wide circuit breaker system was the four Level 1 halts triggered in March 2020. These remain the only times the modern percentage-based system has halted all US equity trading, and they confirmed both that the mechanism worked as designed and that it had not been calibrated for the specific dynamics of a pandemic-driven crash.
 
-Prior to this point, the modernized percentage-based circuit breaker system had never been triggered. These four events remain the only times the modern Level 1 system has ever halted trading across the entire US stock market.
-
-**Timeline of the 2020 Market Halts**
-
-All four halts occurred immediately after the opening bell, triggered by a 7% drop in the S&P 500 Index relative to the previous day's close. Each event triggered a mandatory 15-minute trading halt.
-
-| Date | Trigger Time (EST) | S&P 500 Level at Halt | Catalyst / Context |
+| Date | Trigger Time (EST) | S&P 500 Level | Context |
 |---|---|---|---|
-|March 9, 2020 | 9:34 AM | 2,772.39 |	Black Monday: Outbreak of a Saudi-Russia oil price war combined with compounding COVID-19 fears. |
-|March 12, 2020 | 9:35 AM | 2,564.24 |	Black Thursday: The World Health Organization (WHO) officially declared COVID-19 a global pandemic, and the US announced European travel bans. |
-|March 16, 2020 | 9:30 AM | 2,490.47 |	Immediate Halt: Triggered exactly at market open despite an emergency Sunday night 100-basis-point interest rate cut by the Federal Reserve. |
-|March 18, 2020 | 12:56 PM | 2,429.23 |	Intraday Halt: Liquidity dried up mid-day as investors rushed out of equities and into cash/bonds.|
+| March 9, 2020 | 9:34 AM | 2,772.39 | Saudi–Russia oil price war combined with accelerating COVID-19 spread |
+| March 12, 2020 | 9:35 AM | 2,564.24 | WHO declared COVID-19 a global pandemic; US announced European travel bans |
+| March 16, 2020 | 9:30 AM | 2,490.47 | Triggered at the exact opening bell despite an emergency Fed rate cut overnight |
+| March 18, 2020 | 12:56 PM | 2,429.23 | Intraday halt as liquidity withdrew mid-session |
 
-**Analyze the Mechanical Flow: How the Halts Handled the Panic**
+Each halt lasted the mandatory 15 minutes. Trading resumed through a brief reopening auction each time. The halts functioned as the Brady Commission intended: providing a window for participants to cancel erroneous orders, re-submit with updated prices, and allow the resumption auction to establish a coordinated reopening rather than a scramble into a thin book.
 
-The 2020 triggers proved that the regulatory overhaul following the 2010 Flash Crash worked exactly as intended. The system followed a strict sequential process to stabilize the market:
+Several operational characteristics of these events are worth noting for exchange system developers:
 
-1. **The 7% Threshold Reached:** Algorithmic and retail selling pushed the S&P 500 down by 7%.
-1. **Immediate Automated Pause:** The NYSE and all other US exchanges automatically paused trading for exactly 15 minutes.
-1. **Order Book Stabilization:** During the 15-minute pause, investors could cancel existing orders or enter new ones, preventing high-frequency trading algorithms from vacuuming out all liquidity (which caused the 2010 crash).
-1. **Price Discovery Reopened:** Market-makers gathered buy and sell interest to reopen stocks via an orderly auction process, mitigating a blind downward spiral.
+**Level 2 was not triggered** despite the Dow falling approximately 13% on March 16. The Level 2 threshold is measured from the previous day's close, and after a Level 1 halt and resumption the reference level is reset. The measurement window effectively restarts, which means a further 13% decline from the *post-halt* level would be required to trigger Level 2.
 
-**Crucial Financial Considerations (The Blind Spots)**
+**Market-wide circuit breakers do not apply before 9:30am.** The March 16 halt triggered at the exact opening bell because the overnight futures market had already been limit-down on CME (CME imposes its own ±5% limit on equity futures outside regular hours). The circuit breaker mechanism described in this section governs only the regular session. Pre-market and after-hours risk management is handled separately at the futures exchange level.
 
-When reviewing extreme volatility events like 2020, investors often overlook these critical operational realities:
-
-1. **Level 2 Was Never Reached:** Although the market finished significantly lower on these days—such as March 16, when the Dow dropped nearly 13%—the S&P 500 never hit the 13% Level 2 threshold after the initial Level 1 reopening.
-1. **Pre-Market Limitations:** Market-wide circuit breakers are only active during regular trading hours (9:30 AM to 4:00 PM EST). Overnight panic is instead managed by CME futures "limit-down" price caps (typically 5%). This is why the March 16 halt triggered the exact second the opening bell rang.
-1. **The Single-Stock Surge:** Outside of the market-wide halts, individual stock tickers triggered thousands of Limit Up-Limit Down (LULD) single-stock pauses throughout March 2020 as individual corporate valuations fluctuated wildly.
+**Single-stock LULD pauses ran in parallel.** Independently of the four market-wide halts, individual stock LULD pauses were triggered thousands of times throughout March 2020 as individual securities moved outside their instrument-level bands. Market-wide and single-stock circuit breakers are entirely separate systems with different triggers and separate enforcement.
 
 
 **Eurex and European venues: volatility interruptions**
@@ -1433,7 +1866,7 @@ Eurex uses **volatility interruptions** for individual futures and options produ
 
 JPX (Japan Exchange Group) uses a different paradigm: instead of a halt, the exchange imposes **daily price limits** that prevent the price from moving more than a set percentage from the previous close. If the price hits the limit (up or down), trading can continue at that price but cannot move beyond it. This is a continuous constraint rather than a discrete halt, the market remains open but price movement is bounded. If the next day opens near the limit, the limit is widened. This approach prioritises continuity over interruption.
 
-#### Design Implications for Exchange System Developers
+### Design Implications for Exchange System Developers
 
 A well-designed circuit breaker subsystem is not a single boolean "halt or not halt." It is a configurable, multi-tier system with the following parameters per instrument (or instrument group):
 
@@ -1452,7 +1885,7 @@ All of these should be stored in reference data and readable at runtime without 
 
 
 
-#### Price Collars (Collar Bands)
+### Price Collars (Collar Bands)
 
 **Price collars** are price filters that reject individual orders whose submitted price is too far from a reference price.
 
@@ -1468,7 +1901,7 @@ The two collars serve different purposes:
 - The static collar protects against outright mistakes (orders many times the current price).
 - The dynamic collar protects against gradual manipulation or runaway algorithms.
 
-#### Self-Match Prevention (SMP)
+### Self-Match Prevention (SMP)
 
 A participant should not be able to trade with themselves. If you have a resting sell order at $150.35 and you submit a buy order at $150.40, those orders would match, but both sides belong to you. No real change of ownership has occurred; you have simply generated artificial trading volume. This is called **wash trading** and is illegal under most exchange regulations.
 
@@ -1480,7 +1913,7 @@ A participant should not be able to trade with themselves. If you have a resting
 
 Different strategies suit different circumstances. A market maker who is re-quoting (sending new bids and asks continuously) might prefer Cancel Resting to ensure their latest quote is the active one. A participant who wants to protect their standing orders would choose Cancel Aggressor.
 
-#### Kill Switch
+### Kill Switch
 
 A **kill switch** is an emergency control that immediately cancels every resting order and quote associated with a specific participant or gateway connection.
 
@@ -1491,9 +1924,9 @@ It can be triggered by:
 
 After a kill switch, the participant's connection is typically marked as **inactive**. Before they can re-enter orders, they must reconnect and authenticate. This gives a human a chance to assess the situation before resuming trading.
 
-Kill switches are mandatory features under regulations like MiFID II (the European Union's Markets in Financial Instruments Directive) and are audited by regulators. Every exchange must demonstrate the ability to cancel a participant's orders immediately when required.
+Kill switches are mandatory features under regulations including MiFID II (EU) and the **Market Access Rule (Rule 15c3-5, 2010)** in the United States. As noted in the *How Exchanges Are Regulated* section of Part I, the Market Access Rule was enacted directly in response to the 2010 Flash Crash and requires broker-dealers to have pre-trade risk controls and post-trade monitoring, including the ability to immediately halt trading. MiFID II additionally mandates that kill switch functionality be **regularly tested** — it is not sufficient to have a kill switch that works only in theory. Every exchange must demonstrate the ability to cancel a participant's orders immediately when required, and must produce evidence of this capability to regulators on request.
 
-#### Mass Cancel, Not the Same as a Kill Switch
+### Mass Cancel, Not the Same as a Kill Switch
 
 These two mechanisms are frequently confused because they both result in orders being cancelled. They serve entirely different purposes and have entirely different consequences for the participant.
 
@@ -1525,12 +1958,12 @@ A kill switch is invoked when a system is out of control. A mass cancel is invok
 
 > **Key idea:** Use a kill switch when something has gone wrong and a human must intervene before trading resumes. Use a mass cancel when a participant wants to cancel orders as part of normal operation. The difference is not just functional, it is architectural: the kill switch changes the gateway state; the mass cancel does not.
 
-### Self-Match Prevention, When You Would Trade with Yourself
+## Self-Match Prevention, When You Would Trade with Yourself
 
 
 **Self-match prevention (SMP)** deserves its own treatment because it is one of the most commonly misunderstood features of exchange systems, and because it has both regulatory and operational dimensions.
 
-#### The Problem
+### The Problem
 
 Imagine a market maker who runs two algorithms simultaneously, one placing bids, another sweeping asks. If the bid algorithm quotes $150.30 and the ask algorithm routes a buy order at $150.30 or higher, the two sides match against each other. No ownership has changed hands; no real trade has occurred. Both sides belong to the same firm.
 
@@ -1540,7 +1973,7 @@ This is called a **wash trade**. It is problematic for several reasons:
 - It creates artificial price pressure (many wash trades in sequence can move a price without genuine supply/demand).
 - It is illegal under market manipulation regulations in most jurisdictions (the EU's Market Abuse Regulation, the US SEC's Rule 10b-5, and others explicitly prohibit wash trading).
 
-#### The SMP Mechanism
+### The SMP Mechanism
 
 SMP detects the wash condition and applies one of several policies before any fill occurs:
 
@@ -1552,37 +1985,68 @@ SMP detects the wash condition and applies one of several policies before any fi
 
 **Allow the match (no SMP)**: Some systems permit self-matching in testing environments or for specific account structures where the "two sides" are legally distinct entities despite sharing a gateway ID. In most production environments, SMP is always on.
 
-#### How SMP Identifies a Self-Match
+### How SMP Identifies a Self-Match
 
 The matching engine identifies orders from the same participant by their **gateway ID** (the identifier of the connection through which the order was submitted). Two orders with the same gateway ID constitute a potential self-match. The SMP action specified on the incoming order governs what happens.
 
-#### Why This Matters for Developers
+### Why This Matters for Developers
 
 SMP is implemented inside the matching sweep loop, it runs after price compatibility is checked but before any fill is committed. The code path must handle all three cancellation outcomes, generate appropriate event notifications (the cancelled order receives a cancellation event, not a fill), and continue the sweep to look for non-self counterparties if the resting order was cancelled.
 
 > **Key idea:** SMP is not just a courtesy feature, it is a legal requirement on regulated exchanges. An exchange that facilitates wash trading faces regulatory action. Every exchange system must implement it correctly.
 
-### Drop Copy, The Shadow Record
+## Drop Copy, The Shadow Record
 
 A **drop copy** is a real-time copy of all order lifecycle events for a participant, sent simultaneously to a designated recipient, typically a **clearing broker**, **prime broker**, **risk management system**, or directly to a **regulator**.
 
-The name comes from the physical world: the exchange, or the trader, used to drop a "carbon copy" of each order event to the designated desk as it happened. 
+The name comes from the physical world: the exchange, or the trader, used to drop a "carbon copy" of each order event to the designated desk as it happened.
 
-#### Why Drop Copy Exists
+### Why Drop Copy Exists
 
 A large institutional investor might have dozens of trading desks, each submitting orders to the exchange through its own gateway. The firm's central risk management system needs to see all order and fill activity in real time to monitor aggregate position and exposure. But having the risk system receive from dozens of separate gateways is complex. Instead, the exchange provides a single drop copy feed that aggregates all activity for that firm, regardless of which gateway originated it.
 
 Clearing brokers use drop copy to see fills on behalf of their clients in real time, so they can begin the clearing and settlement process immediately without waiting for end-of-day reports.
 
-Regulators can mandate drop copy access to monitor for suspicious activity in real time.
+Regulators can mandate drop copy access to monitor for suspicious activity in real time. Under the SEC's 15c3-5 Market Access Rule, broker-dealers are required to have real-time monitoring capabilities; a drop copy feed to an independent risk system is one of the standard ways to satisfy this requirement.
 
-#### Drop Copy vs Market Data
+### What a Drop Copy Message Contains
 
-Drop copy is a **private** feed, it contains information about a specific participant's orders, which they would not want published to the whole market. Market data (the order book, trades) is **public**, published to all subscribers. Drop copy is delivered on a separate, secured channel.
+A drop copy event is a complete record of the order lifecycle event. A typical fill notification on the drop copy feed includes:
 
-Each event in the drop copy includes a **sequence number**, a monotonically increasing counter. If the recipient momentarily loses their connection and reconnects, they can request a replay of any missed events using the sequence number.
+| Field | Purpose |
+|---|---|
+| **Sequence number** | Monotonically increasing counter for this feed |
+| **Timestamp** | Nanosecond-precision time of the event |
+| **Order ID** | The exchange-assigned unique order identifier |
+| **Client Order ID** | The participant's own order reference |
+| **Gateway ID** | Which connection submitted the order |
+| **Symbol** | Which instrument |
+| **Side** | BUY or SELL |
+| **Order type** | LIMIT, MARKET, etc. |
+| **Original quantity** | What the order was for |
+| **Filled quantity** | How much filled in this event |
+| **Remaining quantity** | What is left after this fill |
+| **Fill price** | Price at which this fill occurred |
+| **Order status** | NEW / PARTIAL / FILLED / CANCELLED |
+| **Aggressor flag** | Was this order the aggressive (taker) side? |
 
-### Clearing and Settlement, When the Trade Becomes Real
+The fill price and aggressor flag are used by the clearing broker to calculate real-time P&L and determine fee billing.
+
+### Drop Copy vs Market Data
+
+Drop copy is a **private** feed — it contains information about a specific participant's orders, which they would not want published to the whole market. Market data (the order book, trades) is **public**, published to all subscribers. Drop copy is delivered on a separate, secured channel, typically authenticated with the participant's credentials.
+
+### Sequence Numbers and Gap Recovery
+
+Each event in the drop copy includes a **sequence number**, a monotonically increasing counter. If the recipient momentarily loses their connection and reconnects, they can request a replay of missed events using the last received sequence number.
+
+Worked example: the clearing broker's risk system receives sequence numbers 1, 2, 3, 4 and then loses connectivity briefly. When it reconnects, it sees sequence number 7 arrive. It immediately knows events 5 and 6 were missed. It sends a retransmission request: "resend from sequence 5." The exchange replays events 5, 6, 7 over a separate unicast channel. The risk system processes them in order and is now fully caught up before sequence 8 arrives.
+
+Without sequence numbers, the risk system would have no reliable way to detect the gap. It might operate with a stale position view — showing a position of, say, 5,000 shares when the true position is 7,000 — until the next end-of-day reconciliation. For a real-time risk management system, this is unacceptable.
+
+> **Key idea:** The drop copy sequence number is the risk manager's safety net. A system that processes drop copy events without checking sequence numbers for gaps will eventually make risk decisions based on incorrect positions. Sequence integrity monitoring is not optional.
+
+## Clearing and Settlement, When the Trade Becomes Real
 
 
 Matching an order creates a **trade agreement**, two parties have committed to exchange shares and money. But the matching is just the beginning. Before ownership actually changes hands, the trade must be **cleared** and **settled**. Many engineers initially believe that matching equals completion. In reality, matching, clearing, and settlement are three distinct processes with different institutions, different timelines, and different risks.
@@ -1611,7 +2075,7 @@ sequenceDiagram
     Note over Buy,Sell: Ownership legally transferred
 ```
 
-#### What Matching Creates
+### What Matching Creates
 
 When the matching engine fills two orders, it creates a **trade record**, an agreement that Participant A will sell X shares to Participant B at price P. At this point:
 - The shares have not moved.
@@ -1620,7 +2084,7 @@ When the matching engine fills two orders, it creates a **trade record**, an agr
 
 Both parties are now **counterparties** to each other. If either defaults, fails to deliver the shares or fails to pay, the other party suffers.
 
-#### Clearing: Guaranteeing the Trade
+### Clearing: Guaranteeing the Trade
 
 **Clearing** is the process by which a third party, the **Central Counterparty Clearing House (CCP)**, steps between the buyer and seller and guarantees the trade will settle, even if one party defaults.
 
@@ -1639,44 +2103,53 @@ This is transformative for market structure: it means participants can trade wit
 - **Eurex Clearing:** Clears Eurex derivatives and selected equity trades.
 - **CME Clearing:** Clears futures and options on CME Group exchanges.
 
-#### Margin: The Clearing House's Protection
+### Margin: The Clearing House's Protection
 
 If the CCP guarantees every trade, how does it protect itself from losses if a participant defaults? The answer is **margin**, collateral that participants must post to cover their potential losses.
 
-**Initial margin** is deposited when a position is opened. It represents an estimate of the maximum likely loss over a short period (typically 1-2 days). For a long position in 1,000 shares of a $150 stock, the initial margin might be 10%, $15,000 deposited as collateral.
+**Initial margin** is deposited when a position is opened. It represents an estimate of the maximum likely loss over a short period (typically 1–2 days). For a long position in 1,000 shares of a $150 stock, the initial margin might be 10%, meaning $15,000 deposited as collateral before the position can be held overnight.
 
-**Variation margin** (also called **mark-to-market**) is the daily cash settlement of gains and losses. At the end of each trading day, positions are revalued at the current market price. If the price moved against you, cash equal to the loss is transferred from your margin account to your counterparty's (via the CCP). If it moved in your favour, you receive cash. This daily cash flow means losses are realised incrementally rather than accumulating to a catastrophic amount at settlement.
+**Variation margin** (also called **mark-to-market**) is the daily cash settlement of gains and losses. At the end of each trading day, positions are revalued at the current market price. If the price moved against you, cash equal to the loss is transferred from your margin account via the CCP. If it moved in your favour, you receive cash. The key point is that losses are realised in cash *each day* rather than accumulating silently. Worked example: you are long 10,000 shares bought at $150. At day's end the closing price is $145. Your variation margin debit is $5 × 10,000 = **$50,000**, transferred from your account to the CCP. The following day you start with a position valued at $145, not $150. Your accumulated loss is never larger than one day's move, because it was cashed out yesterday.
 
-**Maintenance margin** is the minimum balance that must be maintained in the margin account. If losses cause the balance to fall below the maintenance margin, the participant receives a **margin call**, a demand to deposit additional collateral immediately. Failure to meet a margin call results in the CCP liquidating the position.
+**Maintenance margin** is the minimum balance that must be maintained. If losses cause the balance to fall below this level, the participant receives a **margin call** — a demand to deposit additional collateral immediately. Failure to meet a margin call results in the CCP liquidating the position to recover the deficit.
 
-Margin is especially important for derivatives (futures, options) where positions are leveraged and losses can exceed the initial investment. The 2008 financial crisis demonstrated what happens when margin requirements are inadequate, the collapse of multiple financial institutions stemmed partly from insufficient collateral for OTC derivatives positions.
+Margin is especially important for derivatives (futures, options) where positions are leveraged and losses can exceed the initial investment. The most consequential demonstration of what happens when margin requirements are inadequate is the **2008 financial crisis**, and specifically the collapse of **Lehman Brothers** on 15 September 2008.
 
-#### Delivery versus Payment (DvP)
+Lehman filed for bankruptcy with over $600 billion in liabilities [Federal Reserve Bank of New York, 2010]. A large portion of Lehman's derivatives exposure was in **OTC (over-the-counter) derivatives** — bilateral contracts negotiated directly between Lehman and individual counterparties, not cleared through a CCP. These contracts had no daily variation margin settlement, no novation, and no independent collateral calculation. When Lehman defaulted, its counterparties discovered that the bilateral collateral arrangements were insufficient to cover the full exposure. The resulting losses, uncertainty about who held what exposure, and the consequent freeze in credit markets contributed directly to the worst financial crisis since the Great Depression.
 
-**Delivery versus payment (DvP)** is the settlement principle that the transfer of securities and the transfer of cash happen simultaneously and conditionally. Neither the securities nor the cash are released until both are available. This eliminates the risk of one party delivering while the other fails to pay, the most fundamental settlement risk.
+The contrast with exchange-traded and CCP-cleared derivatives is direct: CME Clearing required daily mark-to-market variation margin on all futures positions. No CME futures participant suffered an uncollateralised counterparty loss from the Lehman bankruptcy, because the CCP had collected daily variation margin throughout the life of each position and held margin sufficient to cover the default. CME's guarantee fund covered any residual shortfall. The crisis is the strongest argument ever made in favour of mandatory central clearing for derivatives — a principle subsequently enshrined in the Dodd-Frank Act in the US (2010) and the European Market Infrastructure Regulation (EMIR, 2012), both of which require most standardised OTC derivatives to be cleared through authorised CCPs [BIS, 2019].
+
+### Clearing Members and the Clearing Hierarchy
+
+Not all market participants have direct relationships with the CCP. The clearing infrastructure is organised in layers:
+
+**Direct clearing members** (or **general clearing members**) are firms — typically large banks and broker-dealers — that have a direct legal relationship with the CCP. They post margin directly to the CCP and are responsible for guaranteeing trades cleared in their name. They may also clear trades on behalf of others.
+
+**Non-clearing members** are firms whose trades must be guaranteed by a clearing member. A hedge fund, for example, typically cannot be a direct clearing member of a CCP. Instead, it routes its trades through a **clearing broker** (usually a prime broker who is also a clearing member), who guarantees settlement to the CCP. The hedge fund posts margin to the clearing broker; the clearing broker posts to the CCP.
+
+This hierarchy matters for exchange developers because the clearing system must track not just which firm traded, but which clearing member guarantees each trade. The risk layering determines who bears the loss if a participant defaults: first the participant's posted margin, then the clearing broker's guarantee, then the CCP's guarantee fund, and finally the surviving clearing members' mutualized contributions. Understanding this chain explains why clearing brokers care so intensely about the credit quality and position size of their clients.
+
+### Delivery versus Payment (DvP)
+
+**Delivery versus payment (DvP)** is the settlement principle that the transfer of securities and the transfer of cash happen simultaneously and conditionally: neither the securities nor the cash are released until both are available. This eliminates the risk of one party delivering while the other fails to pay.
+
+The risk DvP is designed to eliminate has a name in financial history: **Herstatt risk**, after the 1974 failure of Bankhaus Herstatt, a small German bank. On 26 June 1974, German banking regulators withdrew Herstatt's banking licence at 3:30pm local time, after the close of interbank settlement in Germany but while the New York foreign exchange settlement was still open. Herstatt had already received Deutsche Mark payments from its counterparties in Germany but had not yet made the corresponding US dollar payments to banks in New York. Those New York banks had delivered value but received nothing, and the abrupt closure meant they never would. The losses and resulting settlement uncertainty froze parts of the interbank market for days [BIS Committee on Payment and Settlement Systems, 2003]. Herstatt risk — the risk that one leg of a settlement transfers while the other fails — is the foundational motivation for the DvP principle.
 
 Without DvP, a seller might deliver shares and then find the buyer has defaulted before paying. DvP ensures atomicity: either both transfers happen or neither does.
 
-#### Settlement: The Actual Transfer
+### Settlement: The Actual Transfer
 
 **Settlement** is the final exchange, shares move from the seller's custody account to the buyer's, and cash moves from the buyer's account to the seller's. After settlement, ownership has legally changed.
 
 US equities currently settle on **T+1**, one business day after the trade date. The market previously operated on T+5 (paper certificates and bicycle messengers), then T+3, then T+2 as settlement infrastructure was digitised, and moved to T+1 in 2024 [8]. Some markets (certain money market funds, US Treasury securities) already settle same-day. Same-day settlement eliminates settlement risk entirely but requires that cash and securities be available at the moment of trading.
 
-**Concrete example:** Suppose Fund A buys 1,000 shares of MSFT from Market Maker B at 14:03 on Monday.
-
-1. **Monday 14:03 — matching:** the exchange creates the trade record immediately.
-2. **Monday afternoon — clearing:** the CCP novates the trade, so Fund A and Market Maker B now face the CCP rather than each other directly.
-3. **Tuesday (T+1) — settlement:** cash is debited from Fund A and credited to Market Maker B; shares are debited from Market Maker B's custody account and credited to Fund A's.
-4. **After settlement:** the buyer is now the legal owner of the shares. Only at this point has the trade fully completed.
-
-#### Failed Settlement
+### Failed Settlement
 
 Not all trades settle on time. A **failed settlement** occurs when one party cannot deliver, the seller lacks the shares (perhaps their own purchase has not yet settled), or the buyer lacks the cash. Failed settlements create a cascading chain of problems, since other participants may be counting on receiving those shares to fulfil their own obligations.
 
 **Buy-ins** are a remedy: if a seller fails to deliver shares, the buyer has the right to purchase the shares in the open market at the seller's expense. Buy-ins are relatively rare in liquid markets but are a meaningful operational risk in illiquid or small-cap stocks.
 
-#### Custody and Depositories
+### Custody and Depositories
 
 **Custody** refers to the safekeeping of securities on behalf of investors. Most investors do not directly hold share certificates, their broker holds shares in a nominee account at a **depository**. The depository maintains the master record of who owns what.
 
@@ -1684,20 +2157,28 @@ In the US, the **DTCC's Depository Trust Company (DTC)** is the central securiti
 
 This dematerialisation (replacing paper certificates with electronic records) is what made T+5→T+3→T+2→T+1 settlement possible. When settlement meant physically moving certificates, five days was genuinely necessary. With electronic records, same-day settlement is technically feasible.
 
-#### VWAP and P&L
+### VWAP and P&L
 
-A clearing system tracks each participant's **position** (how many shares they hold, positive for long, negative for short) and their **Profit and Loss (P&L)**.
+A clearing system tracks each participant's **position** (how many units they hold, positive for long, negative for short) and their **Profit and Loss (P&L)**.
 
-**VWAP (Volume-Weighted Average Price)** is the average price paid for a position, weighted by quantity. If you buy 100 shares at $150 and then 50 more at $160, your VWAP is (100×$150 + 50×$160) / 150 = $153.33. Your break-even price is $153.33; selling above this generates profit, below generates a loss.
+**VWAP (Volume-Weighted Average Price)** is the average price paid for a position, weighted by quantity filled. If you buy 100 shares at $150 and then 50 more at $160, your VWAP is (100×$150 + 50×$160) / 150 = **$153.33**. Your break-even price is $153.33; selling above this generates profit, selling below generates a loss. Market participants use VWAP both as a benchmark for execution quality (did you beat the average price over the period?) and as the entry price for P&L calculation.
 
-### Regulatory Surveillance, Exchanges Are Not Passive
+**Unrealised P&L** (also called **open P&L** or **mark-to-market P&L**) is the gain or loss on positions that have not yet been closed. If you hold 150 shares with a VWAP of $153.33 and the current market price is $160, your unrealised P&L is (160 − 153.33) × 150 = **$1,000.50**. It is "unrealised" because you have not yet sold and may not receive that price. Unrealised P&L is updated continuously as the market price moves.
+
+**Realised P&L** is the gain or loss locked in by completed trades. If you sell all 150 shares at $160, your realised P&L becomes $1,000.50 and the position is closed to zero. Realised P&L does not change after the trade is done; it is a permanent record of what was earned or lost.
+
+For exchange developers, the distinction matters because position monitoring systems must track both: unrealised P&L is what triggers margin calls and risk alerts in real time, while realised P&L is what flows into the official accounting records at end of day.
+
+## Regulatory Surveillance, Exchanges Are Not Passive
 
 
 An exchange does not simply match orders and publish data. It actively monitors for market abuse and is legally required to report suspicious activity to regulators. This section introduces the concepts; developers working on exchange infrastructure will eventually need to understand them because audit trail and surveillance requirements shape the design of event logging, data retention, and monitoring systems.
 
-#### Types of Market Abuse
+### Types of Market Abuse
 
-**Spoofing.** A participant places a large order with no genuine intention to trade, they want to move the visible order book in a way that influences other participants' decisions. Once the desired movement occurs, they cancel the spoof order before it can fill. Spoofing was used extensively in electronic markets before regulatory crackdowns; it is now illegal in the US (the Dodd-Frank Act, 2010) and the EU (Market Abuse Regulation, 2016).
+**Spoofing.** A participant places a large order with no genuine intention to trade — they want to move the visible order book in a way that influences other participants' decisions. Once the desired movement occurs, they cancel the spoof order before it can fill. Spoofing was used extensively in electronic markets before regulatory crackdowns; it is now explicitly illegal in the US (the Dodd-Frank Act, 2010) and the EU (Market Abuse Regulation, 2016).
+
+The most significant spoofing prosecution to date is the case against **Navinder Singh Sarao**, a British trader who operated from his parents' home in suburban London. From 2009 to 2014, Sarao deployed automated software to place large layered sell orders in E-mini S&P 500 futures on CME — orders that were real and visible in the order book but were automatically cancelled before they could fill. These "spoofed" orders created a false impression of selling pressure, causing other algorithms to sell into a book that appeared weaker than it was. The US Department of Justice alleged that Sarao's activity contributed to the market conditions present during the Flash Crash of 6 May 2010. UK authorities arrested Sarao in April 2015; he pleaded guilty in the US in November 2016. The case established that spoofing is prosecutable as market manipulation even when no individual order is fraudulent in isolation — it is the pattern of placement-with-intent-to-cancel that constitutes the offence [DOJ press release, November 2016; CFTC v. Sarao, 2015].
 
 **Layering.** A variant of spoofing: multiple large orders are placed on one side of the book at various price levels to create the appearance of depth and pressure, then cancelled when the deception has served its purpose.
 
@@ -1709,7 +2190,7 @@ An exchange does not simply match orders and publish data. It actively monitors 
 
 **Quote stuffing.** Flooding the exchange with a high volume of orders and cancellations to consume the matching engine's bandwidth and slow down competitors. A high-frequency trading abuse pattern.
 
-#### How Exchanges Detect Abuse
+### How Exchanges Detect Abuse
 
 Exchanges run **market surveillance systems**, separate processes that consume the complete audit trail of all events and apply pattern detection algorithms. The key inputs are:
 
@@ -1719,29 +2200,33 @@ Exchanges run **market surveillance systems**, separate processes that consume t
 
 Modern surveillance systems flag suspicious patterns (a large order placed and cancelled within milliseconds, many times in sequence) for human review. Some use machine learning to detect patterns that do not match known abuse templates.
 
-#### The Audit Trail
+### The Audit Trail
 
-The **audit trail** is the exchange's complete, immutable record of every event. Every order that arrives, every modification, every fill, every cancellation, every rejection, each is written to the audit log with a high-precision timestamp. The audit trail must be:
+The **audit trail** is the exchange's complete, immutable record of every event. Every order that arrives, every modification, every fill, every cancellation, every rejection — each is written to the audit log with a high-precision timestamp. The audit trail must be:
 
 - **Complete:** nothing omitted, even rejected orders.
 - **Immutable:** no post-hoc modification.
-- **Retained:** regulatory requirements typically mandate multi-year retention.
+- **Retained:** regulatory requirements typically mandate multi-year retention (7 years under US rules).
 - **Replayable:** given the audit log, regulators must be able to reconstruct the full state of the market at any past moment.
 
 This replayability requirement is not incidental. It is the reason exchange systems are designed for **deterministic replay**: given the same ordered sequence of events from the audit log, the matching engine must reproduce exactly the same fills, cancellations, and book state. Any non-determinism in the matching engine would make audit trail replay unreliable.
 
+**The Consolidated Audit Trail (CAT).** In the US, the SEC requires all exchanges and broker-dealers to report order and trade events to a centralised database called the **Consolidated Audit Trail (CAT)**, operational since 2020. CAT is the most comprehensive market surveillance database ever built: it captures every order, modification, cancellation, and fill across every registered US exchange and FINRA venue, correlated by customer account. Before CAT, regulators had to subpoena records from each exchange separately and then manually correlate them. CAT gives the SEC the ability to reconstruct the entire market activity for any customer on any day within hours. For exchange developers, this means every event must be reported to CAT in the required format, within required latency windows, or the exchange faces regulatory sanctions.
+
+**Suspicious Transaction Reports (STRs).** Exchanges are not merely passive data sources. When the surveillance system identifies activity that may constitute market abuse, the exchange is legally required to file a **Suspicious Transaction Report** with the relevant regulator (the SEC or CFTC in the US, the FCA in the UK). Exchanges have internal compliance teams that review surveillance flags and decide whether to file. The audit trail is the primary evidence attached to these reports.
+
 > **Key idea:** Every event in the exchange system should be written to the audit log before the response is sent to the participant. The audit log is primary; the matching engine state is derived from it.
 
-### A Cautionary Tale, Knight Capital, August 1, 2012
+## A Cautionary Tale, Knight Capital, August 1, 2012
 
 
 Everything in the *Pre-Trade Risk Controls* section, maximum quantity limits, position limits, kill switches, deployment discipline, exists partly because of what happened to one firm on one morning. The story of Knight Capital is the most important cautionary tale in the history of electronic trading, and every developer who touches exchange-adjacent code should know it.
 
-#### The Company
+### The Company
 
 In the summer of 2012, Knight Capital Group was one of the most important firms in US equity markets. As a market maker and broker, Knight handled approximately 10–15% of all US equity trading volume, billions of shares every day across thousands of stocks. It was a highly regarded, well-capitalised firm at the centre of the market structure that had emerged after electronic trading matured.
 
-#### The Morning
+### The Morning
 
 On August 1, 2012, the NYSE launched a new feature called the **Retail Liquidity Program (RLP)**, designed to attract more retail order flow to the exchange by offering price improvements. Participating firms were required to deploy new software to handle the RLP order types.
 
@@ -1755,7 +2240,7 @@ On the one misconfigured server, old code, a legacy module called **SMARS (Smart
 
 Power Peg, as activated, executed a simple but lethal loop: for each incoming RLP trigger, it would buy shares at the market offer price and then immediately sell them at the market bid price, buying high and selling low, over and over again. It was, in effect, a machine programmed to continuously pay the spread.
 
-#### 45 Minutes
+### 45 Minutes
 
 At 9:30am, the NYSE opened for trading.
 
@@ -1771,11 +2256,11 @@ By 10:15am, Knight had lost approximately **$440 million**, in 45 minutes.
 
 To put that number in context: Knight's entire net equity capital before August 1 was approximately $400 million. The firm had destroyed slightly more than its total equity in less than one trading session.
 
-#### The Aftermath
+### The Aftermath
 
 Knight survived only through an emergency capital injection arranged over the following two days. A consortium of investment firms provided $400 million in rescue financing in exchange for equity stakes that gave them majority ownership. Effectively, Knight Capital ceased to exist as an independent firm. Several months later, what remained of Knight merged with Getco LLC to form KCG Holdings, which was eventually acquired by Virtu Financial in 2017.
 
-#### What Went Wrong: A Technical Post-Mortem
+### What Went Wrong: A Technical Post-Mortem
 
 The SEC conducted a detailed investigation and published its findings in 2013. The root causes, in the order they would need to have been addressed to prevent the disaster:
 
@@ -1791,7 +2276,7 @@ The SEC conducted a detailed investigation and published its findings in 2013. T
 
 **6. The exchange cannot protect you from yourself.** This deserves particular emphasis. NYSE processed every single one of Knight's 4 million orders correctly. None of them violated any exchange rule. The exchange is not in a position to determine whether a participant's trading strategy makes business sense, only whether the orders are technically valid. Pre-trade risk controls at the exchange level (quantity limits, fat-finger price filters, rate limits) exist to protect the market as a whole from clearly erroneous orders. They are not a substitute for participant-side risk management. Knight's situation could not have been prevented at the exchange level alone.
 
-#### The Legacy
+### The Legacy
 
 The Knight Capital incident triggered a wave of regulatory attention to algorithmic trading risk. The SEC's 2013 Market Access Rule (Rule 15c3-5), which had been in effect at the time of the incident, required broker-dealers to have risk controls for market access, but the incident demonstrated that the rule's requirements were insufficient or that compliance was inadequate.
 
@@ -1805,33 +2290,66 @@ Every requirement in the *Pre-Trade Risk Controls* section of this document, and
 
 > **Key idea:** The market does not stop when your system malfunctions. Every order your system sends is valid in the exchange's eyes until you cancel it or your gateway is disconnected. The only protection against a runaway algorithm is pre-trade risk controls on your own side, deployed correctly, verified after every deployment, and exercisable instantly under pressure.
 
+
 ## Part IV: Technology, Infrastructure, and Market Ecology
 
-The engineering stack, distributed-systems concerns, market data, and the broader market ecology in which the exchange operates.
+*The engineering stack, distributed-systems concerns, market data, and the broader market ecology in which the exchange operates.*
+
+---
+
+In 1983, NASDAQ sent **Thomas Peterffy** a letter. Peterffy, a Hungarian-born engineer who had become a prolific options trader, had done something the exchange had never anticipated: he had wired a workstation terminal directly to a computer that automatically generated and submitted options orders based on his models. NASDAQ's rules required that a terminal be operated by a human hand. The letter demanded he comply.
+
+Peterffy's response was to hire a typist to sit at the keyboard and type the computer's output into the terminal as fast as the computer generated it. The absurdity lasted a few months before NASDAQ changed the rules to accommodate electronic order submission. Peterffy — who eventually founded Interactive Brokers and became a billionaire — had glimpsed the future of market infrastructure. Every exchange in the world is now built on exactly the principle that NASDAQ once tried to prohibit: automated, computer-generated orders, submitted at machine speed, processed by machine logic, without a human hand in the loop [Interactive Brokers company history].
+
+Part IV is the technical story of how that future was built. It covers the gateway that receives those automated orders, the matching engine that processes them in microseconds, the market data infrastructure that broadcasts results to thousands of subscribers simultaneously, and the resilience, latency, and operational systems that keep it all running twenty-four hours before the opening bell rings on the next trading day.
+
+**Part Summary:**
+
+Examine the engineering reality of exchanges at scale: deterministic engines, messaging and market-data distribution, resilience patterns, and the fragmented multi-venue environment where routing and latency shape outcomes.
+
+**Learning Objectives:**
+
+- Understand the roles of gateways, matching engines, buses, and subscribers.
+- Evaluate resilience strategies such as replication, failover, and site architecture.
+- Explain how market data sequencing, replay, and snapshots preserve correctness.
+- Relate routing, venue fragmentation, and latency design to execution quality.
+
+**Content:**
+
+- Speed Bumps, Leveling the Playing Field
+- The Technology Architecture
+- Primary and Secondary Sites, Resilience Architecture
+- Load Balancing, Distributing the Work
+- Market Data Architecture, How the Market Sees Itself
+- Smart Order Routing and Market Fragmentation
+- Latency and Co-location, The Speed Dimension
+- Corporate Actions, When the Instrument Changes
+- Determinism, Replay, and Persistence, The Exchange Must Not Forget
+- Reference Data, The Exchange's Ground Truth
 
 
-### Speed Bumps, Leveling the Playing Field
+## Speed Bumps, Leveling the Playing Field
 
 
-Not all exchange participants operate on equal footing. High-frequency trading (HFT) firms invest enormously in technology, co-location in exchange data centres, microwave and laser communication links between exchanges, custom hardware, to be a few microseconds faster than their competition. Being faster means they can see price changes and react before others can, which is profitable but controversial.
+Not all exchange participants operate on equal footing. High-frequency trading (HFT) firms invest heavily in co-location, low-latency network links between venues, and specialised hardware to be a few microseconds faster than competitors. Being faster often means seeing price changes and reacting before others, which can be profitable but is also controversial from a market-structure perspective.
 
-#### What Is a Speed Bump?
+### What Is a Speed Bump?
 
-A **speed bump** is a deliberate artificial delay introduced by the exchange to all incoming orders. By delaying every order by the same small amount (say, 350 microseconds), the exchange eliminates the advantage of being just slightly faster than everyone else. If both the HFT firm's order and the institutional investor's order are delayed by 350 microseconds, the time gap between them is irrelevant.
+A **speed bump** is a deliberate artificial delay introduced by the exchange to incoming orders. A fixed delay (for example, 350 microseconds) does **not** erase relative timing differences: if one order is 1 microsecond earlier before the delay, it is still 1 microsecond earlier after the delay. What the speed bump can do is reduce the value of ultra-small latency edges and make some short-horizon race strategies harder, especially when combined with venue rules on cancels, quote updates, and matching behavior.
 
-#### IEX: The Most Famous Speed Bump
+### IEX: The Most Famous Speed Bump
 
-**IEX (Investors Exchange)**, founded in 2012 and launched as a regulated exchange in 2016, introduced the speed bump concept to mainstream exchange operation [6]. IEX routes all orders through 38 miles of coiled fibre-optic cable (housed in a small box called the **Magic Shoebox**) before they reach the matching engine. The cable introduces a fixed 350-microsecond delay.
+**IEX (Investors Exchange)**, founded in 2012 and launched as a regulated exchange in 2016, introduced the speed bump concept to mainstream exchange operation [6]. IEX routes all orders through 38 miles of coiled fibre-optic cable (housed in a small box called the "magic shoe") before they reach the matching engine. The cable introduces a fixed 350-microsecond delay.
 
-IEX's founders argued in the book *Flash Boys* (Lewis, 2014) [6] that speed advantages primarily benefit HFT firms at the expense of long-term investors. The speed bump was their answer. IEX gained significant market share and regulatory approval, demonstrating that speed bumps are a viable exchange design.
+IEX's founders argued in the book *Flash Boys* (Lewis, 2014) [6] that speed advantages primarily benefit HFT firms at the expense of long-term investors. The speed bump was their answer. IEX gained regulatory recognition as a licensed national securities exchange and stimulated substantial regulatory and academic debate about speed bump design, though it has consistently captured a small fraction of total US equity volume (around 2–3%) rather than displacing the established venues [1]. Its significance lies more in having demonstrated that speed bump mechanisms are legally and operationally viable, and in influencing ongoing market structure policy discussions, than in market share.
 
-#### Speed Bumps in Broader Design
+### Speed Bumps in Broader Design
 
 Speed bumps can be applied selectively, for example, only to **cancel** messages but not to new orders. This prevents a practice called **last-look** where a market maker posts an order, and then when someone attempts to fill it, the market maker races to cancel before the fill completes. If cancels are delayed but the fill is immediate, the market maker cannot escape the fill.
 
 Several European venue operators and regulators have discussed asymmetric speed bump rules for cancel messages under MiFID II's framework for algorithmic trading controls, though no major European exchange has adopted a speed bump comparable to IEX's.
 
-### The Technology Architecture
+## The Technology Architecture
 
 
 Now let us look at how all these concepts are realised in a production technology stack.
@@ -1844,26 +2362,22 @@ flowchart LR
     LB["Load Balancer"]
     GW["Gateway Layer\nAuth · Validation · FIX Translation"]
     ME["Matching Engine\nSingle-threaded\nOne book per symbol\nDeterministic"]
-    PUB["Public Market Data Bus\nPUB / SUB"]
+    PUB["PUB Socket\nMessage Bus"]
     CL["Clearing\nProcess"]
     AL["Audit\nLog"]
     MD["Market Data\nFeed"]
     ST["Stats\nRecorder"]
-    DC["Private Drop Copy Feed"]
-    RISK["Prime Broker / Risk /\nCompliance Consumer"]
+    DC["Drop Copy\nFeed"]
 
     P1 & P2 & P3 --> LB --> GW
-    GW -- "Inbound orders / cancels" --> ME
-    ME -- "ACKs, rejects,\nparticipant-specific fills" --> GW
+    GW -- "Validated orders\n(PUSH)" --> ME
+    ME -- "ACKs and fills\n(PULL)" --> GW
     GW -- "Fill notifications" --> P1 & P2 & P3
-    ME -- "Public trades,\nbook updates,\nsession events" --> PUB
-    PUB --> CL & AL & MD & ST
-    ME -- "Private participant\norder lifecycle copy" --> DC --> RISK
+    ME -- "Trades, fills,\nbook updates" --> PUB
+    PUB --> CL & AL & MD & ST & DC
 ```
 
-The two outbound channels serve different audiences. The **public market data bus** is for shared market state, trades, books, and session events. **Drop copy** is private and participant-specific: it exists so a firm's risk, clearing, or compliance systems can see that firm's activity without subscribing to everyone else's.
-
-#### The Gateway
+### The Gateway
 
 The **gateway** is the participant-facing interface, the "door" through which participants connect to the exchange. Each participant connects through their assigned gateway. The gateway's responsibilities:
 
@@ -1872,7 +2386,7 @@ The **gateway** is the participant-facing interface, the "door" through which pa
 - **Message translation:** Converting the participant's orders from their format (FIX protocol, binary, or text commands) into the exchange's internal format.
 - **Basic validation:** Checking that mandatory fields are present, that the symbol is valid, that quantities are positive.
 
-Importantly, the gateway does **not** validate tick alignment (whether prices are exact multiples of the tick size), it does not know the tick size for every symbol. That responsibility belongs to the engine.
+In many architectures, the gateway performs only structural and session checks, while instrument-specific validation (tick alignment, price collars, and auction/session constraints) is enforced in the matching engine or in a dedicated risk layer fed by reference data. Some venues do cache reference data in gateways and validate there too; the key requirement is consistent enforcement in exactly one authoritative path.
 
 **FIX Protocol:** The industry-standard format for order submission is FIX (Financial Information eXchange), a text-based protocol developed in the early 1990s. A FIX order message looks something like:
 ```
@@ -1896,17 +2410,60 @@ All eleven fields in this message have meaning:
 | 40 | OrdType | 2 | 1=Market, 2=Limit, 3=Stop |
 | 59 | TimeInForce | 0 | 0=DAY, 1=GTC, 3=IOC, 4=FOK, 7=ATC |
 
-Most exchanges accept FIX for general-purpose order entry and post-trade workflows. Market data, and sometimes the lowest-latency order-entry paths, often use separate binary protocols such as ITCH, OUCH, BOE, or FIX-family encodings such as FAST or SBE. A simplified FIX-inspired text format for internal gateway commands might look like: `NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.30`.
+Most exchanges accept FIX (or a compressed binary variant called FAST or ITCH for market data). A simplified FIX-inspired text format for internal gateway commands might look like: `NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.30`.
 
-#### The Matching Engine
+### Binary Protocols: ITCH and OUCH
+
+FIX is human-readable and widely compatible but inefficient for high-throughput, low-latency environments. Every order message is a text string that must be scanned for field separators and parsed into numeric types. At a million messages per second, this overhead matters.
+
+Production exchanges use **binary protocols** for the critical paths. The most widely deployed are those developed by NASDAQ and adopted or adapted by many exchanges globally:
+
+**NASDAQ ITCH (market data)** is a binary UDP-based protocol for publishing the full order book feed. Instead of text like `35=D|44=150.30`, an ITCH message is a fixed-width binary structure — a 44-byte trade execution message, for example, contains the timestamp (8 bytes), order reference number (8 bytes), side (1 byte), shares (4 bytes), stock symbol (8 bytes padded), and price (4 bytes). An ITCH message is 2–5× smaller than its FIX equivalent and requires no text parsing; the fields are at fixed offsets and read directly as integers. ITCH 5.0 is the current version and is publicly documented by NASDAQ. Many other exchanges (Euronext, LSE, SIX, and others) publish protocols that are ITCH-inspired or ITCH-compatible [NASDAQ ITCH 5.0 specification].
+
+**NASDAQ OUCH (order submission)** is the binary counterpart for order entry. Where FIX is session-based and feature-rich, OUCH is minimal: an "Enter Order" message is 40 bytes. OUCH is transmitted over TCP (for reliability) in the same way FIX is, but the compact binary format dramatically reduces serialisation overhead.
+
+**CME MDP3 (Market Data Platform 3)** is CME Group's binary market data protocol, based on the **SBE (Simple Binary Encoding)** standard. SBE is schema-driven: a protocol specification file defines every message type's field layout, and code generators produce optimised parsers for multiple languages. The generated parsers decode directly from the raw buffer with no heap allocation, which is critical for deterministic latency. CME's GLOBEX matching engine publishes all market data in MDP3 format [CME Group MDP3 specification].
+
+For exchange developers, the practical implication is that systems dealing with high-volume data — market data normalisation, risk engines, algo trading systems — will almost always use binary protocols on the critical path, with FIX reserved for session management and less latency-sensitive channels.
+
+### TCP vs UDP: Why Market Data and Order Submission Use Different Transports
+
+Order submission uses **TCP** (Transmission Control Protocol). TCP guarantees reliable, in-order delivery: if a packet is lost, TCP automatically retransmits it. For order management, this is essential — a lost order acknowledgement or fill notification must eventually arrive. TCP also provides backpressure: if the receiver falls behind, the sender slows down automatically.
+
+Market data uses **UDP multicast**. UDP (User Datagram Protocol) has no reliability guarantee — packets can be lost and are not retransmitted automatically. But UDP's advantages are significant:
+
+- **One-to-many delivery:** A single UDP multicast packet can be received by hundreds of subscribers simultaneously. With TCP, the exchange would need to maintain a separate connection and send a separate copy of each message to each subscriber — which does not scale.
+- **No connection overhead:** UDP is connectionless; there is no TCP handshake, no per-connection state.
+- **Lower latency:** No TCP acknowledgement flow, no retransmission delay.
+
+How does UDP's unreliability get handled? Through **sequence numbers**. Every ITCH/MDP3 message carries a sequence number. If a subscriber receives message 1000 followed by 1002, it knows 1001 was lost. It requests a retransmission via a separate **TCP unicast recovery channel** (specifically for replay requests). This hybrid design — UDP multicast for the live feed, TCP unicast for recovery — is standard across all major exchange market data architectures.
+
+```mermaid
+flowchart LR
+    ME["Matching Engine"]
+    UDP["UDP Multicast\n(live feed)"]
+    SUB1["Subscriber A"]
+    SUB2["Subscriber B"]
+    SUB3["Subscriber C"]
+    TCP["TCP Unicast\n(replay channel)"]
+
+    ME -- "Seq 1,2,3…\nBroadcast to all" --> UDP
+    UDP --> SUB1 & SUB2 & SUB3
+    SUB3 -- "Gap detected!\nResend seq 47" --> TCP
+    TCP -- "seq 47 retransmitted" --> SUB3
+```
+
+Order submission uses the reverse pattern — TCP from participant to exchange — because every order must be reliably received and acknowledged.
+
+### The Matching Engine
 
 The matching engine is the exchange's core computational component: the software that receives every incoming order, maintains the state of all order books, and executes trades when compatible buy and sell orders can be paired. It sits at the centre of the architecture, receiving from all gateways through a single serialised input queue and publishing results to all subscribers. A single-threaded design, one book per symbol, and deterministic processing are its defining characteristics, each discussed in detail in the *Matching Engine* section above. The gateway is the entry point into this pipeline; the engine is where the actual work happens.
 
-#### The Message Bus
+### The Message Bus
 
 The matching engine communicates with all other components through a **message bus**, a pub/sub (publish/subscribe) messaging system. The engine publishes events (trades, order status changes, book snapshots) to topics, and subscribers connect to the topics they care about.
 
-**ZeroMQ (ZMQ)** is a popular messaging library for this purpose. The engine has a PUSH/PULL socket pair with the gateways (for commands flowing in) and a PUB socket (for market data and events flowing out to subscribers).
+**ZeroMQ (ZMQ)** is a commonly used messaging library for educational and smaller production implementations. The engine can use a PUSH/PULL socket pair with the gateways (for commands flowing in) and a PUB socket (for market data and events flowing out to subscribers). In high-performance production environments, alternatives purpose-built for financial infrastructure include **Aeron** (developed by Real Logic, used by several exchanges and clearing houses for its deterministic low latency), **Chronicle Queue** (a persistent, low-latency IPC mechanism), and custom UDP multicast implementations. The conceptual pub/sub model is the same regardless of the underlying transport.
 
 Topics on the PUB socket might include:
 - `trade.executed.AAPL`, a trade happened in AAPL
@@ -1916,7 +2473,7 @@ Topics on the PUB socket might include:
 
 Subscribers filter by topic, receiving only the events relevant to them.
 
-#### Subscribers
+### Subscribers
 
 Any process that connects to the engine's PUB socket and processes events is a **subscriber**. Common subscribers:
 
@@ -1929,7 +2486,7 @@ Any process that connects to the engine's PUB socket and processes events is a *
 
 The key design principle: subscribers are passive receivers. They observe the market through event streams. They do not write to the order book.
 
-#### Book Snapshots
+### Book Snapshots
 
 Subscribers that start up mid-session need a way to get caught up on current book state without replaying every event since the start of day. The engine periodically publishes **book snapshots**, a complete current view of all resting orders, aggregated by price level, to the market data feed. A subscriber that misses events can simply wait for the next snapshot, typically published every 500 milliseconds per symbol.
 
@@ -1940,58 +2497,18 @@ Snapshots include:
 - Recent trade history (a rolling window of the last N trades)
 - The current tick size for the symbol (so subscribers can correctly format prices)
 
-### Exchange Connectivity Protocols, How Orders and Data Reach the Exchange
-
-Production exchanges rarely expose just one wire protocol. They usually separate **order entry** from **market data**, and they often support more than one style of client connectivity at the same venue: a human-readable or integration-friendly interface for broad interoperability, plus lower-latency binary protocols for firms that care about every microsecond.
-
-```mermaid
-flowchart LR
-    OMS["Broker OMS / EMS"] -->|FIX| GW["Exchange Gateway"]
-    HFT["Colocated low-latency client"] -->|OUCH / BOE| GW
-    GW --> ME["Matching Engine"]
-    ME -->|Execution reports / drop copy| OMS
-    ME -->|ITCH-style market data| MD["Feed handlers / algos / screens"]
-    MD -->|Gap detection / replay / snapshots| CONSUMERS["Trading systems and viewers"]
-```
-
-The split exists because these are different engineering problems. **Order-entry protocols** need sessions, authentication, throttles, cancels, replaces, rejects, and acknowledgements. **Market-data protocols** need fan-out, sequencing, packet-loss detection, replay, and compact encoding at very high message rates.
-
-| Protocol / family | Typical role | Usual wire style | Why venues use it | Official specification |
-|---|---|---|---|---|
-| **FIX** | General-purpose order entry, execution reports, drop copy, allocations | Text `tag=value` session protocol | Easy integration across brokers, OMS/EMS systems, and exchanges | [20] |
-| **OUCH** | Very low-latency order entry | Compact binary messages | Smaller message set and lower parsing cost than general FIX sessions | [18] |
-| **ITCH** | Depth-of-book and trade market data | Binary incremental market-data feed | Efficiently distributes every book event and trade to many subscribers | [17] |
-| **MoldUDP64** | Transport and sequencing wrapper for multicast market data | Binary packet framing over UDP multicast | Provides sequence numbers and recovery semantics around high-volume feeds | [19] |
-| **BOE** | Venue-specific low-latency order entry at Cboe | Binary | Optimised direct exchange access for latency-sensitive participants | [21], [22] |
-| **FAST / SBE** | Encoding families used to shrink or speed up messages | Binary encodings layered onto venue schemas or FIX-derived schemas | Reduces bandwidth and parsing overhead when plain FIX is too verbose | [20] |
-
-Two distinctions matter:
-
-1. **ITCH is not an order-entry protocol.** It tells you what happened in the market; it does not submit a new order.
-2. **FAST and SBE are encodings, not entire market models.** They describe how to pack fields efficiently; the venue still decides the business meaning of the messages.
-
-#### A Concrete Real-World Example
-
-An asset manager might send a parent order through a broker's OMS using FIX because it is readable, well understood, and easy to integrate into existing workflows. The broker's smart order router or a colocated market-making system may then convert that intent into many small child orders over a lower-latency venue protocol such as OUCH or BOE. At the same time, market-data handlers consume ITCH-style feeds to maintain a real-time book image and detect whether they missed any sequence numbers.
-
-That means one trading firm can use **three different protocol layers at once**:
-
-- **FIX** for workflow and interoperability
-- **OUCH / BOE** for direct low-latency order entry
-- **ITCH + MoldUDP64** for market data
-
-This is why exchange connectivity teams are careful about language. "The exchange protocol" is usually not one protocol. It is a family of interfaces, each built for a specific operational purpose.
-
-#### An Important Implementation Caution
-
-Protocol names travel across venues, but message schemas do not become interchangeable just because the names sound familiar. Nasdaq OUCH is not the same thing as a Cboe binary order-entry session, and one venue's ITCH feed will not necessarily carry the same event set, field ordering, or recovery workflow as another venue's market-data feed. In production work, you implement against the exact venue specification and certification suite, not against the protocol name alone.
-
-### Primary and Secondary Sites, Resilience Architecture
+## Primary and Secondary Sites, Resilience Architecture
 
 
 A financial exchange is critical infrastructure. If it goes down unexpectedly, due to hardware failure, software bug, network outage, or even a power cut, the consequences are severe: participants cannot trade, prices cannot be discovered, and confidence in the market is damaged. For this reason, exchanges operate with **redundancy**, duplicate systems at separate locations.
 
-#### Primary and Secondary Sites
+Two metrics define the resilience targets:
+
+**RPO (Recovery Point Objective):** The maximum amount of data loss acceptable. For a matching engine, RPO is effectively **zero** — no committed trade or order acknowledgement can ever be lost. A trade that was confirmed to a participant and then lost in a crash would represent a contractual failure with regulatory and legal consequences.
+
+**RTO (Recovery Time Objective):** The maximum acceptable downtime. Different systems have different RTOs: a batch reporting system might tolerate hours; a matching engine must recover in **seconds to minutes**. NYSE and NASDAQ publish target failover times; for critical components, modern exchanges target sub-minute RTO. The 2015 NYSE trading halt, discussed in the Reference Data section, lasted 3.5 hours — widely considered an unacceptable RTO for a major exchange, and a benchmark against which subsequent resilience investments were made.
+
+### Primary and Secondary Sites
 
 A **primary site** (also called the **primary** or **production site**) is where the live matching engine runs. All orders are processed here, all trades happen here.
 
@@ -1999,7 +2516,7 @@ A **secondary site** (also called the **backup**, **disaster recovery site**, or
 
 Real exchanges take this very seriously. NASDAQ, for example, operates data centres in multiple states. The LSE has co-primary sites in Basildon (Essex) and a secondary site elsewhere in England. CME has sites in Aurora (Illinois) and other locations.
 
-#### Synchronisation: Keeping the Secondary Current
+### Synchronisation: Keeping the Secondary Current
 
 For the secondary to be able to take over instantly, it must be an exact replica of the primary's state at all times. This means every order, trade, and state change on the primary must be reflected on the secondary with minimal delay.
 
@@ -2011,11 +2528,30 @@ Approaches include:
 
 **Consensus protocols:** In the most robust designs (used by clearing houses and critical infrastructure), a consensus algorithm like **Raft** or **Paxos** ensures both the primary and secondary agree on every event before it is considered "committed." Nothing is published to participants until both sites confirm they have the event. This guarantees zero data loss on failover but adds latency.
 
-#### Failover
+### Failover
 
 **Failover** is the act of switching from the primary to the secondary. It may be:
 
-- **Automatic (active-passive):** The system detects the primary has stopped responding (via heartbeat monitoring) and automatically promotes the secondary to primary, alerting participants. The challenge: detecting a true failure vs. a temporary network partition without making hasty decisions (the **split-brain problem**, if both sites think the other is dead, both might try to become primary simultaneously, resulting in two active engines accepting conflicting orders).
+```mermaid
+flowchart TD
+    P["Primary Site\n(ACTIVE)\nAccepts orders\nPublishes events"]
+    W["WAL\n(Write-Ahead Log)"]
+    S["Secondary Site\n(PASSIVE / SHADOW)\nFollows WAL silently\nDoes not publish"]
+    HB["Heartbeat\nMonitor"]
+    FO["Failover Decision"]
+    SA["Secondary Promotes\nto ACTIVE\nResumes from WAL tail\nBegins publishing"]
+
+    P -- "Every event written\nbefore processing" --> W
+    W -- "Streamed in real time" --> S
+    P -- "Heartbeat every N ms" --> HB
+    HB -->|"Heartbeat missed\n(timeout)" | FO
+    FO -->|"Manual or automatic\npromotion"| SA
+    SA -->|"Sequence continues\nno gap to participants"| SA
+```
+
+- **Automatic (active-passive):** The system detects the primary has stopped responding (via heartbeat monitoring) and automatically promotes the secondary to primary, alerting participants. The challenge: detecting a true failure vs. a temporary network partition without making hasty decisions — the **split-brain problem**: if both sites think the other is dead, both might try to become primary simultaneously, resulting in two active engines accepting conflicting orders.
+
+  The standard distributed-systems solutions are **fencing** (issuing a command that forces the suspected-failed node to stop operating before the secondary takes over — sometimes called **STONITH: Shoot The Other Node In The Head**) and **quorum requirements** (requiring the agreement of a majority of nodes before any single node can assume the primary role). Without one of these mechanisms, split-brain in a matching engine produces a catastrophic situation: two independent order books diverging while both believe they are the authoritative state.
 
 - **Manual (operator-controlled):** A human operator monitors the primary and initiates failover when a problem is confirmed. This is slower (seconds or minutes, not milliseconds) but avoids false failovers.
 
@@ -2023,30 +2559,30 @@ Approaches include:
 
   True active-active matching engines are **rare in production exchanges** because distributed consensus introduces latency, and maintaining deterministic total ordering across two simultaneously-processing sites is a fundamentally hard problem. Most production exchanges prefer active-passive or shadow replication rather than active-active, accepting a brief failover window in exchange for simplicity and predictable latency.
 
-#### The Geographic Trade-Off
+### The Geographic Trade-Off
 
 Placing the secondary site far from the primary protects against geographically localised disasters (earthquakes, floods, building fires). But distance means higher network latency, making synchronisation slower.
 
 A common compromise: a "near" site (same city or region, connected by dark fibre) provides fast synchronisation and fast failover, plus a "far" site (different country or continent) for true disaster recovery.
 
-### Load Balancing, Distributing the Work
+## Load Balancing, Distributing the Work
 
 
 A single exchange may serve dozens of gateways simultaneously, each handling orders from hundreds of participants. As trading volume grows, a single matching engine process may become a bottleneck.
 
-#### Horizontal Scaling Across Symbols
+### Horizontal Scaling Across Symbols
 
 The most natural scaling approach for an exchange is to distribute different symbols across different matching engine instances. The AAPL book and the MSFT book are completely independent, they can run on different servers, different processes, even in different data centres.
 
 This is called **partitioning by symbol**. It scales well: adding a new server lets you handle more symbols, without requiring coordination between servers (since no order crosses symbol boundaries except through combo order handling at a higher level).
 
-#### Gateway Load Balancing
+### Gateway Load Balancing
 
 Multiple gateway processes can run in parallel, each accepting connections from different participants. Gateways forward orders to the appropriate matching engine instance based on symbol. This allows gateway capacity to scale independently of matching engine capacity.
 
 A **load balancer** sits in front of the gateways, distributing incoming participant connections across the available gateway processes. Participants typically do not know which specific gateway process they are connected to, the load balancer makes this transparent.
 
-#### The Unique Order Number Challenge
+### The Unique Order Number Challenge
 
 This is where scaling creates a genuinely complex problem, and it is worth understanding in detail.
 
@@ -2072,7 +2608,7 @@ The challenge: if the primary used IDs 1–50,000 before failing and the seconda
 
 **In practice:** Exchange systems typically use a hybrid approach, a system like pre-allocated ranges for transaction ordering (where strict monotonicity matters), and UUIDs for order IDs in internal databases (where uniqueness is paramount and ordering can be handled separately by timestamp). A common approach uses UUID-based order IDs combined with monotonically increasing nanosecond timestamps to achieve both uniqueness and chronological ordering.
 
-#### Monotonic Timestamps Across Sites
+### Monotonic Timestamps Across Sites
 
 The nanosecond timestamp on each order must be monotonically increasing, not just within one machine, but across the entire system. If the primary is generating timestamps and then the secondary takes over, the secondary cannot start generating timestamps smaller than the last one the primary generated.
 
@@ -2080,57 +2616,68 @@ This requires clock synchronisation (NTP or PTP), monotonic enforcement via a wr
 
 **An important nuance:** in practice, deterministic sequencing identifiers matter more than absolute wall-clock timestamp precision. Production exchange systems frequently tolerate small amounts of clock drift and same-timestamp collisions, because the canonical ordering of events is defined by **sequencing infrastructure**, the order in which the single-threaded engine processes messages from its queue, not by the wall-clock value of the timestamp. Timestamps are primarily for auditability and observability; the sequencing of the input queue defines what actually happens. The monotonic enforcement described here prevents the most obvious failures (a clock jumping backward and assigning a "past" timestamp to a new order), but it is the engine's input queue, not the clock, that ultimately determines priority.
 
-### Market Data Architecture, How the Market Sees Itself
+## Market Data Architecture, How the Market Sees Itself
 
 
 The order book and trade data produced by the matching engine are published as **market data**, real-time feeds that participants and their systems consume to make trading decisions. Market data architecture is a significant engineering domain in its own right.
 
-#### Snapshots vs Incremental Updates
+### Snapshots vs Incremental Updates
 
-A **snapshot** is a complete picture of the current book state: all resting price levels, their quantities, the last trade price, recent trade history. A **incremental update** (also called a **delta**) describes only what changed since the previous message, an order was added, a fill occurred, a level was removed.
+A **snapshot** is a complete picture of the current book state: all resting price levels, their quantities, the last trade price, recent trade history. An **incremental update** (also called a **delta**) describes only what changed since the previous message: an order was added, a fill occurred, or a level was removed.
 
 Sending full snapshots is wasteful, most of the book did not change. Production systems send incremental updates continuously and periodic full snapshots (e.g., every second or every 5 seconds) so that subscribers who missed messages can resynchronise.
 
-#### Sequence Numbers
+### Sequence Numbers
 
 Every market data message carries a **sequence number**, a monotonically increasing integer. Subscribers track the last received sequence number. If a message with sequence number 1000 arrives followed by 1002, the subscriber knows message 1001 was lost (a **gap**). The subscriber must either request a replay of message 1001 or wait for the next full snapshot to resynchronise.
 
 Without sequence numbers, a subscriber has no reliable way to detect data loss. A subscriber that silently misses a cancellation event would have a stale view of the book, showing a resting order that no longer exists, and any trading decisions based on that view could be incorrect.
 
-#### Gap Recovery and Replay
+### Sequencing Scope and Session Boundaries
+
+For production feeds, sequence semantics must be explicit in protocol documentation:
+
+- **Scope:** Is sequencing global, per symbol, per channel, or per partition?
+- **Reset policy:** Do sequence numbers reset at start-of-day, or continue indefinitely?
+- **Wrap behaviour:** What happens at integer limits?
+- **Recovery anchor:** Should clients request replay from a sequence number, timestamp, or both?
+
+Without these rules, two clients can implement different recovery logic and both appear correct in normal conditions, then diverge under packet loss or after a session restart.
+
+### Gap Recovery and Replay
 
 Exchanges provide a **replay channel** or **retransmission service**: a subscriber can request resending of specific message sequence numbers it missed. Some exchanges use **multicast** delivery for the live feed (one packet sent to all subscribers simultaneously) and **unicast TCP** for retransmission (individual resend requests).
 
 The replay buffer typically holds the last N seconds of messages, enough to cover a brief network hiccup. A subscriber disconnected for several minutes may not be able to replay from the live feed and must wait for the next full snapshot.
 
-#### Conflation
+### Conflation
 
 When the exchange is under high load, market data messages may queue behind each other. **Conflation** is the process of merging consecutive updates for the same price level into a single message, reducing message volume at the cost of losing intermediate states. A subscriber using conflated data may not see every individual order addition and cancellation, it only sees the net effect on each price level. This is acceptable for display purposes but not for analytical systems that need complete tick data.
 
-#### Tick-to-Trade Latency
+### Tick-to-Trade Latency
 
 **Tick-to-trade latency** is the time from when a market data message leaves the exchange to when a trading decision based on that message results in an order being submitted and received by the exchange. It is a critical performance metric for market makers and HFT firms. Reducing tick-to-trade latency requires optimising every component in the path: network delivery, data parsing, decision logic, order serialisation, and order routing.
 
-#### Top-of-Book vs Depth-of-Book
+### Top-of-Book vs Depth-of-Book
 
 Some participants subscribe only to **top-of-book** data (best bid and ask prices and quantities only, Level 1). Others subscribe to **depth-of-book** (multiple price levels, Level 2). Depth data requires more bandwidth and processing but enables more sophisticated analysis of near-term price pressure.
 
 > **Key idea:** Market data is not just a convenience, it is the primary input to every trading algorithm and market maker. Its correctness, latency, and sequencing directly affect the quality of market participants' decisions. Exchange developers must treat market data publishing with the same rigour as the matching engine itself.
 
-### Smart Order Routing and Market Fragmentation
+## Smart Order Routing and Market Fragmentation
 
 
 Modern equity markets are not a single exchange. In the US, there are over a dozen registered stock exchanges plus dozens of alternative trading venues, all trading the same stocks. This fragmentation has profound implications for participants and exchange systems.
 
-#### Why Markets Are Fragmented
+### Why Markets Are Fragmented
 
 Regulatory choices drive fragmentation. In the US, **Regulation NMS** (National Market System), implemented in 2007, required that orders be filled at the best available price across all exchanges, creating strong incentives for new venues to compete with NYSE and NASDAQ. The EU's **MiFID II** directive had similar effects in European markets. Today, a stock like AAPL may have 5–15% of its volume on NYSE, 25–30% on NASDAQ, and the remainder distributed across CBOE, IEX, EDGX, EDGA, and other venues, plus dark pools and internalisers.
 
-#### The National Best Bid and Offer (NBBO)
+### The National Best Bid and Offer (NBBO)
 
 In the US, regulators require that market participants be offered the best available price across all exchanges. The **National Best Bid and Offer (NBBO)** is the highest available bid price and the lowest available ask price, computed in real time across all exchanges. If AAPL's best bid is $150.30 on NYSE and $150.31 on NASDAQ, the NBBO bid is $150.31. A market sell order must be executed at the NBBO price or better, a broker cannot route it to NYSE at $150.30 when $150.31 is available elsewhere.
 
-#### Smart Order Routing (SOR)
+### Smart Order Routing (SOR)
 
 A **Smart Order Router (SOR)** is software that determines how to route an order across multiple venues to achieve the best overall execution. For a large buy order, the SOR might:
 1. Route 200 shares to IEX (cheapest in fees).
@@ -2140,7 +2687,16 @@ A **Smart Order Router (SOR)** is software that determines how to route an order
 
 The SOR must evaluate venue fees, available depth, likely price impact, and speed simultaneously. A naive router that always sends everything to the same exchange would often leave better prices on the table elsewhere.
 
-#### Dark Pools and Hidden Liquidity
+In real implementations, SOR logic also incorporates:
+
+- **Protected-quote obligations** (for example, US trade-through constraints)
+- **Queue position probability** (expected fill likelihood if posted passively)
+- **Venue toxicity signals** (adverse-selection risk by venue and time of day)
+- **Hidden-liquidity interaction** (dark midpoint opportunities versus lit certainty)
+
+These constraints are why production SORs are stateful optimisation systems rather than simple price sorters.
+
+### Dark Pools and Hidden Liquidity
 
 A **dark pool** is a trading venue, often operated by a bank or broker-dealer, where orders are not displayed in a public order book. Participants submit orders to the dark pool and are matched against other participants' dark pool orders, typically at the midpoint of the NBBO. The trade is only publicly reported after it occurs.
 
@@ -2152,7 +2708,7 @@ The existence of dark pools explains why the displayed order book is not the who
 
 > **Key idea:** When working on exchange software, be aware that "the market" is larger than "the exchange." Smart order routing, fragmented liquidity, and dark pools are the reality in which the exchange you are building operates. Features like the NBBO, order routing decisions, and market data aggregation all exist because of fragmentation.
 
-#### Payment for Order Flow (PFOF)
+### Payment for Order Flow (PFOF)
 
 **Payment for Order Flow (PFOF)** is a practice in which retail brokers sell their clients' order flow to wholesale market makers, large firms such as Citadel Securities, Virtu Financial, and G1 Execution Services, rather than routing orders to lit exchanges. The market maker pays the broker a per-share fee for the right to execute the orders internally.
 
@@ -2162,9 +2718,35 @@ Why do brokers accept PFOF instead of routing to exchanges? The payment from mar
 
 **The controversy.** PFOF supporters argue that retail orders receive **price improvement**, fills at prices better than the NBBO bid or ask, because market makers compete for the flow. Critics argue that by routing to market makers rather than lit exchanges, retail orders never contribute to public price discovery; the market maker captures the profit that would otherwise benefit the investor through tighter spreads; and the broker has a structural conflict of interest (paid to route to a market maker, not to find genuinely best execution).
 
-PFOF is **banned in the United Kingdom and the European Union** under MiFID II, which requires all brokers to achieve best execution and prohibits inducements that conflict with client interests. In the US, the SEC proposed significant restrictions on PFOF in 2022 as part of a broader equity market structure reform. As of 2024 the regulatory landscape is evolving; developers building exchange or brokerage infrastructure should be aware that PFOF rules may change.
+PFOF is **banned in the United Kingdom and the European Union** under MiFID II, which requires all brokers to achieve best execution and prohibits inducements that conflict with client interests. In the US, the SEC proposed significant restrictions on PFOF in 2022 as part of a broader equity market structure reform but faced substantial industry opposition; the proposed rules had not been finalised as of 2025. Developers building exchange or brokerage infrastructure should monitor this area as the regulatory position remains subject to change.
 
-#### Best Execution, The Regulatory Foundation
+### Dark Pool Regulatory Scrutiny
+
+Dark pools are legal but have attracted significant regulatory attention when operators have misrepresented how they work. In 2014, the New York Attorney General's office and the SEC brought cases against major dark pool operators:
+
+**Barclays** agreed to pay $70 million in 2016 to settle allegations that it misled clients about the presence of high-frequency traders in its dark pool (LX Liquidity Cross), claiming to offer protection from HFT while actually allowing aggressive HFT firms to trade against institutional clients [SEC v. Barclays, 2016].
+
+**Credit Suisse** paid $84.3 million to settle similar allegations about its CrossFinder dark pool in the same period.
+
+These cases established that dark pool operators have affirmative obligations of transparency to their clients about pool membership and execution policies — not just about prices. For exchange developers, the lesson is that any venue offering dark or non-displayed liquidity must have defensible, auditable, and accurate representations of its matching rules and participant population.
+
+### Exchange Fee Models: Maker-Taker and Taker-Maker
+
+Understanding how exchanges charge for trading is essential for anyone building SOR logic, because fee differences between venues directly affect routing decisions.
+
+**Maker-taker** is the dominant fee model among US equity exchanges. It works as follows:
+
+- **Makers** (participants who post resting limit orders, providing liquidity) receive a **rebate** — the exchange pays them a small amount per share, typically $0.0020–$0.0030.
+- **Takers** (participants who submit aggressive orders that execute against resting orders) pay a **fee**, typically $0.0025–$0.0035 per share.
+- The exchange retains the difference as its revenue.
+
+This model incentivises liquidity provision: market makers are paid to quote, and the payment compensates partly for adverse selection risk. NYSE Arca and NASDAQ use maker-taker structures. A SOR routing a large aggressive order that sweeps through multiple levels will pay taker fees on every share executed — for a million-share institutional order, fees can be $25,000–$35,000 on a single execution, making fee comparison between venues a significant input to routing decisions.
+
+**Taker-maker** (sometimes called the **inverted model**) reverses the incentives: takers are paid a rebate and makers are charged a fee. This sounds counterintuitive, but it attracts aggressive order flow from participants who want to execute immediately and are willing to pay to provide that flow to the maker side. EDGA and EDGX (Cboe US Equities) have offered inverted structures. Inverted venues are often used for orders in highly liquid symbols where the maker-taker economics of the dominant venues create distortions.
+
+**Zero-fee models:** Some venues, particularly in the EU, charge neither makers nor takers a per-trade fee, instead monetising through subscription data fees, co-location charges, or flat access fees. Aquis Exchange operates on a subscription model.
+
+For SOR logic: a venue with a large rebate for makers may be preferred for posting passive orders even if its spread is fractionally wider, because the rebate income offsets the spread cost. This creates visible patterns in routing decisions that can appear irrational without understanding the fee structure.
 
 **Best execution** is the regulatory obligation for brokers and investment firms to take all reasonable steps to achieve the best possible outcome for their clients when executing orders. "Best" is not simply the highest price or lowest cost in isolation, regulators define it as the best overall result considering price, execution costs, speed, likelihood of execution, market impact, and other relevant factors.
 
@@ -2174,7 +2756,19 @@ Best execution is the regulatory foundation that makes smart order routing neces
 
 For exchange developers, best execution manifests in several observable ways: exchanges must be fast (slow fills mean worse prices), transparent (firms need accurate data to compare venues), and competitive on fees. An exchange that is consistently expensive or slow will be deprioritised by SOR systems fulfilling their best execution duty.
 
-#### Execution Algorithms, Slicing Large Orders
+### Trade Reporting Obligations
+
+An exchange's matching engine does not operate in regulatory silence. Every executed trade must be reported to regulators and/or public reporting facilities within strict time limits. For exchange developers, these obligations manifest as mandatory downstream subscribers that cannot be missed or delayed.
+
+**US equity markets:** Trades on registered exchanges are reported automatically by the exchange to the **Securities Information Processor (SIP)**, which consolidates all exchange trades into the public tape. Off-exchange trades (from dark pools, internalised retail flow, or OTC transactions) must be reported by broker-dealers to a **FINRA Trade Reporting Facility (TRF)** within 10 seconds of execution, which then publishes them to the consolidated tape.
+
+**EU markets under MiFID II:** Investment firms must report every trade to a regulator via an **Approved Reporting Mechanism (ARM)** within T+1, and publish the trade to the market via an **Approved Publication Arrangement (APA)** as close to real time as technologically possible (immediately for liquid instruments; deferred up to 15 minutes for illiquid instruments with large size). Large exchanges typically operate their own APAs and ARMs as part of their data services.
+
+**Derivatives under EMIR (EU) and Dodd-Frank (US):** Most standardised OTC derivatives trades must be reported to a **Trade Repository (TR)** — DTCC Derivatives Repository, ICE Trade Vault, and CME Trade Repository are the major EU TRs. Both counterparties must report, or one must be designated to report on both sides.
+
+For exchange developers, these obligations mean the clearing and audit systems must produce reports in multiple formats to multiple regulatory recipients within multiple latency windows — without impacting the matching engine's performance. The reporting infrastructure is a first-class engineering component, not an afterthought.
+
+### Execution Algorithms, Slicing Large Orders
 
 An individual investor buying 100 shares submits a single order. An institutional investor buying 5 million shares cannot. Sending a single 5-million-share market order would sweep through every level of the book, move the price dramatically, and fill at disastrous average prices. Instead, institutions break large orders into many small pieces and execute them over time, typically using standardised **execution algorithms** (called **algos**).
 
@@ -2190,30 +2784,32 @@ Understanding execution algorithms matters for exchange developers because they 
 
 > **Key idea:** The vast majority of exchange order flow originates from execution algorithms, not from humans pressing buttons. Understanding how these algos work helps explain patterns visible in market data, clustering of activity near the open and close (VWAP/ATC algos), evenly-spaced order arrivals (TWAP), and bursts of activity when prices move (IS algos increasing urgency).
 
-### Latency and Co-location, The Speed Dimension
+## Latency and Co-location, The Speed Dimension
 
 
 Speed is not incidental to electronic markets, it is a primary competitive dimension. Understanding why latency matters, and what mechanisms exchange systems use to minimise it, is essential background for exchange developers.
 
-#### Why Latency Matters
+### Why Latency Matters
 
 At any moment, the same stock is trading on multiple exchanges simultaneously. If the price of AAPL changes on NYSE, that information takes time to propagate to NASDAQ. During that window, even if only 50 microseconds, participants who know the price has changed on NYSE can trade on NASDAQ before NASDAQ's quotes adjust. This is called **latency arbitrage**.
 
 Market makers must continuously update their quotes faster than latency arbitrageurs can act. A market maker whose quotes are 10 microseconds stale will find themselves adversely selected on the stale side. The entire market structure is shaped by this dynamic: venue design, technology choices, and the physical geography of data centres all aim to reduce or equalise latency.
 
-#### Co-location
+### Co-location
 
-**Co-location** is the practice of placing a participant's trading servers physically inside the same data centre as the exchange's matching engine. At the speed of light, the 40-kilometre round trip between a midtown Manhattan trading firm and the exchange data centre in New Jersey takes approximately 270 microseconds, a long time in electronic trading. A co-located server in the same rack as the matching engine has a round-trip latency of microseconds.
+**Co-location** is the practice of placing a participant's trading servers physically inside the same data centre as the exchange's matching engine. Even tens of kilometres of metro fibre typically add hundreds of microseconds of round-trip latency in real paths. A co-located server in the same facility can reduce this to low single-digit microseconds end-to-end on optimised networks.
 
 Exchanges provide co-location as a service: they sell rack space in their data centres to participants who want the lowest possible latency. NYSE's co-location facility in Mahwah, New Jersey, and NASDAQ's in Carteret, New Jersey, host servers for hundreds of trading firms. Eurex runs co-location at its Frankfurt data centre.
 
-#### Microwave and Laser Links
+### Microwave and Laser Links
 
 The speed of light in fibre-optic cable is approximately 70% of the speed of light in a vacuum, light travels somewhat slower through glass than through air. For data links between distant locations (Chicago to New York, London to Frankfurt), microwave and millimetre-wave radio links are faster than fibre because radio waves travel at nearly the speed of light through air.
 
-Multiple firms have built dedicated microwave networks between major financial data centres. The Chicago-to-New-York microwave path (approximately 1,200km) takes around 4 milliseconds by microwave versus 6–7ms by fibre, a meaningful advantage in latency-sensitive trading. Experimental laser links (which travel through air but require line-of-sight and clear weather) can be even faster.
+The economics of this advantage are extreme. **Spread Networks** spent approximately $300 million in 2010 to build a new dark-fibre route between Chicago and New York, reducing round-trip latency from roughly 16ms (existing routes) to approximately 13ms. The project was considered a breakthrough and was financially obsolete within a few years when microwave networks achieved the same route in approximately 8ms, less than a straight-line vacuum path via fibre would have taken.
 
-#### Hardware Acceleration
+Multiple firms have since built dedicated microwave networks between major financial data centres. The Chicago-to-New York microwave path (approximately 1,200km) takes around 4 milliseconds by microwave versus 6–7ms by fibre, a meaningful advantage in latency-sensitive trading. Experimental laser links (which travel through air but require line-of-sight and clear weather) can be even faster.
+
+### Hardware Acceleration
 
 For the most latency-sensitive operations, software running on general-purpose CPUs is too slow. Exchange systems and trading firms use:
 
@@ -2239,18 +2835,48 @@ For developers building exchange infrastructure rather than trading clients, the
 
 **Deterministic latency:** In high-frequency systems, not just average latency but **worst-case latency** matters. A response that is usually 5 microseconds but occasionally spikes to 500 microseconds due to garbage collection or OS scheduling jitter is unacceptable. Systems are designed with deterministic, bounded latency using techniques like memory pre-allocation, real-time OS scheduling, and CPU pinning.
 
-#### PTP Clock Synchronisation
+### PTP Clock Synchronisation
 
 When events across multiple machines must be compared, all machines must share a common, accurate time source. **PTP (IEEE 1588 Precision Time Protocol)** synchronises clocks across a network to sub-microsecond accuracy, far more precise than NTP (which achieves only millisecond accuracy). Exchange systems and co-location facilities use PTP or dedicated hardware timing signals (GPS-disciplined oscillators) to ensure that timestamps on events from different machines are directly comparable.
 
 > **Key idea:** In exchange infrastructure, latency is not just a performance metric, it determines who gets to trade at what price. Every architectural decision (data structures, networking, hardware) has latency implications. Understanding this context helps you make better design choices even in components not directly in the critical path.
 
-### Corporate Actions, When the Instrument Changes
+## Operational Observability and Incident Response
+
+Production readiness depends not only on matching correctness, but on fast, reliable detection and recovery when something degrades.
+
+### Core Production Signals
+
+At minimum, exchanges track and alert on:
+
+- End-to-end order ACK/fill latency (p50/p95/p99/p99.9)
+- Ingress queue depth and backlog age per gateway and per symbol partition
+- Market-data publish latency and subscriber lag
+- Replay buffer utilisation and replay hit/miss ratios
+- Reject rates by code (risk, syntax, session, throttling)
+- Failover readiness (replication lag, last durable offset, heartbeat health)
+
+These metrics should be broken out by venue session state (auction, continuous, halt), because acceptable baselines differ by phase.
+
+### Runbooks and Recovery Drills
+
+A professional venue maintains tested runbooks for:
+
+- Gateway degradation and targeted traffic shedding
+- Symbol-partition isolation (quarantine one partition without halting all trading)
+- Primary-to-secondary failover with deterministic replay verification
+- Market-data incident handling (gap storms, replay saturation, stale snapshots)
+
+Runbooks should include operator decision thresholds, not just command sequences. Drills should be rehearsed under load and during controlled session simulations, not only in staging idle conditions.
+
+> **Key idea:** Low latency is valuable, but operational predictability is what keeps markets open during stress. A venue is publishable and production-grade only when observability and incident response are engineered as first-class features.
+
+## Corporate Actions, When the Instrument Changes
 
 
 An exchange does not just serve static instruments. Companies whose shares trade on an exchange undergo **corporate actions**, events that change the structure of the instrument itself. These events have significant operational consequences for every component of an exchange system.
 
-#### Stock Splits
+### Stock Splits
 
 A **stock split** divides each existing share into multiple new shares, reducing the price proportionally. If AAPL trades at $200 and does a 4-for-1 split, each shareholder receives 4 shares for every 1 they held; the price adjusts to approximately $50. The total market capitalisation is unchanged.
 
@@ -2262,21 +2888,21 @@ Exchange implications:
 
 A **reverse split** works in the opposite direction: multiple shares are consolidated into one, and the price rises proportionally. A company trading at $0.50 might do a 10-for-1 reverse split to bring the price to $5, typically to meet exchange listing requirements.
 
-#### Dividends
+### Dividends
 
 When a company declares a dividend, shares trade **cum-dividend** (with dividend entitlement) up to the **ex-dividend date**, after which they trade **ex-dividend** (without dividend entitlement). The price typically drops by approximately the dividend amount on the ex-dividend date.
 
 Open orders spanning the ex-dividend date may require handling, some exchanges cancel all open orders; others adjust prices.
 
-#### Mergers and Acquisitions
+### Mergers and Acquisitions
 
 When a company is acquired, its shares may be converted to shares in the acquirer, cash, or a combination. The target company's shares are eventually **delisted**, removed from trading on the exchange. All open orders in the target must be cancelled. Open positions must be settled.
 
-#### Symbol Changes and Delistings
+### Symbol Changes and Delistings
 
 Companies change their ticker symbols (rebranding, mergers). Systems that track positions and orders by symbol must handle symbol remapping without losing continuity. **Delistings** require orderly unwinding of all open orders and positions in the symbol.
 
-#### Why Corporate Actions Matter to Developers
+### Why Corporate Actions Matter to Developers
 
 Corporate actions are among the most operationally complex events an exchange system handles. They require coordination across: the order book engine (cancel or adjust open orders), the clearing system (adjust positions and cost bases), the market data system (update reference data), the audit trail (record the adjustment events), and downstream applications that may have cached the old instrument parameters.
 
@@ -2284,12 +2910,12 @@ A developer who underestimates corporate action complexity will eventually face 
 
 > **Key idea:** Instruments are not static. Every system that touches order, position, or price data must be prepared to handle corporate action adjustments. Reference data management is a discipline in its own right in production exchange systems.
 
-### Determinism, Replay, and Persistence, The Exchange Must Not Forget
+## Determinism, Replay, and Persistence, The Exchange Must Not Forget
 
 
 These three properties, determinism, replay, and persistence, are the engineering foundations that allow an exchange to be trusted over long periods. They are closely related and each depends on the others.
 
-#### Deterministic Replay
+### Deterministic Replay
 
 A matching engine is **deterministic** if, given the same initial state and the same ordered sequence of input messages, it always produces exactly the same outputs: the same fills, the same cancellations, the same book state, and the same sequence of events.
 
@@ -2305,7 +2931,7 @@ The key implication for software design: the matching engine must have no hidden
 
 > **Key idea:** The matching engine's determinism is a design requirement, not an implementation detail. Every decision that could introduce non-determinism, reading the clock, using a hash map with randomised iteration order, calling OS functions, must be carefully controlled.
 
-#### Sequence Numbers
+### Sequence Numbers
 
 Exchange systems use **sequence numbers** pervasively. Every message on every channel carries a monotonically increasing sequence number. This enables:
 
@@ -2316,7 +2942,7 @@ Exchange systems use **sequence numbers** pervasively. Every message on every ch
 
 Sequence numbers are distinct from order IDs. An order ID identifies an order throughout its lifetime; a sequence number identifies a message in a specific channel at a specific moment. The same order generates multiple messages (new, partial fill, fill, cancel), each message has its own sequence number.
 
-#### Persistence and Recovery
+### Persistence and Recovery
 
 A production exchange cannot lose state across restarts or failures. This requires deliberate persistence design.
 
@@ -2332,14 +2958,14 @@ A production exchange cannot lose state across restarts or failures. This requir
 
 > **Key idea:** The exchange cannot lose a single order or trade. Persistence is not optional. Every production exchange system is built around the assumption that hardware will fail, software will crash, and the system must recover to exactly the state it had before the failure.
 
-### Reference Data, The Exchange's Ground Truth
+## Reference Data, The Exchange's Ground Truth
 
 
 Every component of an exchange system depends on a common set of facts about the instruments it handles: what symbols exist, what their tick sizes are, what their trading hours are, and dozens of other parameters. This is called **reference data** (also called **static data** or **instrument master data**), and it is the foundational layer that every other component reads from.
 
 Reference data is not glamorous. It does not move prices or fill orders. But a disproportionate fraction of real exchange outages, including some very expensive ones, originate from bad reference data, not from bugs in the matching engine. A matching engine with perfect logic will produce wrong results if given incorrect tick sizes, wrong price scales, or stale contract specifications.
 
-#### What Reference Data Contains
+### What Reference Data Contains
 
 For each tradeable symbol, the exchange maintains:
 
@@ -2371,7 +2997,7 @@ For each tradeable symbol, the exchange maintains:
 - **Circuit breaker thresholds:** How much the price must move in a window before a halt is triggered.
 - **Position limits:** Maximum position any single participant may hold.
 
-#### Why Reference Data Is So Dangerous to Get Wrong
+### Why Reference Data Is So Dangerous to Get Wrong
 
 Because reference data is read by every component, matching engine, gateway, clearing, market data, surveillance, a single wrong value can corrupt all of them simultaneously.
 
@@ -2385,7 +3011,9 @@ Because reference data is read by every component, matching engine, gateway, cle
 
 All of these have happened in real exchanges. Reference data errors have caused trading halts, regulatory interventions, and significant financial losses.
 
-#### Reference Data as an Exchange Engineering Problem
+A prominent real-world example: on **8 July 2015, NYSE halted all trading for approximately 3.5 hours**. The cause was a software configuration mismatch introduced during a gateway update deployed the previous evening. The new gateway software version was incompatible with the version running on some internal systems, causing connectivity failures that propagated into a halt of the entire venue. Trading migrated to NASDAQ and other venues, demonstrating both the fragility of reference data and system configuration — and the resilience of the fragmented US equity market structure as a whole, since the market continued to function on other venues while NYSE was dark [NYSE Inc. statement, July 2015; SEC review].
+
+### Reference Data as an Exchange Engineering Problem
 
 For developers, reference data has several important architectural properties:
 
@@ -2396,6 +3024,7 @@ For developers, reference data has several important architectural properties:
 **Version control and audit matter.** Reference data changes must be versioned and audited. Regulators may ask: "What were the circuit breaker parameters for AAPL at 2:43pm on the day of the halt?" If reference data is overwritten rather than versioned, that question cannot be answered.
 
 > **Key idea:** Reference data is the configuration that all exchange software depends on. Treat it with the same rigour as code changes, version controlled, tested before deployment, applied atomically, and auditable after the fact. A wrong tick size is just as dangerous as a bug in the matching loop.
+
 
 
 ## References
@@ -2494,55 +3123,19 @@ The authoritative academic and practitioner reference for all derivatives. Chapt
 
 
 
-**[17]** Nasdaq Trader. *Nasdaq TotalView-ITCH 5.0 Specification*. Available at: https://www.nasdaqtrader.com/content/technicalsupport/specifications/dataproducts/NQTVITCHspecification.pdf
-
-Official Nasdaq documentation for its binary depth-of-book market-data feed. This is the canonical reference for how a venue-level ITCH feed represents order-book events, trades, and sequence-driven state changes.
-
-
-
-**[18]** Nasdaq Trader. *OUCH 5.0 Specification*. Available at: https://www.nasdaqtrader.com/content/technicalsupport/specifications/TradingProducts/OUCH5.0.pdf and landing page https://www.nasdaqtrader.com/Trader.aspx?id=OUCH
-
-Official Nasdaq documentation for its low-latency binary order-entry protocol. It is the clearest primary source for understanding the narrow, high-speed style of order-entry interface used by colocated and latency-sensitive participants.
-
-
-
-**[19]** Nasdaq Trader. *MoldUDP64 Specification*. Available at: https://www.nasdaqtrader.com/content/technicalsupport/specifications/dataproducts/moldudp64.pdf
-
-Official Nasdaq documentation for MoldUDP64, the packet framing and recovery model commonly used around high-volume multicast market-data feeds. It is useful because it shows that transport and business semantics are often specified separately.
-
-
-
-**[20]** FIX Trading Community. *Standards*. Available at: https://fixtrading.org/standards/
-
-The official standards portal for FIX, including the FIX protocol family and related encodings such as FAST and SBE. This is the authoritative starting point for the standardised side of exchange, broker, and post-trade connectivity.
-
-
-
-**[21]** Cboe U.S. Equities. *Technical Specifications*. Available at: https://www.cboe.com/us/equities/support/technical/
-
-Official Cboe engineering documentation hub for its U.S. equities markets. This is the primary public source for Cboe's low-latency order-entry and market-data interface specifications.
-
-
-
-**[22]** Cboe U.S. Options. *Technical Specifications*. Available at: https://www.cboe.com/us/options/support/technical/
-
-Official Cboe engineering documentation hub for its U.S. options markets. Included because protocol families such as BOE are often documented at the venue-technology-library level rather than in a single universal PDF.
-
-
-
 ## Exchanges own technical references
 
 Publicly available technical specifications and documentation provide exact structural logic and algorithmic details for combo and implied/synthetic orders across major electronic matching engines.
 
-### 1. CME Globex Matching Engine & Implied Logic
+### CME Globex Matching Engine & Implied Logic
 
 CME Group provides open-access engineering wikis that map out their continuous multi-leg matching models.
 
 * **Implied Orders Functionality:** To read the explicit state constraints, calculation boundaries, and engine generation rules for "Implied-In" and "Implied-Out" routing structures, visit the [CME Globex Implied Orders Documentation](https://cmegroupclientsite.atlassian.net/wiki/display/EPICSANDBOX/Implied+Orders).
 * **Options-Specific Implied Generation:** For data regarding RFQ-triggered timers and second-generation restriction models, see the [CME Globex Implied Options Documentation](https://cmegroupclientsite.atlassian.net/wiki/spaces/EPICSANDBOX/pages/457327346/Implied+Options).
 * **Algorithmic Match Priorities:** To inspect how implied quantities interact with Pro Rata or FIFO allocation passes when competing with outright resting orders, review the [CME Globex Matching Algorithms Reference](https://cmegroupclientsite.atlassian.net/wiki/display/EPICSANDBOX/CME+Globex+Matching+Algorithms).
-
-### 2. Cboe US Options Complex Book Architecture
+ 
+### Cboe US Options Complex Book Architecture
 
 Cboe details its execution logic for multi-leg derivative allocations, net premium sorting, and atomicity verification.
 
@@ -2550,13 +3143,13 @@ Cboe details its execution logic for multi-leg derivative allocations, net premi
 * **Complex Book Fundamentals:** For an structural layout of multi-leg order handling constraints and leg ratio normalization, review the [Cboe Titanium Complex Order Basics](https://www.cboe.com/document/tech-spec/content/technical-specifications/cboe-titanium-u.s.-options-complex-book-process/complex-order-basics).
 * **Complex Book Process Guide:** To dive into the complete structural manual—detailing Signed Values on the Complex Book (debit vs. credit), order sorting mechanisms, and Complex Order Auctions (COA)—view the comprehensive [Cboe Titanium Complex Book Process Document](https://www.cboe.com/document/tech-spec/document/technical-specifications/cboe-titanium-u.s.-options-complex-book-process).
 
-### 3. Intercontinental Exchange (ICE) Order Books
+### Intercontinental Exchange (ICE) Order Books
 
 ICE manages highly nested energy and financial spreads that utilize synthetic order generation.
 
 * **Market Data & Connectivity Controls:** For foundational parameters on data fields, systemic electronic metrics, and electronic volume calculations within the ICE infrastructure, refer to the [Intercontinental Exchange Connect User Guide](https://www.ice.com/publicdocs/Connect_Web_User_Guide_.pdf).
 
-### 4. NYSE Pillar (Equity Trading Platform)
+### NYSE Pillar (Equity Trading Platform)
 
 The core documentation for understanding order behavior, priority categories, and amendment rules across the NYSE (New York Stock Exchange) platform
 
@@ -2570,6 +3163,8 @@ The core documentation for understanding order behavior, priority categories, an
 
 ### Notes on Sources Not Cited Inline
 
-Some specific facts in this document are well established in the historical and financial literature but could not be attributed to a single verifiable primary academic document within this text, but rather second-hand sources such as NYSE's own publications and posts. For example:
+Some specific facts in this document are well established in the historical and financial literature but could not be attributed to a single verifiable primary aademic document within this text, but rather second hand sources such as NYSE own publications and posts. For example:
 
 **NYSE closing auction volume (substantial part of daily volume):** Based on exchange market structure analyses published periodically by NYSE Group and referenced in market microstructure research. The specific percentage varies by year and instrument; the range given is illustrative. See [The shifting dynamics of the NYSE Closing Auction](https://www.nyse.com/data-insights/nyse-closing-auction-dynamics-2023)
+
+
