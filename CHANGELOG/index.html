@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#v011-2026-06-11" class="md-skip">
+        <a href="#v012-2026-06-11" class="md-skip">
           Skip to content
         </a>
       
@@ -1441,16 +1441,31 @@
 
   <h1>CHANGELOG</h1>
 
+<h2 id="v012-2026-06-11">[v0.1.2] - 2026-06-11<a class="headerlink" href="#v012-2026-06-11" title="Permanent link">&para;</a></h2>
+<p>Release Type: patch</p>
+<h3 id="summary">📋 Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h3>
+<p>This patch release extends the release pipeline to build and bundle the Exchange Introduction document alongside the main package, producing a ZIP archive of all four PDF variants as a release asset.</p>
+<h3 id="improvements">🚀 Improvements<a class="headerlink" href="#improvements" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Improved release build to include Exchange Intro PDF generation in parallel with the main docs build</li>
+</ul>
+<h3 id="internal">🛠 Internal<a class="headerlink" href="#internal" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Added ZIP bundling of Exchange Intro PDFs into a single release asset archive</li>
+<li>Updated main build target to invoke the Exchange Intro build step</li>
+</ul>
 <h2 id="v011-2026-06-11">[v0.1.1] - 2026-06-11<a class="headerlink" href="#v011-2026-06-11" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<p>📋 Summary
-This patch release hardens the first-time release workflow after the initial public launch. It focuses on branch initialization and merge-path clarity so releases from develop to main complete predictably.</p>
-<p>🛠 Internal
-- Improved release script messaging around preconditions for squash merges
-- Updated release process checks to surface branch-state issues earlier</p>
+<h3 id="summary_1">📋 Summary<a class="headerlink" href="#summary_1" title="Permanent link">&para;</a></h3>
+<p>This patch release hardens the first-time release workflow after the initial public launch. It focuses on branch initialization and merge-path clarity so releases from develop to main complete predictably.</p>
+<h3 id="internal_1">🛠 Internal<a class="headerlink" href="#internal_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Improved release script messaging around preconditions for squash merges</li>
+<li>Updated release process checks to surface branch-state issues earlier</li>
+</ul>
 <h2 id="v010-2026-06-11">[v0.1.0] - 2026-06-11<a class="headerlink" href="#v010-2026-06-11" title="Permanent link">&para;</a></h2>
 <p>Release Type: minor</p>
-<h3 id="summary">📋 Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h3>
+<h3 id="summary_2">📋 Summary<a class="headerlink" href="#summary_2" title="Permanent link">&para;</a></h3>
 <p>This is the inaugural public release of EduMatcher, featuring a complete educational matching engine with all essential exchange functionality. Designed for educational purposes, the engine implements realistic order matching, market data, and session management while intentionally omitting authentication and authorization to focus on core exchange principles.</p>
 <h3 id="additions">✨ Additions<a class="headerlink" href="#additions" title="Permanent link">&para;</a></h3>
 <ul>
@@ -1463,7 +1478,7 @@ This patch release hardens the first-time release workflow after the initial pub
 <li>Added comprehensive exchange architecture documentation</li>
 <li>Added Python API for programmatic access to matching engine</li>
 </ul>
-<h3 id="improvements">🚀 Improvements<a class="headerlink" href="#improvements" title="Permanent link">&para;</a></h3>
+<h3 id="improvements_1">🚀 Improvements<a class="headerlink" href="#improvements_1" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Optimized matching performance for high-volume order streams</li>
 <li>Implemented efficient message handling and session state tracking</li>
@@ -1476,7 +1491,7 @@ This patch release hardens the first-time release workflow after the initial pub
 <li>Added quick-start examples and API reference</li>
 <li>Added integration guide for MCP server usage</li>
 </ul>
-<h3 id="internal">🛠 Internal<a class="headerlink" href="#internal" title="Permanent link">&para;</a></h3>
+<h3 id="internal_2">🛠 Internal<a class="headerlink" href="#internal_2" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Established comprehensive test coverage for matching logic and order types</li>
 <li>Configured Poetry-based development environment with dev, docs, and MCP extras</li>
