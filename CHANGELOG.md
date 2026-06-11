@@ -1,11 +1,26 @@
+## [v0.1.2] - 2026-06-11
+
+Release Type: patch
+
+### 📋 Summary
+This patch release extends the release pipeline to build and bundle the Exchange Introduction document alongside the main package, producing a ZIP archive of all four PDF variants as a release asset.
+
+### 🚀 Improvements
+- Improved release build to include Exchange Intro PDF generation in parallel with the main docs build
+
+### 🛠 Internal
+- Added ZIP bundling of Exchange Intro PDFs into a single release asset archive
+- Updated main build target to invoke the Exchange Intro build step
+
+
 ## [v0.1.1] - 2026-06-11
 
 Release Type: patch
 
-📋 Summary
+### 📋 Summary
 This patch release hardens the first-time release workflow after the initial public launch. It focuses on branch initialization and merge-path clarity so releases from develop to main complete predictably.
 
-🛠 Internal
+### 🛠 Internal
 - Improved release script messaging around preconditions for squash merges
 - Updated release process checks to surface branch-state issues earlier
 
