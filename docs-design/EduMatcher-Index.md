@@ -123,35 +123,16 @@ future price movements will change it.
 
 ## 3. Architecture Overview
 
-```
-┌────────────────────────────────────┐
-│         Matching Engine            │
-│   PUB :5556                        │
-│   trade.executed                   │
-│   session.state                    │
-└────────────┬───────────────────────┘
-             │ ZMQ SUB
-             ▼
-┌────────────────────────────────────┐
-│           pm-index                 │
-│   Subscribes to trade.executed     │
-│   Subscribes to session.state      │
-│   Subscribes to system.eod         │
-│   Recalculates index on each trade │
-│   Persists snapshots to disk       │
-│   Publishes index.update (ZMQ PUB) │
-│   Serves index history requests    │
-└────────────┬───────────────────────┘
-             │ ZMQ PUB :5558
-             ▼
-┌──────────────────────────────────────────────┐
-│                  CALF Gateway (pm-md-gwy)     │
-│   Subscribes to index.update on port 5558     │
-│   Exposes INDEX channel to external clients   │
-└──────────────────────────────────────────────┘
-             │ TCP :5570  CALF protocol
-             ▼
-    External subscribers (bots, viewers)
+```mermaid
+flowchart TD
+    engine["Matching Engine<br/>PUB :5556<br/>trade.executed<br/>session.state"]
+    index["pm-index<br/>Subscribes to trade.executed<br/>Subscribes to session.state<br/>Subscribes to system.eod<br/>Recalculates index on each trade<br/>Persists snapshots to disk<br/>Publishes index.update"]
+    gwy["CALF Gateway (pm-md-gwy)<br/>Subscribes to index.update on port 5558<br/>Exposes INDEX channel to external clients"]
+    ext["External subscribers<br/>(bots, viewers)"]
+
+    engine -->|"ZMQ SUB"| index
+    index -->|"ZMQ PUB :5558"| gwy
+    gwy -->|"TCP :5570 CALF protocol"| ext
 ```
 
 `pm-index` is a new standalone process. It does **not** connect to the engine's
