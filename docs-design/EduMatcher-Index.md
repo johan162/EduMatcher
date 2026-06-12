@@ -1,4 +1,4 @@
-Version: 0.1.0
+Version: 1.0.0
 
 Date: 2026-06-12
 
@@ -173,6 +173,7 @@ index:
   base_value: 1000.0               # index level at launch date
   publish_interval_sec: 1.0        # minimum seconds between published updates
   history_file: "data/index_history.jsonl"  # where snapshots are written
+    state_file: "data/index_state.json"       # divisor, prices, and constituent state
 
   constituents:
     AAPL:
@@ -325,6 +326,22 @@ This guarantees exactly one EOD write/publish per session:
 
 If both events arrive, the second event is ignored for EOD finalisation.
 
+```mermaid
+stateDiagram-v2
+        [*] --> PRE_OPEN
+        PRE_OPEN --> OPENING_AUCTION
+        OPENING_AUCTION --> CONTINUOUS
+        CONTINUOUS --> CLOSING_AUCTION
+        CLOSING_AUCTION --> CLOSED
+        CLOSED --> PRE_OPEN
+
+        state CLOSED {
+            [*] --> WAIT_EOD_TRIGGER
+            WAIT_EOD_TRIGGER --> EOD_FINALIZED: first of (session.state=CLOSED, system.eod)
+            EOD_FINALIZED --> IGNORE_DUPLICATE: duplicate trigger
+        }
+```
+
 
 
 ## 6. Corporate Actions
@@ -359,16 +376,19 @@ After:  index_level = new_cap / new_divisor
 
 A split ratio of `N:1` means each share becomes N shares. The price divides by N.
 
-Effect: `shares_outstanding` increases by factor N; `last_price` drops by factor N;
-their product (market cap) stays the same. **No divisor adjustment is needed.**
+Effect: `shares_outstanding` increases by factor N; `last_price` drops by factor N.
+With exact arithmetic the market cap is unchanged.
 
 However, the `shares_outstanding` value in the constituent config must be updated.
-For educational simplicity, shares remain integers after splits. Use standard
-rounding to nearest integer (half up):
+For educational simplicity, shares remain integers after splits. Use integer
+half-up rounding with integer arithmetic:
 
 ```
-new_shares_outstanding = int((old_shares * ratio_numerator / ratio_denominator) + 0.5)
+new_shares_outstanding = (old_shares * ratio_numerator + ratio_denominator // 2) // ratio_denominator
 ```
+
+Because rounding can introduce a tiny cap drift, apply a divisor correction when
+`new_cap != old_cap` so index continuity is preserved exactly.
 
 The snippet below is shown in the `pm-index` runtime service layer (where publish
 and history hooks exist), not in the pure `IndexCalculator` math core:
@@ -380,23 +400,28 @@ def apply_split(self, symbol: str, ratio_numerator: int, ratio_denominator: int)
 
     ratio_numerator:ratio_denominator — e.g. 2:1 (2-for-1 split), 3:2 (3-for-2 split).
     Example: 2:1 split on AAPL with 15B shares → 30B shares, price halved.
-    No divisor adjustment needed because market cap is unchanged.
+    Rounding-induced cap drift (if any) is neutralized via divisor correction.
     """
     constituent = self._constituents[symbol]
     if ratio_numerator <= 0 or ratio_denominator <= 0:
         raise ValueError("Split ratio must be positive")
+    old_cap = self._aggregate_cap()
     # Update shares outstanding with integer rounding policy
     old_shares = constituent.shares_outstanding
-    constituent.shares_outstanding = int(
-        (old_shares * ratio_numerator / ratio_denominator) + 0.5
-    )
+    constituent.shares_outstanding = (
+        old_shares * ratio_numerator + ratio_denominator // 2
+    ) // ratio_denominator
 
     # The current last_price must also be adjusted so aggregate cap stays the same
     old_price = self._last_prices.get(symbol, constituent.initial_price)
     new_price = old_price * ratio_denominator / ratio_numerator
     self._last_prices[symbol] = new_price
 
-    # Divisor is NOT changed — cap is unchanged
+    # Preserve index continuity exactly if rounding changed aggregate cap.
+    new_cap = self._aggregate_cap()
+    if new_cap != old_cap:
+        self._divisor = self._divisor * (new_cap / old_cap)
+
     new_level = self._recalculate()
     self._current_level = new_level
     self._publish(new_level)
@@ -464,7 +489,11 @@ def apply_shares_issuance(self, symbol: str, new_shares_outstanding: int) -> Non
     Adjusts divisor to preserve the current index level.
     """
     constituent = self._constituents[symbol]
+    if new_shares_outstanding <= 0:
+        raise ValueError("new_shares_outstanding must be positive")
     old_cap = self._aggregate_cap()
+    if old_cap <= 0.0:
+        raise ValueError("Cannot apply shares issuance when aggregate cap is non-positive")
     constituent.shares_outstanding = new_shares_outstanding
     new_cap = self._aggregate_cap()
 
@@ -558,6 +587,10 @@ def add_constituent(
     """
     if symbol in self._constituents:
         raise KeyError(f"Symbol {symbol!r} is already a constituent")
+    if shares_outstanding <= 0:
+        raise ValueError("shares_outstanding must be positive")
+    if initial_price <= 0.0:
+        raise ValueError("initial_price must be positive")
 
     old_cap = self._aggregate_cap()
     self._constituents[symbol] = ConstituentConfig(
@@ -568,7 +601,11 @@ def add_constituent(
     self._last_prices[symbol] = initial_price
     new_cap = self._aggregate_cap()
 
-    self._divisor = self._divisor * (new_cap / old_cap)
+    if old_cap <= 0.0:
+        # First constituent bootstrap path
+        self._divisor = new_cap / self._base_value
+    else:
+        self._divisor = self._divisor * (new_cap / old_cap)
     new_level = self._recalculate()
     self._current_level = new_level
     self._publish(new_level)
@@ -625,6 +662,11 @@ divisor and last-known prices across restarts:
 ```json
 {
   "divisor": 7007100000.0,
+    "constituents": {
+        "AAPL": {"shares_outstanding": 15000000000, "initial_price": 209.50, "active": true},
+        "MSFT": {"shares_outstanding": 7400000000,  "initial_price": 415.00, "active": true},
+        "TSLA": {"shares_outstanding": 3200000000,  "initial_price": 248.00, "active": true}
+    },
   "last_prices": {
     "AAPL": 211.30,
     "MSFT": 418.50,
@@ -639,8 +681,10 @@ divisor and last-known prices across restarts:
 ```
 
 This file is rewritten on every `EOD` record and on every corporate action. On
-startup, if this file exists, the divisor and last prices are loaded from it
-rather than re-initialising from config.
+startup, if this file exists, divisor, last prices, and constituent state are
+loaded from it rather than re-initialising from config. If the loaded
+constituent set conflicts with config, startup must fail fast unless `--reset`
+is explicitly requested.
 
 ### 8.3 History Query
 
@@ -652,6 +696,14 @@ the JSONL file and replies on its PUB socket (`5558`) with topic
 This is an acceptable implementation for educational use. A production system
 would use a time-series database.
 
+Operational limits and validation rules:
+
+- Reject requests with missing `gateway_id`.
+- If `to_ts < from_ts`, return an error payload.
+- Max records per response: `10_000` (configurable).
+- Max default query window when FROM/TO omitted: 30 days.
+- Unknown record type values are ignored and reported in `warnings`.
+
 ```python
 def _serve_history_request(self, payload: dict) -> None:
     """
@@ -661,10 +713,21 @@ def _serve_history_request(self, payload: dict) -> None:
     but acceptable for an educational system. A future optimisation would
     add a binary-search index by timestamp.
     """
-    gateway_id = payload["gateway_id"]
+    gateway_id = payload.get("gateway_id")
+    if not gateway_id:
+        self._pub_sock.send_multipart(
+            make_index_error_msg("index.history.error", "missing gateway_id")
+        )
+        return
     from_ts = float(payload.get("from_ts", 0.0))
     to_ts   = float(payload.get("to_ts", time.time()))
+    if to_ts < from_ts:
+        self._pub_sock.send_multipart(
+            make_index_error_msg(f"index.history.{gateway_id}", "to_ts must be >= from_ts")
+        )
+        return
     record_types = set(payload.get("types", ["LEVEL", "EOD"]))
+    max_records = int(payload.get("max_records", 10_000))
 
     results = []
     try:
@@ -674,6 +737,8 @@ def _serve_history_request(self, payload: dict) -> None:
                 if (rec["type"] in record_types
                         and from_ts <= rec["timestamp"] <= to_ts):
                     results.append(rec)
+                    if len(results) >= max_records:
+                        break
     except FileNotFoundError:
         pass   # No history yet — return empty list
 
@@ -721,6 +786,13 @@ and a new `IDX` message type handles the index-specific level data.
 This approach means no new transport layer, no new port for clients, and no new
 client library. A client that already understands CALF can subscribe to the index
 by adding one `SUB` message.
+
+Sequence ownership and recovery:
+
+- `pm-md-gwy` owns CALF sequence counters for each `(CH, SYM)` stream.
+- `pm-index` remains transport-agnostic and does not assign CALF sequence numbers.
+- `pm-md-gwy` persists per-stream last sequence so resume/replay remains valid
+    across gateway restarts.
 
 ### 9.2 New CALF Channel: `INDEX`
 
@@ -787,6 +859,19 @@ if self._index_sub in socks:
 `_handle_index_update` converts the internal JSON payload to a CALF `IDX` message
 and fans it out to all clients subscribed to `CH=INDEX`.
 
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant G as Gateway
+    participant I as pm-index
+
+    C->>G: INDEX|HISTORY|FROM=...|TO=...
+    G->>I: PUSH 5559 index.history_request
+    I->>I: query JSONL + apply limits
+    I-->>G: PUB 5558 topic index.history.{GW_ID}
+    G-->>C: Rendered HISTORY output
+```
+
 ### 9.6 External Client Example
 
 ```python
@@ -829,6 +914,7 @@ The client does not need to know that ZMQ, JSON, or a divisor exist.
 - Persist divisor and last prices to `index_state.json`.
 - Bind a PUB socket on port 5558 and publish `index.update` messages.
 - Serve `index.history_request` messages.
+- Publish explicit acks/errors for operator commands and history requests.
 
 ### 10.2 Non-Responsibilities
 
@@ -1068,6 +1154,9 @@ Add to `_ACK_SUB_PREFIXES`:
 
 ```python
 "index.history.",   # reply topic for history queries
+"index.corp_action_ack.",
+"index.constituent_change_ack.",
+"index.error.",
 ```
 
 Add new methods to `ExchangeCommandClient`:
@@ -1090,7 +1179,7 @@ def index_corp_action(
     action: str,
     symbol: str,
     **params: Any,
-) -> None:
+) -> dict[str, Any]:
     """
     Apply a corporate action to the index.
     action: "SPLIT", "CASH_DIVIDEND", or "SHARES_ISSUANCE"
@@ -1099,23 +1188,32 @@ def index_corp_action(
     For SHARES_ISSUANCE pass new_shares_outstanding.
     """
     self._send(make_index_corp_action_msg(action, symbol, self._gw_id, params))
+    return self._recv(f"index.corp_action_ack.{self._gw_id}")
 
-def index_delist(self, symbol: str) -> None:
+def index_delist(self, symbol: str) -> dict[str, Any]:
     """Remove a constituent from the index."""
     self._send(make_index_constituent_change_msg("DELIST", symbol, self._gw_id))
+    return self._recv(f"index.constituent_change_ack.{self._gw_id}")
 
 def index_add_constituent(
     self,
     symbol: str,
     shares_outstanding: int,
     initial_price: float,
-) -> None:
+) -> dict[str, Any]:
     """Add a new constituent to the index."""
     self._send(make_index_constituent_change_msg(
         "ADD", symbol, self._gw_id,
         shares_outstanding=shares_outstanding,
         initial_price=initial_price,
     ))
+        return self._recv(f"index.constituent_change_ack.{self._gw_id}")
+
+Client socket note:
+
+- `ExchangeCommandClient` must subscribe to both engine PUB and index PUB
+    (`INDEX_PUB_ADDR`) when using index history/ack APIs, or run a dedicated
+    second SUB socket for index topics.
 ```
 
 #### `pyproject.toml`
@@ -1138,6 +1236,9 @@ pm-index = "edumatcher.index.main:main"
 | `index.update` | `pm-index` → all on port 5558 | Current index level, OHLC, session state |
 | `index.history_request` | Gateway/Operator → `pm-index` via port 5559 | Query history by time range |
 | `index.history.{GW_ID}` | `pm-index` → requestor via port 5558 | History query response |
+| `index.corp_action_ack.{GW_ID}` | `pm-index` → requestor via port 5558 | Corporate action ack/error |
+| `index.constituent_change_ack.{GW_ID}` | `pm-index` → requestor via port 5558 | Add/delist ack/error |
+| `index.error.{GW_ID}` | `pm-index` → requestor via port 5558 | Generic request error |
 | `index.corp_action` | Operator → `pm-index` via port 5559 | Apply corporate action |
 | `index.constituent_change` | Operator → `pm-index` via port 5559 | Add or delist constituent |
 
@@ -1146,7 +1247,7 @@ pm-index = "edumatcher.index.main:main"
 ```json
 {
   "index_name": "EDU-100",
-      "level": 1048.73,
+    "level": 1048.73,
   "aggregate_cap": 7350000000000.0,
   "divisor": 7007100000.0,
   "session_state": "CONTINUOUS",
@@ -1167,11 +1268,33 @@ pm-index = "edumatcher.index.main:main"
   "gateway_id": "GW01",
   "from_ts": 1749700000.0,
   "to_ts":   1749800000.0,
-  "types":   ["LEVEL", "EOD"]
+    "types":   ["LEVEL", "EOD"],
+    "max_records": 10000
 }
 ```
 
-### 12.4 `index.history.{GW_ID}` Payload
+### 12.4 Ack/Error Payloads
+
+```json
+{
+    "accepted": true,
+    "reason": "",
+    "index_name": "EDU-100",
+    "level": 1051.20,
+    "divisor": 7007100000.0,
+    "timestamp": 1749760800.100
+}
+```
+
+```json
+{
+    "accepted": false,
+    "reason": "new_shares_outstanding must be positive",
+    "timestamp": 1749760800.100
+}
+```
+
+### 12.5 `index.history.{GW_ID}` Payload
 
 ```json
 {
@@ -1200,7 +1323,7 @@ pm-index = "edumatcher.index.main:main"
 }
 ```
 
-### 12.5 `index.corp_action` Payload
+### 12.6 `index.corp_action` Payload
 
 ```json
 {
@@ -1230,7 +1353,7 @@ pm-index = "edumatcher.index.main:main"
 }
 ```
 
-### 12.6 `index.constituent_change` Payload
+### 12.7 `index.constituent_change` Payload
 
 ```json
 {
@@ -1463,6 +1586,18 @@ simply miss trades that occurred while it was down; the next published value
 will be based on whatever `last_prices` are in its state file plus new trades
 after reconnect.
 
+```mermaid
+flowchart TD
+    A[Start pm-index] --> B[Load config index section]
+    B --> C{state_file exists?}
+    C -- No --> D[Initialize from config/base_value]
+    C -- Yes --> E[Load divisor/prices/constituents from state]
+    E --> F{State conflicts with config?}
+    F -- Yes --> G[Fail fast and require --reset]
+    F -- No --> H[Start event loop]
+    D --> H
+```
+
 
 
 ## 15. Testing Guide
@@ -1671,6 +1806,26 @@ does not regress under operational edge cases.
     - Invalid split ratios (`<= 0`) are rejected.
     - Dividend that makes price non-positive is rejected.
     - Delisting non-constituent symbol returns clear error.
+    - Shares issuance with `new_shares_outstanding <= 0` is rejected.
+    - Add constituent with non-positive shares/price is rejected.
+
+7. **Ack/error contract validation**
+    - Every `index.corp_action` returns `index.corp_action_ack.{gateway_id}`.
+    - Every `index.constituent_change` returns `index.constituent_change_ack.{gateway_id}`.
+    - Invalid requests return `accepted=false` with non-empty `reason`.
+
+```mermaid
+flowchart TD
+    A[Corporate action request] --> B[Validate payload]
+    B -->|invalid| C[Publish ack accepted=false + reason]
+    B -->|valid| D[Compute old_cap]
+    D --> E[Apply mutation]
+    E --> F[Compute new_cap]
+    F --> G[Adjust divisor if needed]
+    G --> H[Recalculate + publish index.update]
+    H --> I[Append history + persist state]
+    I --> J[Publish ack accepted=true]
+```
 
 
 
