@@ -6,7 +6,7 @@ Status: Design and Research Proposal
 
 # EduMatcher — Exchange Index Design Proposal
 
----
+
 
 ## Table of Contents
 
@@ -27,7 +27,7 @@ Status: Design and Research Proposal
 15. [Testing Guide](#15-testing-guide)
 16. [Open Questions and Future Work](#16-open-questions-and-future-work)
 
----
+
 
 ## 1. Motivation
 
@@ -66,7 +66,7 @@ This design simplifies those to:
 These simplifications are explicitly called out so students understand the gap
 between this educational implementation and the real world.
 
----
+
 
 ## 2. Financial Concepts Primer
 
@@ -119,7 +119,7 @@ new_divisor = old_divisor × (new_aggregate_cap / old_aggregate_cap)
 This means the index level does not change at the moment of adjustment; only
 future price movements will change it.
 
----
+
 
 ## 3. Architecture Overview
 
@@ -176,7 +176,7 @@ processes to publish to the same bus as the engine would break the single-writer
 design assumption and make it impossible to reason about message ordering.
 Port 5558 is reserved for `pm-index` output.
 
----
+
 
 ## 4. Index Configuration
 
@@ -214,6 +214,7 @@ index:
 | `base_value` | float | `1000.0` | Index level set at launch; does not change after launch |
 | `publish_interval_sec` | float | `1.0` | Throttle — minimum seconds between `index.update` publishes |
 | `history_file` | string | `"data/index_history.jsonl"` | JSONL file for snapshot persistence |
+| `state_file` | string | `"data/index_state.json"` | State file for divisor, last prices, and intraday OHLC recovery |
 | `constituents` | dict | — | Map of `symbol → ConstituentConfig` |
 | `constituents.<SYM>.shares_outstanding` | int | — | Total shares; used to compute initial weight |
 | `constituents.<SYM>.initial_price` | float | — | Price at index launch; used to compute base aggregate cap |
@@ -256,7 +257,7 @@ The divisor is a large number but the ratio (aggregate_cap / divisor) always
 yields the index level near 1000. The divisor is saved to disk as part of the
 persisted state and loaded on restart.
 
----
+
 
 ## 5. Index Calculation Algorithm
 
@@ -332,14 +333,18 @@ throttle only controls how often the value is broadcast.
 ### 5.5 End-of-Day Snapshot
 
 When a `session.state` message arrives with `state == "CLOSED"`, or when a
-`system.eod` message is received, `pm-index`:
+`system.eod` message is received, `pm-index` calls one shared EOD finalisation
+path guarded by an idempotency flag (for example `_eod_finalized_for_session`).
+This guarantees exactly one EOD write/publish per session:
 
 1. Computes the final index value for the day.
 2. Writes a snapshot to the history file (see Section 8).
 3. Publishes a final `index.update` with `session_state = "CLOSED"`.
 4. Resets `_last_publish_time` so the next day starts fresh.
 
----
+If both events arrive, the second event is ignored for EOD finalisation.
+
+
 
 ## 6. Corporate Actions
 
@@ -376,7 +381,16 @@ A split ratio of `N:1` means each share becomes N shares. The price divides by N
 Effect: `shares_outstanding` increases by factor N; `last_price` drops by factor N;
 their product (market cap) stays the same. **No divisor adjustment is needed.**
 
-However, the `shares_outstanding` value in the constituent config must be updated:
+However, the `shares_outstanding` value in the constituent config must be updated.
+For educational simplicity, shares remain integers after splits. Use standard
+rounding to nearest integer (half up):
+
+```
+new_shares_outstanding = int((old_shares * ratio_numerator / ratio_denominator) + 0.5)
+```
+
+The snippet below is shown in the `pm-index` runtime service layer (where publish
+and history hooks exist), not in the pure `IndexCalculator` math core:
 
 ```python
 def apply_split(self, symbol: str, ratio_numerator: int, ratio_denominator: int) -> None:
@@ -388,9 +402,13 @@ def apply_split(self, symbol: str, ratio_numerator: int, ratio_denominator: int)
     No divisor adjustment needed because market cap is unchanged.
     """
     constituent = self._constituents[symbol]
-    # Update shares outstanding
+    if ratio_numerator <= 0 or ratio_denominator <= 0:
+        raise ValueError("Split ratio must be positive")
+    # Update shares outstanding with integer rounding policy
     old_shares = constituent.shares_outstanding
-    constituent.shares_outstanding = (old_shares * ratio_numerator) // ratio_denominator
+    constituent.shares_outstanding = int(
+        (old_shares * ratio_numerator / ratio_denominator) + 0.5
+    )
 
     # The current last_price must also be adjusted so aggregate cap stays the same
     old_price = self._last_prices.get(symbol, constituent.initial_price)
@@ -485,7 +503,7 @@ in-process.
 Corporate actions are also written to the history file with a `type: "CORP_ACTION"`
 record so the change is visible in the historical audit trail.
 
----
+
 
 ## 7. Symbol Delisting
 
@@ -534,7 +552,7 @@ def delist_symbol(self, symbol: str) -> None:
         "symbol": symbol,
         "old_divisor": old_divisor,
         "new_divisor": self._divisor,
-        "index_level": new_level,
+        "level": new_level,
     })
     self._flush_history()
 ```
@@ -588,7 +606,7 @@ def _on_trade(self, symbol: str, price: float) -> None:
     # ... rest of update logic
 ```
 
----
+
 
 ## 8. History and Persistence
 
@@ -599,22 +617,22 @@ to write, append-only, human-readable, and trivially parseable in Python. Each l
 is a self-contained JSON object:
 
 ```json
-{"type": "LEVEL", "timestamp": 1749733200.123, "index_level": 1048.73, "session_state": "CONTINUOUS", "aggregate_cap": 7350000000000.0, "divisor": 7007100000.0}
-{"type": "EOD",   "timestamp": 1749760800.000, "index_level": 1051.20, "session_state": "CLOSED",     "aggregate_cap": 7368000000000.0, "divisor": 7007100000.0, "open": 1042.10, "high": 1056.30, "low": 1040.05, "close": 1051.20}
-{"type": "CORP_ACTION", "timestamp": 1749847200.000, "symbol": "AAPL", "action": "SPLIT", "detail": "2:1", "old_divisor": 7007100000.0, "new_divisor": 7007100000.0, "index_level": 1051.20}
-{"type": "DELIST", "timestamp": 1749933600.000, "symbol": "TSLA", "old_divisor": 7007100000.0, "new_divisor": 6180000000.0, "index_level": 1051.20}
+{"type": "LEVEL", "timestamp": 1749733200.123, "level": 1048.73, "session_state": "CONTINUOUS", "aggregate_cap": 7350000000000.0, "divisor": 7007100000.0}
+{"type": "EOD",   "timestamp": 1749760800.000, "level": 1051.20, "session_state": "CLOSED",     "aggregate_cap": 7368000000000.0, "divisor": 7007100000.0, "open": 1042.10, "high": 1056.30, "low": 1040.05, "close": 1051.20}
+{"type": "CORP_ACTION", "timestamp": 1749847200.000, "symbol": "AAPL", "action": "SPLIT", "detail": "2:1", "old_divisor": 7007100000.0, "new_divisor": 7007100000.0, "level": 1051.20}
+{"type": "DELIST", "timestamp": 1749933600.000, "symbol": "TSLA", "old_divisor": 7007100000.0, "new_divisor": 6180000000.0, "level": 1051.20}
 ```
 
 #### Record types
 
 | `type` | When written | Fields |
 |---|---|---|
-| `LEVEL` | Every `publish_interval_sec` during trading | `timestamp`, `index_level`, `session_state`, `aggregate_cap`, `divisor` |
+| `LEVEL` | Every `publish_interval_sec` during trading | `timestamp`, `level`, `session_state`, `aggregate_cap`, `divisor` |
 | `EOD` | When session transitions to `CLOSED` | All `LEVEL` fields plus `open`, `high`, `low`, `close` for the day |
-| `CORP_ACTION` | On every corporate action command | `symbol`, `action`, `detail`, `old_divisor`, `new_divisor`, `index_level` |
-| `DELIST` | On delisting | `symbol`, `old_divisor`, `new_divisor`, `index_level` |
-| `ADD_CONSTITUENT` | On adding a constituent | `symbol`, `shares_outstanding`, `initial_price`, `old_divisor`, `new_divisor`, `index_level` |
-| `INIT` | On first startup (no prior state) | `base_value`, `divisor`, `constituents` (list of symbols), `index_level` |
+| `CORP_ACTION` | On every corporate action command | `symbol`, `action`, `detail`, `old_divisor`, `new_divisor`, `level` |
+| `DELIST` | On delisting | `symbol`, `old_divisor`, `new_divisor`, `level` |
+| `ADD_CONSTITUENT` | On adding a constituent | `symbol`, `shares_outstanding`, `initial_price`, `old_divisor`, `new_divisor`, `level` |
+| `INIT` | On first startup (no prior state) | `base_value`, `divisor`, `constituents` (list of symbols), `level` |
 
 ### 8.2 State Persistence
 
@@ -645,9 +663,10 @@ rather than re-initialising from config.
 
 ### 8.3 History Query
 
-The `pm-index` process serves history queries over ZMQ. A subscriber sends a
-`index.history_request` message with a time range; `pm-index` scans the JSONL
-file and replies with matching records.
+The `pm-index` process serves history queries over ZMQ. The gateway/operator sends
+`index.history_request` via PUSH to `INDEX_PULL_ADDR` (`5559`); `pm-index` scans
+the JSONL file and replies on its PUB socket (`5558`) with topic
+`index.history.{gateway_id}`.
 
 This is an acceptable implementation for educational use. A production system
 would use a time-series database.
@@ -696,7 +715,7 @@ self._day_close: float | None  # set when session closes
 These are reset when `session.state` transitions to `OPENING_AUCTION` or
 `CONTINUOUS` (start of day). They are written to the `EOD` record at `CLOSED`.
 
----
+
 
 ## 9. Dissemination — Using CALF
 
@@ -811,7 +830,7 @@ while True:
 
 The client does not need to know that ZMQ, JSON, or a divisor exist.
 
----
+
 
 ## 10. New Process: `pm-index`
 
@@ -820,8 +839,8 @@ The client does not need to know that ZMQ, JSON, or a divisor exist.
 - Load index configuration from `engine_config.yaml`.
 - Subscribe to `trade.executed`, `session.state`, `system.eod` on engine PUB
   port 5556.
-- Subscribe to `index.corp_action` and `index.constituent_change` on a separate
-  PULL socket (port 5559) for operator commands.
+- Receive `index.corp_action`, `index.constituent_change`, and
+  `index.history_request` on a PULL socket (port 5559).
 - Recalculate the index on every relevant trade.
 - Throttle publications to `publish_interval_sec`.
 - Track intraday OHLC.
@@ -859,10 +878,10 @@ class ConstituentConfig:
 
 class IndexCalculator:
     """
-    Pure calculation class. No ZMQ, no file I/O.
+    Pure calculation/state-transition class. No ZMQ, no file I/O.
     Holds the divisor, constituent configs, and last prices.
-    Exposes methods: recalculate(), apply_split(), apply_cash_dividend(),
-    apply_shares_issuance(), delist_symbol(), add_constituent().
+    Exposes deterministic methods that update internal state and return values.
+    Publishing and persistence are handled by the pm-index runtime service.
     """
     def __init__(
         self,
@@ -896,11 +915,9 @@ that reads `index:` section from `engine_config.yaml`.
 ```python
 def run(self) -> None:
     self._load_or_init_state()
-    listener_thread = threading.Thread(target=self._pull_loop, daemon=True)
-    listener_thread.start()
-
     poller = zmq.Poller()
     poller.register(self._sub_sock, zmq.POLLIN)
+    poller.register(self._pull_sock, zmq.POLLIN)
 
     while self._running:
         socks = dict(poller.poll(timeout=200))
@@ -913,15 +930,24 @@ def run(self) -> None:
                 self._on_session_state(payload)
             elif topic == "system.eod":
                 self._on_eod()
+        if self._pull_sock in socks:
+            frames = self._pull_sock.recv_multipart()
+            topic, payload = decode(frames)
+            if topic == "index.corp_action":
+                self._on_index_corp_action(payload)
+            elif topic == "index.constituent_change":
+                self._on_index_constituent_change(payload)
+            elif topic == "index.history_request":
+                self._serve_history_request(payload)
         # Flush any pending history writes every poll cycle
         self._history.flush()
 ```
 
-The `_pull_loop` runs in a background thread and handles operator commands
-(corporate actions, constituent changes, history requests) arriving on a PULL
-socket on port 5559.
+This design is intentionally single-threaded for determinism and simplicity:
+all state updates (trades, session transitions, corporate actions, constituent
+changes, and history requests) are handled in one poll loop.
 
----
+
 
 ## 11. New Files and Changes to Existing Files
 
@@ -1120,7 +1146,7 @@ Add the `pm-index` entry point:
 pm-index = "edumatcher.index.main:main"
 ```
 
----
+
 
 ## 12. ZMQ Messages
 
@@ -1129,7 +1155,7 @@ pm-index = "edumatcher.index.main:main"
 | Topic | Direction | Description |
 |---|---|---|
 | `index.update` | `pm-index` → all on port 5558 | Current index level, OHLC, session state |
-| `index.history_request` | Operator → `pm-index` via port 5559 | Query history by time range |
+| `index.history_request` | Gateway/Operator → `pm-index` via port 5559 | Query history by time range |
 | `index.history.{GW_ID}` | `pm-index` → requestor via port 5558 | History query response |
 | `index.corp_action` | Operator → `pm-index` via port 5559 | Apply corporate action |
 | `index.constituent_change` | Operator → `pm-index` via port 5559 | Add or delist constituent |
@@ -1139,7 +1165,7 @@ pm-index = "edumatcher.index.main:main"
 ```json
 {
   "index_name": "EDU-100",
-  "level": 1048.73,
+      "level": 1048.73,
   "aggregate_cap": 7350000000000.0,
   "divisor": 7007100000.0,
   "session_state": "CONTINUOUS",
@@ -1172,7 +1198,7 @@ pm-index = "edumatcher.index.main:main"
     {
       "type": "LEVEL",
       "timestamp": 1749733200.123,
-      "index_level": 1048.73,
+      "level": 1048.73,
       "session_state": "CONTINUOUS",
       "aggregate_cap": 7350000000000.0,
       "divisor": 7007100000.0
@@ -1180,7 +1206,7 @@ pm-index = "edumatcher.index.main:main"
     {
       "type": "EOD",
       "timestamp": 1749760800.000,
-      "index_level": 1051.20,
+      "level": 1051.20,
       "session_state": "CLOSED",
       "aggregate_cap": 7368000000000.0,
       "divisor": 7007100000.0,
@@ -1243,7 +1269,7 @@ pm-index = "edumatcher.index.main:main"
 }
 ```
 
----
+
 
 ## 13. Gateway Command: `INDEX`
 
@@ -1255,18 +1281,18 @@ index without needing a separate tool.
 
 ```
 INDEX              — show current index level with OHLC and change
-INDEX|HISTORY      — show today's EOD or last known snapshot
+INDEX|HISTORY      — show last 30 days (mixed LEVEL + EOD records)
 INDEX|HISTORY|FROM=2026-06-01|TO=2026-06-12  — query history by date range
 ```
 
 ### 13.2 Wiring the Command
 
-The gateway does not connect to port 5558 (the index PUB socket) directly. Instead,
-the gateway sends a request to `pm-index` via the normal engine PULL socket on port
-5555 — but wait, that is the engine's socket, not `pm-index`'s socket.
+Use the existing index sockets directly:
 
-The cleanest design is for the gateway to also subscribe to `index.update` directly
-on port 5558:
+- Subscribe to `pm-index` PUB on `5558` for `index.update` and `index.history.{gateway_id}`.
+- Send index commands and history requests to `pm-index` PULL on `5559`.
+
+The gateway subscribes to index data directly on port `5558`:
 
 ```python
 # In Gateway.__init__, add a second SUB socket for index data
@@ -1369,7 +1395,7 @@ Add to the operational commands section:
 
 ```
   INDEX              — show current index level (requires pm-index running)
-  INDEX|HISTORY      — show 30-day EOD history
+  INDEX|HISTORY      — show 30-day mixed LEVEL/EOD history
   INDEX|HISTORY|FROM=YYYY-MM-DD|TO=YYYY-MM-DD  — custom date range
 ```
 
@@ -1385,7 +1411,7 @@ _TOP_LEVEL_CMDS = [
 ]
 ```
 
----
+
 
 ## 14. Configuration Reference
 
@@ -1456,7 +1482,7 @@ simply miss trades that occurred while it was down; the next published value
 will be based on whatever `last_prices` are in its state file plus new trades
 after reconnect.
 
----
+
 
 ## 15. Testing Guide
 
@@ -1595,8 +1621,8 @@ class TestIndexHistory:
         with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False) as f:
             path = f.name
         h = IndexHistory(path)
-        h.append({"type": "LEVEL", "timestamp": 1000.0, "index_level": 1010.0})
-        h.append({"type": "EOD",   "timestamp": 2000.0, "index_level": 1020.0})
+        h.append({"type": "LEVEL", "timestamp": 1000.0, "level": 1010.0})
+        h.append({"type": "EOD",   "timestamp": 2000.0, "level": 1020.0})
         h.flush()
 
         results = h.query(from_ts=0.0, to_ts=3000.0, types={"LEVEL", "EOD"})
@@ -1606,8 +1632,8 @@ class TestIndexHistory:
         with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False) as f:
             path = f.name
         h = IndexHistory(path)
-        h.append({"type": "LEVEL", "timestamp": 1000.0, "index_level": 1010.0})
-        h.append({"type": "EOD",   "timestamp": 2000.0, "index_level": 1020.0})
+        h.append({"type": "LEVEL", "timestamp": 1000.0, "level": 1010.0})
+        h.append({"type": "EOD",   "timestamp": 2000.0, "level": 1020.0})
         h.flush()
 
         results = h.query(from_ts=0.0, to_ts=3000.0, types={"EOD"})
@@ -1629,7 +1655,43 @@ class TestIndexHistory:
    When it sends `CLOSED`, check that an `EOD` record appears in `data/index_history.jsonl`.
 9. Query history from the gateway: `INDEX|HISTORY` — you should see the EOD record.
 
----
+### 15.4 Integration and Failure-Path Tests (Required)
+
+Add the following integration tests so implementation matches this design and
+does not regress under operational edge cases.
+
+1. **Socket wiring and transport contract**
+    - Verify gateway sends `index.history_request` to `INDEX_PULL_ADDR` (`5559`).
+    - Verify `pm-index` replies on `INDEX_PUB_ADDR` (`5558`) with topic
+      `index.history.{gateway_id}`.
+    - Verify gateway receives history response from index PUB socket, not engine PUB.
+
+2. **Gateway command round-trip**
+    - `INDEX` prints cached latest `index.update`.
+    - `INDEX|HISTORY` sends request, receives response, and renders records.
+    - `INDEX|HISTORY|FROM=...|TO=...` limits returned records to range.
+
+3. **EOD deduplication**
+    - Send `session.state=CLOSED` and `system.eod` in the same session.
+    - Assert exactly one EOD record is written.
+    - Assert exactly one final CLOSED `index.update` is published.
+
+4. **Single-thread determinism under mixed events**
+    - Feed interleaved trade, corp action, constituent change, and history request events.
+    - Assert no race symptoms (no partial updates, no inconsistent divisor/constituent state).
+    - Assert event ordering is deterministic for identical input sequence.
+
+5. **Restart and recovery behavior**
+    - Restart `pm-index` with existing `state_file` and assert divisor/last prices reload.
+    - Assert first post-restart index level is computed from restored state + new trades.
+    - Assert process continues serving history requests after restart.
+
+6. **Corporate-action validation checks**
+    - Invalid split ratios (`<= 0`) are rejected.
+    - Dividend that makes price non-positive is rejected.
+    - Delisting non-constituent symbol returns clear error.
+
+
 
 ## 16. Open Questions and Future Work
 
@@ -1683,7 +1745,7 @@ class TestIndexHistory:
 - **Persistence to a time-series database** — Replace the JSONL file with SQLite
   or InfluxDB for faster range queries once history files grow large.
 
----
+
 
 ## Summary of Implementation Steps
 
@@ -1692,7 +1754,7 @@ For a junior developer, follow this order:
 1. **Read** `models/session.py`, `models/message.py`, and `engine/main.py` (the main loop only) to understand the ZMQ pattern.
 2. **Create** `src/edumatcher/index/calculator.py` with `ConstituentConfig` and `IndexCalculator`. Write unit tests. Get them passing.
 3. **Create** `src/edumatcher/index/history.py` with `IndexHistory`. Write unit tests. Get them passing.
-4. **Add** message builders to `models/message.py` (Section 11.2). No tests needed yet — they are thin wrappers.
+4. **Add** message builders to `models/message.py` (Section 11.2). Add lightweight unit tests for topic names and required payload keys.
 5. **Add** address constants to `config.py`.
 6. **Create** `src/edumatcher/index/config_loader.py` to parse the `index:` YAML section.
 7. **Create** `src/edumatcher/index/main.py`. Start with a minimal version that subscribes, recalculates, and prints to stdout. No ZMQ publish yet. Test with the engine running.
