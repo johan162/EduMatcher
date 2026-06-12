@@ -1,4 +1,4 @@
-\documentclass[10pt,b5paper,twoside,openright]{report}
+\documentclass[10pt,b5paper,twoside,openright]{book}
 \raggedbottom
 
 \usepackage{fontspec}
@@ -14,13 +14,31 @@
 \usepackage{array}
 \usepackage{amssymb}
 \usepackage{fancyhdr}
-\usepackage[hidelinks]{hyperref}
-\usepackage{xcolor}
+
+
+
+
+
+\PassOptionsToPackage{hyphens}{url}
+\usepackage{xurl}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{hyperref}
+\urlstyle{same}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=RoyalBlue,   % internal links (TOC, refs)
+  urlcolor=BrickRed,     % external URLs
+  citecolor=ForestGreen, % citations
+  hypertexnames=false,
+  pdfborder={0 0 0}
+}
+\usepackage{eso-pic}
 \usepackage{setspace}
 \usepackage{parskip}
 \usepackage{fancyvrb}
 \usepackage{shorttoc}
-\usepackage{titlesec}
+\usepackage{etoolbox}
+\usepackage[explicit]{titlesec}
 \usepackage[skins,breakable]{tcolorbox}
 \definecolor{codebg}{HTML}{F5F5F5}
 \definecolor{codeborder}{HTML}{C0C0C0}
@@ -75,6 +93,19 @@
   {8pt}
   {\Huge\bfseries\color{brandblue}}
   [\vspace{4pt}{\color{brandblue}\noindent\rule{\linewidth}{1.5pt}}\vspace{2pt}]
+\makeatletter
+\pretocmd{\section}{\phantomsection}{}{}
+\makeatother
+
+	\titleformat{\chapter}[display]
+  {\normalfont\sffamily}
+  {%
+    \color{brandblue}\rule{1.5cm}{3pt}\hspace{6pt}%
+    {\large\bfseries CHAPTER\ \thechapter}%
+  }
+  {8pt}
+  {\LARGE\bfseries\color{brandblue}\raggedright\parbox[t]{\linewidth}{#1}}
+  [\vspace{4pt}{\color{brandblue}\noindent\rule{\linewidth}{1.5pt}}\vspace{2pt}]
 
 \pagestyle{fancy}
 \fancyhf{}
@@ -86,23 +117,37 @@
 
 \begin{document}
 
+
+{%
+  \thispagestyle{empty}%
+  \IfFileExists{assets/cover-user-guide.png}{%
+    \AddToShipoutPictureBG*{\AtPageLowerLeft{\includegraphics[width=\paperwidth,height=\paperheight]{assets/cover-user-guide.png}}}%
+    \null
+  }{%
+    \null\vfill
+  }%
+  \clearpage
+}
 % Cover verso / imprint page.
 % A bare \newpage does not ship out an empty page; TeX needs actual content.
 {%
   \thispagestyle{empty}%
   \null\vfill
   {\small\color{brandgray}%
-  \textbf{EduMatcher User Guide}\\
-  Program Version: 0.1.3\\
+  \textbf{Exchange Introduction}\\
+  Book Version: 0.1.3 \\
   Copyright \textcopyright\ Johan Persson\\
   Generated on \today\\
-  Prepared with \LaTeX\ from Markdown sources for duplex printing. 
+   Prepared with \LaTeX\ from Markdown sources for duplex printing. 
   Sources for documentation available at\\ 
-  \url{https://github.com/johan162/edumatcher/docs}. 
+  \url{https://github.com/johan162/edumatcher/docs-exchange-intro}. 
   \par}%
   % \vfill\null
   \clearpage
 }
+
+\frontmatter
+
 
 \pagenumbering{roman}
 \setcounter{page}{1}
@@ -125,37 +170,15 @@
 \clearpage
 \thispagestyle{empty}\null\clearpage
 \begingroup
-\let\cleardoublepage\clearpage
-
-% --- SHORT TOC ---
-% Command: \shorttoc{Title}{Depth}
-% Depth 0 = Chapters, 1 = Chapters + Sections, etc.
-\newcommand{\shorttocentry}[1]{%
-  {\makeatletter
-  \renewcommand{\numberline}[1]{\makebox[4.5em][l]{##1}}%
-  \MakeUppercase{#1}%
-  \makeatother}%
-}
-{%
-  \renewcommand{\contentsname}{Chapters}%
-  % Reduce top whitespace on short TOC page so all chapter entries fit.
-  \titlespacing*{\chapter}{0pt}{0pt}{0.8em}%
-  \makeatletter
-  \renewcommand{\l@chapter}[2]{%
-    \addvspace{5pt}%
-    \noindent{%
-      \sffamily\bfseries\large\color{brandblue}\shorttocentry{#1}%
-      \hfill{\normalsize\mdseries\color{brandgray}#2}%
-    }\par%
-  }%
-  \makeatother
-  \shorttoc{Chapters}{0}%
-}
+\shorttoc{Chapters}{0}
 \endgroup
 \cleardoublepage
 
-
+\begingroup
+\setcounter{tocdepth}{2}
+\renewcommand{\contentsname}{Contents}
 \tableofcontents
+\endgroup
 \cleardoublepage
 
 \pagenumbering{arabic}
