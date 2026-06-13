@@ -632,17 +632,6 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#short-financial-glossary" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Short Financial Glossary
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#what-is-an-order-book" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1248,10 +1237,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#spread-and-mid-price-are-derived-values" class="md-nav__link">
+  <a href="#what-snapshot-returns-in-current-code" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Spread and Mid Price Are Derived Values
+        What snapshot() Returns in Current Code
       
     </span>
   </a>
@@ -1365,6 +1354,34 @@
     
   
     A Full Trading Day
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../06-concepts-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
   
 
     
@@ -2224,9 +2241,11 @@
 <li><strong>The three "last price" fields</strong> — why <code>last_trade_price</code>, <code>last_buy_price</code>, and
   <code>last_sell_price</code> are three distinct fields serving three distinct purposes</li>
 <li><strong>The iceberg FOK undercount</strong> — a concrete limitation of the visible-only quantity
-  index and what it means for Fill-Or-Kill availability checks</li>
-<li><strong>Spread and mid price as derived values</strong> — why the order book stores neither, and
-  what happens when one side of the book is empty</li>
+  index and what it means for Fill-Or-Kill availability checks<ul>
+<li><strong>Snapshot output semantics</strong> — exactly which fields the current <code>snapshot()</code>
+    method publishes (and which it does not)</li>
+</ul>
+</li>
 <li><strong>The synchronisation invariant</strong> — the four data structures that must always be
   updated together, and what breaks if any one is missed</li>
 <li><strong>Self-match prevention</strong> — why an exchange needs to detect when a participant would
@@ -2235,80 +2254,6 @@
   without executing any trades</li>
 </ul>
 </div>
-<h2 id="short-financial-glossary">Short Financial Glossary<a class="headerlink" href="#short-financial-glossary" title="Permanent link">&para;</a></h2>
-<p>Read this before anything else. Every term below appears in this document. If you
-already work in finance, skip ahead — these definitions are deliberately simplified
-for software developers.</p>
-<p><strong>Instrument / Symbol</strong> — the thing being traded. Could be a share of Apple stock
-(symbol: <code>AAPL</code>), a currency pair (symbol: <code>EURUSD</code>), or a futures contract. An
-order book exists per symbol.</p>
-<p><strong>Order</strong> — an instruction to buy or sell a quantity of an instrument at a specified
-price or better.</p>
-<p><strong>Bid</strong> — a buyer's offer. A bid of $150.30 means: "I am willing to buy at $150.30
-or cheaper." The collection of all active bids forms the buy side of the book.</p>
-<p><strong>Ask</strong> (also called an <strong>offer</strong>) — a seller's offer. An ask of $150.35 means: "I
-am willing to sell at $150.35 or higher." The collection of all active asks forms
-the sell side of the book.</p>
-<p><strong>Spread</strong> — the difference between the best (lowest) ask and the best (highest) bid.
-If the best bid is $150.30 and the best ask is $150.35, the spread is $0.05. A
-tighter spread means more liquid, cheaper-to-trade market.</p>
-<p><strong>Resting order</strong> (also called a <strong>passive order</strong>) — an order that has been accepted
-by the exchange and is sitting in the book waiting for a counterparty. It does not
-execute immediately.</p>
-<p><strong>Aggressive order</strong> (also called a <strong>taker</strong>) — an incoming order that immediately
-trades against resting orders. It "sweeps" the book.</p>
-<p><strong>Price level</strong> — all the resting orders at the same price. If three buyers have all
-placed bids at $150.30, they are all at the same price level. Their combined quantity
-is the depth at that level.</p>
-<p><strong>Depth</strong> — how much quantity is resting at a given price level (or within a price
-range). Deep books have large quantities at each price, making it hard to move the
-price by trading. Shallow books are easier to move.</p>
-<p><strong>Market data</strong> — the continuous stream of information about what is happening in the
-book: what prices orders are resting at, how much quantity, and what trades have
-happened. Display tools (viewer, board, ticker) consume market data.</p>
-<p><strong>Trade</strong> (also called a <strong>fill</strong> or <strong>execution</strong>) — the event that occurs when a
-buyer and seller agree on a price and quantity. A trade record contains: the
-instrument, the price, the quantity, and which orders were involved.</p>
-<p><strong>Limit order</strong> — an order with a price constraint. A buy limit order at $150.30
-will only execute at $150.30 or lower — the buyer is setting the maximum price they
-will pay. A sell limit order at $150.35 will only execute at $150.35 or higher.
-Limit orders that cannot immediately match rest in the book.</p>
-<p><strong>Market order</strong> — an order with no price constraint. "Buy 100 shares at whatever
-price is available right now." Market orders execute immediately against the best
-available resting orders. Because they have no price limit, they cannot rest in the
-book — there is no price to put them at.</p>
-<p><strong>IOC (Immediate-Or-Cancel)</strong> — an order that must execute immediately. Any portion
-that cannot be immediately filled is cancelled on the spot. Unlike a market order,
-an IOC can have a price limit ("fill what you can at $150.35 or better, cancel the
-rest").</p>
-<p><strong>FOK (Fill-Or-Kill)</strong> — an order that must be entirely filled immediately, or not
-at all. If the book does not have enough quantity to fill the full order, the entire
-order is cancelled without any partial fill.</p>
-<p><strong>GTC (Good-Till-Cancelled)</strong> — a Time-In-Force (TIF) instruction on an order.
-A GTC order stays in the book indefinitely until it fills or the participant
-explicitly cancels it. It survives engine restarts.</p>
-<p><strong>DAY</strong> — another TIF instruction. A DAY order expires at the end of the trading
-session if not filled.</p>
-<p><strong>Stop order</strong> — a conditional order that is dormant until the market price reaches
-a specified trigger level (the stop price), at which point it converts to a market
-or limit order and enters the book. Used to automatically exit a position if the
-price moves against you.</p>
-<p><strong>Trailing stop</strong> — a stop order whose trigger price moves automatically as the
-market moves in a favourable direction. See the dedicated section below.</p>
-<p><strong>Iceberg order</strong> — an order that shows only a small visible portion (the "peak")
-to the market while hiding a large reserve behind it. When the visible portion is
-consumed by a fill, the order automatically replenishes from the reserve. Used by
-large traders who do not want to reveal the full size of their position, which would
-move the market against them.</p>
-<p><strong>Lot</strong> — a unit of quantity. For equities, one lot typically means one share. For
-futures, one lot is one contract. In this document, "100 lots" means a quantity of
-100.</p>
-<p><strong>Firm</strong> — a trading company or financial institution. In SMP (Self-Match
-Prevention) context, a "firm" is a single participant whose orders all share the
-same <code>gateway_id</code>.</p>
-<p><strong>Auction</strong> — a trading session mode used at market open and close. During an
-auction, orders are collected but not immediately matched. At the end of the auction
-period, all eligible orders execute simultaneously at a single equilibrium price.</p>
 <h2 id="what-is-an-order-book">What Is an Order Book?<a class="headerlink" href="#what-is-an-order-book" title="Permanent link">&para;</a></h2>
 <p>Before looking at any code, build the conceptual model.</p>
 <p>An exchange is a marketplace where buyers and sellers meet. The order book is the
@@ -2318,9 +2263,9 @@ found a seller yet, and all the sellers who want to sell but haven't found a buy
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  ┌─────────────────────────────────────────────────────┐
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  │  BUY SIDE (BIDS)            SELL SIDE (ASKS)        │
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  │                                                     │
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>  │  $150.28 × 200 shares       $150.31 × 500 shares   │
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  │  $150.27 × 100 shares       $150.33 × 200 shares   │
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  │  $150.25 × 400 shares       $150.35 × 300 shares   │
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>  │  $150.28 × 200 shares       $150.31 × 500 shares    │
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  │  $150.27 × 100 shares       $150.33 × 200 shares    │
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  │  $150.25 × 400 shares       $150.35 × 300 shares    │
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>  │           ↑                          ↑              │
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>  │      Best bid                   Best ask            │
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>  │      (highest buyer)            (lowest seller)     │
@@ -2333,7 +2278,7 @@ matches against the best ask. A trade happens. Both orders are updated. The engi
 checks for more matches.</p>
 <p>When a new buy order arrives at $150.27, it cannot match (the cheapest seller wants
 $150.31). The order rests on the bid side, joining the queue.</p>
-<p>The <code>OrderBook</code> class in <code>engine/order_book.py</code> implements all of this.</p>
+<p>The <code>OrderBook</code> class in <code>src/edumatcher/engine/order_book.py</code> implements all of this.</p>
 <h2 id="background-the-heap-data-structure">Background: The Heap Data Structure<a class="headerlink" href="#background-the-heap-data-structure" title="Permanent link">&para;</a></h2>
 <p>Before reading any code, you need a solid mental model of what a heap is. Everything
 else in this file builds on it.</p>
@@ -2411,7 +2356,7 @@ This is called <strong>price-time priority</strong>. We encode both into a singl
 one with the smaller timestamp (earlier arrival) wins. This naturally implements
 price-time priority in a single heap with no special logic:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Two asks at the same price — earlier one sorts first</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="c1"># Timestamps are int nanoseconds from monotonic_ns()</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="c1"># Timestamps are int nanoseconds from now_ns()</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">key_a</span> <span class="o">=</span> <span class="p">(</span><span class="mi">10002</span><span class="p">,</span> <span class="mi">1_748_000_000_000_000_000</span><span class="p">)</span>   <span class="c1"># arrived first</span>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">key_b</span> <span class="o">=</span> <span class="p">(</span><span class="mi">10002</span><span class="p">,</span> <span class="mi">1_748_000_000_000_005_000</span><span class="p">)</span>   <span class="c1"># arrived 5 microseconds later</span>
 <a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
@@ -2446,7 +2391,13 @@ dataclasses with many fields — there is no natural ordering between two orders
 (should a BUY order be "less than" a SELL order?). Python would raise a <code>TypeError</code>.</p>
 <p><code>_HeapEntry</code> solves this by:</p>
 <ol>
-<li>Storing the sort key separately (<code>self.key = (price, timestamp)</code>)</li>
+<li>Storing a precomputed tuple key in <code>self.key</code> where the exact shape depends on the heap:<ul>
+<li>bids use <code>(-price, timestamp)</code></li>
+<li>asks use <code>(price, timestamp)</code></li>
+<li>buy stops use <code>(stop_price, timestamp)</code></li>
+<li>sell stops use <code>(-stop_price, timestamp)</code></li>
+</ul>
+</li>
 <li>Implementing <code>__lt__</code> to compare only keys — <code>heapq</code> uses <code>__lt__</code> internally</li>
 <li>Carrying the <code>Order</code> as a passenger — never compared, just stored</li>
 </ol>
@@ -2534,9 +2485,10 @@ you the second.</p>
 <a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="n">order</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">CANCELLED</span>       <span class="c1"># update status</span>
 </code></pre></div>
 <p>Why two separate dicts instead of one? Because <code>Order</code> and <code>_HeapEntry</code> serve
-different purposes and have different lifetimes. Stop orders, for example, are in
-<code>_order_index</code> but not in <code>_entry_index</code> (they use different heaps with different
-management). Keeping them separate avoids conflation.</p>
+different purposes and have different lifetimes. Keeping them separate avoids
+conflation: <code>_order_index</code> is for order-level lookup by ID, while <code>_entry_index</code>
+is for heap-entry invalidation during lazy deletion. In the current implementation,
+stop orders are indexed in both dictionaries when accepted.</p>
 <h4 id="_bid_qty-and-_ask_qty-the-price-level-quantity-index"><code>_bid_qty</code> and <code>_ask_qty</code> — The Price-Level Quantity Index<a class="headerlink" href="#_bid_qty-and-_ask_qty-the-price-level-quantity-index" title="Permanent link">&para;</a></h4>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>   <span class="c1"># price_ticks → total resting qty at that price</span>
 <a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_ask_qty</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
@@ -2612,11 +2564,18 @@ structures</strong> together, or the book becomes inconsistent:</p>
 <td><code>+= qty</code></td>
 </tr>
 <tr>
-<td>cancel / <code>_apply_fill</code> (full fill)</td>
+<td><code>cancel_order()</code></td>
 <td><code>entry.valid = False</code></td>
-<td><code>pop</code></td>
-<td><code>pop</code></td>
-<td><code>-= qty</code>, delete if 0</td>
+<td>keep</td>
+<td>keep</td>
+<td><code>-= visible_qty</code>, delete if 0</td>
+</tr>
+<tr>
+<td><code>_apply_fill()</code> (passive full fill)</td>
+<td><code>entry.valid = False</code></td>
+<td>keep in this method</td>
+<td>keep (entry invalidated)</td>
+<td><code>-= fill_qty</code>, delete if 0</td>
 </tr>
 <tr>
 <td><code>amend_order</code> (price/qty change)</td>
@@ -2636,9 +2595,10 @@ structures</strong> together, or the book becomes inconsistent:</p>
 </table>
 <p>Missing any one of these in any code path causes a silent bug that may not manifest
 immediately. For example, leaving a stale entry in <code>_bid_qty</code> would cause the FOK
-check to see phantom liquidity that has already been cancelled. Leaving an entry in
-<code>_order_index</code> after a fill would cause a cancel request on that order ID to find
-a filled order and send a confusing response.</p>
+check to see phantom liquidity that has already been cancelled. In the current
+implementation, filled/cancelled orders can remain indexed and are guarded by status
+checks, so correctness depends on status + heap-entry validity + qty-index updates
+staying in sync.</p>
 <h4 id="_buy_stops-and-_sell_stops-the-stop-heaps"><code>_buy_stops</code> and <code>_sell_stops</code> — The Stop Heaps<a class="headerlink" href="#_buy_stops-and-_sell_stops-the-stop-heaps" title="Permanent link">&para;</a></h4>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">_buy_stops</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_HeapEntry</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>    <span class="c1"># min-heap by stop_price</span>
 <a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_sell_stops</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_HeapEntry</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>   <span class="c1"># max-heap by -stop_price</span>
@@ -2688,14 +2648,12 @@ receives book snapshots and trade events going forward from the moment it connec
 But it needs to show the user <em>some</em> recent history immediately on startup, not just
 the very first trade that happens to occur after it connects.</p>
 <p><code>recent_trades</code> solves this: the very first book snapshot the process receives
-includes up to 20 recent trades, giving the display an immediate picture of recent
-activity without querying the stats database.</p>
-<p><strong>Why maxlen=20?</strong> The bound is a deliberate network efficiency choice. Every book
-snapshot message includes this list serialised as JSON. At 20 trades per snapshot,
-and snapshots publishing every 500ms per symbol, the overhead is modest. Too few
-trades (say, 5) and the initial display looks sparse; too many (say, 200) and the
-snapshot message grows significantly. 20 is sufficient for a "recent tape" display
-without inflating message sizes.</p>
+includes recent trades, giving the display an immediate picture of activity without
+querying the stats database.</p>
+<p><strong>Why maxlen=20?</strong> The deque keeps more local context than the viewer currently
+receives in each snapshot. In the current implementation, <code>snapshot()</code> publishes
+the last 5 trades from this deque, while the deque itself still retains up to 20
+for engine-local history.</p>
 <p><strong><code>recent_trades</code> is the only trade source for reconnecting processes.</strong> There is no
 "replay last N trades" API in EduMatcher. If a display process restarts and needs
 trade history, <code>recent_trades</code> in the next snapshot is all it gets from the engine.
@@ -2708,9 +2666,9 @@ processes do not query it directly.</p>
 happens for the most common case: an incoming limit order.</p>
 <h3 id="step-1-compute-the-timestamp-once">Step 1: Compute the Timestamp Once<a class="headerlink" href="#step-1-compute-the-timestamp-once" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="k">if</span> <span class="n">now</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>    <span class="n">now</span> <span class="o">=</span> <span class="n">monotonic_ns</span><span class="p">()</span>   <span class="c1"># from models/clock.py</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>    <span class="n">now</span> <span class="o">=</span> <span class="n">now_ns</span><span class="p">()</span>   <span class="c1"># from models/clock.py</span>
 </code></pre></div>
-<p><code>monotonic_ns()</code> is a thin wrapper around <code>time.time_ns()</code> that guarantees a
+<p><code>now_ns()</code> is a thin wrapper around <code>time.time_ns()</code> that guarantees a
 strictly increasing integer nanosecond timestamp even if the system clock steps
 backward (due to NTP or a virtual machine hypervisor). It is a system call, and
 system calls are expensive (~300-500 nanoseconds each).</p>
@@ -2725,16 +2683,20 @@ operation, call it once, pass the result everywhere.</strong></p>
 <a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>        <span class="n">order</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">REJECTED</span>
 <a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>        <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
 <a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>        <span class="k">return</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span>
-<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_rest</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
-<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a>    <span class="k">return</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span>
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>    <span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="ow">in</span> <span class="p">(</span><span class="n">OrderType</span><span class="o">.</span><span class="n">STOP</span><span class="p">,</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">STOP_LIMIT</span><span class="p">):</span>
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_add_stop</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">events</span><span class="p">)</span>
+<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>        <span class="k">return</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span>
+<a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_rest</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+<a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a>    <span class="k">return</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span>
 </code></pre></div>
 <p>When <code>match=False</code>, the engine is in <strong>auction mode</strong> — the phase at the start and
 end of the trading day when orders are collected but not yet executed. During an
 auction, orders queue up so there is plenty of interest to trade when the auction
 ends and a single equilibrium price is computed.</p>
 <p>Market, FOK, and IOC orders are rejected during an auction because they require
-immediate execution, which is not possible when no matching is happening. Limit and
-iceberg orders are accepted and placed directly onto the heap with no sweep attempt.</p>
+immediate execution, which is not possible when no matching is happening. Stop and
+stop-limit orders are accepted into their stop heaps, and limit/iceberg orders are
+accepted and placed directly onto the book with no sweep attempt.</p>
 <h3 id="step-3-dispatch-to-the-right-handler">Step 3: Dispatch to the Right Handler<a class="headerlink" href="#step-3-dispatch-to-the-right-handler" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">OrderType</span><span class="o">.</span><span class="n">MARKET</span><span class="p">:</span>
 <a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_match_market</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">)</span>
@@ -2972,49 +2934,41 @@ standard practice in performance-sensitive Python loops.</p>
 and a resting order. It is the moment a trade is born.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_apply_fill</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aggressor</span><span class="p">,</span> <span class="n">passive</span><span class="p">,</span> <span class="n">fill_qty</span><span class="p">,</span> <span class="n">fill_price</span><span class="p">,</span>
 <a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>                <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">):</span>
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>    <span class="c1"># Reduce quantities on both orders</span>
-<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>    <span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">-=</span> <span class="n">fill_qty</span>
-<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>    <span class="n">passive</span><span class="o">.</span><span class="n">remaining_qty</span>   <span class="o">-=</span> <span class="n">fill_qty</span>
-<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>
-<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>    <span class="c1"># Update price-level quantity index</span>
-<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>    <span class="n">qty_index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bid_qty</span> <span class="k">if</span> <span class="n">passive</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ask_qty</span>
-<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a>    <span class="n">qty_index</span><span class="p">[</span><span class="n">fill_price</span><span class="p">]</span> <span class="o">-=</span> <span class="n">fill_qty</span>
-<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a>    <span class="k">if</span> <span class="n">qty_index</span><span class="p">[</span><span class="n">fill_price</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
-<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a>        <span class="k">del</span> <span class="n">qty_index</span><span class="p">[</span><span class="n">fill_price</span><span class="p">]</span>   <span class="c1"># price level is now empty</span>
-<a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a>
-<a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a>    <span class="c1"># If passive is fully consumed, mark it and remove from indexes</span>
-<a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a>    <span class="k">if</span> <span class="n">passive</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
-<a id="__codelineno-30-15" name="__codelineno-30-15" href="#__codelineno-30-15"></a>        <span class="n">passive</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">FILLED</span>
-<a id="__codelineno-30-16" name="__codelineno-30-16" href="#__codelineno-30-16"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_order_index</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">passive</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-<a id="__codelineno-30-17" name="__codelineno-30-17" href="#__codelineno-30-17"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">_entry_index</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">passive</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-<a id="__codelineno-30-18" name="__codelineno-30-18" href="#__codelineno-30-18"></a>        <span class="c1"># The heap entry is already invalid from _peek() cleanup</span>
-<a id="__codelineno-30-19" name="__codelineno-30-19" href="#__codelineno-30-19"></a>
-<a id="__codelineno-30-20" name="__codelineno-30-20" href="#__codelineno-30-20"></a>    <span class="c1"># If aggressor is fully filled</span>
-<a id="__codelineno-30-21" name="__codelineno-30-21" href="#__codelineno-30-21"></a>    <span class="k">if</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
-<a id="__codelineno-30-22" name="__codelineno-30-22" href="#__codelineno-30-22"></a>        <span class="n">aggressor</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">OrderStatus</span><span class="o">.</span><span class="n">FILLED</span>
-<a id="__codelineno-30-23" name="__codelineno-30-23" href="#__codelineno-30-23"></a>
-<a id="__codelineno-30-24" name="__codelineno-30-24" href="#__codelineno-30-24"></a>    <span class="c1"># Create the trade record</span>
-<a id="__codelineno-30-25" name="__codelineno-30-25" href="#__codelineno-30-25"></a>    <span class="n">trade</span> <span class="o">=</span> <span class="n">Trade</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
-<a id="__codelineno-30-26" name="__codelineno-30-26" href="#__codelineno-30-26"></a>        <span class="n">symbol</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">symbol</span><span class="p">,</span>
-<a id="__codelineno-30-27" name="__codelineno-30-27" href="#__codelineno-30-27"></a>        <span class="n">buy_order_id</span><span class="o">=...</span><span class="p">,</span>
-<a id="__codelineno-30-28" name="__codelineno-30-28" href="#__codelineno-30-28"></a>        <span class="n">sell_order_id</span><span class="o">=...</span><span class="p">,</span>
-<a id="__codelineno-30-29" name="__codelineno-30-29" href="#__codelineno-30-29"></a>        <span class="n">price</span><span class="o">=</span><span class="n">fill_price</span><span class="p">,</span>      <span class="c1"># int ticks — the resting order&#39;s price</span>
-<a id="__codelineno-30-30" name="__codelineno-30-30" href="#__codelineno-30-30"></a>        <span class="n">quantity</span><span class="o">=</span><span class="n">fill_qty</span><span class="p">,</span>
-<a id="__codelineno-30-31" name="__codelineno-30-31" href="#__codelineno-30-31"></a>        <span class="n">now</span><span class="o">=</span><span class="n">now</span><span class="p">,</span>
-<a id="__codelineno-30-32" name="__codelineno-30-32" href="#__codelineno-30-32"></a>    <span class="p">)</span>
-<a id="__codelineno-30-33" name="__codelineno-30-33" href="#__codelineno-30-33"></a>    <span class="n">trades</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">trade</span><span class="p">)</span>
-<a id="__codelineno-30-34" name="__codelineno-30-34" href="#__codelineno-30-34"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">recent_trades</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">trade</span><span class="p">)</span>
-<a id="__codelineno-30-35" name="__codelineno-30-35" href="#__codelineno-30-35"></a>
-<a id="__codelineno-30-36" name="__codelineno-30-36" href="#__codelineno-30-36"></a>    <span class="c1"># Update last trade reference prices (used by stop trigger checks)</span>
-<a id="__codelineno-30-37" name="__codelineno-30-37" href="#__codelineno-30-37"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">last_trade_price</span> <span class="o">=</span> <span class="n">fill_price</span>
-<a id="__codelineno-30-38" name="__codelineno-30-38" href="#__codelineno-30-38"></a>    <span class="k">if</span> <span class="n">passive</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span><span class="p">:</span>
-<a id="__codelineno-30-39" name="__codelineno-30-39" href="#__codelineno-30-39"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">last_buy_price</span>  <span class="o">=</span> <span class="n">fill_price</span>
-<a id="__codelineno-30-40" name="__codelineno-30-40" href="#__codelineno-30-40"></a>    <span class="k">else</span><span class="p">:</span>
-<a id="__codelineno-30-41" name="__codelineno-30-41" href="#__codelineno-30-41"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">last_sell_price</span> <span class="o">=</span> <span class="n">fill_price</span>
-<a id="__codelineno-30-42" name="__codelineno-30-42" href="#__codelineno-30-42"></a>
-<a id="__codelineno-30-43" name="__codelineno-30-43" href="#__codelineno-30-43"></a>    <span class="c1"># Notify both sides</span>
-<a id="__codelineno-30-44" name="__codelineno-30-44" href="#__codelineno-30-44"></a>    <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">aggressor</span><span class="p">)</span>
-<a id="__codelineno-30-45" name="__codelineno-30-45" href="#__codelineno-30-45"></a>    <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">passive</span><span class="p">)</span>
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>    <span class="c1"># Build trade and update last-trade stats</span>
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>    <span class="n">trade</span> <span class="o">=</span> <span class="n">Trade</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="n">now</span><span class="p">)</span>
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>    <span class="n">trades</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">trade</span><span class="p">)</span>
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">last_trade_price</span> <span class="o">=</span> <span class="n">fill_price</span>
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">last_trade_qty</span> <span class="o">=</span> <span class="n">fill_qty</span>
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>
+<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a>    <span class="c1"># Side-specific last prices are keyed by AGGRESSOR side in current code</span>
+<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a>    <span class="k">if</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span><span class="p">:</span>
+<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">last_buy_price</span> <span class="o">=</span> <span class="n">fill_price</span>
+<a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a>    <span class="k">else</span><span class="p">:</span>
+<a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">last_sell_price</span> <span class="o">=</span> <span class="n">fill_price</span>
+<a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a>
+<a id="__codelineno-30-15" name="__codelineno-30-15" href="#__codelineno-30-15"></a>    <span class="c1"># Reduce both orders</span>
+<a id="__codelineno-30-16" name="__codelineno-30-16" href="#__codelineno-30-16"></a>    <span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">-=</span> <span class="n">fill_qty</span>
+<a id="__codelineno-30-17" name="__codelineno-30-17" href="#__codelineno-30-17"></a>    <span class="n">passive</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">-=</span> <span class="n">fill_qty</span>
+<a id="__codelineno-30-18" name="__codelineno-30-18" href="#__codelineno-30-18"></a>
+<a id="__codelineno-30-19" name="__codelineno-30-19" href="#__codelineno-30-19"></a>    <span class="c1"># Aggressor status</span>
+<a id="__codelineno-30-20" name="__codelineno-30-20" href="#__codelineno-30-20"></a>    <span class="n">aggressor</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">FILLED</span> <span class="k">if</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">PARTIAL</span>
+<a id="__codelineno-30-21" name="__codelineno-30-21" href="#__codelineno-30-21"></a>
+<a id="__codelineno-30-22" name="__codelineno-30-22" href="#__codelineno-30-22"></a>    <span class="c1"># Passive visible quantity / qty-index updates</span>
+<a id="__codelineno-30-23" name="__codelineno-30-23" href="#__codelineno-30-23"></a>    <span class="c1"># (icebergs replenish and reinsert, non-icebergs deduct fill_qty)</span>
+<a id="__codelineno-30-24" name="__codelineno-30-24" href="#__codelineno-30-24"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">_deduct_qty_index</span><span class="p">(</span><span class="n">passive</span><span class="p">,</span> <span class="n">fill_qty</span><span class="p">)</span>
+<a id="__codelineno-30-25" name="__codelineno-30-25" href="#__codelineno-30-25"></a>
+<a id="__codelineno-30-26" name="__codelineno-30-26" href="#__codelineno-30-26"></a>    <span class="c1"># Passive status</span>
+<a id="__codelineno-30-27" name="__codelineno-30-27" href="#__codelineno-30-27"></a>    <span class="n">passive</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="n">FILLED</span> <span class="k">if</span> <span class="n">passive</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">PARTIAL</span>
+<a id="__codelineno-30-28" name="__codelineno-30-28" href="#__codelineno-30-28"></a>    <span class="k">if</span> <span class="n">passive</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="n">FILLED</span><span class="p">:</span>
+<a id="__codelineno-30-29" name="__codelineno-30-29" href="#__codelineno-30-29"></a>        <span class="c1"># Current implementation marks heap entry invalid; it does not</span>
+<a id="__codelineno-30-30" name="__codelineno-30-30" href="#__codelineno-30-30"></a>        <span class="c1"># immediately pop passive from _order_index/_entry_index here.</span>
+<a id="__codelineno-30-31" name="__codelineno-30-31" href="#__codelineno-30-31"></a>        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_entry_index</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">passive</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+<a id="__codelineno-30-32" name="__codelineno-30-32" href="#__codelineno-30-32"></a>        <span class="k">if</span> <span class="n">entry</span><span class="p">:</span>
+<a id="__codelineno-30-33" name="__codelineno-30-33" href="#__codelineno-30-33"></a>            <span class="n">entry</span><span class="o">.</span><span class="n">valid</span> <span class="o">=</span> <span class="kc">False</span>
+<a id="__codelineno-30-34" name="__codelineno-30-34" href="#__codelineno-30-34"></a>
+<a id="__codelineno-30-35" name="__codelineno-30-35" href="#__codelineno-30-35"></a>    <span class="c1"># Notify both sides</span>
+<a id="__codelineno-30-36" name="__codelineno-30-36" href="#__codelineno-30-36"></a>    <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">aggressor</span><span class="p">)</span>
+<a id="__codelineno-30-37" name="__codelineno-30-37" href="#__codelineno-30-37"></a>    <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">passive</span><span class="p">)</span>
 </code></pre></div>
 <p>Key points:</p>
 <ul>
@@ -3033,7 +2987,7 @@ and a resting order. It is the moment a trade is born.</p>
 <p><code>_apply_fill</code> updates three separate price fields on the <code>OrderBook</code>. They look
 similar but serve completely different purposes:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="bp">self</span><span class="o">.</span><span class="n">last_trade_price</span> <span class="o">=</span> <span class="n">fill_price</span>
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="k">if</span> <span class="n">passive</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span><span class="p">:</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="k">if</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span><span class="p">:</span>
 <a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">last_buy_price</span>  <span class="o">=</span> <span class="n">fill_price</span>
 <a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="k">else</span><span class="p">:</span>
 <a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>    <span class="bp">self</span><span class="o">.</span><span class="n">last_sell_price</span> <span class="o">=</span> <span class="n">fill_price</span>
@@ -3043,13 +2997,10 @@ aggressive. This is the field that stop-trigger checks use. After each fill,
 <code>_check_stops()</code> compares <code>last_trade_price</code> against the stop prices of all waiting
 stop orders to decide whether any should fire. It answers: "what price did the most
 recent trade happen at?"</p>
-<p><strong><code>last_buy_price</code></strong> — updated only when the passive (resting) order was on the BUY
-side. This means the fill was initiated by an aggressive SELL order hitting a resting
-bid. It records: "the most recent price at which a sell aggressor hit a standing
-bid." Used by market statistics and circuit breakers.</p>
-<p><strong><code>last_sell_price</code></strong> — updated only when the passive order was on the SELL side,
-meaning an aggressive BUY order hit a resting ask. Records: "the most recent price
-at which a buy aggressor hit a standing offer."</p>
+<p><strong><code>last_buy_price</code></strong> — updated only when the aggressor side is BUY. It records the
+most recent price where an incoming buyer was the aggressor.</p>
+<p><strong><code>last_sell_price</code></strong> — updated only when the aggressor side is SELL. It records the
+most recent price where an incoming seller was the aggressor.</p>
 <p><strong>Why have both <code>last_buy_price</code> and <code>last_sell_price</code>?</strong> The direction of the last
 aggression — whether a buyer swept into sellers or a seller swept into buyers — is a
 meaningful signal in market microstructure. A sequence of aggressive buys hitting
@@ -3092,7 +3043,7 @@ operations and replaces them with O(log n) cleanup spread across many calls to
 <div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_rest</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="p">):</span>
 <a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>    <span class="k">assert</span> <span class="n">order</span><span class="o">.</span><span class="n">price</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
 <a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>    <span class="c1"># INVARIANT: order.timestamp is strictly monotonically increasing thanks to</span>
-<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>    <span class="c1"># monotonic_ns() (models/clock.py). No two orders share a timestamp, so</span>
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>    <span class="c1"># now_ns() (models/clock.py). No two orders share a timestamp, so</span>
 <a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>    <span class="c1"># price-time priority within a price level is always deterministic.</span>
 <a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a>    <span class="n">qty</span> <span class="o">=</span> <span class="p">(</span>
 <a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a>        <span class="n">order</span><span class="o">.</span><span class="n">displayed_qty</span>
@@ -3217,9 +3168,9 @@ of three strategies:</p>
 <p><code>CANCEL_RESTING</code> is the most interesting case — it removes the conflicting resting
 order and <strong>continues</strong> the sweep loop with <code>continue</code>, looking for the next resting
 order which may belong to a different participant and can fill legitimately.</p>
-<p><code>_smp_cancel_resting()</code> sets the resting order's status to CANCELLED, removes it
-from both indexes (<code>_order_index</code>, <code>_entry_index</code>), decrements the qty index, and
-appends the cancelled order to <code>events</code> so the gateway is notified.</p>
+<p><code>_smp_cancel_resting()</code> sets the resting order's status to CANCELLED, marks its heap
+entry invalid via <code>_entry_index</code>, removes it from <code>_order_index</code>, decrements the qty
+index, and appends the cancelled order to <code>events</code> so the gateway is notified.</p>
 <h2 id="stop-orders-two-heaps">Stop Orders — Two Heaps<a class="headerlink" href="#stop-orders-two-heaps" title="Permanent link">&para;</a></h2>
 <p>After every trade, <code>_check_stops</code> runs:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_check_stops</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">now</span><span class="p">):</span>
@@ -3296,45 +3247,31 @@ arithmetic with no floating-point drift.</p>
 display processes (viewer, board, ticker). It produces the aggregated picture a
 market participant would see on their screen — total quantities at each price level,
 not individual orders.</p>
-<h3 id="spread-and-mid-price-are-derived-values">Spread and Mid Price Are Derived Values<a class="headerlink" href="#spread-and-mid-price-are-derived-values" title="Permanent link">&para;</a></h3>
-<p>The <code>OrderBook</code> stores no <code>spread</code> or <code>mid_price</code> field. These are always computed
-fresh from the heap:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">snapshot</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>    <span class="n">best_bid</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_peek</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bids</span><span class="p">)</span>   <span class="c1"># O(1) — top of bid heap</span>
-<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>    <span class="n">best_ask</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_peek</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_asks</span><span class="p">)</span>   <span class="c1"># O(1) — top of ask heap</span>
-<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a>
-<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a>    <span class="n">spread</span>   <span class="o">=</span> <span class="kc">None</span>
-<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a>    <span class="n">mid</span>      <span class="o">=</span> <span class="kc">None</span>
-<a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a>    <span class="k">if</span> <span class="n">best_bid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">best_ask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a>        <span class="n">spread</span> <span class="o">=</span> <span class="n">best_ask</span><span class="o">.</span><span class="n">price</span> <span class="o">-</span> <span class="n">best_bid</span><span class="o">.</span><span class="n">price</span>      <span class="c1"># e.g. 21 - 20 = 1 tick</span>
-<a id="__codelineno-40-9" name="__codelineno-40-9" href="#__codelineno-40-9"></a>        <span class="n">mid</span>    <span class="o">=</span> <span class="p">(</span><span class="n">best_ask</span><span class="o">.</span><span class="n">price</span> <span class="o">+</span> <span class="n">best_bid</span><span class="o">.</span><span class="n">price</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
-</code></pre></div>
-<p><strong>Why derive rather than store?</strong> The best bid and best ask change every time an
-order is added, cancelled, or filled. Keeping a <code>spread</code> field in sync would require
-updating it in <code>_rest()</code>, <code>cancel_order()</code>, and <code>_apply_fill()</code> — three places that
-already have enough to update. Deriving it in <code>snapshot()</code> is both correct and
-free: <code>_peek()</code> is O(1) and <code>snapshot()</code> is already doing those peeks to build
-the price level lists.</p>
-<p><strong>What if one side is empty?</strong> If there are no resting asks (all sellers have left),
-<code>best_ask is None</code>, so there is no spread and no mid price. The snapshot is
-published with <code>spread: null</code> and <code>mid: null</code>. Display tools must handle this case
-and not divide by zero or assume a mid exists.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>    <span class="n">bids</span> <span class="o">=</span> <span class="p">{}</span>
-<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>    <span class="n">asks</span> <span class="o">=</span> <span class="p">{}</span>
-<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>
-<a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a>    <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bids</span><span class="p">:</span>
-<a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">entry</span><span class="o">.</span><span class="n">valid</span><span class="p">:</span>
-<a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a>            <span class="k">continue</span>
-<a id="__codelineno-41-7" name="__codelineno-41-7" href="#__codelineno-41-7"></a>        <span class="n">o</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">order</span>
-<a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a>        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">status</span> <span class="ow">in</span> <span class="p">(</span><span class="n">FILLED</span><span class="p">,</span> <span class="n">CANCELLED</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
-<a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a>            <span class="k">continue</span>
-<a id="__codelineno-41-10" name="__codelineno-41-10" href="#__codelineno-41-10"></a>        <span class="c1"># For iceberg: show only the visible peak, not the hidden reserve</span>
-<a id="__codelineno-41-11" name="__codelineno-41-11" href="#__codelineno-41-11"></a>        <span class="n">qty</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">displayed_qty</span> <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">ICEBERG</span> <span class="k">else</span> <span class="n">o</span><span class="o">.</span><span class="n">remaining_qty</span>
-<a id="__codelineno-41-12" name="__codelineno-41-12" href="#__codelineno-41-12"></a>        <span class="c1"># Aggregate into price levels</span>
-<a id="__codelineno-41-13" name="__codelineno-41-13" href="#__codelineno-41-13"></a>        <span class="n">lvl</span> <span class="o">=</span> <span class="n">bids</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;price&quot;</span><span class="p">:</span> <span class="n">o</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="s2">&quot;qty&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;count&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">})</span>
-<a id="__codelineno-41-14" name="__codelineno-41-14" href="#__codelineno-41-14"></a>        <span class="n">lvl</span><span class="p">[</span><span class="s2">&quot;qty&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="n">qty</span>
-<a id="__codelineno-41-15" name="__codelineno-41-15" href="#__codelineno-41-15"></a>        <span class="n">lvl</span><span class="p">[</span><span class="s2">&quot;count&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
-<a id="__codelineno-41-16" name="__codelineno-41-16" href="#__codelineno-41-16"></a>    <span class="o">...</span>
+<h3 id="what-snapshot-returns-in-current-code">What <code>snapshot()</code> Returns in Current Code<a class="headerlink" href="#what-snapshot-returns-in-current-code" title="Permanent link">&para;</a></h3>
+<p>Current <code>snapshot()</code> output includes:</p>
+<ul>
+<li>Aggregated bid/ask rows (price, qty, count)</li>
+<li><code>last_price</code>, <code>last_qty</code></li>
+<li><code>last_buy_price</code>, <code>last_sell_price</code></li>
+<li><code>recent_trades</code> (last 5 trades from the deque)</li>
+</ul>
+<p>It does <strong>not</strong> currently compute or publish <code>spread</code> or <code>mid</code> fields.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>    <span class="n">bids</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>    <span class="n">asks</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>
+<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a>    <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bids</span><span class="p">:</span>
+<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">entry</span><span class="o">.</span><span class="n">valid</span><span class="p">:</span>
+<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a>            <span class="k">continue</span>
+<a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a>        <span class="n">o</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">order</span>
+<a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a>        <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">status</span> <span class="ow">in</span> <span class="p">(</span><span class="n">FILLED</span><span class="p">,</span> <span class="n">CANCELLED</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
+<a id="__codelineno-40-9" name="__codelineno-40-9" href="#__codelineno-40-9"></a>            <span class="k">continue</span>
+<a id="__codelineno-40-10" name="__codelineno-40-10" href="#__codelineno-40-10"></a>        <span class="c1"># For iceberg: show only the visible peak, not the hidden reserve</span>
+<a id="__codelineno-40-11" name="__codelineno-40-11" href="#__codelineno-40-11"></a>        <span class="n">qty</span> <span class="o">=</span> <span class="n">o</span><span class="o">.</span><span class="n">displayed_qty</span> <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">order_type</span> <span class="o">==</span> <span class="n">ICEBERG</span> <span class="k">else</span> <span class="n">o</span><span class="o">.</span><span class="n">remaining_qty</span>
+<a id="__codelineno-40-12" name="__codelineno-40-12" href="#__codelineno-40-12"></a>        <span class="c1"># Aggregate into price levels</span>
+<a id="__codelineno-40-13" name="__codelineno-40-13" href="#__codelineno-40-13"></a>        <span class="n">lvl</span> <span class="o">=</span> <span class="n">bids</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">o</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;price&quot;</span><span class="p">:</span> <span class="n">o</span><span class="o">.</span><span class="n">price</span><span class="p">,</span> <span class="s2">&quot;qty&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;count&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">})</span>
+<a id="__codelineno-40-14" name="__codelineno-40-14" href="#__codelineno-40-14"></a>        <span class="n">lvl</span><span class="p">[</span><span class="s2">&quot;qty&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="n">qty</span>
+<a id="__codelineno-40-15" name="__codelineno-40-15" href="#__codelineno-40-15"></a>        <span class="n">lvl</span><span class="p">[</span><span class="s2">&quot;count&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+<a id="__codelineno-40-16" name="__codelineno-40-16" href="#__codelineno-40-16"></a>    <span class="o">...</span>
 </code></pre></div>
 <p><code>snapshot()</code> iterates the entire heap — O(n) — to build the aggregated price
 levels needed for market data publication. This is correct but expensive if called
@@ -3429,7 +3366,7 @@ state.</p>
 <td>Deque</td>
 <td>—</td>
 <td><code>Trade</code></td>
-<td>Rolling last-20-trades window</td>
+<td>Rolling last-20-trades window (snapshot currently publishes last 5)</td>
 </tr>
 </tbody>
 </table>

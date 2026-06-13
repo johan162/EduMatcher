@@ -840,6 +840,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../06-concepts-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1680,9 +1708,10 @@
 <p>When you buy a share of stock, someone else must sell it to you. But they may
 not be available at exactly the moment you want to trade, and you may not agree
 on price. The <strong>order book</strong> is the mechanism that bridges this gap.</p>
-<p>An order book is a sorted, live list of all orders that have been submitted to
-the exchange but have not yet traded. Every tradable instrument has its own
-book. Orders are separated into two sides:</p>
+<p>An order book is the live, sorted list of currently executable resting buy and
+sell orders for one instrument. Conditional orders such as stops are tracked
+separately until they trigger into executable orders. Every tradable instrument
+has its own book. Orders are separated into two sides:</p>
 <table>
 <thead>
 <tr>
@@ -1741,12 +1770,12 @@ the price much. A thin book has little resting quantity and even a moderate
 order can push the price significantly.</p>
 <p>Looking at our example book above, if a trader submits a market sell order for
 600 shares, it would:
-1. Fill 100 shares at the best bid of <strong>149.90</strong>
-2. Fill 500 shares at the next level, <strong>149.80</strong></p>
+1. Fill 200 shares at the best bid of <strong>149.90</strong>
+2. Fill 400 shares at the next level, <strong>149.80</strong></p>
 <p>The average fill price would be:</p>
-<div class="arithmatex">\[\frac{(100 \times 149.90) + (500 \times 149.80)}{600} = \frac{14990 + 74900}{600} = \frac{89890}{600} \approx 149.82\]</div>
+<div class="arithmatex">\[\frac{(200 \times 149.90) + (400 \times 149.80)}{600} = \frac{29980 + 59920}{600} = \frac{89900}{600} \approx 149.83\]</div>
 <p>The trader wanted to sell at ~149.90 but the large size caused the actual
-average to be 149.82. This difference is called <strong>slippage</strong>.</p>
+average to be 149.83. This difference is called <strong>slippage</strong>.</p>
 <h2 id="price-time-priority">Price-time priority<a class="headerlink" href="#price-time-priority" title="Permanent link">&para;</a></h2>
 <p>When multiple orders rest at the same price, the matching engine must decide
 which one fills first. EduMatcher uses <strong>price-time priority</strong> (also called
@@ -1820,7 +1849,7 @@ in time order (A before B before C):</p>
 <tr>
 <td>C</td>
 <td>0</td>
-<td>150 (still resting, now at the front of the remaining queue)</td>
+<td>150 (still resting, behind Order B in queue at this price)</td>
 </tr>
 </tbody>
 </table>
@@ -1844,7 +1873,7 @@ incoming aggressive order.</p>
 <li>Engine generates a <code>trade.executed</code> event:</li>
 <li>buyer: GW01, qty: 100, price: 150.00</li>
 <li>seller: GW02, qty: 100, price: 150.00</li>
-<li>Both orders are fully filled and removed from the book.</li>
+<li>Both orders are fully filled and removed from visible bid/ask levels.</li>
 <li>Engine publishes <code>order.fill.GW01</code> and <code>order.fill.GW02</code> to both gateways.</li>
 <li>Engine publishes a <code>book.AAPL</code> snapshot — that bid level is now gone.</li>
 <li>Clearing process receives <code>trade.executed</code> and updates both traders' P&amp;L.</li>

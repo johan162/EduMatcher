@@ -12,13 +12,13 @@
         <meta name="author" content="Johan Persson <johan162@gmail.com>">
       
       
-        <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/07-pnl-clearing/">
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/concepts/06-concepts-market-data-feed/">
       
       
-        <link rel="prev" href="../06-auctions-scheduling/">
+        <link rel="prev" href="../05-concepts-trading-day/">
       
       
-        <link rel="next" href="../08-gateway/">
+        <link rel="next" href="../../user-guide/01-configuration/">
       
       
         
@@ -29,7 +29,7 @@
     
     
       
-        <title>P&L & Clearing - EduMatcher — Educational Trading System</title>
+        <title>Market Data Feed (CALF) - EduMatcher — Educational Trading System</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#pl-clearing" class="md-skip">
+        <a href="#market-data-feed-calf" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              P&L & Clearing
+              Market Data Feed (CALF)
             
           </span>
         </div>
@@ -263,11 +263,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../concepts/01-concepts-order-book/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../01-concepts-order-book/" class="md-tabs__link">
           
   
   
@@ -283,13 +285,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../01-configuration/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../user-guide/01-configuration/" class="md-tabs__link">
           
   
   
@@ -484,28 +484,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -523,7 +526,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -541,7 +544,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../concepts/01-concepts-order-book/" class="md-nav__link">
+      <a href="../01-concepts-order-book/" class="md-nav__link">
         
   
   
@@ -569,7 +572,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
+      <a href="../02-concepts-order-book-deep-dive/" class="md-nav__link">
         
   
   
@@ -597,7 +600,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../concepts/03-concepts-mm-quotes/" class="md-nav__link">
+      <a href="../03-concepts-mm-quotes/" class="md-nav__link">
         
   
   
@@ -625,7 +628,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../concepts/04-concepts-first-trade/" class="md-nav__link">
+      <a href="../04-concepts-first-trade/" class="md-nav__link">
         
   
   
@@ -653,7 +656,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../concepts/05-concepts-trading-day/" class="md-nav__link">
+      <a href="../05-concepts-trading-day/" class="md-nav__link">
         
   
   
@@ -661,266 +664,6 @@
     
   
     A Full Trading Day
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../concepts/06-concepts-market-data-feed/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Market Data Feed (CALF)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-    
-  
-  
-  
-    
-    
-    
-    
-      
-        
-        
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
-        
-          
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    User Guide
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_4">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    User Guide
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../01-configuration/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Configuration
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../02-commands/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Controlling the Exchange
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../03-running-the-engine/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Running the Engine
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../04-order-types/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Order Types
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../05-combos/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Combo Orders
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../06-auctions-scheduling/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Auctions & Scheduling
   
 
     
@@ -957,7 +700,7 @@
   <span class="md-ellipsis">
     
   
-    P&L & Clearing
+    Market Data Feed (CALF)
   
 
     
@@ -975,7 +718,7 @@
   <span class="md-ellipsis">
     
   
-    P&L & Clearing
+    Market Data Feed (CALF)
   
 
     
@@ -1001,10 +744,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-this-page-covers" class="md-nav__link">
+  <a href="#why-calf-exists" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What this page covers
+        Why CALF Exists
       
     </span>
   </a>
@@ -1012,10 +755,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#position-tracking" class="md-nav__link">
+  <a href="#information-levels-by-channel" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Position Tracking
+        Information Levels by Channel
       
     </span>
   </a>
@@ -1023,10 +766,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#vwap-average-cost" class="md-nav__link">
+  <a href="#core-message-types" class="md-nav__link">
     <span class="md-ellipsis">
       
-        VWAP Average Cost
+        Core Message Types
       
     </span>
   </a>
@@ -1034,10 +777,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#realized-pl" class="md-nav__link">
+  <a href="#how-participants-subscribe" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Realized P&amp;L
+        How Participants Subscribe
       
     </span>
   </a>
@@ -1045,10 +788,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#unrealized-pl" class="md-nav__link">
+  <a href="#staying-up-to-date-reliably" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Unrealized P&amp;L
+        Staying Up To Date Reliably
       
     </span>
   </a>
@@ -1056,10 +799,49 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#example" class="md-nav__link">
+  <a href="#first-connect-vs-reconnect" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Example
+        First Connect vs Reconnect
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="First Connect vs Reconnect">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#first-connect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        First connect
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reconnect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reconnect
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-this-matters-for-different-participants" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why This Matters For Different Participants
       
     </span>
   </a>
@@ -1067,10 +849,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#pl-table-display" class="md-nav__link">
+  <a href="#calf-and-index-dissemination" class="md-nav__link">
     <span class="md-ellipsis">
       
-        P&amp;L Table Display
+        CALF and Index Dissemination
       
     </span>
   </a>
@@ -1078,10 +860,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#clearing_reportcsv" class="md-nav__link">
+  <a href="#minimal-client-checklist" class="md-nav__link">
     <span class="md-ellipsis">
       
-        clearing_report.csv
+        Minimal Client Checklist
       
     </span>
   </a>
@@ -1089,21 +871,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#notes" class="md-nav__link">
+  <a href="#summary" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Notes
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#tickns-migration-note" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Tick/Ns Migration Note
+        Summary
       
     </span>
   </a>
@@ -1119,6 +890,67 @@
 
               
             
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
               
                 
   
@@ -1126,7 +958,203 @@
   
   
     <li class="md-nav__item">
-      <a href="../08-gateway/" class="md-nav__link">
+      <a href="../../user-guide/01-configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/02-commands/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Controlling the Exchange
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/03-running-the-engine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running the Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/04-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Order Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/05-combos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/06-auctions-scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auctions & Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/07-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/08-gateway/" class="md-nav__link">
         
   
   
@@ -1154,7 +1182,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../09-messages/" class="md-nav__link">
+      <a href="../../user-guide/09-messages/" class="md-nav__link">
         
   
   
@@ -1182,7 +1210,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../10-processes/" class="md-nav__link">
+      <a href="../../user-guide/10-processes/" class="md-nav__link">
         
   
   
@@ -1210,7 +1238,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../11-persistence/" class="md-nav__link">
+      <a href="../../user-guide/11-persistence/" class="md-nav__link">
         
   
   
@@ -1238,7 +1266,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../12-risk-controls/" class="md-nav__link">
+      <a href="../../user-guide/12-risk-controls/" class="md-nav__link">
         
   
   
@@ -1266,7 +1294,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../13-drop-copy/" class="md-nav__link">
+      <a href="../../user-guide/13-drop-copy/" class="md-nav__link">
         
   
   
@@ -1294,7 +1322,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../20-app-alf-protocol/" class="md-nav__link">
+      <a href="../../user-guide/20-app-alf-protocol/" class="md-nav__link">
         
   
   
@@ -1686,183 +1714,307 @@
   
 
 
-<h1 id="pl-clearing">P&amp;L &amp; Clearing<a class="headerlink" href="#pl-clearing" title="Permanent link">&para;</a></h1>
+<h1 id="market-data-feed-calf">Market Data Feed (CALF)<a class="headerlink" href="#market-data-feed-calf" title="Permanent link">&para;</a></h1>
 <div class="admonition note">
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
 <ul>
-<li>What P&amp;L and clearing mean in an exchange context</li>
-<li>How long and short positions are tracked</li>
-<li>How VWAP average cost is calculated when building a position</li>
-<li>The difference between realized and unrealized P&amp;L</li>
-<li>How to read the P&amp;L output from <code>pm-clearing</code></li>
+<li>What CALF is and why a market-data protocol is separate from order entry</li>
+<li>How CALF channels expose different levels of market information</li>
+<li>How <code>TOP</code>, <code>TRADE</code>, and <code>STATE</code> complement each other</li>
+<li>How participants subscribe and stay synchronized using a generic text protocol</li>
+<li>How sequence numbers and replay make reconnect behavior deterministic</li>
+<li>How the same CALF model can disseminate derived index calculations</li>
 </ul>
-<p><strong>Prerequisite</strong>: Complete <a href="../../concepts/04-concepts-first-trade/">Your First Trade</a> — seeing
-P&amp;L update in real time makes the formulas on this page much more concrete.</p>
 </div>
-<h2 id="what-this-page-covers">What this page covers<a class="headerlink" href="#what-this-page-covers" title="Permanent link">&para;</a></h2>
-<p><strong>P&amp;L</strong> stands for <strong>Profit and Loss</strong> — the running tally of how much money
-each trader has made or lost. <strong>Clearing</strong> is the process of settling trades
-after they execute: confirming who owes what to whom, updating account
-balances, and recording the transaction history.</p>
-<p>In a real exchange, clearing involves counterparty risk management, margin
-calls, and settlement cycles (T+1 or T+2). EduMatcher simplifies this to
-real-time P&amp;L accounting with no credit risk — every trade settles instantly.</p>
-<p>The <code>pm-clearing</code> process acts as the financial settlement layer.
-It subscribes to every <code>trade.executed</code> event and maintains a running
-<strong>P&amp;L ledger per user (gateway) per symbol</strong>. Each gateway represents one
-trader; the clearing process tracks their positions independently.</p>
-<h2 id="position-tracking">Position Tracking<a class="headerlink" href="#position-tracking" title="Permanent link">&para;</a></h2>
-<p>A <strong>position</strong> is the net quantity of shares you currently hold in a given
-symbol. If you bought 100 and then sold 40, your position is +60 (you still
-own 60 shares). Positions can be:</p>
+<h2 id="why-calf-exists">Why CALF Exists<a class="headerlink" href="#why-calf-exists" title="Permanent link">&para;</a></h2>
+<p>EduMatcher already provides order-entry protocols:</p>
 <ul>
-<li><strong>Long</strong> (positive): you own shares and profit when the price rises.</li>
-<li><strong>Short</strong> (negative): you sold shares you don't own (borrowed) and profit
-  when the price falls.</li>
-<li><strong>Flat</strong> (zero): no exposure.</li>
+<li><code>ALF</code>: simple text order entry</li>
+<li><code>BALF</code>: binary order entry</li>
 </ul>
-<p>For each <code>(gateway_id, symbol)</code> pair the clearing process tracks:</p>
+<p><code>CALF</code> adds the missing piece: <strong>market data distribution</strong>.</p>
+<p>Order entry answers: "How do I submit intent to trade?"
+Market data answers: "What is happening in the market right now?"</p>
+<p><code>CALF</code> is designed as a readable, line-based TCP protocol so learners can inspect
+it in a terminal while still following exchange-grade ideas:</p>
+<ul>
+<li>channelized subscriptions</li>
+<li>snapshots plus incrementals</li>
+<li>sequence-based gap detection</li>
+<li>bounded replay recovery</li>
+</ul>
+<h2 id="information-levels-by-channel">Information Levels by Channel<a class="headerlink" href="#information-levels-by-channel" title="Permanent link">&para;</a></h2>
+<p>CALF separates data into channels so clients can subscribe only to what they need.</p>
 <table>
 <thead>
 <tr>
-<th>Field</th>
-<th>Description</th>
+<th>Channel</th>
+<th>What it tells you</th>
+<th>Typical client use</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>position</code></td>
-<td>Net quantity held. Positive = long, negative = short, zero = flat.</td>
+<td><code>TOP</code></td>
+<td>Best bid/ask, top sizes, last-trade fields (<code>SNAP</code> + <code>MD</code>)</td>
+<td>UI book widgets, spread monitoring, execution bots</td>
 </tr>
 <tr>
-<td><code>avg_cost</code></td>
-<td>Volume-weighted average entry price (explained below).</td>
+<td><code>TRADE</code></td>
+<td>Executed prints (<code>TRADE</code>)</td>
+<td>Tape display, strategy triggers, volume analytics</td>
 </tr>
 <tr>
-<td><code>realized_pnl</code></td>
-<td>Accumulated profit/loss from trades that reduced the position.</td>
-</tr>
-<tr>
-<td><code>unrealized_pnl</code></td>
-<td>Paper profit/loss on the remaining open position (not yet locked in).</td>
+<td><code>STATE</code></td>
+<td>Session/instrument state transitions (<code>STATE</code>)</td>
+<td>Session-aware bots, operational monitors</td>
 </tr>
 </tbody>
 </table>
-<h2 id="vwap-average-cost">VWAP Average Cost<a class="headerlink" href="#vwap-average-cost" title="Permanent link">&para;</a></h2>
-<p>When you build a position through multiple trades at different prices, what
-is your "average entry price"? The answer is the <strong>volume-weighted average
-price (VWAP)</strong>: each trade contributes to the average proportional to its
-size.</p>
-<p>The average cost is updated whenever a fill <em>increases</em> the existing position
-(buying more when already long, or selling more when already short):</p>
-<div class="arithmatex">\[
-\text{avg\_cost}_\text{new} = \frac{\text{avg\_cost}_\text{old} \times \lvert \text{position}_\text{old} \rvert + \text{fill\_price} \times \text{fill\_qty}}{\lvert \text{position}_\text{new} \rvert}
-\]</div>
-<h2 id="realized-pl">Realized P&amp;L<a class="headerlink" href="#realized-pl" title="Permanent link">&para;</a></h2>
-<p><strong>Realized P&amp;L</strong> is profit or loss that is "locked in" — it comes from
-trades that <strong>reduce</strong> your position. Once you sell shares you were holding
-(or buy back shares you were short), the difference between your average
-entry price and your exit price becomes realized profit or loss. It cannot
-change after the fact.</p>
-<p>Realized P&amp;L is computed when a fill <strong>reduces</strong> the current position
-(closing or reversing):</p>
-<p><strong>Long position (reducing):</strong>
-$$
-\text{realized} += (\text{fill_price} - \text{avg_cost}) \times \text{reduce_qty}
-$$</p>
-<p><strong>Short position (reducing):</strong>
-$$
-\text{realized} += (\text{avg_cost} - \text{fill_price}) \times \text{reduce_qty}
-$$</p>
-<h2 id="unrealized-pl">Unrealized P&amp;L<a class="headerlink" href="#unrealized-pl" title="Permanent link">&para;</a></h2>
-<p><strong>Unrealized P&amp;L</strong> (also called "paper profit/loss") is the theoretical
-profit or loss on your <em>remaining open position</em> if you were to close it
-right now at the current market price. It fluctuates with every new trade
-in the market — nothing is locked in until you actually trade.</p>
-<p>Recomputed on every event using the last trade price as the <strong>mark price</strong>
-(the reference price used to value the position):</p>
-<div class="arithmatex">\[
-\text{unrealized} = \text{position} \times (\text{last\_price} - \text{avg\_cost})
-\]</div>
-<p>For a short position, <code>position</code> is negative, so a price fall produces positive unrealized P&amp;L.</p>
-<h2 id="example">Example<a class="headerlink" href="#example" title="Permanent link">&para;</a></h2>
+<p>Think of the three channels as answering increasingly specific questions about the market:</p>
 <table>
 <thead>
 <tr>
-<th>Step</th>
-<th>Action</th>
-<th>Position</th>
-<th>Avg Cost</th>
-<th>Last Price</th>
-<th>Realized</th>
-<th>Unrealized</th>
+<th>Question</th>
+<th>Channel</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>1</td>
-<td>Buy 100 @ 150.00</td>
-<td>+100</td>
-<td>150.00</td>
-<td>150.00</td>
-<td>0.00</td>
-<td>0.00</td>
+<td>Is trading open, auction, halted, or closed?</td>
+<td><code>STATE</code></td>
 </tr>
 <tr>
-<td>2</td>
-<td>Buy 100 @ 152.00</td>
-<td>+200</td>
-<td>151.00</td>
-<td>152.00</td>
-<td>0.00</td>
-<td>+200.00</td>
+<td>What is the current best bid, best ask, and spread?</td>
+<td><code>TOP</code></td>
 </tr>
 <tr>
-<td>3</td>
-<td>Sell 150 @ 155.00</td>
-<td>+50</td>
-<td>151.00</td>
-<td>155.00</td>
-<td>+600.00</td>
-<td>+200.00</td>
-</tr>
-<tr>
-<td>4</td>
-<td>Sell 50 @ 149.00</td>
-<td>0</td>
-<td>—</td>
-<td>149.00</td>
-<td>+500.00</td>
-<td>0.00</td>
+<td>What price and size just executed, and who was the aggressor?</td>
+<td><code>TRADE</code></td>
 </tr>
 </tbody>
 </table>
-<h2 id="pl-table-display">P&amp;L Table Display<a class="headerlink" href="#pl-table-display" title="Permanent link">&para;</a></h2>
-<p>The clearing process prints a rich table:</p>
-<ul>
-<li>Every <strong>10 trades</strong> automatically</li>
-<li>On <strong>Ctrl-C</strong> exit (final summary)</li>
-</ul>
-<p>Columns: <code>Gateway | Symbol | Position | Avg Cost | Last Price | Realized | Unrealized | Total P&amp;L</code></p>
-<p>Positive P&amp;L is shown in green, negative in red.</p>
-<h2 id="clearing_reportcsv">clearing_report.csv<a class="headerlink" href="#clearing_reportcsv" title="Permanent link">&para;</a></h2>
-<p>Every trade is appended to <code>data/clearing_report.csv</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>trade_id,symbol,buy_order_id,sell_order_id,buy_gateway,sell_gateway,price,quantity,timestamp
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>abc123,AAPL,ord-aaa,ord-bbb,GW01,GW02,150.50,100,2026-04-29T14:32:01.123
+<pre class="mermaid"><code>flowchart LR
+    subgraph Channels
+        direction TB
+        S[STATE\nMarket phase context]
+        T[TOP\nBest bid and ask]
+        R[TRADE\nExecuted prints]
+    end</code></pre>
+<p>The channels are <strong>independent subscriptions</strong> — you can take any combination depending on what your client needs.</p>
+<h2 id="core-message-types">Core Message Types<a class="headerlink" href="#core-message-types" title="Permanent link">&para;</a></h2>
+<p>CALF uses one UTF-8 line per message (<code>\n</code> terminated):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>&lt;MSGTYPE&gt;|KEY=VALUE|KEY=VALUE|...\n
 </code></pre></div>
-<p>This file persists across restarts — it is never truncated, giving a complete history
-of all trades for the day.</p>
-<h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
+<p>The messages you will encounter first as a client:</p>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>Who sends it</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>HELLO</code></td>
+<td>Client</td>
+<td>Start the session</td>
+</tr>
+<tr>
+<td><code>WELCOME</code></td>
+<td>Gateway</td>
+<td>Confirm session, advertise parameters</td>
+</tr>
+<tr>
+<td><code>SUB</code></td>
+<td>Client</td>
+<td>Subscribe to channels and symbols</td>
+</tr>
+<tr>
+<td><code>SNAP</code></td>
+<td>Gateway</td>
+<td>Point-in-time baseline for a stream</td>
+</tr>
+<tr>
+<td><code>MD</code></td>
+<td>Gateway</td>
+<td>Incremental top-of-book change</td>
+</tr>
+<tr>
+<td><code>TRADE</code></td>
+<td>Gateway</td>
+<td>Executed trade print</td>
+</tr>
+<tr>
+<td><code>STATE</code></td>
+<td>Gateway</td>
+<td>Session or instrument state transition</td>
+</tr>
+<tr>
+<td><code>HB</code></td>
+<td>Gateway</td>
+<td>Heartbeat when no data is flowing</td>
+</tr>
+<tr>
+<td><code>ERR</code></td>
+<td>Gateway</td>
+<td>Error notification</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">SNAP is a message type, not a channel</p>
+<p>You subscribe to a channel (<code>TOP</code> or <code>STATE</code>). The gateway then automatically
+sends a <code>SNAP</code> baseline for that channel. Clients never subscribe to <code>SNAP</code> directly.</p>
+</div>
+<h2 id="how-participants-subscribe">How Participants Subscribe<a class="headerlink" href="#how-participants-subscribe" title="Permanent link">&para;</a></h2>
+<p>A participant opens a TCP connection and follows a small, generic flow:</p>
+<ol>
+<li>Send <code>HELLO</code></li>
+<li>Receive <code>WELCOME</code></li>
+<li>Send one or more <code>SUB</code> commands</li>
+<li>Process <code>SNAP</code> baseline(s)</li>
+<li>Process live incrementals (<code>MD</code>, <code>TRADE</code>, <code>STATE</code>)</li>
+</ol>
+<p>Annotated example — each line is one complete CALF message:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a># Client identifies itself and requests CALF version 1
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>HELLO|CLIENT=bot01|PROTO=CALF1
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a># Gateway confirms; HB every 1 s, replay window 30 s, known symbols AAPL and MSFT
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a># Client subscribes to TOP (best bid/ask) and TRADE (fills) for AAPL
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>SUB|CH=TOP,TRADE|SYM=AAPL
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a># Gateway sends snapshot: current top-of-book at SEQ=100
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a># BID=150.10 x 1200, ASK=150.12 x 900, last trade was 150.11 x 300
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>SNAP|CH=TOP|SYM=AAPL|SEQ=100|TS=2026-06-07T10:16:00.000Z|BID=150.10|BIDSZ=1200|ASK=150.12|ASKSZ=900|LAST=150.11|LASTSZ=300
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a># The best bid just moved to 150.11 x 1400 — only changed fields are sent
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>MD|CH=TOP|SYM=AAPL|SEQ=101|TS=2026-06-07T10:16:00.115Z|BID=150.11|BIDSZ=1400
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a># A trade executed: 200 shares at 150.12, buy-side was the aggressor
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>TRADE|CH=TRADE|SYM=AAPL|SEQ=44|TS=2026-06-07T10:16:00.141Z|PX=150.12|QTY=200|SIDE=BUY
+</code></pre></div>
+<pre class="mermaid"><code>sequenceDiagram
+    participant C as CALF Client
+    participant G as pm-md-gwy
+
+    C-&gt;&gt;G: HELLO|CLIENT=bot01|PROTO=CALF1
+    G--&gt;&gt;C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
+    C-&gt;&gt;G: SUB|CH=TOP,TRADE|SYM=AAPL
+    G--&gt;&gt;C: SNAP|CH=TOP|SYM=AAPL|SEQ=100|...
+    G--&gt;&gt;C: MD|CH=TOP|SYM=AAPL|SEQ=101|...
+    G--&gt;&gt;C: TRADE|CH=TRADE|SYM=AAPL|SEQ=44|...</code></pre>
+<h2 id="staying-up-to-date-reliably">Staying Up To Date Reliably<a class="headerlink" href="#staying-up-to-date-reliably" title="Permanent link">&para;</a></h2>
+<p><code>CALF</code> uses monotonic <code>SEQ</code> numbers per <code>(CH, SYM)</code> stream.</p>
+<p>That means sequence tracking is per stream, not global:</p>
 <ul>
-<li>P&amp;L is <strong>informational only</strong> — no margin checks or risk limits are applied.</li>
-<li>Both sides of every trade (buyer and seller) have their ledgers updated independently.</li>
-<li>The <code>last_price</code> used for unrealized P&amp;L is the most recent trade price for that symbol.</li>
+<li><code>(TOP, AAPL)</code> has one independent counter</li>
+<li><code>(TRADE, AAPL)</code> has another</li>
+<li><code>(STATE, *)</code> has its own</li>
 </ul>
-<h2 id="tickns-migration-note">Tick/Ns Migration Note<a class="headerlink" href="#tickns-migration-note" title="Permanent link">&para;</a></h2>
-<p>Core engine trade prices are represented internally in ticks and timestamps in
-nanoseconds. Clearing/reporting views convert those values to decimal prices and
-human-readable timestamps at output boundaries.</p>
+<pre class="mermaid"><code>flowchart LR
+    A[(TOP, AAPL)] --&gt; A1[SEQ 100] --&gt; A2[SEQ 101] --&gt; A3[SEQ 102]
+    B[(TRADE, AAPL)] --&gt; B1[SEQ 44] --&gt; B2[SEQ 45] --&gt; B3[SEQ 46]
+    C[(STATE, *)] --&gt; C1[SEQ 5] --&gt; C2[SEQ 6] --&gt; C3[SEQ 7]</code></pre>
+<p>Client rule:</p>
+<ul>
+<li>If current <code>SEQ != previous + 1</code>, you detected a gap</li>
+<li>Attempt replay when possible</li>
+<li>If replay misses the window, accept fresh <code>SNAP</code> and continue</li>
+</ul>
+<p>This gives deterministic behavior on reconnect without requiring full historical storage.</p>
+<h2 id="first-connect-vs-reconnect">First Connect vs Reconnect<a class="headerlink" href="#first-connect-vs-reconnect" title="Permanent link">&para;</a></h2>
+<h3 id="first-connect">First connect<a class="headerlink" href="#first-connect" title="Permanent link">&para;</a></h3>
+<p>When you connect for the first time, the gateway has no history to replay for you.
+Instead it sends a <code>SNAP</code> — a complete point-in-time picture of the current state
+for each <code>(CH, SYM)</code> pair you subscribed to. Record the <code>SEQ</code> from that <code>SNAP</code>.
+Every incremental message (<code>MD</code>, <code>TRADE</code>, <code>STATE</code>) that follows will have
+<code>SEQ = last_seen + 1</code>. As long as the sequence is gapless you are fully in sync.</p>
+<h3 id="reconnect">Reconnect<a class="headerlink" href="#reconnect" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Send <code>HELLO</code> with <code>RESUME=1</code> and <code>LASTSEQ</code> for one stream</li>
+<li>If gap is within replay window, gateway replays missing messages</li>
+<li>If not, gateway sends <code>ERR|CODE=REPLAY_MISS</code> and then a fresh <code>SNAP</code></li>
+</ul>
+<pre class="mermaid"><code>flowchart TD
+    D[Client detects sequence gap] --&gt; E{Reconnect with RESUME and LASTSEQ}
+    E --&gt; F{Replay window contains gap?}
+    F --&gt;|Yes| G[Gateway replays missing messages]
+    G --&gt; H[Resume live stream]
+    F --&gt;|No| I[Gateway sends ERR CODE=REPLAY_MISS]
+    I --&gt; J[Gateway sends fresh SNAP baseline]
+    J --&gt; H</code></pre>
+<p>This keeps client logic straightforward: always restore a known baseline, then continue incrementally.</p>
+<h2 id="why-this-matters-for-different-participants">Why This Matters For Different Participants<a class="headerlink" href="#why-this-matters-for-different-participants" title="Permanent link">&para;</a></h2>
+<p>Different participant types consume different CALF slices:</p>
+<ul>
+<li>Viewer: <code>TOP</code> + <code>STATE</code> for spread, best levels, and market phase</li>
+<li>Recorder: <code>TRADE</code> (and often <code>TOP</code>) for post-trade analysis</li>
+<li>Execution bot: <code>TOP</code> + <code>TRADE</code> + <code>STATE</code> for session-aware strategy decisions</li>
+<li>Risk monitor: <code>STATE</code> + selected <code>TRADE</code> streams for halt/session supervision</li>
+</ul>
+<pre class="mermaid"><code>flowchart LR
+    V[Viewer] --&gt; VS[TOP + STATE]
+    R[Recorder] --&gt; RS[TRADE + optional TOP]
+    B[Execution Bot] --&gt; BS[TOP + TRADE + STATE]
+    M[Risk Monitor] --&gt; MS[STATE + selected TRADE]</code></pre>
+<p>The same protocol works for all, with different subscription sets.</p>
+<h2 id="calf-and-index-dissemination">CALF and Index Dissemination<a class="headerlink" href="#calf-and-index-dissemination" title="Permanent link">&para;</a></h2>
+<p>The <code>CALF</code> channel model is also suitable for <strong>disseminating index calculations</strong>.</p>
+<p>Conceptually, an index feed is just another ordered stream of derived market facts:</p>
+<ul>
+<li>index value</li>
+<li>timestamp</li>
+<li>optional contribution metadata</li>
+<li>sequence for gap detection/recovery</li>
+</ul>
+<p>In EduMatcher, this can be integrated in the same operational pattern as other CALF
+streams, so clients can consume index updates with the same subscription, sequence,
+and replay semantics they already use for <code>TOP</code>/<code>TRADE</code>/<code>STATE</code>.</p>
+<p>Practical options include:</p>
+<ul>
+<li>publishing index values as a dedicated CALF stream in the gateway</li>
+<li>mapping index updates into <code>STATE</code>-style or dedicated symbol streams for consumers</li>
+</ul>
+<p>A client subscribing to index data would follow the same handshake and sequence rules as any other CALF stream. For example, an index update might look like:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>SUB|CH=TOP|SYM=EDU-INDEX
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>SNAP|CH=TOP|SYM=EDU-INDEX|SEQ=1|TS=2026-06-07T10:00:00.000Z|LAST=1042.30
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>MD|CH=TOP|SYM=EDU-INDEX|SEQ=2|TS=2026-06-07T10:00:05.000Z|LAST=1043.10
+</code></pre></div>
+<p>The key idea: <strong>one generic subscriber model for both raw market events and derived index events</strong>.</p>
+<pre class="mermaid"><code>flowchart LR
+    E[Engine market events] --&gt; X[Index calculator]
+    X --&gt; G[pm-md-gwy normalisation and fanout]
+    G --&gt; C1[Index dashboard]
+    G --&gt; C2[Strategy bot]
+    G --&gt; C3[Recorder]
+
+    G --&gt; S[Per-stream SEQ + replay semantics]</code></pre>
+<h2 id="minimal-client-checklist">Minimal Client Checklist<a class="headerlink" href="#minimal-client-checklist" title="Permanent link">&para;</a></h2>
+<p>For a robust CALF client implementation:</p>
+<ol>
+<li><strong>Parse line-by-line</strong> — TCP is a byte stream; a single <code>recv()</code> can contain part of a line, one full line, or several lines at once. Buffer and split on <code>\n</code>.</li>
+<li><strong>Track <code>last_seq</code> per stream</strong> — keep a dict keyed by <code>(CH, SYM)</code> and check every incoming <code>SEQ</code>.</li>
+<li><strong>Treat missing fields in <code>MD</code> as unchanged</strong> — if an <code>MD</code> message has no <code>ASK</code> field, the ask price has not moved since the last <code>SNAP</code> or <code>MD</code> that carried it. Do not reset it to zero.</li>
+<li><strong>Handle <code>HB</code></strong> — a heartbeat means the gateway is alive but quiet. If neither data nor <code>HB</code> arrives, the connection may be dead.</li>
+<li><strong>On gap, attempt replay; on replay miss, reset from <code>SNAP</code></strong> — send <code>HELLO|RESUME=1|LASTSEQ=&lt;n&gt;</code>; if you get <code>ERR CODE=REPLAY_MISS</code> instead of replayed messages, accept the fresh <code>SNAP</code> that follows.</li>
+<li><strong>Keep subscriptions narrow</strong> — only subscribe to <code>(CH, SYM)</code> pairs your process actually uses.</li>
+</ol>
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<p>CALF gives EduMatcher a readable but production-shaped market-data model:</p>
+<ul>
+<li>channelized information levels (<code>TOP</code>, <code>TRADE</code>, <code>STATE</code>)</li>
+<li>snapshot baseline + incremental updates</li>
+<li>deterministic sync via per-stream sequences</li>
+<li>bounded replay for short disconnect recovery</li>
+<li>reusable dissemination pattern for derived outputs such as index calculations</li>
+</ul>
+<p>This makes CALF a practical bridge between educational clarity and realistic feed behavior.</p>
+<p><a href="#market-data-feed-calf">Back to top</a> | <a href="../05-concepts-trading-day/">Previous: A Full Trading Day</a></p>
 
 
 
