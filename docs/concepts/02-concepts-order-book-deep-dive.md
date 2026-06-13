@@ -21,116 +21,14 @@
       `last_sell_price` are three distinct fields serving three distinct purposes
     - **The iceberg FOK undercount** — a concrete limitation of the visible-only quantity
       index and what it means for Fill-Or-Kill availability checks
-    - **Spread and mid price as derived values** — why the order book stores neither, and
-      what happens when one side of the book is empty
+        - **Snapshot output semantics** — exactly which fields the current `snapshot()`
+            method publishes (and which it does not)
     - **The synchronisation invariant** — the four data structures that must always be
       updated together, and what breaks if any one is missed
     - **Self-match prevention** — why an exchange needs to detect when a participant would
       trade against themselves, and how the three cancellation strategies work
     - **No-matching mode** — how the same order book collects interest during an auction
       without executing any trades
-
-
-
-## Short Financial Glossary
-
-Read this before anything else. Every term below appears in this document. If you
-already work in finance, skip ahead — these definitions are deliberately simplified
-for software developers.
-
-**Instrument / Symbol** — the thing being traded. Could be a share of Apple stock
-(symbol: `AAPL`), a currency pair (symbol: `EURUSD`), or a futures contract. An
-order book exists per symbol.
-
-**Order** — an instruction to buy or sell a quantity of an instrument at a specified
-price or better.
-
-**Bid** — a buyer's offer. A bid of $150.30 means: "I am willing to buy at $150.30
-or cheaper." The collection of all active bids forms the buy side of the book.
-
-**Ask** (also called an **offer**) — a seller's offer. An ask of $150.35 means: "I
-am willing to sell at $150.35 or higher." The collection of all active asks forms
-the sell side of the book.
-
-**Spread** — the difference between the best (lowest) ask and the best (highest) bid.
-If the best bid is $150.30 and the best ask is $150.35, the spread is $0.05. A
-tighter spread means more liquid, cheaper-to-trade market.
-
-**Resting order** (also called a **passive order**) — an order that has been accepted
-by the exchange and is sitting in the book waiting for a counterparty. It does not
-execute immediately.
-
-**Aggressive order** (also called a **taker**) — an incoming order that immediately
-trades against resting orders. It "sweeps" the book.
-
-**Price level** — all the resting orders at the same price. If three buyers have all
-placed bids at $150.30, they are all at the same price level. Their combined quantity
-is the depth at that level.
-
-**Depth** — how much quantity is resting at a given price level (or within a price
-range). Deep books have large quantities at each price, making it hard to move the
-price by trading. Shallow books are easier to move.
-
-**Market data** — the continuous stream of information about what is happening in the
-book: what prices orders are resting at, how much quantity, and what trades have
-happened. Display tools (viewer, board, ticker) consume market data.
-
-**Trade** (also called a **fill** or **execution**) — the event that occurs when a
-buyer and seller agree on a price and quantity. A trade record contains: the
-instrument, the price, the quantity, and which orders were involved.
-
-**Limit order** — an order with a price constraint. A buy limit order at $150.30
-will only execute at $150.30 or lower — the buyer is setting the maximum price they
-will pay. A sell limit order at $150.35 will only execute at $150.35 or higher.
-Limit orders that cannot immediately match rest in the book.
-
-**Market order** — an order with no price constraint. "Buy 100 shares at whatever
-price is available right now." Market orders execute immediately against the best
-available resting orders. Because they have no price limit, they cannot rest in the
-book — there is no price to put them at.
-
-**IOC (Immediate-Or-Cancel)** — an order that must execute immediately. Any portion
-that cannot be immediately filled is cancelled on the spot. Unlike a market order,
-an IOC can have a price limit ("fill what you can at $150.35 or better, cancel the
-rest").
-
-**FOK (Fill-Or-Kill)** — an order that must be entirely filled immediately, or not
-at all. If the book does not have enough quantity to fill the full order, the entire
-order is cancelled without any partial fill.
-
-**GTC (Good-Till-Cancelled)** — a Time-In-Force (TIF) instruction on an order.
-A GTC order stays in the book indefinitely until it fills or the participant
-explicitly cancels it. It survives engine restarts.
-
-**DAY** — another TIF instruction. A DAY order expires at the end of the trading
-session if not filled.
-
-**Stop order** — a conditional order that is dormant until the market price reaches
-a specified trigger level (the stop price), at which point it converts to a market
-or limit order and enters the book. Used to automatically exit a position if the
-price moves against you.
-
-**Trailing stop** — a stop order whose trigger price moves automatically as the
-market moves in a favourable direction. See the dedicated section below.
-
-**Iceberg order** — an order that shows only a small visible portion (the "peak")
-to the market while hiding a large reserve behind it. When the visible portion is
-consumed by a fill, the order automatically replenishes from the reserve. Used by
-large traders who do not want to reveal the full size of their position, which would
-move the market against them.
-
-**Lot** — a unit of quantity. For equities, one lot typically means one share. For
-futures, one lot is one contract. In this document, "100 lots" means a quantity of
-100.
-
-**Firm** — a trading company or financial institution. In SMP (Self-Match
-Prevention) context, a "firm" is a single participant whose orders all share the
-same `gateway_id`.
-
-**Auction** — a trading session mode used at market open and close. During an
-auction, orders are collected but not immediately matched. At the end of the auction
-period, all eligible orders execute simultaneously at a single equilibrium price.
-
 
 
 ## What Is an Order Book?
@@ -146,9 +44,9 @@ found a seller yet, and all the sellers who want to sell but haven't found a buy
   ┌─────────────────────────────────────────────────────┐
   │  BUY SIDE (BIDS)            SELL SIDE (ASKS)        │
   │                                                     │
-  │  $150.28 × 200 shares       $150.31 × 500 shares   │
-  │  $150.27 × 100 shares       $150.33 × 200 shares   │
-  │  $150.25 × 400 shares       $150.35 × 300 shares   │
+  │  $150.28 × 200 shares       $150.31 × 500 shares    │
+  │  $150.27 × 100 shares       $150.33 × 200 shares    │
+  │  $150.25 × 400 shares       $150.35 × 300 shares    │
   │           ↑                          ↑              │
   │      Best bid                   Best ask            │
   │      (highest buyer)            (lowest seller)     │
@@ -164,7 +62,7 @@ checks for more matches.
 When a new buy order arrives at $150.27, it cannot match (the cheapest seller wants
 $150.31). The order rests on the bid side, joining the queue.
 
-The `OrderBook` class in `engine/order_book.py` implements all of this.
+The `OrderBook` class in `src/edumatcher/engine/order_book.py` implements all of this.
 
 
 
@@ -269,7 +167,7 @@ price-time priority in a single heap with no special logic:
 
 ```python
 # Two asks at the same price — earlier one sorts first
-# Timestamps are int nanoseconds from monotonic_ns()
+# Timestamps are int nanoseconds from now_ns()
 key_a = (10002, 1_748_000_000_000_000_000)   # arrived first
 key_b = (10002, 1_748_000_000_000_005_000)   # arrived 5 microseconds later
 
@@ -317,7 +215,11 @@ dataclasses with many fields — there is no natural ordering between two orders
 
 `_HeapEntry` solves this by:
 
-1. Storing the sort key separately (`self.key = (price, timestamp)`)
+1. Storing a precomputed tuple key in `self.key` where the exact shape depends on the heap:
+    - bids use `(-price, timestamp)`
+    - asks use `(price, timestamp)`
+    - buy stops use `(stop_price, timestamp)`
+    - sell stops use `(-stop_price, timestamp)`
 2. Implementing `__lt__` to compare only keys — `heapq` uses `__lt__` internally
 3. Carrying the `Order` as a passenger — never compared, just stored
 
@@ -456,9 +358,10 @@ order.status = OrderStatus.CANCELLED       # update status
 ```
 
 Why two separate dicts instead of one? Because `Order` and `_HeapEntry` serve
-different purposes and have different lifetimes. Stop orders, for example, are in
-`_order_index` but not in `_entry_index` (they use different heaps with different
-management). Keeping them separate avoids conflation.
+different purposes and have different lifetimes. Keeping them separate avoids
+conflation: `_order_index` is for order-level lookup by ID, while `_entry_index`
+is for heap-entry invalidation during lazy deletion. In the current implementation,
+stop orders are indexed in both dictionaries when accepted.
 
 
 
@@ -544,15 +447,17 @@ structures** together, or the book becomes inconsistent:
 | Operation | heap | `_order_index` | `_entry_index` | qty index |
 |---|---|---|---|---|
 | `_rest()` — new order | `heappush` | add | add | `+= qty` |
-| cancel / `_apply_fill` (full fill) | `entry.valid = False` | `pop` | `pop` | `-= qty`, delete if 0 |
+| `cancel_order()` | `entry.valid = False` | keep | keep | `-= visible_qty`, delete if 0 |
+| `_apply_fill()` (passive full fill) | `entry.valid = False` | keep in this method | keep (entry invalidated) | `-= fill_qty`, delete if 0 |
 | `amend_order` (price/qty change) | invalidate old, `heappush` new | no change | update to new entry | `±= qty_delta` |
 | iceberg replenish | invalidate old, `heappush` new | no change | update to new entry | `+= new_peak` |
 
 Missing any one of these in any code path causes a silent bug that may not manifest
 immediately. For example, leaving a stale entry in `_bid_qty` would cause the FOK
-check to see phantom liquidity that has already been cancelled. Leaving an entry in
-`_order_index` after a fill would cause a cancel request on that order ID to find
-a filled order and send a confusing response.
+check to see phantom liquidity that has already been cancelled. In the current
+implementation, filled/cancelled orders can remain indexed and are guarded by status
+checks, so correctness depends on status + heap-entry validity + qty-index updates
+staying in sync.
 
 
 
@@ -629,15 +534,13 @@ But it needs to show the user *some* recent history immediately on startup, not 
 the very first trade that happens to occur after it connects.
 
 `recent_trades` solves this: the very first book snapshot the process receives
-includes up to 20 recent trades, giving the display an immediate picture of recent
-activity without querying the stats database.
+includes recent trades, giving the display an immediate picture of activity without
+querying the stats database.
 
-**Why maxlen=20?** The bound is a deliberate network efficiency choice. Every book
-snapshot message includes this list serialised as JSON. At 20 trades per snapshot,
-and snapshots publishing every 500ms per symbol, the overhead is modest. Too few
-trades (say, 5) and the initial display looks sparse; too many (say, 200) and the
-snapshot message grows significantly. 20 is sufficient for a "recent tape" display
-without inflating message sizes.
+**Why maxlen=20?** The deque keeps more local context than the viewer currently
+receives in each snapshot. In the current implementation, `snapshot()` publishes
+the last 5 trades from this deque, while the deque itself still retains up to 20
+for engine-local history.
 
 **`recent_trades` is the only trade source for reconnecting processes.** There is no
 "replay last N trades" API in EduMatcher. If a display process restarts and needs
@@ -660,10 +563,10 @@ happens for the most common case: an incoming limit order.
 
 ```python
 if now is None:
-    now = monotonic_ns()   # from models/clock.py
+    now = now_ns()   # from models/clock.py
 ```
 
-`monotonic_ns()` is a thin wrapper around `time.time_ns()` that guarantees a
+`now_ns()` is a thin wrapper around `time.time_ns()` that guarantees a
 strictly increasing integer nanosecond timestamp even if the system clock steps
 backward (due to NTP or a virtual machine hypervisor). It is a system call, and
 system calls are expensive (~300-500 nanoseconds each).
@@ -683,6 +586,9 @@ if not match:
         order.status = OrderStatus.REJECTED
         events.append(order)
         return trades, events
+    if order.order_type in (OrderType.STOP, OrderType.STOP_LIMIT):
+        self._add_stop(order, events)
+        return trades, events
     self._rest(order)
     return trades, events
 ```
@@ -693,8 +599,9 @@ auction, orders queue up so there is plenty of interest to trade when the auctio
 ends and a single equilibrium price is computed.
 
 Market, FOK, and IOC orders are rejected during an auction because they require
-immediate execution, which is not possible when no matching is happening. Limit and
-iceberg orders are accepted and placed directly onto the heap with no sweep attempt.
+immediate execution, which is not possible when no matching is happening. Stop and
+stop-limit orders are accepted into their stop heaps, and limit/iceberg orders are
+accepted and placed directly onto the book with no sweep attempt.
 
 ### Step 3: Dispatch to the Right Handler
 
@@ -986,45 +893,37 @@ and a resting order. It is the moment a trade is born.
 ```python
 def _apply_fill(self, aggressor, passive, fill_qty, fill_price,
                 trades, events, now):
-    # Reduce quantities on both orders
-    aggressor.remaining_qty -= fill_qty
-    passive.remaining_qty   -= fill_qty
-
-    # Update price-level quantity index
-    qty_index = self._bid_qty if passive.side == Side.BUY else self._ask_qty
-    qty_index[fill_price] -= fill_qty
-    if qty_index[fill_price] <= 0:
-        del qty_index[fill_price]   # price level is now empty
-
-    # If passive is fully consumed, mark it and remove from indexes
-    if passive.remaining_qty <= 0:
-        passive.status = OrderStatus.FILLED
-        self._order_index.pop(passive.id, None)
-        self._entry_index.pop(passive.id, None)
-        # The heap entry is already invalid from _peek() cleanup
-
-    # If aggressor is fully filled
-    if aggressor.remaining_qty <= 0:
-        aggressor.status = OrderStatus.FILLED
-
-    # Create the trade record
-    trade = Trade.create(
-        symbol=self.symbol,
-        buy_order_id=...,
-        sell_order_id=...,
-        price=fill_price,      # int ticks — the resting order's price
-        quantity=fill_qty,
-        now=now,
-    )
+    # Build trade and update last-trade stats
+    trade = Trade.create(..., now=now)
     trades.append(trade)
-    self.recent_trades.append(trade)
-
-    # Update last trade reference prices (used by stop trigger checks)
     self.last_trade_price = fill_price
-    if passive.side == Side.BUY:
-        self.last_buy_price  = fill_price
+    self.last_trade_qty = fill_qty
+
+    # Side-specific last prices are keyed by AGGRESSOR side in current code
+    if aggressor.side == Side.BUY:
+        self.last_buy_price = fill_price
     else:
         self.last_sell_price = fill_price
+
+    # Reduce both orders
+    aggressor.remaining_qty -= fill_qty
+    passive.remaining_qty -= fill_qty
+
+    # Aggressor status
+    aggressor.status = FILLED if aggressor.remaining_qty == 0 else PARTIAL
+
+    # Passive visible quantity / qty-index updates
+    # (icebergs replenish and reinsert, non-icebergs deduct fill_qty)
+    self._deduct_qty_index(passive, fill_qty)
+
+    # Passive status
+    passive.status = FILLED if passive.remaining_qty == 0 else PARTIAL
+    if passive.status == FILLED:
+        # Current implementation marks heap entry invalid; it does not
+        # immediately pop passive from _order_index/_entry_index here.
+        entry = self._entry_index.get(passive.id)
+        if entry:
+            entry.valid = False
 
     # Notify both sides
     events.append(aggressor)
@@ -1051,7 +950,7 @@ similar but serve completely different purposes:
 
 ```python
 self.last_trade_price = fill_price
-if passive.side == Side.BUY:
+if aggressor.side == Side.BUY:
     self.last_buy_price  = fill_price
 else:
     self.last_sell_price = fill_price
@@ -1063,14 +962,11 @@ aggressive. This is the field that stop-trigger checks use. After each fill,
 stop orders to decide whether any should fire. It answers: "what price did the most
 recent trade happen at?"
 
-**`last_buy_price`** — updated only when the passive (resting) order was on the BUY
-side. This means the fill was initiated by an aggressive SELL order hitting a resting
-bid. It records: "the most recent price at which a sell aggressor hit a standing
-bid." Used by market statistics and circuit breakers.
+**`last_buy_price`** — updated only when the aggressor side is BUY. It records the
+most recent price where an incoming buyer was the aggressor.
 
-**`last_sell_price`** — updated only when the passive order was on the SELL side,
-meaning an aggressive BUY order hit a resting ask. Records: "the most recent price
-at which a buy aggressor hit a standing offer."
+**`last_sell_price`** — updated only when the aggressor side is SELL. It records the
+most recent price where an incoming seller was the aggressor.
 
 **Why have both `last_buy_price` and `last_sell_price`?** The direction of the last
 aggression — whether a buyer swept into sellers or a seller swept into buyers — is a
@@ -1128,7 +1024,7 @@ operations and replaces them with O(log n) cleanup spread across many calls to
 def _rest(self, order):
     assert order.price is not None
     # INVARIANT: order.timestamp is strictly monotonically increasing thanks to
-    # monotonic_ns() (models/clock.py). No two orders share a timestamp, so
+    # now_ns() (models/clock.py). No two orders share a timestamp, so
     # price-time priority within a price level is always deterministic.
     qty = (
         order.displayed_qty
@@ -1282,9 +1178,9 @@ if _smp_action != SmpAction.NONE and _gw_id == best.gateway_id:
 order and **continues** the sweep loop with `continue`, looking for the next resting
 order which may belong to a different participant and can fill legitimately.
 
-`_smp_cancel_resting()` sets the resting order's status to CANCELLED, removes it
-from both indexes (`_order_index`, `_entry_index`), decrements the qty index, and
-appends the cancelled order to `events` so the gateway is notified.
+`_smp_cancel_resting()` sets the resting order's status to CANCELLED, marks its heap
+entry invalid via `_entry_index`, removes it from `_order_index`, decrements the qty
+index, and appends the cancelled order to `events` so the gateway is notified.
 
 
 
@@ -1382,34 +1278,16 @@ display processes (viewer, board, ticker). It produces the aggregated picture a
 market participant would see on their screen — total quantities at each price level,
 not individual orders.
 
-### Spread and Mid Price Are Derived Values
+### What `snapshot()` Returns in Current Code
 
-The `OrderBook` stores no `spread` or `mid_price` field. These are always computed
-fresh from the heap:
+Current `snapshot()` output includes:
 
-```python
-def snapshot(self):
-    best_bid = self._peek(self._bids)   # O(1) — top of bid heap
-    best_ask = self._peek(self._asks)   # O(1) — top of ask heap
+- Aggregated bid/ask rows (price, qty, count)
+- `last_price`, `last_qty`
+- `last_buy_price`, `last_sell_price`
+- `recent_trades` (last 5 trades from the deque)
 
-    spread   = None
-    mid      = None
-    if best_bid is not None and best_ask is not None:
-        spread = best_ask.price - best_bid.price      # e.g. 21 - 20 = 1 tick
-        mid    = (best_ask.price + best_bid.price) / 2
-```
-
-**Why derive rather than store?** The best bid and best ask change every time an
-order is added, cancelled, or filled. Keeping a `spread` field in sync would require
-updating it in `_rest()`, `cancel_order()`, and `_apply_fill()` — three places that
-already have enough to update. Deriving it in `snapshot()` is both correct and
-free: `_peek()` is O(1) and `snapshot()` is already doing those peeks to build
-the price level lists.
-
-**What if one side is empty?** If there are no resting asks (all sellers have left),
-`best_ask is None`, so there is no spread and no mid price. The snapshot is
-published with `spread: null` and `mid: null`. Display tools must handle this case
-and not divide by zero or assume a mid exists.
+It does **not** currently compute or publish `spread` or `mid` fields.
 
 ```python
     bids = {}
@@ -1461,7 +1339,7 @@ state.
 | `_entry_index` | Dict | `order_id` | `_HeapEntry` | O(1) lazy deletion |
 | `_bid_qty` | Dict | `price_ticks` | `int` | O(P) depth / FOK check |
 | `_ask_qty` | Dict | `price_ticks` | `int` | O(P) depth / FOK check |
-| `recent_trades` | Deque | — | `Trade` | Rolling last-20-trades window |
+| `recent_trades` | Deque | — | `Trade` | Rolling last-20-trades window (snapshot currently publishes last 5) |
 
 
 

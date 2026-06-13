@@ -6,6 +6,9 @@ The following definitions are written to be concise and standalone, useful as a 
 
 **Adverse Selection:** The risk a market maker faces when their quote is hit by a counterparty who has superior information about where prices are heading, causing the market maker to trade at a price that will quickly move against them. A market maker who is repeatedly adversely selected will lose money even while quoting at "correct" prices. MMP exists specifically to limit adverse selection damage.
 
+**Aggressive order:** (also called a **taker**) — an incoming order that immediately
+trades against resting orders. It "sweeps" the book.
+
 **Aggressor / Taker:** The participant whose incoming order triggered a match by crossing the spread to meet a resting order. The aggressor "takes" liquidity that was already available. Contrast with *Maker*, the participant whose resting order was already in the book.
 
 **Alternative Trading System (ATS):** A trading venue that matches orders but is not a registered national securities exchange. Includes ECNs and dark pools. Subject to lighter regulation than exchanges in some jurisdictions.
@@ -13,6 +16,7 @@ The following definitions are written to be concise and standalone, useful as a 
 **Arbitrage:** The simultaneous purchase and sale of the same (or equivalent) asset on different markets to profit from a price difference. Pure arbitrage is risk-free (buy cheap here, sell expensive there at the same moment); in practice, most arbitrage involves some timing or execution risk. Arbitrage is the mechanism by which prices on different venues are kept consistent, arbitrageurs quickly eliminate price discrepancies, making markets more efficient. **Latency arbitrage** is a specific form exploiting the time it takes for price changes to propagate between venues.
 
 **Ask / Offer:** The price at which a seller is willing to sell. The best (lowest) ask is the top of the sell side of the order book.
+The collection of all active asks forms the sell side of the book.
 
 **ATC (At-The-Close):** An order TIF valid only during the closing auction. Expired automatically when the opening auction ends.
 
@@ -39,7 +43,7 @@ can trade immediately.
 
 **Best Execution:** The regulatory obligation for brokers and investment firms to take all reasonable steps to achieve the best possible result for their clients when executing orders. "Best" considers price, execution costs, speed, likelihood of execution, and market impact simultaneously, not just the quoted price in isolation. Mandated by MiFID II in the EU and the SEC's duty of best execution in the US. Best execution is the regulatory foundation that makes smart order routing (SOR) necessary: brokers must demonstrate their routing decisions genuinely serve clients' interests, not just the broker's economics.
 
-**Bid:** The price at which a buyer is willing to buy. The best (highest) bid is the top of the buy side of the order book.
+**Bid:** The price at which a buyer is willing to buy. The best (highest) bid is the top of the buy side of the order book. The collection of all active bids forms the buy side of the book.
 
 **Bid-Ask Imbalance:** A measure of depth asymmetry: bid_depth / (bid_depth + ask_depth), computed within a symmetric price window around the mid. Values near 1 indicate heavy buying interest; values near 0 indicate heavy selling interest. Used as a short-term price direction signal.
 
@@ -123,7 +127,8 @@ stop-loss STOP, typically implemented as an OCO pair. See [OCO](user-guide/04-or
 
 **Delivery versus Payment (DvP):** The settlement principle that the transfer of securities and cash happen simultaneously and conditionally, neither is released without the other. Eliminates principal risk in settlement.
 
-**Depth (Market Depth):** The total quantity of resting orders available at each price level. Deep markets can absorb large orders with minimal price impact.
+**Depth (Market Depth):** The total quantity of resting orders available at each price level. Deep markets can absorb large orders with minimal price impact. Deep books have large quantities at each price, making it hard to move the
+price by trading. Shallow books are easier to move.
 
 **Depth-of-Book (Level 2):** Market data showing multiple price levels and their resting quantities, rather than only the best bid and ask.
 
@@ -169,7 +174,7 @@ stop-loss STOP, typically implemented as an OCO pair. See [OCO](user-guide/04-or
 
 **Fill:** An execution, a match between a buy and sell order resulting in a trade. Partial fills consume part of an order; a complete fill consumes all of it.
 
-**Fill-Or-Kill (FOK):** An order that must be completely filled immediately or cancelled entirely.
+**FOK (Fill-Or-Kill):** An order that must be completely filled immediately or cancelled entirely.
 
 **FIX (Financial Information eXchange):** The industry-standard protocol for electronic order submission, used by most exchanges and brokers globally.
 
@@ -195,7 +200,7 @@ stop-loss STOP, typically implemented as an OCO pair. See [OCO](user-guide/04-or
 **Going Short / Short Selling:** Selling an asset you do not currently own, typically by borrowing it from another party, with the intention of buying it back later at a lower price and returning it, pocketing the difference. The term originates in physical commodity trading: a merchant who had sold goods they did not yet possess, committing to deliver more than their warehouse held, was "short" of the goods. The same word family as "falling short," "short of supplies," or "shortage", deficient, insufficient, lacking. In the early forward markets of Amsterdam and London, a short seller would sell forward (promise future delivery), then purchase the goods in the market before delivery, hoping prices had fallen. Isaac Le Maire's 1609 campaign against VOC shares is the earliest recorded large-scale short selling operation. Today, a short position profits when the price falls (you buy back cheaper than you sold) and loses when it rises, in theory without limit, since a rising price has no ceiling.
 
 **GTC (Good-Till-Cancelled):** A time-in-force value that keeps an order alive across trading sessions. GTC
-orders are serialised to `data/gtc_orders.json` at shutdown and reloaded next session.
+orders are serialised to storage (disk) at shutdown and reloaded next session. Hence, it survives engine restarts.
 
 **GTD (Good-Till-Date):** An order Time-In-Force variant that keeps an order active until it fills, is explicitly cancelled, or reaches a specified expiry date, whichever comes first. On the expiry date the order is automatically cancelled. Provides the persistence of GTC without the open-ended risk of an order remaining active indefinitely. Requires the exchange scheduler to track each GTD order's expiry and issue the cancellation at the right time.
 
@@ -276,7 +281,7 @@ rests on the book. See [Order Types](user-guide/04-order-types.md#10-ioc-immedia
 
 **Level 2 Data (Market Depth):** The full order book, all price levels and their quantities.
 
-**Limit Order:** An order to trade at a specified price or better. May rest in the book if not immediately matched.
+**Limit Order:** An order with a price constraint. A buy limit order at $150.30 will only execute at $150.30 or lower — the buyer is setting the maximum price they will pay. A sell limit order at $150.35 will only execute at $150.35 or higher. Limit orders that cannot immediately match rest in the book.
 
 **Limit Up-Limit Down (LULD):** A US regulatory circuit breaker mechanism that pauses trading in an individual stock if its price moves outside a percentage band (the "price band") calculated from a reference price. The bands are tighter for liquid large-cap stocks and wider for smaller, more volatile ones. If the best offer falls below the lower band or the best bid rises above the upper band, trading pauses for 15 seconds; if the imbalance persists, a 5-minute trading halt begins. Implemented across all US equity exchanges.
 
@@ -299,6 +304,9 @@ as a positive number in EduMatcher's P&L ledger.
 **Margin Call:** A demand from a clearing house or broker for a participant to deposit additional collateral to restore their margin account to the required level.
 
 **Mark-to-Market:** The daily revaluation of positions at current market prices, with cash payments made to reflect daily gains and losses. The mechanism by which variation margin is calculated.
+
+**Market data:** The continuous stream of information about what is happening in the book: what prices orders are resting at, how much quantity, and what trades have happened. Display tools (viewer, board, ticker) consume market data.
+
 
 **Market Fragmentation:** The distribution of trading volume for a single instrument across multiple competing venues, exchanges, dark pools, ATSs, and internalisers. Modern equity markets are highly fragmented; in the US, AAPL may trade simultaneously across a dozen registered exchanges plus numerous alternative venues. Fragmentation improves competition and reduces fees but complicates order routing and best-execution analysis. Regulatory frameworks like Regulation NMS (US) and MiFID II (EU) were introduced partly in response to fragmentation.
 
@@ -361,6 +369,8 @@ Often used as a reference price when the spread is non-zero.
 
 **Options:** Contracts that give the buyer the right, but not the obligation, to buy (a **call option**) or sell (a **put option**) an underlying asset at a specified price (the **strike price**) before or on a specified date (the **expiry date**). The seller of an option takes on the corresponding obligation. Options are priced using models (Black-Scholes being the most famous) that account for time to expiry, volatility, interest rates, and the distance between the current price and the strike. Cboe is the world's largest options exchange.
 
+**Order:** An instruction to buy or sell a quantity of an instrument at a specified price or better.
+
 **Order Book:** The central data structure of a matching engine, all resting buy and sell orders for a symbol, organised by price.
 
 **Order ID:** A unique identifier assigned to each order upon submission. Must be unique across the entire system.
@@ -390,7 +400,7 @@ Often used as a reference price when the spread is non-zero.
 
 **Price Discovery:** The process by which the market determines the current fair price of an asset through the interaction of buyers and sellers. A well-functioning exchange enables efficient price discovery: prices reflect all currently available information and update rapidly as new information arrives. Price discovery is one of the three core promises every exchange makes. Poor price discovery, where the traded price diverges significantly from fair value for extended periods, is a sign of market dysfunction.
 
-**Price Level:** All resting orders at the same price on the same side of the book.
+**Price Level:** All resting orders at the same price on the same side of the book. Their combined quantity is the depth at that level.
 
 **Price-Time Priority:** The matching rule: better prices fill first; at the same price, earlier arrivals fill first.
 
@@ -441,7 +451,9 @@ position. Once realized, it cannot be reversed by subsequent price moves.
 
 **Reserve Refresh Priority:** The queue position rule for iceberg replenishment. Most exchanges place a newly replenished iceberg peak at the back of the queue at its price level, equivalent to a brand-new arrival, rather than preserving the original queue position.
 
-**Resting Order / Passive Order:** An order that has been accepted by the exchange and is waiting in the book for a counterparty.
+**Resting order** (also called a **passive order**) — an order that has been accepted
+by the exchange and is sitting in the book waiting for a counterparty. It does not
+execute immediately.
 
 **Retained Earnings:** Profits kept within the business rather than distributed to shareholders. A source of self-funding for company growth.
 
@@ -493,13 +505,13 @@ orders in thin books experience more slippage.
 
 **Spoofing:** A market manipulation practice: placing orders with no intention of trading to move prices, then cancelling before execution. Illegal under market abuse regulations.
 
-**Spread:** The difference between the best ask and the best bid. Market makers earn the spread; participants pay it as the cost of immediate trading.
+**Spread:** The difference between the best ask and the best bid. Market makers earn the spread; participants pay it as the cost of immediate trading.  A tighter spread means more liquid, cheaper-to-trade market.
 
 **State Machine:** A formal model consisting of a finite set of states and explicit rules about which transitions between states are allowed.
 
 **Static Price Collar (Fat-Finger Filter):** A pre-trade risk control that rejects any order whose submitted price deviates more than a configured percentage from the last official close price. Designed to catch obvious fat-finger errors, an order at $15.00 on a stock trading at $150.00 is almost certainly a decimal error. Because the reference is the previous close, the static collar is stable throughout the trading day. Contrast with *Dynamic Price Collar*, which tracks the most recent trade instead.
 
-**Stop Order:** A conditional order that is dormant until the market price reaches the stop price, then converts to another order type.
+**Stop Order:** A conditional order that is dormant until the market price reaches the stop price, then converts to another order type. Used to automatically exit a position if the price moves against you.
 
 **Stop Price:** The trigger price on a stop or stop-limit order. The order remains dormant until the market's last trade price reaches or crosses the stop price, at which point it activates and enters the book (as a market or limit order, depending on type). A buy stop has a stop price above the current market; a sell stop has a stop price below it.
 
@@ -534,7 +546,9 @@ orders in thin books experience more slippage.
 
 **Top-of-Book (Level 1):** Market data showing only the best bid price, best ask price, and their quantities. The minimum information needed to understand the current market.
 
-**Trade:** An executed match between a buy and sell order. Also called a fill or execution.
+**Trade:** An executed match between a buy and sell order. Also called a fill or execution. A trade record contains: the
+instrument, the price, the quantity, and which orders were involved.
+(also called a **fill** or **execution**)
 
 **Trailing Stop:** A stop order whose trigger price automatically advances in the favourable direction as the market moves, protected by a fixed trail offset.
 

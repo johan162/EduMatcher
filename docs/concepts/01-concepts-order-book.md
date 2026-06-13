@@ -17,9 +17,10 @@ When you buy a share of stock, someone else must sell it to you. But they may
 not be available at exactly the moment you want to trade, and you may not agree
 on price. The **order book** is the mechanism that bridges this gap.
 
-An order book is a sorted, live list of all orders that have been submitted to
-the exchange but have not yet traded. Every tradable instrument has its own
-book. Orders are separated into two sides:
+An order book is the live, sorted list of currently executable resting buy and
+sell orders for one instrument. Conditional orders such as stops are tracked
+separately until they trigger into executable orders. Every tradable instrument
+has its own book. Orders are separated into two sides:
 
 | Side | Also called | What it represents |
 |------|-------------|-------------------|
@@ -83,15 +84,15 @@ order can push the price significantly.
 
 Looking at our example book above, if a trader submits a market sell order for
 600 shares, it would:
-1. Fill 100 shares at the best bid of **149.90**
-2. Fill 500 shares at the next level, **149.80**
+1. Fill 200 shares at the best bid of **149.90**
+2. Fill 400 shares at the next level, **149.80**
 
 The average fill price would be:
 
-$$\frac{(100 \times 149.90) + (500 \times 149.80)}{600} = \frac{14990 + 74900}{600} = \frac{89890}{600} \approx 149.82$$
+$$\frac{(200 \times 149.90) + (400 \times 149.80)}{600} = \frac{29980 + 59920}{600} = \frac{89900}{600} \approx 149.83$$
 
 The trader wanted to sell at ~149.90 but the large size caused the actual
-average to be 149.82. This difference is called **slippage**.
+average to be 149.83. This difference is called **slippage**.
 
 
 
@@ -130,7 +131,7 @@ The result:
 |-------|------|-----------|
 | A     | 100  | 0 (fully filled) |
 | B     | 150  | 50 (partially filled, still resting) |
-| C     | 0    | 150 (still resting, now at the front of the remaining queue) |
+| C     | 0    | 150 (still resting, behind Order B in queue at this price) |
 
 This is why being early matters: all else being equal, the first order in
 queue has an advantage. This creates an incentive for market participants to
@@ -163,7 +164,7 @@ NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00
 4. Engine generates a `trade.executed` event:
    - buyer: GW01, qty: 100, price: 150.00
    - seller: GW02, qty: 100, price: 150.00
-5. Both orders are fully filled and removed from the book.
+5. Both orders are fully filled and removed from visible bid/ask levels.
 6. Engine publishes `order.fill.GW01` and `order.fill.GW02` to both gateways.
 7. Engine publishes a `book.AAPL` snapshot — that bid level is now gone.
 8. Clearing process receives `trade.executed` and updates both traders' P&L.

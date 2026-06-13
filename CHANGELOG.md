@@ -1,3 +1,19 @@
+## [v0.1.9] - 2026-06-13
+
+Release Type: patch
+
+### 📋 Summary
+This patch release expands the concept documentation with a new CALF market-data feed page, improves clarity across existing order-book pages, and reorganises the Glossary. GitHub Actions are also updated to be Node 24 compatible.
+
+### 📚 Documentation
+- Added new concept page explaining the CALF market-data protocol: channels, subscription flow, sequence-based gap detection, reconnect behaviour, and index dissemination
+- Improved wording and corrected depth examples in the order book introduction
+- Moved glossary terms from the order-book deep-dive page into the main Glossary section
+
+### 🛠 Internal
+- Updated GitHub Actions workflows and composite action to use Node 24 compatible action versions (`checkout@v5`, `setup-python@v6`, `cache@v5`)
+
+
 ## [v0.1.8] - 2026-06-13
 
 Release Type: patch
