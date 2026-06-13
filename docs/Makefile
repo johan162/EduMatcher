@@ -129,8 +129,8 @@ $(DOC_STAMP): $(DOC_FILES)
 
 # Directories
 DOCS_DIR := .
-DIST_DIR := ../dist
-BUILD_DIR := ../.build
+DIST_DIR := ./dist
+BUILD_DIR := ./.build
 SCRIPTS_DIR := ../scripts
 
 # Documentation Container Server configuration
@@ -236,23 +236,26 @@ help: ## Show this help message
 	@$(call print_section,Container,docs-container-build|docs-container-start|docs-container-stop|docs-container-restart|docs-container-status|docs-container-logs)
 	@echo ""
 
-
 # ============================================================================================
 # Documentation Targets
 # ============================================================================================
 docs: $(DOC_STAMP) ## Build the HTML project documentation with MkDocs
 	@:
 
-pdfs: pdf-docs | $(DIST_DIR) ## Build all PDF documentation variants in parallel
+pdfs: pdf-docs | $(DIST_DIR) $(BUILD_DIR) ## Build all PDF documentation variants in parallel
 	@:
 
-pdf-docs:  ## Build the user guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
+pdf-docs:  | $(DIST_DIR) $(BUILD_DIR) ## Build the user guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
 	@rm -rf $(USER_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm $(DIST_DIR)/$(PROJECT)_user-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(USER_GUIDE_A4_PDF) $(USER_GUIDE_DARK_A4_PDF) $(USER_GUIDE_B5_PDF) $(USER_GUIDE_DARK_B5_PDF)
 
 $(DIST_DIR) : ## Ensure the dist directory exists
 	@mkdir -p $(DIST_DIR)
+
+$(BUILD_DIR) : ## Ensure the build directory exists
+	@mkdir -p $(BUILD_DIR)
+
 
 # ============================================================================================
 # Macro: BUILD_USER_GUIDE_PDF
