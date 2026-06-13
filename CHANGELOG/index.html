@@ -74,7 +74,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#v015-2026-06-13" class="md-skip">
+        <a href="#v016-2026-06-13" class="md-skip">
           Skip to content
         </a>
       
@@ -1441,9 +1441,19 @@
 
   <h1>CHANGELOG</h1>
 
-<h2 id="v015-2026-06-13">[v0.1.5] - 2026-06-13<a class="headerlink" href="#v015-2026-06-13" title="Permanent link">&para;</a></h2>
+<h2 id="v016-2026-06-13">[v0.1.6] - 2026-06-13<a class="headerlink" href="#v016-2026-06-13" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
 <h3 id="summary">📋 Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h3>
+<p>This patch release cleans up release artifact layout so Python distributions stay at the top level while documentation PDFs remain in their own build directories.</p>
+<h3 id="internal">🛠 Internal<a class="headerlink" href="#internal" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Kept Python distribution artifacts in the top-level dist directory for publishing</li>
+<li>Kept documentation PDF builds in the docs dist directories to avoid mixing release assets</li>
+<li>Add PyPi publishing</li>
+</ul>
+<h2 id="v015-2026-06-13">[v0.1.5] - 2026-06-13<a class="headerlink" href="#v015-2026-06-13" title="Permanent link">&para;</a></h2>
+<p>Release Type: patch</p>
+<h3 id="summary_1">📋 Summary<a class="headerlink" href="#summary_1" title="Permanent link">&para;</a></h3>
 <p>This patch release improves the release automation flow by fixing GitHub release script issues and tightening package validation behavior during publication.</p>
 <h3 id="improvements">🚀 Improvements<a class="headerlink" href="#improvements" title="Permanent link">&para;</a></h3>
 <ul>
@@ -1455,7 +1465,7 @@
 </ul>
 <h2 id="v014-2026-06-13">[v0.1.4] - 2026-06-13<a class="headerlink" href="#v014-2026-06-13" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_1">📋 Summary<a class="headerlink" href="#summary_1" title="Permanent link">&para;</a></h3>
+<h3 id="summary_2">📋 Summary<a class="headerlink" href="#summary_2" title="Permanent link">&para;</a></h3>
 <p>This patch release improves the documentation build and release workflow while expanding the market data and index design documentation set. It also streamlines artifact generation to reduce duplicate build work.</p>
 <h3 id="improvements_1">🚀 Improvements<a class="headerlink" href="#improvements_1" title="Permanent link">&para;</a></h3>
 <ul>
@@ -1469,47 +1479,47 @@
 <li>Updated CALF design proposal content</li>
 <li>Fixed README documentation site URL</li>
 </ul>
-<h3 id="internal">🛠 Internal<a class="headerlink" href="#internal" title="Permanent link">&para;</a></h3>
+<h3 id="internal_1">🛠 Internal<a class="headerlink" href="#internal_1" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Updated User Guide LaTeX templates to include a cover page for book-style output</li>
 </ul>
 <h2 id="v013-2026-06-11">[v0.1.3] - 2026-06-11<a class="headerlink" href="#v013-2026-06-11" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_2">📋 Summary<a class="headerlink" href="#summary_2" title="Permanent link">&para;</a></h3>
+<h3 id="summary_3">📋 Summary<a class="headerlink" href="#summary_3" title="Permanent link">&para;</a></h3>
 <p>This patch release fixes issues in the GitHub release automation flow and stabilizes post-release branch synchronization after v0.1.2.</p>
 <h3 id="bug-fixes_1">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_1" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Fixed GitHub release script behavior for release creation flow</li>
 </ul>
-<h3 id="internal_1">🛠 Internal<a class="headerlink" href="#internal_1" title="Permanent link">&para;</a></h3>
+<h3 id="internal_2">🛠 Internal<a class="headerlink" href="#internal_2" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Updated release branch synchronization after v0.1.2</li>
 </ul>
 <h2 id="v012-2026-06-11">[v0.1.2] - 2026-06-11<a class="headerlink" href="#v012-2026-06-11" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_3">📋 Summary<a class="headerlink" href="#summary_3" title="Permanent link">&para;</a></h3>
+<h3 id="summary_4">📋 Summary<a class="headerlink" href="#summary_4" title="Permanent link">&para;</a></h3>
 <p>This patch release extends the release pipeline to build and bundle the Exchange Introduction document alongside the main package, producing a ZIP archive of all four PDF variants as a release asset.</p>
 <h3 id="improvements_2">🚀 Improvements<a class="headerlink" href="#improvements_2" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Improved release build to include Exchange Intro PDF generation in parallel with the main docs build</li>
 </ul>
-<h3 id="internal_2">🛠 Internal<a class="headerlink" href="#internal_2" title="Permanent link">&para;</a></h3>
+<h3 id="internal_3">🛠 Internal<a class="headerlink" href="#internal_3" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added ZIP bundling of Exchange Intro PDFs into a single release asset archive</li>
 <li>Updated main build target to invoke the Exchange Intro build step</li>
 </ul>
 <h2 id="v011-2026-06-11">[v0.1.1] - 2026-06-11<a class="headerlink" href="#v011-2026-06-11" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_4">📋 Summary<a class="headerlink" href="#summary_4" title="Permanent link">&para;</a></h3>
+<h3 id="summary_5">📋 Summary<a class="headerlink" href="#summary_5" title="Permanent link">&para;</a></h3>
 <p>This patch release hardens the first-time release workflow after the initial public launch. It focuses on branch initialization and merge-path clarity so releases from develop to main complete predictably.</p>
-<h3 id="internal_3">🛠 Internal<a class="headerlink" href="#internal_3" title="Permanent link">&para;</a></h3>
+<h3 id="internal_4">🛠 Internal<a class="headerlink" href="#internal_4" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Improved release script messaging around preconditions for squash merges</li>
 <li>Updated release process checks to surface branch-state issues earlier</li>
 </ul>
 <h2 id="v010-2026-06-11">[v0.1.0] - 2026-06-11<a class="headerlink" href="#v010-2026-06-11" title="Permanent link">&para;</a></h2>
 <p>Release Type: minor</p>
-<h3 id="summary_5">📋 Summary<a class="headerlink" href="#summary_5" title="Permanent link">&para;</a></h3>
+<h3 id="summary_6">📋 Summary<a class="headerlink" href="#summary_6" title="Permanent link">&para;</a></h3>
 <p>This is the inaugural public release of EduMatcher, featuring a complete educational matching engine with all essential exchange functionality. Designed for educational purposes, the engine implements realistic order matching, market data, and session management while intentionally omitting authentication and authorization to focus on core exchange principles.</p>
 <h3 id="additions">✨ Additions<a class="headerlink" href="#additions" title="Permanent link">&para;</a></h3>
 <ul>
@@ -1535,7 +1545,7 @@
 <li>Added quick-start examples and API reference</li>
 <li>Added integration guide for MCP server usage</li>
 </ul>
-<h3 id="internal_4">🛠 Internal<a class="headerlink" href="#internal_4" title="Permanent link">&para;</a></h3>
+<h3 id="internal_5">🛠 Internal<a class="headerlink" href="#internal_5" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Established comprehensive test coverage for matching logic and order types</li>
 <li>Configured Poetry-based development environment with dev, docs, and MCP extras</li>
