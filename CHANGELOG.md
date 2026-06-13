@@ -1,3 +1,24 @@
+## [v0.1.4] - 2026-06-13
+
+Release Type: patch
+
+### 📋 Summary
+This patch release improves the documentation build and release workflow while expanding the market data and index design documentation set. It also streamlines artifact generation to reduce duplicate build work.
+
+### 🚀 Improvements
+- Improved build and release scripts to avoid duplicate artifact builds
+- Improved documentation PDF pipeline by cleaning Markdown inputs before rendering
+- Improved visual documentation by replacing an ASCII graph with a Mermaid diagram
+
+### 📚 Documentation
+- Added index calculation design documentation
+- Updated CALF design proposal content
+- Fixed README documentation site URL
+
+### 🛠 Internal
+- Updated User Guide LaTeX templates to include a cover page for book-style output
+
+
 ## [v0.1.3] - 2026-06-11
 
 Release Type: patch
