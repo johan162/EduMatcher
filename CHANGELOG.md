@@ -1,3 +1,18 @@
+## [v0.1.8] - 2026-06-13
+
+Release Type: patch
+
+### 📋 Summary
+This patch release fixes chapter numbering in generated User Guide PDFs and cleans up related documentation build templates and Makefile flow.
+
+### 🐛 Bug Fixes
+- Fixed User Guide chapter numbering by switching LaTeX templates from front matter to main matter before chapter content
+- Fixed incorrect imprint text in User Guide templates
+
+### 🛠 Internal
+- Cleaned up docs Makefile pipeline and template handling for PDF generation
+
+
 ## [v0.1.7] - 2026-06-13
 
 Release Type: patch

@@ -1,10 +1,9 @@
-# Makefile for building Documentation for the MCProjSim project
+# Makefile for building Documentation
 
-.PHONY: docs gen-examples update-version pdf-docs docs-serve \
- container-engine-check docs-container-build docs-container-start docs-container-stop \
- docs-container-restart docs-container-status docs-container-logs docs-deploy help clean really-clean \
- pdfs pdf-docs cover cover-light cover-dark \
- cover-user-guide-a4-light cover-user-guide-a4-dark cover-user-guide-b5-light cover-user-guide-b5-dark
+.PHONY: docs pdf-docs 
+
+# container-engine-check docs-container-build docs-container-start docs-container-stop \
+# docs-container-restart docs-container-status docs-container-logs docs-deploy help clean 
 
 
 # Makefile itself as a dependency to ensure it is re-evaluated when changed
@@ -52,62 +51,9 @@ UNDERLINE := \033[4m
 # ============================================================================================
 # Tool availability checks
 # ============================================================================================
-
 POETRY := $(shell command -v poetry 2>/dev/null)
-PODMAN := $(shell command -v podman 2>/dev/null)
-PODMAN_COMPOSE := $(shell command -v podman-compose 2>/dev/null)
-DOCKER := $(shell command -v docker 2>/dev/null)
-DOCKER_COMPOSE := $(shell command -v docker-compose 2>/dev/null)
-
 ifeq ($(POETRY),)
     $(error poetry not found. MacOS Install with: pip install poetry)
-endif
-
-# If both podman and docker are missing, raise an error
-ifeq ($(PODMAN),)
-    ifeq ($(DOCKER),)
-        $(error Neither podman nor docker found. Please install one of them.)
-    endif
-endif
-
-ifeq ($(PODMAN_COMPOSE),)
-    ifeq ($(DOCKER_COMPOSE),)
-        $(error Neither podman-compose nor docker-compose found. Please install one of them.)
-    endif
-endif
-
-# Check which container engine is running and set the appropriate tool
-# PODMAN_RUNNING := $(shell podman info >/dev/null 2>&1 && echo "yes" || echo "no")
-# DOCKER_RUNNING := $(shell docker info >/dev/null 2>&1 && echo "yes" || echo "no")
-# NO_CONTAINER_ENGINE := $(shell if [ "$(PODMAN_RUNNING)" = "no" ] && [ "$(DOCKER_RUNNING)" = "no" ]; then echo "yes"; else echo "no"; fi)
-# 
-# ifeq ($(PODMAN_RUNNING),yes)
-#     CONTAINER_CMD := ${PODMAN}
-#     CONTAINER_COMPOSE_CMD := ${PODMAN_COMPOSE}
-#     $(info Using Podman as the container engine)
-# else ifeq ($(DOCKER_RUNNING),yes)
-#     CONTAINER_CMD := ${DOCKER}
-#     CONTAINER_COMPOSE_CMD := ${DOCKER_COMPOSE}
-#     $(info Using Docker as the container engine)
-# else
-#     $(info **WARNING** Neither Podman nor Docker engine is running. Please start one of them to use container-related targets.)
-# endif
-
-# Check if we're behind a proxy (detect proxy environment variables and CA cert)
-PROXY_DETECTED := no
-# ifneq ($(HTTP_PROXY)$(HTTPS_PROXY)$(http_proxy)$(https_proxy),)
-#     PROXY_DETECTED := yes
-# endif
-# ifeq ($(shell [ -f ${PROXY_CA_FILE} ] && [ -s ${PROXY_CA_FILE} ] && echo "yes"),yes)
-#     PROXY_DETECTED := yes
-# endif
-
-ifeq ($(PROXY_DETECTED),yes)
-    $(info Proxy environment detected - will use proxy CA certificate for container builds)
-    DEFAULT_CONTAINER_BUILD := container-build-proxy
-else
-    $(info No proxy detected - will use standard container build)
-    DEFAULT_CONTAINER_BUILD := container-build-standard
 endif
 
 # ============================================================================================
@@ -130,8 +76,9 @@ $(DOC_STAMP): $(DOC_FILES)
 # Directories
 DOCS_DIR := .
 DIST_DIR := ./dist
-BUILD_DIR := ./.build
+BUILD_DIR := .build
 SCRIPTS_DIR := ../scripts
+SITE_DIR := ../site
 
 # Documentation Container Server configuration
 SERVER_HOST := 0.0.0.0
@@ -161,7 +108,7 @@ USER_GUIDE_LUA_FILTER_FLAGS := --lua-filter $(USER_GUIDE_LUA_FILTER) --lua-filte
 USER_GUIDE_MD_SOURCES := \
 	$(sort $(wildcard $(DOCS_DIR)/user-guide/[0-9][0-9]-*.md))
 
-$(info USER_GUIDE_MD_SOURCES: $(USER_GUIDE_MD_SOURCES))
+# $(info USER_GUIDE_MD_SOURCES: $(USER_GUIDE_MD_SOURCES))
 
 # Non-markdown assets that should still trigger a rebuild when changed.
 USER_GUIDE_PDF_DEPS := \
@@ -173,33 +120,10 @@ USER_GUIDE_PDF_DEPS := \
 	$(DOCS_DIR)/user-guide/template_dark_b5.tex 
 
 
-# ============================================================================================
-# Macro: DEFINE_USER_GUIDE_VARS
-# Derives all variant-specific file-path variables from the base name alone.
-# $(1) = USER_GUIDE | USER_GUIDE_B5 | USER_GUIDE_DARK | USER_GUIDE_DARK_B5
-#
-# The suffix is extracted by stripping the USER_GUIDE prefix from $(1):
-#   tex_sfx  — lowercase with underscores (_b5, _dark, _dark_b5)  for LaTeX template names
-#   file_sfx — lowercase with hyphens    (-b5, -dark, -dark-b5)   for all other file names
-# ============================================================================================
-define DEFINE_USER_GUIDE_VARS
-$(1)_TEMPLATE     := $$(DOCS_DIR)/user-guide/template$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]' '[:lower:]').tex
-$(1)_PDF          := $$(DIST_DIR)/$$(PROJECT)_user-guide$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-')-$$(VERSION).pdf
-$(1)_CONCAT_MD    := $$(USER_GUIDE_BUILD_DIR)/user-guide_concat$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').md
-$(1)_BODY_TEX     := $$(USER_GUIDE_BUILD_DIR)/user-guide_body$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').tex
-$(1)_TEX          := $$(USER_GUIDE_BUILD_DIR)/user-guide_report$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').tex
-$(1)_PDF_BUILT    := $$(USER_GUIDE_BUILD_DIR)/user-guide_report$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').pdf
-$(1)_EXPANDED_DIR := $$(USER_GUIDE_BUILD_DIR)/expanded$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-')
-endef
-
-$(eval $(call DEFINE_USER_GUIDE_VARS,USER_GUIDE_A4))
-$(eval $(call DEFINE_USER_GUIDE_VARS,USER_GUIDE_B5))
-$(eval $(call DEFINE_USER_GUIDE_VARS,USER_GUIDE_DARK_A4))
-$(eval $(call DEFINE_USER_GUIDE_VARS,USER_GUIDE_DARK_B5))
-
-
 # Source and Test Files
 DOC_FILES := ../mkdocs.yml $(shell find $(DOCS_DIR) -name '*.md' -o -name '*.yml' -o -name '*.yaml' -o -name '*.lua' -o -name '*.tex') 
+
+# $(info DOC_FILES: $(DOC_FILES))
 
 # Timestamp files
 STAMP_DIR := .makefile-stamps
@@ -236,25 +160,30 @@ help: ## Show this help message
 	@$(call print_section,Container,docs-container-build|docs-container-start|docs-container-stop|docs-container-restart|docs-container-status|docs-container-logs)
 	@echo ""
 
+
 # ============================================================================================
-# Documentation Targets
+# Macro: DEFINE_USER_GUIDE_VARS
+# Derives all variant-specific file-path variables from the base name alone.
+# $(1) = USER_GUIDE | USER_GUIDE_B5 | USER_GUIDE_DARK | USER_GUIDE_DARK_B5
+#
+# The suffix is extracted by stripping the USER_GUIDE prefix from $(1):
+#   tex_sfx  — lowercase with underscores (_b5, _dark, _dark_b5)  for LaTeX template names
+#   file_sfx — lowercase with hyphens    (-b5, -dark, -dark-b5)   for all other file names
 # ============================================================================================
-docs: $(DOC_STAMP) ## Build the HTML project documentation with MkDocs
-	@:
+define DEFINE_USER_GUIDE_VARS
+$(1)_TEMPLATE     := $$(DOCS_DIR)/user-guide/template$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]' '[:lower:]').tex
+$(1)_PDF          := $$(DIST_DIR)/$$(PROJECT)_user-guide$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-')-$$(VERSION).pdf
+$(1)_CONCAT_MD    := $$(USER_GUIDE_BUILD_DIR)/user-guide_concat$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').md
+$(1)_BODY_TEX     := $$(USER_GUIDE_BUILD_DIR)/user-guide_body$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').tex
+$(1)_TEX          := $$(USER_GUIDE_BUILD_DIR)/user-guide_report$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').tex
+$(1)_PDF_BUILT    := $$(USER_GUIDE_BUILD_DIR)/user-guide_report$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-').pdf
+$(1)_EXPANDED_DIR := $$(USER_GUIDE_BUILD_DIR)/expanded$(shell printf '%s' '$(patsubst USER_GUIDE%,%,$(1))' | tr '[:upper:]_' '[:lower:]-')
+endef
 
-pdfs: pdf-docs | $(DIST_DIR) $(BUILD_DIR) ## Build all PDF documentation variants in parallel
-	@:
-
-pdf-docs:  | $(DIST_DIR) $(BUILD_DIR) ## Build the user guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
-	@rm -rf $(USER_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
-	@rm $(DIST_DIR)/$(PROJECT)_user-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
-	@$(MAKE) -j4 $(USER_GUIDE_A4_PDF) $(USER_GUIDE_DARK_A4_PDF) $(USER_GUIDE_B5_PDF) $(USER_GUIDE_DARK_B5_PDF)
-
-$(DIST_DIR) : ## Ensure the dist directory exists
-	@mkdir -p $(DIST_DIR)
-
-$(BUILD_DIR) : ## Ensure the build directory exists
-	@mkdir -p $(BUILD_DIR)
+$(eval $(call DEFINE_USER_GUIDE_VARS,USER_GUIDE_A4))
+$(eval $(call DEFINE_USER_GUIDE_VARS,USER_GUIDE_B5))
+$(eval $(call DEFINE_USER_GUIDE_VARS,USER_GUIDE_DARK_A4))
+$(eval $(call DEFINE_USER_GUIDE_VARS,USER_GUIDE_DARK_B5))
 
 
 # ============================================================================================
@@ -306,7 +235,6 @@ $$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$($1_TEMPLATE) $$
 	@echo -e "$$(GREEN)✓ User guide PDF built: $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(GREEN)$$(NC)"
 endef
 
-
 # ============================================================================================
 # User Guide PDF targets — A4 light, A4 dark, B5 light, B5 dark
 # ============================================================================================
@@ -314,7 +242,6 @@ $(eval $(call BUILD_USER_GUIDE_PDF,USER_GUIDE_A4,a4))
 $(eval $(call BUILD_USER_GUIDE_PDF,USER_GUIDE_B5,b5))
 $(eval $(call BUILD_USER_GUIDE_PDF,USER_GUIDE_DARK_A4,a4))
 $(eval $(call BUILD_USER_GUIDE_PDF,USER_GUIDE_DARK_B5,b5))
-
 
 # Echo all User Guide Variables for debugging Makefile variable generation. 
 # $(info USER_GUIDE_PDF_DEPS: $(USER_GUIDE_PDF_DEPS))
@@ -330,6 +257,27 @@ $(eval $(call BUILD_USER_GUIDE_PDF,USER_GUIDE_DARK_B5,b5))
 # $(info USER_GUIDE_DARK_B5_TEX: $(USER_GUIDE_DARK_B5_TEX))
 # $(info USER_GUIDE_DARK_B5_PDF_BUILT: $(USER_GUIDE_DARK_B5_PDF_BUILT))
 
+# ============================================================================================
+# Documentation Targets
+# ============================================================================================
+docs: $(DOC_STAMP) ## Build the HTML project documentation with MkDocs
+	@:
+
+pdf-docs:  | $(DIST_DIR) $(BUILD_DIR) ## Build the user guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
+	@rm -rf $(USER_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
+	@rm $(DIST_DIR)/$(PROJECT)_user-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
+	@$(MAKE) -j4 $(USER_GUIDE_A4_PDF) $(USER_GUIDE_DARK_A4_PDF) $(USER_GUIDE_B5_PDF) $(USER_GUIDE_DARK_B5_PDF)
+
+$(DIST_DIR) : ## Ensure the dist directory exists
+	@mkdir -p $(DIST_DIR)
+
+$(BUILD_DIR) : ## Ensure the build directory exists
+	@mkdir -p $(BUILD_DIR)
+
+clean: ## Clean build artifacts (HTML site, PDF build files, logs)
+	@echo -e "$(DARKYELLOW)- Cleaning build artifacts...$(NC)"
+	@rm -rf  $(BUILD_DIR) $(DIST_DIR) $(STAMP_DIR) $(SITE_DIR)
+	@echo -e "$(GREEN)✓ Cleaned build artifacts$(NC)"
 
 # ============================================================================================
 # Doc-server
@@ -342,38 +290,76 @@ serve: docs ## Serve the project documentation locally with MkDocs
 # ============================================================================================
 # Container handling
 # ============================================================================================
-container-engine-check:
-	@if [ "$(NO_CONTAINER_ENGINE)" = "yes" ]; then \
-        echo -e "$(YELLOW)⚠️  Warning: No container engine detected. Skipping container operation. Please start Podman or Docker.$(NC)"; \
-        exit 1; \
-    fi
 
-docs-container-build: | container-engine-check ## Build the containerized documentation image
-	@MCPROJSIM_DOCS_PORT=$(DOCS_PORT) $(DOCS_CONTAINER_SCRIPT) build 
 
-docs-container-start: | container-engine-check ## Start the containerized documentation server
-	@MCPROJSIM_DOCS_PORT=$(DOCS_PORT) $(DOCS_CONTAINER_SCRIPT) start
+# PODMAN := $(shell command -v podman 2>/dev/null)
+# PODMAN_COMPOSE := $(shell command -v podman-compose 2>/dev/null)
+# DOCKER := $(shell command -v docker 2>/dev/null)
+# DOCKER_COMPOSE := $(shell command -v docker-compose 2>/dev/null)
 
-docs-container-stop: | container-engine-check ## Stop the containerized documentation server
-	@MCPROJSIM_DOCS_PORT=$(DOCS_PORT) $(DOCS_CONTAINER_SCRIPT) stop
+# # If both podman and docker are missing, raise an error
+# ifeq ($(PODMAN),)
+#     ifeq ($(DOCKER),)
+#         $(error Neither podman nor docker found. Please install one of them.)
+#     endif
+# endif
 
-docs-container-restart: | container-engine-check ## Restart the containerized documentation server
-	@MCPROJSIM_DOCS_PORT=$(DOCS_PORT) $(DOCS_CONTAINER_SCRIPT) restart
+# ifeq ($(PODMAN_COMPOSE),)
+#     ifeq ($(DOCKER_COMPOSE),)
+#         $(error Neither podman-compose nor docker-compose found. Please install one of them.)
+#     endif
+# endif
 
-docs-container-status: | container-engine-check ## Show status for the containerized documentation server
-	@MCPROJSIM_DOCS_PORT=$(DOCS_PORT) $(DOCS_CONTAINER_SCRIPT) status
+# Check which container engine is running and set the appropriate tool chain
+# PODMAN_RUNNING := $(shell podman info >/dev/null 2>&1 && echo "yes" || echo "no")
+# DOCKER_RUNNING := $(shell docker info >/dev/null 2>&1 && echo "yes" || echo "no")
+# NO_CONTAINER_ENGINE := $(shell if [ "$(PODMAN_RUNNING)" = "no" ] && [ "$(DOCKER_RUNNING)" = "no" ]; then echo "yes"; else echo "no"; fi)
+# 
+# ifeq ($(PODMAN_RUNNING),yes)
+#     CONTAINER_CMD := ${PODMAN}
+#     CONTAINER_COMPOSE_CMD := ${PODMAN_COMPOSE}
+#     $(info Using Podman as the container engine)
+# else ifeq ($(DOCKER_RUNNING),yes)
+#     CONTAINER_CMD := ${DOCKER}
+#     CONTAINER_COMPOSE_CMD := ${DOCKER_COMPOSE}
+#     $(info Using Docker as the container engine)
+# else
+#     $(info **WARNING** Neither Podman nor Docker engine is running. Please start one of them to use container-related targets.)
+# endif
+# 
+# 
+# container-engine-check:
+# 	@if [ "$(NO_CONTAINER_ENGINE)" = "yes" ]; then \
+#         echo -e "$(YELLOW)⚠️  Warning: No container engine detected. Skipping container operation. Please start Podman or Docker.$(NC)"; \
+#         exit 1; \
+#     fi
 
-docs-container-logs: | container-engine-check ## Show logs for the containerized documentation server
-	@MCPROJSIM_DOCS_PORT=$(DOCS_PORT) $(DOCS_CONTAINER_SCRIPT) logs --follow
+# docs-container-build: | container-engine-check ## Build the containerized documentation image
+# 	@MCPROJSIM_DOCS_PORT=$(DOCS_PORT) $(DOCS_CONTAINER_SCRIPT) build 
 
-docs-deploy: ## Build and deploy documentation to GitHub Pages
-	@echo -e "$(DARKYELLOW)- Deploying documentation to GitHub Pages...$(NC)"
-	@if poetry run mkdocs gh-deploy --force; then \
-		echo -e "$(GREEN)✓ Documentation deployed successfully$(NC)"; \
-	else \
-		echo -e "$(RED)✗ Error: Documentation deployment failed$(NC)"; \
-		exit 1; \
-	fi
+# docs-container-start: | container-engine-check ## Start the containerized documentation server
+# 	@MCPROJSIM_DOCS_PORT=$(DOCS_PORT) $(DOCS_CONTAINER_SCRIPT) start
+
+# docs-container-stop: | container-engine-check ## Stop the containerized documentation server
+# 	@MCPROJSIM_DOCS_PORT=$(DOCS_PORT) $(DOCS_CONTAINER_SCRIPT) stop
+
+# docs-container-restart: | container-engine-check ## Restart the containerized documentation server
+# 	@MCPROJSIM_DOCS_PORT=$(DOCS_PORT) $(DOCS_CONTAINER_SCRIPT) restart
+
+# docs-container-status: | container-engine-check ## Show status for the containerized documentation server
+# 	@MCPROJSIM_DOCS_PORT=$(DOCS_PORT) $(DOCS_CONTAINER_SCRIPT) status
+
+# docs-container-logs: | container-engine-check ## Show logs for the containerized documentation server
+# 	@MCPROJSIM_DOCS_PORT=$(DOCS_PORT) $(DOCS_CONTAINER_SCRIPT) logs --follow
+
+# docs-deploy: ## Build and deploy documentation to GitHub Pages
+# 	@echo -e "$(DARKYELLOW)- Deploying documentation to GitHub Pages...$(NC)"
+# 	@if poetry run mkdocs gh-deploy --force; then \
+# 		echo -e "$(GREEN)✓ Documentation deployed successfully$(NC)"; \
+# 	else \
+# 		echo -e "$(RED)✗ Error: Documentation deployment failed$(NC)"; \
+# 		exit 1; \
+# 	fi
 
 # EOF
 
