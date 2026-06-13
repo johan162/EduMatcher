@@ -358,13 +358,10 @@ if [ -d "docs-exchange-intro" ]; then
         EXCHANGE_INTRO_VERSION="unknown"
         exit 1;
     fi
-    print_sub_step "Deleting old versions of Exchange Intro PDFs from dist/"
-    run_command "rm -f dist/exchange-intro-*.pdf" "Cleaning old Exchange Intro PDFs"
     print_sub_step "Building Exchange Intro Booklet"
     run_command "make -C docs-exchange-intro -j4" "Building Exchange Intro Booklet"
     print_sub_step "Zipping them together"
     run_command "(cd docs-exchange-intro/dist && zip -9 exchange-intro-bundle-${EXCHANGE_INTRO_VERSION}.zip exchange-intro*.pdf)" "Creating ZIP bundle of Exchange Intro PDFs"
-    run_command "cp docs-exchange-intro/dist/exchange-intro-bundle-${EXCHANGE_INTRO_VERSION}.zip dist/" "Copying Exchange Intro ZIP bundle to dist/"
 else
     print_warning "docs-exchange-intro directory not found; skipping Exchange Intro PDF build"
 fi
@@ -373,9 +370,8 @@ fi
 if [ -d "docs" ]; then
     print_sub_step "Generating PDF version of User Guide for release assets..."
     run_command "make -C docs -j4 pdf-docs" "Building User Guide PDFs (v${VERSION}) with Makefile"
-    print_sub_step "Creating ZIP bundles of User Guide PDFs (v${VERSION}) for release assets..."
-    (cd ./dist && zip -9 "${PROGRAMNAME}_user-guide-bundle-${VERSION}.zip" "${PROGRAMNAME}_user-guide-a4-${VERSION}.pdf" "${PROGRAMNAME}_user-guide-b5-${VERSION}.pdf" "${PROGRAMNAME}_user-guide-dark-a4-${VERSION}.pdf"  "${PROGRAMNAME}_user-guide-dark-b5-${VERSION}.pdf")
-    (cd ./dist && rm *.pdf)
+    print_sub_step "Creating ZIP bundle of User Guide PDFs (v${VERSION}) for release assets..."
+    (cd docs/dist && zip -9 "${PROGRAMNAME}_user-guide-bundle-${VERSION}.zip" "${PROGRAMNAME}_user-guide-a4-${VERSION}.pdf" "${PROGRAMNAME}_user-guide-b5-${VERSION}.pdf" "${PROGRAMNAME}_user-guide-dark-a4-${VERSION}.pdf"  "${PROGRAMNAME}_user-guide-dark-b5-${VERSION}.pdf")
 else
     print_warning "docs directory not found; skipping User Guide PDF build"
 fi
