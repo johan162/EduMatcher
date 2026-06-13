@@ -301,6 +301,14 @@ if ! grep -Eq "^## \[v${VERSION}\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" CHANGELOG.md; 
 fi
 print_success "Found CHANGELOG entry for v$VERSION"
 
+# 1.8: Validate that the Python artifacts for this version have been built and are valid
+run_command "poetry run twine check dist/edumatcher-${VERSION}*.whl dist/edumatcher-${VERSION}*.tar.gz" "Verifying built packages..."
+
+if [[ "$DRY_RUN" == "false" && $? -ne 0 ]]; then
+    print_error_colored "Distribution package validation failed"
+    exit 1
+fi
+
 
 # =====================================
 # PHASE 2: RELEASE EXECUTION
@@ -433,30 +441,13 @@ else
 fi
 
 # =====================================
-# PHASE 5: BUILD DISTRIBUTION PACKAGE
-# =====================================
-print_step_colored ""
-print_step_colored "📦 PHASE 5: PACKAGE FOR DISTRIBUTION"
-print_step_colored ""
-
-# Packages are built by previous mkbld.sh script, so here we just validate the build and prepare release assets
-
-# 5.3: Package building validation
-run_command "poetry run twine check dist/*" "Verifying built packages..."
-
-if [[ "$DRY_RUN" == "false" && $? -ne 0 ]]; then
-    print_error_colored "Distribution package validation failed"
-    exit 1
-fi
-
-# =====================================
-# PHASE 6: RELEASE SUMMARY
+# PHASE 5: RELEASE SUMMARY
 # =====================================
 
 echo ""
 if [[ "$DRY_RUN" == "true" ]]; then
     print_step_colored ""
-    print_step_colored "🔍 PHASE 6: DRY RUN RELEASE SUMMARY"
+    print_step_colored "🔍 PHASE 5: DRY RUN RELEASE SUMMARY"
     print_step_colored ""
     echo "📋 Commands that would be executed:"
     echo "   → All validation checks (repository state, version format, etc.)"
@@ -473,7 +464,7 @@ if [[ "$DRY_RUN" == "true" ]]; then
     echo "   $0 $VERSION $RELEASE_TYPE"
 else
     print_step_colored ""
-    print_step_colored "✅ PHASE 6: RELEASE SUMMARY"
+    print_step_colored "✅ PHASE 5: RELEASE SUMMARY"
     print_step_colored ""
     print_success_colored "🎉 ${PROGRAMNAME_PRETTY} v${VERSION} released successfully!"
     echo ""
