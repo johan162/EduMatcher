@@ -498,16 +498,16 @@ VERSION_NUMBER=${LATEST_TAG#v}
 
 # Strip the '-' from the version for pre-releases
 FILE_VERSION_NUMBER=${VERSION_NUMBER//-rc/rc}
-EXPECTED_USER_GUIDE_BUNDLE_ZIP="${DIST_DIR}/${PROGRAMNAME}_user-guide-bundle-${FILE_VERSION_NUMBER}.zip"
+USER_GUIDE_BUNDLE_ZIP="docs/dist/${PROGRAMNAME}_user-guide-bundle-${FILE_VERSION_NUMBER}.zip"
 
 # 4.4: Fail fast if required release artifacts are missing
 print_sub_step "Checking required release artifacts..."
 
-if [[ ! -f "$EXPECTED_USER_GUIDE_BUNDLE_ZIP" ]]; then
-    print_error "Required user guide bundle is missing: $EXPECTED_USER_GUIDE_BUNDLE_ZIP"
+if [[ ! -f "$USER_GUIDE_BUNDLE_ZIP" ]]; then
+    print_error "Required user guide bundle is missing: $USER_GUIDE_BUNDLE_ZIP"
     exit 1
 fi
-print_success "Required artifacts found: $(basename "$EXPECTED_USER_GUIDE_BUNDLE_ZIP")"
+print_success "Required artifacts found: $(basename "$USER_GUIDE_BUNDLE_ZIP")"
 
 if [ -f "docs-exchange-intro/version.toml" ]; then
     EXCHANGE_INTRO_VERSION=$(awk -F'=' '/version/ { gsub(/[ "]/, "", $2); print $2; exit }' docs-exchange-intro/version.toml)
@@ -517,7 +517,7 @@ else
     exit 1;
 fi
 
-EXCHANGE_INTRO_BUNDLE_ZIP="${DIST_DIR}/exchange-intro-bundle-${EXCHANGE_INTRO_VERSION}.zip"
+EXCHANGE_INTRO_BUNDLE_ZIP="docs-exchange-intro/dist/exchange-intro-bundle-${EXCHANGE_INTRO_VERSION}.zip"
 if [[ ! -f "$EXCHANGE_INTRO_BUNDLE_ZIP" ]]; then
     print_error "Exchange Intro bundle not found: $EXCHANGE_INTRO_BUNDLE_ZIP"
     exit 1
@@ -525,12 +525,10 @@ else
     print_success "Found Exchange Intro bundle: $(basename "$EXCHANGE_INTRO_BUNDLE_ZIP")"
 fi
 
-
 # 4.5: Locate expected python artifacts
 print_sub_step "Locating artifacts with version $FILE_VERSION_NUMBER..."
 WHEEL_FILE=$(find "$DIST_DIR" -name "${PROGRAMNAME}-${FILE_VERSION_NUMBER}-*.whl" | head -1)
 SDIST_FILE=$(find "$DIST_DIR" -name "${PROGRAMNAME}-${FILE_VERSION_NUMBER}.tar.gz" | head -1)
-USER_GUIDE_BUNDLE_ZIP="$EXPECTED_USER_GUIDE_BUNDLE_ZIP"
 
 if [[ -z "$WHEEL_FILE" ]]; then
     print_error "Wheel file not found for version $VERSION_NUMBER"
