@@ -1,11 +1,15 @@
 #!/bin/bash
 # Release Script
-# Description: Automates the release process for EduMatcher, including versioning and release validation.
-# CI/CD Support: No. Can not be run in CI as it requires user interaction.
-# Usage: ./scripts/mkrelease.sh <version> [major|minor|patch] [--dry-run] [--help]
+# Description: Automates the release process for EduMatcher.
+# Assumes:
+# 1. mkbld.sh has been run and all tests are passing with >80% coverage.
+# 2. The version number in pyproject.toml has been updated to the new release version.
+# 3. The changelog has been updated with the new version and release notes.
 #
-# Example: ./scripts/mkrelease.sh 2.1.0 minor
-# Example: ./scripts/mkrelease.sh 2.1.0 minor --dry-run
+# Usage: ./scripts/mkrelease.sh [major|minor|patch] [--dry-run] [--help]
+#
+# Example: ./scripts/mkrelease.sh minor
+# Example: ./scripts/mkrelease.sh minor --dry-run
 # Example: ./scripts/mkrelease.sh --help
 
 set -euo pipefail  # Exit on any error or uninitialized variable
@@ -22,7 +26,13 @@ NC='\033[0m'
 # CONFIGURATION
 # =====================================
 
-declare GITHUB_USER="johan162"
+# Assumes GITHUB_USER is available in the environment for gh CLI authentication
+# Check that GITHUB_USER is set
+if [[ -z "${GITHUB_USER:-}" ]]; then
+    echo -e "${RED}Error: GITHUB_USER environment variable is not set. Please set it to your GitHub username for authentication with the gh CLI.${NC}" >&2
+    exit 1
+fi
+
 declare SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 declare PROGRAMNAME="edumatcher"
 declare PROGRAMNAME_PRETTY="EduMatcher"
@@ -80,12 +90,9 @@ DESCRIPTION:
     Performs validation, testing, versioning, and git operations for releases.
 
 USAGE:
-    $0 <version> [release-type] [options]
+    $0 [major|minor|patch] [options]
 
 ARGUMENTS:
-    version         Semantic version number (e.g., 2.1.0, 1.0.0, 0.9.1)
-                    Must follow semver format: MAJOR.MINOR.PATCH
-
     release-type    Type of release (default: minor)
                     • major   - Breaking changes, incompatible API changes
                     • minor   - New features, backwards compatible  
@@ -102,18 +109,18 @@ EXAMPLES:
     $0 --help
     
     # Preview a minor release (recommended first step)
-    $0 2.1.0 minor --dry-run
+    $0 minor --dry-run
     
     # Execute a minor release
-    $0 2.1.0 minor
+    $0 minor
     
     # Create a patch release with preview
-    $0 2.0.1 patch --dry-run
-    $0 2.0.1 patch
+    $0 patch --dry-run
+    $0 patch
 
     # Create a major release
-    $0 3.0.0-rc1 major --dry-run
-    $0 3.0.0-rc1 major
+    $0 major --dry-run
+    $0 major
 
 QUALITY GATES:
     The script enforces comprehensive quality controls:
@@ -149,8 +156,11 @@ For more information, see docs/developer_guide.md
 EOF
 }
 
+# Get VERSION from pyproject.toml
+VERSION="$(poetry version --short)"
+print_step_colored "Detected version: ${VERSION}"
+
 # Parse arguments
-VERSION=""
 RELEASE_TYPE="minor"
 DRY_RUN=false
 
@@ -166,34 +176,16 @@ for arg in "$@"; do
             ;;
         -*)
             print_error_colored "Unknown option: $arg"
-            echo "Usage: $0 <version> [major|minor|patch] [--dry-run] [--help]"
+            echo "Usage: $0 [major|minor|patch] [--dry-run] [--help]"
             echo "Run '$0 --help' for detailed information"
             exit 1
             ;;
         *)
-            if [[ -z "$VERSION" ]]; then
-                VERSION="$arg"
-            else
-                RELEASE_TYPE="$arg"
-            fi
+            RELEASE_TYPE="$arg"
             shift
             ;;
     esac
 done
-
-if [[ -z "$VERSION" ]]; then
-    print_error_colored "Error: Version required"
-    echo ""
-    echo "Usage: $0 <version> [major|minor|patch] [--dry-run] [--help]"
-    echo ""
-    echo "Examples:"
-    echo "  $0 2.1.0 minor"
-    echo "  $0 2.1.0 minor --dry-run"
-    echo "  $0 --help"
-    echo ""
-    echo "Run '$0 --help' for detailed information"
-    exit 1
-fi
 
 VERSION="${VERSION/-rc/rc}"
 
@@ -286,8 +278,8 @@ if [[ "$DRY_RUN" == "false" && -n $(git status --porcelain) ]]; then
     exit 1
 fi
 
-# 1.4: Pull latest changes
-run_command "git pull origin develop" "Pulling latest changes..."
+# 1.4: Verify that the local develop branch is up-to-date with the remote
+check_condition '[[ $(git rev-parse HEAD) == $(git rev-parse @{u}) ]]' "Local develop branch is not up-to-date with remote"
 
 # 1.5: Validate version format (Poetry / PEP 440 compatible)
 check_condition '[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(rc[1-9][0-9]?)?$ ]]' "Version must follow semver format (x.y.z or x.y.zrcNN)"
@@ -309,99 +301,24 @@ if ! grep -Eq "^## \[v${VERSION}\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" CHANGELOG.md; 
 fi
 print_success "Found CHANGELOG entry for v$VERSION"
 
-# =====================================
-# PHASE 2: UNIT TESTING & STATIC ANALYSIS
-# =====================================
-
-print_step_colored ""
-print_step_colored "🧪 PHASE 2: UNIT TESTING & STATIC ANALYSIS"
-print_step_colored ""
-
-# 2.1: Static analysis and code quality
-echo "  ✓ Checking code formatting..."
-run_command "make check"
-# run_command "poetry run black --check --diff src/ tests/" "Checking code formatting"
-# run_command "poetry run flake8 src/${PROGRAMNAME} tests/" "Running flake8 static analysis"
-# run_command "poetry run pyright src/ tests/" "Running pyright static analysis"
-# run_command "poetry run mypy src/${PROGRAMNAME} --ignore-missing-imports" "Running mypy static analysis"
-
-# 2.2: Full test suite with coverage requirements
-run_command "poetry run pytest -n auto tests/ --cov=src/${PROGRAMNAME} --cov-report=term-missing --cov-report=html:htmlcov --cov-report=xml --cov-fail-under=${COVERAGE}"  "Running full test suite with coverage..."
-
-if [[ "$DRY_RUN" == "false" && $? -ne 0 ]]; then
-    print_error_colored "Test suite failed - aborting release"
-    exit 1
-fi
 
 # =====================================
-# PHASE 3: RELEASE PREPARATION
-# =====================================
-
-print_step_colored ""
-print_step_colored "📝 PHASE 3: RELEASE PREPARATION"
-print_step_colored ""
-
-# 3.1: Update version numbers
-if [[ "$DRY_RUN" == "true" ]]; then
-    echo "  [DRY-RUN] Would update version in pyproject.toml to $VERSION"
-    echo "  [DRY-RUN] Would update version in README.md to $VERSION"
-else
-    echo "  ✓ Updating version in pyproject.toml..."
-    poetry version "$VERSION"
-    VERSION="$(poetry version --short)"
-
-    echo "  ✓ Updating version in README.md..."
-    sed -i.bak -E 's/^  version *= *\{.*\}/  version = {'"$VERSION"'}/' README.md
-fi
-
-# Generate PDF version of User Guide for release assets
-if [[ "$DRY_RUN" == "true" ]]; then
-    echo "  [DRY-RUN] Would generate PDF versions of User Guide for release assets"
-else
-    echo "  ✓ Generating all PDF version of User Guide for release assets..."
-    make -C docs -j 4 pdf-docs  || {
-        print_warning_colored "Makefile target 'pdf-docs' failed. Skipping PDF generation."
-        exit 1;
-    }
-
-    echo "  ✓ Checking if these files exist:"
-    echo "./dist/${PROGRAMNAME}_user-guide-a4-${VERSION}.pdf"
-    echo "./dist/${PROGRAMNAME}_user-guide-dark-a4-${VERSION}.pdf"
-    echo "./dist/${PROGRAMNAME}_user-guide-b5-${VERSION}.pdf"
-    echo "./dist/${PROGRAMNAME}_user-guide-dark-b5-${VERSION}.pdf"
-
-    if [[ ! -f "./dist/${PROGRAMNAME}_user-guide-a4-${VERSION}.pdf" \
-          || ! -f "./dist/${PROGRAMNAME}_user-guide-dark-a4-${VERSION}.pdf" \
-          || ! -f "./dist/${PROGRAMNAME}_user-guide-b5-${VERSION}.pdf" \
-          || ! -f "./dist/${PROGRAMNAME}_user-guide-dark-b5-${VERSION}.pdf" ]]; then
-        print_error_colored "Expected PDF not found at ./dist directory"
-        exit 1;
-    fi    
-    
-    echo "  ✓ Generating HTML version of User Guide for release assets..."
-    make -C docs docs || {
-        print_warning_colored "Makefile target 'docs' failed. Skipping HTML generation."
-        exit 1;
-    }
-fi
-
-# =====================================
-# PHASE 4: RELEASE EXECUTION
+# PHASE 2: RELEASE EXECUTION
 # =====================================
 print_step_colored ""
-print_step_colored "🎯 PHASE 4: RELEASE EXECUTION"
+print_step_colored "🎯 PHASE 2: RELEASE EXECUTION"
 print_step_colored ""
 
-# 4.1: Commit version updates
-run_command "git add pyproject.toml CHANGELOG.md README.md docs/user-guide/template*.tex" "Staging release files..."
-run_command "git commit -m \"chore(release): prepare $VERSION
+# 2.1: Commit version updates
+# run_command "git add pyproject.toml CHANGELOG.md README.md docs/user-guide/template*.tex" "Staging release files..."
+# run_command "git commit -m \"chore(release): prepare $VERSION
 
-- Update version to $VERSION
-- Update changelog with release notes
-- All tests passing with >80% coverage
-- Package build validation complete\"" "Committing release preparation..."
+# - Update version to $VERSION
+# - Update changelog with release notes
+# - All tests passing with >80% coverage
+# - Package build validation complete\"" "Committing release preparation..."
 
-# 4.2: Merge to main branch and create release commit
+# 2.2: Merge to main branch and create release commit
 run_command "git checkout main" "Switching to main branch..."
 run_command "git pull origin main" "Pulling latest main..."
 
@@ -419,7 +336,7 @@ Summary of changes:
 See CHANGELOG.md for detailed changes.\"" "Creating release commit on main..."
 
 
-# 4.3: Create annotated release tag
+# 2.3: Create annotated release tag
 if [[ "$DRY_RUN" == "true" ]]; then
     echo "  [DRY-RUN] Would create annotated tag $VERSION..."
     echo "  [DRY-RUN] Tag message would include release type, date, and QA checklist"
@@ -442,22 +359,22 @@ Quality Assurance:
 Changelog: See CHANGELOG.md for detailed changes"
 fi
 
-# 4.4: Push main branch and tags
+# 2.4: Push main branch and tags
 run_command "git push origin main" "Pushing main branch..."
 run_command "git push origin \"v$VERSION\"" "Pushing release tag..."
 
 # =====================================
-# PHASE 5: POST-RELEASE CLEANUP
+# PHASE 3: POST-RELEASE CLEANUP
 # =====================================
 
 print_step_colored ""
-print_step_colored "🧹 PHASE 5: POST-RELEASE CLEANUP AND MERGE BACK TO DEVELOP"
+print_step_colored "🧹 PHASE 3: POST-RELEASE CLEANUP AND MERGE BACK TO DEVELOP"
 print_step_colored ""
 
-# 5.1: Return to develop and merge back release changes
+# 3.1: Return to develop and merge back release changes
 run_command "git checkout develop" "Switching back to develop..."
 
-# 5.2: Merge main into develop to reconcile squash merge
+# 3.2: Merge main into develop to reconcile squash merge
 if [[ "$DRY_RUN" == "true" ]]; then
     echo "  [DRY-RUN] Would merge main into develop with --no-ff"
     echo "  [DRY-RUN] This reconciles the squashed commits on main"
@@ -484,14 +401,14 @@ else
 fi
 
 # =====================================
-# PHASE 6: TRIGGER CI/CD WORKFLOWS
+# PHASE 4: TRIGGER CI/CD WORKFLOWS
 # =====================================
 
 print_step_colored ""
-print_step_colored " ⌛ PHASE 6: TRIGGER AND WAIT FOR CI/CD WORKFLOWS"
+print_step_colored " ⌛ PHASE 4: TRIGGER AND WAIT FOR CI/CD WORKFLOWS"
 print_step_colored ""
 
-# 6.1: Push synced develop branch
+# 4.1: Push synced develop branch
 run_command "git push origin develop" "Pushing updated develop..."
 
 echo -e "${BLUE}🕐${NC} Monitoring GitHub Actions..."
@@ -516,25 +433,15 @@ else
 fi
 
 # =====================================
-# PHASE 7: BUILD DISTRIBUTION PACKAGE
+# PHASE 5: BUILD DISTRIBUTION PACKAGE
 # =====================================
 print_step_colored ""
-print_step_colored "📦 PHASE 7: PACKAGE FOR DISTRIBUTION"
+print_step_colored "📦 PHASE 5: PACKAGE FOR DISTRIBUTION"
 print_step_colored ""
 
-# 7.1: Clean up old build artifacts
-run_command "rm -rf build/ dist/ src/*.egg-info/ htmlcov/" "Cleaning up build artifacts..."
-run_command "rm -f *.bak src/${PROGRAMNAME}/*.bak" "Removing backup files..."
+# Packages are built by previous mkbld.sh script, so here we just validate the build and prepare release assets
 
-# 7.2: Build Package with the now updated version number
-run_command "poetry build" "Testing package building..."
-
-if [[ "$DRY_RUN" == "false" && $? -ne 0 ]]; then
-    print_error_colored "Distribution package build failed"
-    exit 1
-fi
-
-# 7.3: Package building validation
+# 5.3: Package building validation
 run_command "poetry run twine check dist/*" "Verifying built packages..."
 
 if [[ "$DRY_RUN" == "false" && $? -ne 0 ]]; then
@@ -542,31 +449,14 @@ if [[ "$DRY_RUN" == "false" && $? -ne 0 ]]; then
     exit 1
 fi
 
-# 7.4 Generate PDF version of User Guide for release assets
-if [[ "$DRY_RUN" == "true" ]]; then
-    echo "  [DRY-RUN] Would generate PDF version of User Guide for release assets"
-else
-    echo "  ✓ Generating PDF version of User Guide for release assets..."
-    make -C docs -j 4 pdf-docs || {
-        print_warning_colored "Makefile target 'pdf' failed. Skipping PDF generation."
-    }
-    
-    # Zip-the PDFs into one User-guide-bundle for easier distribution and upload to GitHub releases
-    echo "  ✓ Creating ZIP bundles of generated PDFs for release assets..."
-    (cd ./dist && zip -9 "${PROGRAMNAME}_user-guide-bundle-${VERSION}.zip" "${PROGRAMNAME}_user-guide-a4-${VERSION}.pdf" "${PROGRAMNAME}_user-guide-b5-${VERSION}.pdf" "${PROGRAMNAME}_user-guide-dark-a4-${VERSION}.pdf"  "${PROGRAMNAME}_user-guide-dark-b5-${VERSION}.pdf")
-    (cd ./dist && rm *.pdf)
-    (cd docs-exchange-intro/dist && zip -9 exchange-intro-bundle.zip exchange-intro*.pdf)
-    (mv docs-exchange-intro/dist/exchange-intro-bundle.zip dist/)
-fi
-
 # =====================================
-# PHASE 8: RELEASE SUMMARY
+# PHASE 6: RELEASE SUMMARY
 # =====================================
 
 echo ""
 if [[ "$DRY_RUN" == "true" ]]; then
     print_step_colored ""
-    print_step_colored "🔍 PHASE 7: DRY RUN RELEASE SUMMARY"
+    print_step_colored "🔍 PHASE 6: DRY RUN RELEASE SUMMARY"
     print_step_colored ""
     echo "📋 Commands that would be executed:"
     echo "   → All validation checks (repository state, version format, etc.)"
@@ -583,7 +473,7 @@ if [[ "$DRY_RUN" == "true" ]]; then
     echo "   $0 $VERSION $RELEASE_TYPE"
 else
     print_step_colored ""
-    print_step_colored "✅ PHASE 7: RELEASE SUMMARY"
+    print_step_colored "✅ PHASE 6: RELEASE SUMMARY"
     print_step_colored ""
     print_success_colored "🎉 ${PROGRAMNAME_PRETTY} v${VERSION} released successfully!"
     echo ""
@@ -595,8 +485,7 @@ else
     echo "   Tag:         v$VERSION"
     echo ""
     echo "📦 Artifacts:"
-    echo "   - $(ls dist|head -1)"
-    echo "   - $(ls dist|tail -1)"
+    echo "   - $(ls dist)"
     echo ""
     echo "📊 Branch Status:"
     echo "   GitHub will show develop as 'ahead' of main - this is expected!"

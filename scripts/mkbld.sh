@@ -249,6 +249,12 @@ fi
 # 1.3 Clean previous build and coverage artifacts
 run_command "rm -rf dist/ build/ src/*.egg-info/ htmlcov/" "Cleaning previous build and coverage artifacts"
 
+# 1.4 Get VERSION from pyproject.toml
+VERSION="$(poetry version --short)"
+print_sub_step "Detected version: ${VERSION}"
+run_command "sed -i.bak -E 's/^  version *= *\{.*\}/  version = {'\"$VERSION\"'}/' README.md" "Updating version in README.md"
+
+
 # =======================================
 # PHASE 2: STATIC ANALYSIS AND FORMATTING
 # =======================================
@@ -334,7 +340,7 @@ print_step_colored "📦 PHASE 4: PACKAGE BUILD & VALIDATION"
 print_step_colored ""
 
 # Step 4.1: Clean previous builds
-run_command "rm -rf dist/ build/ src/*.egg-info/" "Cleaning previous builds"
+run_command "rm -rf dist/ build/ site/ src/*.egg-info/" "Cleaning previous builds"
 
 # Step 4.2: Build package
 run_command "poetry build" "Building package"
@@ -344,11 +350,41 @@ run_command "poetry run twine check dist/*" "Validating package with twine"
 
 # Step 4.4: Build Exchange Intro PDF (if applicable)
 if [ -d "docs-exchange-intro" ]; then
+    if [ -f "docs-exchange-intro/version.toml" ]; then
+        EXCHANGE_INTRO_VERSION=$(awk -F'=' '/version/ { gsub(/[ "]/, "", $2); print $2; exit }' docs-exchange-intro/version.toml)
+        print_sub_step "Detected Exchange Intro version: ${EXCHANGE_INTRO_VERSION}"
+    else
+        print_warning "docs-exchange-intro/version.toml not found; skipping Exchange Intro PDF build"
+        EXCHANGE_INTRO_VERSION="unknown"
+        exit 1;
+    fi
+    print_sub_step "Deleting old versions of Exchange Intro PDFs from dist/"
+    run_command "rm -f dist/exchange-intro-*.pdf" "Cleaning old Exchange Intro PDFs"
     print_sub_step "Building Exchange Intro Booklet"
     run_command "make -C docs-exchange-intro -j4" "Building Exchange Intro Booklet"
+    print_sub_step "Zipping them together"
+    run_command "(cd docs-exchange-intro/dist && zip -9 exchange-intro-bundle-${EXCHANGE_INTRO_VERSION}.zip exchange-intro*.pdf)" "Creating ZIP bundle of Exchange Intro PDFs"
+    run_command "cp docs-exchange-intro/dist/exchange-intro-bundle-${EXCHANGE_INTRO_VERSION}.zip dist/" "Copying Exchange Intro ZIP bundle to dist/"
 else
     print_warning "docs-exchange-intro directory not found; skipping Exchange Intro PDF build"
 fi
+
+# Step 4.5: Build User Guide PDF bundle 
+if [ -d "docs" ]; then
+    print_sub_step "Generating PDF version of User Guide for release assets..."
+    run_command "make -C docs -j4 pdf-docs" "Building User Guide PDFs (v${VERSION}) with Makefile"
+    print_sub_step "Creating ZIP bundles of User Guide PDFs (v${VERSION}) for release assets..."
+    (cd ./dist && zip -9 "${PROGRAMNAME}_user-guide-bundle-${VERSION}.zip" "${PROGRAMNAME}_user-guide-a4-${VERSION}.pdf" "${PROGRAMNAME}_user-guide-b5-${VERSION}.pdf" "${PROGRAMNAME}_user-guide-dark-a4-${VERSION}.pdf"  "${PROGRAMNAME}_user-guide-dark-b5-${VERSION}.pdf")
+    (cd ./dist && rm *.pdf)
+else
+    print_warning "docs directory not found; skipping User Guide PDF build"
+fi
+
+# Step 4.6: Build HTML docs site/
+print_sub_step "Generating HTML version of User Guide for site/ ..."
+run_command "make -C docs docs" "Building HTML docs with Makefile"
+
+
 
 # =======================================
 # PHASE 5: BUILD SUMMARY
