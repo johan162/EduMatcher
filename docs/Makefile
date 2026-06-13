@@ -243,14 +243,16 @@ help: ## Show this help message
 docs: $(DOC_STAMP) ## Build the HTML project documentation with MkDocs
 	@:
 
-pdfs: pdf-docs ## Build all PDF documentation variants in parallel
+pdfs: pdf-docs | $(DIST_DIR) ## Build all PDF documentation variants in parallel
 	@:
 
 pdf-docs:  ## Build the user guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
 	@rm -rf $(USER_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm $(DIST_DIR)/$(PROJECT)_user-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(USER_GUIDE_A4_PDF) $(USER_GUIDE_DARK_A4_PDF) $(USER_GUIDE_B5_PDF) $(USER_GUIDE_DARK_B5_PDF)
-	@$(MAKE) -j4 cover  # Adjust PDFs with cover image after all variants are built
+
+$(DIST_DIR) : ## Ensure the dist directory exists
+	@mkdir -p $(DIST_DIR)
 
 # ============================================================================================
 # Macro: BUILD_USER_GUIDE_PDF
@@ -324,41 +326,6 @@ $(eval $(call BUILD_USER_GUIDE_PDF,USER_GUIDE_DARK_B5,b5))
 # $(info USER_GUIDE_DARK_B5_BODY_TEX: $(USER_GUIDE_DARK_B5_BODY_TEX))
 # $(info USER_GUIDE_DARK_B5_TEX: $(USER_GUIDE_DARK_B5_TEX))
 # $(info USER_GUIDE_DARK_B5_PDF_BUILT: $(USER_GUIDE_DARK_B5_PDF_BUILT))
-
-# ============================================================================================
-# Adjust the User Guide PDF by adding cover image to the user guide PDFs. 
-# This is done as a separate step after PDF generation to avoid triggering a full rebuild of 
-# the PDF when the cover image changes, and to allow parallel builds of all PDF variants 
-# before applying the cover.
-# ============================================================================================
-USER_GUIDE_COVER_IMAGE := assets/cover-user-guide.png
-USER_GUIDE_B5_PDF := ../dist/$(PROJECT)_user-guide-b5-$(VERSION).pdf
-USER_GUIDE_DARK_B5_PDF := ../dist/$(PROJECT)_user-guide-dark-b5-$(VERSION).pdf
-USER_GUIDE_A4_PDF := ../dist/$(PROJECT)_user-guide-a4-$(VERSION).pdf
-USER_GUIDE_DARK_A4_PDF := ../dist/$(PROJECT)_user-guide-dark-a4-$(VERSION).pdf
-
-cover: cover-b5-light cover-b5-dark cover-a4-light cover-a4-dark ## Adjust all user guide PDFs with cover image in parallel
-	@:
-
-cover-b5-light: ## Adjust the PDF by adding cover image
-	@echo -e "$(DARKYELLOW)- Adjusting $(BRIGHTCYAN)\"$(notdir $(USER_GUIDE_B5_PDF))\"$(DARKYELLOW) with cover image...$(NC)"
-	@../scripts/mkcover.sh -q --dpi 300 $(USER_GUIDE_COVER_IMAGE) $(USER_GUIDE_B5_PDF)
-	@echo -e "$(GREEN)✓ PDF $(BRIGHTCYAN)\"$(notdir $(USER_GUIDE_B5_PDF))\"$(GREEN) adjusted with cover image$(NC)"
-
-cover-b5-dark: ## Adjust the PDF by adding cover image
-	@echo -e "$(DARKYELLOW)- Adjusting $(BRIGHTCYAN)\"$(notdir $(USER_GUIDE_DARK_B5_PDF))\"$(DARKYELLOW) with cover image...$(NC)"
-	@../scripts/mkcover.sh -q --dpi 300 $(USER_GUIDE_COVER_IMAGE) $(USER_GUIDE_DARK_B5_PDF)
-	@echo -e "$(GREEN)✓ PDF $(BRIGHTCYAN)\"$(notdir $(USER_GUIDE_DARK_B5_PDF))\"$(GREEN) adjusted with cover image$(NC)"
-
-cover-a4-light: ## Adjust the PDF by adding cover image
-	@echo -e "$(DARKYELLOW)- Adjusting $(BRIGHTCYAN)\"$(notdir $(USER_GUIDE_A4_PDF))\"$(DARKYELLOW) with cover image...$(NC)"
-	@../scripts/mkcover.sh -q --dpi 300 $(USER_GUIDE_COVER_IMAGE) $(USER_GUIDE_A4_PDF)
-	@echo -e "$(GREEN)✓ PDF $(BRIGHTCYAN)\"$(notdir $(USER_GUIDE_A4_PDF))\"$(GREEN) adjusted with cover image$(NC)"
-
-cover-a4-dark: ## Adjust the PDF by adding cover image
-	@echo -e "$(DARKYELLOW)- Adjusting $(BRIGHTCYAN)\"$(notdir $(USER_GUIDE_DARK_A4_PDF))\"$(DARKYELLOW) with cover image...$(NC)"
-	@../scripts/mkcover.sh -q --dpi 300 $(USER_GUIDE_COVER_IMAGE) $(USER_GUIDE_DARK_A4_PDF)
-	@echo -e "$(GREEN)✓ PDF $(BRIGHTCYAN)\"$(notdir $(USER_GUIDE_DARK_A4_PDF))\"$(GREEN) adjusted with cover image$(NC)"
 
 
 # ============================================================================================

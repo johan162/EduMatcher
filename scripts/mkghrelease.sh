@@ -28,7 +28,12 @@ NC='\033[0m'
 # CONFIGURATION
 # =====================================
 
-declare GITHUB_USER="johan162"
+# Assumes GITHUB_USER is available in the environment for gh CLI authentication
+if [[ -z "${GITHUB_USER:-}" ]]; then
+    echo -e "${RED}Error: GITHUB_USER environment variable is not set. Please set it to your GitHub username for authentication with the gh CLI.${NC}" >&2
+    exit 1
+fi
+
 declare SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 declare PROGRAMNAME="edumatcher"
 declare PROGRAMNAME_PRETTY="EduMatcher"

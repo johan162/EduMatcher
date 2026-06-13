@@ -1,694 +1,1191 @@
-Version: 0.1.0
+Version: 1.1.0
 
-Date: 2026-06-07
+Date: 2026-06-12
 
 Status: Design and Research Proposal
 
+> **Changelog v1.1.0**
+> - Corrected internal ZMQ topic names to match engine implementation
+> - Resolved `SNAP` channel contradiction (it is auto-sent, not a subscribable channel)
+> - Clarified `STATE` SESSION values vs engine SessionState mapping
+> - Added connection state machine and gateway implementation guide (Section 10)
+> - Added new files and process startup instructions (Section 10.5)
+> - Fixed TCP client example to use proper line-buffered reading (Section 16)
+> - Expanded Section 7 to cover first-connect as well as reconnect
+> - Added gap-recovery flow diagram (Section 7.2)
+> - Added `name` to config (Section 12)
+> - Resolved `SNAP` channel field inconsistency (`CH` is not always `TOP`)
 
 # CALF: Channel ALF Market Data Protocol
 
----
+
+
+## Table of Contents
+
+- [CALF: Channel ALF Market Data Protocol](#calf-channel-alf-market-data-protocol)
+  - [Table of Contents](#table-of-contents)
+  - [1. Motivation](#1-motivation)
+    - [1.1 90/10 Scope Statement](#11-9010-scope-statement)
+  - [2. Protocol Name and Positioning](#2-protocol-name-and-positioning)
+  - [3. Architecture Overview](#3-architecture-overview)
+    - [3.1 Internal ZMQ Topics Consumed](#31-internal-zmq-topics-consumed)
+  - [4. Transport and Session Model](#4-transport-and-session-model)
+    - [4.1 Connection Lifecycle](#41-connection-lifecycle)
+    - [4.2 Liveness](#42-liveness)
+  - [5. CALF Message Types](#5-calf-message-types)
+    - [5.1 Session Control (connection management)](#51-session-control-connection-management)
+    - [5.2 Market Data](#52-market-data)
+  - [6. Channel Model](#6-channel-model)
+    - [6.1 Channels Defined](#61-channels-defined)
+    - [6.2 Subscription Rules](#62-subscription-rules)
+  - [7. Sequence and Recovery Semantics](#7-sequence-and-recovery-semantics)
+    - [7.1 Sequence Numbers](#71-sequence-numbers)
+    - [7.2 First Connect (no prior sequence)](#72-first-connect-no-prior-sequence)
+    - [7.3 Reconnect (gap recovery)](#73-reconnect-gap-recovery)
+    - [7.4 Replay Buffer Implementation](#74-replay-buffer-implementation)
+  - [8. Wire Format Specification](#8-wire-format-specification)
+    - [8.1 Grammar](#81-grammar)
+    - [8.2 Reserved Keys](#82-reserved-keys)
+    - [8.3 Field Conventions](#83-field-conventions)
+  - [9. Message Definitions and Examples](#9-message-definitions-and-examples)
+    - [9.1 HELLO](#91-hello)
+    - [9.2 WELCOME](#92-welcome)
+    - [9.3 SUB](#93-sub)
+    - [9.4 SNAP](#94-snap)
+    - [9.5 MD (TOP Incremental Update)](#95-md-top-incremental-update)
+    - [9.6 TRADE](#96-trade)
+    - [9.7 STATE](#97-state)
+    - [9.8 ERR](#98-err)
+    - [9.9 UNSUB](#99-unsub)
+    - [9.10 HB (Heartbeat)](#910-hb-heartbeat)
+    - [9.11 PING / PONG](#911-ping--pong)
+    - [9.12 EXIT](#912-exit)
+  - [10. pm-md-gwy Design and Implementation Guide](#10-pm-md-gwy-design-and-implementation-guide)
+    - [10.1 Responsibilities](#101-responsibilities)
+    - [10.2 Non-Responsibilities](#102-non-responsibilities)
+    - [10.3 Data Flow Inside the Gateway](#103-data-flow-inside-the-gateway)
+    - [10.4 Key Data Structures](#104-key-data-structures)
+    - [10.5 Internal Event Handling](#105-internal-event-handling)
+    - [10.6 New Files to Create](#106-new-files-to-create)
+    - [10.7 Process Startup and Dependencies](#107-process-startup-and-dependencies)
+    - [10.8 Backpressure Policy](#108-backpressure-policy)
+  - [11. Session Lifecycle Examples](#11-session-lifecycle-examples)
+    - [11.1 Normal Subscribe and Data Flow](#111-normal-subscribe-and-data-flow)
+    - [11.2 Session State Change](#112-session-state-change)
+  - [12. Config Reference](#12-config-reference)
+  - [13. Educational Mapping to Existing Concepts](#13-educational-mapping-to-existing-concepts)
+  - [14. Security and Operational Notes](#14-security-and-operational-notes)
+  - [15. Future Evolution (v2+)](#15-future-evolution-v2)
+  - [16. Worked Client Example (Python)](#16-worked-client-example-python)
+  - [17. Open Questions](#17-open-questions)
+  - [18. Summary](#18-summary)
+
+
 
 ## 1. Motivation
 
 EduMatcher already has:
-- ALF for simple text-based order entry
-- BALF for low-latency binary order entry
+- **ALF** — simple text-based order entry (interactive terminal)
+- **BALF** — low-latency binary order entry (programmatic)
 
-What is missing is a matching market-data protocol with the same spirit:
-- easy to teach
-- easy to debug
+What is missing is a market-data feed protocol with the same spirit:
+- easy to teach and reason about in a terminal
+- easy to debug (human-readable wire format)
 - useful for real bots
-- not overloaded with exchange-grade complexity
+- not overloaded with production-grade complexity
 
 This proposal introduces **CALF** (**C**hannel **ALF**), a 90/10 market-data
-protocol:
-- supports the 90% of use cases most learners and bot builders need
-- intentionally skips edge-case-heavy features that add complexity
+protocol that covers the 90% of use cases learners and bot builders need while
+intentionally skipping the complexity that adds little educational value.
 
-The key design target is practical educational value:
-- students can read frames in a terminal and reason about state
-- bots can recover from dropped packets/messages with clear sequence logic
-- architecture remains compatible with a future binary companion
+### 1.1 90/10 Scope Statement
 
-### 1.1 90/10 scope statement
-
-CALF v1 should support:
-- top-of-book updates (best bid/ask)
+**CALF v1 supports:**
+- top-of-book updates (best bid/ask with sizes)
 - trade prints
-- periodic snapshots
-- sequence-numbered incremental updates
-- heartbeat and liveness
+- point-in-time snapshots on connect and on demand
+- sequence-numbered incremental updates per `(channel, symbol)` stream
+- heartbeat and liveness signalling
 - simple subscription model by symbol and channel
-- deterministic reconnect + replay-from-sequence (bounded window)
+- deterministic reconnect + replay from last seen sequence (bounded window)
 
-CALF v1 intentionally excludes:
-- full depth-by-order feed
-- multicast
+**CALF v1 intentionally excludes:**
+- full depth-by-order feed (full order-level book)
+- multicast / UDP delivery
 - conflation controls negotiated per client
-- entitlement/permission matrix by field
-- historical data service
+- per-field entitlement matrix
+- historical data service (use `pm-index` for index history)
+- authentication tokens (trusted classroom network assumed)
 
----
+
 
 ## 2. Protocol Name and Positioning
 
 **Name:** CALF (Channel ALF)
 
-Why this fits the family:
-- ALF: simple textual order entry
-- BALF: binary order entry
-- CALF: simple channelized market data
+The name fits the EduMatcher family:
 
-The name is playful and memorable, while preserving the educational tone of the
-existing stack.
+| Protocol | Purpose |
+|---|---|
+| ALF | Simple text order entry — interactive human use |
+| BALF | Binary order entry — low-latency programmatic use |
+| CALF | Channelized text market data — readable, subscribable |
 
----
+CALF is playful and memorable, consistent with the educational tone of the stack.
+
+
 
 ## 3. Architecture Overview
 
 ```mermaid
 flowchart LR
-    E[EduMatcher Engine]
-    B[(Internal Event Bus\nZeroMQ PUB)]
-    G[pm-md-gwy\nMarket Data Gateway]
-    C1[Client A\nAlgo Bot]
-    C2[Client B\nViewer]
-    C3[Client C\nRecorder]
+    E[EduMatcher Engine\nPUB :5556]
+    G[pm-md-gwy\nMarket Data Gateway\nTCP :5570]
+    C1[Client A — Algo Bot]
+    C2[Client B — Viewer]
+    C3[Client C — Recorder]
 
-    E --> B
-    B --> G
-    G -->|TCP 5570 CALF| C1
-    G -->|TCP 5570 CALF| C2
-    G -->|TCP 5570 CALF| C3
+    E -->|ZMQ SUB\ntrade.executed\nbook.SYMBOL\nsession.state| G
+    G -->|CALF over TCP| C1
+    G -->|CALF over TCP| C2
+    G -->|CALF over TCP| C3
 ```
 
-`pm-md-gwy` (market-data gateway) subscribes to internal engine events,
-normalizes them into CALF messages, and fans them out to connected clients.
+`pm-md-gwy` is a new standalone process. It:
+- subscribes to the engine's existing ZMQ PUB socket on port 5556
+- normalises internal ZMQ/JSON events into CALF text lines
+- fans them out over TCP to all connected CALF clients
 
-### 3.1 Internal message dependencies
+### 3.1 Internal ZMQ Topics Consumed
 
-`pm-md-gwy` consumes at least these internal topics/messages:
-- `trade.executed.*`
-- `book.snapshot.*`
-- `order_book.delta.*` (or equivalent per-symbol incremental event)
-- `session.state`
-- `instrument.status.*` (optional in v1, recommended)
+`pm-md-gwy` subscribes to the following topics on the engine PUB socket
+(`tcp://127.0.0.1:5556`):
 
----
+| Engine ZMQ Topic | Used for |
+|---|---|
+| `trade.executed` | Generating `TRADE` messages; updating LAST price in `SNAP`/`MD` |
+| `book.{SYMBOL}` | Generating `MD` (top-of-book) and `SNAP` messages |
+| `session.state` | Generating `STATE` messages |
+| `circuit_breaker.halt.{SYMBOL}` | Generating `STATE SESSION=HALTED` messages |
+| `circuit_breaker.resume.{SYMBOL}` | Generating `STATE SESSION=CONTINUOUS` messages after halt |
+
+> **Note:** There is no `order_book.delta` topic in the engine. Incremental
+> top-of-book updates are derived from consecutive `book.{SYMBOL}` snapshots
+> published by the engine at a throttled interval (default 0.5 s). The gateway
+> computes the diff (bid/ask changed?) and emits `MD` only when the top of book
+> actually changed.
+
+
 
 ## 4. Transport and Session Model
 
-- Transport: TCP
-- Port: `5570` (configurable)
-- Connection type: long-lived stream
-- Encoding: UTF-8 text lines (`\n` delimited)
-- Compression: none in v1
+| Property | Value |
+|---|---|
+| Transport | TCP |
+| Port | `5570` (configurable) |
+| Connection type | Long-lived stream; one TCP connection per client |
+| Encoding | UTF-8 text lines, `\n` delimited |
+| Compression | None in v1 |
+| Max line length | 4096 bytes including `\n` |
 
-Each message is one line:
-- pipe-delimited fields
-- key-value format aligned with ALF readability
+Each CALF message is exactly one line. Fields are pipe-delimited key-value pairs.
+The first token is the message type (not `TYPE=`, just the bare word):
 
-Example:
-
-```text
-MD|CH=TOP|SYM=AAPL|SEQ=1042|TS=2026-06-07T10:15:23.411Z|BID=150.10|BIDSZ=1200|ASK=150.12|ASKSZ=900
+```
+HELLO|CLIENT=bot01|PROTO=CALF1
+TRADE|CH=TRADE|SYM=AAPL|SEQ=809|TS=2026-06-07T10:16:00.141Z|PX=150.12|QTY=200|SIDE=BUY
 ```
 
-### 4.1 Liveness
+### 4.1 Connection Lifecycle
 
-- gateway sends `HB` every 1 second if no outbound market data was emitted
-- client may send `PING`
-- gateway replies `PONG`
-- idle timeout default: 5 seconds without inbound/outbound traffic
+A client that connects but does not send `HELLO` within 5 seconds is disconnected
+with no error message. After `HELLO` the session is open until the client sends
+`EXIT`, closes the socket, or is disconnected by the gateway (slow client or idle
+timeout).
 
----
+```mermaid
+stateDiagram-v2
+    [*] --> CONNECTED : TCP connect
+    CONNECTED --> HELLO_SENT : client sends HELLO
+    HELLO_SENT --> ACTIVE : gateway sends WELCOME
+    HELLO_SENT --> [*] : gateway sends ERR (bad PROTO)
+    ACTIVE --> ACTIVE : SUB / UNSUB / PING / data flow
+    ACTIVE --> [*] : client sends EXIT or closes socket
+    ACTIVE --> [*] : gateway sends ERR SLOW_CLIENT
+    CONNECTED --> [*] : no HELLO within 5 s (idle timeout)
+```
+
+### 4.2 Liveness
+
+- The gateway sends `HB` every `heartbeat_interval_sec` (default: 1 s) if no
+  outbound market-data message was emitted in that interval.
+- A client may send `PING` at any time; the gateway replies `PONG` immediately.
+- If no inbound **or** outbound traffic occurs within `idle_timeout_sec`
+  (default: 5 s), the gateway closes the connection.
+
+> **Implementation note:** Track `last_activity_ts` per client, updated on every
+> send and every receive. The heartbeat timer loop checks this timestamp every
+> second and sends `HB` or disconnects as appropriate.
+
+
 
 ## 5. CALF Message Types
 
-### 5.1 Session control
+### 5.1 Session Control (connection management)
 
-1. `HELLO` (client -> gateway)
-2. `WELCOME` (gateway -> client)
-3. `SUB` (client -> gateway)
-4. `UNSUB` (client -> gateway)
-5. `HB` (gateway -> client)
-6. `PING` (client -> gateway) / `PONG` (gateway -> client)
-7. `ERR` (gateway -> client)
+| Message | Direction | Purpose |
+|---|---|---|
+| `HELLO` | Client → Gateway | Initiate session |
+| `WELCOME` | Gateway → Client | Confirm session, advertise parameters |
+| `SUB` | Client → Gateway | Subscribe to channels/symbols |
+| `UNSUB` | Client → Gateway | Cancel subscriptions |
+| `PING` | Client → Gateway | Liveness probe |
+| `PONG` | Gateway → Client | Liveness probe reply |
+| `HB` | Gateway → Client | Heartbeat (no data in interval) |
+| `ERR` | Gateway → Client | Error notification |
+| `EXIT` | Client → Gateway | Clean disconnect |
 
-### 5.2 Market data
+### 5.2 Market Data
 
-1. `SNAP`  full snapshot (top + last trade + optional status)
-2. `MD`    incremental update (channel-specific)
-3. `TRADE` trade print event
-4. `STATE` trading session state updates
+| Message | Direction | Purpose |
+|---|---|---|
+| `SNAP` | Gateway → Client | Full point-in-time snapshot for a stream |
+| `MD` | Gateway → Client | Incremental top-of-book update |
+| `TRADE` | Gateway → Client | Trade print |
+| `STATE` | Gateway → Client | Session or instrument state change |
 
----
+
 
 ## 6. Channel Model
 
-CALF uses logical channels to keep subscriptions simple.
+CALF uses logical channels to keep subscriptions simple. A client subscribes to
+a combination of channels and symbols. The gateway streams matching events.
 
-Supported channels in v1:
-- `TOP`     best bid/ask and sizes
-- `TRADE`   last trade events
-- `STATE`   session state changes
-- `SNAP`    on-demand and reconnect snapshots
+### 6.1 Channels Defined
 
-`SUB` examples:
+| Channel | Description | `SYM=*` allowed? |
+|---|---|---|
+| `TOP` | Best bid/ask and sizes; generates `MD` and `SNAP` messages | No — explicit list required |
+| `TRADE` | Executed trade prints; generates `TRADE` messages | No — explicit list required |
+| `STATE` | Session and instrument state transitions; generates `STATE` messages | Yes |
+
+> **There is no `SNAP` channel.** `SNAP` is a message type, not a subscribable
+> channel. The gateway automatically sends a `SNAP` when a client issues a `SUB`
+> for `TOP` or `STATE`. Clients do not subscribe to `SNAP` directly.
+
+### 6.2 Subscription Rules
+
+- A single `SUB` may request multiple channels and multiple symbols using commas.
+- Channels and symbols that are already subscribed are silently re-confirmed (not
+  duplicated — no double-delivery).
+- `SYM=*` is only valid when `CH` contains only `STATE`. Using `SYM=*` with `TOP`
+  or `TRADE` returns `ERR|CODE=INVALID_SYMBOL`.
+- The maximum number of symbols per client (across all subscriptions) is
+  `max_symbols_per_client` (default: 200).
 
 ```text
 SUB|CH=TOP,TRADE|SYM=AAPL,MSFT
 SUB|CH=STATE|SYM=*
+SUB|CH=TOP|SYM=TSLA
 ```
 
-Rules:
-- `SYM=*` allowed only for `STATE` in v1 (to avoid accidental broadcast abuse)
-- for `TOP` and `TRADE`, explicit symbol list is required
-- max symbols per `SUB` request configurable (default 200)
 
----
 
 ## 7. Sequence and Recovery Semantics
 
-Each `(channel, symbol)` stream has a monotonic sequence:
-- `SEQ` starts at `1`
-- increments by `1` per emitted event in that stream
+### 7.1 Sequence Numbers
 
-Client recovery behavior:
-- client tracks last seen `SEQ` per `(CH,SYM)`
-- on reconnect, client sends:
+Each `(channel, symbol)` stream has an independent monotonic integer sequence counter:
 
-```text
-HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
+- Starts at `1`.
+- Increments by `1` for every message emitted in that stream.
+- Is included in every `SNAP`, `MD`, `TRADE`, and `STATE` message as the `SEQ` field.
+
+**A gap between consecutive `SEQ` values means the client missed one or more
+messages.** The client must detect this and either request replay or accept a
+fresh `SNAP`.
+
+### 7.2 First Connect (no prior sequence)
+
+When a client subscribes to a stream for the first time, the gateway sends a
+`SNAP` with the current state and the current `SEQ`. The client records this
+`SEQ` and expects subsequent `MD` messages starting at `SEQ + 1`.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant G as pm-md-gwy
+
+    C->>G: HELLO|CLIENT=bot01|PROTO=CALF1
+    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
+    C->>G: SUB|CH=TOP|SYM=AAPL
+    Note over G: current SEQ for (TOP,AAPL) is 100
+    G-->>C: SNAP|CH=TOP|SYM=AAPL|SEQ=100|BID=150.10|...
+    Note over C: record last_seq[(TOP,AAPL)] = 100
+    G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=101|BID=150.11|...
+    Note over C: 101 == 100+1 — no gap ✓
 ```
 
-Gateway behavior:
-- if replay buffer contains `1043...latest`, gateway replays gap, then resumes live
-- if gap is outside replay window, gateway sends `ERR|CODE=REPLAY_MISS` then `SNAP`
+### 7.3 Reconnect (gap recovery)
 
-### 7.1 Replay window
+If a client reconnects after a brief disconnection, it sends `HELLO` with
+`RESUME=1` and the last sequence it received. The gateway checks its replay
+buffer:
 
-Default: 30 seconds per stream in memory ring buffer.
+- If the gap is within the buffer (default: last 30 seconds), the gateway replays
+  the missing messages, then resumes live delivery.
+- If the gap is outside the buffer, the gateway sends `ERR|CODE=REPLAY_MISS`
+  immediately followed by a fresh `SNAP` at the current sequence.
 
-This is enough for short disconnects while keeping implementation simple.
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant G as pm-md-gwy
 
----
+    Note over C,G: Client disconnected; last seen SEQ=1042 on (TOP,AAPL)
+
+    C->>G: HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
+    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
+
+    alt Gap within replay window (SEQ 1043..1050 in buffer)
+        G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=1043|...
+        G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=1044|...
+        Note over G: ... replay continues to SEQ=1050 ...
+        G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=1050|...
+        Note over G: now live
+        G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=1051|...
+    else Gap outside replay window
+        G-->>C: ERR|CODE=REPLAY_MISS|CH=TOP|SYM=AAPL
+        G-->>C: SNAP|CH=TOP|SYM=AAPL|SEQ=1105|BID=151.20|...
+        Note over C: reset last_seq[(TOP,AAPL)] = 1105
+    end
+```
+
+> **RESUME applies to one `(CH, SYM)` stream per `HELLO`.** To resume multiple
+> streams, send a plain `HELLO` (no `RESUME`) then issue `SUB` for each stream.
+> The gateway will auto-send a fresh `SNAP` for each.
+
+### 7.4 Replay Buffer Implementation
+
+The gateway keeps a **shared per-stream ring buffer** (not per-client). Each
+`(CH, SYM)` stream has one ring buffer of the last N seconds of messages
+(default: 30 s). Multiple reconnecting clients share the same buffer.
+
+Buffer size is bounded by time (`replay_window_sec`), not by message count.
+Messages older than `replay_window_sec` are evicted as new ones arrive.
+
+
 
 ## 8. Wire Format Specification
 
-### 8.1 Generic grammar
+### 8.1 Grammar
 
 ```text
-<TYPE>|K1=V1|K2=V2|...|Kn=Vn\n
+<MSGTYPE>|KEY=VALUE|KEY=VALUE|...|KEY=VALUE\n
 ```
 
-Reserved keys:
-- `TYPE` implicit in message prefix token
-- `CH`, `SYM`, `SEQ`, `TS`
+- `MSGTYPE` is the **first bare token** (not a key-value pair). It is always
+  uppercase ASCII: `HELLO`, `WELCOME`, `SNAP`, `MD`, `TRADE`, `STATE`, `ERR`,
+  `HB`, `PING`, `PONG`, `SUB`, `UNSUB`, `EXIT`.
+- Remaining fields are `KEY=VALUE` pairs separated by `|`.
+- The line ends with a single `\n` (Unix line ending). `\r\n` is also accepted
+  from clients for robustness.
+- Field order within a message is **not significant** for parsing, except that
+  `MSGTYPE` is always first.
+- Maximum line length: **4096 bytes** including the trailing `\n`.
 
-Timestamp format:
-- UTC ISO-8601 with milliseconds (`2026-06-07T10:15:23.411Z`)
+> **Implementation note for the gateway:** When reading from a client TCP socket,
+> buffer inbound bytes and split on `\n`. Never assume a single `recv()` call
+> contains exactly one complete message — TCP is a stream, not a message protocol.
 
-Max line length:
-- **4096 bytes** (including the trailing `\n`)
-- Gateway may disconnect a client that sends a line exceeding this limit with `ERR|CODE=BAD_MESSAGE`
-- Clients should allocate read buffers of at least 4096 bytes
+### 8.2 Reserved Keys
 
-### 8.2 Field conventions
+These keys have defined semantics across all message types:
 
-- Prices: decimal text (v1 education-first readability)
-- Sizes: integer
-- Missing numeric value: omit field (do not send empty)
-- Symbol: ASCII ticker
+| Key | Type | Meaning |
+|---|---|---|
+| `CH` | string | Channel: `TOP`, `TRADE`, `STATE` |
+| `SYM` | string | Instrument symbol (ASCII ticker) or `*` |
+| `SEQ` | int | Monotonic sequence number for this `(CH, SYM)` stream |
+| `TS` | string | UTC ISO-8601 timestamp with milliseconds: `2026-06-07T10:15:23.411Z` |
 
----
+### 8.3 Field Conventions
+
+| Data type | Wire representation | Example |
+|---|---|---|
+| Price | Decimal text | `150.25` |
+| Quantity | Integer | `1200` |
+| Boolean flag | `0` or `1` | `RESUME=1` |
+| Timestamp | UTC ISO-8601 with ms | `2026-06-07T10:15:23.411Z` |
+| Missing optional field | Omit entirely | _(do not send `BID=`)_ |
+
+
 
 ## 9. Message Definitions and Examples
 
+Each message definition includes:
+- **Direction** — who sends it
+- **Purpose** — what it does
+- **Response** — what the other side must do in reply
+- **Fields table** — all fields with required/optional marker and types
+
+
+
 ### 9.1 HELLO
 
-Client -> gateway
+**Direction:** Client → Gateway
 
-**Purpose:** Initiate the CALF session, identify the client, and optionally request resume from a last seen sequence.
+**Purpose:** Initiate the CALF session, identify the client, and optionally
+request gap replay from a last seen sequence.
 
-**Return:** Yes. Gateway responds with `WELCOME` on success, or `ERR` on protocol/validation failure.
+**Response:** Gateway replies with `WELCOME` on success, or `ERR` on failure.
+The client must wait for `WELCOME` before sending `SUB`.
 
-**Fields:**
-
-| Field      | Req           | Type    | Description |
-|------------|---------------|---------|-------------|
-| `CLIENT`   | ✓             | string  | Client identifier; max 32 ASCII chars |
-| `PROTO`    | ✓             | string  | Must be `CALF1` |
-| `RESUME`   | –             | `0`/`1` | Set `1` to request gap replay |
-| `CH`       | if `RESUME=1` | string  | Single channel for resume |
-| `SYM`      | if `RESUME=1` | string  | Single symbol for resume |
-| `LASTSEQ`  | if `RESUME=1` | int     | Last received sequence for this `(CH, SYM)` stream |
-
-> **v1 limitation:** `RESUME` applies to one `(CH, SYM)` stream per `HELLO`. To resume multiple streams, send a plain `HELLO` (no `RESUME`) then issue a `SUB`; the gateway will auto-send `SNAP` for each newly subscribed stream.
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `CLIENT` | ✓ | string | Client identifier; max 32 ASCII chars; used in gateway logs |
+| `PROTO` | ✓ | string | Must be exactly `CALF1`; triggers `ERR PROTO_MISMATCH` if unknown |
+| `RESUME` | — | `0`/`1` | Set to `1` to request gap replay for one stream |
+| `CH` | if `RESUME=1` | string | Single channel to resume (`TOP`, `TRADE`, or `STATE`) |
+| `SYM` | if `RESUME=1` | string | Single symbol to resume |
+| `LASTSEQ` | if `RESUME=1` | int | Last sequence the client received for `(CH, SYM)` |
 
 ```text
 HELLO|CLIENT=bot01|PROTO=CALF1
-```
-
-Optional resume:
-
-```text
 HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
 ```
 
+
+
 ### 9.2 WELCOME
 
-Gateway -> client
+**Direction:** Gateway → Client
 
-**Purpose:** Confirm successful session establishment and advertise gateway/session parameters.
+**Purpose:** Confirm successful session establishment. Advertises gateway
+parameters so the client can set timers correctly.
 
-**Return:** No acknowledge required from the client.
+**Response:** No reply required from the client.
 
-**Fields:**
-
-| Field    | Req | Type   | Description |
-|----------|-----|--------|-------------|
-| `PROTO`  | ✓   | string | Negotiated version, echoes client's `PROTO` value |
-| `GW`     | ✓   | string | Gateway instance name |
-| `HBINT`  | ✓   | int    | Heartbeat interval in seconds |
-| `REPLAY` | ✓   | int    | Replay window in seconds |
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `PROTO` | ✓ | string | Echoes the client's `PROTO` value |
+| `GW` | ✓ | string | Gateway instance name (from config `name`) |
+| `HBINT` | ✓ | int | Heartbeat interval in seconds |
+| `REPLAY` | ✓ | int | Replay window in seconds |
+| `SYMBOLS` | — | string | Comma-separated list of currently known symbols; useful for discovery |
 
 ```text
-WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
+WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT,TSLA
 ```
+
+
 
 ### 9.3 SUB
 
-Client -> gateway
+**Direction:** Client → Gateway
 
-**Purpose:** Register or update symbol/channel subscriptions for market-data delivery.
+**Purpose:** Register or update subscriptions. For each new `(CH, SYM)` pair
+the gateway immediately sends a `SNAP` and then starts streaming live `MD`,
+`TRADE`, or `STATE` messages.
 
-**Return:** No dedicated ack in v1. Accepted subscriptions immediately trigger a `SNAP` per `(CH, SYM)` pair, then live incremental updates. Invalid requests return `ERR`.
+**Response:** No dedicated ACK. Accepted subscriptions trigger `SNAP` per pair.
+Invalid requests return `ERR`.
 
-**Fields:**
-
-| Field | Req | Type   | Description |
-|-------|-----|--------|-------------|
-| `CH`  | ✓   | string | Comma-separated channel list; valid values: `TOP`, `TRADE`, `STATE`, `SNAP` |
-| `SYM` | ✓   | string | Comma-separated symbol list; `*` is only allowed when `CH` contains only `STATE` |
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `CH` | ✓ | string | Comma-separated channels: `TOP`, `TRADE`, `STATE` |
+| `SYM` | ✓ | string | Comma-separated symbols; `*` only valid when `CH` is `STATE` only |
 
 ```text
 SUB|CH=TOP,TRADE|SYM=AAPL,MSFT
+SUB|CH=STATE|SYM=*
+SUB|CH=TOP|SYM=TSLA
 ```
+
+> **On `SUB` for a `(CH, SYM)` the client already holds:** the gateway silently
+> re-confirms (no duplicate `SNAP`, no error).
+
+
 
 ### 9.4 SNAP
 
-Gateway -> client
+**Direction:** Gateway → Client
 
-**Purpose:** Provide a point-in-time baseline state for a `(CH, SYM)` stream. Sent automatically after a `SUB` and after gap recovery when replay is not possible.
+**Purpose:** Deliver a point-in-time baseline for a `(CH, SYM)` stream.
+Sent automatically on `SUB`, and sent after a `REPLAY_MISS` to re-sync the
+client. The `SEQ` in a `SNAP` is the current counter value; the next incremental
+message for this stream will have `SEQ + 1`.
 
-**Return:** No acknowledge required.
+**Response:** No reply required.
 
-**Fields:**
+The `CH` field in a `SNAP` matches the subscribed channel:
 
-| Field     | Req | Type    | Description |
-|-----------|-----|---------|-------------|
-| `CH`      | ✓   | string  | Always `TOP` in v1 |
-| `SYM`     | ✓   | string  | Instrument symbol |
-| `SEQ`     | ✓   | int     | Current sequence number for this stream; next `MD` will be `SEQ+1` |
-| `TS`      | ✓   | string  | UTC ISO-8601 timestamp with ms |
-| `BID`     | –   | decimal | Best bid price; omitted if no active bid |
-| `BIDSZ`   | –   | int     | Best bid quantity; omitted if no active bid |
-| `ASK`     | –   | decimal | Best ask price; omitted if no active ask |
-| `ASKSZ`   | –   | int     | Best ask quantity; omitted if no active ask |
-| `LAST`    | –   | decimal | Last traded price; omitted if no trades yet |
-| `LASTSZ`  | –   | int     | Last traded quantity; omitted if no trades yet |
+| `CH` in SNAP | Contents |
+|---|---|
+| `TOP` | Current best bid, ask, sizes, last trade |
+| `STATE` | Current session state |
+
+**Fields when `CH=TOP`:**
+
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `CH` | ✓ | string | `TOP` |
+| `SYM` | ✓ | string | Instrument symbol |
+| `SEQ` | ✓ | int | Current sequence; next `MD` will be `SEQ+1` |
+| `TS` | ✓ | string | Snapshot timestamp |
+| `BID` | — | decimal | Best bid price; omitted if no resting bid |
+| `BIDSZ` | — | int | Best bid quantity; omitted if no resting bid |
+| `ASK` | — | decimal | Best ask price; omitted if no resting ask |
+| `ASKSZ` | — | int | Best ask quantity; omitted if no resting ask |
+| `LAST` | — | decimal | Last traded price; omitted if no trades today |
+| `LASTSZ` | — | int | Last traded quantity; omitted if no trades today |
 
 ```text
 SNAP|CH=TOP|SYM=AAPL|SEQ=1050|TS=2026-06-07T10:16:00.000Z|BID=150.10|BIDSZ=1200|ASK=150.12|ASKSZ=900|LAST=150.11|LASTSZ=300
 ```
 
-### 9.5 MD (TOP incremental)
+**Fields when `CH=STATE`:**
 
-Gateway -> client
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `CH` | ✓ | string | `STATE` |
+| `SYM` | ✓ | string | Instrument symbol, or `*` for session-wide |
+| `SEQ` | ✓ | int | Current sequence |
+| `TS` | ✓ | string | Snapshot timestamp |
+| `SESSION` | ✓ | string | Current state (see Section 9.7 for valid values) |
 
-**Purpose:** Deliver incremental top-of-book updates for subscribed streams using monotonic sequence progression. Client must process updates in sequence order; a gap indicates a missed event and should trigger reconnect/replay.
+```text
+SNAP|CH=STATE|SYM=*|SEQ=5|TS=2026-06-07T10:16:00.000Z|SESSION=CONTINUOUS
+```
 
-**Return:** No acknowledge required.
+> There is no `SNAP` for `CH=TRADE`. The trade stream has no baseline state —
+> only future trade events are delivered after a `SUB|CH=TRADE`.
 
-**Fields:**
 
-| Field   | Req | Type    | Description |
-|---------|-----|---------|-------------|
-| `CH`    | ✓   | string  | Channel identifier (e.g. `TOP`) |
-| `SYM`   | ✓   | string  | Instrument symbol |
-| `SEQ`   | ✓   | int     | Monotonic sequence; increments by 1 per emitted event |
-| `TS`    | ✓   | string  | UTC ISO-8601 timestamp with ms |
-| `BID`   | –   | decimal | Updated best bid price; omitted if unchanged |
-| `BIDSZ` | –   | int     | Updated best bid quantity; omitted if unchanged |
-| `ASK`   | –   | decimal | Updated best ask price; omitted if unchanged |
-| `ASKSZ` | –   | int     | Updated best ask quantity; omitted if unchanged |
+
+### 9.5 MD (TOP Incremental Update)
+
+**Direction:** Gateway → Client
+
+**Purpose:** Deliver an incremental top-of-book change. Only sent when the best
+bid or ask actually changes. Fields that did not change are omitted.
+
+**Response:** No reply required. A gap in `SEQ` should trigger replay or resync.
+
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `CH` | ✓ | string | Always `TOP` |
+| `SYM` | ✓ | string | Instrument symbol |
+| `SEQ` | ✓ | int | Monotonic sequence; increments by 1 per emitted event |
+| `TS` | ✓ | string | UTC ISO-8601 timestamp with ms |
+| `BID` | — | decimal | New best bid price; omitted if bid side unchanged |
+| `BIDSZ` | — | int | New best bid quantity; omitted if bid side unchanged |
+| `ASK` | — | decimal | New best ask price; omitted if ask side unchanged |
+| `ASKSZ` | — | int | New best ask quantity; omitted if ask side unchanged |
+| `LAST` | — | decimal | New last traded price (set on trade events) |
+| `LASTSZ` | — | int | New last traded quantity |
 
 ```text
 MD|CH=TOP|SYM=AAPL|SEQ=1051|TS=2026-06-07T10:16:00.115Z|BID=150.11|BIDSZ=1400|ASK=150.13|ASKSZ=800
+MD|CH=TOP|SYM=AAPL|SEQ=1052|TS=2026-06-07T10:16:00.141Z|LAST=150.12|LASTSZ=200
 ```
+
+> **The first `MD` after a `SNAP` may include all fields** even if they haven't
+> changed since the snapshot — this is intentional, not a bug. Treat missing
+> fields as "unchanged from the most recent `SNAP` or `MD`".
+
+
 
 ### 9.6 TRADE
 
-Gateway -> client
+**Direction:** Gateway → Client
 
-**Purpose:** Publish an executed trade print for subscribed symbols. Each `TRADE` message represents a single fill event at the matching engine.
+**Purpose:** Publish a trade print. Each `TRADE` message represents one fill
+event at the matching engine.
 
-**Return:** No acknowledge required.
+**Response:** No reply required.
 
-**Fields:**
-
-| Field  | Req | Type    | Description |
-|--------|-----|---------|-------------|
-| `CH`   | ✓   | string  | Always `TRADE` |
-| `SYM`  | ✓   | string  | Instrument symbol |
-| `SEQ`  | ✓   | int     | Monotonic sequence for the `(TRADE, SYM)` stream |
-| `TS`   | ✓   | string  | Execution timestamp |
-| `PX`   | ✓   | decimal | Trade price |
-| `QTY`  | ✓   | int     | Trade quantity |
-| `SIDE` | ✓   | string  | Aggressor side: `BUY` or `SELL` |
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `CH` | ✓ | string | Always `TRADE` |
+| `SYM` | ✓ | string | Instrument symbol |
+| `SEQ` | ✓ | int | Monotonic sequence for the `(TRADE, SYM)` stream |
+| `TS` | ✓ | string | Execution timestamp |
+| `PX` | ✓ | decimal | Trade price |
+| `QTY` | ✓ | int | Trade quantity |
+| `SIDE` | ✓ | string | Aggressor side: `BUY` or `SELL` |
 
 ```text
 TRADE|CH=TRADE|SYM=AAPL|SEQ=809|TS=2026-06-07T10:16:00.141Z|PX=150.12|QTY=200|SIDE=BUY
 ```
 
+
+
 ### 9.7 STATE
 
-Gateway -> client
+**Direction:** Gateway → Client
 
-**Purpose:** Broadcast trading-session or instrument-state transitions. Clients should update their internal session model on receipt and halt order logic as appropriate (e.g. during `HALTED` or `CLOSED`).
+**Purpose:** Notify clients of a trading-session or instrument-state transition.
+Clients should halt order submission logic when the instrument or session is not
+in a tradable state.
 
-**Return:** No acknowledge required.
+**Response:** No reply required.
 
-**Fields:**
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `CH` | ✓ | string | Always `STATE` |
+| `SYM` | ✓ | string | Instrument symbol, or `*` for session-wide transitions |
+| `SEQ` | ✓ | int | Monotonic sequence for the `(STATE, SYM)` stream |
+| `TS` | ✓ | string | Transition timestamp |
+| `SESSION` | ✓ | string | New state — see table below |
+| `PREV` | — | string | Previous state — included when known; useful for logging |
 
-| Field     | Req | Type   | Description |
-|-----------|-----|--------|-------------|
-| `CH`      | ✓   | string | Always `STATE` |
-| `SYM`     | ✓   | string | Instrument symbol, or `*` for session-wide state |
-| `SEQ`     | ✓   | int    | Monotonic sequence for the `(STATE, SYM)` stream |
-| `TS`      | ✓   | string | Transition timestamp |
-| `SESSION` | ✓   | string | New state — see valid values below |
+**CALF `SESSION` values and their mapping from internal engine states:**
 
-**Valid `SESSION` values:**
+| CALF `SESSION` value | Source | Meaning |
+|---|---|---|
+| `PRE_OPEN` | Engine `SessionState.PRE_OPEN` | Orders accepted; matching not yet active |
+| `OPENING_AUCTION` | Engine `SessionState.OPENING_AUCTION` | Auction collection phase; uncross on exit |
+| `CONTINUOUS` | Engine `SessionState.CONTINUOUS` | Normal continuous matching active |
+| `CLOSING_AUCTION` | Engine `SessionState.CLOSING_AUCTION` | Auction collection phase; uncross on exit |
+| `CLOSED` | Engine `SessionState.CLOSED` | No new orders accepted |
+| `HALTED` | Engine `circuit_breaker.halt.{SYMBOL}` | Symbol-level halt; no matching for this symbol |
 
-| Value         | Meaning |
-|---------------|---------|
-| `PRE_OPEN`    | Session accepted but matching not yet active |
-| `OPEN`        | Matching active (opening auction complete in full exchanges; continuous trading in v1) |
-| `CONTINUOUS`  | Continuous matching active |
-| `HALTED`      | Instrument temporarily halted; no matching |
-| `CLOSED`      | Session ended; no further events for this symbol |
+> **`HALTED` is per-symbol.** It is published with the specific symbol in `SYM`.
+> A `STATE SESSION=HALTED|SYM=AAPL` does not affect MSFT.
+>
+> Session-wide state changes (`PRE_OPEN`, `CONTINUOUS`, etc.) use `SYM=*`.
 
 ```text
-STATE|CH=STATE|SYM=AAPL|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS
+STATE|CH=STATE|SYM=*|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION
+STATE|CH=STATE|SYM=AAPL|SEQ=3|TS=2026-06-07T11:02:17.330Z|SESSION=HALTED|PREV=CONTINUOUS
 ```
+
+
 
 ### 9.8 ERR
 
-Gateway -> client
+**Direction:** Gateway → Client
 
-**Purpose:** Report protocol, subscription, or recovery failures with a machine-parseable code so the client can take appropriate action.
+**Purpose:** Report a protocol, subscription, or recovery failure. Always
+includes a machine-readable `CODE` so the client can take corrective action
+without parsing the human-readable `MSG`.
 
-**Return:** No acknowledge required. Client action depends on `CODE`.
+**Response:** No reply required. Client action depends on `CODE` (see table).
 
-**Fields:**
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `CODE` | ✓ | string | Machine-readable error code |
+| `MSG` | — | string | Human-readable description for logging |
+| `CH` | — | string | Channel context, if applicable |
+| `SYM` | — | string | Symbol context, if applicable |
 
-| Field  | Req | Type   | Description |
-|--------|-----|--------|-------------|
-| `CODE` | ✓   | string | Machine-readable error code (see table below) |
-| `MSG`  | –   | string | Human-readable description for logging |
-| `CH`   | –   | string | Channel context, if applicable |
-| `SYM`  | –   | string | Symbol context, if applicable |
-
-**ERR codes:**
-
-| Code             | Trigger | Recommended client action |
-|------------------|---------|---------------------------|
-| `PROTO_MISMATCH` | `PROTO` value not recognised | Close connection; upgrade client |
-| `AUTH_REQUIRED`  | Message received before a valid `HELLO` | Send `HELLO` first |
-| `INVALID_CHANNEL`| `CH` contains an unknown channel name | Correct `CH` and resend `SUB` |
-| `INVALID_SYMBOL` | `SYM` contains an unrecognised symbol | Correct `SYM` and resend `SUB` |
-| `SUB_LIMIT`      | Symbol count exceeds `max_symbols_per_client` | Reduce symbols and resend |
-| `REPLAY_MISS`    | `LASTSEQ` is outside the replay window | Accept the following `SNAP` and continue live |
-| `SLOW_CLIENT`    | Outbound queue overflow | Reconnect and resume via `LASTSEQ` |
-| `BAD_MESSAGE`    | Unparseable line received from client | Fix client encoding or framing |
+| Code | Trigger | Recommended client action |
+|---|---|---|
+| `PROTO_MISMATCH` | `PROTO` value not `CALF1` | Close connection; upgrade client |
+| `AUTH_REQUIRED` | Any message received before `HELLO` | Send `HELLO` first |
+| `INVALID_CHANNEL` | `CH` contains an unknown channel name | Correct and resend `SUB` |
+| `INVALID_SYMBOL` | `SYM` contains an unrecognised symbol, or `SYM=*` used with `TOP`/`TRADE` | Correct and resend `SUB` |
+| `SUB_LIMIT` | Symbol count exceeds `max_symbols_per_client` | Reduce symbol list and resend |
+| `REPLAY_MISS` | `LASTSEQ` is outside the replay window | Accept the following `SNAP` and continue live |
+| `SLOW_CLIENT` | Outbound queue overflow | Reconnect and resume via `LASTSEQ` |
+| `BAD_MESSAGE` | Unparseable line or line exceeds 4096 bytes | Fix client encoding or framing |
 
 ```text
 ERR|CODE=REPLAY_MISS|MSG=Requested sequence outside replay buffer|CH=TOP|SYM=AAPL
+ERR|CODE=SLOW_CLIENT|MSG=Outbound queue full; disconnecting
 ```
+
+
 
 ### 9.9 UNSUB
 
-Client -> gateway
+**Direction:** Client → Gateway
 
-**Purpose:** Cancel one or more active subscriptions. The gateway stops streaming for the specified `(CH, SYM)` combinations. Any outstanding buffered messages may still arrive briefly after the `UNSUB` is processed.
+**Purpose:** Cancel one or more active subscriptions. The gateway stops
+streaming for the specified `(CH, SYM)` pairs. Buffered messages in flight
+may still arrive briefly after the `UNSUB` is processed.
 
-**Return:** No acknowledge. Streaming for the unsubscribed pairs stops. Invalid requests return `ERR`.
+**Response:** No reply. Invalid requests return `ERR`.
 
-**Fields:** Same structure as `SUB`.
-
-| Field | Req | Type   | Description |
-|-------|-----|--------|-------------|
-| `CH`  | ✓   | string | Comma-separated channels to unsubscribe |
-| `SYM` | ✓   | string | Comma-separated symbols to unsubscribe |
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `CH` | ✓ | string | Comma-separated channels to unsubscribe |
+| `SYM` | ✓ | string | Comma-separated symbols to unsubscribe |
 
 ```text
 UNSUB|CH=TOP|SYM=AAPL
 UNSUB|CH=TOP,TRADE|SYM=AAPL,MSFT
 ```
 
+
+
 ### 9.10 HB (Heartbeat)
 
-Gateway -> client
+**Direction:** Gateway → Client
 
-**Purpose:** Signal liveness when no market-data event was emitted during the last heartbeat interval (`HBINT`). The client should use absence of both data messages and `HB` to detect a stale connection. If no inbound or outbound traffic occurs within `idle_timeout_sec`, the client should close and reconnect.
+**Purpose:** Signal gateway liveness when no market-data event was emitted
+during the last `HBINT` interval. Clients should treat absence of both data
+messages and `HB` as a stale connection indicator.
 
-**Return:** No response required from the client.
+**Response:** No reply required.
 
-**Fields:**
-
-| Field | Req | Type   | Description |
-|-------|-----|--------|-------------|
-| `TS`  | ✓   | string | Gateway UTC timestamp at emission |
+| Field | Req | Type | Description |
+|---|---|---|---|
+| `TS` | ✓ | string | Gateway UTC timestamp at emission |
 
 ```text
 HB|TS=2026-06-07T10:16:05.000Z
 ```
 
+
+
 ### 9.11 PING / PONG
 
-PING: Client -> gateway  
-PONG: Gateway -> client
+**Direction:** `PING`: Client → Gateway; `PONG`: Gateway → Client
 
-**Purpose:** Client-initiated liveness probe. The gateway echoes `PONG` immediately. Useful for measuring round-trip latency or confirming the connection is alive without waiting for the next `HB`.
+**Purpose:** Client-initiated liveness probe. Useful for measuring round-trip
+latency or confirming the connection is alive without waiting for the next `HB`.
 
-**Return:** `PING` always receives a `PONG`. `PONG` requires no further response.
-
-**Fields:** No mandatory fields. `TS` may be included optionally for round-trip latency measurement.
+**Response:** `PONG` is always sent in reply to `PING`.
 
 ```text
 PING
 PONG
-```
 
-With optional timestamp echo:
-
-```text
 PING|TS=2026-06-07T10:16:06.123Z
 PONG|TS=2026-06-07T10:16:06.123Z
 ```
 
----
 
-## 10. pm-md-gwy Design Proposal
 
-This gateway is the CALF publisher process.
+### 9.12 EXIT
+
+**Direction:** Client → Gateway
+
+**Purpose:** Clean client-initiated disconnect. The gateway closes the TCP
+connection cleanly after receiving `EXIT`.
+
+**Response:** No reply. The gateway closes the socket.
+
+```text
+EXIT
+```
+
+
+
+## 10. pm-md-gwy Design and Implementation Guide
+
+> **Read this section before writing any code.** It covers the process
+> architecture, data structures, internal flow, and new files to create.
 
 ### 10.1 Responsibilities
 
-- subscribe to internal bus topics
-- normalize payloads into CALF fields
-- maintain per-stream sequence counters
-- keep bounded replay buffers
-- manage client sessions/subscriptions
-- enforce symbol/channel limits and backpressure policy
+- Connect to the engine ZMQ PUB socket (port 5556) and subscribe to the topics
+  listed in Section 3.1.
+- Normalise incoming JSON payloads into CALF text lines.
+- Maintain a per-`(CH, SYM)` monotonic sequence counter.
+- Keep a time-bounded replay ring buffer per `(CH, SYM)` stream.
+- Accept TCP client connections on port 5570 (configurable).
+- Manage each client's session state (HELLO/WELCOME handshake, subscriptions).
+- Fan out CALF messages to all clients subscribed to the relevant `(CH, SYM)`.
+- Enforce per-client queue depth limit; disconnect slow clients.
+- Send `HB` when no data has been sent for `HBINT` seconds.
 
-### 10.2 Non-responsibilities
+### 10.2 Non-Responsibilities
 
-- no matching logic
-- no risk checks
-- no entitlement matrix in v1
-- no persistence beyond in-memory replay window
+- No order matching or routing logic.
+- No risk checks.
+- No entitlement matrix in v1.
+- No persistence beyond the in-memory replay window.
+- No authentication beyond the CALF `HELLO` protocol check.
 
-### 10.3 Data flow inside gateway
+### 10.3 Data Flow Inside the Gateway
 
 ```mermaid
 flowchart TD
-    IN[Internal bus subscriber]
-    NORM[Normalizer\ninternal -> CALF model]
-    SEQ[Sequence allocator\nper CH,SYM]
-    RB[Replay ring buffers]
-    FAN[Subscription fanout]
-    SOCK[TCP client sockets]
+    ZMQ[ZMQ SUB socket\nengine PUB :5556]
+    NORM[Normaliser\nJSON → CALF fields]
+    SEQ[Sequence allocator\nper CH×SYM counter dict]
+    RB[Replay ring buffers\nper CH×SYM deque]
+    FAN[Subscription fanout\nfor each subscribed client]
+    QUEUE[Per-client outbound queue\ncapped at max_client_queue]
+    TCP[TCP send loop\none thread or select per client]
 
-    IN --> NORM --> SEQ --> RB --> FAN --> SOCK
+    ZMQ --> NORM --> SEQ --> RB --> FAN --> QUEUE --> TCP
 ```
 
-### 10.4 Backpressure policy (v1)
+### 10.4 Key Data Structures
 
-If a client cannot keep up:
-- queue per client capped (default 10,000 messages)
-- on overflow, disconnect client with:
-  - `ERR|CODE=SLOW_CLIENT`
-- client reconnects and resumes via `LASTSEQ`
+```python
+# Sequence counters: (ch, sym) → int
+_seq: dict[tuple[str, str], int] = defaultdict(int)
 
-This keeps the gateway stable under load without complicated QoS logic.
+# Replay buffers: (ch, sym) → deque of (timestamp_float, calf_line_str)
+# Entries older than replay_window_sec are evicted on each append.
+_replay: dict[tuple[str, str], deque] = defaultdict(deque)
 
----
+# Client sessions: client_id → ClientSession
+_clients: dict[str, ClientSession]
+```
 
-## 11. Session Lifecycle Example
+```python
+@dataclass
+class ClientSession:
+    client_id:      str
+    socket:         socket.socket
+    addr:           tuple[str, int]       # (host, port) for logging
+    state:          str                   # "CONNECTED", "ACTIVE"
+    subscriptions:  set[tuple[str, str]]  # set of (ch, sym)
+    outq:           deque                 # outbound message queue (capped)
+    last_activity:  float                 # time.monotonic() of last send/recv
+```
+
+### 10.5 Internal Event Handling
+
+When a `book.{SYMBOL}` message arrives from the engine:
+
+1. Extract `symbol` from the topic suffix.
+2. Compare current best bid/ask against the previously cached values for this symbol.
+3. If the top of book changed (price or size), build an `MD` line with only the
+   changed fields, allocate the next sequence for `(TOP, symbol)`, append to the
+   replay buffer, and fan out to all `(TOP, symbol)` subscribers.
+4. Update the cached top-of-book for this symbol.
+
+When a `trade.executed` message arrives:
+
+1. Extract `symbol`, `price`, `quantity`, `aggressor_side` from the JSON payload.
+2. Build a `TRADE` line, allocate the next sequence for `(TRADE, symbol)`, append
+   to the replay buffer, fan out to `(TRADE, symbol)` subscribers.
+3. Also update cached `LAST` / `LASTSZ` for the symbol so the next `SNAP` or
+   `MD` can include these fields.
+
+When a `session.state` message arrives:
+
+1. Extract `state` and `prev_state` from the payload. Map engine `SessionState`
+   value to CALF `SESSION` value (they are the same strings for all values except
+   `HALTED`, which comes from a different topic).
+2. Build a `STATE` line with `SYM=*`, allocate sequence for `(STATE, *)`, fan out.
+
+When a `circuit_breaker.halt.{SYMBOL}` message arrives:
+
+1. Build `STATE SESSION=HALTED|SYM={symbol}`, allocate sequence for `(STATE, symbol)`, fan out.
+
+When a `circuit_breaker.resume.{SYMBOL}` message arrives:
+
+1. Build `STATE SESSION=CONTINUOUS|SYM={symbol}`, fan out.
+
+### 10.6 New Files to Create
+
+| File | Purpose |
+|---|---|
+| `src/edumatcher/md_gateway/__init__.py` | Package marker (empty) |
+| `src/edumatcher/md_gateway/main.py` | Entry point (`main()`) and main loop |
+| `src/edumatcher/md_gateway/client_session.py` | `ClientSession` dataclass and state machine |
+| `src/edumatcher/md_gateway/normaliser.py` | ZMQ payload → CALF line conversion functions |
+| `src/edumatcher/md_gateway/sequencer.py` | `SequenceAllocator` class (wraps the `_seq` dict) |
+| `src/edumatcher/md_gateway/replay_buffer.py` | `ReplayBuffer` class (time-bounded deque per stream) |
+| `src/edumatcher/md_gateway/fanout.py` | Subscription registry and fanout logic |
+| `tests/test_md_normaliser.py` | Unit tests for normaliser (no ZMQ, no TCP) |
+| `tests/test_md_replay_buffer.py` | Unit tests for replay buffer |
+| `tests/test_md_sequencer.py` | Unit tests for sequence allocator |
+
+Add the entry point to `pyproject.toml`:
+
+```toml
+[tool.poetry.scripts]
+pm-md-gwy = "edumatcher.md_gateway.main:main"
+```
+
+### 10.7 Process Startup and Dependencies
+
+`pm-md-gwy` depends on `pm-engine` being up (it subscribes to the engine's PUB
+socket). It can start before or after the engine — it will simply receive no
+events until the engine publishes.
+
+```bash
+# Recommended startup order:
+poetry run pm-engine
+poetry run pm-md-gwy          # connects to engine PUB on :5556, binds TCP :5570
+poetry run pm-gateway --id GW01
+```
+
+`pm-md-gwy` command-line arguments:
+
+```bash
+poetry run pm-md-gwy
+poetry run pm-md-gwy --config engine_config.yaml
+poetry run pm-md-gwy --verbose
+```
+
+### 10.8 Backpressure Policy
+
+If a client cannot consume messages fast enough:
+
+1. Messages are queued in `ClientSession.outq` (cap: `max_client_queue`, default 10,000).
+2. When the queue is full, the gateway sends `ERR|CODE=SLOW_CLIENT` and immediately
+   closes the TCP connection.
+3. The client must reconnect and use `RESUME=1` to recover.
+
+This keeps the gateway stable without complex QoS logic.
+
+
+
+## 11. Session Lifecycle Examples
+
+### 11.1 Normal Subscribe and Data Flow
 
 ```mermaid
 sequenceDiagram
     participant C as CALF Client
     participant G as pm-md-gwy
-    participant E as Engine Bus
+    participant E as Engine (ZMQ PUB)
 
     C->>G: HELLO|CLIENT=bot01|PROTO=CALF1
-    G-->>C: WELCOME|PROTO=CALF1|HBINT=1|REPLAY=30
+    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT
+
     C->>G: SUB|CH=TOP,TRADE|SYM=AAPL
-    E-->>G: book update AAPL
-    G-->>C: SNAP|CH=TOP|SYM=AAPL|SEQ=100
-    G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=101
-    E-->>G: trade executed AAPL
-    G-->>C: TRADE|CH=TRADE|SYM=AAPL|SEQ=44
-    G-->>C: HB
-    C->>G: PING
-    G-->>C: PONG
+    Note over G: auto-sends SNAP for (TOP,AAPL); no SNAP for TRADE
+    G-->>C: SNAP|CH=TOP|SYM=AAPL|SEQ=100|BID=150.10|BIDSZ=500|ASK=150.12|ASKSZ=300
+
+    E-->>G: book.AAPL (top changed)
+    G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=101|BID=150.11|BIDSZ=600
+
+    E-->>G: trade.executed AAPL PX=150.11 QTY=200 SIDE=BUY
+    G-->>C: TRADE|CH=TRADE|SYM=AAPL|SEQ=44|TS=...|PX=150.11|QTY=200|SIDE=BUY
+    Note over G: no data for 1 second
+    G-->>C: HB|TS=2026-06-07T10:16:05.000Z
+
+    C->>G: PING|TS=2026-06-07T10:16:06.000Z
+    G-->>C: PONG|TS=2026-06-07T10:16:06.000Z
+
+    C->>G: EXIT
+    Note over G: closes TCP connection
 ```
 
----
+### 11.2 Session State Change
 
-## 12. Config Proposal
+```mermaid
+sequenceDiagram
+    participant C as CALF Client
+    participant G as pm-md-gwy
+    participant E as Engine (ZMQ PUB)
 
-Add to `engine_config.yaml`:
+    C->>G: SUB|CH=STATE|SYM=*
+    G-->>C: SNAP|CH=STATE|SYM=*|SEQ=5|TS=...|SESSION=OPENING_AUCTION
+
+    E-->>G: session.state {state: CONTINUOUS, prev_state: OPENING_AUCTION}
+    G-->>C: STATE|CH=STATE|SYM=*|SEQ=6|TS=...|SESSION=CONTINUOUS|PREV=OPENING_AUCTION
+```
+
+
+
+## 12. Config Reference
+
+Add to `engine_config.yaml` under the `market_data_gateway:` key:
 
 ```yaml
 market_data_gateway:
   enabled: true
-  bind_address: "0.0.0.0"
+  name: "md-gwy01"            # instance name; appears in WELCOME|GW=
+  bind_address: "0.0.0.0"    # listen on all interfaces; use 127.0.0.1 for local-only
   port: 5570
-  heartbeat_interval_sec: 1
-  idle_timeout_sec: 5
-  replay_window_sec: 30
+  heartbeat_interval_sec: 1  # seconds between HB messages when no data is flowing
+  idle_timeout_sec: 5        # seconds of total silence before disconnecting a client
+  replay_window_sec: 30      # how many seconds of history to keep per stream for replay
   max_symbols_per_client: 200
-  max_client_queue: 10000
+  max_client_queue: 10000    # outbound queue depth before SLOW_CLIENT disconnect
 ```
 
----
+
 
 ## 13. Educational Mapping to Existing Concepts
 
-CALF maps directly to concepts learners already know:
-- ALF style: pipe-delimited readable messages
-- BALF concept: sequence and liveness discipline
-- Exchange fundamentals: snapshots + incrementals + replay
+CALF maps directly to concepts learners already know from the rest of EduMatcher:
 
-This means one can teach:
-1. simple CLI client first
-2. bot subscription and gap handling second
-3. binary feed evolution later
+| CALF concept | EduMatcher parallel |
+|---|---|
+| Pipe-delimited text messages | ALF order entry format |
+| Sequence numbers + gap detection | BALF sequence discipline |
+| Snapshot + incremental | Standard exchange feed model (Bloomberg, ICE) |
+| Replay window | Bounded recovery without full persistence |
+| Channel subscription | ZMQ topic subscription on internal bus |
 
----
+Teaching sequence:
+1. Connect a terminal client (`nc localhost 5570`), send `HELLO` and `SUB` by hand.
+2. Build a simple Python bot using the example in Section 16.
+3. Introduce sequence tracking and gap detection.
+4. Discuss the difference between snapshot-based and delta-based feeds.
+
+
 
 ## 14. Security and Operational Notes
 
 For v1 education environments:
-- run on trusted network
-- optionally terminate TLS at proxy sidecar (not inside CALF)
+- Run on a trusted network (no auth token in v1).
+- TLS can be terminated at a proxy sidecar (e.g. `stunnel`) without changing CALF.
+- Bind to `127.0.0.1` instead of `0.0.0.0` when running single-machine labs.
 
-Operational observability metrics:
-- clients connected
-- messages/sec per channel
-- replay hit ratio
+Useful observability metrics to log per minute:
+- clients currently connected
+- messages/sec sent per channel
+- replay requests per minute and replay-miss rate
 - slow-client disconnect count
-- max fanout latency
+- largest observed outbound queue depth
 
----
+
 
 ## 15. Future Evolution (v2+)
 
-Natural upgrades once v1 is stable:
-- `BCALF` binary market-data variant
-- depth-by-price channel (`DEPTH`)
-- entitlement and symbol groups
-- optional gzip/zstd framing
-- multicast for high fanout
-- durable replay from disk (minutes -> hours)
+| Feature | Notes |
+|---|---|
+| `BCALF` | Binary market-data variant (same semantics, fixed-width frames) |
+| `DEPTH` channel | Full price-level depth (5 or 10 levels) |
+| Entitlement groups | Symbol whitelist per client |
+| `gzip`/`zstd` framing | Opt-in compression negotiated in `HELLO`/`WELCOME` |
+| Multicast delivery | For very high fanout scenarios |
+| Durable replay from disk | Extend replay window from 30 s to hours |
+| Auth token in `HELLO` | `TOKEN=` field; validated against a shared secret |
 
----
 
-## 16. Worked Client Example (Python pseudocode)
+
+## 16. Worked Client Example (Python)
+
+This example correctly handles TCP streaming (partial reads, multiple messages per
+`recv`) and tracks sequence numbers for gap detection.
 
 ```python
+"""
+calf_client.py — minimal CALF client in Python.
+
+Usage:
+    python calf_client.py
+
+Connects to pm-md-gwy on localhost:5570, subscribes to TOP+TRADE for AAPL,
+and prints all received messages. Detects sequence gaps.
+"""
 import socket
+import time
 
-s = socket.create_connection(("127.0.0.1", 5570))
 
-s.sendall(b"HELLO|CLIENT=demo01|PROTO=CALF1\n")
-print(s.recv(4096).decode())
+def _recv_lines(sock: socket.socket, buf: bytearray) -> list[str]:
+    """
+    Read available bytes from sock into buf and return all complete lines.
+    Lines are \n-terminated. Partial lines stay in buf for the next call.
+    This is necessary because TCP is a byte stream — a single recv() may
+    deliver part of a line, a full line, or multiple lines at once.
+    """
+    chunk = sock.recv(4096)
+    if not chunk:
+        raise ConnectionResetError("Server closed connection")
+    buf.extend(chunk)
+    lines = []
+    while b"\n" in buf:
+        idx = buf.index(b"\n")
+        line = buf[:idx].decode("utf-8").strip()
+        del buf[:idx + 1]
+        if line:
+            lines.append(line)
+    return lines
 
-s.sendall(b"SUB|CH=TOP,TRADE|SYM=AAPL\n")
 
-last_seq_top = 0
-last_seq_trade = 0
+def main() -> None:
+    sock = socket.create_connection(("127.0.0.1", 5570))
+    sock.settimeout(10.0)  # detect dead connections
+    buf = bytearray()
 
-while True:
-    line = s.recv(4096).decode().strip()
-    if not line:
+    # ── Handshake ──────────────────────────────────────────────────────────
+    sock.sendall(b"HELLO|CLIENT=demo01|PROTO=CALF1\n")
+    while True:
+        for line in _recv_lines(sock, buf):
+            parts = line.split("|")
+            mtype = parts[0]
+            kv = dict(p.split("=", 1) for p in parts[1:] if "=" in p)
+            if mtype == "WELCOME":
+                print(f"Connected to gateway '{kv.get('GW')}'  "
+                      f"replay={kv.get('REPLAY')}s  "
+                      f"symbols={kv.get('SYMBOLS')}")
+                break
+            if mtype == "ERR":
+                raise RuntimeError(f"Gateway error: {line}")
+        else:
+            continue
         break
-    parts = line.split("|")
-    mtype = parts[0]
-    kv = dict(p.split("=", 1) for p in parts[1:] if "=" in p)
 
-    if mtype in {"SNAP", "MD", "TRADE"}:
-        ch = kv.get("CH")
-        seq = int(kv["SEQ"])
-        if ch == "TOP":
-            if last_seq_top and seq != last_seq_top + 1:
-                print("gap on TOP", last_seq_top, seq)
-            last_seq_top = seq
-        elif ch == "TRADE":
-            if last_seq_trade and seq != last_seq_trade + 1:
-                print("gap on TRADE", last_seq_trade, seq)
-            last_seq_trade = seq
+    # ── Subscribe ──────────────────────────────────────────────────────────
+    sock.sendall(b"SUB|CH=TOP,TRADE|SYM=AAPL\n")
 
-    print(line)
+    # ── Sequence tracking: last seen SEQ per (CH, SYM) ─────────────────────
+    last_seq: dict[tuple[str, str], int] = {}
+
+    # ── Main loop ──────────────────────────────────────────────────────────
+    try:
+        while True:
+            for line in _recv_lines(sock, buf):
+                parts = line.split("|")
+                mtype = parts[0]
+                kv = dict(p.split("=", 1) for p in parts[1:] if "=" in p)
+
+                if mtype in {"SNAP", "MD", "TRADE", "STATE"}:
+                    ch = kv.get("CH", "")
+                    sym = kv.get("SYM", "")
+                    seq = int(kv["SEQ"])
+                    key = (ch, sym)
+                    prev = last_seq.get(key)
+                    if prev is not None and seq != prev + 1:
+                        print(f"⚠  GAP on ({ch},{sym}): expected {prev+1}, got {seq}")
+                    last_seq[key] = seq
+
+                if mtype == "HB":
+                    pass  # liveness confirmed; no action needed
+
+                if mtype == "ERR":
+                    print(f"ERR: {kv.get('CODE')} — {kv.get('MSG','')}")
+                    if kv.get("CODE") == "SLOW_CLIENT":
+                        print("Reconnecting...")
+                        return  # caller should reconnect with RESUME
+
+                print(line)
+    except KeyboardInterrupt:
+        sock.sendall(b"EXIT\n")
+    finally:
+        sock.close()
+
+
+if __name__ == "__main__":
+    main()
 ```
 
----
+
 
 ## 17. Open Questions
 
-1. Should `SYM=*` be allowed for `TOP` in lab mode only?
-2. Should replay be per-client ring or shared per-stream ring (recommended: shared)?
-3. Should `SNAP` be auto-sent on every `SUB` (recommended: yes)?
-4. Should we include a simple auth token in `HELLO` for classroom multi-user deployments?
-5. Do we want CALF field names exactly aligned with ALF where possible (`QTY` vs `SIZE`)?
+1. Should `SYM=*` be allowed for `TOP` in a restricted lab mode? This would be
+   useful in single-symbol classroom setups but risks abuse in multi-user labs.
+2. Should replay be per-client ring or shared per-stream ring? Shared is recommended
+   (less memory, simpler eviction), but per-client allows independent replay windows.
+3. Should there be a `SUB|CH=TRADE|SYM=*` option for recording all trades?
+4. Should we include a `TOKEN=` field in `HELLO` for classroom multi-user deployments
+   where students need to be authenticated?
+5. Should CALF field names align with ALF where possible? (`QTY` vs `SIZE`,
+   `PX` vs `PRICE`.) The current proposal uses shorter names (`PX`, `QTY`) for
+   wire efficiency.
+6. Should `WELCOME` include a list of currently valid symbols to avoid
+   `INVALID_SYMBOL` errors on first connect? (Currently proposed as optional
+   `SYMBOLS=` field — see Section 9.2.)
 
----
+
 
 ## 18. Summary
 
-CALF provides an intentionally simple market-data protocol that matches
-EduMatcher's teaching goals while remaining production-shaped in core ideas:
-- channelized subscriptions
-- sequence numbers
-- gap recovery
-- snapshots plus incrementals
-- gateway fanout design (`pm-md-gwy`)
+CALF provides a simple, readable market-data protocol that fits EduMatcher's
+teaching goals while remaining production-shaped in its core ideas:
 
-It is a 90/10 protocol: small surface area, clear behavior, and enough realism
-for meaningful exchange-system learning.
+- **Channels** — clean separation of book data, trade prints, and session state
+- **Sequence numbers** — clients detect gaps and know what they missed
+- **Replay window** — short disconnects recover without losing data
+- **Snapshots + incrementals** — same model used by Bloomberg, ICE, and CME
+- **Gateway fanout** — `pm-md-gwy` decouples the engine from external consumers
+
+It is a 90/10 protocol: small surface area, predictable behaviour, and enough
+production realism to teach meaningful exchange-system concepts.

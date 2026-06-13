@@ -87,6 +87,7 @@ $1_MD := $(DESIGN_IDEAS_DIR)/$$($1_BASENAME_ESC).md
 $1_PDF := $(DESIGN_IDEAS_DIR)/$$($1_BASENAME_ESC).pdf
 $1_STAMP := $(STAMP_DIR)/$$($1_BASENAME_ESC)-pdf$(THEME_SUFFIX).stamp
 $1_BUILD_DIR := $(BUILD_DESIGN_DIR)/$$($1_BASENAME_ESC)
+$1_MD_CLEAN := $$($1_BUILD_DIR)/$$($1_BASENAME_ESC)_clean.md
 $1_BODY_TEX := $$($1_BUILD_DIR)/$$($1_BASENAME_ESC)_body.tex
 $1_TEX := $$($1_BUILD_DIR)/$$($1_BASENAME_ESC)_report.tex
 $1_PDF_BUILT := $$($1_BUILD_DIR)/$$($1_BASENAME_ESC)_report.pdf
@@ -124,12 +125,12 @@ endef
 # ============================================================================================
 define DESIGN_DOC_PDF_RULE
 $$($1_PDF): $$($1_STAMP)
-
 $$($1_STAMP): $$($1_MD) $$(DESIGN_LATEX_TEMPLATE) $$($1_EXTRA_DEPS) | $$(BUILD_DIR) $$(STAMP_DIR) $$(DIST_DIR)
 	@echo -e "\n$$(DARKYELLOW)- Building $2 PDF via LaTeX report pipeline...$$(NC)"
 	@rm -rf $$($1_BUILD_DIR); 
 	@mkdir -p $$($1_BUILD_DIR)
-	@pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none $$($1_PANDOC_OPTS) $$($1_MD) -o $$($1_BODY_TEX)
+	@sed -E 's/^(#{1,6}[[:space:]]+)[0-9]+([.][0-9]+)*[.]?[[:space:]]+/\1/' $$($1_MD) > $$($1_MD_CLEAN)
+	@pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none $$($1_PANDOC_OPTS) $$($1_MD_CLEAN) -o $$($1_BODY_TEX)
 	@sed -i.bak 's/\\def\\LTcaptype{none}/\\def\\LTcaptype{table}/g' $$($1_BODY_TEX)
 	@rm -f $$($1_BODY_TEX).bak
 	@awk -v body="$$($1_BODY_TEX)" '\
@@ -184,6 +185,7 @@ $(eval $(call DEFINE_DESIGN_DOC_VARS,MM_QUOTES_IMPLEMENTATION,EduMatcher-MM_Quot
 $(eval $(call DEFINE_DESIGN_DOC_VARS,TICK_MIGRATION_PLAN,EduMatcher-Tick_Migration_Plan,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,MARKET_DATA_PROTOCOL,EduMatcher-Market_Data_Protocol,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,SESSION_GWY_COMMAND,EduMatcher-Session-gwy-command,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,INDEX_DESIGN,EduMatcher-Index,,))
 
 $(eval $(call DEFINE_DESIGN_DOC_VARS,REQUIREMENTS,EduMatcher-Requirements,,))
 
@@ -198,12 +200,13 @@ $(eval $(call DESIGN_DOC_PDF_RULE,MM_QUOTES_IMPLEMENTATION,"EduMatcher-MM_Quotes
 $(eval $(call DESIGN_DOC_PDF_RULE,TICK_MIGRATION_PLAN,"EduMatcher-Tick_Migration_Plan"))	
 $(eval $(call DESIGN_DOC_PDF_RULE,MARKET_DATA_PROTOCOL,"EduMatcher-Market_Data_Protocol"))
 $(eval $(call DESIGN_DOC_PDF_RULE,SESSION_GWY_COMMAND,"EduMatcher-Session-gwy-command"))
+$(eval $(call DESIGN_DOC_PDF_RULE,INDEX_DESIGN,"EduMatcher-Index"))
 
 $(eval $(call DESIGN_DOC_PDF_RULE,REQUIREMENTS,"EduMatcher-Requirements"))
 
 
 PDF_DESIGN_DOCS := $(BALF_PROPOSAL_PDF) $(FEATURE_IMPLEMENTATION_PDF) $(MM_QUOTES_IMPLEMENTATION_PDF) \
-$(TICK_MIGRATION_PLAN_PDF) $(MARKET_DATA_PROTOCOL_PDF) $(SESSION_GWY_COMMAND_PDF)
+$(TICK_MIGRATION_PLAN_PDF) $(MARKET_DATA_PROTOCOL_PDF) $(SESSION_GWY_COMMAND_PDF) $(INDEX_DESIGN_PDF)
 
 help: ## Show this help message
 	@echo -e "$(DARKYELLOW)OneSelect - Makefile Targets$(NC)"

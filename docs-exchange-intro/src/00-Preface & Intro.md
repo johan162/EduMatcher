@@ -27,7 +27,7 @@ In other words, this document is an introduction to financial exchange systems a
 
 
 Johan Persson,
-July 2026, Järnboås, Bergslagen
+Summer 2026, Järnboås, Bergslagen
 
 
 # Table of Contents
