@@ -1,3 +1,16 @@
+## [v0.1.6] - 2026-06-13
+
+Release Type: patch
+
+### 📋 Summary
+This patch release cleans up release artifact layout so Python distributions stay at the top level while documentation PDFs remain in their own build directories.
+
+### 🛠 Internal
+- Kept Python distribution artifacts in the top-level dist directory for publishing
+- Kept documentation PDF builds in the docs dist directories to avoid mixing release assets
+- Add PyPi publishing
+
+
 ## [v0.1.5] - 2026-06-13
 
 Release Type: patch
