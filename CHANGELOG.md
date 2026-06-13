@@ -1,3 +1,17 @@
+## [v0.1.5] - 2026-06-13
+
+Release Type: patch
+
+### 📋 Summary
+This patch release improves the release automation flow by fixing GitHub release script issues and tightening package validation behavior during publication.
+
+### 🚀 Improvements
+- Improved release packaging validation to only verify Python distribution artifacts with Twine
+
+### 🐛 Bug Fixes
+- Fixed GitHub release script behavior during release execution
+
+
 ## [v0.1.4] - 2026-06-13
 
 Release Type: patch

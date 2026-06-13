@@ -509,7 +509,15 @@ if [[ ! -f "$EXPECTED_USER_GUIDE_BUNDLE_ZIP" ]]; then
 fi
 print_success "Required artifacts found: $(basename "$EXPECTED_USER_GUIDE_BUNDLE_ZIP")"
 
-EXCHANGE_INTRO_BUNDLE_ZIP="${DIST_DIR}/exchange-intro-bundle.zip"
+if [ -f "docs-exchange-intro/version.toml" ]; then
+    EXCHANGE_INTRO_VERSION=$(awk -F'=' '/version/ { gsub(/[ "]/, "", $2); print $2; exit }' docs-exchange-intro/version.toml)
+    print_sub_step "Detected Exchange Intro version: ${EXCHANGE_INTRO_VERSION}"
+else
+    print_warning "docs-exchange-intro/version.toml not found; skipping Exchange Intro PDF build"
+    exit 1;
+fi
+
+EXCHANGE_INTRO_BUNDLE_ZIP="${DIST_DIR}/exchange-intro-bundle-${EXCHANGE_INTRO_VERSION}.zip"
 if [[ ! -f "$EXCHANGE_INTRO_BUNDLE_ZIP" ]]; then
     print_error "Exchange Intro bundle not found: $EXCHANGE_INTRO_BUNDLE_ZIP"
     exit 1
@@ -518,7 +526,7 @@ else
 fi
 
 
-# 4.5: Find expected artifacts
+# 4.5: Locate expected python artifacts
 print_sub_step "Locating artifacts with version $FILE_VERSION_NUMBER..."
 WHEEL_FILE=$(find "$DIST_DIR" -name "${PROGRAMNAME}-${FILE_VERSION_NUMBER}-*.whl" | head -1)
 SDIST_FILE=$(find "$DIST_DIR" -name "${PROGRAMNAME}-${FILE_VERSION_NUMBER}.tar.gz" | head -1)
