@@ -1,3 +1,15 @@
+## [v0.1.7] - 2026-06-13
+
+Release Type: patch
+
+### 📋 Summary
+This patch release improves documentation usability by adding light and dark viewing modes for the doc-site
+
+### 📚 Documentation
+- Updated documentation theming to support both light and dark presentation modes
+- Added repo link in doc eadings
+
+
 ## [v0.1.6] - 2026-06-13
 
 Release Type: patch
