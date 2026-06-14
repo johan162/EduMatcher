@@ -519,6 +519,7 @@ symbols:
         bid_qty: 1000
         ask_qty: 1000
         tif: DAY
+        seed_once: true   # default — inject only on first startup
 ```
 
 These quotes are injected at engine startup by creating linked bid/ask quote
@@ -546,19 +547,25 @@ legs on the target symbol.
 | `ask_price` | Yes | Ask side display price; converted to ticks by the engine. |
 | `bid_qty` | Yes | Bid quantity, must be positive. |
 | `ask_qty` | Yes | Ask quantity, must be positive. |
-| `tif` | No | Defaults to `DAY`; supports normal order TIF values (`DAY`, `GTC`, etc.). |
+| `tif` | No | Defaults to `DAY`; supports `DAY` or `GTC`. |
+| `seed_once` | No | Defaults to `true`. When `true`, the seed is injected only on the very first startup for that symbol (detected via `book_stats.json`). When `false`, re-injected on every startup. |
 
 #### Persistence interaction
 
-| TIF | Behavior |
-|---|---|
-| `DAY` | Removed at shutdown and re-injected cleanly on next startup. |
-| `GTC` | Quote legs are persisted as regular orders, then quote seeds run again on restart, which can create duplicates. |
+Quote legs (regardless of `tif`) are **never written to `gtc_orders.json`** at
+shutdown. Config seeds are always the authoritative source; saving the legs
+would create duplicate orders in the book on the next startup.
 
-!!! warning
-  `GTC` market-maker quote seeds are usually the wrong choice for seeded books.
-    Because they are both persisted and re-injected from config, they will be
-    duplicated across restarts unless you explicitly clear persisted state.
+The `seed_once` field controls how often the seed is applied:
+
+| `seed_once` | Day 1 (no `book_stats.json` entry for symbol) | Day 2+ (entry exists) |
+|---|---|---|
+| `true` *(default)* | Seed injected | Skipped — symbol has prior history |
+| `false` | Seed injected | Seed injected |
+
+!!! tip "Resetting to day-one state"
+    Delete `src/data/book_stats.json` before starting the engine. Every symbol
+    will appear new again and `seed_once: true` seeds will fire again.
 
 ## First Startup (Fresh Seeded Book)
 
@@ -612,10 +619,18 @@ semantics.
 
 ### Subsequent startups
 
-On every restart the engine re-runs the same seeding step from config (step 5
-in the startup sequence).  Previous `DAY` quotes are already gone (expired at
-shutdown); `GTC` quote seeds would be re-injected *and* restored from the GTC
-file, causing duplicates — use `tif: DAY` for seed quotes to avoid this.
+On every restart the engine evaluates each seed entry:
+
+- **`seed_once: true` (default)**: if `book_stats.json` already has an entry
+  for the symbol, the seed is skipped. The symbol has been traded before; the
+  live market maker is expected to quote when ready.
+- **`seed_once: false`**: the seed is always injected, regardless of history.
+  Useful for demo setups where a specific spread must be the opening quote
+  every day.
+
+In both cases, quote legs are never persisted across restarts. To force a
+full day-one reset (re-inject all `seed_once: true` seeds), delete
+`src/data/book_stats.json` before starting the engine.
 
 ## Startup Market-Maker Combo Orders
 

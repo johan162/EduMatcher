@@ -355,6 +355,16 @@ class Engine:
         n_mm_quotes = 0
         for sym, sym_cfg in self._engine_config.symbols.items():
             for idx, quote_seed in enumerate(sym_cfg.market_maker_quotes, start=1):
+                # seed_once: skip injection if this symbol already has a book_stats
+                # entry, meaning it has been started at least once before.
+                if quote_seed.seed_once and sym in stats:
+                    if self.verbose:
+                        print(
+                            f"[ENGINE] Skipping seed quote for {sym} "
+                            f"(seed_once=true, symbol has prior history)"
+                        )
+                    continue
+
                 gateway_id = quote_seed.gateway_id
                 quote_id = quote_seed.quote_id or f"SEED-{gateway_id}-{sym}-{idx}"
 
@@ -2739,6 +2749,10 @@ class Engine:
         for book in self.books.values():
             for order in book.resting_orders():
                 if order.tif == TIF.GTC:
+                    if order.origin == OrderOrigin.QUOTE:
+                        # Quote legs are re-seeded from config on every startup;
+                        # do not persist them or they accumulate across restarts.
+                        continue
                     all_resting.append(order)
                 else:
                     # Expire DAY orders

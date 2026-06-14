@@ -71,6 +71,7 @@ class MMQuoteSeed:
     ask_qty: int
     tif: TIF = TIF.DAY
     quote_id: str | None = None
+    seed_once: bool = True  # if True, skip injection when book_stats already has an entry for this symbol
 
 
 @dataclass
@@ -405,6 +406,8 @@ def load_engine_config(path: Path) -> EngineConfig:
                     f"Symbol '{sym}': market_maker_quotes[{i}] requires bid_price < ask_price"
                 )
 
+            seed_once = bool(quote_raw.get("seed_once", True))
+
             mm_quotes.append(
                 MMQuoteSeed(
                     gateway_id=gateway_id,
@@ -414,6 +417,7 @@ def load_engine_config(path: Path) -> EngineConfig:
                     ask_qty=ask_qty,
                     tif=tif,
                     quote_id=quote_id,
+                    seed_once=seed_once,
                 )
             )
 
