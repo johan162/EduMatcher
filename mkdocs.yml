@@ -86,6 +86,7 @@ nav:
     - Risk Controls: user-guide/12-risk-controls.md
     - Drop Copy: user-guide/13-drop-copy.md
     - Appendix - ALF Protocol: user-guide/20-app-alf-protocol.md
+    - Appendix - BALF Protocol: user-guide/21-app-balf-protocol.md
   - Architecture: 
     - Overview: architecture/01-architecture.md
     - Detailed Walkthrough: architecture/02-architecture-guide.md
