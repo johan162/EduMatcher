@@ -198,3 +198,5 @@ mermaid-filter.err
 package-lock.json
 package.json
 
+docs-design/examples/balf_parser
+
