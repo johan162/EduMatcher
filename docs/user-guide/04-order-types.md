@@ -3,7 +3,7 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
-    - What each of the ten order types does and when to use it
+    - What each of the eight order types does and when to use it
     - The difference between aggressive (market/IOC/FOK) and passive (limit/iceberg) orders
     - How stop-family orders trigger and what happens after trigger
     - How time-in-force controls order lifetime across session phases
@@ -12,9 +12,9 @@
     **Prerequisite**: [The Order Book](../concepts/01-concepts-order-book.md) — you should understand
     price-time priority before diving into order type mechanics.
 
-EduMatcher supports **ten order types**, from the simplest market order to
-multi-leg combo/OCO orders used to execute strategies across multiple symbols
-atomically.
+EduMatcher supports **eight order types** plus two multi-leg constructs (COMBO and
+OCO), from the simplest market order to multi-leg combo/OCO orders used to execute
+strategies across multiple symbols atomically.
 
 
 
@@ -302,10 +302,15 @@ NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=GTC|LEG_COUNT=2|LEG0.SYM=MSF
 ### Combo lifecycle
 
 ```
+                              REJECTED
+                                 ▲
+                            (validation)
 PENDING ──────► PARTIALLY_MATCHED ──────► MATCHED
-                      │
-                      ▼
-                    FAILED  (cascade-cancel triggered)
+   │                  │
+   │                  ▼
+   └──────────────► FAILED  (cascade-cancel: a child order cancelled or expired)
+
+PENDING or PARTIALLY_MATCHED ──► CANCELLED  (explicit CANCEL|COMBO_ID=)
 ```
 
 ### Cancelling a combo
@@ -348,7 +353,7 @@ Use TIF to align execution intent with horizon:
 - `DAY` for session-local participation.
 - `GTC` for persistence across restarts/sessions.
 - `ATO`/`ATC` for auction-specific participation windows.
-- `FOK` when immediacy and completeness must be coupled.
+- `FOK` order type when immediacy and completeness must be coupled (note: `FOK` is an order type, not a `TIF=` value).
 
 | Value | Meaning |
 |-------|----------|
@@ -356,7 +361,10 @@ Use TIF to align execution intent with horizon:
 | `GTC` | Good-Till-Cancelled. Persisted to `data/gtc_orders.json` at shutdown and reloaded next session. Survives across trading days. |
 | `ATO` | At-The-Open. Only accepted during the `OPENING_AUCTION` phase. Automatically expired when the opening auction ends (transition to CONTINUOUS). |
 | `ATC` | At-The-Close. Only accepted during the `CLOSING_AUCTION` phase. Automatically expired when the closing auction ends (transition to CLOSED). |
-| `FOK` | Fill-Or-Kill (also an order type). Must fill entirely and immediately, or is rejected. |
+
+!!! note "FOK is an order type, not a TIF"
+    `TIF=FOK` is **not valid** and will be rejected by the gateway. FOK semantics
+    (fill entirely or cancel) are specified via `TYPE=FOK`, not `TIF=FOK`.
 
 ```
 NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=GTC
@@ -650,7 +658,6 @@ definition. The engine will reject an IOC during auction phases.
 | Submitted during opening/closing auction | **REJECTED** — IOC cannot rest |
 | Self-match (same gateway on both sides) | SMP rule applies to the IOC fill attempt |
 | Price limit not specified | Not supported — IOC requires a `PRICE=` |
-| IOC against FOK resting order | Normal interaction; FOK would already have been rejected if it had no fill |
 
 
 
@@ -927,7 +934,7 @@ AMEND|ID=abc123...|QTY=60
 | Order not found (wrong ID) | **REJECTED** — "Order not found" |
 | Order already filled | **REJECTED** — "Cannot amend FILLED order" |
 | Order already cancelled | **REJECTED** — "Cannot amend CANCELLED order" |
-| MARKET / STOP / FOK order | **REJECTED** — "Cannot amend MARKET orders" |
+| MARKET / STOP / FOK order | **REJECTED** — e.g. `"Cannot amend STOP orders"` (message names the actual order type) |
 | New QTY ≤ already filled qty | **REJECTED** — "New quantity must exceed already-filled quantity" |
 | New QTY = 0 or negative | **REJECTED** — "Quantity must be positive" |
 | New PRICE ≤ 0 | **REJECTED** — "Price must be positive" |
@@ -1080,9 +1087,18 @@ NEW|TYPE=OCO|OCO_ID=TPS|SYM=AAPL|QTY=50|TIF=GTC|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|L
 # Two LIMITs (buy bracket)
 NEW|TYPE=OCO|OCO_ID=BB|SYM=AAPL|QTY=50|TIF=GTC|LEG1_SIDE=BUY|LEG1_TYPE=LIMIT|LEG1_PRICE=140|LEG2_SIDE=BUY|LEG2_TYPE=LIMIT|LEG2_PRICE=160
 
+# LIMIT + TRAILING_STOP (take-profit with adaptive stop)
+NEW|TYPE=OCO|OCO_ID=TS_BRACKET|SYM=AAPL|QTY=50|TIF=GTC|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=160|LEG2_SIDE=SELL|LEG2_TYPE=TRAILING_STOP|LEG2_TRAIL=2.00|LEG2_STOP=145
+
 # Cancel the entire OCO pair
 CANCEL|OCO_ID=TPS
 ```
+
+!!! note "TRAILING_STOP legs"
+    `TRAILING_STOP` is a valid OCO leg type. Use `LEG<n>_TRAIL=` for the trail
+    offset and optionally `LEG<n>_STOP=` for the initial stop price (computed
+    from `last_trade_price ± trail_offset` if omitted). `LEG<n>_TRAIL=` is
+    required for any `TRAILING_STOP` leg or the OCO will be rejected.
 
 ### OCO Events
 
@@ -1098,10 +1114,10 @@ CANCEL|OCO_ID=TPS
 
 | Scenario | Behaviour |
 |----------|-----------|
-| OCO_ID already in use | **REJECTED** (not implemented as replacement) |
+| OCO_ID already in use | **Not checked** — a duplicate `oco_id` silently replaces the tracked group; use a unique label per pair |
 | Unknown symbol or gateway | **REJECTED** with `oco.ack accepted=false` |
-| LIMIT leg missing `LEG_PRICE=` | **REJECTED** |
-| STOP leg missing `LEG_STOP=` | **REJECTED** |
+| LIMIT leg missing `LEG1_PRICE=` or `LEG2_PRICE=` | **REJECTED** |
+| STOP leg missing `LEG1_STOP=` or `LEG2_STOP=` | **REJECTED** |
 | Partial fill of one leg | Does NOT cancel the sibling — only a terminal state (FILLED, CANCELLED, REJECTED) does |
 | Both legs fill simultaneously | First fill to be processed cancels the second; race resolved by event order |
 | GTC OCO across sessions | Both legs persist with their TIF; if GTC they survive session reset |

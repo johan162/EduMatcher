@@ -162,14 +162,39 @@ The dedicated drop-copy channel is implemented in
 `src/edumatcher/engine/drop_copy.py` and is documented in more detail on the
 [Drop Copy](13-drop-copy.md) page.
 
-
-
-## Order messages (gateway → engine)
+```mermaid
+flowchart LR
+    GW["pm-gateway"] -- "PUSH\n:5555" --> ENG["pm-engine"]
+    SCH["pm-scheduler"] -- "PUSH\n:5555" --> ENG
+    ADM["pm-admin"] -- "PUSH\n:5555" --> ENG
+    ENG -- "PUB\n:5556" --> GW
+    ENG -- "PUB\n:5556" --> VW["pm-viewer"]
+    ENG -- "PUB\n:5556" --> ORD["pm-orders"]
+    ENG -- "PUB\n:5556" --> CLR["pm-clearing"]
+    ENG -- "PUB\n:5556" --> STS["pm-stats"]
+    ENG -- "PUB\n:5556" --> AUD["pm-audit"]
+    ENG -. "PUB\n:5557" .-> DC["Drop-copy\nconsumers"]
+```
 
 ### `system.gateway_connect`
 
 Sent by an ALF gateway at startup to authenticate its gateway ID against
 `engine_config.yaml`.
+
+```mermaid
+sequenceDiagram
+    participant GW as pm-gateway
+    participant ENG as pm-engine
+
+    GW->>ENG: system.gateway_connect\n{gateway_id: "TRADER01"} (PUSH :5555)
+    alt ID is in gateways.alf
+        ENG-->>GW: system.gateway_auth.TRADER01\n{accepted: true, description: "..."} (PUB :5556)
+        Note over GW: Enters command loop
+    else ID not configured
+        ENG-->>GW: system.gateway_auth.TRADER01\n{accepted: false, reason: "Gateway not configured: TRADER01"}
+        Note over GW: Exits
+    end
+```
 
 | Field | Type | Description |
 |---|---|---|
@@ -197,7 +222,7 @@ Sent by a gateway to submit a new order for matching.
 | `id` | string (UUID) | Unique order identifier |
 | `symbol` | string | Instrument ticker, e.g. `MSFT` |
 | `side` | `"BUY"` \| `"SELL"` | Order side |
-| `order_type` | string | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG` |
+| `order_type` | string | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `IOC`, `ICEBERG`, `TRAILING_STOP` |
 | `tif` | `"DAY"` \| `"GTC"` \| `"ATO"` \| `"ATC"` \| `"FOK"` | Time-in-force |
 | `quantity` | integer | Total order quantity |
 | `remaining_qty` | integer | Unfilled quantity (equals `quantity` on submission) |
@@ -208,7 +233,21 @@ Sent by a gateway to submit a new order for matching.
 | `stop_price` | float \| null | Trigger price (STOP, STOP_LIMIT) |
 | `visible_qty` | integer \| null | Peak size for ICEBERG orders |
 | `displayed_qty` | integer \| null | Current visible slice (ICEBERG) |
+| `trail_offset` | float \| null | Offset from best price for `TRAILING_STOP` orders |
 | `smp_action` | string | Self-match prevention: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` |
+
+**Valid field combinations by order type:**
+
+| `order_type` | `price` | `stop_price` | `visible_qty` | `trail_offset` | Notes |
+|---|---|---|---|---|---|
+| `MARKET` | — | — | — | — | Fills at best available; rejected if symbol halted |
+| `LIMIT` | Required | — | — | — | Rests if no match; subject to collar check |
+| `STOP` | — | Required | — | — | Triggers a market order when stop price touched |
+| `STOP_LIMIT` | Required | Required | — | — | Triggers a limit order when stop price touched |
+| `FOK` | Required | — | — | — | Fill fully immediately or cancel entirely |
+| `IOC` | Optional | — | — | — | Fill as much as possible immediately, cancel remainder |
+| `ICEBERG` | Required | — | Required | — | Shows only `visible_qty`; replenishes from hidden reserve |
+| `TRAILING_STOP` | — | — | — | Required | Stop price follows best opposite-side price by `trail_offset` |
 
 
 
@@ -276,16 +315,133 @@ Cancel the active quote for one symbol.
 | `gateway_id` | string | Gateway identifier |
 | `symbol` | string | Instrument ticker |
 
-### `risk.kill_switch`
 
-Cancel risk-bearing exposure for a gateway.
+
+## OCO messages (gateway → engine / engine → subscribers)
+
+A **One-Cancels-Other (OCO)** pair links two resting orders so that when one fills or is cancelled the other is automatically cancelled by the engine.
+
+### `order.oco`
+
+Links two existing resting orders into an OCO pair.
 
 | Field | Type | Description |
 |---|---|---|
-| `gateway_id` | string | Gateway identifier |
-| `symbol` | string \| empty | Optional symbol scope |
+| `oco_id` | string | Client-assigned label for the pair |
+| `gateway_id` | string | Gateway that owns both orders |
+| `order_id_1` | string (UUID) | First leg of the pair |
+| `order_id_2` | string (UUID) | Second leg of the pair |
 
-Reply: `risk.kill_switch_ack.{GW_ID}` with cancellation totals.
+Both orders must already be resting on the book and must belong to the same gateway.
+
+**Reply:** `oco.ack.{GW_ID}`
+
+### `order.oco_cancel`
+
+Cancel both legs of an OCO pair.
+
+| Field | Type | Description |
+|---|---|---|
+| `oco_id` | string | OCO pair label to cancel |
+| `gateway_id` | string | Gateway that owns the pair |
+
+### `oco.ack.{GW_ID}`
+
+Acknowledgement of an `order.oco` request.
+
+| Field | Type | Description |
+|---|---|---|
+| `oco_id` | string | OCO pair label |
+| `accepted` | boolean | `true` if both orders were successfully linked |
+| `reason` | string | Rejection reason when `accepted=false` |
+| `order_id_1` | string (UUID) | First leg order ID *(present when accepted)* |
+| `order_id_2` | string (UUID) | Second leg order ID *(present when accepted)* |
+
+### `oco.cancelled.{GW_ID}`
+
+Notifies the gateway when the engine cancels the sibling leg of an OCO pair (because the other leg filled or was cancelled).
+
+| Field | Type | Description |
+|---|---|---|
+| `oco_id` | string | OCO pair label |
+| `cancelled_order_id` | string (UUID) | The sibling order that was automatically cancelled |
+| `reason` | string | Why the sibling was cancelled, e.g. `"OCO sibling filled"` |
+
+
+
+## Risk control messages (gateway → engine)
+
+### `risk.kill_switch`
+
+Cancels all resting orders and quotes for the specified gateway. Does not halt the symbol; trading continues normally for other participants.
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Gateway whose exposure to cancel |
+| `symbol` | string \| empty | Scope to a single symbol; empty string or absent means all symbols |
+
+**Reply:** `risk.kill_switch_ack.{GW_ID}`
+
+| Field | Type | Description |
+|---|---|---|
+| `accepted` | boolean | Always `true` for authenticated gateways |
+| `cancelled_orders` | integer | Number of resting orders cancelled |
+| `cancelled_quotes` | integer | Number of quote legs cancelled |
+
+### `risk.symbol_halt`
+
+Operator command to halt a single symbol. Any authenticated connected gateway may send this; no ADMIN role is required.
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Requesting gateway identifier |
+| `symbol` | string | Symbol to halt |
+
+**Reply:** `risk.symbol_halt_ack.{GW_ID}`
+
+| Field | Type | Description |
+|---|---|---|
+| `accepted` | boolean | `true` if the symbol was halted |
+| `reason` | string | Rejection reason when `accepted=false` |
+| `cancelled_quotes` | integer | Number of MM quote legs cancelled on halt |
+
+The engine also publishes `circuit_breaker.halt.{SYMBOL}` with `resumption_mode = "MANUAL"` when a symbol is halted this way.
+
+### `risk.symbol_resume`
+
+Resume trading on a single previously halted symbol.
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Requesting gateway identifier |
+| `symbol` | string | Symbol to resume |
+
+**Reply:** `risk.symbol_resume_ack.{GW_ID}`
+
+| Field | Type | Description |
+|---|---|---|
+| `accepted` | boolean | `true` if the symbol was resumed |
+| `reason` | string | Rejection reason when `accepted=false` |
+
+The engine publishes `circuit_breaker.resume.{SYMBOL}` with `mode = "MANUAL"` when the symbol is resumed.
+
+### `risk.cancel_symbol`
+
+Cancel all resting orders and quotes on a single symbol across all gateways. The symbol remains active; only resting interest is cleared.
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Requesting gateway identifier |
+| `symbol` | string | Symbol to clear |
+
+**Reply:** `risk.cancel_symbol_ack.{GW_ID}`
+
+| Field | Type | Description |
+|---|---|---|
+| `accepted` | boolean | `true` if the clear was applied |
+| `reason` | string | Rejection reason when `accepted=false` |
+| `cancelled_orders` | integer | Number of resting orders cancelled |
+| `cancelled_quotes` | integer | Number of quote legs cancelled |
 
 ### `risk.circuit_breaker_halt_all`
 
@@ -365,11 +521,10 @@ Declare a gateway with `role: ADMIN` in `engine_config.yaml`:
 ```yaml
 gateways:
   alf:
-    GW_ADMIN:
-      id: GW_ADMIN
+    - id: GW_ADMIN
       description: Operations desk
       role: ADMIN
-      disconnect_behaviour: cancel_quotes_only
+      disconnect_behaviour: CANCEL_QUOTES_ONLY
 ```
 
 See [Role Privileges and Obligations](01-configuration.md#role-privileges-and-obligations)
@@ -377,7 +532,7 @@ for the full permissions matrix.
 
 **Step 1 — connect the ADMIN gateway**
 
-The gateway sends `session.gateway_connect` as usual. The engine registers the
+The gateway sends `system.gateway_connect` as usual. The engine registers the
 session and marks its role as `ADMIN`.
 
 **Step 2 — trigger the exchange-wide halt**
@@ -477,6 +632,28 @@ Sent by a gateway to cancel a combo and all its child legs.
 ## Order events (engine → subscribers)
 
 All topics in this section are published on the PUB socket and filtered by the gateway-specific suffix where applicable.
+
+The following diagram shows the full lifecycle for a limit order that rests and is later filled by an aggressor:
+
+```mermaid
+sequenceDiagram
+    participant R as Resting GW
+    participant ENG as pm-engine
+    participant A as Aggressor GW
+    participant CLR as pm-clearing
+    participant VW as pm-viewer
+
+    R->>ENG: order.new {LIMIT BUY 100 @ 150.00} (PUSH :5555)
+    ENG-->>R: order.ack.R {accepted: true} (PUB :5556)
+    ENG-->>VW: book.AAPL {bids: [{price:150.00, qty:100}]} (PUB :5556)
+
+    A->>ENG: order.new {LIMIT SELL 60 @ 150.00} (PUSH :5555)
+    ENG-->>A: order.ack.A {accepted: true} (PUB :5556)
+    ENG-->>R: order.fill.R {fill_qty:60, fill_price:150.00, remaining_qty:40, status:"PARTIAL"}
+    ENG-->>A: order.fill.A {fill_qty:60, fill_price:150.00, remaining_qty:0, status:"FILLED"}
+    ENG-->>CLR: trade.executed {buy_gw:R, sell_gw:A, price:150.00, qty:60}
+    ENG-->>VW: book.AAPL {bids: [{price:150.00, qty:40}]}
+```
 
 ### `order.ack.{GW_ID}`
 
@@ -691,6 +868,92 @@ Requests the current order list for a specific gateway.
 
 
 
+### `system.session_state_request`
+
+Requests the current session state and whether session enforcement is enabled.
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Requesting gateway or process identifier |
+
+**Reply:** `system.session_status.{GW_ID}`
+
+| Field | Type | Description |
+|---|---|---|
+| `state` | string | Current session state (same values as `session.state`) |
+| `sessions_enabled` | boolean | Whether session-phase enforcement is active |
+
+
+
+### `system.session_schedule_request`
+
+Requests the configured session schedule (the times the scheduler will send phase transitions).
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Requesting gateway or process identifier |
+
+**Reply:** `system.session_schedule.{GW_ID}`
+
+| Field | Type | Description |
+|---|---|---|
+| `sessions_enabled` | boolean | Whether session enforcement is active |
+| `schedule` | object | Mapping of phase name to `"HH:MM"` string, matching the `schedule` section of `engine_config.yaml` |
+
+
+
+### `system.gateways_request`
+
+Requests the list of configured gateways and their connection status.
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Requesting gateway identifier |
+
+**Reply:** `system.gateways.{GW_ID}`
+
+| Field | Type | Description |
+|---|---|---|
+| `gateways` | array of objects | One entry per configured gateway |
+
+Each gateway entry:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Gateway identifier |
+| `role` | string | `TRADER`, `MARKET_MAKER`, or `ADMIN` |
+| `connected` | boolean | Whether the gateway is currently connected |
+| `description` | string | Human-readable label from config |
+
+
+
+### `system.volume_request`
+
+Requests cumulative traded volume for all symbols in the current session.
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Requesting gateway identifier |
+
+**Reply:** `system.volume.{GW_ID}`
+
+| Field | Type | Description |
+|---|---|---|
+| `symbols` | object | Map from symbol name to per-symbol volume stats |
+| `total_qty` | integer | Total quantity traded across all symbols |
+| `total_value` | float | Total notional value traded |
+| `total_trades` | integer | Total number of trade pairs |
+
+Each per-symbol entry in `symbols`:
+
+| Field | Type | Description |
+|---|---|---|
+| `qty` | integer | Traded quantity for this symbol |
+| `value` | float | Notional value for this symbol |
+| `trades` | integer | Number of trade pairs for this symbol |
+
+
+
 ## System messages (engine → all subscribers)
 
 ### `session.state`
@@ -734,6 +997,30 @@ Consumed by the statistics process to record end-of-day closing bid/ask prices.
 
 
 
+## Circuit breaker events (engine → all subscribers)
+
+These events are published on PUB :5556 whenever a symbol halts or resumes, regardless of whether the halt was triggered by a trade threshold, a per-symbol operator command, or the exchange-wide ADMIN halt.
+
+### `circuit_breaker.halt.{SYMBOL}`
+
+| Field | Type | Description |
+|---|---|---|
+| `symbol` | string | Halted instrument ticker |
+| `trigger_price` | float \| null | Trade price that crossed the CB threshold; `null` for operator-initiated halts |
+| `reference_price` | float \| null | Rolling reference price at halt time; `null` for operator-initiated halts |
+| `resume_at_ns` | integer \| null | Engine nanosecond timestamp when the halt will auto-expire; `null` for manual (`ADMIN_ALL`) halts |
+| `resumption_mode` | `"AUCTION"` \| `"CONTINUOUS"` \| `"MANUAL"` | How the symbol will reopen: auction uncross, immediate continuous matching, or explicit operator resume |
+| `level` | string | CB ladder level that fired (`"L1"`, `"L2"`, `"L3"`) or `"ADMIN_ALL"` for operator-initiated halts |
+
+### `circuit_breaker.resume.{SYMBOL}`
+
+| Field | Type | Description |
+|---|---|---|
+| `symbol` | string | Resumed instrument ticker |
+| `mode` | `"AUCTION"` \| `"CONTINUOUS"` \| `"MANUAL"` | How the symbol reopened |
+
+
+
 ## Session messages (scheduler → engine)
 
 ### `session.transition`
@@ -756,7 +1043,7 @@ event confirming the new phase.
 
 | Subscriber | Topics subscribed |
 |---|---|
-| Gateway | `system.gateway_auth.{own GW_ID}`, `order.ack.{own GW_ID}`, `order.fill.{own GW_ID}`, `order.amended.{own GW_ID}`, `order.cancelled.{own GW_ID}`, `order.expired.{own GW_ID}`, `order.orders.{own GW_ID}`, `combo.ack.{own GW_ID}`, `combo.status.{own GW_ID}`, `system.symbols.{own GW_ID}`, `session.state` |
+| Gateway | `system.gateway_auth.{GW}`, `order.ack.{GW}`, `order.fill.{GW}`, `order.amended.{GW}`, `order.cancelled.{GW}`, `order.expired.{GW}`, `order.orders.{GW}`, `combo.ack.{GW}`, `combo.status.{GW}`, `oco.ack.{GW}`, `oco.cancelled.{GW}`, `quote.ack.{GW}`, `quote.status.{GW}`, `risk.kill_switch_ack.{GW}`, `system.symbols.{GW}`, `system.session_status.{GW}`, `system.session_schedule.{GW}`, `system.gateways.{GW}`, `system.volume.{GW}`, `session.state` |
 | Order-book viewer | `book.{SYMBOL}`, `session.state` |
 | Order monitor | `order.` (prefix — all order events), `combo.`, `session.state` |
 | Clearing | `trade.executed` |

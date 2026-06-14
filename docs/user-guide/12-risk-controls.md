@@ -6,7 +6,8 @@
     - How an instrument halt state prevents trading while a symbol is suspended
     - How price collars reject orders that stray too far from a reference or last-traded price
     - How circuit breakers detect violent price moves and automatically halt and resume a symbol
-    - How all three mechanisms interact with the order types described in [Order Types](04-order-types.md)
+    - How the kill switch lets any gateway instantly cancel all its own resting orders
+    - How all four mechanisms interact with the order types described in [Order Types](04-order-types.md)
     - How to configure each feature in `engine_config.yaml`
 
     **Prerequisite**: [Concepts — Order Book](../concepts/01-concepts-order-book.md) explains the
@@ -24,8 +25,33 @@ disorderly markets.  EduMatcher implements three complementary mechanisms:
 | **Instrument halt** | Operator (external message) | Symbol is marked `HALTED` | Operator sends resume |
 | **Price collar** | Config per symbol | Incoming order price vs. reference band | Order is rejected |
 | **Circuit breaker** | Config per symbol | Last trade price vs. rolling reference | Automatic halt + scheduled resume |
+| **Kill switch** | Any authenticated gateway | — | Cancels all resting orders for that gateway |
 
 All three operate at the engine level — *before* any order enters the book.
+
+The following diagram shows the order admission path through all three controls:
+
+```mermaid
+flowchart TD
+    A([Incoming order]) --> B{Symbol halted?}
+    B -- Yes --> C{Order type?}
+    C -- MARKET / FOK / IOC --> REJ1([Reject: SYMBOL_HALTED])
+    C -- LIMIT / ICEBERG --> REST([Accept \u2014 rest on book,\nno matching sweep])
+    B -- No --> D{Collar\nconfigured?}
+    D -- Yes --> E{Price within\nstatic band?}
+    E -- No --> REJ2([Reject: STATIC_COLLAR_BREACH])
+    E -- Yes --> F{Last trade\nprice known?}
+    F -- Yes --> G{Price within\ndynamic band?}
+    G -- No --> REJ3([Reject: DYNAMIC_COLLAR_BREACH])
+    G -- Yes --> MATCH
+    F -- No --> MATCH
+    D -- No --> MATCH([Accept \u2014 enter matching engine])
+    MATCH --> H{Trade\nexecuted?}
+    H -- Yes --> I{CB level\ncrossed?}
+    I -- Yes --> HALT([Halt symbol\nschedule resume])
+    I -- No --> DONE([Done])
+    H -- No --> DONE
+```
 
 
 
@@ -105,6 +131,13 @@ Both bands are expressed as a *percentage of the relevant reference price*.
 The boundary tick values are computed with **truncation toward zero**
 (`int()`) so that the protected range is always at least as tight as the
 nominal percentage:
+
+| Band | Reference price used |
+|---|---|
+| Static | `last_buy_price` from config (converted to ticks at startup) |
+| Dynamic | Last executed trade price in the current session |
+
+The dynamic band is skipped entirely when no trade has occurred yet in the session.
 
 ```
 static_upper  = int(reference_price × (1 + static_band_pct))
@@ -252,6 +285,17 @@ volatility interruptions on Euronext.
        orders at a new equilibrium.
      - A `circuit_breaker.resume.{symbol}` message is broadcast.
 
+```mermaid
+stateDiagram-v2
+    [*] --> ACTIVE
+    ACTIVE --> HALTED : trade price shift \u2265 L1/L2/L3 threshold\nMM quotes cancelled
+    HALTED --> AUCTION_UNCROSS : resume timer expires\n(resumption_mode\u202f=\u202fAUCTION)
+    HALTED --> ACTIVE : resume timer expires\n(resumption_mode\u202f=\u202fCONTINUOUS)
+    AUCTION_UNCROSS --> ACTIVE : uncross complete
+    ACTIVE --> HALTED : operator halt\n(per-symbol or ADMIN all)\nMM quotes cancelled
+    HALTED --> ACTIVE : operator resume\n(risk.circuit_breaker_resume_all)
+```
+
 ### Rolling reference window
 
 The reference window is a sliding time window.  Any trade older than
@@ -393,10 +437,12 @@ Risk events are broadcast on the engine's PUB socket (port 5556).
 ```
 topic:   b"circuit_breaker.halt.MSFT"
 payload: {
-    "symbol":          "MSFT",
-    "trigger_price":   10800,
-    "reference_price": 10100,
-    "resume_at_ns":    <timestamp>
+    "symbol":           "MSFT",
+    "trigger_price":    10800,
+    "reference_price":  10100,
+    "resume_at_ns":     <timestamp>,
+    "resumption_mode":  "AUCTION",
+    "level":            "L1"
 }
 ```
 
@@ -405,9 +451,8 @@ payload: {
 ```
 topic:   b"circuit_breaker.resume.MSFT"
 payload: {
-    "symbol":         "MSFT",
-    "resume_at_ns":   <timestamp>,
-    "resumption_mode": "AUCTION"
+    "symbol": "MSFT",
+    "mode":   "AUCTION"
 }
 ```
 
@@ -428,11 +473,10 @@ Configure a dedicated gateway with `role: ADMIN` in `engine_config.yaml`:
 ```yaml
 gateways:
   alf:
-    GW_ADMIN:
-      id: GW_ADMIN
+    - id: GW_ADMIN
       description: "Operations desk"
       role: ADMIN
-      disconnect_behaviour: cancel_quotes_only
+      disconnect_behaviour: CANCEL_QUOTES_ONLY
 ```
 
 The gateway connects to the engine via the standard PUSH socket (port 5555) and
@@ -605,23 +649,84 @@ sequenceDiagram
 
 
 
+##  Kill switch
+
+The kill switch is a gateway-level emergency control that immediately cancels
+all resting orders and quotes owned by a specific gateway, without halting the
+symbol.  It is designed for situations where a malfunctioning trading bot or
+gateway needs to be flushed without stopping the whole market.
+
+### Permissions
+
+Unlike the exchange-wide halt, the kill switch does **not** require `ADMIN`
+role.  Any authenticated, connected gateway can trigger a kill switch against
+its own orders.
+
+### Sending the command
+
+```
+Frame 0 (topic):   b"risk.kill_switch"
+Frame 1 (payload): {"gateway_id": "GW01"}
+```
+
+An optional `"symbol"` field scopes the cancellation to a single instrument:
+
+```json
+{"gateway_id": "GW01", "symbol": "AAPL"}
+```
+
+When `"symbol"` is empty or absent, all symbols are included.
+
+### What the engine does
+
+1. Collects all resting orders and quote legs for the specified gateway (and
+   optionally symbol).
+2. Cancels each order and quote leg, excluding child orders that were derived
+   from a quote (those are cancelled as part of the quote leg cancellation).
+3. Sends a `risk.kill_switch_ack.{GW_ID}` reply with the count of cancelled
+   items.
+
+### Reply
+
+```
+topic:   b"risk.kill_switch_ack.GW01"
+payload: {
+    "accepted":          true,
+    "cancelled_orders":  <count>,
+    "cancelled_quotes":  <count>
+}
+```
+
+### Differences from a halt
+
+| Property | Kill switch | Instrument halt |
+|---|---|---|
+| Scope | One gateway's orders | All orders on a symbol |
+| Symbol trading | Continues uninterrupted | Paused |
+| New orders accepted | Yes | LIMIT/ICEBERG only |
+| Requires ADMIN role | No | No (per-symbol); Yes (exchange-wide) |
+| Auto-resume | Not applicable | Yes (CB) / Manual (operator) |
+
+
+
 ##  Market-maker interaction
 
-When a circuit breaker fires, all outstanding market-maker quotes for the
-affected symbol are cancelled immediately.  This protects market makers from
-having stale quotes executed against them during a disorderly market.  When the
-symbol resumes, market makers are expected to submit fresh quotes at updated
-prices.
+When any halt fires — whether triggered by a circuit breaker, a per-symbol operator halt, or the exchange-wide ADMIN halt — **all outstanding market-maker quote legs for the affected symbols are cancelled immediately**. This protects market makers from having stale quotes executed against them during a disorderly market. The cancellation reason included in the `order.cancelled` message distinguishes the halt source:
 
-Operator-initiated halts do not automatically cancel outstanding quotes.  They
-instead prevent new quotes from being accepted.  Pre-existing quotes remain on
-the book and will participate in any uncross at resumption.
+| Halt source | Cancellation reason text |
+|---|---|
+| Circuit breaker | `"Circuit breaker halt"` |
+| Per-symbol operator halt | `"Per-symbol halt"` |
+| Exchange-wide ADMIN halt | `"Global circuit breaker halt"` |
+
+When a symbol resumes, market makers are expected to submit fresh quotes at updated prices. The engine will begin enforcing MM obligation checks again immediately upon resumption.
 
 
 
 ## See also
 
-- [Configuration](01-configuration.md) — full `engine_config.yaml` reference
+- [Configuration](01-configuration.md) — full `engine_config.yaml` reference including collar and CB ladder config
 - [Order Types](04-order-types.md) — how different order types behave under halt
 - [Drop Copy](13-drop-copy.md) — how fill events are forwarded to risk systems
 - [Auctions & Session Scheduling](06-auctions-scheduling.md) — the uncross that can occur at circuit breaker resumption
+- [Gateway Reference](08-gateway.md) — `KILL` command for triggering the kill switch via the ALF terminal

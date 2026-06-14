@@ -68,22 +68,34 @@ The scheduler process (`pm-scheduler`) drives these transitions by sending
 | LIMIT / ICEBERG | Rest | Rest | Match | Rest | Reject |
 | MARKET | Reject | Reject | Match | Reject | Reject |
 | FOK | Reject | Reject | Match | Reject | Reject |
-| STOP / STOP_LIMIT | Added to stop book | Added to stop book | Normal trigger logic | Added to stop book | Reject |
+| IOC | Reject | Reject | Match | Reject | Reject |
+| STOP / STOP_LIMIT | Rest (no trigger) | Rest (no trigger) | Normal trigger logic | Rest (no trigger) | Reject |
+| TRAILING_STOP | Rest (no trigger¹) | Rest (no trigger¹) | Normal trigger logic | Rest (no trigger¹) | Reject |
 | TIF = ATO | Reject | **Accept** | Reject | Reject | Reject |
 | TIF = ATC | Reject | Reject | Reject | **Accept** | Reject |
 
-MARKET and FOK orders are always rejected outside CONTINUOUS because they
+¹ TRAILING_STOP is rejected during PRE_OPEN/auction phases if no `STOP=` is given and
+  no prior trade has established a `last_trade_price` for the symbol.
+
+MARKET, FOK, and IOC orders are always rejected outside CONTINUOUS because they
 cannot rest on the book — they require immediate execution.
 
 ### Transition side-effects
 
-When the engine transitions **out of** an auction phase:
+When the engine transitions **into a matching phase** (i.e. when the new state
+has matching enabled and the old one did not — including the `PRE_OPEN → CONTINUOUS`
+shortcut):
 
 1. **Uncross** — the equilibrium price algorithm runs on every symbol book
    and executes all crossable interest at the equilibrium price.
 2. **TIF expiry** — ATO orders are expired when leaving `OPENING_AUCTION`;
    ATC orders are expired when leaving `CLOSING_AUCTION`.  Expired orders
    receive an `order.expired` event on the PUB socket.
+
+!!! note
+    The uncross also fires on `PRE_OPEN → CONTINUOUS` (skipping the opening
+    auction).  Any orders that accumulated during pre-open are crossed at
+    the equilibrium price before continuous matching begins.
 
 ### Valid state transitions
 
@@ -153,7 +165,8 @@ sessions_enabled: true
    `CLOSED`, and new orders are rejected outside order-accepting session
    states.
 - `false`: session handling is disabled, `session.transition` messages are
-   ignored by the engine, and trading stays in continuous behavior.
+   ignored by the engine, and the engine starts (and remains) in `CONTINUOUS`
+   state — all order types are accepted and matched immediately.
 
 Use `sessions_enabled: false` when you want an always-open simulation without
 time-based session control.
@@ -318,7 +331,7 @@ Evaluate candidates (ascending):
 | 105 | 10      | 25       | 10       | 15      |
 
 Maximum exec_qty = **15** at prices 102 and 103 (both with surplus 5).
-The algorithm picks the first candidate encountered: $P^* = 102$.
+Tie-broken by lowest price: $P^* = 102$.
 
 Result: 15 shares execute at **102.00**, with a BUY-side imbalance of 5
 shares.
@@ -348,17 +361,10 @@ When an uncross completes, the engine publishes:
 
 | Topic | Content |
 |---|---|
-| `fill.{gateway_id}` | One per order that received a fill (partial or complete) |
+| `order.fill.{gateway_id}` | One per order that received a fill (partial or complete) |
 | `trade.executed` | One per matched pair |
 | `auction.result.{symbol}` | Summary: equilibrium price, quantity, surplus, imbalance side |
 | `order.expired.{gateway_id}` | One per ATO/ATC order that did not fill and was expired |
 | `session.state` | Confirms the new session state after the transition |
 
 
-
-## Tick/Ns Migration Notes
-
-- The equilibrium price is computed on integer tick levels in engine internals.
-- Auction fills and imbalance calculations use tick-domain arithmetic.
-- Published auction result messages expose decimal prices for readability,
-  converted from the internal tick value.

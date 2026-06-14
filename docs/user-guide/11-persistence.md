@@ -31,15 +31,16 @@ sessions to preserve market state and historical records.
 
 ### At Startup
 
-1. The engine reads `data/book_stats.json` (if it exists) and restores `last_buy_price` / `last_sell_price` per symbol.  Persisted values take priority over config-seeded values.
-2. The engine reads `data/gtc_orders.json` (if it exists).
-3. Each GTC order is re-injected into its symbol's order book **with its original timestamp preserved**.
-4. The engine reads `data/gtc_combos.json` (if it exists) and rebuilds parent-child tracking maps.
-5. Market-maker quotes from each symbol's `market_maker_quotes` config section are injected as linked bid/ask quote legs.  **No gateway connection is required** — seeds enter the book before any participant dials in.  If a restored GTC order already crosses a seed price, a trade executes immediately during this step.
-6. Market-maker combos from the `market_maker_combos` config section are injected.
-7. Original timestamps ensure that price-time priority carries over correctly — an order
+1. The engine reads `data/gtc_orders.json` (if it exists).
+2. Each GTC order is re-injected into its symbol's order book **with its original timestamp preserved**.
+3. The engine reads `data/gtc_combos.json` (if it exists) and rebuilds parent-child tracking maps.
+4. If any GTC orders were restored, initial book snapshots are published.
+5. The engine reads `data/book_stats.json` (if it exists) and restores `last_buy_price` / `last_sell_price` per symbol.  Persisted values take priority over config-seeded values.
+6. Market-maker quotes from each symbol's `market_maker_quotes` config section are injected as linked bid/ask quote legs.  **No gateway connection is required** — seeds enter the book before any participant dials in.  If a restored GTC order already crosses a seed price, a trade executes immediately during this step.
+7. Market-maker combos from the `market_maker_combos` config section are injected.
+8. Book snapshots are published for any symbol where MM quotes were injected.
+9. Original timestamps ensure that price-time priority carries over correctly — an order
    submitted yesterday still has seniority over a new order at the same price submitted today.
-8. Initial book snapshots are published so viewers show the restored state immediately.
 
 
 
@@ -73,7 +74,7 @@ NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=148.00|TIF=GTC
 NEW|SYM=AAPL|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=149.00|VISIBLE=100|TIF=GTC
 ```
 
-MARKET and FOK orders are always DAY orders — they cannot be GTC because they do not rest.
+MARKET, FOK, and IOC orders are always DAY orders — they cannot be GTC because they do not rest.
 
 
 
@@ -92,13 +93,18 @@ Format: a JSON array of serialized `Order` objects.
     "quantity": 100,
     "remaining_qty": 100,
     "gateway_id": "GW01",
-    "timestamp": 1714393921.345,
+    "timestamp": 1714393921345678000,
     "status": "NEW",
-    "price": 148.00,
+    "price": 14800,
     ...
   }
 ]
 ```
+
+!!! note "Internal representations in the JSON"
+    Prices (`price`, `stop_price`, `trail_offset`) are stored as **integer tick
+    values** — e.g. `14800` represents `148.00` for a symbol with `tick_decimals: 2`.
+    Timestamps are **nanoseconds** since the Unix epoch, not seconds.
 
 You can inspect or edit this file between trading sessions. To cancel all GTC orders
 for the next day, simply delete the file before restarting the engine.
@@ -110,14 +116,15 @@ for the next day, simply delete the file before restarting the engine.
 ```
 Engine start  (no gateways connected yet)
     │
-    ├─ Load data/book_stats.json (restore last_buy/sell prices)
     ├─ Load data/gtc_orders.json
     ├─ Load data/gtc_combos.json (rebuild parent-child maps)
     ├─ Re-inject GTC orders with original timestamps
+    ├─ Publish book snapshots (only if GTC orders were restored)
+    ├─ Load data/book_stats.json (restore last_buy/sell prices)
     ├─ Inject market-maker quotes from config  ← seeds posted without MM online
     │       GTC resting orders may cross seeds here; trades fire immediately
     ├─ Inject market-maker combos from config
-    ├─ Publish initial book snapshots
+    ├─ Publish book snapshots (only for symbols where MM quotes injected)
     │
     │  ← Gateways begin connecting ──────────────────
     │  MM gateway connects and re-quotes if seed was consumed
@@ -160,17 +167,20 @@ Preserves the **last trade price context** per symbol across sessions.  This all
 engine to correctly trigger stop orders on the first trade of a new day (stops compare
 against `last_trade_price`, which would otherwise be unknown).
 
-Format: a JSON object keyed by symbol:
+Format: a JSON object keyed by symbol.  Prices are stored as **integer tick
+values** (the engine's internal representation):
 
 ```json
 {
-  "AAPL": {"last_buy_price": 150.25, "last_sell_price": 149.80},
-  "MSFT": {"last_buy_price": null, "last_sell_price": 415.50}
+  "AAPL": {"last_buy_price": 15025, "last_sell_price": 14980},
+  "MSFT": {"last_buy_price": null, "last_sell_price": 41550}
 }
 ```
 
-- `last_buy_price`: price of the most recent trade where the buyer was the aggressor
-- `last_sell_price`: price of the most recent trade where the seller was the aggressor
+For a symbol with `tick_decimals: 2`, the value `15025` represents `150.25`.
+
+- `last_buy_price`: tick-integer price of the most recent trade where the buyer was the aggressor
+- `last_sell_price`: tick-integer price of the most recent trade where the seller was the aggressor
 - `null` means no trade of that type occurred during the session
 
 On startup, persisted values **override** any `last_buy_price` / `last_sell_price` seeded
@@ -191,6 +201,7 @@ status `PENDING` or `PARTIALLY_MATCHED`):
     "gateway_id": "GW01",
     "combo_type": "AON",
     "tif": "GTC",
+    "timestamp": 1714393921345678000,
     "legs": [ ... ],
     "status": "PARTIALLY_MATCHED",
     "child_order_ids": ["uuid-1", "uuid-2"],
@@ -230,19 +241,14 @@ system.  To reset, delete them manually between sessions.
 | `data/book_stats.json` | Engine | Shutdown | Engine | Startup |
 | `data/audit.log` | pm-audit | Continuously | — | Manual inspection |
 | `data/clearing_report.csv` | pm-clearing | On each trade | — | Manual inspection |
-| `data/stats.db` | pm-stats | On each trade/snapshot | pm-ticker | At configured intervals |
+| `data/stats.db` | pm-stats | On each trade/snapshot | pm-ticker, pm-board | At configured intervals |
 
-All files reside in the `data/` directory relative to the project root.
+All files reside in the `src/data/` directory.
 The directory is created automatically if it does not exist.
 
-## Tick/Ns Schema Note
+!!! note "Why `src/data/` and not `data/`?"
+    `DATA_DIR` is resolved relative to `src/edumatcher/config.py`, two parent
+    directories up, which gives `src/data/`.  A project-root `data/` directory
+    also exists (used for sample CSVs) but is not written to by the engine.
 
-In the migrated v2 implementation:
 
-- Persisted engine order/combo state stores internal tick/ns values.
-- `book_stats.json` stores side-specific last prices in tick units.
-- User-facing displays continue to show decimal prices by converting at read/
-  publish boundaries.
-
-When switching from legacy float state to v2 with no backward compatibility,
-delete legacy persistence files before first startup.
