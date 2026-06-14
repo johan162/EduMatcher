@@ -17,6 +17,35 @@
     monitoring section.
 
 
+## Developer mode vs installed mode
+
+EduMatcher supports two ways to run the `pm-*` commands. Everything on this
+page works in both modes. The only difference is how you invoke the commands.
+
+| | Developer mode | Installed mode |
+|---|---|---|
+| **Who uses this** | Contributors, engine developers | Instructors, students |
+| **Installation** | `poetry install --with dev` (source checkout) | `pipx install edumatcher` |
+| **Command prefix** | `poetry run pm-engine` | `pm-engine` (no prefix) |
+| **Data directory** | `<repo>/src/data/` (auto-detected) | `~/.local/share/edumatcher` or `$EDUMATCHER_DATA_DIR` |
+| **Config file** | `<repo>/engine_config.yaml` (auto-detected) | `./engine_config.yaml` (CWD) or `$EDUMATCHER_CONFIG` |
+| **First-time setup** | Nothing extra | Run `pm-setup` once |
+| **Launch all** | `./tools/launch_all.sh` | `./tools/launch_all.sh` (script is mode-aware) |
+
+!!! tip "First-time end-user setup"
+    If you installed with pipx, run this once before anything else:
+    ```bash
+    cd ~/my-session-dir
+    pm-setup
+    ```
+    This creates `~/.local/share/edumatcher` for data files, copies a sample
+    `engine_config.yaml` into your working directory, and prints the shell
+    snippet to add to your profile. See [Getting Started](00-getting-started.md)
+    for the full installation walkthrough.
+
+Throughout the rest of this page commands are shown without `poetry run` — add
+the prefix if you are in developer mode.
+
 
 ## Minimum-viable configuration
 
@@ -139,13 +168,13 @@ Open a terminal per process, or use a multiplexer like `tmux`.
 
 ```bash
 # Verbose mode shows every order and trade on stdout — useful when learning
-poetry run pm-engine --verbose
+pm-engine --verbose
 
 # Silent mode for cleaner output in production-like runs
-poetry run pm-engine
+pm-engine
 
 # Custom config file
-poetry run pm-engine --config my_config.yaml
+pm-engine --config my_config.yaml
 ```
 
 Wait for the engine to print its startup lines before starting anything else:
@@ -166,20 +195,20 @@ Wait for the engine to print its startup lines before starting anything else:
 ```bash
 # Normal mode: reads schedule from engine_config.yaml and sends transitions at
 # the configured wall-clock times
-poetry run pm-scheduler
+pm-scheduler
 
 # Test mode: fires all transitions immediately, with a short delay between each
 # Useful for verifying your config without waiting for real market hours
-poetry run pm-scheduler --now
-poetry run pm-scheduler --now --delay 5   # 5-second pause between phases
+pm-scheduler --now
+pm-scheduler --now --delay 5   # 5-second pause between phases
 ```
 
 **Step 3 — gateways (one per participant)**
 
 ```bash
-poetry run pm-gateway --id TRADER01
-poetry run pm-gateway --id TRADER02
-poetry run pm-gateway --id MM01
+pm-gateway --id TRADER01
+pm-gateway --id TRADER02
+pm-gateway --id MM01
 ```
 
 The gateway ID must exactly match a configured entry in `engine_config.yaml`.
@@ -189,36 +218,36 @@ Each gateway gets its own terminal — the prompt is where a trader types orders
 
 ```bash
 # Order book for one symbol (one pm-viewer per symbol you want to watch)
-poetry run pm-viewer --symbol AAPL
-poetry run pm-viewer --symbol AAPL --depth 10   # show 10 price levels
+pm-viewer --symbol AAPL
+pm-viewer --symbol AAPL --depth 10   # show 10 price levels
 
 # Cross-gateway order status monitor
-poetry run pm-orders
+pm-orders
 
 # Audit log (all events, every message written to data/audit.log)
-poetry run pm-audit                    # quiet — writes file only
-poetry run pm-audit --terminal         # also prints to stdout
-poetry run pm-audit --log-file /tmp/my_audit.log
+pm-audit                    # quiet — writes file only
+pm-audit --terminal         # also prints to stdout
+pm-audit --log-file /tmp/my_audit.log
 
 # P&L and trade settlement
-poetry run pm-clearing
+pm-clearing
 
 # OHLCV statistics to SQLite (required by pm-ticker and pm-board)
-poetry run pm-stats
+pm-stats
 
 # Scrolling market data ticker (needs pm-stats running)
-poetry run pm-ticker
-poetry run pm-ticker --interval 15    # print a new line every 15 seconds
+pm-ticker
+pm-ticker --interval 15    # print a new line every 15 seconds
 
 # Full-screen multi-symbol dashboard (needs pm-stats running)
-poetry run pm-board
+pm-board
 
 # ADMIN operator console
-poetry run pm-admin --id GW_ADMIN
+pm-admin --id GW_ADMIN
 
 # AI trading bots (optional)
-poetry run pm-ai-trader               # single bot
-poetry run pm-ai-swarm                # coordinated multi-bot swarm
+pm-ai-trader               # single bot
+pm-ai-swarm                # coordinated multi-bot swarm
 ```
 
 
@@ -322,38 +351,38 @@ _term() {
         -e "end tell"
 }
 
-_term "poetry run pm-engine --verbose"
+_term "pm-engine --verbose"
 sleep 1
 
-_term "poetry run pm-scheduler"
+_term "pm-scheduler"
 sleep 0.3
 
 # Traders
-_term "poetry run pm-gateway --id TRADER01"
-_term "poetry run pm-gateway --id TRADER02"
+_term "pm-gateway --id TRADER01"
+_term "pm-gateway --id TRADER02"
 sleep 0.3
 
 # Market maker
-_term "poetry run pm-gateway --id MM01"
+_term "pm-gateway --id MM01"
 sleep 0.3
 
 # ADMIN operator console
-_term "poetry run pm-admin --id GW_ADMIN"
+_term "pm-admin --id GW_ADMIN"
 sleep 0.3
 
 # Viewers — one per symbol
 for SYM in AAPL MSFT TSLA; do
-    _term "poetry run pm-viewer --symbol $SYM"
+    _term "pm-viewer --symbol $SYM"
     sleep 0.2
 done
 
 # Observer processes
-_term "poetry run pm-orders"
-_term "poetry run pm-audit --terminal"
-_term "poetry run pm-clearing"
-_term "poetry run pm-stats"
-_term "poetry run pm-ticker --interval 15"
-_term "poetry run pm-board"
+_term "pm-orders"
+_term "pm-audit --terminal"
+_term "pm-clearing"
+_term "pm-stats"
+_term "pm-ticker --interval 15"
+_term "pm-board"
 
 echo "Launched."
 ```
@@ -387,7 +416,7 @@ If the gateway times out instead, the engine is not reachable.
 **c) Use the ADMIN console to confirm live state**
 
 ```bash
-poetry run pm-admin --id GW_ADMIN
+pm-admin --id GW_ADMIN
 ```
 
 Then type these commands to validate the running system:
@@ -583,7 +612,7 @@ running.
 #### Interactive console (`pm-admin`)
 
 ```bash
-poetry run pm-admin --id GW_ADMIN
+pm-admin --id GW_ADMIN
 ```
 
 ```
@@ -631,29 +660,29 @@ like any shell command.
 
 ```bash
 # Read-only queries
-poetry run pm-admin-cli --id GW_ADMIN session-status
-poetry run pm-admin-cli --id GW_ADMIN schedule
-poetry run pm-admin-cli --id GW_ADMIN gateways
-poetry run pm-admin-cli --id GW_ADMIN volume
-poetry run pm-admin-cli --id GW_ADMIN symbols
-poetry run pm-admin-cli --id GW_ADMIN book   --sym AAPL
-poetry run pm-admin-cli --id GW_ADMIN orders --gw TRADER01
+pm-admin-cli --id GW_ADMIN session-status
+pm-admin-cli --id GW_ADMIN schedule
+pm-admin-cli --id GW_ADMIN gateways
+pm-admin-cli --id GW_ADMIN volume
+pm-admin-cli --id GW_ADMIN symbols
+pm-admin-cli --id GW_ADMIN book   --sym AAPL
+pm-admin-cli --id GW_ADMIN orders --gw TRADER01
 
 # State-changing commands
-poetry run pm-admin-cli --id GW_ADMIN session --state CONTINUOUS
-poetry run pm-admin-cli --id GW_ADMIN halt
-poetry run pm-admin-cli --id GW_ADMIN resume
-poetry run pm-admin-cli --id GW_ADMIN kill   --gw TRADER01
-poetry run pm-admin-cli --id GW_ADMIN kill   --gw TRADER01 --sym AAPL
-poetry run pm-admin-cli --id GW_ADMIN kick   --gw TRADER01 --reason "Compliance hold"
-poetry run pm-admin-cli --id GW_ADMIN qcancel --gw MM01 --sym AAPL
+pm-admin-cli --id GW_ADMIN session --state CONTINUOUS
+pm-admin-cli --id GW_ADMIN halt
+pm-admin-cli --id GW_ADMIN resume
+pm-admin-cli --id GW_ADMIN kill   --gw TRADER01
+pm-admin-cli --id GW_ADMIN kill   --gw TRADER01 --sym AAPL
+pm-admin-cli --id GW_ADMIN kick   --gw TRADER01 --reason "Compliance hold"
+pm-admin-cli --id GW_ADMIN qcancel --gw MM01 --sym AAPL
 ```
 
 Use `--timeout MS` (default 3000 ms) and `--push` / `--sub` to override
 defaults when the engine is on a remote host:
 
 ```bash
-poetry run pm-admin-cli --id GW_ADMIN \
+pm-admin-cli --id GW_ADMIN \
     --push tcp://192.168.1.10:5555 \
     --sub  tcp://192.168.1.10:5556 \
     --timeout 5000 \
@@ -663,7 +692,7 @@ poetry run pm-admin-cli --id GW_ADMIN \
 The exit code makes it easy to compose with `&&` or `||` in shell scripts:
 
 ```bash
-poetry run pm-admin-cli --id GW_ADMIN session-status \
+pm-admin-cli --id GW_ADMIN session-status \
     | grep -q CONTINUOUS \
     && echo "Market is open" \
     || echo "Market is closed"
@@ -685,7 +714,7 @@ lsof -i :5556 >/dev/null 2>&1 || { echo "FAIL: engine port 5556 not bound"; exit
 pgrep -f "pm-engine" >/dev/null || { echo "FAIL: pm-engine not found"; exit 1; }
 
 # 3. ADMIN console can query session state
-SESSION=$(poetry run pm-admin-cli --id GW_ADMIN --timeout 2000 session-status 2>&1)
+SESSION=$(pm-admin-cli --id GW_ADMIN --timeout 2000 session-status 2>&1)
 echo "$SESSION" | grep -q "Session state" || { echo "FAIL: could not query session state"; exit 1; }
 
 echo "OK: $SESSION"
@@ -804,7 +833,7 @@ otherwise it misses that transition and waits for the next one.
 Use `--now` mode on the scheduler:
 
 ```bash
-poetry run pm-scheduler --now --delay 10
+pm-scheduler --now --delay 10
 ```
 
 This fires all transitions (PRE_OPEN → OPENING_AUCTION → CONTINUOUS →
@@ -816,14 +845,14 @@ the wall-clock schedule entirely.  Ideal for classroom demos and testing.
 Use the ADMIN console (requires an `ADMIN`-role gateway):
 
 ```
-poetry run pm-admin --id GW_ADMIN
+pm-admin --id GW_ADMIN
 [GW_ADMIN|ADMIN]> SESSION|STATE=CONTINUOUS
 ```
 
 Or with the CLI tool (useful in scripts):
 
 ```bash
-poetry run pm-admin-cli --id GW_ADMIN session --state CONTINUOUS
+pm-admin-cli --id GW_ADMIN session --state CONTINUOUS
 ```
 
 ### How do I cleanly shut down the exchange?

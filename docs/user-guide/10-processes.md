@@ -133,34 +133,73 @@ A complete EduMatcher session uses **ten core runtime processes** across three c
     The prefix avoids name collisions with system utilities and makes it easy to
     identify EduMatcher processes in a process list (`ps aux | grep pm-`).
 
+!!! tip "Installation modes"
+    Commands are shown without a prefix. If you are running from a **source
+    checkout** (developer mode), prepend `poetry run`:
+
+    ```
+    poetry run pm-engine --verbose
+    ```
+
+    If you installed with **pipx** (end-user mode), the commands are on your
+    PATH and need no prefix:
+
+    ```
+    pm-engine --verbose
+    ```
+
+    See [Getting Started → Installation](00-getting-started.md#installation)
+    for the full setup guide and the `pm-setup` bootstrap command.
+
+## Environment variables
+
+Two variables control where EduMatcher finds and stores files at runtime.
+Set them once in your shell profile (`~/.zshrc` or `~/.bashrc`) and every
+`pm-*` command picks them up automatically.
+
+| Variable | Default (installed) | Default (source checkout) | Purpose |
+|---|---|---|---|
+| `EDUMATCHER_DATA_DIR` | `~/.local/share/edumatcher` | `<repo>/src/data/` | Directory for all persistent data files (`gtc_orders.json`, `stats.db`, `audit.log`, etc.) |
+| `EDUMATCHER_CONFIG` | `./engine_config.yaml` (CWD) | `<repo>/engine_config.yaml` | Path to the engine configuration YAML |
+
+The `--config` flag on `pm-engine` and `pm-scheduler` overrides both the
+environment variable and the default.
+
+```bash
+# Example: per-session isolation
+export EDUMATCHER_DATA_DIR="$HOME/sessions/morning"
+export EDUMATCHER_CONFIG="$HOME/sessions/morning/engine_config.yaml"
+pm-engine --verbose
+```
+
 **Core processes:**
 
 | Process | Command | Role | Required? |
 |---------|---------|------|-----------|
-| **pm-engine** | `poetry run pm-engine` | Matching engine — the single writer | Yes |
-| **pm-gateway** | `poetry run pm-gateway --id GW01` | ALF order entry terminal (one per trader) | At least one |
-| **pm-scheduler** | `poetry run pm-scheduler` | Drives session phase transitions | No |
-| **pm-viewer** | `poetry run pm-viewer --symbol AAPL` | Live order book display | No |
-| **pm-orders** | `poetry run pm-orders` | Cross-gateway order status monitor | No |
-| **pm-board** | `poetry run pm-board` | Full-screen multi-symbol display | No |
-| **pm-ticker** | `poetry run pm-ticker` | Scrolling market data ticker | No (needs pm-stats) |
-| **pm-stats** | `poetry run pm-stats` | OHLCV statistics to SQLite | No |
-| **pm-clearing** | `poetry run pm-clearing` | P&L and trade settlement | No |
-| **pm-audit** | `poetry run pm-audit` | Full event log to disk | No |
+| **pm-engine** | `pm-engine` | Matching engine — the single writer | Yes |
+| **pm-gateway** | `pm-gateway --id GW01` | ALF order entry terminal (one per trader) | At least one |
+| **pm-scheduler** | `pm-scheduler` | Drives session phase transitions | No |
+| **pm-viewer** | `pm-viewer --symbol AAPL` | Live order book display | No |
+| **pm-orders** | `pm-orders` | Cross-gateway order status monitor | No |
+| **pm-board** | `pm-board` | Full-screen multi-symbol display | No |
+| **pm-ticker** | `pm-ticker` | Scrolling market data ticker | No (needs pm-stats) |
+| **pm-stats** | `pm-stats` | OHLCV statistics to SQLite | No |
+| **pm-clearing** | `pm-clearing` | P&L and trade settlement | No |
+| **pm-audit** | `pm-audit` | Full event log to disk | No |
 
 **Admin tools:**
 
 | Process | Command | Role | Required? |
 |---------|---------|------|-----------|
-| **pm-admin** | `poetry run pm-admin` | Interactive admin console | No |
-| **pm-admin-cli** | `poetry run pm-admin-cli <command>` | One-shot CLI admin commands | No |
+| **pm-admin** | `pm-admin` | Interactive admin console | No |
+| **pm-admin-cli** | `pm-admin-cli <command>` | One-shot CLI admin commands | No |
 
 **Optional AI trader tools:**
 
 | Process | Command | Role | Required? |
 |---------|---------|------|-----------|
-| **pm-ai-trader** | `poetry run pm-ai-trader` | Single AI trading bot gateway | No |
-| **pm-ai-swarm** | `poetry run pm-ai-swarm` | Coordinated multi-agent AI trading swarm | No |
+| **pm-ai-trader** | `pm-ai-trader` | Single AI trading bot gateway | No |
+| **pm-ai-swarm** | `pm-ai-swarm` | Coordinated multi-agent AI trading swarm | No |
 
 !!! warning "Start the engine first"
     The engine binds the ZeroMQ sockets.  All other processes connect to those
@@ -174,7 +213,7 @@ A complete EduMatcher session uses **ten core runtime processes** across three c
 The heart of the system — receives orders, matches them, publishes events.
 
 ```bash
-poetry run pm-engine [--verbose] [--config engine_config.yaml]
+pm-engine [--verbose] [--config engine_config.yaml]
 ```
 
 | Flag | Description |
@@ -254,7 +293,7 @@ One instance per user. Accepts ALF commands on stdin.
 See [ALF Protocol Reference](20-app-alf-protocol.md).
 
 ```bash
-poetry run pm-gateway --id <GW_ID>
+pm-gateway --id <GW_ID>
 ```
 
 | Flag | Required | Description |
@@ -311,7 +350,7 @@ See the [Gateway Reference](08-gateway.md) for the full command list.
 Live terminal view of a single symbol's order book.
 
 ```bash
-poetry run pm-viewer --symbol AAPL [--depth 10]
+pm-viewer --symbol AAPL [--depth 10]
 ```
 
 | Flag | Default | Description |
@@ -333,9 +372,9 @@ poetry run pm-viewer --symbol AAPL [--depth 10]
 Run multiple viewers simultaneously for different symbols:
 
 ```bash
-poetry run pm-viewer --symbol AAPL &
-poetry run pm-viewer --symbol MSFT &
-poetry run pm-viewer --symbol TSLA
+pm-viewer --symbol AAPL &
+pm-viewer --symbol MSFT &
+pm-viewer --symbol TSLA
 ```
 
 **Messages subscribed** (SUB from :5556):
@@ -358,7 +397,7 @@ poetry run pm-viewer --symbol TSLA
 Live cross-gateway view of all orders in the system.
 
 ```bash
-poetry run pm-orders [--gateway GW01]
+pm-orders [--gateway GW01]
 ```
 
 | Flag | Default | Description |
@@ -385,7 +424,7 @@ Status colours: green=NEW, yellow=PARTIAL, bright green=FILLED, red=REJECTED/CAN
 Records every message on the bus to a rotating log file.
 
 ```bash
-poetry run pm-audit [--log-file data/audit.log] [--terminal]
+pm-audit [--log-file data/audit.log] [--terminal]
 ```
 
 | Flag | Default | Description |
@@ -416,7 +455,7 @@ Use `--terminal` during demos so the class can see every event in real time.
 Records all trades and tracks running P&L per user per symbol.
 
 ```bash
-poetry run pm-clearing
+pm-clearing
 ```
 
 No flags required. Outputs:
@@ -444,7 +483,7 @@ See [P&L & Clearing](07-pnl-clearing.md) for the full accounting model.
 Records market statistics for every symbol to a SQLite database (`data/stats.db`).
 
 ```bash
-poetry run pm-stats [--db data/stats.db]
+pm-stats [--db data/stats.db]
 ```
 
 | Flag | Default | Description |
@@ -599,7 +638,7 @@ CLOSING_AUCTION → CLOSED) by sending `session.transition` messages to the
 engine at configured wall-clock times.
 
 ```bash
-poetry run pm-scheduler [--config engine_config.yaml] [--now] [--delay 3]
+pm-scheduler [--config engine_config.yaml] [--now] [--delay 3]
 ```
 
 | Flag | Default | Description |
@@ -627,7 +666,7 @@ Prints a scrolling ticker-tape line at regular intervals — one line per snapsh
 containing all active symbols with live prices, OHLCV, and bid/ask spreads.
 
 ```bash
-poetry run pm-ticker [--interval 30] [--db data/stats.db] [--db-interval 900]
+pm-ticker [--interval 30] [--db data/stats.db] [--db-interval 900]
 ```
 
 | Flag | Default | Description |
@@ -677,7 +716,7 @@ Full-screen multi-symbol display designed for large monitors or projection scree
 Shows all active symbols in a single paged table with exchange-style colouring.
 
 ```bash
-poetry run pm-board [--rows 8] [--interval 10]
+pm-board [--rows 8] [--interval 10]
 ```
 
 | Flag | Default | Description |
@@ -733,7 +772,7 @@ auto-rotate interval, and the current clock time.
 !!! tip "Large-screen demo"
     For classroom or conference demos, maximise the terminal and use large rows:
     ```bash
-    poetry run pm-board --rows 15 --interval 8
+    pm-board --rows 15 --interval 8
     ```
     The board auto-discovers symbols as they become active — no configuration needed.
 
@@ -744,8 +783,8 @@ ordinary gateway producers:
 
 | Process | Command | Role |
 |---------|---------|------|
-| **pm-ai-trader** | `poetry run pm-ai-trader` | Single automated trader using the gateway interface |
-| **pm-ai-swarm** | `poetry run pm-ai-swarm` | Multi-agent trading swarm / orchestration entrypoint |
+| **pm-ai-trader** | `pm-ai-trader` | Single automated trader using the gateway interface |
+| **pm-ai-swarm** | `pm-ai-swarm` | Multi-agent trading swarm / orchestration entrypoint |
 
 See [AI Bot Traders](../developer/02-ai-bot.md) for configuration and runtime details.
 
@@ -757,7 +796,7 @@ An interactive REPL for sending operational commands to a running engine without
 needing a full gateway session.
 
 ```bash
-poetry run pm-admin
+pm-admin
 ```
 
 No flags required. On launch the console connects to the engine and presents a
@@ -788,7 +827,7 @@ A non-interactive alternative to `pm-admin` for scripting or single-shot
 operational commands.
 
 ```bash
-poetry run pm-admin-cli <command> [options]
+pm-admin-cli <command> [options]
 ```
 
 Each invocation sends one command to the engine, waits for an acknowledgement,

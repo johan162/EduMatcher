@@ -1,0 +1,503 @@
+# EduMatcher — Matching Engine Configuration
+# =============================================================================
+#
+# This file is read by pm-engine and pm-scheduler at startup.
+# All sections are optional unless noted. The engine starts in unrestricted mode
+# (no symbol/gateway allowlist) when this file is absent.
+#
+# Top-level keys and their defaults
+# ----------------------------------
+#   sessions_enabled          boolean  default: true
+#       true  — engine starts in CLOSED; pm-scheduler drives state transitions.
+#       false — engine runs continuous matching immediately on startup;
+#               session transitions from pm-scheduler are ignored.
+#
+#   enforce_collars            boolean  default: true
+#       Set false to disable price-collar checks globally (useful for testing).
+#
+#   enforce_circuit_breakers   boolean  default: true
+#       Set false to disable circuit-breaker halts globally.
+#
+#   snapshot_interval_sec      float    default: 0.5
+#       Minimum seconds between book.<SYMBOL> snapshot publications.
+#       Lower values increase update frequency; minimum useful value is 0.1.
+#
+#   mm_obligation_defaults     mapping  optional
+#   risk_controls              mapping  optional
+#   circuit_breaker_defaults   mapping  optional
+#   gateways.alf               list     optional (required to restrict access)
+#   symbols                    mapping  optional (required to restrict symbols)
+#   market_maker_combos        list     optional
+#   schedule                   mapping  optional (used by pm-scheduler)
+#
+# symbols:
+#   <SYMBOL>:
+#     level: L2              # optional — named risk profile from risk_controls.levels
+#     last_buy_price:  <float>   # optional — seed "last buy" before any trades
+#     last_sell_price: <float>   # optional — seed "last sell" before any trades
+#     collar:                # optional — per-symbol collar override
+#       static_band_pct: 0.20
+#       dynamic_band_pct: 0.02
+#     circuit_breaker:       # optional — per-symbol circuit breaker override
+#       reference_window_ns: 300000000000
+#       levels:
+#         L1:
+#           price_shift_pct: 0.07
+#           halt_duration_ns: 300000000000
+#         L2:
+#           price_shift_pct: 0.13
+#           halt_duration_ns: 900000000000
+#         L3:
+#           price_shift_pct: 0.20
+#           halt_duration_ns:   # null => rest of trading day
+# symbols:
+#   <SYMBOL>:
+#     tick_decimals: 2           # price precision: 0–8 decimal places (default: 2)
+#     level: L2                  # optional — named collar profile from risk_controls.levels
+#     last_buy_price:  <float>   # optional — seed "last buy" (used only before first trade)
+#     last_sell_price: <float>   # optional — seed "last sell" (used only before first trade)
+#     collar:                    # optional — field-by-field override of the level collar
+#       static_band_pct:  0.20   # (0,1): absolute rejection band around reference price
+#       dynamic_band_pct: 0.02   # (0,1): tighter band around last trade price
+#     circuit_breaker:           # optional — per-symbol overrides merged with circuit_breaker_defaults
+#       reference_window_ns: 300000000000   # 5 minutes (default)
+#       levels:                  # only specified levels override; others keep defaults
+#         L1:
+#           price_shift_pct: 0.07
+#           halt_duration_ns: 300000000000  # null => rest of trading day
+#           resumption_mode: AUCTION        # AUCTION or CONTINUOUS
+#         L2:
+#           price_shift_pct: 0.13
+#           halt_duration_ns: 900000000000
+#         L3:
+#           price_shift_pct: 0.20
+#           halt_duration_ns:               # null => rest of trading day
+#     market_maker_quotes:       # required when any MARKET_MAKER gateway is configured
+#       - gateway_id: MM01       # must reference a role: MARKET_MAKER gateway
+#         bid_price: 100.00
+#         ask_price: 100.10
+#         bid_qty: 100
+#         ask_qty: 100
+#         tif: DAY               # DAY (clears at shutdown) or GTC (survives shutdown)
+#         quote_id: SEED-SYM-1  # optional — auto-generated when omitted
+#         seed_once: true        # true (default): inject on first startup only
+#                                # false: inject on every startup (for repeatable demos)
+#                                # Detected via presence of book_stats.json entry for symbol.
+#                                # To reset: rm src/data/book_stats.json
+# gateways:
+#   alf:
+#     - id: MM01
+#       role: MARKET_MAKER               # TRADER | MARKET_MAKER | ADMIN
+#       description: Primary market maker
+#       disconnect_behaviour: CANCEL_QUOTES_ONLY  # CANCEL_QUOTES_ONLY | CANCEL_ALL | LEAVE_ALL
+#       quote_refresh_policy: INACTIVATE_ON_ANY_FILL  # ..._ANY_FILL | ..._FULL_FILL | NEVER_INACTIVATE
+#       enforce_mm_obligation: true
+#       mm_max_spread_ticks: 10    # gateway-level default; overridden per-symbol below
+#       mm_min_qty: 100
+#       mm_obligations:            # per-symbol MM obligation overrides (keys: max_spread_ticks, min_qty)
+#         AAPL:
+#           enforce_mm_obligation: true
+#           max_spread_ticks: 6    # NOTE: max_spread_ticks not mm_max_spread_ticks inside mm_obligations
+#           min_qty: 300           # NOTE: min_qty not mm_min_qty inside mm_obligations
+#
+# Notes:
+#   • Only symbols listed here are accepted; orders for others are rejected.
+#   • Only gateway IDs listed under gateways.alf may connect and submit orders.
+#   • last_buy_price / last_sell_price seed the engine only when no persisted
+#     book_stats.json values exist for that symbol.
+#   • If any MARKET_MAKER gateway is configured, define at least one
+#     market_maker_quotes entry per symbol or startup will fail.
+#   • market_maker_combos are injected at every startup; use tif: DAY to
+#     prevent duplication (DAY combos expire cleanly at shutdown).
+#   • Symbol resolution precedence (collar):
+#       symbol collar override > symbol level > risk_controls.default_level > built-in (20%/2%)
+#   • Circuit-breaker precedence:
+#       symbols.<SYM>.circuit_breaker > circuit_breaker_defaults > built-in ladder
+#   • MM obligation precedence (highest to lowest):
+#       gateways.alf[*].mm_obligations.<SYM> > mm_obligation_defaults.symbols.<SYM>
+#       > gateways.alf[*] flat fields > mm_obligation_defaults flat fields
+#   • Supported order types:   MARKET LIMIT STOP STOP_LIMIT FOK ICEBERG IOC TRAILING_STOP
+#   • Supported TIF values:    DAY GTC ATO ATC
+#   • Supported combo types:   AON
+
+# =============================================================================
+# Engine behaviour flags
+# =============================================================================
+
+sessions_enabled: true           # false = continuous matching from startup (no scheduler needed)
+enforce_collars: true            # false = disable collar checks globally (testing only)
+enforce_circuit_breakers: true   # false = disable circuit-breaker halts globally (testing only)
+snapshot_interval_sec: 0.5       # seconds between throttled book snapshot publications per symbol
+
+
+# =============================================================================
+# Global MM Obligation Defaults
+# =============================================================================
+# Defines default quote-obligation policy for all MARKET_MAKER gateways.
+# Gateway-level and per-symbol gateway-level overrides take precedence.
+#
+# Precedence (highest to lowest):
+#   1. gateways.alf[*].mm_obligations.<SYMBOL>  (most specific)
+#   2. mm_obligation_defaults.symbols.<SYMBOL>
+#   3. gateways.alf[*] flat fields (enforce_mm_obligation, mm_max_spread_ticks, mm_min_qty)
+#   4. mm_obligation_defaults flat fields                   (least specific)
+#
+# Fields:
+#   enforce_mm_obligation  boolean  default: false
+#   mm_max_spread_ticks    integer  default: 10
+#   mm_min_qty             integer  default: 100
+#   symbols                mapping  optional — per-symbol overrides using the same three fields
+# =============================================================================
+
+mm_obligation_defaults:
+  enforce_mm_obligation: true
+  mm_max_spread_ticks: 20
+  mm_min_qty: 100
+  symbols:
+    AAPL:                          # tighter obligations on the most liquid symbol
+      enforce_mm_obligation: true
+      mm_max_spread_ticks: 8
+      mm_min_qty: 200
+    TSLA:                          # wider tolerance for the volatile symbol
+      enforce_mm_obligation: true
+      mm_max_spread_ticks: 40
+      mm_min_qty: 50
+
+
+# =============================================================================
+# Risk-Control Collar Levels
+# =============================================================================
+# Named collar profiles assigned to symbols via `level:`.
+# Symbols without an explicit level inherit risk_controls.default_level.
+# A per-symbol `collar:` block overrides individual fields while inheriting
+# the rest from the profile.
+#
+# Each level entry: <NAME>: { collar: { static_band_pct, dynamic_band_pct } }
+#
+#   static_band_pct   float (0,1)  absolute rejection band around reference price
+#   dynamic_band_pct  float (0,1)  tighter band around the most recent trade price
+# =============================================================================
+
+risk_controls:
+  default_level: L2
+  levels:
+    L1:                            # lenient — new or illiquid symbols
+      collar:
+        static_band_pct: 0.30
+        dynamic_band_pct: 0.05
+    L2:                            # standard — most symbols
+      collar:
+        static_band_pct: 0.20
+        dynamic_band_pct: 0.02
+    L3:                            # tight — high-liquidity blue chips
+      collar:
+        static_band_pct: 0.12
+        dynamic_band_pct: 0.01
+
+
+# =============================================================================
+# Circuit-Breaker Defaults
+# =============================================================================
+# Global halt threshold ladder.  Levels are evaluated in ascending price_shift_pct
+# order; the first level breached halts the symbol.
+#
+#   reference_window_ns  integer  default: 300_000_000_000 (5 minutes)
+#       Rolling window over which the reference price is computed.
+#
+# Per level:
+#   price_shift_pct   float (0,1)  required — fraction of reference price that triggers
+#   halt_duration_ns  integer or null — halt length (ns); null = rest of trading day
+#   resumption_mode   AUCTION | CONTINUOUS   default: AUCTION
+#       AUCTION    — symbol runs an uncross mini-auction before re-entering continuous.
+#       CONTINUOUS — symbol resumes directly into continuous matching.
+#
+# Symbol-level overrides (symbols.<SYM>.circuit_breaker) are merged field-by-field;
+# only the level keys present in the symbol block override defaults.
+# =============================================================================
+
+circuit_breaker_defaults:
+  reference_window_ns: 300000000000    # 5 minutes
+  levels:
+    L1:
+      price_shift_pct: 0.07            # 7% move triggers a 5-minute halt
+      halt_duration_ns: 300000000000
+      resumption_mode: AUCTION
+    L2:
+      price_shift_pct: 0.13            # 13% move triggers a 15-minute halt
+      halt_duration_ns: 900000000000
+      resumption_mode: AUCTION
+    L3:
+      price_shift_pct: 0.20            # 20% move triggers a rest-of-day halt
+      halt_duration_ns:                # null = rest of trading day
+      resumption_mode: AUCTION
+
+
+# =============================================================================
+# Gateway Allowlist
+# =============================================================================
+# Only gateway IDs listed here may connect and submit orders.
+#
+# Fields per gateway entry:
+#   id                    string   required — uppercased; used in all ALF commands/topics
+#   description           string   optional
+#   role                  TRADER | MARKET_MAKER | ADMIN   default: TRADER
+#       TRADER        — order.new / order.cancel / order.orders_request
+#       MARKET_MAKER  — all TRADER capabilities plus QUOTE / QUOTE_CANCEL
+#       ADMIN         — all TRADER capabilities plus exchange-wide CB halt/resume
+#   disconnect_behaviour  CANCEL_QUOTES_ONLY | CANCEL_ALL | LEAVE_ALL
+#                         default: CANCEL_QUOTES_ONLY
+#       CANCEL_QUOTES_ONLY — quotes cancelled; plain orders remain resting
+#       CANCEL_ALL         — all quotes and orders cancelled
+#       LEAVE_ALL          — nothing cancelled; resting state persists in the book
+#   quote_refresh_policy  INACTIVATE_ON_ANY_FILL | INACTIVATE_ON_FULL_FILL
+#                         | NEVER_INACTIVATE   default: INACTIVATE_ON_ANY_FILL
+#       INACTIVATE_ON_ANY_FILL   — any partial or full fill triggers quote inactivation
+#       INACTIVATE_ON_FULL_FILL  — only a full fill triggers inactivation
+#       NEVER_INACTIVATE         — both legs stay active until explicitly cancelled
+#   enforce_mm_obligation  boolean  default: inherits mm_obligation_defaults
+#   mm_max_spread_ticks    integer  default: inherits mm_obligation_defaults
+#   mm_min_qty             integer  default: inherits mm_obligation_defaults
+#   mm_obligations         mapping  optional — per-symbol MM obligation overrides
+#       Keys: <SYMBOL>
+#       Values: { max_spread_ticks, min_qty, enforce_mm_obligation }
+#       NOTE: inside mm_obligations use max_spread_ticks / min_qty
+#             (NOT mm_max_spread_ticks / mm_min_qty)
+# =============================================================================
+
+gateways:
+  alf:
+    - id: TRADER01
+      description: Student workstation 1
+      role: TRADER
+      disconnect_behaviour: CANCEL_ALL     # clean up when student closes terminal
+
+    - id: TRADER02
+      description: Student workstation 2
+      role: TRADER
+      disconnect_behaviour: CANCEL_ALL
+
+    - id: AI01
+      description: Autonomous AI trader — aggressive profile (pm-ai-trader)
+      role: TRADER
+      disconnect_behaviour: CANCEL_ALL
+
+    - id: AI02
+      description: Autonomous AI trader — cautious profile (pm-ai-swarm member)
+      role: TRADER
+      disconnect_behaviour: CANCEL_ALL
+
+    - id: MM01
+      description: Primary market maker
+      role: MARKET_MAKER
+      disconnect_behaviour: CANCEL_QUOTES_ONLY
+      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+      enforce_mm_obligation: true
+      mm_max_spread_ticks: 20            # gateway-level default; overridden per symbol below
+      mm_min_qty: 100
+      mm_obligations:                    # per-symbol overrides for this gateway
+        AAPL:                            # tighter on liquid AAPL
+          enforce_mm_obligation: true
+          max_spread_ticks: 6
+          min_qty: 300
+        TSLA:                            # looser on volatile TSLA
+          enforce_mm_obligation: true
+          max_spread_ticks: 50
+          min_qty: 50
+
+    - id: MM02
+      description: Secondary / backup market maker
+      role: MARKET_MAKER
+      disconnect_behaviour: CANCEL_QUOTES_ONLY
+      quote_refresh_policy: INACTIVATE_ON_FULL_FILL  # inactivate only on complete fill
+      enforce_mm_obligation: true
+      mm_max_spread_ticks: 30
+      mm_min_qty: 50
+
+    - id: OPS01
+      description: Instructor / operator console
+      role: ADMIN
+      disconnect_behaviour: LEAVE_ALL    # admin reconnects without losing state
+
+
+# =============================================================================
+# Symbol Universe
+# =============================================================================
+# Only symbols listed here are accepted.  Orders for any other symbol are
+# rejected with "Symbol not configured".
+# =============================================================================
+
+symbols:
+
+  # -----------------------------------------------------------------------
+  # AAPL — liquid blue chip: tight collar, strict CB, strict MM obligations
+  # -----------------------------------------------------------------------
+  AAPL:
+    tick_decimals: 2
+    # No explicit level — inherits risk_controls.default_level (L2)
+    last_buy_price:  209.50
+    last_sell_price: 210.50
+    # Partial collar override: static_band inherits L2 (20%); dynamic_band tightened.
+    collar:
+      dynamic_band_pct: 0.015
+    # Override only L1 halt duration; L2 and L3 keep circuit_breaker_defaults values.
+    circuit_breaker:
+      levels:
+        L1:
+          halt_duration_ns: 180000000000    # 3-min L1 halt (default is 5 min)
+    market_maker_quotes:
+      - gateway_id: MM01
+        quote_id: SEED-MM01-AAPL
+        bid_price: 209.00
+        ask_price: 211.00
+        bid_qty: 2000
+        ask_qty: 2000
+        tif: DAY
+        seed_once: true       # inject only on first startup; MM01 takes over from day 2
+      - gateway_id: MM02
+        quote_id: SEED-MM02-AAPL
+        bid_price: 208.50
+        ask_price: 211.50
+        bid_qty: 1000
+        ask_qty: 1000
+        tif: DAY
+        seed_once: true       # depth quote; also day-1 only
+
+  # -----------------------------------------------------------------------
+  # MSFT — standard settings, inherits L1 (lenient) collar
+  # -----------------------------------------------------------------------
+  MSFT:
+    tick_decimals: 2
+    level: L1                  # lenient collar: 30% static / 5% dynamic
+    last_buy_price:  415.00
+    last_sell_price: 415.50
+    market_maker_quotes:
+      - gateway_id: MM01
+        quote_id: SEED-MM01-MSFT
+        bid_price: 414.00
+        ask_price: 416.00
+        bid_qty: 1000
+        ask_qty: 1000
+        tif: DAY
+        seed_once: true
+      - gateway_id: MM02
+        quote_id: SEED-MM02-MSFT
+        bid_price: 413.50
+        ask_price: 416.50
+        bid_qty: 500
+        ask_qty: 500
+        tif: DAY
+        seed_once: true
+
+  # -----------------------------------------------------------------------
+  # TSLA — volatile: wider collar, longer halts, always-on demo seed
+  # -----------------------------------------------------------------------
+  TSLA:
+    tick_decimals: 2
+    level: L3                  # tight static collar from L3 (12%)
+    last_buy_price:  248.00
+    last_sell_price: 249.00
+    # Override only dynamic_band; static_band inherits L3 (12%).
+    collar:
+      dynamic_band_pct: 0.04   # wider dynamic band for volatile intraday moves
+    # Override L1 and L2 halts; L3 (rest-of-day) keeps its default.
+    circuit_breaker:
+      levels:
+        L1:
+          halt_duration_ns: 600000000000   # 10-min L1 halt (default 5 min)
+        L2:
+          halt_duration_ns: 1800000000000  # 30-min L2 halt (default 15 min)
+    # seed_once: false — always inject this spread at startup for demo consistency.
+    # The fixed opening spread ensures students always have a liquid starting book.
+    market_maker_quotes:
+      - gateway_id: MM01
+        quote_id: SEED-MM01-TSLA
+        bid_price: 247.00
+        ask_price: 250.00
+        bid_qty: 500
+        ask_qty: 500
+        tif: DAY
+        seed_once: false       # re-inject on every startup (demo always starts with liquidity)
+      - gateway_id: MM02
+        quote_id: SEED-MM02-TSLA
+        bid_price: 246.00
+        ask_price: 251.00
+        bid_qty: 300
+        ask_qty: 300
+        tif: DAY
+        seed_once: false       # companion depth quote; also always-on
+
+
+# =============================================================================
+# Startup Market-Maker Combo Orders
+# =============================================================================
+# Injected at startup via the internal "MM" gateway_id.
+# Use tif: DAY (not GTC) so combos expire cleanly at shutdown and are not
+# also persisted in gtc_combos.json — avoids book duplication on restart.
+#
+# Fields:
+#   combo_id    string  required
+#   combo_type  AON     default: AON (All-Or-Nothing)
+#   tif         DAY | GTC   default: DAY
+#   legs        list (2–10)  required
+#     symbol      string  required — must reference a configured symbol
+#     side        BUY | SELL  required
+#     order_type  MARKET | LIMIT | STOP | STOP_LIMIT | FOK | ICEBERG | IOC | TRAILING_STOP
+#     quantity    int     required
+#     price       float   required for LIMIT / FOK / STOP_LIMIT / ICEBERG
+#     stop_price  float   required for STOP / STOP_LIMIT
+#     smp_action  NONE | CANCEL_AGGRESSOR | CANCEL_RESTING | CANCEL_BOTH  default: NONE
+# =============================================================================
+
+market_maker_combos:
+  - combo_id: SEED-PAIR-AAPL-MSFT
+    combo_type: AON
+    tif: DAY
+    legs:
+      - symbol: AAPL
+        side: BUY
+        order_type: LIMIT
+        quantity: 100
+        price: 209.50
+      - symbol: MSFT
+        side: SELL
+        order_type: LIMIT
+        quantity: 50
+        price: 415.50
+
+  - combo_id: SEED-ROTATION-MSFT-TSLA
+    combo_type: AON
+    tif: DAY
+    legs:
+      - symbol: MSFT
+        side: BUY
+        order_type: LIMIT
+        quantity: 40
+        price: 414.50
+      - symbol: TSLA
+        side: SELL
+        order_type: LIMIT
+        quantity: 80
+        price: 249.50
+
+
+# =============================================================================
+# Session Schedule  (consumed by pm-scheduler)
+# =============================================================================
+# Only active when sessions_enabled: true above.
+# Times are HH:MM in the server's local time zone.
+# Omitting individual keys falls back to the built-in defaults shown here.
+#
+# Trading day path:
+#   PRE_OPEN → OPENING_AUCTION → CONTINUOUS → CLOSING_AUCTION → CLOSED
+#
+# To bypass session management entirely:
+#   Set sessions_enabled: false and omit this section (or do not run pm-scheduler).
+# =============================================================================
+
+schedule:
+  pre_open: "09:00"
+  opening_auction_start: "09:25"
+  continuous_start: "09:30"
+  closing_auction_start: "16:00"
+  closing_auction_end: "16:05"
+
