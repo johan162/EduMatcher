@@ -16,6 +16,11 @@
 -- - Requires \usepackage[most]{tcolorbox} in the LaTeX template preamble.
 
 local STYLE = {
+  note = {
+    label = "Note",
+    colback = "blue!4",
+    colframe = "blue!55!black",
+  },
   tip = {
     label = "Tip",
     colback = "green!8",
@@ -143,7 +148,7 @@ end
 
 local function build_tcolorbox(kind, title, body_latex)
   local style = STYLE[kind]
-  local safe_title = title:gsub("([%%{}])", "\\%1")
+  local safe_title = title:gsub("([%%{}_$#&])", "\\%1")
 
   local options = table.concat({
     "enhanced",

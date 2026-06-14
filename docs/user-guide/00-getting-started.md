@@ -152,12 +152,12 @@ poetry run pm-gateway --id GW01
 
 !!! tip "Switching from developer to end-user mode"
     You can install the locally built wheel with pipx at any time:
-    
-```bash
-poetry build
-pipx install dist/edumatcher-*.whl --force
-pm-setup --force    # re-copy the latest sample config
-```
+
+    ```bash
+    poetry build
+    pipx install dist/edumatcher-*.whl --force
+    pm-setup --force    # re-copy the latest sample config
+    ```
 
 ---
 

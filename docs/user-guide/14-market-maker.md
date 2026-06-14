@@ -81,7 +81,7 @@ The engine rejects a quote if:
 |---|---|
 | Gateway role is not `MARKET_MAKER` | `Quotes are only allowed for MARKET_MAKER participants` |
 | `BID_PRICE >= ASK_PRICE` | `Quote requires bid_price < ask_price` |
-| Either quantity ≤ 0 | `Quote quantities must be positive` |
+| Either quantity $\leq$ 0 | `Quote quantities must be positive` |
 | Symbol is halted | `{SYMBOL} is halted — quotes rejected during circuit breaker halt` |
 | Spread exceeds `mm_max_spread_ticks` | `Spread {n} ticks exceeds max {m}` |
 | Either side below `mm_min_qty` | `Quote size must be >= {n}` |

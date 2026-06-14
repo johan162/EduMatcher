@@ -87,7 +87,7 @@ aggressively it crosses the spread. The four built-in profiles are:
 | `few-large` | 1400 ms | 150–700 | 12% | 1 tick away | block-heavy | Infrequent institutional-style block orders |
 
 **cross_probability** is the probability that the bot places a **marketable
-limit order** (price ≥ best ask for a buy, price ≤ best bid for a sell) rather
+limit order** (price ≥ best ask for a buy, price $\leq$ best bid for a sell) rather
 than a passive limit order beyond the spread.
 
 **passive_offset_ticks** is how many ticks *inside* the spread the passive
