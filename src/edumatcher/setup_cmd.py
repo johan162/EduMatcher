@@ -47,7 +47,9 @@ def _extract_sample_config(dest: Path, force: bool) -> bool:
         sample = pkg.joinpath("engine_config.sample.yaml")
         dest.write_text(sample.read_text(encoding="utf-8"), encoding="utf-8")
     except (FileNotFoundError, TypeError) as exc:
-        print(f"  ERROR: could not extract bundled sample config: {exc}", file=sys.stderr)
+        print(
+            f"  ERROR: could not extract bundled sample config: {exc}", file=sys.stderr
+        )
         print(
             "  If running from a source checkout, copy engine_config.yaml manually.",
             file=sys.stderr,

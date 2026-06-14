@@ -52,8 +52,8 @@ DROP_COPY_PUB_ADDR = (
 # Detect whether we are running from a source checkout.  config.py lives at
 # src/edumatcher/config.py; when installed via pip/pipx it lives somewhere
 # inside site-packages and the parent directory is NOT named "src".
-_pkg_dir = Path(__file__).parent          # .../edumatcher/
-_src_dir = _pkg_dir.parent               # .../src/   (source) or site-packages (installed)
+_pkg_dir = Path(__file__).parent  # .../edumatcher/
+_src_dir = _pkg_dir.parent  # .../src/   (source) or site-packages (installed)
 _IN_SOURCE_TREE: bool = _src_dir.name == "src"
 
 if os.environ.get("EDUMATCHER_DATA_DIR"):

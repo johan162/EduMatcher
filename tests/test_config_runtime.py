@@ -19,11 +19,14 @@ def _reload_config(monkeypatch: pytest.MonkeyPatch, env: dict[str, str]) -> obje
     # Remove cached module so it re-evaluates the top-level expressions
     sys.modules.pop("edumatcher.config", None)
     import edumatcher.config as cfg  # noqa: PLC0415
+
     return cfg
 
 
 class TestDataDirResolution:
-    def test_env_var_wins(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    def test_env_var_wins(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
         custom = str(tmp_path / "custom_data")
         cfg = _reload_config(monkeypatch, {"EDUMATCHER_DATA_DIR": custom})
         assert cfg.DATA_DIR == Path(custom).resolve()
@@ -49,13 +52,16 @@ class TestDataDirResolution:
             "DATA_DIR",
             Path("~/.local/share/edumatcher").expanduser(),
         )
-        assert "edumatcher" in str(cfg_module.DATA_DIR) or cfg_module.DATA_DIR == Path(
-            "~/.local/share/edumatcher"
-        ).expanduser()
+        assert (
+            "edumatcher" in str(cfg_module.DATA_DIR)
+            or cfg_module.DATA_DIR == Path("~/.local/share/edumatcher").expanduser()
+        )
 
 
 class TestEngineConfigResolution:
-    def test_env_var_wins(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    def test_env_var_wins(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
         custom_cfg = str(tmp_path / "my_engine.yaml")
         cfg = _reload_config(monkeypatch, {"EDUMATCHER_CONFIG": custom_cfg})
         assert cfg.ENGINE_CONFIG_FILE == Path(custom_cfg).resolve()
