@@ -12,6 +12,9 @@ The following definitions are written to be concise and standalone, useful as a 
 
 **Adverse Selection:** The risk a market maker faces when their quote is hit by a counterparty who has superior information about where prices are heading, causing the market maker to trade at a price that will quickly move against them. A market maker who is repeatedly adversely selected will lose money even while quoting at "correct" prices. MMP exists specifically to limit adverse selection damage.
 
+**Aggressive order:** (also called a **taker**) — an incoming order that immediately
+trades against resting orders. It "sweeps" the book.
+
 **Aggressor / Taker:** The participant whose incoming order triggered a match by crossing the spread to meet a resting order. The aggressor "takes" liquidity that was already available. Contrast with *Maker*, the participant whose resting order was already in the book.
 
 **Alternative Trading System (ATS):** A trading venue that matches orders but is not a registered national securities exchange. Includes ECNs and dark pools. Subject to lighter regulation than exchanges in some jurisdictions.
@@ -19,6 +22,7 @@ The following definitions are written to be concise and standalone, useful as a 
 **Arbitrage:** The simultaneous purchase and sale of the same (or equivalent) asset on different markets to profit from a price difference. Pure arbitrage is risk-free (buy cheap here, sell expensive there at the same moment); in practice, most arbitrage involves some timing or execution risk. Arbitrage is the mechanism by which prices on different venues are kept consistent, arbitrageurs quickly eliminate price discrepancies, making markets more efficient. **Latency arbitrage** is a specific form exploiting the time it takes for price changes to propagate between venues.
 
 **Ask / Offer:** The price at which a seller is willing to sell. The best (lowest) ask is the top of the sell side of the order book.
+The collection of all active asks forms the sell side of the book.
 
 **ATC (At-The-Close):** An order TIF valid only during the closing auction.
 
@@ -37,6 +41,13 @@ The following definitions are written to be concise and standalone, useful as a 
 
 **Bear Market:** A sustained decline of 20% or more from a recent market peak. Originates from the image of a bear swiping its paws downward. Contrast with *Bull Market*.
 
+**Best Ask:** The lowest resting sell price in the order book — the price at which a buyer
+can trade immediately.
+
+**Best Bid:** The highest resting buy price in the order book — the price at which a seller
+can trade immediately.
+
+
 **Best Execution:** The regulatory obligation for brokers and investment firms to take all reasonable steps to achieve the best possible result for their clients when executing orders. "Best" considers price, execution costs, speed, likelihood of execution, and market impact simultaneously, not just the quoted price in isolation. Mandated by MiFID II in the EU and the SEC's duty of best execution in the US. Best execution is the regulatory foundation that makes smart order routing (SOR) necessary: brokers must demonstrate their routing decisions genuinely serve clients' interests, not just the broker's economics.
 
 **Bid:** The price at which a buyer is willing to buy. The best (highest) bid is the top of the buy side of the order book.
@@ -47,9 +58,17 @@ The following definitions are written to be concise and standalone, useful as a 
 
 **Bond:** A standardised debt instrument. The issuing company borrows money and promises to pay periodic interest (coupon payments) and return the face value (principal) at maturity. Bondholders are creditors, not owners, and are paid before equity holders in a bankruptcy. Bonds trade on secondary markets after issuance, allowing investors to exit before maturity. The financial term "bond" traces its roots back to the 14th century from the Old English word bindan and band, which eventually evolved into the standard English word "bind". The word was originally used to describe something that literally ties, fastens, or holds things together. Because a financial bond fundamentally operates as a formal, legally binding contract where an issuer promises to repay a loan with interest, the term stuck.
 
+**Book Depth:** The total volume (quantity of shares) resting near the top of the order book. A deep book absorbs large orders without significant price impact. A thin (or shallow) book moves quickly on even moderate order flow.
+
+
 **Book Snapshot:** A periodic complete view of the current order book state (all price levels and their quantities) published by the exchange for subscribers who need to get up to speed.
 
 **Borrow Rate:** The annualised fee charged to a short seller for borrowing shares from a lender. Easy-to-borrow large-cap stocks typically have borrow rates near zero. Hard-to-borrow, heavily-shorted, or illiquid stocks can carry rates of 5–50% or more per annum, applied daily to the short position. Rising borrow rates signal increasing short interest and decreasing availability of lendable shares, and are themselves a market signal.
+
+
+**Bracket Order:** A strategy combining an entry order with both a take-profit LIMIT and a
+stop-loss STOP, typically implemented as an OCO pair. 
+
 
 **Broker:** An intermediary who executes orders on behalf of clients without trading for their own account. The word traces to Old French/Norse roots meaning someone who opens a cask and sells by the cup, a retail intermediary.
 
@@ -62,9 +81,13 @@ The following definitions are written to be concise and standalone, useful as a 
 
 **Calendar Spread:** A derivatives strategy involving the simultaneous purchase and sale of contracts on the same underlying instrument but with different expiry dates, for example, buy the March futures contract, sell the June futures contract. Used to profit from expected changes in the price difference (the "spread") between contract months. Requires cross-symbol coordination in the matching engine.
 
+**Call auction:**  Synonym for auction — "call" refers to the fact that all participants are "called" to submit orders before a single price is determined.
+
 **Capital Appreciation:** An increase in the market price of a share (or other asset) above the price paid. The primary way equity investors generate returns.
 
 **Capital Gain:** The profit realised when an asset is sold for more than it was purchased for.
+
+**Cascade Cancel:** When a COMBO order fails (any leg is cancelled or rejected), all remaining unfilled legs of the combo are automatically cancelled. Previously executed fills are not reversed.
 
 **CCP (Central Counterparty Clearing House):** An entity that stands between buyer and seller in a trade, becoming the legal counterparty to both, eliminating direct counterparty credit risk.
 
@@ -155,9 +178,11 @@ The following definitions are written to be concise and standalone, useful as a 
 
 **Fill:** An execution, a match between a buy and sell order resulting in a trade. Partial fills consume part of an order; a complete fill consumes all of it.
 
-**Fill-Or-Kill (FOK):** An order that must be completely filled immediately or cancelled entirely.
+**FOK (Fill-Or-Kill):** An order that must be completely filled immediately or cancelled entirely.
 
 **FIX (Financial Information eXchange):** The industry-standard protocol for electronic order submission, used by most exchanges and brokers globally.
+
+**Flat:** Having no open position in a symbol (net quantity = 0). Neither long nor short.
 
 **Floor Broker:** Historically, a broker who executed trades on the physical exchange floor. The term persists in regulations and informal speech.
 
@@ -194,6 +219,8 @@ The following definitions are written to be concise and standalone, useful as a 
 
 **Iceberg Order / Hidden Order / Reserve Order:** An order that shows only a small visible peak while hiding a large reserve. Each time the visible portion fills, the order replenishes from the reserve.
 
+**Imbalance:** The difference between total buy and sell quantity at the equilibrium price.  Expressed as a side (BUY or SELL) and a quantity.
+
 **Immediate-Or-Cancel (IOC):** An order that fills as much as possible immediately and cancels any unfilled remainder. Never rests in the book.
 
 **Implementation Shortfall (IS) / Arrival Price Algorithm:** An execution algorithm that minimises the difference between the *decision price* (the market price when the investment decision was made) and the actual average execution price. IS algos trade faster when the price moves against the position (urgency increases to avoid further shortfall) and slower when price moves favourably. More adaptive and sophisticated than VWAP or TWAP; preferred by quantitative funds whose models predict short-term price moves.
@@ -210,6 +237,9 @@ The following definitions are written to be concise and standalone, useful as a 
 
 **Indicative Uncross Price:** During an auction accumulation period, the price at which uncrossing *would* occur if matching happened at that moment. Recalculated after every order arrival and published as a signal to help participants decide whether to adjust their orders before the actual uncross.
 
+**Information Asymmetry:** A situation where some market participants have access to information (faster
+data, better analytics) that others do not, giving them a trading advantage. Auctions reduce information asymmetry by letting all participants submit orders before any execution occurs.
+
 **Informed Flow:** Order flow that originates from participants who have an informational advantage about near-term price direction, for example, participants who have seen relevant news before others. When a market maker is repeatedly hit by informed flow, they accumulate inventory at prices that are about to move against them. Informed flow is the root cause of adverse selection.
 
 **Initial Margin:** Collateral deposited when opening a position to cover potential losses. Calculated by the CCP based on the instrument's historical volatility and the position size.
@@ -219,6 +249,9 @@ The following definitions are written to be concise and standalone, useful as a 
 **Instrument / Symbol:** The specific financial product being traded. Each instrument has its own order book.
 
 **Internaliser:** A broker-dealer that matches client orders internally against its own inventory or other clients' orders, rather than routing to an exchange. A form of OTC secondary trading.
+
+**IOC (Immediate-Or-Cancel):** A time-in-force (and order type) where an order sweeps available liquidity at
+the limit price and any unfilled remainder is immediately cancelled. Never rests on the book
 
 **IPO (Initial Public Offering):** The first sale of a company's shares to the general public, after which the shares are listed and traded on a stock exchange.
 
@@ -259,6 +292,9 @@ The following definitions are written to be concise and standalone, useful as a 
 **Liquidity:** The ease with which an asset can be bought or sold without significantly affecting its price. High liquidity = tight spread, large depth, easy trading.
 
 **Locate:** The process of finding and reserving a source of borrowable shares before executing a short sale. Under US Regulation SHO, broker-dealers must have reasonable grounds to believe shares can be borrowed before accepting a short sale order. "Failing to locate" before shorting is called naked short selling, which is illegal in most jurisdictions.
+
+**Long Position:** Owning a positive quantity of shares. You profit if the price rises. Expressed
+as a positive number  P&L ledger.
 
 **Lot:** The standard unit of quantity for an instrument.
 
@@ -312,6 +348,8 @@ The following definitions are written to be concise and standalone, useful as a 
 
 **NBBO (National Best Bid and Offer):** The best available bid and ask prices aggregated across all US exchanges, as required by Regulation NMS. Brokers must offer clients execution at or better than the NBBO.
 
+**NAV (Net Asset Value):** The total value of a fund's holdings divided by the number of shares outstanding. For mutual funds, NAV is computed daily using the official **closing price** of each holding — one reason the closing price matters so much.
+
 **Novation:** The legal process by which a CCP replaces the original buyer-seller relationship: the CCP becomes buyer to the seller and seller to the buyer, eliminating bilateral counterparty risk.
 
 **NTP (Network Time Protocol):** A protocol for synchronising computer clocks over a network. Basic NTP achieves millisecond accuracy; higher-precision variants achieve sub-millisecond.
@@ -329,6 +367,8 @@ The following definitions are written to be concise and standalone, useful as a 
 
 **Options:** Contracts that give the buyer the right, but not the obligation, to buy (a **call option**) or sell (a **put option**) an underlying asset at a specified price (the **strike price**) before or on a specified date (the **expiry date**). The seller of an option takes on the corresponding obligation. Options are priced using models (Black-Scholes being the most famous) that account for time to expiry, volatility, interest rates, and the distance between the current price and the strike. Cboe is the world's largest options exchange.
 
+**Order:** An instruction to buy or sell a quantity of an instrument at a specified price or better.
+
 **Order Book:** The central data structure of a matching engine, all resting buy and sell orders for a symbol, organised by price.
 
 **Order ID:** A unique identifier assigned to each order upon submission. Must be unique across the entire system.
@@ -342,6 +382,8 @@ The following definitions are written to be concise and standalone, useful as a 
 
 **P&L (Profit and Loss):** The financial gain or loss on a trading position.
 
+**Passive Order:** See *Resting Order*
+
 **Payment for Order Flow (PFOF):** A practice in which retail brokers receive payment from wholesale market makers in exchange for routing client order flow to those market makers for internalisation rather than to lit exchanges. Market makers pay for retail flow because retail orders have lower adverse selection risk. Banned in the UK and EU under MiFID II. Controversial in the US, where it subsidises zero-commission brokerages but raises concerns about conflicts of interest and reduced price discovery. See *Best Execution*, *Internaliser*.
 
 **Pit:** The sunken, octagonal or circular physical trading area on an exchange floor where open outcry trading happened. CME Group operated prominent futures pits in Chicago. Largely dormant today.
@@ -351,6 +393,8 @@ The following definitions are written to be concise and standalone, useful as a 
 **Position:** A participant's current holding in an instrument, positive (long) if they own more than they have committed to deliver; negative (short) if they have committed to deliver more than they own; zero (flat) if both sides balance. Position tracking is the clearing system's primary responsibility.
 
 **Pre-Trade Risk Controls:** Checks applied to orders before they reach the matching engine, quantity limits, notional limits, fat-finger filters, credit checks, and rate limiting. The gateway is typically the enforcement layer.
+
+**PRE_OPEN:**  Session phase before the opening auction.  Orders are accepted and rest on the book, but no matching occurs.
 
 **Presence Obligation:** A market maker's contractual requirement to have live two-sided quotes resting in the book for a minimum percentage of the trading session, commonly 85% or more. Prevents market makers from only quoting on easy days and disappearing on volatile ones when liquidity is most needed.
 
@@ -393,6 +437,10 @@ The following definitions are written to be concise and standalone, useful as a 
 **Rate Limiting / Throttling:** A control that limits the number of orders a participant can submit per unit time. Prevents denial-of-service conditions from algorithmic misfires.
 
 **Re-quoting Obligation:** A market maker's contractual requirement to post a fresh two-sided quote within a specified maximum delay after either leg of their previous quote is filled or after MMP fires. Failure to re-quote within this window counts against the presence obligation and may trigger penalties. The window is typically measured in milliseconds to low seconds.
+
+**Realized P&L:** Profit or loss that has been "locked in" through a trade that reduced an open
+position. Once realized, it cannot be reversed by subsequent price moves.
+
 
 **Reference Data / Instrument Master:** The configuration data describing a tradeable instrument, tick size, price scale, session schedule, contract multiplier, trading status, expiry date, position limits. Read by every exchange component; an error propagates system-wide. Treat it with the same rigour as code: version-controlled, tested, applied atomically.
 
@@ -437,6 +485,12 @@ The following definitions are written to be concise and standalone, useful as a 
 
 **Smart Order Router (SOR):** Software that evaluates multiple trading venues and routes orders to achieve the best overall execution, balancing price, fees, available depth, and speed.
 
+**Slippage:** The difference between the expected fill price and the actual average fill
+price, caused by executing against multiple price levels in the book. Large
+orders in thin books experience more slippage.
+
+**Smart Order Router (SOR):** Software that evaluates multiple trading venues and routes orders to achieve the best overall execution, balancing price, fees, available depth, and speed.
+
 **SmartNIC / Ultra-Low-Latency NIC:** A specialised network interface card designed for trading and other latency-sensitive applications. Unlike commodity Ethernet cards, SmartNICs include an on-card kernel bypass networking stack (such as Solarflare's OpenOnload or Mellanox's RDMA), hardware timestamping of incoming packets to nanosecond precision, and CPU offload for networking tasks. Examples include the AMD Solarflare SFN series and NVIDIA Mellanox ConnectX series, widely deployed in exchange co-location environments.
 
 **Snapshot (Persistence):** A complete dump of the matching engine's state (all resting orders, positions, key data) taken periodically to reduce recovery time by limiting the amount of write-ahead log that must be replayed.
@@ -462,6 +516,8 @@ The following definitions are written to be concise and standalone, useful as a 
 **Stop-Limit Order:** A stop order that converts to a limit order when triggered. Provides price protection but may not execute if the market gaps.
 
 **Stop-Loss:** A sell stop order used to automatically exit a losing long position if the price falls to a specified level.
+
+ **Surplus:**  The absolute difference between cumulative buy and sell quantity at the equilibrium price — the quantity that cannot be matched.
 
 **Sweeping:** The process of an aggressive order filling against resting orders at successive price levels.
 
@@ -501,6 +557,14 @@ The following definitions are written to be concise and standalone, useful as a 
 
 **UUID (Universally Unique Identifier):** A 128-bit identifier designed to be unique without central coordination. UUID v4 is randomly generated; UUID v1 incorporates the current time and network address.
 
+**Uncross**
+The single atomic batch execution that occurs at the end of an auction phase.
+All crossable orders execute at the **equilibrium price** simultaneously.
+
+**Unrealized P&L**
+The theoretical profit or loss on an open position if it were closed at the
+current market price. Changes continuously as the market moves. Becomes
+realized P&L when the position is closed.
 
 ## V {#glossary-v}
 
@@ -511,6 +575,8 @@ The following definitions are written to be concise and standalone, useful as a 
 **VIX (Volatility Index):** A real-time index calculated by Cboe from the prices of S&P 500 options, representing the market's expectation of 30-day price volatility in the S&P 500. Commonly called the "fear gauge", when markets are uncertain or falling sharply, participants buy put options for protection, driving up option prices and therefore the VIX. Values above 30 typically indicate high market stress; values below 20 indicate relative calm. Derivatives on the VIX itself trade on Cboe.
 
 **VWAP (Volume-Weighted Average Price):** The average price of a position weighted by the quantity traded at each price. Used as cost basis for P&L calculation.
+$\text{VWAP} = \frac{\sum(\text{price}_i \times \text{qty}_i)}{\sum \text{qty}_i}$$
+
 
 **VWAP Algorithm:** An execution algorithm that slices a large order and executes it throughout the day in proportion to expected trading volume, more during high-volume periods (open, close) and less during low-volume periods (mid-day). The goal is to achieve an average execution price close to or better than the day's volume-weighted average price. The most widely used institutional execution benchmark. Distinct from *VWAP (Volume-Weighted Average Price)*, which is a measurement; the VWAP algorithm is the execution strategy aimed at matching that measurement.
 
@@ -524,4 +590,5 @@ The following definitions are written to be concise and standalone, useful as a 
 
 ## Z {#glossary-z}
 
-**ZeroMQ (ZMQ):** A messaging library providing efficient pub/sub, push/pull, and other communication patterns. Commonly used as the message bus in exchange systems.
+**ZeroMQ (ZMQ):** A messaging library providing efficient pub/sub, push/pull, and other communication patterns. Commonly used as the message bus in exchange systems. Uses a broker-less PUSH/PULL and PUB/SUB topology. No external
+message queue server is required. 

@@ -255,6 +255,7 @@ rests on the book. See [Order Types](user-guide/04-order-types.md#10-ioc-immedia
 
 **ISIN (International Securities Identification Number):** A 12-character global identifier for a security, independent of the exchange it trades on. A single company has one ISIN regardless of where its shares are listed.
 
+**ITCH (NASDAQ TotalView-ITCH):** NASDAQ's binary, message-based market data feed protocol for order book dissemination. ITCH publishes sequenced events such as add order, modify/replace, cancel/delete, executions, and auction/trade messages so subscribers can reconstruct the full limit order book deterministically from the stream. Official specification: [NASDAQ TotalView-ITCH 5.0](https://www.nasdaqtrader.com/content/technicalsupport/specifications/dataproducts/nasdaq_totalview_itch50.pdf).
 
 ### K
 
@@ -304,6 +305,8 @@ as a positive number in EduMatcher's P&L ledger.
 **Margin Call:** A demand from a clearing house or broker for a participant to deposit additional collateral to restore their margin account to the required level.
 
 **Mark-to-Market:** The daily revaluation of positions at current market prices, with cash payments made to reflect daily gains and losses. The mechanism by which variation margin is calculated.
+
+**Market capitalisation (market cap):** The total market value of all a company's outstanding shares, calculated as share price multiplied by the total number of shares in existence. If Apple has approximately 15.4 billion shares outstanding and each trades at $190, Apple's market cap is roughly $2.9 trillion [1]. Market cap is the most widely used shorthand for a company's size. When rankings refer to "the world's largest exchange by listed market cap," they are summing the market caps of every company listed there.
 
 **Market data:** The continuous stream of information about what is happening in the book: what prices orders are resting at, how much quantity, and what trades have happened. Display tools (viewer, board, ticker) consume market data.
 
@@ -377,6 +380,7 @@ Often used as a reference price when the spread is non-zero.
 
 **OTC (Over-the-Counter):** Trading that occurs directly between two parties without going through an exchange. OTC trades are less transparent and subject to different regulations than exchange-traded transactions.
 
+**OUCH (NASDAQ OUCH):** NASDAQ's high-performance binary order entry protocol used by member firms and low-latency trading systems to submit, modify, cancel, and manage orders directly at the matching engine. OUCH is session-based and message-oriented, with exchange acknowledgments and execution/cancel responses that let clients track the full order lifecycle deterministically. Official specification: [NASDAQ OUCH 5.0](https://www.nasdaqtrader.com/content/technicalsupport/specifications/TradingProducts/OUCH5.0.pdf).
 
 ### P
 
@@ -486,6 +490,8 @@ execute immediately.
 
 **Short Position:** Selling shares you do not own (borrowed from a broker). You profit if the
 price falls. Expressed as a negative number in EduMatcher's P&L ledger.
+
+**Smart Order Router (SOR):** Software that evaluates multiple trading venues and routes orders to achieve the best overall execution, balancing price, fees, available depth, and speed.
 
 **Slippage:** The difference between the expected fill price and the actual average fill
 price, caused by executing against multiple price levels in the book. Large
