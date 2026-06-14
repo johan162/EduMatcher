@@ -8,7 +8,7 @@
     - What each process does and when to start it
     - Which sections to read next based on your role
 
----
+
 
 ## What is EduMatcher?
 
@@ -53,13 +53,13 @@ flowchart LR
     SCH -- "session state" --> ENG
 ```
 
----
+
 
 ## Installation
 
 EduMatcher supports two installation modes. Choose the one that matches your role.
 
----
+
 
 ### End-user / student mode — `pipx install` (recommended)
 
@@ -117,7 +117,7 @@ nano engine_config.yaml
 pm-engine --verbose
 ```
 
----
+
 
 ### Developer mode — Poetry + source checkout
 
@@ -159,7 +159,7 @@ poetry run pm-gateway --id GW01
     pm-setup --force    # re-copy the latest sample config
     ```
 
----
+
 
 ## Environment variables
 
@@ -174,7 +174,7 @@ override the defaults permanently.
 The `--config` flag on `pm-engine` and `pm-scheduler` always takes precedence
 over both the environment variable and the default.
 
----
+
 
 ## Five-minute minimum session
 
@@ -349,7 +349,7 @@ sequenceDiagram
     E-->>E: trade.executed published to all subscribers
 ```
 
----
+
 
 ## Starting more processes
 
@@ -373,7 +373,7 @@ For a full classroom session, use the provided launch script:
 The script detects whether `pm-engine` is on PATH (installed mode) or falls
 back to `poetry run` automatically when running from a source checkout.
 
----
+
 
 ## Typical architecture for a classroom demo
 
@@ -410,7 +410,7 @@ Typical setup:
 3. Students each `ssh` to the server and run their gateway.
 4. Instructor uses `pm-admin` to manage session phases and monitor the market.
 
----
+
 
 ## Reading path
 
@@ -426,7 +426,7 @@ Use the table below to decide what to read based on your goal.
 | **Write a custom client** | 09 → 20 → 02 |
 | **Understand risk controls** | 12 → 06 → 04 |
 
----
+
 
 ## Glossary of terms used throughout this guide
 
