@@ -218,6 +218,113 @@ filling against your own sell. Options:
 
 ---
 
+## Installation & Setup
+
+### Do I need Poetry or pipx?
+
+It depends on your role:
+
+| Role | Tool | Install command |
+|---|---|---|
+| **Student / instructor** (just want to run the exchange) | pipx | `pipx install edumatcher` |
+| **Developer** (modifying the engine, running tests) | Poetry | `poetry install --with dev` |
+
+End users should not need a source checkout at all. After `pipx install edumatcher`
+all `pm-*` commands are on your PATH and ready to use.
+
+---
+
+### I installed with pipx but `pm-engine` is not found. What do I do?
+
+pipx installs scripts to `~/.local/bin`, which may not be on your PATH yet.
+
+```bash
+pipx ensurepath        # adds ~/.local/bin to your shell profile
+exec $SHELL            # reload your current shell
+which pm-engine        # should now print a path
+```
+
+If you just installed pipx itself for the first time, open a **new terminal
+window** after running `pipx ensurepath` — the PATH change only takes effect
+in new shells.
+
+---
+
+### What does `pm-setup` do and do I have to run it?
+
+`pm-setup` is a one-time bootstrap command for **installed** (pipx) users:
+
+1. Creates the data directory (`~/.local/share/edumatcher` by default).
+2. Copies the bundled sample `engine_config.yaml` into your current working
+   directory.
+3. Prints a shell snippet to add to `~/.zshrc` or `~/.bashrc`.
+
+If you skip it, the engine still starts — but it looks for `engine_config.yaml`
+in `./` (your CWD) and writes data files to `~/.local/share/edumatcher`,
+creating that directory automatically. The main reason to run `pm-setup` is to
+get the sample config so you have a starting point to edit.
+
+Developer mode (Poetry + source checkout) does not need `pm-setup` at all.
+
+---
+
+### The engine says it cannot find `engine_config.yaml`. Where should the file be?
+
+The search path depends on how you are running EduMatcher:
+
+| Mode | Default config location |
+|---|---|
+| **pipx installed** | `engine_config.yaml` in the **current working directory** |
+| **Source checkout** | `engine_config.yaml` in the **repository root** |
+| **Either** | `EDUMATCHER_CONFIG` environment variable (highest priority) |
+
+The most common mistake is running `pm-engine` from a directory that does not
+contain `engine_config.yaml`. Either `cd` to the directory that has the file,
+or point to it explicitly:
+
+```bash
+pm-engine --config ~/my-session/engine_config.yaml
+# or:
+export EDUMATCHER_CONFIG=~/my-session/engine_config.yaml
+pm-engine
+```
+
+---
+
+### Where are my data files stored?
+
+Data files (`gtc_orders.json`, `stats.db`, `audit.log`, etc.) go to:
+
+| Mode | Data directory |
+|---|---|
+| **pipx installed** | `~/.local/share/edumatcher` |
+| **Source checkout** | `<repo>/src/data/` |
+| **Either** | `EDUMATCHER_DATA_DIR` environment variable (highest priority) |
+
+To isolate two sessions from each other, run each in its own directory and set
+`EDUMATCHER_DATA_DIR` to a different path:
+
+```bash
+export EDUMATCHER_DATA_DIR=~/sessions/morning
+pm-engine --config ~/sessions/morning/engine_config.yaml
+```
+
+---
+
+### How do I upgrade EduMatcher to a newer version?
+
+```bash
+pipx upgrade edumatcher            # upgrade from PyPI
+# or, to install a locally built wheel:
+poetry build
+pipx install dist/edumatcher-*.whl --force
+pm-setup --force                   # refresh the sample config if needed
+```
+
+Your existing `engine_config.yaml` and data files are not touched by the upgrade.
+
+---
+
 ## Architecture & Setup
 
 ### The engine started but gateways can't connect. What's wrong?
@@ -230,6 +337,72 @@ Check that:
 
 If the engine is down or unreachable, `pm-gateway` exits after about three
 seconds with `Gateway authentication timed out`.
+
+---
+
+### The book already has liquidity before I submit any orders. Why?
+
+If your `engine_config.yaml` has a `market_maker_quotes` block for the symbol,
+the engine injects a two-sided seed quote on behalf of the configured market-maker
+gateway at startup. This is intentional — it gives the book immediate liquidity
+so participants always have something to trade against.
+
+A side effect is that your **first aggressive order may fill immediately** against
+the seed quote, before a second participant has typed anything.
+
+To run with a deliberately empty book (e.g. for a demo of price discovery from
+scratch), either:
+- Remove or comment out `market_maker_quotes` in the config, or
+- Start the engine without a config file (`sessions_enabled: false` minimum).
+
+---
+
+### Why did the seed MM quote disappear after the second day?
+
+By default, `market_maker_quotes` entries have `seed_once: true`. This means the
+quote is only injected on the **first** startup for a symbol (detected by the
+absence of a `book_stats.json` entry). From the second day onward the real market
+maker is expected to submit its own quotes.
+
+To inject the seed on every startup (e.g. for a repeatable classroom demo):
+
+```yaml
+market_maker_quotes:
+  - gateway_id: MM01
+    bid_price: 149.00
+    ask_price: 151.00
+    bid_qty: 500
+    ask_qty: 500
+    tif: DAY
+    seed_once: false    # inject on every startup
+```
+
+To force a day-1 re-injection without changing the config:
+
+```bash
+rm data/book_stats.json    # or $EDUMATCHER_DATA_DIR/book_stats.json
+```
+
+---
+
+### Why is the engine not matching orders? It starts in CLOSED state
+
+With `sessions_enabled: true` (the default), the engine starts in `CLOSED` state
+and waits for `pm-scheduler` to drive it through the session phases before it
+accepts orders.
+
+Two ways to get to a matching state quickly:
+
+1. **Start `pm-scheduler`** alongside the engine — it drives the transition
+   from CLOSED → PRE_OPEN → OPENING_AUCTION → CONTINUOUS automatically at
+   the configured wall-clock times, or immediately with `pm-scheduler --now`.
+2. **Disable sessions** for testing or demos:
+   ```yaml
+   # engine_config.yaml
+   sessions_enabled: false
+   ```
+   With `sessions_enabled: false` the engine enters CONTINUOUS state immediately
+   on startup and `pm-scheduler` has no effect.
 
 ---
 
@@ -267,8 +440,9 @@ Use the manual process commands from the home page if you are not on macOS.
 
 Each process is an independent OS process communicating over ZeroMQ. They
 cannot run inside a single terminal because each blocks on its own event loop.
-For convenience, use the provided `./launch_all.sh` script which starts
-the standard setup in separate Terminal windows on macOS.
+For convenience, use the provided `./tools/launch_all.sh` script which starts
+the standard setup in separate Terminal windows on macOS. In a remote server
+setting, `tmux` or `screen` are the standard alternatives.
 
 ---
 
@@ -285,15 +459,26 @@ every event in the system.
 Float arithmetic can introduce tiny representation errors in comparisons and
 aggregation. Using integer ticks makes price-time matching and level math exact.
 
-### Why were timestamps changed to nanoseconds?
+---
 
-Nanosecond integer timestamps improve event ordering precision and avoid
-float-second precision loss at high message rates.
+### How do I reset all persisted state to start fresh?
 
-### Do I need to clean persisted files for the migration?
+Delete the contents of the data directory:
 
-Yes, for the no-backward-compatibility cutover remove:
+```bash
+# Installed mode (default data dir)
+rm -f ~/.local/share/edumatcher/*.json \
+       ~/.local/share/edumatcher/*.csv  \
+       ~/.local/share/edumatcher/*.db   \
+       ~/.local/share/edumatcher/audit.log
 
-- `data/gtc_orders.json`
-- `data/book_stats.json`
-- `data/gtc_combos.json`
+# Source checkout
+rm -f src/data/*.json src/data/*.csv src/data/*.db src/data/audit.log
+
+# Or with a custom directory
+rm -f "$EDUMATCHER_DATA_DIR"/*.json ...
+```
+
+This resets GTC orders, book statistics, clearing history, and audit logs.
+The engine will re-seed MM quotes as if it were day 1 (because `book_stats.json`
+no longer exists).
