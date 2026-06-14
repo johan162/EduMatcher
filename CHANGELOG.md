@@ -1,3 +1,18 @@
+## [v0.2.0] - 2026-06-14
+
+Release Type: minor
+
+### 📋 Summary
+This release completes the protocol design documentation suite by publishing the BALF design proposal at v1.0.0 and integrating both BALF and CALF protocol appendixes into the User Guide. It marks the first minor version increment, establishing a stable baseline for the full protocol documentation set.
+
+### 📚 Documentation
+- Update glossary and sync global and Exchange Intro glossary
+
+### ✨ Additions
+- Added BALF protocol design proposal v1.0.0 covering allocation, liquidity, and feed mechanics
+- Added BALF protocol description appendix to the User Guide
+- Added CALF protocol appendix to the User Guide with harmonized terminology across all protocol appendixes
+
 ## [v0.1.9] - 2026-06-13
 
 Release Type: patch
