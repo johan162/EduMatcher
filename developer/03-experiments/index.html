@@ -1786,10 +1786,54 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#experiment-16-suggested-extension-self-trade-prevention" class="md-nav__link">
+  <a href="#experiment-16-self-trade-prevention" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Experiment 16 (Suggested Extension): Self-Trade Prevention
+        Experiment 16: Self-Trade Prevention
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-17-statistics-sql-query-cli-layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment 17: Statistics SQL Query CLI Layer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-18-drop-copy-durability-and-restart-recovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment 18: Drop Copy Durability and Restart Recovery
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-19-cross-host-operational-validation-matrix" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment 19: Cross-Host Operational Validation Matrix
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-20-installed-mode-vs-source-mode-parity-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment 20: Installed-Mode vs. Source-Mode Parity Validation
       
     </span>
   </a>
@@ -1933,6 +1977,7 @@
 <li>Keep a short implementation log with assumptions and tradeoffs.</li>
 </ol>
 <h2 id="experiment-1-price-time-priority-audit-trace">Experiment 1: Price-Time Priority Audit Trace<a class="headerlink" href="#experiment-1-price-time-priority-audit-trace" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Still Valid</strong></p>
 <p>Difficulty: Basic
 Estimated effort: Less than 1 day
 Gap vs real exchange: Real venues provide deterministic post-trade replay and explainability tooling.</p>
@@ -1967,8 +2012,10 @@ A student can reconstruct exactly why each fill happened and which queue rule wa
 <p>Learning objective:
 Understand deterministic matching and queue priority mechanics at a forensic level.</p>
 <h2 id="experiment-2-exchange-tick-size-regime-per-symbol">Experiment 2: Exchange Tick-Size Regime per Symbol<a class="headerlink" href="#experiment-2-exchange-tick-size-regime-per-symbol" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Partially Implemented — Phase 2 Enhancement</strong></p>
+<p><em>Current state</em>: <code>tick_decimals</code> per symbol exists in config. New work: add <code>tick_size</code> (exact increment), variable-tick bands, and price validation.</p>
 <p>Difficulty: Basic
-Estimated effort: Less than 1 day
+Estimated effort: 1 to 2 days
 Gap vs real exchange: Production exchanges enforce symbol-specific tick tables.</p>
 <p>Background:
 Current pricing accepts flexible decimal values, but real symbols trade only on valid increments.</p>
@@ -2011,8 +2058,10 @@ Invalid price steps are blocked; valid prices align to venue rules.</p>
 <p>Learning objective:
 See how market design constraints shape order entry and liquidity formation.</p>
 <h2 id="experiment-3-session-aware-order-entry-policy-matrix">Experiment 3: Session-Aware Order Entry Policy Matrix<a class="headerlink" href="#experiment-3-session-aware-order-entry-policy-matrix" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Partially Implemented — Phase 2 Enhancement</strong></p>
+<p><em>Current state</em>: Session states (PRE_OPEN, OPENING_AUCTION, CONTINUOUS, CLOSING_AUCTION, CLOSED) and phase checking exist. New work: add per-phase admissibility matrix for (order_type, TIF) combinations.</p>
 <p>Difficulty: Basic
-Estimated effort: Less than 1 day
+Estimated effort: 1 to 2 days
 Gap vs real exchange: Venues apply strict policy by phase (pre-open, auction, continuous, close).</p>
 <p>Background:
 The scheduler changes phases, but policy granularity can be expanded to reflect real venue behavior.</p>
@@ -2100,6 +2149,7 @@ Different order classes are accepted or rejected according to phase; policy viol
 <p>Learning objective:
 Understand how session design controls market behavior and participant risk.</p>
 <h2 id="experiment-4-per-gateway-rate-limits-and-burst-controls">Experiment 4: Per-Gateway Rate Limits and Burst Controls<a class="headerlink" href="#experiment-4-per-gateway-rate-limits-and-burst-controls" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Still Valid</strong></p>
 <p>Difficulty: Intermediate
 Estimated effort: 1 to 2 days
 Gap vs real exchange: Real gateways enforce throughput and abuse controls.</p>
@@ -2135,6 +2185,7 @@ Gateway behavior is constrained to configured throughput with observability; und
 <p>Learning objective:
 Learn the tradeoff between open access, fairness, and operational safety.</p>
 <h2 id="experiment-5-fee-and-rebate-model-maker-taker">Experiment 5: Fee and Rebate Model (Maker-Taker)<a class="headerlink" href="#experiment-5-fee-and-rebate-model-maker-taker" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Still Valid</strong></p>
 <p>Difficulty: Intermediate
 Estimated effort: 1 to 2 days
 Gap vs real exchange: Real venues expose fee schedules that alter trader behavior.</p>
@@ -2178,6 +2229,7 @@ Net PnL differs from gross PnL when fees are active; fee-free mode remains backw
 <p>Learning objective:
 Understand execution economics beyond simple price and quantity.</p>
 <h2 id="experiment-6-realistic-cancelamend-latency-simulation">Experiment 6: Realistic Cancel/Amend Latency Simulation<a class="headerlink" href="#experiment-6-realistic-cancelamend-latency-simulation" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Still Valid</strong></p>
 <p>Difficulty: Intermediate
 Estimated effort: 1 to 2 days
 Gap vs real exchange: Matching systems have non-zero network and processing latency.</p>
@@ -2213,6 +2265,8 @@ Race conditions become observable and repeatable; strategy robustness can be mea
 <p>Learning objective:
 See how latency changes strategy outcomes and risk exposure.</p>
 <h2 id="experiment-7-full-order-state-machine-with-reason-codes">Experiment 7: Full Order State Machine with Reason Codes<a class="headerlink" href="#experiment-7-full-order-state-machine-with-reason-codes" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Partially Implemented — Phase 2 Enhancement</strong></p>
+<p><em>Current state</em>: Order status enum (NEW, PARTIAL, FILLED, CANCELLED, REJECTED, EXPIRED) exists. New work: formalize state transition table, validate transitions, add machine-readable reason codes on all lifecycle events.</p>
 <p>Difficulty: Intermediate
 Estimated effort: 1 to 3 days
 Gap vs real exchange: Real systems standardize lifecycle states and reject codes.</p>
@@ -2256,6 +2310,8 @@ Orders always follow valid state paths; all terminal transitions carry a machine
 <p>Learning objective:
 Understand order lifecycle reliability and protocol discipline.</p>
 <h2 id="experiment-8-market-data-channel-separation-level-1-vs-level-2">Experiment 8: Market Data Channel Separation (Level 1 vs Level 2)<a class="headerlink" href="#experiment-8-market-data-channel-separation-level-1-vs-level-2" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Partially Implemented — Phase 2 Enhancement</strong></p>
+<p><em>Current state</em>: Depth metrics via <code>depth_snapshot()</code> and <code>encode(f"depth.{symbol}", depth)</code> publication exist. New work: introduce formal <code>book.l1.*</code> and <code>book.l2.*</code> topic namespaces with contract-enforced payloads, configurable publish cadence, and sequence counters per channel.</p>
 <p>Difficulty: Intermediate
 Estimated effort: 2 to 3 days
 Gap vs real exchange: Production venues separate feed products and entitlement tiers.</p>
@@ -2292,6 +2348,7 @@ Consumers can subscribe to exactly the data product they need; payload size diff
 <p>Learning objective:
 Understand market data product design and distribution tradeoffs.</p>
 <h2 id="experiment-9-user-and-account-domain-refactor">Experiment 9: User and Account Domain Refactor<a class="headerlink" href="#experiment-9-user-and-account-domain-refactor" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Still Valid</strong></p>
 <p>Difficulty: Complex
 Estimated effort: 3 to 5 days
 Gap vs real exchange: Venues operate with firm, user, account, and permission hierarchies.</p>
@@ -2328,8 +2385,10 @@ Multiple gateways can share one account and positions aggregate correctly; contr
 <p>Learning objective:
 Understand how real exchange participants are modeled beyond a single connection ID.</p>
 <h2 id="experiment-10-kill-switch-and-fat-finger-controls">Experiment 10: Kill Switch and Fat-Finger Controls<a class="headerlink" href="#experiment-10-kill-switch-and-fat-finger-controls" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Partially Implemented — Phase 2 Enhancement</strong></p>
+<p><em>Current state</em>: Kill-switch gateway cancellation exists (<code>_handle_kill_switch()</code>). New work: hard-stop governance (privileged-only reset), notional value guards (<code>max_order_notional</code>), and price-distance guardrails (<code>max_price_distance_ticks</code>).</p>
 <p>Difficulty: Complex
-Estimated effort: 3 to 5 days
+Estimated effort: 2 to 4 days
 Gap vs real exchange: Exchanges and brokers provide hard kill-switch controls.</p>
 <p>Background:
 Runaway order flow needs immediate containment beyond normal strategy logic.</p>
@@ -2363,8 +2422,10 @@ Unsafe flow is stopped instantly and deterministically; every kill and reset act
 <p>Learning objective:
 Learn real-time safety controls used in production trading systems.</p>
 <h2 id="experiment-11-drop-copy-and-post-trade-reconciliation-stream">Experiment 11: Drop Copy and Post-Trade Reconciliation Stream<a class="headerlink" href="#experiment-11-drop-copy-and-post-trade-reconciliation-stream" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Partially Implemented — Phase 2 Enhancement</strong></p>
+<p><em>Current state</em>: Drop copy publisher, sequencing, and in-memory replay buffer exist (<code>DropCopyPublisher</code>). New work: durable append-only log file, session-scoped rotation, reconciliation tooling for gap detection and quantity validation.</p>
 <p>Difficulty: Complex
-Estimated effort: 3 to 6 days
+Estimated effort: 2 to 4 days
 Gap vs real exchange: Participants usually consume independent drop copy for control and compliance.</p>
 <p>Background:
 Execution feedback currently arrives only through strategy-facing channels. There is no independent audit stream.</p>
@@ -2397,6 +2458,7 @@ Operations can verify completeness and detect missing events; the reconciliation
 <p>Learning objective:
 Understand operational controls and post-trade integrity pipelines.</p>
 <h2 id="experiment-12-matching-mode-plug-in-layer-pro-rata-vs-price-time">Experiment 12: Matching Mode Plug-in Layer (Pro-Rata vs Price-Time)<a class="headerlink" href="#experiment-12-matching-mode-plug-in-layer-pro-rata-vs-price-time" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Still Valid</strong></p>
 <p>Difficulty: Complex
 Estimated effort: 4 to 7 days
 Gap vs real exchange: Different asset classes and venues use different allocation algorithms.</p>
@@ -2436,6 +2498,7 @@ The same order flow yields measurably different fills under the two allocation p
 <p>Learning objective:
 See how market design choices alter participant incentives and microstructure dynamics.</p>
 <h2 id="experiment-13-cross-product-risk-and-portfolio-margin-approximation">Experiment 13: Cross-Product Risk and Portfolio Margin Approximation<a class="headerlink" href="#experiment-13-cross-product-risk-and-portfolio-margin-approximation" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Still Valid</strong></p>
 <p>Difficulty: Very Complex
 Estimated effort: 1 to 2 weeks
 Gap vs real exchange: Risk is usually portfolio-aware across correlated products.</p>
@@ -2475,6 +2538,7 @@ Risk controls become portfolio-sensitive; accounts with offsetting positions can
 <p>Learning objective:
 Understand portfolio-level risk governance in modern exchanges and clearing ecosystems.</p>
 <h2 id="experiment-14-auction-imbalance-feed-and-indicative-price-model">Experiment 14: Auction Imbalance Feed and Indicative Price Model<a class="headerlink" href="#experiment-14-auction-imbalance-feed-and-indicative-price-model" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Still Valid</strong></p>
 <p>Difficulty: Very Complex
 Estimated effort: 1 to 2 weeks
 Gap vs real exchange: Opening and closing auctions publish rich imbalance signals.</p>
@@ -2512,6 +2576,7 @@ Participants can observe auction pressure and respond before uncross; the final 
 <p>Learning objective:
 Understand auction mechanics and pre-open/pre-close transparency products.</p>
 <h2 id="experiment-15-synthetic-orders-engine-parent-child-execution">Experiment 15: Synthetic Orders Engine (Parent-Child Execution)<a class="headerlink" href="#experiment-15-synthetic-orders-engine-parent-child-execution" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Still Valid</strong></p>
 <p>Difficulty: Very Complex
 Estimated effort: 2 to 4 weeks
 Gap vs real exchange: Institutional workflows rely on synthetic and algorithmic parent-child orders.</p>
@@ -2554,16 +2619,18 @@ Large parent intents execute as controlled child streams with measurable executi
 Understand how high-level execution intent is translated into low-level exchange orders.</p>
 <h2 id="suggested-progression-path">Suggested progression path<a class="headerlink" href="#suggested-progression-path" title="Permanent link">&para;</a></h2>
 <ol>
-<li>Start with Experiments 1 to 3 for immediate microstructure clarity.</li>
-<li>Add Experiments 4 to 8 to build operational realism.</li>
-<li>Implement Experiments 9 to 12 for architecture and market-design depth.</li>
-<li>Tackle Experiments 13 to 15 as capstone projects.</li>
-<li>Experiment 16 (Self-Trade Prevention) can be added after Experiment 9 or in parallel with Experiments 4 to 8.</li>
+<li><strong>Phase 1 (Core)</strong>: Complete Experiments 1, 4, 5, 6, 9, 12, 13, 14, 15 — these cover edge cases and advanced market design with no blockers.</li>
+<li><strong>Phase 2 (Hardening)</strong>: Tackle partially-implemented experiments: 2, 3, 7, 8, 10, 11, 16 — these integrate with existing subsystems and add operational maturity.</li>
+<li><strong>Phase 3 (New opportunities)</strong>: Experiments 17–20 open new integration and observability tracks.</li>
 </ol>
 <p>This progression mirrors how real venues evolve: deterministic matching first, then control frameworks, then advanced market products.</p>
-<h2 id="experiment-16-suggested-extension-self-trade-prevention">Experiment 16 (Suggested Extension): Self-Trade Prevention<a class="headerlink" href="#experiment-16-suggested-extension-self-trade-prevention" title="Permanent link">&para;</a></h2>
+<p><strong>Note</strong>: Experiment 16 (Self-Trade Prevention) is already implemented in the gateway and matching engine as <code>SmpAction</code> modes. It serves as a validation that the roadmap's abstractions align with production needs.</p>
+<h2 id="experiment-16-self-trade-prevention">Experiment 16: Self-Trade Prevention<a class="headerlink" href="#experiment-16-self-trade-prevention" title="Permanent link">&para;</a></h2>
+<p><strong>Status: Already Implemented ✓</strong></p>
+<p><em>Implementation location</em>: <a href="../../src/edumatcher/models/order.py"><code>src/edumatcher/models/order.py</code></a> (SmpAction enum), <a href="../../src/edumatcher/engine/order_book.py"><code>src/edumatcher/engine/order_book.py</code></a> (<code>_sweep()</code> and <code>_smp_cancel_resting()</code>), <a href="../../src/edumatcher/gateway/main.py"><code>src/edumatcher/gateway/main.py</code></a> (SMP command syntax).</p>
+<p><em>Why included anyway</em>: Demonstrates that the roadmap's high-level abstractions map cleanly onto production code patterns. Can serve as a learning reference for understanding the matching engine's self-trade enforcement.</p>
 <p>Difficulty: Intermediate
-Estimated effort: 1 to 2 days
+Estimated effort: —
 Gap vs real exchange: Every regulated exchange prevents an account from trading against itself.</p>
 <p>Background:
 Currently a gateway can submit both a buy and a sell order at matching prices and they will fill against each other. In production this is prohibited.</p>
@@ -2601,6 +2668,159 @@ Self-trades are blocked under all four modes; audit events are produced for ever
 </ul>
 <p>Learning objective:
 Understand wash-trade prevention, regulatory compliance mechanics, and account identity in order routing.</p>
+<hr />
+<h2 id="experiment-17-statistics-sql-query-cli-layer">Experiment 17: Statistics SQL Query CLI Layer<a class="headerlink" href="#experiment-17-statistics-sql-query-cli-layer" title="Permanent link">&para;</a></h2>
+<p>Difficulty: Intermediate
+Estimated effort: 2 to 3 days
+Gap vs real exchange: Operators and compliance teams need safe, ergonomic CLI tools to extract analytics without writing raw SQL.</p>
+<p>Background:
+The statistics database (SQLite) is currently only accessible via direct SQL queries, which is error-prone and requires database knowledge. Real operations teams use pre-built CLI commands to pull reports by date, gateway, symbol, and time window.</p>
+<p>Financial explanation and motivation:</p>
+<p>New terms:</p>
+<ul>
+<li><strong>Report automation</strong>: The process of generating standard operational reports (daily PnL, volume by symbol, gateway activity) on a schedule or on-demand.</li>
+<li><strong>Audit trail</strong>: Complete record of all orders, fills, and cancellations for regulatory review. Typically filtered by gateway, date range, and symbol.</li>
+<li><strong>Dashboard data feed</strong>: Time-series metrics (OHLC, volume, imbalance) published to real-time monitoring dashboards.</li>
+<li><strong>Data governance</strong>: Policies on which operators can query which data, and what time delays apply (e.g., compliance can query historical but not live data).</li>
+</ul>
+<p>Without a CLI abstraction, operators either run ad-hoc SQL (risky, slow to learn) or build one-off Python scripts (not scalable). Real exchanges expose ~20–50 named report templates covering daily settlement, regulatory reporting, and performance analytics.</p>
+<p>Technical details:</p>
+<ul>
+<li>Add a new <code>pm-stats-query</code> or <code>pm-report</code> CLI command (or extend <code>pm-admin-cli</code> with subcommands).</li>
+<li>Pre-build query templates for common reports:</li>
+<li><code>daily-pnl [--date YYYY-MM-DD] [--gateway GATEWAY]</code> — gross and net PnL per account.</li>
+<li><code>volume-by-symbol [--date YYYY-MM-DD] [--start-time HH:MM] [--end-time HH:MM]</code> — total notional and share volume.</li>
+<li><code>gateway-activity [--gateway GATEWAY] [--date YYYY-MM-DD]</code> — order count, fill rate, rejection rate.</li>
+<li><code>fills-by-symbol [--symbol SYMBOL] [--date YYYY-MM-DD]</code> — OHLC, volume, imbalance.</li>
+<li><code>audit-trail [--gateway GATEWAY] [--date YYYY-MM-DD] [--symbol SYMBOL]</code> — full order lifecycle log.</li>
+<li>Output format options: <code>--format json | csv | table</code> (table is the default for human readability).</li>
+<li>Queries execute against the SQLite stats database; no custom aggregation logic needed — the DB schema already supports these views.</li>
+<li>Add optional <code>--limit N</code> to cap result row count (default: 10,000).</li>
+</ul>
+<p>Expected outcome:
+Operators can run <code>pm-report daily-pnl --date 2026-06-14 --format csv</code> and get a CSV without writing SQL. Audit queries become repeatable and auditable.</p>
+<p>How to verify:</p>
+<ul>
+<li>Integration test: run each template query and assert output schema matches expected columns.</li>
+<li>End-to-end test: load sample session data, run a daily-pnl query, verify sum of gateway PnL matches engine's reported total.</li>
+<li>Output format test: run with <code>--format json</code> and <code>--format csv</code> and assert parseable output.</li>
+<li>Regression test: verify raw SQL equivalent queries return identical results.</li>
+</ul>
+<p>Learning objective:
+Understand operational reporting patterns, data access abstraction, and human-centered CLI design.</p>
+<h2 id="experiment-18-drop-copy-durability-and-restart-recovery">Experiment 18: Drop Copy Durability and Restart Recovery<a class="headerlink" href="#experiment-18-drop-copy-durability-and-restart-recovery" title="Permanent link">&para;</a></h2>
+<p>Difficulty: Intermediate
+Estimated effort: 2 to 4 days
+Gap vs real exchange: Production drop-copy systems survive process restarts and network outages.</p>
+<p>Background:
+The current drop-copy buffer is in-memory and bounded (10,000 messages). If the engine restarts, all buffered events are lost. Participants need to re-bootstrap their view of positions from trade history, which is slow and error-prone during high-volume sessions.</p>
+<p>Financial explanation and motivation:</p>
+<p>New terms:</p>
+<ul>
+<li><strong>Durable log</strong>: An append-only file written to disk, guaranteeing that events persist across process restarts.</li>
+<li><strong>Session rotation</strong>: A new log file per trading session (e.g., <code>dropcopy_20260614.log</code>), simplifying rotation and archival.</li>
+<li><strong>Replay window</strong>: The newest N messages available for replay without querying the archive. Typical: last 1 hour of events.</li>
+<li><strong>Gap tolerance</strong>: How long a subscriber can be offline before gap detection kicks in. Typical: 15–60 minutes.</li>
+<li><strong>Restart sequence</strong>: On engine restart, drop-copy publisher re-initializes and continues publishing with sequence numbers reset to 1.</li>
+</ul>
+<p>Technical details:</p>
+<ul>
+<li>Write all drop-copy events to a durable JSON-lines log file: <code>data/dropcopy_YYYYMMDD.log</code>.</li>
+<li>One event per line: <code>{"seq": 1, "timestamp": 1718000000000000000, "gateway_id": "TRADER01", "event_type": "order.fill", ...}</code>.</li>
+<li>At session end (when engine receives CLOSED state transition), rename file to <code>dropcopy_YYYYMMDD.HHMMSS.CLOSED.log</code> to mark it immutable.</li>
+<li>On engine startup, scan for the most recent unclosed log file. If found, initialize drop-copy sequence counter to <code>max_seq + 1</code> from that file.</li>
+<li>Add <code>dropcopy_tail</code> utility: read the last N lines of the log file and re-publish them on the drop-copy socket for slow subscribers to catch up.</li>
+<li>Add <code>dropcopy_reconcile</code> utility: read two log files (local participant log vs. engine archive), align by sequence number, and report any gaps or duplicates.</li>
+</ul>
+<p>Expected outcome:
+Drop-copy events survive engine restarts. Participants can query historical drop-copy by session date and get exact sequence continuity.</p>
+<p>How to verify:</p>
+<ul>
+<li>Persistence test: write 100 events, restart engine, verify next 10 events have sequence numbers 101–110 (no reset).</li>
+<li>Rotation test: run through a full session, verify CLOSED log file is created and new session starts with fresh sequence.</li>
+<li>Recovery test: simulate a participant re-connecting 1 hour after disconnect; run <code>dropcopy_tail</code> and verify they receive the last 50 events.</li>
+<li>Gap detection test: delete one line from a log file, run <code>dropcopy_reconcile</code>, assert it reports exactly one gap at the correct sequence.</li>
+</ul>
+<p>Learning objective:
+Understand durability patterns, log rotation, and participant recovery workflows in high-availability systems.</p>
+<h2 id="experiment-19-cross-host-operational-validation-matrix">Experiment 19: Cross-Host Operational Validation Matrix<a class="headerlink" href="#experiment-19-cross-host-operational-validation-matrix" title="Permanent link">&para;</a></h2>
+<p>Difficulty: Intermediate
+Estimated effort: 2 to 3 days
+Gap vs real exchange: Multi-host deployments must pass deterministic end-to-end tests before going live.</p>
+<p>Background:
+The runtime now supports configurable data and config paths plus cross-host endpoint resolution. A multi-host exchange (engine on host A, gateways on hosts B and C) must maintain order determinism and message ordering across network boundaries. The validation matrix ensures this works.</p>
+<p>Financial explanation and motivation:</p>
+<p>New terms:</p>
+<ul>
+<li><strong>Latency parity</strong>: Behavior remains deterministic even when network latencies between hosts vary.</li>
+<li><strong>Message ordering guarantee</strong>: Orders submitted by different gateways are processed in submit-timestamp order, not arrival order, so latency does not affect fills.</li>
+<li><strong>Startup sequence</strong>: The order in which processes bind sockets and wait for others to connect. If violated, processes hang or fail.</li>
+<li><strong>Network fault injection</strong>: Simulate packet loss, reordering, or delays to validate that the exchange does not diverge from its single-host behavior.</li>
+</ul>
+<p>Technical details:</p>
+<ul>
+<li>Create a test matrix that runs the same 100-order scenario under three topologies:</li>
+<li><strong>Single-host</strong> (baseline): all processes on localhost, default ZMQ configuration.</li>
+<li><strong>LAN multi-host</strong>: engine on 10.0.0.10, gateway on 10.0.0.11, ~1ms latency (network overhead).</li>
+<li><strong>WAN multi-host</strong> (simulated): engine on 10.0.0.10, gateway on 10.0.0.11 + 50ms injected delay via tc (traffic control).</li>
+<li>For each topology, verify:</li>
+<li>Final order book state is identical across all topologies.</li>
+<li>Fill prices and quantities match exactly.</li>
+<li>Drop-copy sequence numbers are contiguous (no gaps or duplicates).</li>
+<li>Audit log is byte-identical (same topic order, same event payloads).</li>
+<li>Add a <code>stress_cross_host.sh</code> script that runs all three topologies back-to-back with different random seeds and reports pass/fail.</li>
+</ul>
+<p>Expected outcome:
+Operators gain confidence that cross-host deployments will not diverge from single-host behavior due to network variations.</p>
+<p>How to verify:</p>
+<ul>
+<li>Topology equivalence test: run the same scenario on single-host and LAN multi-host, hash the audit logs, assert hashes match.</li>
+<li>Latency robustness test: inject 50–200ms delays via network emulation and re-run; audit logs should still match.</li>
+<li>Fault injection test: drop 0.1% of messages at the network layer (using tc or netcat), verify engine detects and reports the gap or reconnect.</li>
+<li>Determinism test: run 10 times with the same seed on each topology; assert all 10 runs produce identical results on each topology (but not necessarily identical between topologies if latencies differ).</li>
+</ul>
+<p>Learning objective:
+Understand distributed systems testing, latency-robust message ordering, and operational validation patterns.</p>
+<h2 id="experiment-20-installed-mode-vs-source-mode-parity-validation">Experiment 20: Installed-Mode vs. Source-Mode Parity Validation<a class="headerlink" href="#experiment-20-installed-mode-vs-source-mode-parity-validation" title="Permanent link">&para;</a></h2>
+<p>Difficulty: Basic
+Estimated effort: 1 to 2 days
+Gap vs real exchange: Installation and setup are common operational concerns; deployment paths must be equivalent.</p>
+<p>Background:
+EduMatcher supports two run modes: <strong>source mode</strong> (Poetry + git clone) and <strong>installed mode</strong> (pipx + <code>pm-setup</code>). Both should behave identically. Currently, there is no automated test that validates parity across these modes.</p>
+<p>Financial explanation and motivation:</p>
+<p>New terms:</p>
+<ul>
+<li><strong>Source mode</strong>: Developer runs <code>poetry run pm-engine</code> from a git clone.</li>
+<li><strong>Installed mode</strong>: End user runs <code>pm-setup</code>, then <code>pm-engine</code> from PATH after <code>pip install</code> (or pipx).</li>
+<li><strong>Configuration parity</strong>: Same config files, same environment variable resolution, same default paths.</li>
+<li><strong>Reproducibility</strong>: Users should get the same behavior regardless of which installation method they choose.</li>
+</ul>
+<p>Technical details:</p>
+<ul>
+<li>Create a <code>test_mode_parity.py</code> test suite that:</li>
+<li>Starts the engine in <strong>source mode</strong> (Poetry), runs a 50-order scenario, saves the audit log and final book state.</li>
+<li>Installs the package with <code>pipx install .</code> (or equivalent).</li>
+<li>Runs <code>pm-setup --data-dir /tmp/test-installed</code> to initialize the installed-mode directory.</li>
+<li>Starts the engine in <strong>installed mode</strong> using the same config, runs the same 50-order scenario.</li>
+<li>Compares audit logs and book state between modes; they should match exactly.</li>
+<li>Test both configuration resolution paths:</li>
+<li>Via <code>EDUMATCHER_CONFIG</code> env var.</li>
+<li>Via default fallback (current directory, then <code>~/.local/share/edumatcher</code>).</li>
+<li>Verify data directory resolution:</li>
+<li>Via <code>EDUMATCHER_DATA_DIR</code> env var.</li>
+<li>Via default fallback.</li>
+</ul>
+<p>Expected outcome:
+CI pipeline gains a gate that prevents installed mode regressions. Users are confident that <code>pipx install</code> works correctly.</p>
+<p>How to verify:</p>
+<ul>
+<li>Build parity test: install edumatcher with <code>pipx</code>, run test suite, assert it passes.</li>
+<li>Config path test: test that <code>EDUMATCHER_CONFIG</code> and <code>EDUMATCHER_DATA_DIR</code> override defaults correctly in both modes.</li>
+<li>Audit log equivalence: run test scenario in both modes, assert audit logs are byte-identical.</li>
+<li>Performance parity: measure latency per order in both modes; should differ by &lt; 5%.</li>
+</ul>
+<p>Learning objective:
+Understand packaging, installation, and deployment verification best practices.</p>
 
 
 

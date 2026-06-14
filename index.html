@@ -491,10 +491,21 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#start-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Start Here
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-is-this-system-modelling" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What is this system modelling?
+        What Is This System Modelling?
       
     </span>
   </a>
@@ -505,7 +516,7 @@
   <a href="#what-youll-learn" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What you'll learn
+        What You'll Learn
       
     </span>
   </a>
@@ -513,13 +524,63 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#suggested-reading-path" class="md-nav__link">
+  <a href="#suggested-reading-paths" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Suggested reading path
+        Suggested Reading Paths
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Suggested Reading Paths">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#path-a-no-finance-background" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path A: No finance background
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#path-b-hands-on-user-instructor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path B: Hands-on user / instructor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#path-c-developer-and-protocol-reader" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Path C: Developer and protocol reader
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-to-read-the-concepts-section" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to read the Concepts section
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -547,10 +608,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#install" class="md-nav__link">
+  <a href="#install-choose-one" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Install
+        Install (choose one)
       
     </span>
   </a>
@@ -599,12 +660,12 @@
   <a href="#reference-docs" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Reference docs
+        Reference Docs
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Reference docs">
+    <nav class="md-nav" aria-label="Reference Docs">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -639,6 +700,17 @@
     <span class="md-ellipsis">
       
         Data files
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#config-directiry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Config directiry
       
     </span>
   </a>
@@ -1866,12 +1938,55 @@
   
 
 
-<h1 id="edumatcher-educational-trading-system">EduMatcher — Educational Trading System<a class="headerlink" href="#edumatcher-educational-trading-system" title="Permanent link">&para;</a></h1>
+<h1 id="edumatcher-educational-trading-system">EduMatcher, Educational Trading System<a class="headerlink" href="#edumatcher-educational-trading-system" title="Permanent link">&para;</a></h1>
 <p>EduMatcher is a multi-process Python trading simulator designed to teach the fundamentals of
 <strong>order matching</strong>, <strong>market microstructure</strong>, and <strong>exchange architecture</strong> through a hands-on,
 fully runnable system.</p>
-<hr />
-<h2 id="what-is-this-system-modelling">What is this system modelling?<a class="headerlink" href="#what-is-this-system-modelling" title="Permanent link">&para;</a></h2>
+<h2 id="start-here">Start Here<a class="headerlink" href="#start-here" title="Permanent link">&para;</a></h2>
+<p>Use this page as a routing guide based on your background and intent.</p>
+<table>
+<thead>
+<tr>
+<th>If you are...</th>
+<th>Read this first</th>
+<th>Then continue with</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>New to finance / exchanges</td>
+<td><a href="how-exchange-works/">How an Exchange Works</a></td>
+<td><a href="user-guide/00-getting-started/">Getting Started</a> → <a href="concepts/01-concepts-order-book/">The Order Book</a></td>
+</tr>
+<tr>
+<td>Familiar with trading, new to EduMatcher</td>
+<td><a href="user-guide/00-getting-started/">Getting Started</a></td>
+<td><a href="user-guide/03-running-the-engine/">Running the Engine</a> → <a href="user-guide/08-gateway/">Gateway Commands</a></td>
+</tr>
+<tr>
+<td>Instructor running a classroom</td>
+<td><a href="user-guide/00-getting-started/">Getting Started</a></td>
+<td><a href="user-guide/01-configuration/">Configuration</a> → <a href="user-guide/10-processes/">Processes</a> → <a href="user-guide/06-auctions-scheduling/">Auctions &amp; Scheduling</a></td>
+</tr>
+<tr>
+<td>Developer extending the system</td>
+<td><a href="architecture/01-architecture/">Architecture Overview</a></td>
+<td><a href="architecture/02-architecture-guide/">Detailed Walkthrough</a> → <a href="developer/01-dev-practice/">Developer Info</a></td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid"><code>flowchart TD
+  A[New Reader] --&gt; B{Background?}
+  B --&gt;|No finance background| C[How an Exchange Works]
+  B --&gt;|Knows trading basics| D[Getting Started]
+  B --&gt;|Wants to hack code| E[Architecture Overview]
+  C --&gt; D
+  D --&gt; F{Goal?}
+  F --&gt;|Run first session| G[Running the Engine]
+  F --&gt;|Learn mechanics| H[Concepts section]
+  F --&gt;|Operate class demo| I[Processes + Scheduling]
+  F --&gt;|Write custom client| J[Messages + ALF Appendix]</code></pre>
+<h2 id="what-is-this-system-modelling">What Is This System Modelling?<a class="headerlink" href="#what-is-this-system-modelling" title="Permanent link">&para;</a></h2>
 <p>When you buy a share of stock through a broker, your order travels to an
 exchange — a regulated marketplace where buy and sell orders are matched. At
 the heart of every exchange is a <strong>matching engine</strong>: software that maintains
@@ -1894,8 +2009,7 @@ difference is that here, everything is visible and inspectable:</p>
 what a seller is willing to accept. The matching engine applies
 <strong>price-time priority</strong> — the best-priced order fills first; among orders at
 the same price, the earliest one fills first.</p>
-<hr />
-<h2 id="what-youll-learn">What you'll learn<a class="headerlink" href="#what-youll-learn" title="Permanent link">&para;</a></h2>
+<h2 id="what-youll-learn">What You'll Learn<a class="headerlink" href="#what-youll-learn" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
@@ -1904,6 +2018,14 @@ the same price, the earliest one fills first.</p>
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>First run instructions with install modes</td>
+<td><a href="user-guide/00-getting-started/">Getting Started</a></td>
+</tr>
+<tr>
+<td>Exchange basics (for non-finance readers)</td>
+<td><a href="how-exchange-works/">How an Exchange Works</a></td>
+</tr>
 <tr>
 <td>Order books, bids, asks, spread, depth</td>
 <td><a href="concepts/01-concepts-order-book/">The Order Book</a></td>
@@ -1938,77 +2060,138 @@ the same price, the earliest one fills first.</p>
 </tr>
 </tbody>
 </table>
-<hr />
-<h2 id="suggested-reading-path">Suggested reading path<a class="headerlink" href="#suggested-reading-path" title="Permanent link">&para;</a></h2>
-<p>If you are new to trading systems, follow this path:</p>
+<h2 id="suggested-reading-paths">Suggested Reading Paths<a class="headerlink" href="#suggested-reading-paths" title="Permanent link">&para;</a></h2>
+<h3 id="path-a-no-finance-background">Path A: No finance background<a class="headerlink" href="#path-a-no-finance-background" title="Permanent link">&para;</a></h3>
 <ol>
-<li><strong><a href="concepts/01-concepts-order-book/">The Order Book</a></strong> — understand bids, asks, spread, and price-time priority</li>
-<li><strong><a href="concepts/04-concepts-first-trade/">Your First Trade</a></strong> — run the system and execute a trade step-by-step</li>
-<li><strong><a href="concepts/05-concepts-trading-day/">A Full Trading Day</a></strong> — learn session phases and auctions</li>
-<li><strong><a href="user-guide/04-order-types/">Order Types</a></strong> — explore all ten order types</li>
-<li><strong><a href="user-guide/07-pnl-clearing/">P&amp;L &amp; Clearing</a></strong> — understand how profit and loss are tracked</li>
+<li><strong><a href="how-exchange-works/">How an Exchange Works</a></strong> — build intuition for buyers, sellers, order books, and trades</li>
+<li><strong><a href="user-guide/00-getting-started/">Getting Started</a></strong> — install and run your first end-to-end session</li>
+<li><strong><a href="concepts/01-concepts-order-book/">The Order Book</a></strong> — understand spread, depth, and price-time priority</li>
+<li><strong><a href="concepts/04-concepts-first-trade/">Your First Trade</a></strong> — walk through an execution from command to fill</li>
+<li><strong><a href="user-guide/07-pnl-clearing/">P&amp;L &amp; Clearing</a></strong> — connect fills to realized/unrealized outcomes</li>
 </ol>
-<p>If you are already familiar with trading concepts, go straight to the
-<a href="#quick-start">Quick Start</a> below or browse the <a href="#reference-docs">reference section</a>.</p>
-<hr />
+<h3 id="path-b-hands-on-user-instructor">Path B:  Hands-on user / instructor<a class="headerlink" href="#path-b-hands-on-user-instructor" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong><a href="user-guide/00-getting-started/">Getting Started</a></strong></li>
+<li><strong><a href="user-guide/01-configuration/">Configuration</a></strong></li>
+<li><strong><a href="user-guide/03-running-the-engine/">Running the Engine</a></strong></li>
+<li><strong><a href="user-guide/08-gateway/">Gateway Commands</a></strong></li>
+<li><strong><a href="user-guide/10-processes/">Processes</a></strong> and <strong><a href="user-guide/06-auctions-scheduling/">Auctions &amp; Scheduling</a></strong></li>
+</ol>
+<h3 id="path-c-developer-and-protocol-reader">Path C: Developer and protocol reader<a class="headerlink" href="#path-c-developer-and-protocol-reader" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong><a href="architecture/01-architecture/">Architecture Overview</a></strong></li>
+<li><strong><a href="architecture/02-architecture-guide/">Architecture Walkthrough</a></strong></li>
+<li><strong><a href="user-guide/09-messages/">Messages</a></strong></li>
+<li><strong><a href="user-guide/20-app-alf-protocol/">ALF Protocol Appendix</a></strong></li>
+<li><strong><a href="user-guide/21-app-balf-protocol/">BALF Protocol Appendix</a></strong></li>
+<li><strong><a href="user-guide/22-app-calf-protocol/">CALF Protocol Appendix</a></strong></li>
+<li><strong><a href="developer/01-dev-practice/">Developer Info</a></strong></li>
+</ol>
+<h3 id="when-to-read-the-concepts-section">When to read the Concepts section<a class="headerlink" href="#when-to-read-the-concepts-section" title="Permanent link">&para;</a></h3>
+<p>The Concepts pages are best used as a <strong>mental model track</strong>. Read them when
+you want intuition and context, then jump back to the User Guide when you are
+ready to run commands.</p>
+<table>
+<thead>
+<tr>
+<th>Concept page</th>
+<th>Best time to read it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="concepts/01-concepts-order-book/">The Order Book</a></td>
+<td>Before your first trade session</td>
+</tr>
+<tr>
+<td><a href="concepts/02-concepts-order-book-deep-dive/">Order Book Deep Dive</a></td>
+<td>After you've seen live fills and want matching details</td>
+</tr>
+<tr>
+<td><a href="concepts/03-concepts-mm-quotes/">MM Quotes</a></td>
+<td>Before enabling market-maker seeds / obligations</td>
+</tr>
+<tr>
+<td><a href="concepts/04-concepts-first-trade/">Your First Trade</a></td>
+<td>During your first hands-on run</td>
+</tr>
+<tr>
+<td><a href="concepts/05-concepts-trading-day/">A Full Trading Day</a></td>
+<td>Before using <code>pm-scheduler</code> and auction phases</td>
+</tr>
+<tr>
+<td><a href="concepts/06-concepts-market-data-feed/">Market Data Feed (CALF)</a></td>
+<td>When building or integrating market data consumers</td>
+</tr>
+</tbody>
+</table>
 <h2 id="quick-start">Quick Start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
+<p>This quick start points to the full walkthrough in
+<a href="user-guide/00-getting-started/">Getting Started</a>.</p>
 <h3 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Python 3.11+</li>
-<li><a href="https://python-poetry.org/">Poetry</a> 1.7+</li>
+<li>Python 3.13+</li>
+<li>Either:</li>
+<li>pipx (recommended for students/instructors), or</li>
+<li>Poetry (for developers)</li>
 </ul>
-<h3 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>poetry<span class="w"> </span>config<span class="w"> </span>virtualenvs.in-project<span class="w"> </span><span class="nb">true</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>poetry<span class="w"> </span>install<span class="w"> </span>--with<span class="w"> </span>dev,docs
+<h3 id="install-choose-one">Install (choose one)<a class="headerlink" href="#install-choose-one" title="Permanent link">&para;</a></h3>
+<p><strong>Installed mode (pipx)</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>edumatcher
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pm-setup
+</code></pre></div>
+<p><strong>Developer mode (Poetry)</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/johan162/EduMatcher.git
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>poetry<span class="w"> </span>install<span class="w"> </span>--with<span class="w"> </span>dev,docs
 </code></pre></div>
 <h3 id="start-the-system-minimum-viable-session">Start the system (minimum viable session)<a class="headerlink" href="#start-the-system-minimum-viable-session" title="Permanent link">&para;</a></h3>
 <p>Open <strong>five</strong> terminal windows and run one process per window, in this order:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Terminal 1 — Matching engine</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Terminal 2 — Audit log (printed to terminal)</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-audit<span class="w"> </span>--terminal
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1"># Terminal 3 — Clearing / P&amp;L</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-clearing
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="c1"># Terminal 4 — Order book viewer for AAPL</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="c1"># Terminal 5 — Your gateway (user GW01)</span>
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Terminal 1 — Matching engine</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-engine<span class="w"> </span>--verbose
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Terminal 2 — Audit log (printed to terminal)</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>pm-audit<span class="w"> </span>--terminal
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># Terminal 3 — Clearing / P&amp;L</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>pm-clearing
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1"># Terminal 4 — Order book viewer for AAPL</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="c1"># Terminal 5 — Your gateway (user GW01)</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW01
 </code></pre></div>
+<p>If you are in developer mode, prefix each command with <code>poetry run</code>.</p>
 <p><code>GW01</code> must be configured under <code>gateways.alf</code> in <code>engine_config.yaml</code> or the
 gateway will fail authentication and exit.</p>
 <p>To add more users, watch more symbols, or enable auctions:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Another user</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW02
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Watch MSFT in parallel</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>MSFT
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># Global order status monitor</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-orders
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1"># Market statistics recorder</span>
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-stats
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="c1"># Session scheduler (drives opening/closing auctions)</span>
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--now
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Another user</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW02
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Watch MSFT in parallel</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>MSFT
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># Global order status monitor</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>pm-orders
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1"># Market statistics recorder</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>pm-stats
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="c1"># Session scheduler (drives opening/closing auctions)</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>pm-scheduler<span class="w"> </span>--now
 </code></pre></div>
 <h3 id="one-command-launch">One-command launch<a class="headerlink" href="#one-command-launch" title="Permanent link">&para;</a></h3>
 <p>On macOS, you can use the convenience launcher instead:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>./launch_all.sh
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./tools/launch_all.sh
 </code></pre></div>
-<p><code>launch_all.sh</code> uses <code>osascript</code> to open new Terminal windows, so it is
+<p><code>tools/launch_all.sh</code> uses <code>osascript</code> to open new Terminal windows, so it is
 macOS-specific rather than a generic background-process launcher.</p>
 <h3 id="browse-the-docs">Browse the docs<a class="headerlink" href="#browse-the-docs" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>serve
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="c1"># Open http://127.0.0.1:8000</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>mkdocs<span class="w"> </span>serve
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="c1"># Open http://127.0.0.1:8000</span>
 </code></pre></div>
-<hr />
-<h2 id="reference-docs">Reference docs<a class="headerlink" href="#reference-docs" title="Permanent link">&para;</a></h2>
+<h2 id="reference-docs">Reference Docs<a class="headerlink" href="#reference-docs" title="Permanent link">&para;</a></h2>
 <h3 id="ports-used">Ports used<a class="headerlink" href="#ports-used" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -2036,7 +2219,6 @@ macOS-specific rather than a generic background-process launcher.</p>
 </tr>
 </tbody>
 </table>
-<hr />
 <h2 id="console-scripts">Console scripts<a class="headerlink" href="#console-scripts" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2096,9 +2278,13 @@ macOS-specific rather than a generic background-process launcher.</p>
 </tr>
 </tbody>
 </table>
-<hr />
 <h2 id="data-files">Data files<a class="headerlink" href="#data-files" title="Permanent link">&para;</a></h2>
-<p>All runtime files are created under <code>data/</code> automatically on first run:</p>
+<p>Runtime files are created under your active data directory:</p>
+<ul>
+<li>Installed default: <code>~/.local/share/edumatcher</code></li>
+<li>Source-checkout default: <code>&lt;repo&gt;/src/data/</code></li>
+<li>Override in either mode: <code>EDUMATCHER_DATA_DIR</code></li>
+</ul>
 <table>
 <thead>
 <tr>
@@ -2108,31 +2294,47 @@ macOS-specific rather than a generic background-process launcher.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>data/gtc_orders.json</code></td>
+<td><code>gtc_orders.json</code></td>
 <td>Resting GTC orders — reloaded next trading day</td>
 </tr>
 <tr>
-<td><code>data/gtc_combos.json</code></td>
+<td><code>gtc_combos.json</code></td>
 <td>Resting GTC combo parents and child-link state</td>
 </tr>
 <tr>
-<td><code>data/book_stats.json</code></td>
+<td><code>book_stats.json</code></td>
 <td>Persisted per-symbol last-buy / last-sell context</td>
 </tr>
 <tr>
-<td><code>data/audit.log</code></td>
+<td><code>audit.log</code></td>
 <td>Full audit trail (rotating, max 10 MB × 5 files)</td>
 </tr>
 <tr>
-<td><code>data/clearing_report.csv</code></td>
+<td><code>clearing_report.csv</code></td>
 <td>Trade-by-trade settlement record</td>
 </tr>
 <tr>
-<td><code>data/stats.db</code></td>
+<td><code>stats.db</code></td>
 <td>SQLite database: daily OHLCV, snapshots, and trade log</td>
 </tr>
 </tbody>
 </table>
+<h2 id="config-directiry">Config directiry<a class="headerlink" href="#config-directiry" title="Permanent link">&para;</a></h2>
+<p>EduMatcher resolves the engine configuration file using this priority order:</p>
+<ol>
+<li><code>--config</code> command-line flag on <code>pm-engine</code> / <code>pm-scheduler</code></li>
+<li><code>EDUMATCHER_CONFIG</code> environment variable</li>
+<li>Default location based on install mode</li>
+</ol>
+<p>Default configuration location:</p>
+<ul>
+<li>Installed mode (<code>pipx install edumatcher</code>): <code>./engine_config.yaml</code> (current working directory)</li>
+<li>Source-checkout mode (Poetry/dev): <code>&lt;repo&gt;/engine_config.yaml</code></li>
+</ul>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_CONFIG</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/sessions/morning/engine_config.yaml&quot;</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pm-engine<span class="w"> </span>--verbose
+</code></pre></div>
 
 
 

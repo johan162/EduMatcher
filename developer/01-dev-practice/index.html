@@ -1949,6 +1949,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#what-mkghreleasesh-expects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What mkghrelease.sh expects
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-mkbldsh-currently-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What mkbld.sh currently does
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#release-caution" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2347,6 +2369,16 @@ for <code>scripts/docs-contctl.sh</code>.</p>
 <td>Trader entry workflow</td>
 </tr>
 <tr>
+<td><code>src/edumatcher/commands/</code></td>
+<td>Admin/console command clients and tooling</td>
+<td>Operator workflows and scripted control</td>
+</tr>
+<tr>
+<td><code>src/edumatcher/messaging/</code></td>
+<td>Transport and message-bus helpers</td>
+<td>Socket wiring and topic flow</td>
+</tr>
+<tr>
 <td><code>src/edumatcher/models/</code></td>
 <td>Shared message, order, and domain models</td>
 <td>Data structures and message payloads</td>
@@ -2357,6 +2389,11 @@ for <code>scripts/docs-contctl.sh</code>.</p>
 <td>Post-trade reporting</td>
 </tr>
 <tr>
+<td><code>src/edumatcher/ai_trader/</code></td>
+<td>AI trader and swarm entry points</td>
+<td>Agent-based flow and experiments</td>
+</tr>
+<tr>
 <td><code>src/edumatcher/viewer/</code>, <code>board/</code>, <code>ticker/</code>, <code>orders/</code>, <code>audit/</code>, <code>stats/</code></td>
 <td>Read-side processes and UIs</td>
 <td>Operational visibility</td>
@@ -2365,6 +2402,11 @@ for <code>scripts/docs-contctl.sh</code>.</p>
 <td><code>src/edumatcher/scheduler/</code></td>
 <td>Session transitions</td>
 <td>Trading-day lifecycle</td>
+</tr>
+<tr>
+<td><code>src/edumatcher/setup_cmd.py</code></td>
+<td><code>pm-setup</code> bootstrap command</td>
+<td>Runtime setup for installed mode</td>
 </tr>
 <tr>
 <td><code>tests/</code></td>
@@ -2385,6 +2427,16 @@ for <code>scripts/docs-contctl.sh</code>.</p>
 <td><code>docs/</code></td>
 <td>User, architecture, concept, and developer documentation</td>
 <td>Documentation updates</td>
+</tr>
+<tr>
+<td><code>docs-design/</code></td>
+<td>Design proposals and implementation plans</td>
+<td>Architecture and feature design review</td>
+</tr>
+<tr>
+<td><code>release_checklist.md</code></td>
+<td>Canonical release checklist</td>
+<td>Pre-release gate and release sequencing</td>
 </tr>
 </tbody>
 </table>
@@ -2428,7 +2480,9 @@ for <code>scripts/docs-contctl.sh</code>.</p>
 <li><strong>Linting</strong>: <code>flake8</code></li>
 <li><strong>Typing</strong>: <code>mypy</code> in strict mode</li>
 <li><strong>Testing</strong>: <code>pytest</code></li>
-<li><strong>Coverage gate</strong>: <code>make test</code> enforces <strong>85%</strong></li>
+<li><strong>Coverage gates</strong>:</li>
+<li><code>make test</code> enforces <strong>85%</strong></li>
+<li><code>scripts/mkbld.sh</code> currently enforces <strong>80%</strong> (release automation threshold)</li>
 <li><strong>Docs build</strong>: <code>mkdocs build</code> should pass after doc changes</li>
 </ul>
 <h3 id="what-to-preserve">What to preserve<a class="headerlink" href="#what-to-preserve" title="Permanent link">&para;</a></h3>
@@ -2611,7 +2665,7 @@ authoritative. In general:</p>
 <tr>
 <td><code>scripts/mkbld.sh</code></td>
 <td>Full local build / validation pipeline</td>
-<td>Runs tests, lint, typing, formatting, build, and package validation</td>
+<td>Runs lint/type/tests/build/docs; updates README version line; Exchange Intro PDF build is optional and requires <code>--intro</code></td>
 </tr>
 <tr>
 <td><code>scripts/mkchlogentry.sh</code></td>
@@ -2620,13 +2674,13 @@ authoritative. In general:</p>
 </tr>
 <tr>
 <td><code>scripts/mkrelease.sh</code></td>
-<td>Local release workflow</td>
-<td>Expects a clean <code>develop</code> branch and an existing changelog entry</td>
+<td>Local release workflow from <code>develop</code></td>
+<td>Requires <code>GITHUB_USER</code>, clean/synced <code>develop</code>, existing changelog entry for current <code>pyproject.toml</code> version, and already-built <code>dist/</code> artifacts</td>
 </tr>
 <tr>
 <td><code>scripts/mkghrelease.sh</code></td>
-<td>Publish the GitHub release after tagging and CI</td>
-<td>Uses <code>gh</code> and release artifacts in <code>dist/</code></td>
+<td>Publish the GitHub release from <code>main</code></td>
+<td>Requires <code>gh</code> auth, clean/synced <code>main</code>, latest <code>v*</code> tag, and release artifacts (wheel, sdist, user-guide bundle, Exchange Intro bundle)</td>
 </tr>
 <tr>
 <td><code>scripts/mkdocs.sh</code></td>
@@ -2687,40 +2741,87 @@ date.</p>
 <p>This repository already has a lot of explanatory documentation. Reuse it rather
 than duplicating large explanations in new pages.</p>
 <h2 id="current-release-workflow">Current release workflow<a class="headerlink" href="#current-release-workflow" title="Permanent link">&para;</a></h2>
+<p>Follow <a href="../../release_checklist.md">release_checklist.md</a> as the source of truth.
+The practical flow below is aligned with the current script behavior.</p>
 <p>The intended release flow is:</p>
 <ol>
-<li>Prepare and review the changelog entry</li>
-<li>Run the scripted release locally from <code>develop</code></li>
-<li>Tag and push the release to <code>main</code></li>
-<li>Wait for CI and artifacts</li>
-<li>Create the GitHub release</li>
+<li>Bump version and prepare changelog</li>
+<li>Build and validate all release artifacts</li>
+<li>Run scripted release from <code>develop</code></li>
+<li>Verify CI on <code>main</code></li>
+<li>Create GitHub release from latest tag on <code>main</code></li>
 </ol>
 <h3 id="step-by-step">Step-by-step<a class="headerlink" href="#step-by-step" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># 1. Create the changelog template</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>./scripts/mkchlogentry.sh<span class="w"> </span><span class="m">0</span>.2.0rc5<span class="w"> </span>minor
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># 1. Bump version in pyproject.toml</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>poetry<span class="w"> </span>version<span class="w"> </span><span class="m">0</span>.3.2
 <a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1"># 2. Edit CHANGELOG.md and replace the placeholder bullets</span>
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="c1"># 3. Preview the release actions</span>
-<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>./scripts/mkrelease.sh<span class="w"> </span><span class="m">0</span>.2.0rc5<span class="w"> </span>minor<span class="w"> </span>--dry-run
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1"># 2. Create the changelog template (release type is major|minor|patch)</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>./scripts/mkchlogentry.sh<span class="w"> </span><span class="m">0</span>.3.2<span class="w"> </span>patch
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="c1"># 3. Edit CHANGELOG.md and replace placeholder bullets</span>
 <a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>
-<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="c1"># 4. Execute the local release flow</span>
-<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>./scripts/mkrelease.sh<span class="w"> </span><span class="m">0</span>.2.0rc5<span class="w"> </span>minor
-<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>
-<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="c1"># 5. After CI is green and artifacts exist in dist/, create the GitHub release</span>
-<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>./scripts/mkghrelease.sh
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="c1"># 4. Build and validate release artifacts.</span>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="c1"># Use --intro for real releases because mkghrelease.sh expects the intro bundle.</span>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>./scripts/mkbld.sh<span class="w"> </span>--intro
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="c1"># 5. Commit release-ready changes on develop, then preview release actions</span>
+<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;your-gh-user&gt;<span class="w"> </span>./scripts/mkrelease.sh<span class="w"> </span>patch<span class="w"> </span>--dry-run
+<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>
+<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a><span class="c1"># 6. Execute the local release flow (squash merge develop -&gt; main, tag, push, sync back)</span>
+<a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a><span class="nv">GITHUB_USER</span><span class="o">=</span>&lt;your-gh-user&gt;<span class="w"> </span>./scripts/mkrelease.sh<span class="w"> </span>patch
+<a id="__codelineno-14-18" name="__codelineno-14-18" href="#__codelineno-14-18"></a>
+<a id="__codelineno-14-19" name="__codelineno-14-19" href="#__codelineno-14-19"></a><span class="c1"># 7. After CI is green on main, create the GitHub release from main</span>
+<a id="__codelineno-14-20" name="__codelineno-14-20" href="#__codelineno-14-20"></a>git<span class="w"> </span>switch<span class="w"> </span>main<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>pull<span class="w"> </span>--ff-only
+<a id="__codelineno-14-21" name="__codelineno-14-21" href="#__codelineno-14-21"></a>./scripts/mkghrelease.sh
 </code></pre></div>
 <h3 id="what-mkreleasesh-expects">What <code>mkrelease.sh</code> expects<a class="headerlink" href="#what-mkreleasesh-expects" title="Permanent link">&para;</a></h3>
 <p>The script is designed around this model:</p>
 <ul>
+<li><code>GITHUB_USER</code> environment variable is set</li>
 <li>you are on a <strong>clean <code>develop</code> branch</strong></li>
+<li>local <code>develop</code> is synced with remote</li>
 <li>the requested version is not already tagged</li>
 <li><code>CHANGELOG.md</code> already contains an entry for that version</li>
-<li>quality gates pass</li>
-<li>release artifacts can be built and validated</li>
+<li>release artifacts already exist in <code>dist/</code> and pass <code>twine check</code></li>
 </ul>
-<p>The scripted workflow also assumes a <strong><code>develop</code> → squash-merge into <code>main</code></strong>
-style release model, followed by syncing <code>main</code> back into <code>develop</code>.</p>
+<p>Important usage detail: <code>mkrelease.sh</code> argument is only the release type
+(<code>major</code>, <code>minor</code>, or <code>patch</code>). The version is read from <code>pyproject.toml</code>.</p>
+<p>During execution, <code>mkrelease.sh</code> will:</p>
+<ol>
+<li>validate repo state and changelog/version/tag preconditions</li>
+<li>squash-merge <code>develop</code> into <code>main</code> and create <code>v&lt;version&gt;</code> tag</li>
+<li>push <code>main</code> and the tag</li>
+<li>merge <code>main</code> back into <code>develop</code> and push <code>develop</code></li>
+<li>wait for GitHub Actions completion with <code>gh run watch --exit-status</code></li>
+</ol>
+<h3 id="what-mkghreleasesh-expects">What <code>mkghrelease.sh</code> expects<a class="headerlink" href="#what-mkghreleasesh-expects" title="Permanent link">&para;</a></h3>
+<p>The script is designed around this model:</p>
+<ul>
+<li><code>GITHUB_USER</code> environment variable is set</li>
+<li>authenticated <code>gh</code> CLI on PATH</li>
+<li>you are on a <strong>clean <code>main</code> branch</strong> synced with remote</li>
+<li>latest release tag already exists on <code>main</code></li>
+<li>required artifacts exist:</li>
+<li>wheel in <code>dist/</code></li>
+<li>sdist in <code>dist/</code></li>
+<li>user-guide bundle in <code>docs/dist/</code></li>
+<li>exchange-intro bundle in <code>docs-exchange-intro/dist/</code></li>
+</ul>
+<p>It auto-detects pre-releases from tags ending in <code>rcN</code> (or you can force with
+<code>--pre-release</code>) and creates the GitHub release using notes extracted from
+<code>CHANGELOG.md</code>.</p>
+<h3 id="what-mkbldsh-currently-does">What <code>mkbld.sh</code> currently does<a class="headerlink" href="#what-mkbldsh-currently-does" title="Permanent link">&para;</a></h3>
+<p><code>mkbld.sh</code> is the build gate before release scripts. It currently:</p>
+<ol>
+<li>validates environment and required Poetry tools</li>
+<li>runs <code>black</code>, <code>flake8</code>, <code>mypy</code> (and <code>pyright</code> if available)</li>
+<li>runs tests with coverage threshold <strong>80%</strong></li>
+<li>updates coverage badge when <code>coverage.xml</code> changed</li>
+<li>builds and verifies Python packages</li>
+<li>builds user-guide PDF bundle and HTML docs</li>
+<li>optionally builds Exchange Intro bundle when <code>--intro</code> is provided</li>
+</ol>
+<p>For release publishing, prefer running <code>./scripts/mkbld.sh --intro</code>.</p>
 <h3 id="release-caution">Release caution<a class="headerlink" href="#release-caution" title="Permanent link">&para;</a></h3>
 <p>Some release scripts still contain inherited project-name strings and old help
 references. Always sanity-check:</p>
