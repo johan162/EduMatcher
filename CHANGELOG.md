@@ -1,3 +1,31 @@
+## [v0.2.1] - 2026-06-14
+
+Release Type: patch
+
+### 📋 Summary
+This patch release fixes a bug where MM seed quotes were re-injected on every engine restart, introduces the `seed_once` configuration field to control that behaviour, and substantially expands the User Guide with three new sections and comprehensive inline documentation for `engine_config.yaml`.
+
+### ✨ Additions
+- Added `seed_once` field to `market_maker_quotes` entries in `engine_config.yaml`: `true` (default) injects quotes only on the first startup for a symbol; `false` re-injects on every restart for repeatable demo setups
+- Added Getting Started user guide section with architecture overview, minimum session walkthrough, and role-based reading path
+- Added Market Making user guide section covering QUOTE command, quote lifecycle, quote refresh policies, MM obligations, MMP sequence, disconnect behaviour, and startup seeding
+- Added AI Traders user guide section covering `pm-ai-trader` and `pm-ai-swarm`, personality profiles, decision loop, risk mechanisms, and classroom demo setup
+- Added CLI Statistics commands design proposal identifying server-side commands for querying `stats.db` without raw SQL
+
+### 🐛 Bug Fixes
+- Fixed GTC quote legs being written to `gtc_orders.json` at shutdown, causing duplicate resting orders in the book on subsequent engine restarts
+
+### 📚 Documentation
+- Rewrote `engine_config.yaml` as a fully annotated reference covering all supported fields, precedence rules, and enum values; added examples of all three gateway roles (TRADER, MARKET_MAKER, ADMIN), per-symbol `mm_obligations` overrides, circuit-breaker level merging, and `seed_once` behaviour
+- Expanded persistence user guide section with complete schema reference for `audit.log`, `clearing_report.csv`, and `stats.db` (DDL, column descriptions, example SQL queries)
+- Added See Also footers to all user guide sections that lacked them
+- Converted remaining ASCII diagrams to Mermaid in combo, auction/scheduling, drop-copy, and persistence sections
+- Expanded PnL/clearing, gateway, and configuration sections with additional detail and worked examples
+
+### 🛠 Internal
+- Fixed black formatting violation in `config_loader.py`
+- Made Exchange Intro PDF build optional in `mkbld.sh` behind a new `--intro` flag
+
 ## [v0.2.0] - 2026-06-14
 
 Release Type: minor
