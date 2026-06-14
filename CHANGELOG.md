@@ -1,3 +1,98 @@
+## [v0.3.1] - 2026-06-14
+
+Release Type: patch
+
+### 📋 Summary
+This patch release refreshes the FAQ with practical setup and runtime troubleshooting for the new pipx-based installation flow.
+
+### 📚 Documentation
+- Expanded FAQ with a new Installation & Setup section covering pipx vs Poetry usage, PATH issues after pipx install, `pm-setup` usage, config/data file lookup rules, and upgrade guidance
+- Added FAQ entries for beginner runtime gotchas: pre-seeded MM liquidity matching the first aggressive order, `seed_once` behaviour across days, CLOSED startup state with sessions enabled, and practical state reset instructions
+- Updated FAQ launcher references to `./tools/launch_all.sh` and added `tmux`/`screen` alternatives for server environments
+
+### 🛠 Internal
+- Updated GitHub Actions artifact upload steps to `actions/upload-artifact@v5` in CI and docs workflows to eliminate Node 20 deprecation warnings
+
+
+## [v0.3.0] - 2026-06-14
+
+Release Type: minor
+
+### 📋 Summary
+This release makes EduMatcher fully installable as a standalone runtime via `pipx install edumatcher`, with no source checkout or Poetry required for end users. A new `pm-setup` bootstrap command, two runtime environment variables (`EDUMATCHER_DATA_DIR`, `EDUMATCHER_CONFIG`), and an updated launch script give instructors and students a clean, repeatable installation path independent of the development environment.
+
+### ✨ Additions
+- Added `pm-setup` entry point to bootstrap a session directory: creates the data directory, copies the bundled sample `engine_config.yaml` to the working directory, and prints a shell profile snippet
+- Added `EDUMATCHER_DATA_DIR` environment variable to override the data directory at runtime (default: `~/.local/share/edumatcher` when installed, `src/data/` in a source checkout)
+- Added `EDUMATCHER_CONFIG` environment variable to override the engine config path at runtime (default: `./engine_config.yaml` in CWD when installed, repo-root file in a source checkout)
+- Added `scripts/install-runtime.sh` one-shot installer: checks Python 3.13+, installs pipx if absent, installs `edumatcher` from PyPI, and runs `pm-setup`
+- Bundled `engine_config.sample.yaml` as a package resource (extracted by `pm-setup` via `importlib.resources`)
+
+### 🚀 Improvements
+- Updated `tools/launch_all.sh` to detect installed vs source mode automatically: runs bare `pm-*` commands when on PATH, falls back to `poetry run` in a source checkout; exports `EDUMATCHER_DATA_DIR`/`EDUMATCHER_CONFIG` to each spawned Terminal window
+- Improved `config.py` resolution: source-tree detection (`_IN_SOURCE_TREE`) keeps the existing developer defaults unchanged while enabling XDG-standard paths for installed users
+
+### 📚 Documentation
+- Rewrote Getting Started installation section with separate end-user (pipx) and developer (Poetry) tracks, env var reference table, and `pm-setup` walkthrough
+- Added developer vs installed mode comparison table to Running the Exchange page
+- Stripped `poetry run` prefix from all command examples in Running the Exchange and Processes pages; added installation-mode admonition and env var reference table to Processes page
+- Added admonition in Getting Started five-minute walkthrough explaining that an existing MM seed quote may fill the first aggressive order before the second participant types anything
+
+### 🛠 Internal
+- Excluded `setup_cmd.py` from coverage reporting (bootstrap CLI not suitable for unit tests)
+- Added `tests/test_config_runtime.py` with 5 tests covering `EDUMATCHER_DATA_DIR` and `EDUMATCHER_CONFIG` env var resolution
+- Fixed pyright `reportConstantRedefinition` errors in `config.py` by replacing `if/elif/else` assignments with resolver functions
+- Fixed mypy `attr-defined` errors in `test_config_runtime.py` by typing the helper return as `types.ModuleType`
+
+## [v0.2.1] - 2026-06-14
+
+Release Type: patch
+
+### 📋 Summary
+This patch release fixes a bug where MM seed quotes were re-injected on every engine restart, introduces the `seed_once` configuration field to control that behaviour, and substantially expands the User Guide with three new sections and comprehensive inline documentation for `engine_config.yaml`.
+
+### ✨ Additions
+- Added `seed_once` field to `market_maker_quotes` entries in `engine_config.yaml`: `true` (default) injects quotes only on the first startup for a symbol; `false` re-injects on every restart for repeatable demo setups
+- Added Getting Started user guide section with architecture overview, minimum session walkthrough, and role-based reading path
+- Added Market Making user guide section covering QUOTE command, quote lifecycle, quote refresh policies, MM obligations, MMP sequence, disconnect behaviour, and startup seeding
+- Added AI Traders user guide section covering `pm-ai-trader` and `pm-ai-swarm`, personality profiles, decision loop, risk mechanisms, and classroom demo setup
+- Added CLI Statistics commands design proposal identifying server-side commands for querying `stats.db` without raw SQL
+
+### 🐛 Bug Fixes
+- Fixed GTC quote legs being written to `gtc_orders.json` at shutdown, causing duplicate resting orders in the book on subsequent engine restarts
+
+### 📚 Documentation
+- Rewrote `engine_config.yaml` as a fully annotated reference covering all supported fields, precedence rules, and enum values; added examples of all three gateway roles (TRADER, MARKET_MAKER, ADMIN), per-symbol `mm_obligations` overrides, circuit-breaker level merging, and `seed_once` behaviour
+- Expanded persistence user guide section with complete schema reference for `audit.log`, `clearing_report.csv`, and `stats.db` (DDL, column descriptions, example SQL queries)
+- Added See Also footers to all user guide sections that lacked them
+- Converted remaining ASCII diagrams to Mermaid in combo, auction/scheduling, drop-copy, and persistence sections
+- Expanded PnL/clearing, gateway, and configuration sections with additional detail and worked examples
+
+### 🛠 Internal
+- Fixed black formatting violation in `config_loader.py`
+- Made Exchange Intro PDF build optional in `mkbld.sh` behind a new `--intro` flag
+
+## [v0.2.0] - 2026-06-14
+
+Release Type: minor
+
+### 📋 Summary
+This release completes the protocol design documentation suite by publishing the BALF design proposal at v1.0.0 and integrating both BALF and CALF protocol appendixes into the User Guide. It marks the first minor version increment, establishing a stable baseline for the full protocol documentation set.
+
+### 📚 Documentation
+- Update glossary and sync global and Exchange Intro glossary
+
+### ✨ Additions
+- Added BALF protocol design proposal v1.0.0 covering allocation, liquidity, and feed mechanics
+- Added BALF protocol description appendix to the User Guide
+- Added CALF protocol appendix to the User Guide with harmonized terminology across all protocol appendixes
+
+## [v0.1.9] - 2026-06-13
+
+Release Type: patch
+
+### 📋 Summary
+This patch release expands the concept documentation with a new CALF market-data feed page, improves clarity across existing order-book pages, and reorganises the Glossary. GitHub Actions are also updated to be Node 24 compatible.
 ## [v0.3.0] - 2026-06-14
 
 Release Type: minor
