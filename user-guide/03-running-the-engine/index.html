@@ -917,6 +917,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#developer-mode-vs-installed-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Developer mode vs installed mode
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#minimum-viable-configuration" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2223,33 +2234,95 @@ working <code>engine_config.yaml</code> before following the steps on this page.
 <a href="../02-commands/">Commands</a> — for the operator console used in the
 monitoring section.</p>
 </div>
+<h2 id="developer-mode-vs-installed-mode">Developer mode vs installed mode<a class="headerlink" href="#developer-mode-vs-installed-mode" title="Permanent link">&para;</a></h2>
+<p>EduMatcher supports two ways to run the <code>pm-*</code> commands. Everything on this
+page works in both modes. The only difference is how you invoke the commands.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Developer mode</th>
+<th>Installed mode</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Who uses this</strong></td>
+<td>Contributors, engine developers</td>
+<td>Instructors, students</td>
+</tr>
+<tr>
+<td><strong>Installation</strong></td>
+<td><code>poetry install --with dev</code> (source checkout)</td>
+<td><code>pipx install edumatcher</code></td>
+</tr>
+<tr>
+<td><strong>Command prefix</strong></td>
+<td><code>poetry run pm-engine</code></td>
+<td><code>pm-engine</code> (no prefix)</td>
+</tr>
+<tr>
+<td><strong>Data directory</strong></td>
+<td><code>&lt;repo&gt;/src/data/</code> (auto-detected)</td>
+<td><code>~/.local/share/edumatcher</code> or <code>$EDUMATCHER_DATA_DIR</code></td>
+</tr>
+<tr>
+<td><strong>Config file</strong></td>
+<td><code>&lt;repo&gt;/engine_config.yaml</code> (auto-detected)</td>
+<td><code>./engine_config.yaml</code> (CWD) or <code>$EDUMATCHER_CONFIG</code></td>
+</tr>
+<tr>
+<td><strong>First-time setup</strong></td>
+<td>Nothing extra</td>
+<td>Run <code>pm-setup</code> once</td>
+</tr>
+<tr>
+<td><strong>Launch all</strong></td>
+<td><code>./tools/launch_all.sh</code></td>
+<td><code>./tools/launch_all.sh</code> (script is mode-aware)</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition tip">
+<p class="admonition-title">First-time end-user setup</p>
+<p>If you installed with pipx, run this once before anything else:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">cd</span><span class="w"> </span>~/my-session-dir
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pm-setup
+</code></pre></div>
+This creates <code>~/.local/share/edumatcher</code> for data files, copies a sample
+<code>engine_config.yaml</code> into your working directory, and prints the shell
+snippet to add to your profile. See <a href="../00-getting-started/">Getting Started</a>
+for the full installation walkthrough.</p>
+</div>
+<p>Throughout the rest of this page commands are shown without <code>poetry run</code> — add
+the prefix if you are in developer mode.</p>
 <h2 id="minimum-viable-configuration">Minimum-viable configuration<a class="headerlink" href="#minimum-viable-configuration" title="Permanent link">&para;</a></h2>
 <p>Before starting anything, verify your configuration covers the mandatory
 fields.  A completely minimal <code>engine_config.yaml</code> looks like this:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">First trader</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM01</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Market maker</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW_ADMIN</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Operator console</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="nt">symbols</span><span class="p">:</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">    </span><span class="nt">last_buy_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">149.90</span>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span><span class="nt">last_sell_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">150.10</span>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="w">    </span><span class="nt">market_maker_quotes</span><span class="p">:</span>
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM01</span>
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">        </span><span class="nt">bid_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">149.90</span>
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">        </span><span class="nt">ask_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">150.10</span>
-<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">        </span><span class="nt">bid_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
-<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="w">        </span><span class="nt">ask_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
-<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">        </span><span class="nt">tif</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DAY</span>
-<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="w">        </span><span class="nt">quote_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM-AAPL-SEED</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">gateways</span><span class="p">:</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">First trader</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM01</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Market maker</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW_ADMIN</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Operator console</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="nt">tick_decimals</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">    </span><span class="nt">last_buy_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">149.90</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">    </span><span class="nt">last_sell_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">150.10</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">    </span><span class="nt">market_maker_quotes</span><span class="p">:</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM01</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">        </span><span class="nt">bid_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">149.90</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">        </span><span class="nt">ask_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">150.10</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">        </span><span class="nt">bid_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="w">        </span><span class="nt">ask_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">        </span><span class="nt">tif</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DAY</span>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="w">        </span><span class="nt">quote_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM-AAPL-SEED</span>
 </code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">Why a market-maker gateway with seeded quotes?</p>
@@ -2270,21 +2343,21 @@ two-sided book: 500 bid at 149.90 and 500 ask at 150.10.</p>
 <li>The file exists but <code>symbols</code> is not a mapping.</li>
 </ul>
 <p>Run this quick sanity check before starting the engine:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;EOF&#39;</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="s">import yaml, sys, pathlib</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="s">cfg = yaml.safe_load(pathlib.Path(&quot;engine_config.yaml&quot;).read_text())</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="s">gws = cfg.get(&quot;gateways&quot;, {}).get(&quot;alf&quot;, None)</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="s">syms = cfg.get(&quot;symbols&quot;, None)</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="s">ok = isinstance(gws, list) and len(gws) &gt; 0 and isinstance(syms, dict) and len(syms) &gt; 0</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="s">print(&quot;Config OK&quot; if ok else &quot;Config INVALID&quot;)</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="s">print(f&quot;  Gateways : {[g[&#39;id&#39;] for g in gws] if isinstance(gws, list) else gws}&quot;)</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="s">print(f&quot;  Symbols  : {list(syms.keys()) if isinstance(syms, dict) else syms}&quot;)</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="s">EOF</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>python<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;EOF&#39;</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="s">import yaml, sys, pathlib</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="s">cfg = yaml.safe_load(pathlib.Path(&quot;engine_config.yaml&quot;).read_text())</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="s">gws = cfg.get(&quot;gateways&quot;, {}).get(&quot;alf&quot;, None)</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="s">syms = cfg.get(&quot;symbols&quot;, None)</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="s">ok = isinstance(gws, list) and len(gws) &gt; 0 and isinstance(syms, dict) and len(syms) &gt; 0</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="s">print(&quot;Config OK&quot; if ok else &quot;Config INVALID&quot;)</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="s">print(f&quot;  Gateways : {[g[&#39;id&#39;] for g in gws] if isinstance(gws, list) else gws}&quot;)</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="s">print(f&quot;  Symbols  : {list(syms.keys()) if isinstance(syms, dict) else syms}&quot;)</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="s">EOF</span>
 </code></pre></div>
 <p>Expected output:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Config OK
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>  Gateways : [&#39;TRADER01&#39;, &#39;MM01&#39;, &#39;GW_ADMIN&#39;]
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>  Symbols  : [&#39;AAPL&#39;]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Config OK
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>  Gateways : [&#39;TRADER01&#39;, &#39;MM01&#39;, &#39;GW_ADMIN&#39;]
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>  Symbols  : [&#39;AAPL&#39;]
 </code></pre></div></p>
 <h3 id="checklist-before-the-first-start">Checklist before the first start<a class="headerlink" href="#checklist-before-the-first-start" title="Permanent link">&para;</a></h3>
 <table>
@@ -2347,75 +2420,75 @@ stagger between processes gives sockets time to fully connect.</p>
 <h3 id="starting-each-process">Starting each process<a class="headerlink" href="#starting-each-process" title="Permanent link">&para;</a></h3>
 <p>Open a terminal per process, or use a multiplexer like <code>tmux</code>.</p>
 <p><strong>Step 1 — matching engine (mandatory)</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Verbose mode shows every order and trade on stdout — useful when learning</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Silent mode for cleaner output in production-like runs</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1"># Custom config file</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--config<span class="w"> </span>my_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Verbose mode shows every order and trade on stdout — useful when learning</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pm-engine<span class="w"> </span>--verbose
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Silent mode for cleaner output in production-like runs</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>pm-engine
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># Custom config file</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>pm-engine<span class="w"> </span>--config<span class="w"> </span>my_config.yaml
 </code></pre></div>
 <p>Wait for the engine to print its startup lines before starting anything else:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[ENGINE] Loaded config from engine_config.yaml  (3 symbol(s): AAPL MSFT TSLA; 4 gateway id(s))
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[ENGINE] Session handling: enabled (startup state: CLOSED)
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>[ENGINE] Risk enforcement: collars=on, circuit_breakers=on
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>[ENGINE] Drop copy PUB bound on port 5557
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>[ENGINE] Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[ENGINE] Loaded config from engine_config.yaml  (3 symbol(s): AAPL MSFT TSLA; 4 gateway id(s))
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>[ENGINE] Session handling: enabled (startup state: CLOSED)
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>[ENGINE] Risk enforcement: collars=on, circuit_breakers=on
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>[ENGINE] Drop copy PUB bound on port 5557
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>[ENGINE] Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
 </code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
 <p>When sessions are disabled the session line reads <code>Session handling: disabled</code> and the engine starts in <code>CONTINUOUS</code> state immediately, with no scheduler required.</p>
 </div>
 <p><strong>Step 2 — session scheduler (optional but recommended)</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Normal mode: reads schedule from engine_config.yaml and sends transitions at</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="c1"># the configured wall-clock times</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="c1"># Test mode: fires all transitions immediately, with a short delay between each</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="c1"># Useful for verifying your config without waiting for real market hours</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--now
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--now<span class="w"> </span>--delay<span class="w"> </span><span class="m">5</span><span class="w">   </span><span class="c1"># 5-second pause between phases</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Normal mode: reads schedule from engine_config.yaml and sends transitions at</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="c1"># the configured wall-clock times</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>pm-scheduler
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="c1"># Test mode: fires all transitions immediately, with a short delay between each</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="c1"># Useful for verifying your config without waiting for real market hours</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>pm-scheduler<span class="w"> </span>--now
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>pm-scheduler<span class="w"> </span>--now<span class="w"> </span>--delay<span class="w"> </span><span class="m">5</span><span class="w">   </span><span class="c1"># 5-second pause between phases</span>
 </code></pre></div>
 <p><strong>Step 3 — gateways (one per participant)</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER01
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER02
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>MM01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER02
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>MM01
 </code></pre></div>
 <p>The gateway ID must exactly match a configured entry in <code>engine_config.yaml</code>.
 Each gateway gets its own terminal — the prompt is where a trader types orders.</p>
 <p><strong>Step 4+ — optional display and observer processes</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Order book for one symbol (one pm-viewer per symbol you want to watch)</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--depth<span class="w"> </span><span class="m">10</span><span class="w">   </span><span class="c1"># show 10 price levels</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="c1"># Cross-gateway order status monitor</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-orders
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="c1"># Audit log (all events, every message written to data/audit.log)</span>
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-audit<span class="w">                    </span><span class="c1"># quiet — writes file only</span>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-audit<span class="w"> </span>--terminal<span class="w">         </span><span class="c1"># also prints to stdout</span>
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-audit<span class="w"> </span>--log-file<span class="w"> </span>/tmp/my_audit.log
-<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a>
-<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="c1"># P&amp;L and trade settlement</span>
-<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-clearing
-<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a>
-<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="c1"># OHLCV statistics to SQLite (required by pm-ticker and pm-board)</span>
-<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-stats
-<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a>
-<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="c1"># Scrolling market data ticker (needs pm-stats running)</span>
-<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-ticker
-<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-ticker<span class="w"> </span>--interval<span class="w"> </span><span class="m">15</span><span class="w">    </span><span class="c1"># print a new line every 15 seconds</span>
-<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a>
-<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a><span class="c1"># Full-screen multi-symbol dashboard (needs pm-stats running)</span>
-<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-board
-<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a>
-<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a><span class="c1"># ADMIN operator console</span>
-<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
-<a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a>
-<a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a><span class="c1"># AI trading bots (optional)</span>
-<a id="__codelineno-7-30" name="__codelineno-7-30" href="#__codelineno-7-30"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-ai-trader<span class="w">               </span><span class="c1"># single bot</span>
-<a id="__codelineno-7-31" name="__codelineno-7-31" href="#__codelineno-7-31"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-ai-swarm<span class="w">                </span><span class="c1"># coordinated multi-bot swarm</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Order book for one symbol (one pm-viewer per symbol you want to watch)</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--depth<span class="w"> </span><span class="m">10</span><span class="w">   </span><span class="c1"># show 10 price levels</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="c1"># Cross-gateway order status monitor</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>pm-orders
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="c1"># Audit log (all events, every message written to data/audit.log)</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>pm-audit<span class="w">                    </span><span class="c1"># quiet — writes file only</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>pm-audit<span class="w"> </span>--terminal<span class="w">         </span><span class="c1"># also prints to stdout</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>pm-audit<span class="w"> </span>--log-file<span class="w"> </span>/tmp/my_audit.log
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="c1"># P&amp;L and trade settlement</span>
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>pm-clearing
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="c1"># OHLCV statistics to SQLite (required by pm-ticker and pm-board)</span>
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>pm-stats
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="c1"># Scrolling market data ticker (needs pm-stats running)</span>
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>pm-ticker
+<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a>pm-ticker<span class="w"> </span>--interval<span class="w"> </span><span class="m">15</span><span class="w">    </span><span class="c1"># print a new line every 15 seconds</span>
+<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a>
+<a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a><span class="c1"># Full-screen multi-symbol dashboard (needs pm-stats running)</span>
+<a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a>pm-board
+<a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a>
+<a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a><span class="c1"># ADMIN operator console</span>
+<a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a>pm-admin<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
+<a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a>
+<a id="__codelineno-8-29" name="__codelineno-8-29" href="#__codelineno-8-29"></a><span class="c1"># AI trading bots (optional)</span>
+<a id="__codelineno-8-30" name="__codelineno-8-30" href="#__codelineno-8-30"></a>pm-ai-trader<span class="w">               </span><span class="c1"># single bot</span>
+<a id="__codelineno-8-31" name="__codelineno-8-31" href="#__codelineno-8-31"></a>pm-ai-swarm<span class="w">                </span><span class="c1"># coordinated multi-bot swarm</span>
 </code></pre></div>
 <h2 id="process-reference">Process reference<a class="headerlink" href="#process-reference" title="Permanent link">&para;</a></h2>
 <table>
@@ -2549,28 +2622,28 @@ Each gateway gets its own terminal — the prompt is where a trader types orders
 <p><code>tools/launch_all.sh</code> is a macOS-only shell script that opens <strong>each process
 in its own Terminal window</strong> using <code>osascript</code>.  It starts the standard
 two-trader configuration with all observer processes in one command:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Viewer watches MSFT by default</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>./tools/launch_all.sh
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># Watch a different symbol</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>./tools/launch_all.sh<span class="w"> </span>AAPL
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># Open one viewer window per symbol</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>./tools/launch_all.sh<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Viewer watches MSFT by default</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>./tools/launch_all.sh
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># Watch a different symbol</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>./tools/launch_all.sh<span class="w"> </span>AAPL
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># Open one viewer window per symbol</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>./tools/launch_all.sh<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA
 </code></pre></div>
 <p>The script starts processes in the correct order and inserts the necessary
 sleep delays (1 second after the engine, 0.3 seconds between the rest):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-engine<span class="w"> </span>--verbose<span class="w">          </span><span class="c1"># window 1</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>pm-scheduler<span class="w">                 </span><span class="c1"># window 2  (after 1 s)</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER01<span class="w">     </span><span class="c1"># window 3</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER02<span class="w">     </span><span class="c1"># window 4</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>pm-viewer<span class="w">  </span>--symbol<span class="w"> </span>&lt;SYM&gt;<span class="w">    </span><span class="c1"># one window per SYM argument</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>pm-orders<span class="w">                    </span><span class="c1"># next window</span>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>pm-audit<span class="w">   </span>--terminal<span class="w">        </span><span class="c1"># next window</span>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>pm-clearing<span class="w">                  </span><span class="c1"># next window</span>
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>pm-stats<span class="w">                     </span><span class="c1"># next window</span>
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>pm-ticker<span class="w">  </span>--interval<span class="w"> </span><span class="m">30</span><span class="w">     </span><span class="c1"># next window</span>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>pm-board<span class="w">                     </span><span class="c1"># last window</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-engine<span class="w"> </span>--verbose<span class="w">          </span><span class="c1"># window 1</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>pm-scheduler<span class="w">                 </span><span class="c1"># window 2  (after 1 s)</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER01<span class="w">     </span><span class="c1"># window 3</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER02<span class="w">     </span><span class="c1"># window 4</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>pm-viewer<span class="w">  </span>--symbol<span class="w"> </span>&lt;SYM&gt;<span class="w">    </span><span class="c1"># one window per SYM argument</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>pm-orders<span class="w">                    </span><span class="c1"># next window</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>pm-audit<span class="w">   </span>--terminal<span class="w">        </span><span class="c1"># next window</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>pm-clearing<span class="w">                  </span><span class="c1"># next window</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>pm-stats<span class="w">                     </span><span class="c1"># next window</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a>pm-ticker<span class="w">  </span>--interval<span class="w"> </span><span class="m">30</span><span class="w">     </span><span class="c1"># next window</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>pm-board<span class="w">                     </span><span class="c1"># last window</span>
 </code></pre></div>
 <div class="admonition warning">
 <p class="admonition-title">macOS only</p>
@@ -2593,53 +2666,53 @@ to extend it when adding:</p>
   (<code>./launch_all.sh AAPL MSFT TSLA</code>)</li>
 </ul>
 <p>A starting template for a more complete four-gateway run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="ch">#!/usr/bin/env bash</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nb">set</span><span class="w"> </span>-euo<span class="w"> </span>pipefail
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="nv">DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="k">$(</span><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>dirname<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$0</span><span class="s2">&quot;</span><span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">pwd</span><span class="k">)</span><span class="s2">&quot;</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>_term<span class="o">()</span><span class="w"> </span><span class="o">{</span>
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">    </span><span class="nb">local</span><span class="w"> </span><span class="nv">cmd</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$1</span><span class="s2">&quot;</span>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">    </span>osascript<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">        </span>-e<span class="w"> </span><span class="s2">&quot;tell application \&quot;Terminal\&quot;&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">        </span>-e<span class="w"> </span><span class="s2">&quot;  activate&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">        </span>-e<span class="w"> </span><span class="s2">&quot;  do script \&quot;cd &#39;</span><span class="nv">$DIR</span><span class="s2">&#39; &amp;&amp; </span><span class="nv">$cmd</span><span class="s2">\&quot;&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="w">        </span>-e<span class="w"> </span><span class="s2">&quot;end tell&quot;</span>
-<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="o">}</span>
-<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>
-<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>_term<span class="w"> </span><span class="s2">&quot;poetry run pm-engine --verbose&quot;</span>
-<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a>sleep<span class="w"> </span><span class="m">1</span>
-<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a>
-<a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a>_term<span class="w"> </span><span class="s2">&quot;poetry run pm-scheduler&quot;</span>
-<a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a>sleep<span class="w"> </span><span class="m">0</span>.3
-<a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a>
-<a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a><span class="c1"># Traders</span>
-<a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a>_term<span class="w"> </span><span class="s2">&quot;poetry run pm-gateway --id TRADER01&quot;</span>
-<a id="__codelineno-10-22" name="__codelineno-10-22" href="#__codelineno-10-22"></a>_term<span class="w"> </span><span class="s2">&quot;poetry run pm-gateway --id TRADER02&quot;</span>
-<a id="__codelineno-10-23" name="__codelineno-10-23" href="#__codelineno-10-23"></a>sleep<span class="w"> </span><span class="m">0</span>.3
-<a id="__codelineno-10-24" name="__codelineno-10-24" href="#__codelineno-10-24"></a>
-<a id="__codelineno-10-25" name="__codelineno-10-25" href="#__codelineno-10-25"></a><span class="c1"># Market maker</span>
-<a id="__codelineno-10-26" name="__codelineno-10-26" href="#__codelineno-10-26"></a>_term<span class="w"> </span><span class="s2">&quot;poetry run pm-gateway --id MM01&quot;</span>
-<a id="__codelineno-10-27" name="__codelineno-10-27" href="#__codelineno-10-27"></a>sleep<span class="w"> </span><span class="m">0</span>.3
-<a id="__codelineno-10-28" name="__codelineno-10-28" href="#__codelineno-10-28"></a>
-<a id="__codelineno-10-29" name="__codelineno-10-29" href="#__codelineno-10-29"></a><span class="c1"># ADMIN operator console</span>
-<a id="__codelineno-10-30" name="__codelineno-10-30" href="#__codelineno-10-30"></a>_term<span class="w"> </span><span class="s2">&quot;poetry run pm-admin --id GW_ADMIN&quot;</span>
-<a id="__codelineno-10-31" name="__codelineno-10-31" href="#__codelineno-10-31"></a>sleep<span class="w"> </span><span class="m">0</span>.3
-<a id="__codelineno-10-32" name="__codelineno-10-32" href="#__codelineno-10-32"></a>
-<a id="__codelineno-10-33" name="__codelineno-10-33" href="#__codelineno-10-33"></a><span class="c1"># Viewers — one per symbol</span>
-<a id="__codelineno-10-34" name="__codelineno-10-34" href="#__codelineno-10-34"></a><span class="k">for</span><span class="w"> </span>SYM<span class="w"> </span><span class="k">in</span><span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="p">;</span><span class="w"> </span><span class="k">do</span>
-<a id="__codelineno-10-35" name="__codelineno-10-35" href="#__codelineno-10-35"></a><span class="w">    </span>_term<span class="w"> </span><span class="s2">&quot;poetry run pm-viewer --symbol </span><span class="nv">$SYM</span><span class="s2">&quot;</span>
-<a id="__codelineno-10-36" name="__codelineno-10-36" href="#__codelineno-10-36"></a><span class="w">    </span>sleep<span class="w"> </span><span class="m">0</span>.2
-<a id="__codelineno-10-37" name="__codelineno-10-37" href="#__codelineno-10-37"></a><span class="k">done</span>
-<a id="__codelineno-10-38" name="__codelineno-10-38" href="#__codelineno-10-38"></a>
-<a id="__codelineno-10-39" name="__codelineno-10-39" href="#__codelineno-10-39"></a><span class="c1"># Observer processes</span>
-<a id="__codelineno-10-40" name="__codelineno-10-40" href="#__codelineno-10-40"></a>_term<span class="w"> </span><span class="s2">&quot;poetry run pm-orders&quot;</span>
-<a id="__codelineno-10-41" name="__codelineno-10-41" href="#__codelineno-10-41"></a>_term<span class="w"> </span><span class="s2">&quot;poetry run pm-audit --terminal&quot;</span>
-<a id="__codelineno-10-42" name="__codelineno-10-42" href="#__codelineno-10-42"></a>_term<span class="w"> </span><span class="s2">&quot;poetry run pm-clearing&quot;</span>
-<a id="__codelineno-10-43" name="__codelineno-10-43" href="#__codelineno-10-43"></a>_term<span class="w"> </span><span class="s2">&quot;poetry run pm-stats&quot;</span>
-<a id="__codelineno-10-44" name="__codelineno-10-44" href="#__codelineno-10-44"></a>_term<span class="w"> </span><span class="s2">&quot;poetry run pm-ticker --interval 15&quot;</span>
-<a id="__codelineno-10-45" name="__codelineno-10-45" href="#__codelineno-10-45"></a>_term<span class="w"> </span><span class="s2">&quot;poetry run pm-board&quot;</span>
-<a id="__codelineno-10-46" name="__codelineno-10-46" href="#__codelineno-10-46"></a>
-<a id="__codelineno-10-47" name="__codelineno-10-47" href="#__codelineno-10-47"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Launched.&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="ch">#!/usr/bin/env bash</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nb">set</span><span class="w"> </span>-euo<span class="w"> </span>pipefail
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="nv">DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="k">$(</span><span class="nb">cd</span><span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>dirname<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$0</span><span class="s2">&quot;</span><span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">pwd</span><span class="k">)</span><span class="s2">&quot;</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>_term<span class="o">()</span><span class="w"> </span><span class="o">{</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">    </span><span class="nb">local</span><span class="w"> </span><span class="nv">cmd</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$1</span><span class="s2">&quot;</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">    </span>osascript<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">        </span>-e<span class="w"> </span><span class="s2">&quot;tell application \&quot;Terminal\&quot;&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="w">        </span>-e<span class="w"> </span><span class="s2">&quot;  activate&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="w">        </span>-e<span class="w"> </span><span class="s2">&quot;  do script \&quot;cd &#39;</span><span class="nv">$DIR</span><span class="s2">&#39; &amp;&amp; </span><span class="nv">$cmd</span><span class="s2">\&quot;&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="w">        </span>-e<span class="w"> </span><span class="s2">&quot;end tell&quot;</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="o">}</span>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>_term<span class="w"> </span><span class="s2">&quot;pm-engine --verbose&quot;</span>
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a>sleep<span class="w"> </span><span class="m">1</span>
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a>
+<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a>_term<span class="w"> </span><span class="s2">&quot;pm-scheduler&quot;</span>
+<a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a>sleep<span class="w"> </span><span class="m">0</span>.3
+<a id="__codelineno-11-19" name="__codelineno-11-19" href="#__codelineno-11-19"></a>
+<a id="__codelineno-11-20" name="__codelineno-11-20" href="#__codelineno-11-20"></a><span class="c1"># Traders</span>
+<a id="__codelineno-11-21" name="__codelineno-11-21" href="#__codelineno-11-21"></a>_term<span class="w"> </span><span class="s2">&quot;pm-gateway --id TRADER01&quot;</span>
+<a id="__codelineno-11-22" name="__codelineno-11-22" href="#__codelineno-11-22"></a>_term<span class="w"> </span><span class="s2">&quot;pm-gateway --id TRADER02&quot;</span>
+<a id="__codelineno-11-23" name="__codelineno-11-23" href="#__codelineno-11-23"></a>sleep<span class="w"> </span><span class="m">0</span>.3
+<a id="__codelineno-11-24" name="__codelineno-11-24" href="#__codelineno-11-24"></a>
+<a id="__codelineno-11-25" name="__codelineno-11-25" href="#__codelineno-11-25"></a><span class="c1"># Market maker</span>
+<a id="__codelineno-11-26" name="__codelineno-11-26" href="#__codelineno-11-26"></a>_term<span class="w"> </span><span class="s2">&quot;pm-gateway --id MM01&quot;</span>
+<a id="__codelineno-11-27" name="__codelineno-11-27" href="#__codelineno-11-27"></a>sleep<span class="w"> </span><span class="m">0</span>.3
+<a id="__codelineno-11-28" name="__codelineno-11-28" href="#__codelineno-11-28"></a>
+<a id="__codelineno-11-29" name="__codelineno-11-29" href="#__codelineno-11-29"></a><span class="c1"># ADMIN operator console</span>
+<a id="__codelineno-11-30" name="__codelineno-11-30" href="#__codelineno-11-30"></a>_term<span class="w"> </span><span class="s2">&quot;pm-admin --id GW_ADMIN&quot;</span>
+<a id="__codelineno-11-31" name="__codelineno-11-31" href="#__codelineno-11-31"></a>sleep<span class="w"> </span><span class="m">0</span>.3
+<a id="__codelineno-11-32" name="__codelineno-11-32" href="#__codelineno-11-32"></a>
+<a id="__codelineno-11-33" name="__codelineno-11-33" href="#__codelineno-11-33"></a><span class="c1"># Viewers — one per symbol</span>
+<a id="__codelineno-11-34" name="__codelineno-11-34" href="#__codelineno-11-34"></a><span class="k">for</span><span class="w"> </span>SYM<span class="w"> </span><span class="k">in</span><span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<a id="__codelineno-11-35" name="__codelineno-11-35" href="#__codelineno-11-35"></a><span class="w">    </span>_term<span class="w"> </span><span class="s2">&quot;pm-viewer --symbol </span><span class="nv">$SYM</span><span class="s2">&quot;</span>
+<a id="__codelineno-11-36" name="__codelineno-11-36" href="#__codelineno-11-36"></a><span class="w">    </span>sleep<span class="w"> </span><span class="m">0</span>.2
+<a id="__codelineno-11-37" name="__codelineno-11-37" href="#__codelineno-11-37"></a><span class="k">done</span>
+<a id="__codelineno-11-38" name="__codelineno-11-38" href="#__codelineno-11-38"></a>
+<a id="__codelineno-11-39" name="__codelineno-11-39" href="#__codelineno-11-39"></a><span class="c1"># Observer processes</span>
+<a id="__codelineno-11-40" name="__codelineno-11-40" href="#__codelineno-11-40"></a>_term<span class="w"> </span><span class="s2">&quot;pm-orders&quot;</span>
+<a id="__codelineno-11-41" name="__codelineno-11-41" href="#__codelineno-11-41"></a>_term<span class="w"> </span><span class="s2">&quot;pm-audit --terminal&quot;</span>
+<a id="__codelineno-11-42" name="__codelineno-11-42" href="#__codelineno-11-42"></a>_term<span class="w"> </span><span class="s2">&quot;pm-clearing&quot;</span>
+<a id="__codelineno-11-43" name="__codelineno-11-43" href="#__codelineno-11-43"></a>_term<span class="w"> </span><span class="s2">&quot;pm-stats&quot;</span>
+<a id="__codelineno-11-44" name="__codelineno-11-44" href="#__codelineno-11-44"></a>_term<span class="w"> </span><span class="s2">&quot;pm-ticker --interval 15&quot;</span>
+<a id="__codelineno-11-45" name="__codelineno-11-45" href="#__codelineno-11-45"></a>_term<span class="w"> </span><span class="s2">&quot;pm-board&quot;</span>
+<a id="__codelineno-11-46" name="__codelineno-11-46" href="#__codelineno-11-46"></a>
+<a id="__codelineno-11-47" name="__codelineno-11-47" href="#__codelineno-11-47"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Launched.&quot;</span>
 </code></pre></div>
 <p>On Linux, replace <code>osascript</code> with <code>gnome-terminal --</code>, <code>xterm -e</code>, or a <code>tmux</code>
 new-window command depending on your terminal emulator.</p>
@@ -2651,38 +2724,38 @@ bound socket addresses.  If it prints nothing or exits immediately, see the
 troubleshooting section.</p>
 <p><strong>b) Gateways authenticate successfully</strong></p>
 <p>Each <code>pm-gateway</code> terminal shows:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>Gateway TRADER01 connected and authenticated.
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>[TRADER01]&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>Gateway TRADER01 connected and authenticated.
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>[TRADER01]&gt;
 </code></pre></div>
 <p>If the gateway times out instead, the engine is not reachable.</p>
 <p><strong>c) Use the ADMIN console to confirm live state</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-admin<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
 </code></pre></div>
 <p>Then type these commands to validate the running system:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[GW_ADMIN|ADMIN]&gt; SYMBOLS
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a># Should list every symbol from engine_config.yaml
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>[GW_ADMIN|ADMIN]&gt; GATEWAYS
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a># Should list all configured gateways; check &quot;Connected&quot; column
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>[GW_ADMIN|ADMIN]&gt; SESSION_STATUS
-<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a># Should print the current session state (PRE_OPEN, CONTINUOUS, etc.)
-<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>
-<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a>[GW_ADMIN|ADMIN]&gt; SCHEDULE
-<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a># Should print the timing configuration if sessions_enabled is true
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[GW_ADMIN|ADMIN]&gt; SYMBOLS
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a># Should list every symbol from engine_config.yaml
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>[GW_ADMIN|ADMIN]&gt; GATEWAYS
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a># Should list all configured gateways; check &quot;Connected&quot; column
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>[GW_ADMIN|ADMIN]&gt; SESSION_STATUS
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a># Should print the current session state (PRE_OPEN, CONTINUOUS, etc.)
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>[GW_ADMIN|ADMIN]&gt; SCHEDULE
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a># Should print the timing configuration if sessions_enabled is true
 </code></pre></div>
 <p><strong>d) Verify ZeroMQ ports are bound</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>lsof<span class="w"> </span>-i<span class="w"> </span>:5555<span class="w"> </span>-i<span class="w"> </span>:5556<span class="w"> </span>-i<span class="w"> </span>:5557
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>lsof<span class="w"> </span>-i<span class="w"> </span>:5555<span class="w"> </span>-i<span class="w"> </span>:5556<span class="w"> </span>-i<span class="w"> </span>:5557
 </code></pre></div>
 <p>Expected output shows three lines for the <code>pm-engine</code> process:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>COMMAND   PID  USER   FD   TYPE  NODE NAME
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>Python  12345   ljp   11u  IPv4       *:5555 (LISTEN)
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>Python  12345   ljp   12u  IPv4       *:5556 (LISTEN)
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>Python  12345   ljp   13u  IPv4       *:5557 (LISTEN)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>COMMAND   PID  USER   FD   TYPE  NODE NAME
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>Python  12345   ljp   11u  IPv4       *:5555 (LISTEN)
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>Python  12345   ljp   12u  IPv4       *:5556 (LISTEN)
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>Python  12345   ljp   13u  IPv4       *:5557 (LISTEN)
 </code></pre></div>
 <p><strong>e) Submit a test order end-to-end</strong></p>
 <p>From a <code>pm-gateway</code> terminal:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
 </code></pre></div>
 <p>Expected response: <code>ACK  order_id=...  status=NEW</code></p>
 <p>If the order is acknowledged, the full path (gateway → engine PULL → engine
@@ -2702,11 +2775,11 @@ matching logic → engine PUB → gateway SUB) is working:</p>
 <p>After submitting the test order above, <code>pm-viewer --symbol AAPL</code> should
 update to show a 100-share bid at 150.00.</p>
 <p><strong>g) Verify audit logging</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>tail<span class="w"> </span>-5<span class="w"> </span>data/audit.log
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>tail<span class="w"> </span>-5<span class="w"> </span>data/audit.log
 </code></pre></div>
 <p>Expected format — one entry per line:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[2026-06-14T09:31:02.114] [order.ack.TRADER01] {&quot;order_id&quot;: &quot;3f2a...&quot;, &quot;accepted&quot;: true, ...}
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>[2026-06-14T09:31:02.115] [book.AAPL] {&quot;bids&quot;: [...], &quot;asks&quot;: [...], ...}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>[2026-06-14T09:31:02.114] [order.ack.TRADER01] {&quot;order_id&quot;: &quot;3f2a...&quot;, &quot;accepted&quot;: true, ...}
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>[2026-06-14T09:31:02.115] [book.AAPL] {&quot;bids&quot;: [...], &quot;asks&quot;: [...], ...}
 </code></pre></div>
 <p>If the file does not exist, <code>pm-audit</code> either was not started or failed to create
 the <code>data/</code> directory.</p>
@@ -2744,7 +2817,7 @@ the <code>data/</code> directory.</p>
 </tbody>
 </table>
 <h3 id="gateway-authentication-timeout">Gateway authentication timeout<a class="headerlink" href="#gateway-authentication-timeout" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>Gateway authentication timed out.  Is the engine running at tcp://127.0.0.1:5555?
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>Gateway authentication timed out.  Is the engine running at tcp://127.0.0.1:5555?
 </code></pre></div>
 <p>Causes (in order of likelihood):</p>
 <ol>
@@ -2771,30 +2844,30 @@ block is missing, use <code>--now</code> mode for testing or add a schedule to y
 <h3 id="pm-admin-refuses-connection-with-auth-refused-role-is-not-admin"><code>pm-admin</code> refuses connection with <code>Auth refused: role is not ADMIN</code><a class="headerlink" href="#pm-admin-refuses-connection-with-auth-refused-role-is-not-admin" title="Permanent link">&para;</a></h3>
 <p>The gateway ID you passed to <code>--id</code> exists in the config but does not have
 <code>role: ADMIN</code>.  Update the config:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW_ADMIN</span>
-<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
-<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Operator console</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="nt">gateways</span><span class="p">:</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW_ADMIN</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Operator console</span>
 </code></pre></div>
 <p>Restart the engine after editing the config.</p>
 <h3 id="general-diagnostics">General diagnostics<a class="headerlink" href="#general-diagnostics" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="c1"># Check all pm- processes are running</span>
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>ps<span class="w"> </span>aux<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>pm-
-<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>
-<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="c1"># Check ZMQ ports</span>
-<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>lsof<span class="w"> </span>-i<span class="w"> </span>:5555<span class="w"> </span>-i<span class="w"> </span>:5556<span class="w"> </span>-i<span class="w"> </span>:5557
-<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>
-<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="c1"># Check the most recent audit events (topic is embedded in the line, not a JSON field)</span>
-<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a>tail<span class="w"> </span>-20<span class="w"> </span>data/audit.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">&#39;{print $2}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tr<span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;[]&#39;</span>
-<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a>
-<a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a><span class="c1"># Check the engine config parsed cleanly</span>
-<a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
-<a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a><span class="s2">from edumatcher.engine.config_loader import load_engine_config</span>
-<a id="__codelineno-21-13" name="__codelineno-21-13" href="#__codelineno-21-13"></a><span class="s2">cfg = load_engine_config(&#39;engine_config.yaml&#39;)</span>
-<a id="__codelineno-21-14" name="__codelineno-21-14" href="#__codelineno-21-14"></a><span class="s2">print(&#39;Symbols:&#39;, sorted(cfg.symbols.keys()) if cfg else &#39;None (unrestricted)&#39;)</span>
-<a id="__codelineno-21-15" name="__codelineno-21-15" href="#__codelineno-21-15"></a><span class="s2">print(&#39;Gateways:&#39;, sorted(cfg.fix_gateways.keys()) if cfg else &#39;None (unrestricted)&#39;)</span>
-<a id="__codelineno-21-16" name="__codelineno-21-16" href="#__codelineno-21-16"></a><span class="s2">&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="c1"># Check all pm- processes are running</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>ps<span class="w"> </span>aux<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>pm-
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="c1"># Check ZMQ ports</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>lsof<span class="w"> </span>-i<span class="w"> </span>:5555<span class="w"> </span>-i<span class="w"> </span>:5556<span class="w"> </span>-i<span class="w"> </span>:5557
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="c1"># Check the most recent audit events (topic is embedded in the line, not a JSON field)</span>
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>tail<span class="w"> </span>-20<span class="w"> </span>data/audit.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">&#39;{print $2}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tr<span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;[]&#39;</span>
+<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>
+<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a><span class="c1"># Check the engine config parsed cleanly</span>
+<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-22-12" name="__codelineno-22-12" href="#__codelineno-22-12"></a><span class="s2">from edumatcher.engine.config_loader import load_engine_config</span>
+<a id="__codelineno-22-13" name="__codelineno-22-13" href="#__codelineno-22-13"></a><span class="s2">cfg = load_engine_config(&#39;engine_config.yaml&#39;)</span>
+<a id="__codelineno-22-14" name="__codelineno-22-14" href="#__codelineno-22-14"></a><span class="s2">print(&#39;Symbols:&#39;, sorted(cfg.symbols.keys()) if cfg else &#39;None (unrestricted)&#39;)</span>
+<a id="__codelineno-22-15" name="__codelineno-22-15" href="#__codelineno-22-15"></a><span class="s2">print(&#39;Gateways:&#39;, sorted(cfg.fix_gateways.keys()) if cfg else &#39;None (unrestricted)&#39;)</span>
+<a id="__codelineno-22-16" name="__codelineno-22-16" href="#__codelineno-22-16"></a><span class="s2">&quot;</span>
 </code></pre></div>
 <h2 id="monitoring-a-running-exchange">Monitoring a running exchange<a class="headerlink" href="#monitoring-a-running-exchange" title="Permanent link">&para;</a></h2>
 <h3 id="continuous-visual-monitoring">Continuous visual monitoring<a class="headerlink" href="#continuous-visual-monitoring" title="Permanent link">&para;</a></h3>
@@ -2843,112 +2916,112 @@ block is missing, use <code>--now</code> mode for testing or add a schedule to y
 <p>Both require an <code>ADMIN</code>-role gateway ID (<code>--id GW_ADMIN</code>) and the engine to be
 running.</p>
 <h4 id="interactive-console-pm-admin">Interactive console (<code>pm-admin</code>)<a class="headerlink" href="#interactive-console-pm-admin" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>pm-admin<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION_STATUS
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>Session state : CONTINUOUS
-<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>Sessions      : enabled
-<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>
-<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>[GW_ADMIN|ADMIN]&gt; SCHEDULE
-<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>Sessions enabled : true
-<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a>PRE_OPEN          : 09:00
-<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>OPENING_AUCTION   : 09:25
-<a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a>CONTINUOUS        : 09:30
-<a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a>CLOSING_AUCTION   : 16:00
-<a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a>CLOSING_AUCTION_END: 16:05
-<a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a>
-<a id="__codelineno-23-13" name="__codelineno-23-13" href="#__codelineno-23-13"></a>[GW_ADMIN|ADMIN]&gt; GATEWAYS
-<a id="__codelineno-23-14" name="__codelineno-23-14" href="#__codelineno-23-14"></a>ID          Role          Connected
-<a id="__codelineno-23-15" name="__codelineno-23-15" href="#__codelineno-23-15"></a>----------  ------------  ----------
-<a id="__codelineno-23-16" name="__codelineno-23-16" href="#__codelineno-23-16"></a>TRADER01    TRADER        yes
-<a id="__codelineno-23-17" name="__codelineno-23-17" href="#__codelineno-23-17"></a>MM01        MARKET_MAKER  yes
-<a id="__codelineno-23-18" name="__codelineno-23-18" href="#__codelineno-23-18"></a>GW_ADMIN    ADMIN         yes
-<a id="__codelineno-23-19" name="__codelineno-23-19" href="#__codelineno-23-19"></a>
-<a id="__codelineno-23-20" name="__codelineno-23-20" href="#__codelineno-23-20"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=AAPL
-<a id="__codelineno-23-21" name="__codelineno-23-21" href="#__codelineno-23-21"></a>AAPL   bid 149.90 x 500   ask 150.10 x 500   last 149.95
-<a id="__codelineno-23-22" name="__codelineno-23-22" href="#__codelineno-23-22"></a>
-<a id="__codelineno-23-23" name="__codelineno-23-23" href="#__codelineno-23-23"></a>[GW_ADMIN|ADMIN]&gt; ORDERS|GW=TRADER01
-<a id="__codelineno-23-24" name="__codelineno-23-24" href="#__codelineno-23-24"></a>order_id  sym   side  type   qty  price   status
-<a id="__codelineno-23-25" name="__codelineno-23-25" href="#__codelineno-23-25"></a>--------  ----  ----  -----  ---  ------  ------
-<a id="__codelineno-23-26" name="__codelineno-23-26" href="#__codelineno-23-26"></a>...
-<a id="__codelineno-23-27" name="__codelineno-23-27" href="#__codelineno-23-27"></a>
-<a id="__codelineno-23-28" name="__codelineno-23-28" href="#__codelineno-23-28"></a>[GW_ADMIN|ADMIN]&gt; VOLUME
-<a id="__codelineno-23-29" name="__codelineno-23-29" href="#__codelineno-23-29"></a>Symbol   Qty    Value        Trades
-<a id="__codelineno-23-30" name="__codelineno-23-30" href="#__codelineno-23-30"></a>------   -----  -----------  ------
-<a id="__codelineno-23-31" name="__codelineno-23-31" href="#__codelineno-23-31"></a>AAPL     1 200  179 940.00        8
-<a id="__codelineno-23-32" name="__codelineno-23-32" href="#__codelineno-23-32"></a>TOTAL    1 200  179 940.00        8
-<a id="__codelineno-23-33" name="__codelineno-23-33" href="#__codelineno-23-33"></a>
-<a id="__codelineno-23-34" name="__codelineno-23-34" href="#__codelineno-23-34"></a>[GW_ADMIN|ADMIN]&gt; SYMBOLS
-<a id="__codelineno-23-35" name="__codelineno-23-35" href="#__codelineno-23-35"></a>AAPL  MSFT  TSLA
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION_STATUS
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>Session state : CONTINUOUS
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>Sessions      : enabled
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>[GW_ADMIN|ADMIN]&gt; SCHEDULE
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>Sessions enabled : true
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a>PRE_OPEN          : 09:00
+<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>OPENING_AUCTION   : 09:25
+<a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a>CONTINUOUS        : 09:30
+<a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a>CLOSING_AUCTION   : 16:00
+<a id="__codelineno-24-11" name="__codelineno-24-11" href="#__codelineno-24-11"></a>CLOSING_AUCTION_END: 16:05
+<a id="__codelineno-24-12" name="__codelineno-24-12" href="#__codelineno-24-12"></a>
+<a id="__codelineno-24-13" name="__codelineno-24-13" href="#__codelineno-24-13"></a>[GW_ADMIN|ADMIN]&gt; GATEWAYS
+<a id="__codelineno-24-14" name="__codelineno-24-14" href="#__codelineno-24-14"></a>ID          Role          Connected
+<a id="__codelineno-24-15" name="__codelineno-24-15" href="#__codelineno-24-15"></a>----------  ------------  ----------
+<a id="__codelineno-24-16" name="__codelineno-24-16" href="#__codelineno-24-16"></a>TRADER01    TRADER        yes
+<a id="__codelineno-24-17" name="__codelineno-24-17" href="#__codelineno-24-17"></a>MM01        MARKET_MAKER  yes
+<a id="__codelineno-24-18" name="__codelineno-24-18" href="#__codelineno-24-18"></a>GW_ADMIN    ADMIN         yes
+<a id="__codelineno-24-19" name="__codelineno-24-19" href="#__codelineno-24-19"></a>
+<a id="__codelineno-24-20" name="__codelineno-24-20" href="#__codelineno-24-20"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=AAPL
+<a id="__codelineno-24-21" name="__codelineno-24-21" href="#__codelineno-24-21"></a>AAPL   bid 149.90 x 500   ask 150.10 x 500   last 149.95
+<a id="__codelineno-24-22" name="__codelineno-24-22" href="#__codelineno-24-22"></a>
+<a id="__codelineno-24-23" name="__codelineno-24-23" href="#__codelineno-24-23"></a>[GW_ADMIN|ADMIN]&gt; ORDERS|GW=TRADER01
+<a id="__codelineno-24-24" name="__codelineno-24-24" href="#__codelineno-24-24"></a>order_id  sym   side  type   qty  price   status
+<a id="__codelineno-24-25" name="__codelineno-24-25" href="#__codelineno-24-25"></a>--------  ----  ----  -----  ---  ------  ------
+<a id="__codelineno-24-26" name="__codelineno-24-26" href="#__codelineno-24-26"></a>...
+<a id="__codelineno-24-27" name="__codelineno-24-27" href="#__codelineno-24-27"></a>
+<a id="__codelineno-24-28" name="__codelineno-24-28" href="#__codelineno-24-28"></a>[GW_ADMIN|ADMIN]&gt; VOLUME
+<a id="__codelineno-24-29" name="__codelineno-24-29" href="#__codelineno-24-29"></a>Symbol   Qty    Value        Trades
+<a id="__codelineno-24-30" name="__codelineno-24-30" href="#__codelineno-24-30"></a>------   -----  -----------  ------
+<a id="__codelineno-24-31" name="__codelineno-24-31" href="#__codelineno-24-31"></a>AAPL     1 200  179 940.00        8
+<a id="__codelineno-24-32" name="__codelineno-24-32" href="#__codelineno-24-32"></a>TOTAL    1 200  179 940.00        8
+<a id="__codelineno-24-33" name="__codelineno-24-33" href="#__codelineno-24-33"></a>
+<a id="__codelineno-24-34" name="__codelineno-24-34" href="#__codelineno-24-34"></a>[GW_ADMIN|ADMIN]&gt; SYMBOLS
+<a id="__codelineno-24-35" name="__codelineno-24-35" href="#__codelineno-24-35"></a>AAPL  MSFT  TSLA
 </code></pre></div>
 <h4 id="single-shot-cli-pm-admin-cli">Single-shot CLI (<code>pm-admin-cli</code>)<a class="headerlink" href="#single-shot-cli-pm-admin-cli" title="Permanent link">&para;</a></h4>
 <p>Each interactive command maps to a subcommand.  Pipe or capture the output
 like any shell command.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1"># Read-only queries</span>
-<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session-status
-<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>schedule
-<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>gateways
-<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>volume
-<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>symbols
-<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>book<span class="w">   </span>--sym<span class="w"> </span>AAPL
-<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>orders<span class="w"> </span>--gw<span class="w"> </span>TRADER01
-<a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a>
-<a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a><span class="c1"># State-changing commands</span>
-<a id="__codelineno-24-11" name="__codelineno-24-11" href="#__codelineno-24-11"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CONTINUOUS
-<a id="__codelineno-24-12" name="__codelineno-24-12" href="#__codelineno-24-12"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>halt
-<a id="__codelineno-24-13" name="__codelineno-24-13" href="#__codelineno-24-13"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>resume
-<a id="__codelineno-24-14" name="__codelineno-24-14" href="#__codelineno-24-14"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span><span class="nb">kill</span><span class="w">   </span>--gw<span class="w"> </span>TRADER01
-<a id="__codelineno-24-15" name="__codelineno-24-15" href="#__codelineno-24-15"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span><span class="nb">kill</span><span class="w">   </span>--gw<span class="w"> </span>TRADER01<span class="w"> </span>--sym<span class="w"> </span>AAPL
-<a id="__codelineno-24-16" name="__codelineno-24-16" href="#__codelineno-24-16"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>kick<span class="w">   </span>--gw<span class="w"> </span>TRADER01<span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;Compliance hold&quot;</span>
-<a id="__codelineno-24-17" name="__codelineno-24-17" href="#__codelineno-24-17"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>qcancel<span class="w"> </span>--gw<span class="w"> </span>MM01<span class="w"> </span>--sym<span class="w"> </span>AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="c1"># Read-only queries</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session-status
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>schedule
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>gateways
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>volume
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>symbols
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>book<span class="w">   </span>--sym<span class="w"> </span>AAPL
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>orders<span class="w"> </span>--gw<span class="w"> </span>TRADER01
+<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a>
+<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a><span class="c1"># State-changing commands</span>
+<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CONTINUOUS
+<a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>halt
+<a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>resume
+<a id="__codelineno-25-14" name="__codelineno-25-14" href="#__codelineno-25-14"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span><span class="nb">kill</span><span class="w">   </span>--gw<span class="w"> </span>TRADER01
+<a id="__codelineno-25-15" name="__codelineno-25-15" href="#__codelineno-25-15"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span><span class="nb">kill</span><span class="w">   </span>--gw<span class="w"> </span>TRADER01<span class="w"> </span>--sym<span class="w"> </span>AAPL
+<a id="__codelineno-25-16" name="__codelineno-25-16" href="#__codelineno-25-16"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>kick<span class="w">   </span>--gw<span class="w"> </span>TRADER01<span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;Compliance hold&quot;</span>
+<a id="__codelineno-25-17" name="__codelineno-25-17" href="#__codelineno-25-17"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>qcancel<span class="w"> </span>--gw<span class="w"> </span>MM01<span class="w"> </span>--sym<span class="w"> </span>AAPL
 </code></pre></div>
 <p>Use <code>--timeout MS</code> (default 3000 ms) and <code>--push</code> / <code>--sub</code> to override
 defaults when the engine is on a remote host:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="w">    </span>--push<span class="w"> </span>tcp://192.168.1.10:5555<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="w">    </span>--sub<span class="w">  </span>tcp://192.168.1.10:5556<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="w">    </span>--timeout<span class="w"> </span><span class="m">5000</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="w">    </span>session-status
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="w">    </span>--push<span class="w"> </span>tcp://192.168.1.10:5555<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="w">    </span>--sub<span class="w">  </span>tcp://192.168.1.10:5556<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="w">    </span>--timeout<span class="w"> </span><span class="m">5000</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="w">    </span>session-status
 </code></pre></div>
 <p>The exit code makes it easy to compose with <code>&amp;&amp;</code> or <code>||</code> in shell scripts:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session-status<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="w">    </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-q<span class="w"> </span>CONTINUOUS<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Market is open&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="w">    </span><span class="o">||</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Market is closed&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session-status<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="w">    </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-q<span class="w"> </span>CONTINUOUS<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Market is open&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="w">    </span><span class="o">||</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Market is closed&quot;</span>
 </code></pre></div>
 <h3 id="health-check-script">Health check script<a class="headerlink" href="#health-check-script" title="Permanent link">&para;</a></h3>
 <p>A minimal shell health check suitable for a cron job or monitoring system:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="ch">#!/bin/bash</span>
-<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="c1"># health_check.sh — exit 0 if exchange appears healthy, 1 otherwise</span>
-<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>
-<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="c1"># 1. Engine ports bound</span>
-<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>lsof<span class="w"> </span>-i<span class="w"> </span>:5555<span class="w"> </span>&gt;/dev/null<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">{</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;FAIL: engine port 5555 not bound&quot;</span><span class="p">;</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="o">}</span>
-<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>lsof<span class="w"> </span>-i<span class="w"> </span>:5556<span class="w"> </span>&gt;/dev/null<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">{</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;FAIL: engine port 5556 not bound&quot;</span><span class="p">;</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="o">}</span>
-<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>
-<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a><span class="c1"># 2. Engine process running</span>
-<a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a>pgrep<span class="w"> </span>-f<span class="w"> </span><span class="s2">&quot;pm-engine&quot;</span><span class="w"> </span>&gt;/dev/null<span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">{</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;FAIL: pm-engine not found&quot;</span><span class="p">;</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="o">}</span>
-<a id="__codelineno-27-10" name="__codelineno-27-10" href="#__codelineno-27-10"></a>
-<a id="__codelineno-27-11" name="__codelineno-27-11" href="#__codelineno-27-11"></a><span class="c1"># 3. ADMIN console can query session state</span>
-<a id="__codelineno-27-12" name="__codelineno-27-12" href="#__codelineno-27-12"></a><span class="nv">SESSION</span><span class="o">=</span><span class="k">$(</span>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>--timeout<span class="w"> </span><span class="m">2000</span><span class="w"> </span>session-status<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="k">)</span>
-<a id="__codelineno-27-13" name="__codelineno-27-13" href="#__codelineno-27-13"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$SESSION</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-q<span class="w"> </span><span class="s2">&quot;Session state&quot;</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">{</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;FAIL: could not query session state&quot;</span><span class="p">;</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="o">}</span>
-<a id="__codelineno-27-14" name="__codelineno-27-14" href="#__codelineno-27-14"></a>
-<a id="__codelineno-27-15" name="__codelineno-27-15" href="#__codelineno-27-15"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;OK: </span><span class="nv">$SESSION</span><span class="s2">&quot;</span>
-<a id="__codelineno-27-16" name="__codelineno-27-16" href="#__codelineno-27-16"></a><span class="nb">exit</span><span class="w"> </span><span class="m">0</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="ch">#!/bin/bash</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="c1"># health_check.sh — exit 0 if exchange appears healthy, 1 otherwise</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="c1"># 1. Engine ports bound</span>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>lsof<span class="w"> </span>-i<span class="w"> </span>:5555<span class="w"> </span>&gt;/dev/null<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">{</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;FAIL: engine port 5555 not bound&quot;</span><span class="p">;</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="o">}</span>
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>lsof<span class="w"> </span>-i<span class="w"> </span>:5556<span class="w"> </span>&gt;/dev/null<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">{</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;FAIL: engine port 5556 not bound&quot;</span><span class="p">;</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="o">}</span>
+<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a>
+<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a><span class="c1"># 2. Engine process running</span>
+<a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a>pgrep<span class="w"> </span>-f<span class="w"> </span><span class="s2">&quot;pm-engine&quot;</span><span class="w"> </span>&gt;/dev/null<span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">{</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;FAIL: pm-engine not found&quot;</span><span class="p">;</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="o">}</span>
+<a id="__codelineno-28-10" name="__codelineno-28-10" href="#__codelineno-28-10"></a>
+<a id="__codelineno-28-11" name="__codelineno-28-11" href="#__codelineno-28-11"></a><span class="c1"># 3. ADMIN console can query session state</span>
+<a id="__codelineno-28-12" name="__codelineno-28-12" href="#__codelineno-28-12"></a><span class="nv">SESSION</span><span class="o">=</span><span class="k">$(</span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>--timeout<span class="w"> </span><span class="m">2000</span><span class="w"> </span>session-status<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="k">)</span>
+<a id="__codelineno-28-13" name="__codelineno-28-13" href="#__codelineno-28-13"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$SESSION</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-q<span class="w"> </span><span class="s2">&quot;Session state&quot;</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">{</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;FAIL: could not query session state&quot;</span><span class="p">;</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span><span class="p">;</span><span class="w"> </span><span class="o">}</span>
+<a id="__codelineno-28-14" name="__codelineno-28-14" href="#__codelineno-28-14"></a>
+<a id="__codelineno-28-15" name="__codelineno-28-15" href="#__codelineno-28-15"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;OK: </span><span class="nv">$SESSION</span><span class="s2">&quot;</span>
+<a id="__codelineno-28-16" name="__codelineno-28-16" href="#__codelineno-28-16"></a><span class="nb">exit</span><span class="w"> </span><span class="m">0</span>
 </code></pre></div>
 <h3 id="log-based-monitoring">Log-based monitoring<a class="headerlink" href="#log-based-monitoring" title="Permanent link">&para;</a></h3>
 <p><code>data/audit.log</code> uses a line format of <code>[TIMESTAMP] [TOPIC] {JSON_PAYLOAD}</code> — the topic is embedded in the line, not a JSON field. Use <code>grep</code> on the topic and <code>jq</code> on the trailing JSON:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1"># Stream every trade as it happens</span>
-<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>tail<span class="w"> </span>-f<span class="w"> </span>data/audit.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s1">&#39;\[trade.executed\]&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">&#39;{$1=$2=&quot;&quot;; print $0}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;{sym: .symbol, price, qty: .quantity}&#39;</span>
-<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>
-<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="c1"># Count fills per gateway in the last 1000 events</span>
-<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>tail<span class="w"> </span>-1000<span class="w"> </span>data/audit.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s1">&#39;\[order.fill\.&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">&#39;{$1=$2=&quot;&quot;; print $0}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.gateway_id&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sort<span class="w"> </span><span class="p">|</span><span class="w"> </span>uniq<span class="w"> </span>-c<span class="w"> </span><span class="p">|</span><span class="w"> </span>sort<span class="w"> </span>-rn
-<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>
-<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="c1"># Find the most recent session-state change</span>
-<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a>grep<span class="w"> </span><span class="s1">&#39;\[session.state\]&#39;</span><span class="w"> </span>data/audit.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-1<span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">&#39;{$1=$2=&quot;&quot;; print $0}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="c1"># Stream every trade as it happens</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>tail<span class="w"> </span>-f<span class="w"> </span>data/audit.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s1">&#39;\[trade.executed\]&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">&#39;{$1=$2=&quot;&quot;; print $0}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;{sym: .symbol, price, qty: .quantity}&#39;</span>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="c1"># Count fills per gateway in the last 1000 events</span>
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>tail<span class="w"> </span>-1000<span class="w"> </span>data/audit.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s1">&#39;\[order.fill\.&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">&#39;{$1=$2=&quot;&quot;; print $0}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span><span class="s1">&#39;.gateway_id&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>sort<span class="w"> </span><span class="p">|</span><span class="w"> </span>uniq<span class="w"> </span>-c<span class="w"> </span><span class="p">|</span><span class="w"> </span>sort<span class="w"> </span>-rn
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a>
+<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="c1"># Find the most recent session-state change</span>
+<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>grep<span class="w"> </span><span class="s1">&#39;\[session.state\]&#39;</span><span class="w"> </span>data/audit.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-1<span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">&#39;{$1=$2=&quot;&quot;; print $0}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.&#39;</span>
 </code></pre></div>
 <h3 id="watching-statistics">Watching statistics<a class="headerlink" href="#watching-statistics" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="c1"># Query the SQLite database for live daily stats</span>
-<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">&quot;SELECT symbol, open_price, high_price, low_price, close_price, volume FROM daily_stats ORDER BY symbol;&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># Query the SQLite database for live daily stats</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">&quot;SELECT symbol, open_price, high_price, low_price, close_price, volume FROM daily_stats ORDER BY symbol;&quot;</span>
 </code></pre></div>
 <p>See <a href="../10-processes/#pm-stats--statistics-recorder">pm-stats — Statistics Recorder</a> for the full database schema (<code>daily_stats</code>, <code>price_snapshots</code>, <code>trade_log</code>) and details on how each statistic is computed.</p>
 <h2 id="frequently-asked-questions">Frequently asked questions<a class="headerlink" href="#frequently-asked-questions" title="Permanent link">&para;</a></h2>
@@ -2977,11 +3050,11 @@ accepted.  This is useful for quick tests but not for structured sessions.</p>
 <p>In unrestricted mode a new order book is created automatically the first time
 an order for that symbol arrives.  The engine's internal <code>_book(symbol)</code> helper
 does this lazily:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># engine/main.py — called on every incoming order</span>
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">_book</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">symbol</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">OrderBook</span><span class="p">:</span>
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>    <span class="k">if</span> <span class="n">symbol</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">books</span><span class="p">:</span>
-<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">books</span><span class="p">[</span><span class="n">symbol</span><span class="p">]</span> <span class="o">=</span> <span class="n">OrderBook</span><span class="p">(</span><span class="n">symbol</span><span class="p">)</span>   <span class="c1"># created on first use</span>
-<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">books</span><span class="p">[</span><span class="n">symbol</span><span class="p">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="c1"># engine/main.py — called on every incoming order</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">_book</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">symbol</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">OrderBook</span><span class="p">:</span>
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>    <span class="k">if</span> <span class="n">symbol</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">books</span><span class="p">:</span>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">books</span><span class="p">[</span><span class="n">symbol</span><span class="p">]</span> <span class="o">=</span> <span class="n">OrderBook</span><span class="p">(</span><span class="n">symbol</span><span class="p">)</span>   <span class="c1"># created on first use</span>
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">books</span><span class="p">[</span><span class="n">symbol</span><span class="p">]</span>
 </code></pre></div>
 <p>When a <code>symbols:</code> block is present in <code>engine_config.yaml</code>, the engine builds
 an allowlist at startup.  Every incoming order is validated against that list
@@ -3022,27 +3095,27 @@ expire.  GTC orders are saved on clean shutdown and reloaded on the next start.<
 </table>
 <p>You can override this at runtime with <code>KICK|GW=&lt;gw&gt;</code> from the ADMIN console.</p>
 <h3 id="what-is-the-correct-order-if-i-want-to-use-the-scheduler">What is the correct order if I want to use the scheduler?<a class="headerlink" href="#what-is-the-correct-order-if-i-want-to-use-the-scheduler" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>1. pm-engine    — binds sockets, loads config
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>2. pm-scheduler — connects to engine; waits for the first scheduled time
-<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>3. pm-gateway   — one per participant
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>4. (optional observers)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>1. pm-engine    — binds sockets, loads config
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>2. pm-scheduler — connects to engine; waits for the first scheduled time
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>3. pm-gateway   — one per participant
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a>4. (optional observers)
 </code></pre></div>
 <p>The scheduler must connect before the first scheduled transition time arrives,
 otherwise it misses that transition and waits for the next one.</p>
 <h3 id="how-do-i-run-sessions-without-waiting-for-real-clock-times">How do I run sessions without waiting for real clock times?<a class="headerlink" href="#how-do-i-run-sessions-without-waiting-for-real-clock-times" title="Permanent link">&para;</a></h3>
 <p>Use <code>--now</code> mode on the scheduler:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--now<span class="w"> </span>--delay<span class="w"> </span><span class="m">10</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>pm-scheduler<span class="w"> </span>--now<span class="w"> </span>--delay<span class="w"> </span><span class="m">10</span>
 </code></pre></div>
 <p>This fires all transitions (PRE_OPEN → OPENING_AUCTION → CONTINUOUS →
 CLOSING_AUCTION → CLOSED) with a 10-second pause between each, ignoring
 the wall-clock schedule entirely.  Ideal for classroom demos and testing.</p>
 <h3 id="how-do-i-advance-the-session-phase-manually">How do I advance the session phase manually?<a class="headerlink" href="#how-do-i-advance-the-session-phase-manually" title="Permanent link">&para;</a></h3>
 <p>Use the ADMIN console (requires an <code>ADMIN</code>-role gateway):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>poetry run pm-admin --id GW_ADMIN
-<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-admin --id GW_ADMIN
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
 </code></pre></div>
 <p>Or with the CLI tool (useful in scripts):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CONTINUOUS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CONTINUOUS
 </code></pre></div>
 <h3 id="how-do-i-cleanly-shut-down-the-exchange">How do I cleanly shut down the exchange?<a class="headerlink" href="#how-do-i-cleanly-shut-down-the-exchange" title="Permanent link">&para;</a></h3>
 <p>Press <code>Ctrl-C</code> on the <code>pm-engine</code> terminal.  The engine will:</p>
@@ -3054,13 +3127,13 @@ the wall-clock schedule entirely.  Ideal for classroom demos and testing.</p>
 </ol>
 <p>All other processes detect the socket closure and exit cleanly.  For scripted
 shutdown, send <code>SIGINT</code> to the engine PID:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pkill<span class="w"> </span>-INT<span class="w"> </span>-f<span class="w"> </span>pm-engine
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pkill<span class="w"> </span>-INT<span class="w"> </span>-f<span class="w"> </span>pm-engine
 </code></pre></div>
 <h3 id="launch_allsh-opens-too-many-terminal-windows-is-there-a-tmux-alternative"><code>launch_all.sh</code> opens too many terminal windows. Is there a tmux alternative?<a class="headerlink" href="#launch_allsh-opens-too-many-terminal-windows-is-there-a-tmux-alternative" title="Permanent link">&para;</a></h3>
 <p>Yes. Replace the <code>_term</code> function with a <code>tmux new-window</code> call:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>_term<span class="o">()</span><span class="w"> </span><span class="o">{</span>
-<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a><span class="w">    </span>tmux<span class="w"> </span>new-window<span class="w"> </span>-d<span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$1</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">&#39;{print $3}&#39;</span><span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;cd &#39;</span><span class="nv">$DIR</span><span class="s2">&#39; &amp;&amp; </span><span class="nv">$1</span><span class="s2">&quot;</span>
-<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a><span class="o">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>_term<span class="o">()</span><span class="w"> </span><span class="o">{</span>
+<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a><span class="w">    </span>tmux<span class="w"> </span>new-window<span class="w"> </span>-d<span class="w"> </span>-n<span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$1</span><span class="s2">&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">&#39;{print $3}&#39;</span><span class="k">)</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;cd &#39;</span><span class="nv">$DIR</span><span class="s2">&#39; &amp;&amp; </span><span class="nv">$1</span><span class="s2">&quot;</span>
+<a id="__codelineno-37-3" name="__codelineno-37-3" href="#__codelineno-37-3"></a><span class="o">}</span>
 </code></pre></div>
 <p>This opens each process in a new <code>tmux</code> window instead of a new Terminal
 application window.  Run <code>tmux new-session -d -s edumatcher</code> first to create
