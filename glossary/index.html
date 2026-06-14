@@ -1155,6 +1155,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/21-app-balf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix - BALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/22-app-calf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix - CALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1970,6 +2026,7 @@ the limit price and any unfilled remainder is immediately cancelled. Never
 rests on the book. See <a href="../user-guide/04-order-types/#10-ioc-immediate-or-cancel">Order Types</a>.</p>
 <p><strong>IPO (Initial Public Offering):</strong> The first sale of a company's shares to the general public, after which the shares are listed and traded on a stock exchange.</p>
 <p><strong>ISIN (International Securities Identification Number):</strong> A 12-character global identifier for a security, independent of the exchange it trades on. A single company has one ISIN regardless of where its shares are listed.</p>
+<p><strong>ITCH (NASDAQ TotalView-ITCH):</strong> NASDAQ's binary, message-based market data feed protocol for order book dissemination. ITCH publishes sequenced events such as add order, modify/replace, cancel/delete, executions, and auction/trade messages so subscribers can reconstruct the full limit order book deterministically from the stream. Official specification: <a href="https://www.nasdaqtrader.com/content/technicalsupport/specifications/dataproducts/nasdaq_totalview_itch50.pdf">NASDAQ TotalView-ITCH 5.0</a>.</p>
 <h3 id="k">K<a class="headerlink" href="#k" title="Permanent link">&para;</a></h3>
 <p><strong>Kernel Bypass:</strong> Technology that allows a network application to communicate directly with network hardware, bypassing the operating system kernel and reducing latency from microseconds to sub-microsecond.</p>
 <p><strong>Kill Switch:</strong> An emergency control that immediately cancels all resting orders and quotes for a specific participant AND marks their gateway as inactive, preventing new order submission until the participant reconnects and re-authenticates. Triggered by the participant (emergency self-halt), the exchange operator, or automatically on gateway disconnect. Mandatory under most exchange regulations including MiFID II. Contrast with <em>Mass Cancel</em>, which cancels orders but leaves the gateway active.</p>
@@ -1994,6 +2051,7 @@ as a positive number in EduMatcher's P&amp;L ledger.</p>
 <p><strong>Maker:</strong> The participant whose resting order was already in the book when a fill occurred. Contrast with <em>Aggressor/Taker</em>.</p>
 <p><strong>Margin Call:</strong> A demand from a clearing house or broker for a participant to deposit additional collateral to restore their margin account to the required level.</p>
 <p><strong>Mark-to-Market:</strong> The daily revaluation of positions at current market prices, with cash payments made to reflect daily gains and losses. The mechanism by which variation margin is calculated.</p>
+<p><strong>Market capitalisation (market cap):</strong> The total market value of all a company's outstanding shares, calculated as share price multiplied by the total number of shares in existence. If Apple has approximately 15.4 billion shares outstanding and each trades at $190, Apple's market cap is roughly $2.9 trillion [1]. Market cap is the most widely used shorthand for a company's size. When rankings refer to "the world's largest exchange by listed market cap," they are summing the market caps of every company listed there.</p>
 <p><strong>Market data:</strong> The continuous stream of information about what is happening in the book: what prices orders are resting at, how much quantity, and what trades have happened. Display tools (viewer, board, ticker) consume market data.</p>
 <p><strong>Market Fragmentation:</strong> The distribution of trading volume for a single instrument across multiple competing venues, exchanges, dark pools, ATSs, and internalisers. Modern equity markets are highly fragmented; in the US, AAPL may trade simultaneously across a dozen registered exchanges plus numerous alternative venues. Fragmentation improves competition and reduces fees but complicates order routing and best-execution analysis. Regulatory frameworks like Regulation NMS (US) and MiFID II (EU) were introduced partly in response to fragmentation.</p>
 <p><strong>Market Impact / Slippage:</strong> The adverse price movement caused by a large order sweeping through multiple price levels.</p>
@@ -2030,6 +2088,7 @@ Often used as a reference price when the spread is non-zero.</p>
 <p><strong>Order Book:</strong> The central data structure of a matching engine, all resting buy and sell orders for a symbol, organised by price.</p>
 <p><strong>Order ID:</strong> A unique identifier assigned to each order upon submission. Must be unique across the entire system.</p>
 <p><strong>OTC (Over-the-Counter):</strong> Trading that occurs directly between two parties without going through an exchange. OTC trades are less transparent and subject to different regulations than exchange-traded transactions.</p>
+<p><strong>OUCH (NASDAQ OUCH):</strong> NASDAQ's high-performance binary order entry protocol used by member firms and low-latency trading systems to submit, modify, cancel, and manage orders directly at the matching engine. OUCH is session-based and message-oriented, with exchange acknowledgments and execution/cancel responses that let clients track the full order lifecycle deterministically. Official specification: <a href="https://www.nasdaqtrader.com/content/technicalsupport/specifications/TradingProducts/OUCH5.0.pdf">NASDAQ OUCH 5.0</a>.</p>
 <h3 id="p">P<a class="headerlink" href="#p" title="Permanent link">&para;</a></h3>
 <p><strong>P&amp;L (Profit and Loss):</strong> The financial gain or loss on a trading position.</p>
 <p><strong>Passive Order:</strong> See <em>Resting Order</em></p>
@@ -2085,6 +2144,7 @@ execute immediately.</p>
 <p><strong>Share / Stock:</strong> A single unit of equity ownership in a company. Each share represents a fractional claim on the company's assets, earnings, and votes.</p>
 <p><strong>Short Position:</strong> Selling shares you do not own (borrowed from a broker). You profit if the
 price falls. Expressed as a negative number in EduMatcher's P&amp;L ledger.</p>
+<p><strong>Smart Order Router (SOR):</strong> Software that evaluates multiple trading venues and routes orders to achieve the best overall execution, balancing price, fees, available depth, and speed.</p>
 <p><strong>Slippage:</strong> The difference between the expected fill price and the actual average fill
 price, caused by executing against multiple price levels in the book. Large
 orders in thin books experience more slippage.</p>

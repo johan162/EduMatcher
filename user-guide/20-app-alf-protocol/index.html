@@ -18,7 +18,7 @@
         <link rel="prev" href="../13-drop-copy/">
       
       
-        <link rel="next" href="../../architecture/01-architecture/">
+        <link rel="next" href="../21-app-balf-protocol/">
       
       
         
@@ -2027,6 +2027,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#configuration-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-to-watch-out-for-during-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What to watch out for during implementation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#worked-examples" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2102,6 +2124,62 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../21-app-balf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix - BALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../22-app-calf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix - CALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -3432,21 +3510,124 @@ but they are not order-entry messages in the strict sense.</p>
 <a id="__codelineno-57-2" name="__codelineno-57-2" href="#__codelineno-57-2"></a>QUIT
 </code></pre></div>
 <p>Stops the gateway process.</p>
+<h2 id="configuration-reference">Configuration reference<a class="headerlink" href="#configuration-reference" title="Permanent link">&para;</a></h2>
+<p>ALF gateway authorization and behavior are configured in the main engine
+configuration file (<code>engine_config.yaml</code>), under the <code>gateways.alf</code> list.</p>
+<p>Path location:</p>
+<ul>
+<li><code>engine_config.yaml</code> -&gt; <code>gateways</code> -&gt; <code>alf</code> -&gt; list of gateway entries</li>
+</ul>
+<p>All supported ALF gateway configuration fields are listed below.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type / allowed range</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateways.alf[].id</code></td>
+<td>Non-empty string</td>
+<td>None (required)</td>
+<td>Gateway identity used by <code>pm-gateway --id ...</code> and engine allowlist checks.</td>
+</tr>
+<tr>
+<td><code>gateways.alf[].description</code></td>
+<td>String</td>
+<td>Empty string</td>
+<td>Human-readable gateway description.</td>
+</tr>
+<tr>
+<td><code>gateways.alf[].role</code></td>
+<td>Enum: <code>TRADER</code>, <code>MARKET_MAKER</code>, <code>ADMIN</code></td>
+<td><code>TRADER</code></td>
+<td>Participant role used for authorization/policy checks.</td>
+</tr>
+<tr>
+<td><code>gateways.alf[].disconnect_behaviour</code></td>
+<td>Enum: <code>CANCEL_QUOTES_ONLY</code>, <code>CANCEL_ALL</code>, <code>LEAVE_ALL</code></td>
+<td><code>CANCEL_QUOTES_ONLY</code></td>
+<td>Engine behavior applied when that gateway disconnects.</td>
+</tr>
+<tr>
+<td><code>gateways.alf[].quote_refresh_policy</code></td>
+<td>Enum: <code>INACTIVATE_ON_ANY_FILL</code>, <code>INACTIVATE_ON_FULL_FILL</code>, <code>NEVER_INACTIVATE</code></td>
+<td><code>INACTIVATE_ON_ANY_FILL</code></td>
+<td>Controls market-maker quote life-cycle after fills.</td>
+</tr>
+<tr>
+<td><code>gateways.alf[].enforce_mm_obligation</code></td>
+<td>Boolean (<code>true</code>/<code>false</code>)</td>
+<td><code>false</code></td>
+<td>Enables per-gateway market-maker obligation checks.</td>
+</tr>
+<tr>
+<td><code>gateways.alf[].mm_max_spread_ticks</code></td>
+<td>Integer, <code>&gt; 0</code></td>
+<td><code>10</code></td>
+<td>Maximum allowed quote spread for MM obligation checks.</td>
+</tr>
+<tr>
+<td><code>gateways.alf[].mm_min_qty</code></td>
+<td>Integer, <code>&gt; 0</code></td>
+<td><code>100</code></td>
+<td>Minimum quote size for MM obligation checks.</td>
+</tr>
+<tr>
+<td><code>gateways.alf[].mm_obligations</code></td>
+<td>Mapping of symbol -&gt; obligation object</td>
+<td>Empty mapping</td>
+<td>Optional per-symbol MM overrides when configured.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-58-1" name="__codelineno-58-1" href="#__codelineno-58-1"></a><span class="nt">gateways</span><span class="p">:</span>
+<a id="__codelineno-58-2" name="__codelineno-58-2" href="#__codelineno-58-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
+<a id="__codelineno-58-3" name="__codelineno-58-3" href="#__codelineno-58-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-58-4" name="__codelineno-58-4" href="#__codelineno-58-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Human trader workstation</span>
+<a id="__codelineno-58-5" name="__codelineno-58-5" href="#__codelineno-58-5"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER</span>
+<a id="__codelineno-58-6" name="__codelineno-58-6" href="#__codelineno-58-6"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_ALL</span>
+<a id="__codelineno-58-7" name="__codelineno-58-7" href="#__codelineno-58-7"></a><span class="w">      </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
+<a id="__codelineno-58-8" name="__codelineno-58-8" href="#__codelineno-58-8"></a><span class="w">      </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<a id="__codelineno-58-9" name="__codelineno-58-9" href="#__codelineno-58-9"></a><span class="w">      </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-58-10" name="__codelineno-58-10" href="#__codelineno-58-10"></a><span class="w">      </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+</code></pre></div>
+<h2 id="what-to-watch-out-for-during-implementation">What to watch out for during implementation<a class="headerlink" href="#what-to-watch-out-for-during-implementation" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Normalize command verbs, field names, symbols, and enum values to uppercase
+  before validation; mixed-case input is common in real clients.</li>
+<li>Parse segments by splitting only on the first <code>=</code> in each <code>KEY=VALUE</code> token;
+  extra <code>=</code> characters in values should not break parsing.</li>
+<li>Apply last-value-wins behavior for duplicate keys; do not reject a command only
+  because a key appears twice.</li>
+<li>Do not trim field-level whitespace implicitly; only trim line boundaries,
+  otherwise behavior diverges from gateway semantics.</li>
+<li>Treat <code>QTY</code> in <code>AMEND</code> as new total quantity (not delta) and reject values
+  below already-filled quantity.</li>
+<li>Enforce OCO and combo field-shape constraints early (leg numbering, required
+  leg fields) to avoid partial acceptance of malformed multi-leg commands.</li>
+<li>Keep a strict separation between user-facing ALF parsing and internal engine
+  payload format; do not expose internal message details in ALF syntax.</li>
+</ul>
 <h2 id="worked-examples">Worked examples<a class="headerlink" href="#worked-examples" title="Permanent link">&para;</a></h2>
 <h3 id="basic-buy-side-session">Basic buy-side session<a class="headerlink" href="#basic-buy-side-session" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-58-1" name="__codelineno-58-1" href="#__codelineno-58-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
-<a id="__codelineno-58-2" name="__codelineno-58-2" href="#__codelineno-58-2"></a>AMEND|ID=&lt;returned-order-id&gt;|QTY=80
-<a id="__codelineno-58-3" name="__codelineno-58-3" href="#__codelineno-58-3"></a>CANCEL|ID=&lt;returned-order-id&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-59-1" name="__codelineno-59-1" href="#__codelineno-59-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+<a id="__codelineno-59-2" name="__codelineno-59-2" href="#__codelineno-59-2"></a>AMEND|ID=&lt;returned-order-id&gt;|QTY=80
+<a id="__codelineno-59-3" name="__codelineno-59-3" href="#__codelineno-59-3"></a>CANCEL|ID=&lt;returned-order-id&gt;
 </code></pre></div>
 <h3 id="stop-protected-exit">Stop-protected exit<a class="headerlink" href="#stop-protected-exit" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-59-1" name="__codelineno-59-1" href="#__codelineno-59-1"></a>NEW|TYPE=OCO|OCO_ID=EXIT-AAPL|SYM=AAPL|QTY=100|TIF=GTC|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=155.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=148.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-60-1" name="__codelineno-60-1" href="#__codelineno-60-1"></a>NEW|TYPE=OCO|OCO_ID=EXIT-AAPL|SYM=AAPL|QTY=100|TIF=GTC|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=155.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=148.00
 </code></pre></div>
 <h3 id="market-maker-quoting">Market-maker quoting<a class="headerlink" href="#market-maker-quoting" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-60-1" name="__codelineno-60-1" href="#__codelineno-60-1"></a>QUOTE|SYM=MSFT|BID=414.90|ASK=415.10|BID_QTY=250|ASK_QTY=250|QUOTE_ID=MSFT-MM-01
-<a id="__codelineno-60-2" name="__codelineno-60-2" href="#__codelineno-60-2"></a>QUOTE_CANCEL|SYM=MSFT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-61-1" name="__codelineno-61-1" href="#__codelineno-61-1"></a>QUOTE|SYM=MSFT|BID=414.90|ASK=415.10|BID_QTY=250|ASK_QTY=250|QUOTE_ID=MSFT-MM-01
+<a id="__codelineno-61-2" name="__codelineno-61-2" href="#__codelineno-61-2"></a>QUOTE_CANCEL|SYM=MSFT
 </code></pre></div>
 <h3 id="multi-symbol-combo">Multi-symbol combo<a class="headerlink" href="#multi-symbol-combo" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-61-1" name="__codelineno-61-1" href="#__codelineno-61-1"></a>NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=MSFT|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=415.00|LEG1.SYM=AAPL|LEG1.SIDE=SELL|LEG1.QTY=100|LEG1.PRICE=210.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-62-1" name="__codelineno-62-1" href="#__codelineno-62-1"></a>NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=MSFT|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=415.00|LEG1.SYM=AAPL|LEG1.SIDE=SELL|LEG1.QTY=100|LEG1.PRICE=210.00
 </code></pre></div>
 <h2 id="summary-of-important-implementation-truths">Summary of important implementation truths<a class="headerlink" href="#summary-of-important-implementation-truths" title="Permanent link">&para;</a></h2>
 <p>If you are writing another ALF producer, the most important exact behaviors are:</p>
