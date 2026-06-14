@@ -2,6 +2,19 @@
 
 This directory is a lightweight workspace for design ideas across **EduMatcher**: both project-level concepts and supporting infrastructure ideas.
 
+## Design Document Index
+
+- `EduMatcher-Requirements.md`
+- `EduMatcher-Feature_Implementation_Plan.md`
+- `EduMatcher-BALF_Proposal.md`
+- `EduMatcher-Market_Data_Protocol.md`
+- `EduMatcher-MM_Quotes_Implementation_Plan.md`
+- `EduMatcher-Tick_Migration_Plan.md`
+- `EduMatcher-Session-gwy-command.md`
+- `EduMatcher-Index.md`
+- `EduMatcher-Stat-commands.md`
+- `EduMatcher-Cross-host-connection.md`
+
 ### Build PDF Documents
 
 PDFs can be built in both light and dark themes. From this directory, run:

@@ -186,6 +186,7 @@ $(eval $(call DEFINE_DESIGN_DOC_VARS,TICK_MIGRATION_PLAN,EduMatcher-Tick_Migrati
 $(eval $(call DEFINE_DESIGN_DOC_VARS,MARKET_DATA_PROTOCOL,EduMatcher-Market_Data_Protocol,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,SESSION_GWY_COMMAND,EduMatcher-Session-gwy-command,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,INDEX_DESIGN,EduMatcher-Index,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,CROSS_HOST_CONNECTION,EduMatcher-Cross-host-connection,,))
 
 $(eval $(call DEFINE_DESIGN_DOC_VARS,REQUIREMENTS,EduMatcher-Requirements,,))
 
@@ -201,12 +202,14 @@ $(eval $(call DESIGN_DOC_PDF_RULE,TICK_MIGRATION_PLAN,"EduMatcher-Tick_Migration
 $(eval $(call DESIGN_DOC_PDF_RULE,MARKET_DATA_PROTOCOL,"EduMatcher-Market_Data_Protocol"))
 $(eval $(call DESIGN_DOC_PDF_RULE,SESSION_GWY_COMMAND,"EduMatcher-Session-gwy-command"))
 $(eval $(call DESIGN_DOC_PDF_RULE,INDEX_DESIGN,"EduMatcher-Index"))
+$(eval $(call DESIGN_DOC_PDF_RULE,CROSS_HOST_CONNECTION,"EduMatcher-Cross-host-connection"))
 
 $(eval $(call DESIGN_DOC_PDF_RULE,REQUIREMENTS,"EduMatcher-Requirements"))
 
 
 PDF_DESIGN_DOCS := $(BALF_PROPOSAL_PDF) $(FEATURE_IMPLEMENTATION_PDF) $(MM_QUOTES_IMPLEMENTATION_PDF) \
-$(TICK_MIGRATION_PLAN_PDF) $(MARKET_DATA_PROTOCOL_PDF) $(SESSION_GWY_COMMAND_PDF) $(INDEX_DESIGN_PDF)
+$(TICK_MIGRATION_PLAN_PDF) $(MARKET_DATA_PROTOCOL_PDF) $(SESSION_GWY_COMMAND_PDF) $(INDEX_DESIGN_PDF) \
+$(CROSS_HOST_CONNECTION_PDF)
 
 help: ## Show this help message
 	@echo -e "$(DARKYELLOW)OneSelect - Makefile Targets$(NC)"

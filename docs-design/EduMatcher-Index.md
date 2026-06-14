@@ -1,6 +1,6 @@
-Version: 1.0.0
+Version: 1.1.0
 
-Date: 2026-06-12
+Date: 2026-06-14
 
 Status: Design and Research Proposal
 
@@ -24,8 +24,9 @@ Status: Design and Research Proposal
 12. [ZMQ Messages](#12-zmq-messages)
 13. [Gateway Command: `INDEX`](#13-gateway-command-index)
 14. [Configuration Reference](#14-configuration-reference)
-15. [Testing Guide](#15-testing-guide)
-16. [Open Questions and Future Work](#16-open-questions-and-future-work)
+15. [Cross-Host Deployment Notes](#15-cross-host-deployment-notes)
+16. [Testing Guide](#16-testing-guide)
+17. [Open Questions and Future Work](#17-open-questions-and-future-work)
 
 
 
@@ -125,13 +126,13 @@ future price movements will change it.
 
 ```mermaid
 flowchart TD
-    engine["Matching Engine<br/>PUB :5556<br/>trade.executed<br/>session.state"]
+    engine["Matching Engine<br/>PUB :${ENGINE_PUB_PORT:-5556}<br/>trade.executed<br/>session.state"]
     index["pm-index<br/>Subscribes to trade.executed<br/>Subscribes to session.state<br/>Subscribes to system.eod<br/>Recalculates index on each trade<br/>Persists snapshots to disk<br/>Publishes index.update"]
-    gwy["CALF Gateway (pm-md-gwy)<br/>Subscribes to index.update on port 5558<br/>Exposes INDEX channel to external clients"]
+    gwy["CALF Gateway (pm-md-gwy)<br/>Subscribes to index.update on INDEX_PUB_ADDR<br/>Exposes INDEX channel to external clients"]
     ext["External subscribers<br/>(bots, viewers)"]
 
-    engine -->|"ZMQ SUB"| index
-    index -->|"ZMQ PUB :5558"| gwy
+    engine -->|"ZMQ SUB (ENGINE_PUB_ADDR)"| index
+    index -->|"ZMQ PUB (INDEX_PUB_ADDR, default :5558)"| gwy
     gwy -->|"TCP :5570 CALF protocol"| ext
 ```
 
@@ -139,9 +140,9 @@ flowchart TD
 PULL socket — it never sends commands to the engine. It is a pure subscriber that
 reads `trade.executed` events and recomputes the index in real time.
 
-It also binds its own PUB socket on port `5558` for downstream consumers. The
-existing `pm-md-gwy` (CALF gateway) subscribes to this socket and forwards index
-data to external clients via the CALF `INDEX` channel.
+It also binds its own PUB socket on `INDEX_PUB_ADDR` (default port `5558`) for
+downstream consumers. The existing `pm-md-gwy` (CALF gateway) subscribes to this
+socket and forwards index data to external clients via the CALF `INDEX` channel.
 
 ### Why a separate process and not inside the engine?
 
@@ -150,12 +151,12 @@ involves file I/O (history persistence) and potentially slow aggregations across
 many constituents. Keeping it out of the engine loop prevents any index workload
 from adding latency to order processing.
 
-### Why a separate PUB socket on port 5558 and not the engine's port 5556?
+### Why a separate PUB socket and not the engine's main PUB socket?
 
-The engine owns port 5556. The index is calculated externally. Allowing external
+The engine owns `ENGINE_PUB_ADDR` (default port 5556). The index is calculated externally. Allowing external
 processes to publish to the same bus as the engine would break the single-writer
 design assumption and make it impossible to reason about message ordering.
-Port 5558 is reserved for `pm-index` output.
+`INDEX_PUB_ADDR` (default port 5558) is reserved for `pm-index` output.
 
 
 
@@ -838,11 +839,12 @@ This is identical in structure to the `IDX` message and uses the same field name
 
 ### 9.5 pm-md-gwy Changes
 
-In `pm-md-gwy`, add a second SUB socket connecting to `pm-index` on port `5558`:
+In `pm-md-gwy`, add a second SUB socket connecting to `pm-index` on `INDEX_PUB_ADDR`
+(default port `5558`):
 
 ```python
 self._index_sub = context.socket(zmq.SUB)
-self._index_sub.connect(INDEX_PUB_ADDR)   # "tcp://127.0.0.1:5558"
+self._index_sub.connect(INDEX_PUB_ADDR)
 self._index_sub.setsockopt_string(zmq.SUBSCRIBE, "index.")
 ```
 
@@ -866,9 +868,9 @@ sequenceDiagram
     participant I as pm-index
 
     C->>G: INDEX|HISTORY|FROM=...|TO=...
-    G->>I: PUSH 5559 index.history_request
+    G->>I: PUSH INDEX_PULL_ADDR (default :5559) index.history_request
     I->>I: query JSONL + apply limits
-    I-->>G: PUB 5558 topic index.history.{GW_ID}
+    I-->>G: PUB INDEX_PUB_ADDR (default :5558) topic index.history.{GW_ID}
     G-->>C: Rendered HISTORY output
 ```
 
@@ -877,7 +879,7 @@ sequenceDiagram
 ```python
 import socket
 
-s = socket.create_connection(("127.0.0.1", 5570))
+s = socket.create_connection(("md-gateway-host.example", 5570))
 s.sendall(b"HELLO|CLIENT=student01|PROTO=CALF1\n")
 print(s.recv(4096).decode())
 
@@ -904,15 +906,15 @@ The client does not need to know that ZMQ, JSON, or a divisor exist.
 
 - Load index configuration from `engine_config.yaml`.
 - Subscribe to `trade.executed`, `session.state`, `system.eod` on engine PUB
-  port 5556.
+    address (`ENGINE_PUB_ADDR`, default port 5556).
 - Receive `index.corp_action`, `index.constituent_change`, and
-  `index.history_request` on a PULL socket (port 5559).
+    `index.history_request` on a PULL socket (`INDEX_PULL_ADDR`, default port 5559).
 - Recalculate the index on every relevant trade.
 - Throttle publications to `publish_interval_sec`.
 - Track intraday OHLC.
 - Persist history to the JSONL file.
 - Persist divisor and last prices to `index_state.json`.
-- Bind a PUB socket on port 5558 and publish `index.update` messages.
+- Bind a PUB socket on `INDEX_PUB_ADDR` (default port 5558) and publish `index.update` messages.
 - Serve `index.history_request` messages.
 - Publish explicit acks/errors for operator commands and history requests.
 
@@ -1034,12 +1036,26 @@ changes, and history requests) are handled in one poll loop.
 
 #### `src/edumatcher/config.py`
 
-Add two new address constants:
+Add index endpoint configuration that follows the same cross-host model as the
+engine proposal (localhost defaults preserved):
 
 ```python
-INDEX_PUB_ADDR  = "tcp://127.0.0.1:5558"   # pm-index → pm-md-gwy
-INDEX_PULL_ADDR = "tcp://127.0.0.1:5559"   # operator → pm-index (commands)
+# Defaults (unchanged behavior)
+EDUMATCHER_INDEX_BIND_HOST = os.getenv("EDUMATCHER_INDEX_BIND_HOST", "127.0.0.1")
+EDUMATCHER_ENGINE_HOST = os.getenv("EDUMATCHER_ENGINE_HOST", "127.0.0.1")
+EDUMATCHER_INDEX_PUB_PORT = int(os.getenv("EDUMATCHER_INDEX_PUB_PORT", "5558"))
+EDUMATCHER_INDEX_PULL_PORT = int(os.getenv("EDUMATCHER_INDEX_PULL_PORT", "5559"))
+
+INDEX_PUB_ADDR = f"tcp://{EDUMATCHER_INDEX_BIND_HOST}:{EDUMATCHER_INDEX_PUB_PORT}"
+INDEX_PULL_ADDR = f"tcp://{EDUMATCHER_INDEX_BIND_HOST}:{EDUMATCHER_INDEX_PULL_PORT}"
+
+# Clients that connect to pm-index should use the engine/index host override
+INDEX_PUB_CONNECT_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_INDEX_PUB_PORT}"
+INDEX_PULL_CONNECT_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_INDEX_PULL_PORT}"
 ```
+
+If the common endpoint-builder helper from the cross-host proposal exists,
+reuse that helper instead of duplicating string formatting.
 
 #### `src/edumatcher/models/message.py`
 
@@ -1233,14 +1249,14 @@ pm-index = "edumatcher.index.main:main"
 
 | Topic | Direction | Description |
 |---|---|---|
-| `index.update` | `pm-index` → all on port 5558 | Current index level, OHLC, session state |
-| `index.history_request` | Gateway/Operator → `pm-index` via port 5559 | Query history by time range |
-| `index.history.{GW_ID}` | `pm-index` → requestor via port 5558 | History query response |
-| `index.corp_action_ack.{GW_ID}` | `pm-index` → requestor via port 5558 | Corporate action ack/error |
-| `index.constituent_change_ack.{GW_ID}` | `pm-index` → requestor via port 5558 | Add/delist ack/error |
-| `index.error.{GW_ID}` | `pm-index` → requestor via port 5558 | Generic request error |
-| `index.corp_action` | Operator → `pm-index` via port 5559 | Apply corporate action |
-| `index.constituent_change` | Operator → `pm-index` via port 5559 | Add or delist constituent |
+| `index.update` | `pm-index` → all on `INDEX_PUB_ADDR` (default port 5558) | Current index level, OHLC, session state |
+| `index.history_request` | Gateway/Operator → `pm-index` via `INDEX_PULL_ADDR` (default port 5559) | Query history by time range |
+| `index.history.{GW_ID}` | `pm-index` → requestor via `INDEX_PUB_ADDR` | History query response |
+| `index.corp_action_ack.{GW_ID}` | `pm-index` → requestor via `INDEX_PUB_ADDR` | Corporate action ack/error |
+| `index.constituent_change_ack.{GW_ID}` | `pm-index` → requestor via `INDEX_PUB_ADDR` | Add/delist ack/error |
+| `index.error.{GW_ID}` | `pm-index` → requestor via `INDEX_PUB_ADDR` | Generic request error |
+| `index.corp_action` | Operator → `pm-index` via `INDEX_PULL_ADDR` | Apply corporate action |
+| `index.constituent_change` | Operator → `pm-index` via `INDEX_PULL_ADDR` | Add or delist constituent |
 
 ### 12.2 `index.update` Payload
 
@@ -1393,10 +1409,10 @@ INDEX|HISTORY|FROM=2026-06-01|TO=2026-06-12  — query history by date range
 
 Use the existing index sockets directly:
 
-- Subscribe to `pm-index` PUB on `5558` for `index.update` and `index.history.{gateway_id}`.
-- Send index commands and history requests to `pm-index` PULL on `5559`.
+- Subscribe to `pm-index` PUB on `INDEX_PUB_CONNECT_ADDR` (default `:5558`) for `index.update` and `index.history.{gateway_id}`.
+- Send index commands and history requests to `pm-index` PULL on `INDEX_PULL_CONNECT_ADDR` (default `:5559`).
 
-The gateway subscribes to index data directly on port `5558`:
+The gateway subscribes to index data via `INDEX_PUB_CONNECT_ADDR`:
 
 ```python
 # In Gateway.__init__, add a second SUB socket for index data
@@ -1461,7 +1477,8 @@ if cmd == "INDEX":
     return
 ```
 
-`_index_push_sock` is a PUSH socket connecting to `INDEX_PULL_ADDR` (port 5559).
+`_index_push_sock` is a PUSH socket connecting to `INDEX_PULL_CONNECT_ADDR`
+(default port 5559).
 
 ### 13.3 Display Helpers
 
@@ -1567,17 +1584,26 @@ index:
 Add to `src/edumatcher/config.py`:
 
 ```python
+# Bind-side defaults (pm-index process)
 INDEX_PUB_ADDR  = "tcp://127.0.0.1:5558"
 INDEX_PULL_ADDR = "tcp://127.0.0.1:5559"
+
+# Connect-side defaults (clients, gateways, CALF gateway)
+INDEX_PUB_CONNECT_ADDR  = "tcp://127.0.0.1:5558"
+INDEX_PULL_CONNECT_ADDR = "tcp://127.0.0.1:5559"
+
+# Cross-host override pattern (from shared endpoint config model)
+# EDUMATCHER_INDEX_BIND_HOST, EDUMATCHER_ENGINE_HOST,
+# EDUMATCHER_INDEX_PUB_PORT, EDUMATCHER_INDEX_PULL_PORT
 ```
 
 ### 14.3 Process Startup Order
 
 The recommended startup order with `pm-index` added:
 
-1. `pm-engine` — binds PULL :5555 and PUB :5556
-2. `pm-index` — subscribes to engine PUB :5556, binds own PUB :5558 and PULL :5559
-3. `pm-md-gwy` — subscribes to engine PUB :5556 and index PUB :5558
+1. `pm-engine` — binds configured engine PULL/PUB endpoints (defaults :5555/:5556)
+2. `pm-index` — subscribes to engine PUB endpoint, binds own index PUB/PULL endpoints (defaults :5558/:5559)
+3. `pm-md-gwy` — subscribes to engine PUB endpoint and index PUB endpoint
 4. `pm-scheduler` — sends session transitions
 5. Gateways and viewers — connect as usual
 
@@ -1598,9 +1624,42 @@ flowchart TD
     D --> H
 ```
 
+## 15. Cross-Host Deployment Notes
+
+This design is compatible with the cross-host proposal. Localhost remains the
+default if no host/port overrides are provided.
+
+### 15.1 Default (single-host)
+
+- Engine and index bind to `127.0.0.1`
+- All clients connect to localhost
+- Existing behavior unchanged
+
+### 15.2 Cross-host example
+
+Engine/index host: `10.0.0.10`
+
+```bash
+# On host 10.0.0.10
+pm-engine --bind-host 0.0.0.0
+EDUMATCHER_INDEX_BIND_HOST=0.0.0.0 pm-index
+
+# On another host
+pm-gateway --id ST01 --engine-host 10.0.0.10
+pm-md-gwy --engine-host 10.0.0.10
+```
+
+Operational rule: all connect-side processes must target the same engine/index
+host value unless intentionally split.
+
+### 15.3 Troubleshooting pointer
+
+For network-level diagnostics (`lsof`, `nc -vz`, bind/connect mismatch patterns),
+follow the runbook in `docs-design/EduMatcher-Cross-host-connection.md`.
 
 
-## 15. Testing Guide
+
+## 16. Testing Guide
 
 ### 15.1 Unit Tests for `IndexCalculator`
 
@@ -1829,7 +1888,7 @@ flowchart TD
 
 
 
-## 16. Open Questions and Future Work
+## 17. Open Questions and Future Work
 
 ### 16.1 Open Questions
 
