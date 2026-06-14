@@ -71,7 +71,9 @@ class MMQuoteSeed:
     ask_qty: int
     tif: TIF = TIF.DAY
     quote_id: str | None = None
-    seed_once: bool = True  # if True, skip injection when book_stats already has an entry for this symbol
+    seed_once: bool = (
+        True  # if True, skip injection when book_stats already has an entry for this symbol
+    )
 
 
 @dataclass
