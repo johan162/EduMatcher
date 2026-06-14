@@ -290,5 +290,4 @@ CALF gives EduMatcher a readable but production-shaped market-data model:
 This makes CALF a practical bridge between educational clarity and realistic feed behavior.
 
 
-
-[Back to top](#market-data-feed-calf) | [Previous: A Full Trading Day](05-concepts-trading-day.md)
+[Glossary →](../glossary.md)
