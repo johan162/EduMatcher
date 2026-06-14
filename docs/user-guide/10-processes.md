@@ -7,8 +7,8 @@
       message bus rather than a single monolithic program
     - The trade-offs that architecture introduces: scalability and observability
       vs. deployment complexity and latency
-    - The role and responsibilities of each of the ten core runtime processes plus
-      the optional AI trader tools
+    - The role and responsibilities of each of the twelve core runtime processes plus
+      the optional AI trader and admin tools
     - Which processes are mandatory and which are optional observers
     - How to read the message-flow tables to trace an order from submission to fill
 
@@ -32,16 +32,58 @@ as you need any of the following:
 ### The message-bus approach
 
 EduMatcher distributes work across processes connected by a **ZeroMQ message
-bus**:
+bus**. The engine owns three sockets:
 
-```
-Gateways ──PUSH──▶  Engine  ──PUB──▶  All subscribers
-                  (port 5555)        (port 5556)
+```mermaid
+flowchart LR
+    subgraph producers["Producers (PUSH → 5555)"]
+        GW["pm-gateway\n(ALF order entry)"]
+        SCH["pm-scheduler\n(session transitions)"]
+        ADM["pm-admin / pm-admin-cli\n(admin commands)"]
+        AI["pm-ai-trader / pm-ai-swarm\n(AI bots)"]
+    end
+
+    subgraph engine["pm-engine"]
+        PULL["PULL :5555"]
+        PUB["PUB :5556"]
+        DC["PUB :5557\n(drop-copy)"]
+    end
+
+    subgraph subscribers["Subscribers (SUB from 5556)"]
+        VW["pm-viewer"]
+        ORD["pm-orders"]
+        AUD["pm-audit"]
+        CLR["pm-clearing"]
+        STS["pm-stats"]
+        TKR["pm-ticker"]
+        BRD["pm-board"]
+    end
+
+    GW -->|PUSH| PULL
+    SCH -->|PUSH| PULL
+    ADM -->|PUSH| PULL
+    AI -->|PUSH| PULL
+    PUB -->|SUB| GW
+    PUB -->|SUB| VW
+    PUB -->|SUB| ORD
+    PUB -->|SUB| AUD
+    PUB -->|SUB| CLR
+    PUB -->|SUB| STS
+    PUB -->|SUB| TKR
+    PUB -->|SUB| BRD
+    PUB -->|SUB| AI
+    DC -.->|drop-copy SUB| EXT["External risk /\ncompliance systems"]
 ```
 
 The engine is the only process that writes to the order book.  Every other
 process is either a **producer** (sends commands via PUSH) or a **subscriber**
 (reads events via SUB), or both.  No process shares memory with any other.
+
+| Port | Socket type | Bound by | Purpose |
+|------|------------|----------|---------|
+| **5555** | PULL | pm-engine | Receives all inbound commands (orders, cancels, admin) |
+| **5556** | PUB | pm-engine | Broadcasts all market events (fills, book updates, session changes) |
+| **5557** | PUB | pm-engine | Drop-copy feed — fill events tagged per gateway, with sequence numbers and replay support |
 
 This design has concrete advantages:
 
@@ -84,27 +126,39 @@ current state rather than waiting for the next change.
 
 ## Process Overview
 
-A complete EduMatcher session usually uses **ten core runtime processes**, with
-two additional optional AI trader entrypoints available when you want automated
-flow.
+A complete EduMatcher session uses **ten core runtime processes** across three categories, plus optional AI trader and admin entrypoints.
 
 !!! info "Why `pm-`?"
     All CLI commands share the `pm-` prefix, short for **Process for Matching**.
     The prefix avoids name collisions with system utilities and makes it easy to
     identify EduMatcher processes in a process list (`ps aux | grep pm-`).
 
+**Core processes:**
+
 | Process | Command | Role | Required? |
 |---------|---------|------|-----------|
 | **pm-engine** | `poetry run pm-engine` | Matching engine — the single writer | Yes |
-| **pm-gateway** | `poetry run pm-gateway --id GW01` | Order entry terminal (one per trader) | At least one |
+| **pm-gateway** | `poetry run pm-gateway --id GW01` | ALF order entry terminal (one per trader) | At least one |
+| **pm-scheduler** | `poetry run pm-scheduler` | Drives session phase transitions | No |
 | **pm-viewer** | `poetry run pm-viewer --symbol AAPL` | Live order book display | No |
 | **pm-orders** | `poetry run pm-orders` | Cross-gateway order status monitor | No |
-| **pm-audit** | `poetry run pm-audit` | Full event log to disk | No |
-| **pm-clearing** | `poetry run pm-clearing` | P&L and trade settlement | No |
-| **pm-stats** | `poetry run pm-stats` | OHLCV statistics to SQLite | No |
-| **pm-scheduler** | `poetry run pm-scheduler` | Drives session phase transitions | No |
-| **pm-ticker** | `poetry run pm-ticker` | Scrolling market data ticker | No (needs pm-stats) |
 | **pm-board** | `poetry run pm-board` | Full-screen multi-symbol display | No |
+| **pm-ticker** | `poetry run pm-ticker` | Scrolling market data ticker | No (needs pm-stats) |
+| **pm-stats** | `poetry run pm-stats` | OHLCV statistics to SQLite | No |
+| **pm-clearing** | `poetry run pm-clearing` | P&L and trade settlement | No |
+| **pm-audit** | `poetry run pm-audit` | Full event log to disk | No |
+
+**Admin tools:**
+
+| Process | Command | Role | Required? |
+|---------|---------|------|-----------|
+| **pm-admin** | `poetry run pm-admin` | Interactive admin console | No |
+| **pm-admin-cli** | `poetry run pm-admin-cli <command>` | One-shot CLI admin commands | No |
+
+**Optional AI trader tools:**
+
+| Process | Command | Role | Required? |
+|---------|---------|------|-----------|
 | **pm-ai-trader** | `poetry run pm-ai-trader` | Single AI trading bot gateway | No |
 | **pm-ai-swarm** | `poetry run pm-ai-swarm` | Coordinated multi-agent AI trading swarm | No |
 
@@ -157,6 +211,9 @@ See [Configuration](01-configuration.md) for full details on the config file.
 | `book.snapshot_request` | Viewers, Stats |
 | `system.symbols_request` | Gateways, Stats |
 | `order.orders_request` | Gateways |
+| `risk.kill_switch` | Gateways, Admin |
+| `risk.circuit_breaker_halt_all` | Admin gateways |
+| `risk.circuit_breaker_resume_all` | Admin gateways |
 | `session.transition` | Scheduler |
 
 **Messages published** (PUB :5556):
@@ -177,6 +234,14 @@ See [Configuration](01-configuration.md) for full details on the config file.
 | `system.gateway_auth.{GW_ID}` | Gateway authentication reply |
 | `system.symbols.{GW_ID}` | Symbol list reply |
 | `system.eod` | End-of-day broadcast |
+
+**Messages published** (drop-copy PUB :5557):
+
+| Topic | Purpose |
+|---|---|
+| `drop_copy.event.{GW_ID}` | Fill event with sequence number and nanosecond timestamp, filtered per gateway |
+
+The drop-copy socket is lazily bound on startup. See [Drop-Copy Feed](13-drop-copy.md) for subscription protocol and replay support.
 
 !!! warning
     Start the engine **first** — gateways and subscribers will fail to connect otherwise.
@@ -398,7 +463,39 @@ poetry run pm-stats [--db data/stats.db]
 `pm-stats` receives it and immediately flushes the closing bid/ask for every active symbol
 into `daily_stats`.
 
+### How statistics are computed
 
+**OHLCV and VWAP** accumulate in memory, one `SymbolStats` object per symbol, and are
+flushed to `daily_stats` after each trade.
+
+| Statistic | Trigger | Rule |
+|-----------|---------|------|
+| `open_price` | First `trade.*` of the day | Set once; never overwritten |
+| `close_price` | Every `trade.*` | Always overwritten with the latest price |
+| `high_price` | Every `trade.*` | Running `max(current, trade_price)` |
+| `low_price` | Every `trade.*` | Running `min(current, trade_price)` |
+| `volume` | Every `trade.*` | Cumulative sum of matched quantities |
+| `trade_count` | Every `trade.*` | Incremented by 1 |
+| `vwap` | Every `trade.*` | $\sum(price \times qty) / \sum(qty)$; maintained as two running accumulators |
+| `largest_trade_qty/price` | Every `trade.*` | Replaced when `qty > current_largest` |
+| `open_bid/ask` | First `book.*` update of the day | Set once from the book snapshot |
+| `close_bid/ask` | `system.eod` | Overwritten with the final bid/ask from the book |
+
+**15-minute price snapshots** are written to `price_snapshots` when a `book.*` message
+arrives and at least 15 minutes have elapsed since the last snapshot for that symbol
+(`SNAPSHOT_INTERVAL_SEC = 900`). The mid-price is computed as:
+
+$$mid = \frac{best\_bid + best\_ask}{2}$$
+
+If one side of the book is empty the available side is used as the mid-price; if both
+sides are empty the last known trade price is used instead.
+
+**Trade log** rows are appended on every `trade.*` event — no aggregation, one row per
+matched trade pair, using the trade UUID from the engine as the primary key.
+
+**Startup behaviour** — on startup `pm-stats` sends a `book.snapshot_request` via PUSH
+`:5555` for every symbol it discovers from `system.symbols.STATS`. This primes the
+`open_bid`/`open_ask` values and the first snapshot interval even before the first trade.
 
 ### Statistics Database Schema
 
@@ -642,7 +739,8 @@ auto-rotate interval, and the current clock time.
 
 ## Optional AI trader tools
 
-EduMatcher also ships two AI-focused entrypoints:
+EduMatcher ships two AI-focused entrypoints that connect to the bus as
+ordinary gateway producers:
 
 | Process | Command | Role |
 |---------|---------|------|
@@ -650,3 +748,105 @@ EduMatcher also ships two AI-focused entrypoints:
 | **pm-ai-swarm** | `poetry run pm-ai-swarm` | Multi-agent trading swarm / orchestration entrypoint |
 
 See [AI Bot Traders](../developer/02-ai-bot.md) for configuration and runtime details.
+
+
+
+## pm-admin — Interactive Admin Console
+
+An interactive REPL for sending operational commands to a running engine without
+needing a full gateway session.
+
+```bash
+poetry run pm-admin
+```
+
+No flags required. On launch the console connects to the engine and presents a
+prompt. Supported commands include kill-switch, circuit-breaker halt/resume,
+and other operational controls.
+
+**Messages sent** (PUSH → :5555):
+
+| Topic | Purpose |
+|---|---|
+| `risk.kill_switch` | Trigger an exchange-wide order kill |
+| `risk.circuit_breaker_halt_all` | Halt all symbols (requires ADMIN gateway role) |
+| `risk.circuit_breaker_resume_all` | Resume all halted symbols (requires ADMIN gateway role) |
+
+**Messages subscribed** (SUB from :5556):
+
+| Topic | Purpose |
+|---|---|
+| `system.gateway_auth.{GW_ID}` | Authentication reply |
+| `risk.kill_switch_ack.{GW_ID}` | Kill-switch acknowledgement |
+| `session.state` | Session phase changes |
+
+
+
+## pm-admin-cli — CLI Admin Commands
+
+A non-interactive alternative to `pm-admin` for scripting or single-shot
+operational commands.
+
+```bash
+poetry run pm-admin-cli <command> [options]
+```
+
+Each invocation sends one command to the engine, waits for an acknowledgement,
+prints the result, and exits. Suitable for use in shell scripts and CI
+automation.
+
+
+
+## Order Lifecycle Message Flow
+
+The following diagram traces a single limit order from submission to full fill,
+showing which process sends each message and on which socket:
+
+```mermaid
+sequenceDiagram
+    participant GW as pm-gateway
+    participant ENG as pm-engine
+    participant VW as pm-viewer
+    participant CLR as pm-clearing
+    participant AUD as pm-audit
+
+    GW->>ENG: order.new (PUSH :5555)
+    ENG-->>GW: order.ack.GW_ID (PUB :5556)
+    Note over ENG: order rests in book
+    ENG-->>VW: book.SYMBOL (PUB :5556)
+    ENG-->>AUD: order.ack.GW_ID (PUB :5556)
+
+    GW->>ENG: order.new — aggressive order (PUSH :5555)
+    ENG-->>GW: order.ack.GW_ID (PUB :5556)
+    ENG-->>GW: order.fill.GW_ID (PUB :5556)
+    ENG-->>CLR: trade.executed (PUB :5556)
+    ENG-->>VW: book.SYMBOL (PUB :5556)
+    ENG-->>AUD: trade.executed (PUB :5556)
+```
+
+All subscribers (`pm-viewer`, `pm-clearing`, `pm-audit`, `pm-stats`, `pm-board`,
+etc.) receive the same `trade.executed` and `book.{SYMBOL}` events concurrently
+from the single PUB socket — none of them coordinate with each other.
+
+
+
+## Planned Processes
+
+The following processes are documented as design proposals and will be added in
+future releases. They do not yet exist as runnable scripts.
+
+| Process | Protocol | Purpose | Status |
+|---------|----------|---------|--------|
+| **pm-balf-gateway** | BALF | Binary order entry gateway for low-latency programmatic clients | Design proposal |
+| **pm-md-gwy** | CALF | Market-data distribution gateway delivering order-book snapshots, trade prints, and session-state changes over TCP | Design proposal |
+| **pm-index** | — | Real-time index calculation service publishing index values on port 5558 | Design proposal |
+
+See the [BALF Protocol Reference](21-app-balf-protocol.md) and [CALF Protocol Reference](22-app-calf-protocol.md) for the message specifications these processes will implement.
+
+## See also
+
+- [Running the Engine](03-running-the-engine.md) — startup order, launch scripts, and verification
+- [Configuration](01-configuration.md) — how each process is configured via `engine_config.yaml`
+- [Messages](09-messages.md) — the full ZeroMQ message catalog all processes share
+- [Persistence](11-persistence.md) — which process writes which data file
+- [Drop Copy](13-drop-copy.md) — `pm-dropcopy` and the :5557 feed

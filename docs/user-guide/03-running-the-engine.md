@@ -113,20 +113,21 @@ Config OK
 processes connect to.  If any process connects before the engine is ready,
 it either exits with a timeout error or silently drops its first messages.
 
-```
-1. pm-engine          ← binds :5555 and :5556
-2. pm-scheduler       ← optional; connects after engine is ready
-3. pm-gateway         ← one per trader / market maker / admin; connects to engine
-4. pm-viewer          ← one per symbol you want to watch; subscribes to engine
-5. pm-orders          ← connects to engine
-6. pm-audit           ← connects to engine
-7. pm-clearing        ← connects to engine
-8. pm-stats           ← connects to engine
-9. pm-ticker          ← connects to engine and reads from stats.db
-10. pm-board          ← connects to engine and reads from stats.db
+```mermaid
+flowchart TD
+    ENG["1. pm-engine\n(binds :5555 :5556 :5557)"]
+    SCH["2. pm-scheduler\n(optional)"]
+    GW["3. pm-gateway(s)\none per participant"]
+    OBS["4. Observer processes\npm-viewer, pm-orders,\npm-audit, pm-clearing,\npm-stats, pm-admin"]
+    STAT_DEP["5. pm-ticker, pm-board\n(need pm-stats running)"]
+
+    ENG --> SCH
+    ENG --> GW
+    ENG --> OBS
+    OBS --> STAT_DEP
 ```
 
-Steps 2–10 can be started in any order relative to each other, but all of
+Steps 2 onward can be started in any order relative to each other, but all of
 them require the engine to be up first.  The conventional 0.3–1 second
 stagger between processes gives sockets time to fully connect.
 
@@ -147,16 +148,18 @@ poetry run pm-engine
 poetry run pm-engine --config my_config.yaml
 ```
 
-Wait for the engine to print its startup banner before starting anything else:
+Wait for the engine to print its startup lines before starting anything else:
 
 ```
-EduMatcher engine starting…
-  Symbols  : AAPL MSFT TSLA
-  Gateways : GW_ADMIN TRADER01 TRADER02 MM01
-  Sessions : enabled (scheduler required)
-PULL :5555  PUB :5556  DROP-COPY :5557
-Ready.
+[ENGINE] Loaded config from engine_config.yaml  (3 symbol(s): AAPL MSFT TSLA; 4 gateway id(s))
+[ENGINE] Session handling: enabled (startup state: CLOSED)
+[ENGINE] Risk enforcement: collars=on, circuit_breakers=on
+[ENGINE] Drop copy PUB bound on port 5557
+[ENGINE] Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
 ```
+
+!!! tip
+    When sessions are disabled the session line reads `Session handling: disabled` and the engine starts in `CONTINUOUS` state immediately, with no scheduler required.
 
 **Step 2 — session scheduler (optional but recommended)**
 
@@ -229,7 +232,7 @@ poetry run pm-ai-swarm                # coordinated multi-bot swarm
 | `pm-scheduler` | No (manual mode) | PUSH :5555 | Drives automatic session-phase transitions (`PRE_OPEN → OPENING_AUCTION → CONTINUOUS → CLOSING_AUCTION → CLOSED`) at the wall-clock times defined in `engine_config.yaml`. Omit this process if you want to advance phases manually with `SESSION\|STATE=...` in `pm-admin`. |
 | `pm-viewer` | No | SUB :5556, PUSH :5555 | Live L1/L2 order-book display for one symbol. Uses a push request to fetch the initial snapshot on connect; then updates on every `book.<SYMBOL>` event. |
 | `pm-orders` | No | SUB :5556 | Cross-gateway resting-order monitor. Subscribes to all `order.*` events and displays a live table of every active order regardless of which gateway submitted it. |
-| `pm-audit` | No | SUB :5556 | Passive event logger. Writes every message topic and payload to `data/audit.log` in JSONL format. Produces the authoritative record of everything that happened in the session. |
+| `pm-audit` | No | SUB :5556 | Passive event logger. Writes every message topic and payload to `data/audit.log`. Each line has the format `[TIMESTAMP] [TOPIC] {JSON_PAYLOAD}`. Produces the authoritative record of everything that happened in the session. |
 | `pm-clearing` | No | SUB :5556 | Trade settlement and P&L engine. Calculates realized/unrealized P&L per gateway using VWAP average cost, and writes `data/clearing_report.csv` on shutdown. |
 | `pm-stats` | No | SUB :5556, PUSH :5555 | OHLCV statistics aggregator. Writes open/high/low/close/volume bars to `data/stats.db` (SQLite). Required by `pm-ticker` and `pm-board`. |
 | `pm-ticker` | No | Reads `data/stats.db` | Scrolling one-line-per-interval market data ticker. Queries `pm-stats`'s database at a configurable interval and prints a formatted price/volume line. |
@@ -429,7 +432,21 @@ From a `pm-gateway` terminal:
 Expected response: `ACK  order_id=...  status=NEW`
 
 If the order is acknowledged, the full path (gateway → engine PULL → engine
-matching logic → engine PUB → gateway SUB) is working.
+matching logic → engine PUB → gateway SUB) is working:
+
+```mermaid
+sequenceDiagram
+    participant GW as pm-gateway (TRADER01)
+    participant ENG as pm-engine
+    participant VW as pm-viewer
+    participant AUD as pm-audit
+
+    GW->>ENG: NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+    Note over ENG: Validates symbol, collar, session state
+    ENG-->>GW: order.ack.TRADER01 {accepted: true}
+    ENG-->>VW: book.AAPL {bids: [{price:150.00, qty:100}]}
+    ENG-->>AUD: order.ack.TRADER01 + book.AAPL (logged to audit.log)
+```
 
 **f) Check that pm-viewer shows the resting order**
 
@@ -442,8 +459,14 @@ update to show a 100-share bid at 150.00.
 tail -5 data/audit.log
 ```
 
-Every event in the system should appear here within a second of occurring.  If
-the file does not exist, `pm-audit` either was not started or failed to create
+Expected format — one entry per line:
+
+```
+[2026-06-14T09:31:02.114] [order.ack.TRADER01] {"order_id": "3f2a...", "accepted": true, ...}
+[2026-06-14T09:31:02.115] [book.AAPL] {"bids": [...], "asks": [...], ...}
+```
+
+If the file does not exist, `pm-audit` either was not started or failed to create
 the `data/` directory.
 
 
@@ -518,8 +541,8 @@ ps aux | grep pm-
 # Check ZMQ ports
 lsof -i :5555 -i :5556 -i :5557
 
-# Check the most recent audit events
-tail -20 data/audit.log | python -c "import sys,json; [print(json.loads(l)['topic']) for l in sys.stdin]"
+# Check the most recent audit events (topic is embedded in the line, not a JSON field)
+tail -20 data/audit.log | awk '{print $2}' | tr -d '[]'
 
 # Check the engine config parsed cleanly
 python -c "
@@ -671,26 +694,27 @@ exit 0
 
 ### Log-based monitoring
 
-`data/audit.log` is JSONL — one JSON object per line — making it easy to pipe
-into `jq` for live filtering:
+`data/audit.log` uses a line format of `[TIMESTAMP] [TOPIC] {JSON_PAYLOAD}` — the topic is embedded in the line, not a JSON field. Use `grep` on the topic and `jq` on the trailing JSON:
 
 ```bash
 # Stream every trade as it happens
-tail -f data/audit.log | grep '"topic":"trade.executed"' | jq '.payload | {sym: .symbol, price, qty: .quantity}'
+tail -f data/audit.log | grep '\[trade.executed\]' | awk '{$1=$2=""; print $0}' | jq '{sym: .symbol, price, qty: .quantity}'
 
 # Count fills per gateway in the last 1000 events
-tail -1000 data/audit.log | jq -r 'select(.topic | startswith("order.fill")) | .payload.gateway_id' | sort | uniq -c | sort -rn
+tail -1000 data/audit.log | grep '\[order.fill\.' | awk '{$1=$2=""; print $0}' | jq -r '.gateway_id' | sort | uniq -c | sort -rn
 
 # Find the most recent session-state change
-grep '"session.state"' data/audit.log | tail -1 | jq '.payload'
+grep '\[session.state\]' data/audit.log | tail -1 | awk '{$1=$2=""; print $0}' | jq '.'
 ```
 
 ### Watching statistics
 
 ```bash
 # Query the SQLite database for live daily stats
-sqlite3 data/stats.db "SELECT symbol, open, high, low, close, volume FROM daily_stats ORDER BY symbol;"
+sqlite3 data/stats.db "SELECT symbol, open_price, high_price, low_price, close_price, volume FROM daily_stats ORDER BY symbol;"
 ```
+
+See [pm-stats — Statistics Recorder](10-processes.md#pm-stats--statistics-recorder) for the full database schema (`daily_stats`, `price_snapshots`, `trade_log`) and details on how each statistic is computed.
 
 
 
@@ -707,6 +731,14 @@ No. The only mandatory process is `pm-engine`.  Everything else is optional:
 
 For quick experiments, starting just the engine and one or two gateways is
 enough.
+
+## See also
+
+- [Configuration](01-configuration.md) — full `engine_config.yaml` reference
+- [Processes](10-processes.md) — what every process does and which ports it uses
+- [Gateway](08-gateway.md) — how to connect a participant terminal and place orders
+- [Persistence](11-persistence.md) — what data files survive a restart and how to manage them
+- [Auctions & Scheduling](06-auctions-scheduling.md) — how `pm-scheduler` drives session phases
 
 ### Does the exchange work without `engine_config.yaml`?
 

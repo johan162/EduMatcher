@@ -72,6 +72,7 @@ nav:
     - A Full Trading Day: concepts/05-concepts-trading-day.md
     - Market Data Feed (CALF): concepts/06-concepts-market-data-feed.md
   - User Guide:
+    - Getting Started: user-guide/00-getting-started.md
     - Configuration: user-guide/01-configuration.md
     - Controlling the Exchange: user-guide/02-commands.md
     - Running the Engine: user-guide/03-running-the-engine.md
@@ -85,6 +86,8 @@ nav:
     - Persistence: user-guide/11-persistence.md
     - Risk Controls: user-guide/12-risk-controls.md
     - Drop Copy: user-guide/13-drop-copy.md
+    - Market Making: user-guide/14-market-maker.md
+    - AI Traders: user-guide/15-ai-traders.md
     - Appendix - ALF Protocol: user-guide/20-app-alf-protocol.md
     - Appendix - BALF Protocol: user-guide/21-app-balf-protocol.md
     - Appendix - CALF Protocol: user-guide/22-app-calf-protocol.md

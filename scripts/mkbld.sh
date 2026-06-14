@@ -47,6 +47,7 @@ fi
 # Default options
 DRY_RUN=false
 HELP=false
+BUILD_INTRO=false
 
 # =====================================
 # Functions to print colored output
@@ -153,6 +154,7 @@ USAGE:
 OPTIONS:
     --dry-run       Print commands that would be executed without running them
     --help          Show this help message and exit
+    --intro         Also build the Exchange Intro PDF bundle (skipped by default)
 
 REQUIREMENTS:
     - Poetry must be installed and available on PATH
@@ -180,6 +182,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --help)
             HELP=true
+            shift
+            ;;
+        --intro)
+            BUILD_INTRO=true
             shift
             ;;
         *)
@@ -348,22 +354,26 @@ run_command "poetry build" "Building package"
 # Step 4.3: Check package with twine
 run_command "poetry run twine check dist/*" "Validating package with twine"
 
-# Step 4.4: Build Exchange Intro PDF (if applicable)
-if [ -d "docs-exchange-intro" ]; then
-    if [ -f "docs-exchange-intro/version.toml" ]; then
-        EXCHANGE_INTRO_VERSION=$(awk -F'=' '/version/ { gsub(/[ "]/, "", $2); print $2; exit }' docs-exchange-intro/version.toml)
-        print_sub_step "Detected Exchange Intro version: ${EXCHANGE_INTRO_VERSION}"
+# Step 4.4: Build Exchange Intro PDF (optional — requires --intro flag)
+if [ "$BUILD_INTRO" = true ]; then
+    if [ -d "docs-exchange-intro" ]; then
+        if [ -f "docs-exchange-intro/version.toml" ]; then
+            EXCHANGE_INTRO_VERSION=$(awk -F'=' '/version/ { gsub(/[ "]/, "", $2); print $2; exit }' docs-exchange-intro/version.toml)
+            print_sub_step "Detected Exchange Intro version: ${EXCHANGE_INTRO_VERSION}"
+        else
+            print_warning "docs-exchange-intro/version.toml not found; skipping Exchange Intro PDF build"
+            EXCHANGE_INTRO_VERSION="unknown"
+            exit 1;
+        fi
+        print_sub_step "Building Exchange Intro Booklet"
+        run_command "make -C docs-exchange-intro -j4" "Building Exchange Intro Booklet"
+        print_sub_step "Zipping them together"
+        run_command "(cd docs-exchange-intro/dist && zip -9 exchange-intro-bundle-${EXCHANGE_INTRO_VERSION}.zip exchange-intro*.pdf)" "Creating ZIP bundle of Exchange Intro PDFs"
     else
-        print_warning "docs-exchange-intro/version.toml not found; skipping Exchange Intro PDF build"
-        EXCHANGE_INTRO_VERSION="unknown"
-        exit 1;
+        print_warning "docs-exchange-intro directory not found; skipping Exchange Intro PDF build"
     fi
-    print_sub_step "Building Exchange Intro Booklet"
-    run_command "make -C docs-exchange-intro -j4" "Building Exchange Intro Booklet"
-    print_sub_step "Zipping them together"
-    run_command "(cd docs-exchange-intro/dist && zip -9 exchange-intro-bundle-${EXCHANGE_INTRO_VERSION}.zip exchange-intro*.pdf)" "Creating ZIP bundle of Exchange Intro PDFs"
 else
-    print_warning "docs-exchange-intro directory not found; skipping Exchange Intro PDF build"
+    print_info_colored "Skipping Exchange Intro PDF build (use --intro to enable)"
 fi
 
 # Step 4.5: Build User Guide PDF bundle 

@@ -13,7 +13,12 @@
     - How to start a gateway, submit every order type, manage positions, and read
       responses
 
-
+    **Prerequisites**: [Configuration](01-configuration.md) — you need a valid
+    `engine_config.yaml` with your gateway ID and role configured before connecting.
+    [Order Types](04-order-types.md) — understand what NEW, AMEND, OCO, and COMBO
+    mean before using the commands here.
+    [Messages](09-messages.md) — for the raw two-frame format underlying every
+    gateway response.
 
 ## Background — Gateways in Real Exchange Architecture
 
@@ -157,6 +162,23 @@ On startup, the gateway:
 6. If rejected: prints the reason and exits immediately
 7. If timeout (engine not running): exits with "Gateway authentication timed out"
 
+```mermaid
+sequenceDiagram
+    participant GW as pm-gateway --id TRADER01
+    participant ENG as pm-engine
+
+    GW->>ENG: PUSH :5555  system.gateway_connect {gateway_id: "TRADER01"}
+    alt ID is in gateways.alf
+        ENG-->>GW: PUB :5556  system.gateway_auth.TRADER01 {accepted: true}
+        Note over GW: Enters interactive command loop
+    else ID not configured
+        ENG-->>GW: PUB :5556  system.gateway_auth.TRADER01 {accepted: false, reason: "Gateway not configured: TRADER01"}
+        Note over GW: Prints reason and exits
+    else No reply within 3 seconds
+        Note over GW: Prints "Gateway authentication timed out" and exits
+    end
+```
+
 The gateway does **not** subscribe to `session.state`. Use `pm-audit`,
 `pm-viewer`, `pm-orders`, or the scheduler output if you need to watch trading
 phase transitions live.
@@ -167,11 +189,11 @@ Example:
 
 ```yaml
 gateways:
-    alf:
-        - id: TRADER01
-            description: The first trader
-        - id: TRADER02
-            description: High frequency
+  alf:
+    - id: TRADER01
+      description: The first trader
+    - id: TRADER02
+      description: High frequency
 ```
 
 If a gateway starts with an ID that is not listed there, the engine refuses
@@ -217,7 +239,7 @@ KILL|SYM=<symbol>
 ### NEW — Submit an Order
 
 ```
-NEW|SYM=<symbol>|SIDE=<BUY|SELL>|TYPE=<order-type>|QTY=<quantity>[|PRICE=<price>][|STOP=<price>][|TIF=<DAY|GTC>][|VISIBLE=<n>][|SMP=<action>]
+NEW|SYM=<symbol>|SIDE=<BUY|SELL>|TYPE=<order-type>|QTY=<quantity>[|PRICE=<price>][|STOP=<price>][|TRAIL=<offset>][|TIF=<DAY|GTC>][|VISIBLE=<n>][|SMP=<action>]
 ```
 
 **SMP** (Self Match Prevention) values: `NONE` (default), `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`.
@@ -240,7 +262,9 @@ SMP prevents you from accidentally trading against your own resting orders.
 | Stop-loss | `NEW\|SYM=AAPL\|SIDE=SELL\|TYPE=STOP\|QTY=100\|STOP=148.00` |
 | Stop-limit | `NEW\|SYM=AAPL\|SIDE=SELL\|TYPE=STOP_LIMIT\|QTY=100\|STOP=148.00\|PRICE=147.50` |
 | FOK | `NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=FOK\|QTY=100\|PRICE=150.00` |
+| IOC | `NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=IOC\|QTY=100\|PRICE=150.00` |
 | Iceberg | `NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=ICEBERG\|QTY=1000\|PRICE=150.00\|VISIBLE=100` |
+| Trailing stop | `NEW\|SYM=AAPL\|SIDE=SELL\|TYPE=TRAILING_STOP\|QTY=100\|TRAIL=1.50` |
 | With SMP | `NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=LIMIT\|QTY=100\|PRICE=150.00\|SMP=CANCEL_RESTING` |
 
 #### Required fields by type
@@ -252,7 +276,9 @@ SMP prevents you from accidentally trading against your own resting orders.
 | STOP | SYM, SIDE, QTY, STOP | TIF, SMP |
 | STOP_LIMIT | SYM, SIDE, QTY, STOP, PRICE | TIF, SMP |
 | FOK | SYM, SIDE, QTY, PRICE | SMP |
+| IOC | SYM, SIDE, QTY | PRICE, SMP |
 | ICEBERG | SYM, SIDE, QTY, PRICE, VISIBLE (must be < QTY) | TIF, SMP |
+| TRAILING_STOP | SYM, SIDE, QTY, TRAIL | STOP (initial stop price), TIF, SMP |
 
 
 
@@ -292,23 +318,96 @@ NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=<DAY|GTC>|LEG_COUNT=<n>|LEG0.
 
 
 
-### CANCEL — Cancel a Resting Order
+### AMEND — Amend a Resting Order
 
 ```
-CANCEL|ID=<full-order-id>
+AMEND|ID=<full-order-id>[|PRICE=<new-price>][|QTY=<new-total-qty>]
 ```
 
-The full order ID is shown in the `ORDERS` table. Only the first 8 characters are shown
-in inline messages — use `ORDERS` to copy the full ID.
+At least one of `PRICE=` or `QTY=` must be present.
 
-### CANCEL — Cancel a Combo
+| Field | Required | Description |
+|-------|----------|-------------|
+| `ID` | Yes | Full order UUID (visible in the `ORDERS` table) |
+| `PRICE` | Conditional | New limit price; omit to keep current price |
+| `QTY` | Conditional | New total quantity; must be ≥ filled quantity |
+
+**Priority rules:**
+
+| Change | Time priority |
+|--------|---------------|
+| Quantity decrease only | **Preserved** — the order keeps its queue position |
+| Price change | **Lost** — the order moves to the back of the queue at the new price |
+| Quantity increase | **Lost** — the order moves to the back of the queue |
+
+Reply: `AMENDED <id>  price=<p> qty=<q> remaining=<r>` on success, or a rejection via `REJECTED` with a reason.
+
+
+
+### NEW (OCO) — Submit a One-Cancels-Other Pair
+
+An OCO pair links two orders on the same symbol so that when one fills or is cancelled, the engine automatically cancels the other.
 
 ```
-CANCEL|COMBO_ID=<combo-label>
+NEW|TYPE=OCO|OCO_ID=<label>|SYM=<symbol>|QTY=<qty>[|TIF=<DAY|GTC>]
+   |LEG1_SIDE=<BUY|SELL>|LEG1_TYPE=<type>[|LEG1_PRICE=<p>][|LEG1_STOP=<p>][|LEG1_TRAIL=<offset>]
+   |LEG2_SIDE=<BUY|SELL>|LEG2_TYPE=<type>[|LEG2_PRICE=<p>][|LEG2_STOP=<p>][|LEG2_TRAIL=<offset>]
 ```
 
-Cancels the combo and all its resting child legs atomically. Fills that already
-occurred are not reversed.
+| Field | Required | Description |
+|-------|----------|-------------|
+| `OCO_ID` | Yes | Client label for the pair |
+| `SYM` | Yes | Instrument ticker — shared by both legs |
+| `QTY` | Yes | Quantity — shared by both legs |
+| `TIF` | No | `DAY` or `GTC`; defaults to `DAY` |
+| `LEG1_SIDE` | Yes | `BUY` or `SELL` |
+| `LEG1_TYPE` | Yes | Order type for leg 1 |
+| `LEG1_PRICE` | Conditional | Required for `LIMIT`, `STOP_LIMIT`, `FOK` legs |
+| `LEG1_STOP` | Conditional | Required for `STOP`, `STOP_LIMIT` legs |
+| `LEG1_TRAIL` | Conditional | Required for `TRAILING_STOP` legs |
+| `LEG2_*` | Same rules as LEG1 | Second leg fields |
+
+#### Example — bracket order
+
+Buy limit below the market + stop-loss above (common bracket structure for a short position):
+
+```
+NEW|TYPE=OCO|OCO_ID=BRACKET-001|SYM=AAPL|QTY=100|TIF=GTC
+   |LEG1_SIDE=BUY|LEG1_TYPE=LIMIT|LEG1_PRICE=148.00
+   |LEG2_SIDE=BUY|LEG2_TYPE=STOP|LEG2_STOP=155.00
+```
+
+If the LIMIT leg fills at 148.00, the engine automatically cancels the STOP leg. If the STOP triggers at 155.00, the LIMIT leg is cancelled.
+
+```mermaid
+sequenceDiagram
+    participant GW as pm-gateway
+    participant ENG as pm-engine
+
+    GW->>ENG: NEW|TYPE=OCO|OCO_ID=BRACKET-001|SYM=AAPL|QTY=100|...<br/>LEG1=LIMIT BUY @148.00  LEG2=STOP BUY @155.00
+    ENG-->>GW: oco.ack.GW {accepted: true, order_id_1: "abc..", order_id_2: "def.."}
+    Note over GW: [OCO ACK]  BRACKET-001  legs=abc.../def...
+
+    Note over ENG: Time passes — AAPL trades at 148.00
+    ENG-->>GW: order.fill.GW  {order_id: "abc..", fill_qty: 100, status: "FILLED"}
+    ENG-->>GW: oco.cancelled.GW {oco_id: "BRACKET-001", cancelled_order_id: "def..", reason: "OCO sibling filled"}
+    Note over GW: [FILL] abc...  qty=100 @148.00 [FILLED]
+    Note over GW: [OCO CANCEL]  BRACKET-001  sibling=def...  OCO sibling filled
+```
+
+
+
+### CANCEL — Cancel a Resting Order, Combo, or OCO
+
+```
+CANCEL|ID=<full-order-id>          # single-leg order
+CANCEL|COMBO_ID=<combo-label>      # combo and all its resting legs
+CANCEL|OCO_ID=<oco-label>          # both legs of an OCO pair
+```
+
+The full order ID is shown in the `ORDERS` table. Only the first 8 characters appear in inline fill/cancel messages — use `ORDERS` to copy the full UUID.
+
+Cancelling a combo or OCO is atomic: all resting child legs are cancelled, but fills that already occurred are not reversed.
 
 
 
@@ -414,7 +513,7 @@ EXIT
 
 ## Gateway Responses
 
-The gateway prints responses inline as events arrive from the engine:
+All events are printed inline with a `[HH:MM:SS.mmm]` timestamp prefix. A background thread receives events from the engine while you continue typing.
 
 ### Order Events
 
@@ -428,6 +527,22 @@ The gateway prints responses inline as events arrive from the engine:
 | `CANCELLED  <id>` | Cancel confirmed |
 | `EXPIRED  <id>  (DAY order — trading day ended)` | Engine shut down or session phase change |
 
+### Quote Events
+
+| Message | Meaning |
+|---------|--------|
+| `QUOTE ACK  <quote_id>  bid=<8-char-id> ask=<8-char-id>` | Both quote legs accepted and posted to the book |
+| `QUOTE REJ  <quote_id>  <reason>` | Quote rejected (e.g. `BID >= ASK`, missing gateway role) |
+| `QUOTE <status>  <quote_id>  [reason]` | Quote lifecycle update — status is `INACTIVATED`, `CANCELLED`, or `FILLED` |
+
+### OCO Events
+
+| Message | Meaning |
+|---------|--------|
+| `OCO ACK  <oco_id>  legs=<leg1_8char>/<leg2_8char>` | Both legs linked; IDs are first 8 chars of each order UUID |
+| `OCO REJ  <oco_id>  <reason>` | OCO rejected (invalid legs, symbol mismatch, etc.) |
+| `OCO CANCEL  <oco_id>  sibling=<order_8char>  <reason>` | Engine auto-cancelled the sibling leg after the other leg filled or was cancelled |
+
 ### Combo Events
 
 | Message | Meaning |
@@ -439,20 +554,21 @@ The gateway prints responses inline as events arrive from the engine:
 | `COMBO STATUS  <combo_id>  FAILED  <reason>` | A leg was cancelled/expired; siblings cascade-cancelled |
 | `COMBO STATUS  <combo_id>  CANCELLED` | User-initiated cancel completed |
 
-### Session Events
+### Risk Events
 
 | Message | Meaning |
 |---------|--------|
-| `SESSION  OPENING_AUCTION` | Trading phase changed (orders accumulate, no matching) |
-| `SESSION  CONTINUOUS` | Continuous matching resumed |
-| `SESSION  CLOSING_AUCTION` | Closing auction started |
-| `SESSION  CLOSED` | Trading session ended |
+| `KILL ACK  orders=<n> quote_legs=<n>` | Kill-switch applied; counts show what was cancelled |
+| `KILL REJ  <reason>` | Kill-switch rejected (not expected in normal operation) |
 
 ### System Events
 
 | Message | Meaning |
 |---------|--------|
 | `Active Instruments` table | Response to `SYMBOLS` command |
+
+!!! note "Session phase changes"
+    The gateway does **not** subscribe to `session.state` events. Trading phase transitions are not displayed in the gateway terminal. To monitor session phases, run `pm-audit`, `pm-viewer`, or `pm-orders` in a separate terminal.
 
 
 
@@ -485,10 +601,19 @@ gateways' activity.
 
 The gateway provides **context-aware tab completion**:
 
-- First position: top-level commands (`NEW`, `CANCEL`, `ORDERS`, `SYMBOLS`, `HELP`, `EXIT`)
-- After `NEW|`: field names (`SYM=`, `SIDE=`, `TYPE=`, `QTY=`, `PRICE=`, `STOP=`, `TIF=`, `VISIBLE=`, `SMP=`)
-- After a `KEY=`: value suggestions (e.g., `SIDE=` suggests `BUY` / `SELL`; `TYPE=` suggests all order types; `SMP=` suggests all SMP actions)
-- `SYM=` suggests known symbols (populated from the last `SYMBOLS` response)
+| Position | Completions |
+|----------|-------------|
+| First word | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `KILL`, `ORDERS`, `POS`, `SYMBOLS`, `HELP`, `EXIT`, `QUIT` |
+| After `NEW\|` | `SYM=`, `SIDE=`, `TYPE=`, `QTY=`, `PRICE=`, `STOP=`, `TRAIL=`, `TIF=`, `VISIBLE=`, `SMP=` |
+| After `NEW\|TYPE=COMBO\|` | `COMBO_ID=`, `COMBO_TYPE=`, `TIF=`, `LEG_COUNT=`, plus `LEG0.SYM=`, `LEG0.SIDE=`, etc. |
+| After `NEW\|TYPE=OCO\|` | `OCO_ID=`, `SYM=`, `QTY=`, `TIF=`, `LEG1_SIDE=`, `LEG1_TYPE=`, etc. |
+| After `AMEND\|` | `ID=`, `PRICE=`, `QTY=` |
+| After `CANCEL\|` | `ID=`, `COMBO_ID=`, `OCO_ID=` |
+| After `TYPE=` | All order types: `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `IOC`, `ICEBERG`, `TRAILING_STOP`, `COMBO`, `OCO` |
+| After `SIDE=` | `BUY`, `SELL` |
+| After `TIF=` | `DAY`, `GTC`, `ATO`, `ATC` |
+| After `SMP=` | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` |
+| After `SYM=` | Known symbols (populated from the last `SYMBOLS` reply) |
 
 Press **Tab** to cycle through suggestions.
 
@@ -503,10 +628,11 @@ A background thread listens on the SUB socket and prints events (fills, cancels,
 combo status changes, session transitions) in real-time, interleaved cleanly with
 the command prompt. You can continue typing while events arrive.
 
-## Tick/Ns Migration Notes
+## See also
 
-- Gateway commands remain decimal-friendly (`PRICE=150.25`, `STOP=149.50`).
-- Engine boundary logic converts these values to ticks before matching.
-- Returned prices remain readable decimals.
-- Timestamp displays in gateway views are seconds-based renderings derived from
-  internal nanosecond timestamps.
+- [Configuration](01-configuration.md#gateway-configuration) — gateway roles, allowlists, disconnect behaviour, and MM obligations
+- [Order Types](04-order-types.md) — full semantics for every order type accepted by the gateway
+- [ALF Protocol Reference](20-app-alf-protocol.md) — formal ABNF grammar and field rules for the pipe-delimited syntax
+- [Messages](09-messages.md) — the ZeroMQ messages the gateway publishes and subscribes to
+- [Risk Controls](12-risk-controls.md) — how the engine enforces collars, halts, and kill switches on gateway flow
+- [Running the Engine](03-running-the-engine.md) — how to start `pm-gateway` and verify the connection

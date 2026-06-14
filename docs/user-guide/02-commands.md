@@ -8,7 +8,7 @@
     - The full catalogue of commands available to an `ADMIN`-role gateway
     - Which commands are ADMIN-restricted and which any connected gateway may send
     - How to extend the framework with new commands as the exchange evolves
-    - Hopw to actively manage an exchange
+    - How to actively manage an exchange
 
     **Prerequisites**: [Messages](09-messages.md) for the raw two-frame format.
     [Risk Controls § 6](12-risk-controls.md#6-admin-role-operator-controls) for
@@ -476,15 +476,15 @@ somehow connected will not appear (it would have been rejected during auth).
 pm-admin-cli --id GW_ADMIN volume
 ```
 ```
-┌────────────┬──────────────┬──────────────────┬────────┐
-│ Symbol     │        Qty   │            Value │ Trades │
-├────────────┼──────────────┼──────────────────┼────────┤
+┌────────────┬──────────────┬───────────────────┬────────┐
+│ Symbol     │        Qty   │             Value │ Trades │
+├────────────┼──────────────┼───────────────────┼────────┤
 │ AAPL       │        5,000 │      750,000.00   │     12 │
 │ MSFT       │        3,200 │      576,000.00   │      8 │
 │ TSLA       │        1,100 │      275,000.00   │      5 │
-├────────────┼──────────────┼──────────────────┼────────┤
+├────────────┼──────────────┼───────────────────┼────────┤
 │ TOTAL      │        9,300 │    1,601,000.00   │     25 │
-└────────────┴──────────────┴──────────────────┴────────┘
+└────────────┴──────────────┴───────────────────┴────────┘
 ```
 Counters reset when the engine restarts.  There is currently no
 automatic end-of-day reset; daily volume accumulates across the
@@ -535,206 +535,53 @@ pm-admin-cli $ID resume-sym --sym AAPL
 
 ## `ExchangeCommandClient`
 
+`ExchangeCommandClient` lives in `src/edumatcher/commands/client.py` and is
+importable as:
+
 ```python
-import json
-import zmq
+from edumatcher.commands import ExchangeCommandClient, CommandTimeoutError
+```
 
+Each command method sends a two-frame ZMQ multipart message over the PUSH
+socket and blocks on the SUB socket until the matching ack topic arrives or
+the timeout elapses.  On timeout the method raises `CommandTimeoutError`.
 
-class ExchangeCommandClient:
-    """
-    Operator command client for an ADMIN-role EduMatcher gateway.
+`ExchangeCommandClient` is a **context manager** — use `with` to ensure
+sockets are closed on exit.
 
-    Instantiate once, call connect(), then use the command methods.
-    Each command sends the appropriate ZMQ frame(s) and blocks until
-    the matching ack arrives or the timeout elapses.
+### Constructor parameters
 
-    Adding a new command:
-        1. Add a method that calls self._send(topic, payload).
-        2. Add the ack topic prefix to the subscription list in __init__.
-        3. Call self._recv(ack_prefix) and return the result.
-    """
+| Parameter | Default | Description |
+|---|---|---|
+| `gw_id` | *(required)* | Gateway ID to authenticate as — must be configured in `engine_config.yaml` |
+| `push_addr` | `tcp://127.0.0.1:5555` | Engine PULL socket address |
+| `pub_addr` | `tcp://127.0.0.1:5556` | Engine PUB socket address |
+| `timeout_ms` | `3000` | Milliseconds to wait for an ack before raising `CommandTimeoutError` |
 
-    def __init__(
-        self,
-        gw_id: str,
-        push_addr: str = "tcp://localhost:5555",
-        pub_addr: str = "tcp://localhost:5556",
-        timeout_ms: int = 3000,
-    ) -> None:
-        self._gw_id = gw_id.upper()
-        self._timeout = timeout_ms
+### Usage example
 
-        ctx = zmq.Context.instance()
+```python
+from edumatcher.commands import ExchangeCommandClient, CommandTimeoutError
 
-        self._push = ctx.socket(zmq.PUSH)
-        self._push.connect(push_addr)
+with ExchangeCommandClient("GW_ADMIN") as client:
+    auth = client.connect()
+    if not auth["accepted"]:
+        raise RuntimeError(f"Auth failed: {auth['reason']}")
 
-        self._sub = ctx.socket(zmq.SUB)
-        self._sub.connect(pub_addr)
-        # Subscribe to every topic this client may need to receive
-        for prefix in (
-            f"system.gateway_auth.{self._gw_id}",
-            f"risk.circuit_breaker_halt_all_ack.{self._gw_id}",
-            f"risk.circuit_breaker_resume_all_ack.{self._gw_id}",
-            "risk.kill_switch_ack.",        # all kill-switch acks (any target gw)
-            "quote.ack.",                   # quote cancel acks (any target gw)
-            "circuit_breaker.halt.",        # per-symbol CB halt events
-            "circuit_breaker.resume.",      # per-symbol CB resume events
-            f"book.",                       # book snapshots (all symbols)
-            "session.state",                # session-state broadcasts
-            f"system.symbols.{self._gw_id}",
-            "order.orders.",                # order-list responses (any target gw)
-        ):
-            self._sub.setsockopt_string(zmq.SUBSCRIBE, prefix)
+    # ADMIN: halt, inspect, then resume
+    try:
+        result = client.halt_all()
+        print(f"Halted {result['halted_symbols']} symbols, "
+              f"cancelled {result['cancelled_quotes']} quote legs")
 
-    # ------------------------------------------------------------------ #
-    # Internal helpers                                                     #
-    # ------------------------------------------------------------------ #
+        orders = client.order_list("TRADER01")
+        for o in orders:
+            print(f"  {o['id'][:8]}  {o['symbol']}  {o['side']}  qty={o['remaining_qty']}")
 
-    def _send(self, topic: str, payload: dict) -> None:
-        self._push.send_multipart([
-            topic.encode(),
-            json.dumps(payload).encode(),
-        ])
-
-    def _recv(self, expected_prefix: str) -> dict:
-        """Block until a message whose topic starts with expected_prefix arrives."""
-        poller = zmq.Poller()
-        poller.register(self._sub, zmq.POLLIN)
-        remaining = self._timeout
-        import time
-        deadline = time.monotonic() + self._timeout / 1000.0
-        while True:
-            wait = max(0, int((deadline - time.monotonic()) * 1000))
-            ready = poller.poll(wait)
-            if not ready:
-                return {"accepted": False, "reason": "timeout"}
-            topic_b, data_b = self._sub.recv_multipart()
-            if topic_b.decode().startswith(expected_prefix):
-                return json.loads(data_b)
-            # discard unrelated messages and keep waiting
-
-    # ------------------------------------------------------------------ #
-    # Lifecycle                                                            #
-    # ------------------------------------------------------------------ #
-
-    def connect(self) -> dict:
-        """Authenticate this gateway with the engine."""
-        self._send("system.gateway_connect", {"gateway_id": self._gw_id})
-        return self._recv(f"system.gateway_auth.{self._gw_id}")
-
-    def disconnect(self) -> None:
-        """Send a graceful disconnect notice for this gateway."""
-        self._send("system.gateway_disconnect", {"gateway_id": self._gw_id})
-
-    # ------------------------------------------------------------------ #
-    # Risk controls — ADMIN only                                          #
-    # ------------------------------------------------------------------ #
-
-    def halt_all(self) -> dict:
-        """
-        Exchange-wide circuit-breaker halt.
-        Halts every known symbol with resumption_mode=MANUAL and
-        cancels all outstanding MM quote legs.
-        Requires role=ADMIN.
-        """
-        self._send("risk.circuit_breaker_halt_all", {"gateway_id": self._gw_id})
-        return self._recv(f"risk.circuit_breaker_halt_all_ack.{self._gw_id}")
-
-    def resume_all(self) -> dict:
-        """
-        Resume all symbols that were halted by halt_all().
-        Publishes circuit_breaker.resume.<SYMBOL> for each symbol cleared.
-        Requires role=ADMIN.
-        """
-        self._send("risk.circuit_breaker_resume_all", {"gateway_id": self._gw_id})
-        return self._recv(f"risk.circuit_breaker_resume_all_ack.{self._gw_id}")
-
-    # ------------------------------------------------------------------ #
-    # Risk controls — any connected gateway                               #
-    # ------------------------------------------------------------------ #
-
-    def kill_switch(self, target_gw: str, symbol: str = "") -> dict:
-        """
-        Cancel all resting orders and quotes for target_gw.
-        Pass symbol to scope the cancel to one instrument.
-        The kill switch does NOT halt the gateway — it can submit
-        fresh orders immediately after the ack is received.
-        """
-        self._send("risk.kill_switch", {
-            "gateway_id": target_gw.upper(),
-            "symbol": symbol.upper() if symbol else "",
-        })
-        return self._recv(f"risk.kill_switch_ack.{target_gw.upper()}")
-
-    def mass_cancel(self, target_gw: str, symbol: str) -> dict:
-        """
-        Cancel all resting orders and the active quote for target_gw
-        on a specific symbol. Convenience alias for kill_switch with
-        a symbol argument.
-        """
-        return self.kill_switch(target_gw, symbol=symbol)
-
-    def quote_cancel(self, target_gw: str, symbol: str) -> dict:
-        """
-        Cancel the active two-sided quote for target_gw on symbol
-        without touching that gateway's resting limit orders.
-        """
-        self._send("quote.cancel", {
-            "gateway_id": target_gw.upper(),
-            "symbol": symbol.upper(),
-        })
-        return self._recv(f"quote.ack.{target_gw.upper()}")
-
-    def gateway_kick(self, target_gw: str, reason: str = "") -> None:
-        """
-        Forcefully disconnect a gateway.
-        The engine applies target_gw's configured disconnect_behaviour
-        (LEAVE_ALL, CANCEL_QUOTES_ONLY, or CANCEL_ALL).
-        No ack is published — the effect is silent from the operator's view.
-        """
-        self._send("system.gateway_disconnect", {
-            "gateway_id": target_gw.upper(),
-            "reason": reason,
-        })
-
-    # ------------------------------------------------------------------ #
-    # Data queries                                                         #
-    # ------------------------------------------------------------------ #
-
-    def book_depth(self, symbol: str) -> dict:
-        """
-        Request the current L1/L2 order-book snapshot for a symbol.
-        Returns the full book with bids, asks, last price, and recent trades.
-        """
-        self._send("book.snapshot_request", {"symbol": symbol.upper()})
-        return self._recv(f"book.{symbol.upper()}")
-
-    def order_list(self, target_gw: str) -> list:
-        """Return all resting orders for target_gw as a list of dicts."""
-        self._send("order.orders_request", {"gateway_id": target_gw.upper()})
-        ack = self._recv(f"order.orders.{target_gw.upper()}")
-        return ack.get("orders", [])
-
-    def symbol_list(self) -> list:
-        """Return all symbols configured in the engine."""
-        self._send("system.symbols_request", {"gateway_id": self._gw_id})
-        ack = self._recv(f"system.symbols.{self._gw_id}")
-        return ack.get("symbols", [])
-
-    # ------------------------------------------------------------------ #
-    # Session control                                                      #
-    # ------------------------------------------------------------------ #
-
-    def session_advance(self, to_state: str) -> dict:
-        """
-        Request a session-phase transition.
-        Valid states: PRE_OPEN, OPENING_AUCTION, CONTINUOUS,
-        CLOSING_AUCTION, CLOSED.
-        Returns the session.state broadcast that confirms the transition.
-        """
-        self._send("session.transition", {"to_state": to_state.upper()})
-        return self._recv("session.state")
+        client.resume_all()
+    except CommandTimeoutError as e:
+        print(f"Engine did not respond: {e}")
+# Sockets are closed automatically when the with-block exits.
 ```
 
 
@@ -755,6 +602,13 @@ class ExchangeCommandClient:
 | `order_list(target)` | target GW ID | Any connected GW | `order.orders_request` | `order.orders.{target}` |
 | `symbol_list()` | — | Any connected GW | `system.symbols_request` | `system.symbols.{GW}` |
 | `session_advance(state)` | target state string | Any connected GW | `session.transition` | `session.state` |
+| `session_status()` | — | Any connected GW | `system.session_state_request` | `system.session_status.{GW}` |
+| `session_schedule()` | — | Any connected GW | `system.session_schedule_request` | `system.session_schedule.{GW}` |
+| `gateway_list()` | — | Any connected GW | `system.gateways_request` | `system.gateways.{GW}` |
+| `volume()` | — | Any connected GW | `system.volume_request` | `system.volume.{GW}` |
+| `symbol_halt(symbol)` | symbol | **ADMIN** | `risk.symbol_halt` | `risk.symbol_halt_ack.{GW}` |
+| `symbol_resume(symbol)` | symbol | **ADMIN** | `risk.symbol_resume` | `risk.symbol_resume_ack.{GW}` |
+| `cancel_symbol(symbol)` | symbol | **ADMIN** | `risk.cancel_symbol` | `risk.cancel_symbol_ack.{GW}` |
 
 !!! warning "PUSH socket has no authentication"
     The engine does not verify *who* placed a message on the PUSH socket — it
@@ -1016,7 +870,7 @@ The example below shows a complete emergency halt-and-resume sequence using
 the command client:
 
 ```python
-from exchange_commands import ExchangeCommandClient
+from edumatcher.commands import ExchangeCommandClient, CommandTimeoutError
 
 client = ExchangeCommandClient("GW_ADMIN")
 
@@ -1066,11 +920,12 @@ To add a new command:
    `make_<command>_msg` helper and an ack helper).
 2. **Handle it in the engine** (`src/edumatcher/engine/main.py`) — add a
    `_handle_<command>` method and wire it into the dispatch `elif` chain.
-3. **Add the ack subscription prefix** to the `__init__` list in
-   `ExchangeCommandClient`.
-4. **Add the method** that calls `self._send(topic, payload)` and
+3. **Add the ack topic prefix** to `_ACK_SUB_PREFIXES` at the top of
+   `src/edumatcher/commands/client.py`.
+4. **Add the method** that calls `self._send(frames)` and
    `self._recv(ack_prefix)`.
-5. **Document it here** with a command-reference row and a detail section.
+5. **Add tests** in `tests/test_commands.py`.
+6. **Document it here** with a command-reference row and a detail section.
 
 
 

@@ -3,18 +3,18 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
-  - Which top-level `engine_config.yaml` sections are required vs optional, and what each one controls
-  - How to configure symbols (a.k.a. Order Books or LOBs), tick precision, seeded market-maker quotes/combos, and session schedules
-  - How gateway roles (`TRADER`, `MARKET_MAKER`, `ADMIN`) change permissions and operational controls
-  - How risk-control settings are resolved (global defaults, levels, and symbol-level overrides)
-  - What startup and persistence precedence rules affect real runtime behavior (restore vs seed, `DAY` vs `GTC`)
+    - Which top-level `engine_config.yaml` sections are required vs optional, and what each one controls
+    - How to configure symbols (a.k.a. Order Books or LOBs), tick precision, seeded market-maker quotes/combos, and session schedules
+    - How gateway roles (`TRADER`, `MARKET_MAKER`, `ADMIN`) change permissions and operational controls
+    - How risk-control settings are resolved (global defaults, levels, and symbol-level overrides)
+    - What startup and persistence precedence rules affect real runtime behavior (restore vs seed, `DAY` vs `GTC`)
+  
 
-
-## Confguring the exchange
+## Configuring the exchange
 
 The matching engine and session scheduler both consume the YAML configuration file in the project root. It defines:
 
-- the allowed FIX gateways
+- the allowed ALF order-entry gateways
 - the traded symbol universe
 - optional `sessions_enabled` control for auction/session enforcement
 - optional seeded last-buy / last-sell statistics
@@ -23,6 +23,24 @@ The matching engine and session scheduler both consume the YAML configuration fi
 - optional global MM obligation defaults
 - optional global risk-control level profiles
 - optional daily session schedule for `pm-scheduler`
+
+## Exchange Protocol Family
+
+EduMatcher defines a family of named protocols, each serving a different participant type:
+
+| Protocol | Full name | Purpose | Status |
+|---|---|---|---|
+| ALF | ALmost FIX | Text-based interactive order entry | Implemented |
+| BALF | Binary ALF | Fixed-width binary order entry for low-latency clients | Design proposal |
+| CALF | Channel ALF | Line-based market-data distribution and subscription | Design proposal |
+
+Each protocol has its own section under `gateways:` in `engine_config.yaml`. Currently only `gateways.alf` is active; `gateways.balf` and `gateways.calf` are reserved for future releases when those protocols are implemented.
+
+- **ALF** uses a pipe-delimited text format (`FIELD=VALUE|FIELD=VALUE`) delivered through the interactive `pm-gateway` terminal process. This is the only order-entry protocol currently available.
+- **BALF** will use fixed-width binary frames with sequence numbers and integer-scaled prices, targeting programmatic clients where text-parsing latency is undesirable. See the BALF appendix in the User Guide for the message layout specification.
+- **CALF** will provide a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection. See the CALF appendix in the User Guide for the full protocol specification.
+
+---
 
 ## File Location
 
@@ -43,7 +61,7 @@ The engine does **not** fail if the config file is missing. If the configured
 path does not exist, the engine starts in unrestricted mode:
 
 - no symbol allowlist
-- no FIX gateway allowlist
+- no ALF gateway allowlist
 - no seeded market statistics
 - no startup market-maker quotes
 - no startup market-maker combos
@@ -162,7 +180,9 @@ snapshot_interval_sec: 0.5
 | Key | Required when config file exists? | Used by |
 |---|---|---|
 | `gateways` | Yes | Engine |
-| `gateways.alf` | Yes | Engine |
+| `gateways.alf` | Yes (ALF order-entry gateways) | Engine |
+| `gateways.balf` | No (reserved for future BALF support) | Engine |
+| `gateways.calf` | No (reserved for future CALF support) | Engine |
 | `symbols` | Yes | Engine |
 | `market_maker_combos` | No | Engine |
 | `risk_controls` | No | Engine |
@@ -193,9 +213,9 @@ Rules:
 The engine poll loop still runs every 200ms; this setting only controls how
 frequently a changed symbol is eligible for snapshot publication.
 
-## Gateway Allowlist
+## ALF Gateway Allowlist
 
-Only FIX gateway IDs listed under `gateways.alf` may connect and submit orders.
+Only ALF gateway IDs listed under `gateways.alf` may connect and submit orders.
 
 ```yaml
 gateways:
@@ -221,7 +241,7 @@ gateways:
 
 ### Role Privileges and Obligations
 
-`role` defines the participant class attached to a FIX gateway session. The
+`role` defines the participant class attached to an ALF gateway session. The
 engine currently enforces the following differences:
 
 | Role | Can submit regular orders | Can submit quotes (`quote.new`) | MM obligation checks | Disconnect behavior knobs | Kill switch (`risk.kill_switch`) | Exchange Wide CB Halt (`risk.circuit_breaker_halt_all`) | Exchange Wide CB Resume (`risk.circuit_breaker_resume_all`) |
@@ -285,14 +305,14 @@ gateways:
 
 ### Runtime effect
 
-Gateway startup flow:
+ALF gateway startup flow:
 
-1. Gateway sends `system.gateway_connect`
-2. Engine checks the configured allowlist
+1. ALF gateway sends `system.gateway_connect`
+2. Engine checks the configured `gateways.alf` allowlist
 3. Engine replies on `system.gateway_auth.<GW_ID>`
 4. Rejected gateways cannot place orders
 
-Direct orders from an unauthorized gateway are rejected with reason:
+Direct orders from an unauthorised ALF gateway are rejected with reason:
 
 ```text
 Gateway not configured: <GW_ID>
@@ -499,6 +519,7 @@ symbols:
         bid_qty: 1000
         ask_qty: 1000
         tif: DAY
+        seed_once: true   # default — inject only on first startup
 ```
 
 These quotes are injected at engine startup by creating linked bid/ask quote
@@ -511,7 +532,7 @@ legs on the target symbol.
   - `gateway_id`
   - `bid_price`, `ask_price`
   - `bid_qty`, `ask_qty`
-- `gateway_id` must reference a configured `gateways.alf` entry with role `MARKET_MAKER`
+- `gateway_id` must reference a configured ALF gateway (`gateways.alf` entry) with role `MARKET_MAKER`
 - each quote requires `bid_price < ask_price`
 - each quote requires positive quantities
 - if at least one `MARKET_MAKER` gateway exists, each symbol must define at least one `market_maker_quotes` entry
@@ -520,25 +541,31 @@ legs on the target symbol.
 
 | Field | Required | Description |
 |---|---|---|
-| `gateway_id` | Yes | Must be a configured FIX gateway with role `MARKET_MAKER`. |
+| `gateway_id` | Yes | Must be a configured ALF gateway (`gateways.alf` entry) with role `MARKET_MAKER`. |
 | `quote_id` | No | Optional explicit quote ID. If omitted, engine generates one. |
 | `bid_price` | Yes | Bid side display price; converted to ticks by the engine. |
 | `ask_price` | Yes | Ask side display price; converted to ticks by the engine. |
 | `bid_qty` | Yes | Bid quantity, must be positive. |
 | `ask_qty` | Yes | Ask quantity, must be positive. |
-| `tif` | No | Defaults to `DAY`; supports normal order TIF values (`DAY`, `GTC`, etc.). |
+| `tif` | No | Defaults to `DAY`; supports `DAY` or `GTC`. |
+| `seed_once` | No | Defaults to `true`. When `true`, the seed is injected only on the very first startup for that symbol (detected via `book_stats.json`). When `false`, re-injected on every startup. |
 
 #### Persistence interaction
 
-| TIF | Behavior |
-|---|---|
-| `DAY` | Removed at shutdown and re-injected cleanly on next startup. |
-| `GTC` | Quote legs are persisted as regular orders, then quote seeds run again on restart, which can create duplicates. |
+Quote legs (regardless of `tif`) are **never written to `gtc_orders.json`** at
+shutdown. Config seeds are always the authoritative source; saving the legs
+would create duplicate orders in the book on the next startup.
 
-!!! warning
-  `GTC` market-maker quote seeds are usually the wrong choice for seeded books.
-    Because they are both persisted and re-injected from config, they will be
-    duplicated across restarts unless you explicitly clear persisted state.
+The `seed_once` field controls how often the seed is applied:
+
+| `seed_once` | Day 1 (no `book_stats.json` entry for symbol) | Day 2+ (entry exists) |
+|---|---|---|
+| `true` *(default)* | Seed injected | Skipped — symbol has prior history |
+| `false` | Seed injected | Seed injected |
+
+!!! tip "Resetting to day-one state"
+    Delete `src/data/book_stats.json` before starting the engine. Every symbol
+    will appear new again and `seed_once: true` seeds will fire again.
 
 ## First Startup (Fresh Seeded Book)
 
@@ -592,10 +619,18 @@ semantics.
 
 ### Subsequent startups
 
-On every restart the engine re-runs the same seeding step from config (step 5
-in the startup sequence).  Previous `DAY` quotes are already gone (expired at
-shutdown); `GTC` quote seeds would be re-injected *and* restored from the GTC
-file, causing duplicates — use `tif: DAY` for seed quotes to avoid this.
+On every restart the engine evaluates each seed entry:
+
+- **`seed_once: true` (default)**: if `book_stats.json` already has an entry
+  for the symbol, the seed is skipped. The symbol has been traded before; the
+  live market maker is expected to quote when ready.
+- **`seed_once: false`**: the seed is always injected, regardless of history.
+  Useful for demo setups where a specific spread must be the opening quote
+  every day.
+
+In both cases, quote legs are never persisted across restarts. To force a
+full day-one reset (re-inject all `seed_once: true` seeds), delete
+`src/data/book_stats.json` before starting the engine.
 
 ## Startup Market-Maker Combo Orders
 
@@ -845,3 +880,11 @@ before the first migrated startup:
 ```bash
 rm -f data/gtc_orders.json data/book_stats.json data/gtc_combos.json
 ```
+
+## See also
+
+- [Running the Engine](03-running-the-engine.md) — minimum-viable config and startup order
+- [Processes](10-processes.md) — what each process does and which config keys it reads
+- [Risk Controls](12-risk-controls.md) — collar and circuit-breaker configuration in depth
+- [Persistence](11-persistence.md) — how GTC orders, book stats, and combos are saved and restored
+- [Gateway](08-gateway.md) — role privileges and disconnect behaviour at runtime
