@@ -289,7 +289,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../01-configuration/" class="md-tabs__link">
+        <a href="../00-getting-started/" class="md-tabs__link">
           
   
   
@@ -765,6 +765,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../00-getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -1256,10 +1284,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tickns-migration-notes" class="md-nav__link">
+  <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tick/Ns Migration Notes
+        See also
       
     </span>
   </a>
@@ -1458,6 +1486,62 @@
     
   
     Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../14-market-maker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../15-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Traders
   
 
     
@@ -2068,11 +2152,27 @@ participates in a global schedule of session phases:</p>
 <td>Reject</td>
 </tr>
 <tr>
+<td>IOC</td>
+<td>Reject</td>
+<td>Reject</td>
+<td>Match</td>
+<td>Reject</td>
+<td>Reject</td>
+</tr>
+<tr>
 <td>STOP / STOP_LIMIT</td>
-<td>Added to stop book</td>
-<td>Added to stop book</td>
+<td>Rest (no trigger)</td>
+<td>Rest (no trigger)</td>
 <td>Normal trigger logic</td>
-<td>Added to stop book</td>
+<td>Rest (no trigger)</td>
+<td>Reject</td>
+</tr>
+<tr>
+<td>TRAILING_STOP</td>
+<td>Rest (no trigger¹)</td>
+<td>Rest (no trigger¹)</td>
+<td>Normal trigger logic</td>
+<td>Rest (no trigger¹)</td>
 <td>Reject</td>
 </tr>
 <tr>
@@ -2093,10 +2193,14 @@ participates in a global schedule of session phases:</p>
 </tr>
 </tbody>
 </table>
-<p>MARKET and FOK orders are always rejected outside CONTINUOUS because they
+<p>¹ TRAILING_STOP is rejected during PRE_OPEN/auction phases if no <code>STOP=</code> is given and
+  no prior trade has established a <code>last_trade_price</code> for the symbol.</p>
+<p>MARKET, FOK, and IOC orders are always rejected outside CONTINUOUS because they
 cannot rest on the book — they require immediate execution.</p>
 <h3 id="transition-side-effects">Transition side-effects<a class="headerlink" href="#transition-side-effects" title="Permanent link">&para;</a></h3>
-<p>When the engine transitions <strong>out of</strong> an auction phase:</p>
+<p>When the engine transitions <strong>into a matching phase</strong> (i.e. when the new state
+has matching enabled and the old one did not — including the <code>PRE_OPEN → CONTINUOUS</code>
+shortcut):</p>
 <ol>
 <li><strong>Uncross</strong> — the equilibrium price algorithm runs on every symbol book
    and executes all crossable interest at the equilibrium price.</li>
@@ -2104,17 +2208,23 @@ cannot rest on the book — they require immediate execution.</p>
    ATC orders are expired when leaving <code>CLOSING_AUCTION</code>.  Expired orders
    receive an <code>order.expired</code> event on the PUB socket.</li>
 </ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The uncross also fires on <code>PRE_OPEN → CONTINUOUS</code> (skipping the opening
+auction).  Any orders that accumulated during pre-open are crossed at
+the equilibrium price before continuous matching begins.</p>
+</div>
 <h3 id="valid-state-transitions">Valid state transitions<a class="headerlink" href="#valid-state-transitions" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>PRE_OPEN ─────────→ OPENING_AUCTION ──→ CONTINUOUS
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    │                                        │
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    └─────────────→ CONTINUOUS               │  (skip opening auction)
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>                                             │
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>                        CONTINUOUS ──→ CLOSING_AUCTION ──→ CLOSED
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>                             │                                │
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>                             └──────────→ CLOSED              │
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>                                                              │
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>                                   CLOSED ──→ PRE_OPEN ───────┘  (next day)
-</code></pre></div>
+<pre class="mermaid"><code>stateDiagram-v2
+    [*] --&gt; PRE_OPEN : engine start (sessions enabled)
+    PRE_OPEN --&gt; OPENING_AUCTION
+    PRE_OPEN --&gt; CONTINUOUS : skip opening auction
+    OPENING_AUCTION --&gt; CONTINUOUS : uncross + ATO expiry
+    CONTINUOUS --&gt; CLOSING_AUCTION
+    CONTINUOUS --&gt; CLOSED : skip closing auction
+    CLOSING_AUCTION --&gt; CLOSED : uncross + ATC expiry
+    CLOSED --&gt; PRE_OPEN : next day
+    CLOSED --&gt; [*] : engine shutdown</code></pre>
 <p>Invalid transitions are silently rejected by the engine and logged to
 stderr.</p>
 <h2 id="the-session-scheduler-pm-scheduler">The session scheduler (<code>pm-scheduler</code>)<a class="headerlink" href="#the-session-scheduler-pm-scheduler" title="Permanent link">&para;</a></h2>
@@ -2122,38 +2232,39 @@ stderr.</p>
 messages to the engine at configured wall-clock times over a ZeroMQ PUSH
 socket.</p>
 <h3 id="starting-the-scheduler">Starting the scheduler<a class="headerlink" href="#starting-the-scheduler" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Use times from engine_config.yaml (or built-in defaults)</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Rapid-fire all transitions immediately (for testing / demos)</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--now
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1"># Custom delay between transitions in --now mode (default 3 s)</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--now<span class="w"> </span>--delay<span class="w"> </span><span class="m">5</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="c1"># Point to a different config file</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--config<span class="w"> </span>my_schedule.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Use times from engine_config.yaml (or built-in defaults)</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Rapid-fire all transitions immediately (for testing / demos)</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--now
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="c1"># Custom delay between transitions in --now mode (default 3 s)</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--now<span class="w"> </span>--delay<span class="w"> </span><span class="m">5</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1"># Point to a different config file</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--config<span class="w"> </span>my_schedule.yaml
 </code></pre></div>
 <h3 id="configuring-the-schedule">Configuring the schedule<a class="headerlink" href="#configuring-the-schedule" title="Permanent link">&para;</a></h3>
 <p>Add a <code>schedule</code> section to <code>engine_config.yaml</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">schedule</span><span class="p">:</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:00&quot;</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:25&quot;</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:30&quot;</span>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;16:00&quot;</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;16:05&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">schedule</span><span class="p">:</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">pre_open</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:00&quot;</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">opening_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:25&quot;</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">continuous_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;09:30&quot;</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span><span class="nt">closing_auction_start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;16:00&quot;</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span><span class="nt">closing_auction_end</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;16:05&quot;</span>
 </code></pre></div>
 <p>Times are <code>HH:MM</code> in local time.</p>
 <h3 id="session-handling-toggle">Session handling toggle<a class="headerlink" href="#session-handling-toggle" title="Permanent link">&para;</a></h3>
 <p>Session gating in the engine is controlled by <code>sessions_enabled</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">sessions_enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">sessions_enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
 <ul>
 <li><code>true</code> (default): session transitions are enforced, the engine starts
    <code>CLOSED</code>, and new orders are rejected outside order-accepting session
    states.</li>
 <li><code>false</code>: session handling is disabled, <code>session.transition</code> messages are
-   ignored by the engine, and trading stays in continuous behavior.</li>
+   ignored by the engine, and the engine starts (and remains) in <code>CONTINUOUS</code>
+   state — all order types are accepted and matched immediately.</li>
 </ul>
 <p>Use <code>sessions_enabled: false</code> when you want an always-open simulation without
 time-based session control.</p>
@@ -2194,17 +2305,17 @@ time-based session control.</p>
 default sequence with a short configurable delay between each.  This is
 useful for integration testing and demos where you want to exercise the full
 auction lifecycle in seconds rather than hours.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--now<span class="w"> </span>--delay<span class="w"> </span><span class="m">2</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--now<span class="w"> </span>--delay<span class="w"> </span><span class="m">2</span>
 </code></pre></div>
 <p>Output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[SCHEDULER] --now mode: sending all transitions with 2.0s delays
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>[SCHEDULER] → PRE_OPEN
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>[SCHEDULER] → OPENING_AUCTION
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>[SCHEDULER] → CONTINUOUS
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>[SCHEDULER] → CLOSING_AUCTION
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>[SCHEDULER] → CLOSED
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>[SCHEDULER] Done.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[SCHEDULER] --now mode: sending all transitions with 2.0s delays
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>[SCHEDULER] → PRE_OPEN
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>[SCHEDULER] → OPENING_AUCTION
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>[SCHEDULER] → CONTINUOUS
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>[SCHEDULER] → CLOSING_AUCTION
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>[SCHEDULER] → CLOSED
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>[SCHEDULER] Done.
 </code></pre></div>
 <h2 id="equilibrium-price">Equilibrium price<a class="headerlink" href="#equilibrium-price" title="Permanent link">&para;</a></h2>
 <p>The <strong>equilibrium price</strong> (also called the <strong>auction price</strong> or <strong>uncross
@@ -2367,7 +2478,7 @@ uncross takes place.</p>
 </tbody>
 </table>
 <p>Maximum exec_qty = <strong>15</strong> at prices 102 and 103 (both with surplus 5).
-The algorithm picks the first candidate encountered: <span class="arithmatex">\(P^* = 102\)</span>.</p>
+Tie-broken by lowest price: <span class="arithmatex">\(P^* = 102\)</span>.</p>
 <p>Result: 15 shares execute at <strong>102.00</strong>, with a BUY-side imbalance of 5
 shares.</p>
 <h3 id="uncross-execution">Uncross execution<a class="headerlink" href="#uncross-execution" title="Permanent link">&para;</a></h3>
@@ -2398,7 +2509,7 @@ improvement or slippage during the uncross.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>fill.{gateway_id}</code></td>
+<td><code>order.fill.{gateway_id}</code></td>
 <td>One per order that received a fill (partial or complete)</td>
 </tr>
 <tr>
@@ -2419,12 +2530,14 @@ improvement or slippage during the uncross.</p>
 </tr>
 </tbody>
 </table>
-<h2 id="tickns-migration-notes">Tick/Ns Migration Notes<a class="headerlink" href="#tickns-migration-notes" title="Permanent link">&para;</a></h2>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li>The equilibrium price is computed on integer tick levels in engine internals.</li>
-<li>Auction fills and imbalance calculations use tick-domain arithmetic.</li>
-<li>Published auction result messages expose decimal prices for readability,
-  converted from the internal tick value.</li>
+<li><a href="../01-configuration/#session-scheduling">Configuration</a> — <code>schedule:</code> YAML keys and <code>sessions_enabled</code></li>
+<li><a href="../04-order-types/#time-in-force-tif">Order Types</a> — ATO and ATC time-in-force explained</li>
+<li><a href="../10-processes/#pm-scheduler">Processes</a> — how to start and configure <code>pm-scheduler</code></li>
+<li><a href="../03-running-the-engine/">Running the Engine</a> — the <code>--now</code> shortcut for rapid session cycling</li>
+<li><a href="../12-risk-controls/">Risk Controls</a> — circuit-breaker resumption modes that re-use the uncross algorithm</li>
+<li><a href="../09-messages/">Messages</a> — <code>session.state</code>, <code>auction.result</code>, and <code>order.expired</code> message formats</li>
 </ul>
 
 

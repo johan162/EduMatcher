@@ -289,7 +289,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../01-configuration/" class="md-tabs__link">
+        <a href="../00-getting-started/" class="md-tabs__link">
           
   
   
@@ -765,6 +765,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../00-getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -1518,6 +1546,78 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#kill-switch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Kill switch
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Kill switch">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Permissions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sending-the-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sending the command
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-engine-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the engine does
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reply" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reply
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#differences-from-a-halt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Differences from a halt
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#market-maker-interaction" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1563,6 +1663,62 @@
     
   
     Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../14-market-maker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../15-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Traders
   
 
     
@@ -2039,7 +2195,8 @@
 <li>How an instrument halt state prevents trading while a symbol is suspended</li>
 <li>How price collars reject orders that stray too far from a reference or last-traded price</li>
 <li>How circuit breakers detect violent price moves and automatically halt and resume a symbol</li>
-<li>How all three mechanisms interact with the order types described in <a href="../04-order-types/">Order Types</a></li>
+<li>How the kill switch lets any gateway instantly cancel all its own resting orders</li>
+<li>How all four mechanisms interact with the order types described in <a href="../04-order-types/">Order Types</a></li>
 <li>How to configure each feature in <code>engine_config.yaml</code></li>
 </ul>
 <p><strong>Prerequisite</strong>: <a href="../../concepts/01-concepts-order-book/">Concepts — Order Book</a> explains the
@@ -2076,9 +2233,35 @@ disorderly markets.  EduMatcher implements three complementary mechanisms:</p>
 <td>Last trade price vs. rolling reference</td>
 <td>Automatic halt + scheduled resume</td>
 </tr>
+<tr>
+<td><strong>Kill switch</strong></td>
+<td>Any authenticated gateway</td>
+<td>—</td>
+<td>Cancels all resting orders for that gateway</td>
+</tr>
 </tbody>
 </table>
 <p>All three operate at the engine level — <em>before</em> any order enters the book.</p>
+<p>The following diagram shows the order admission path through all three controls:</p>
+<pre class="mermaid"><code>flowchart TD
+    A([Incoming order]) --&gt; B{Symbol halted?}
+    B -- Yes --&gt; C{Order type?}
+    C -- MARKET / FOK / IOC --&gt; REJ1([Reject: SYMBOL_HALTED])
+    C -- LIMIT / ICEBERG --&gt; REST([Accept \u2014 rest on book,\nno matching sweep])
+    B -- No --&gt; D{Collar\nconfigured?}
+    D -- Yes --&gt; E{Price within\nstatic band?}
+    E -- No --&gt; REJ2([Reject: STATIC_COLLAR_BREACH])
+    E -- Yes --&gt; F{Last trade\nprice known?}
+    F -- Yes --&gt; G{Price within\ndynamic band?}
+    G -- No --&gt; REJ3([Reject: DYNAMIC_COLLAR_BREACH])
+    G -- Yes --&gt; MATCH
+    F -- No --&gt; MATCH
+    D -- No --&gt; MATCH([Accept \u2014 enter matching engine])
+    MATCH --&gt; H{Trade\nexecuted?}
+    H -- Yes --&gt; I{CB level\ncrossed?}
+    I -- Yes --&gt; HALT([Halt symbol\nschedule resume])
+    I -- No --&gt; DONE([Done])
+    H -- No --&gt; DONE</code></pre>
 <h2 id="instrument-halt-state">Instrument halt state<a class="headerlink" href="#instrument-halt-state" title="Permanent link">&para;</a></h2>
 <h3 id="what-it-does">What it does<a class="headerlink" href="#what-it-does" title="Permanent link">&para;</a></h3>
 <p>Each symbol in EduMatcher can be in one of two states:</p>
@@ -2167,6 +2350,25 @@ mistyped limit price could instantly sweep the entire book.</p>
 The boundary tick values are computed with <strong>truncation toward zero</strong>
 (<code>int()</code>) so that the protected range is always at least as tight as the
 nominal percentage:</p>
+<table>
+<thead>
+<tr>
+<th>Band</th>
+<th>Reference price used</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Static</td>
+<td><code>last_buy_price</code> from config (converted to ticks at startup)</td>
+</tr>
+<tr>
+<td>Dynamic</td>
+<td>Last executed trade price in the current session</td>
+</tr>
+</tbody>
+</table>
+<p>The dynamic band is skipped entirely when no trade has occurred yet in the session.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>static_upper  = int(reference_price × (1 + static_band_pct))
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>static_lower  = int(reference_price × (1 - static_band_pct))
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
@@ -2318,6 +2520,14 @@ volatility interruptions on Euronext.</p>
 </ul>
 </li>
 </ol>
+<pre class="mermaid"><code>stateDiagram-v2
+    [*] --&gt; ACTIVE
+    ACTIVE --&gt; HALTED : trade price shift \u2265 L1/L2/L3 threshold\nMM quotes cancelled
+    HALTED --&gt; AUCTION_UNCROSS : resume timer expires\n(resumption_mode\u202f=\u202fAUCTION)
+    HALTED --&gt; ACTIVE : resume timer expires\n(resumption_mode\u202f=\u202fCONTINUOUS)
+    AUCTION_UNCROSS --&gt; ACTIVE : uncross complete
+    ACTIVE --&gt; HALTED : operator halt\n(per-symbol or ADMIN all)\nMM quotes cancelled
+    HALTED --&gt; ACTIVE : operator resume\n(risk.circuit_breaker_resume_all)</code></pre>
 <h3 id="rolling-reference-window">Rolling reference window<a class="headerlink" href="#rolling-reference-window" title="Permanent link">&para;</a></h3>
 <p>The reference window is a sliding time window.  Any trade older than
 <code>now - reference_window_ns</code> is discarded before computing the average.  This
@@ -2467,19 +2677,20 @@ operator-initiated halt.</p>
 <h3 id="circuit-breaker-halt">Circuit breaker halt<a class="headerlink" href="#circuit-breaker-halt" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>topic:   b&quot;circuit_breaker.halt.MSFT&quot;
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>payload: {
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    &quot;symbol&quot;:          &quot;MSFT&quot;,
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    &quot;trigger_price&quot;:   10800,
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    &quot;reference_price&quot;: 10100,
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    &quot;resume_at_ns&quot;:    &lt;timestamp&gt;
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>}
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    &quot;symbol&quot;:           &quot;MSFT&quot;,
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    &quot;trigger_price&quot;:    10800,
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    &quot;reference_price&quot;:  10100,
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    &quot;resume_at_ns&quot;:     &lt;timestamp&gt;,
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    &quot;resumption_mode&quot;:  &quot;AUCTION&quot;,
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>    &quot;level&quot;:            &quot;L1&quot;
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>}
 </code></pre></div>
 <h3 id="circuit-breaker-resume">Circuit breaker resume<a class="headerlink" href="#circuit-breaker-resume" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>topic:   b&quot;circuit_breaker.resume.MSFT&quot;
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>payload: {
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    &quot;symbol&quot;:         &quot;MSFT&quot;,
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    &quot;resume_at_ns&quot;:   &lt;timestamp&gt;,
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>    &quot;resumption_mode&quot;: &quot;AUCTION&quot;
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>}
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>    &quot;symbol&quot;: &quot;MSFT&quot;,
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>    &quot;mode&quot;:   &quot;AUCTION&quot;
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>}
 </code></pre></div>
 <h2 id="admin-role-operator-controls">ADMIN-role operator controls<a class="headerlink" href="#admin-role-operator-controls" title="Permanent link">&para;</a></h2>
 <p>An operator gateway configured with <code>role: ADMIN</code> can trigger and lift an
@@ -2491,11 +2702,10 @@ requires every symbol to be frozen simultaneously.</p>
 <p>Configure a dedicated gateway with <code>role: ADMIN</code> in <code>engine_config.yaml</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">gateways</span><span class="p">:</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="nt">GW_ADMIN</span><span class="p">:</span>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">      </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW_ADMIN</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Operations</span><span class="nv"> </span><span class="s">desk&quot;</span>
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cancel_quotes_only</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">GW_ADMIN</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Operations</span><span class="nv"> </span><span class="s">desk&quot;</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">      </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span>
 </code></pre></div>
 <p>The gateway connects to the engine via the standard PUSH socket (port 5555) and
 subscribes to the PUB socket (port 5556) to receive ack messages.</p>
@@ -2658,21 +2868,109 @@ the engine will begin enforcing MM obligation checks again immediately.</p>
 </tr>
 </tbody>
 </table>
+<h2 id="kill-switch">Kill switch<a class="headerlink" href="#kill-switch" title="Permanent link">&para;</a></h2>
+<p>The kill switch is a gateway-level emergency control that immediately cancels
+all resting orders and quotes owned by a specific gateway, without halting the
+symbol.  It is designed for situations where a malfunctioning trading bot or
+gateway needs to be flushed without stopping the whole market.</p>
+<h3 id="permissions">Permissions<a class="headerlink" href="#permissions" title="Permanent link">&para;</a></h3>
+<p>Unlike the exchange-wide halt, the kill switch does <strong>not</strong> require <code>ADMIN</code>
+role.  Any authenticated, connected gateway can trigger a kill switch against
+its own orders.</p>
+<h3 id="sending-the-command">Sending the command<a class="headerlink" href="#sending-the-command" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>Frame 0 (topic):   b&quot;risk.kill_switch&quot;
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>Frame 1 (payload): {&quot;gateway_id&quot;: &quot;GW01&quot;}
+</code></pre></div>
+<p>An optional <code>"symbol"</code> field scopes the cancellation to a single instrument:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="p">{</span><span class="nt">&quot;gateway_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GW01&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="p">}</span>
+</code></pre></div>
+<p>When <code>"symbol"</code> is empty or absent, all symbols are included.</p>
+<h3 id="what-the-engine-does">What the engine does<a class="headerlink" href="#what-the-engine-does" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Collects all resting orders and quote legs for the specified gateway (and
+   optionally symbol).</li>
+<li>Cancels each order and quote leg, excluding child orders that were derived
+   from a quote (those are cancelled as part of the quote leg cancellation).</li>
+<li>Sends a <code>risk.kill_switch_ack.{GW_ID}</code> reply with the count of cancelled
+   items.</li>
+</ol>
+<h3 id="reply">Reply<a class="headerlink" href="#reply" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>topic:   b&quot;risk.kill_switch_ack.GW01&quot;
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>payload: {
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>    &quot;accepted&quot;:          true,
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>    &quot;cancelled_orders&quot;:  &lt;count&gt;,
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>    &quot;cancelled_quotes&quot;:  &lt;count&gt;
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>}
+</code></pre></div>
+<h3 id="differences-from-a-halt">Differences from a halt<a class="headerlink" href="#differences-from-a-halt" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Kill switch</th>
+<th>Instrument halt</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Scope</td>
+<td>One gateway's orders</td>
+<td>All orders on a symbol</td>
+</tr>
+<tr>
+<td>Symbol trading</td>
+<td>Continues uninterrupted</td>
+<td>Paused</td>
+</tr>
+<tr>
+<td>New orders accepted</td>
+<td>Yes</td>
+<td>LIMIT/ICEBERG only</td>
+</tr>
+<tr>
+<td>Requires ADMIN role</td>
+<td>No</td>
+<td>No (per-symbol); Yes (exchange-wide)</td>
+</tr>
+<tr>
+<td>Auto-resume</td>
+<td>Not applicable</td>
+<td>Yes (CB) / Manual (operator)</td>
+</tr>
+</tbody>
+</table>
 <h2 id="market-maker-interaction">Market-maker interaction<a class="headerlink" href="#market-maker-interaction" title="Permanent link">&para;</a></h2>
-<p>When a circuit breaker fires, all outstanding market-maker quotes for the
-affected symbol are cancelled immediately.  This protects market makers from
-having stale quotes executed against them during a disorderly market.  When the
-symbol resumes, market makers are expected to submit fresh quotes at updated
-prices.</p>
-<p>Operator-initiated halts do not automatically cancel outstanding quotes.  They
-instead prevent new quotes from being accepted.  Pre-existing quotes remain on
-the book and will participate in any uncross at resumption.</p>
+<p>When any halt fires — whether triggered by a circuit breaker, a per-symbol operator halt, or the exchange-wide ADMIN halt — <strong>all outstanding market-maker quote legs for the affected symbols are cancelled immediately</strong>. This protects market makers from having stale quotes executed against them during a disorderly market. The cancellation reason included in the <code>order.cancelled</code> message distinguishes the halt source:</p>
+<table>
+<thead>
+<tr>
+<th>Halt source</th>
+<th>Cancellation reason text</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Circuit breaker</td>
+<td><code>"Circuit breaker halt"</code></td>
+</tr>
+<tr>
+<td>Per-symbol operator halt</td>
+<td><code>"Per-symbol halt"</code></td>
+</tr>
+<tr>
+<td>Exchange-wide ADMIN halt</td>
+<td><code>"Global circuit breaker halt"</code></td>
+</tr>
+</tbody>
+</table>
+<p>When a symbol resumes, market makers are expected to submit fresh quotes at updated prices. The engine will begin enforcing MM obligation checks again immediately upon resumption.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../01-configuration/">Configuration</a> — full <code>engine_config.yaml</code> reference</li>
+<li><a href="../01-configuration/">Configuration</a> — full <code>engine_config.yaml</code> reference including collar and CB ladder config</li>
 <li><a href="../04-order-types/">Order Types</a> — how different order types behave under halt</li>
 <li><a href="../13-drop-copy/">Drop Copy</a> — how fill events are forwarded to risk systems</li>
 <li><a href="../06-auctions-scheduling/">Auctions &amp; Session Scheduling</a> — the uncross that can occur at circuit breaker resumption</li>
+<li><a href="../08-gateway/">Gateway Reference</a> — <code>KILL</code> command for triggering the kill switch via the ALF terminal</li>
 </ul>
 
 

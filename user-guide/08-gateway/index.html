@@ -289,7 +289,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../01-configuration/" class="md-tabs__link">
+        <a href="../00-getting-started/" class="md-tabs__link">
           
   
   
@@ -773,6 +773,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../00-getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../01-configuration/" class="md-nav__link">
         
   
@@ -1235,10 +1263,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#cancel-cancel-a-resting-order" class="md-nav__link">
+  <a href="#amend-amend-a-resting-order" class="md-nav__link">
     <span class="md-ellipsis">
       
-        CANCEL — Cancel a Resting Order
+        AMEND — Amend a Resting Order
       
     </span>
   </a>
@@ -1246,10 +1274,38 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#cancel-cancel-a-combo" class="md-nav__link">
+  <a href="#new-oco-submit-a-one-cancels-other-pair" class="md-nav__link">
     <span class="md-ellipsis">
       
-        CANCEL — Cancel a Combo
+        NEW (OCO) — Submit a One-Cancels-Other Pair
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="NEW (OCO) — Submit a One-Cancels-Other Pair">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-bracket-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example — bracket order
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cancel-cancel-a-resting-order-combo-or-oco" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CANCEL — Cancel a Resting Order, Combo, or OCO
       
     </span>
   </a>
@@ -1340,6 +1396,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#quote-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quote Events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#oco-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OCO Events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#combo-events" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1351,10 +1429,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#session-events" class="md-nav__link">
+  <a href="#risk-events" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Session Events
+        Risk Events
       
     </span>
   </a>
@@ -1439,10 +1517,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tickns-migration-notes" class="md-nav__link">
+  <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tick/Ns Migration Notes
+        See also
       
     </span>
   </a>
@@ -1585,6 +1663,62 @@
     
   
     Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../14-market-maker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../15-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Traders
   
 
     
@@ -2068,6 +2202,12 @@
 <li>How to start a gateway, submit every order type, manage positions, and read
   responses</li>
 </ul>
+<p><strong>Prerequisites</strong>: <a href="../01-configuration/">Configuration</a> — you need a valid
+<code>engine_config.yaml</code> with your gateway ID and role configured before connecting.
+<a href="../04-order-types/">Order Types</a> — understand what NEW, AMEND, OCO, and COMBO
+mean before using the commands here.
+<a href="../09-messages/">Messages</a> — for the raw two-frame format underlying every
+gateway response.</p>
 </div>
 <h2 id="background-gateways-in-real-exchange-architecture">Background — Gateways in Real Exchange Architecture<a class="headerlink" href="#background-gateways-in-real-exchange-architecture" title="Permanent link">&para;</a></h2>
 <h3 id="what-is-a-gateway">What is a gateway?<a class="headerlink" href="#what-is-a-gateway" title="Permanent link">&para;</a></h3>
@@ -2232,17 +2372,31 @@ The ID must be preconfigured in <code>engine_config.yaml</code> under <code>gate
 <li>If rejected: prints the reason and exits immediately</li>
 <li>If timeout (engine not running): exits with "Gateway authentication timed out"</li>
 </ol>
+<pre class="mermaid"><code>sequenceDiagram
+    participant GW as pm-gateway --id TRADER01
+    participant ENG as pm-engine
+
+    GW-&gt;&gt;ENG: PUSH :5555  system.gateway_connect {gateway_id: "TRADER01"}
+    alt ID is in gateways.alf
+        ENG--&gt;&gt;GW: PUB :5556  system.gateway_auth.TRADER01 {accepted: true}
+        Note over GW: Enters interactive command loop
+    else ID not configured
+        ENG--&gt;&gt;GW: PUB :5556  system.gateway_auth.TRADER01 {accepted: false, reason: "Gateway not configured: TRADER01"}
+        Note over GW: Prints reason and exits
+    else No reply within 3 seconds
+        Note over GW: Prints "Gateway authentication timed out" and exits
+    end</code></pre>
 <p>The gateway does <strong>not</strong> subscribe to <code>session.state</code>. Use <code>pm-audit</code>,
 <code>pm-viewer</code>, <code>pm-orders</code>, or the scheduler output if you need to watch trading
 phase transitions live.</p>
 <p>Allowed gateway IDs are configured in <code>engine_config.yaml</code> under <code>gateways.alf</code>.</p>
 <p>Example:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="nt">alf</span><span class="p">:</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">            </span><span class="l l-Scalar l-Scalar-Plain">description</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">The first trader</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER02</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">            </span><span class="l l-Scalar l-Scalar-Plain">description</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">High frequency</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">The first trader</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER02</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">High frequency</span>
 </code></pre></div>
 <p>If a gateway starts with an ID that is not listed there, the engine refuses
 the connection and the gateway exits.</p>
@@ -2271,7 +2425,7 @@ catalog, see <a href="../20-app-alf-protocol/">Appendix: ALF Protocol Reference<
 </code></pre></div>
 <p><code>KILL</code> cancels active quote legs and non-quote resting orders for the gateway.</p>
 <h3 id="new-submit-an-order">NEW — Submit an Order<a class="headerlink" href="#new-submit-an-order" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>NEW|SYM=&lt;symbol&gt;|SIDE=&lt;BUY|SELL&gt;|TYPE=&lt;order-type&gt;|QTY=&lt;quantity&gt;[|PRICE=&lt;price&gt;][|STOP=&lt;price&gt;][|TIF=&lt;DAY|GTC&gt;][|VISIBLE=&lt;n&gt;][|SMP=&lt;action&gt;]
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>NEW|SYM=&lt;symbol&gt;|SIDE=&lt;BUY|SELL&gt;|TYPE=&lt;order-type&gt;|QTY=&lt;quantity&gt;[|PRICE=&lt;price&gt;][|STOP=&lt;price&gt;][|TRAIL=&lt;offset&gt;][|TIF=&lt;DAY|GTC&gt;][|VISIBLE=&lt;n&gt;][|SMP=&lt;action&gt;]
 </code></pre></div>
 <p><strong>SMP</strong> (Self Match Prevention) values: <code>NONE</code> (default), <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code>.
 SMP prevents you from accidentally trading against your own resting orders.</p>
@@ -2317,8 +2471,16 @@ manually: <code>TIF=ATO</code> or <code>TIF=ATC</code>. These orders are only va
 <td><code>NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=FOK\|QTY=100\|PRICE=150.00</code></td>
 </tr>
 <tr>
+<td>IOC</td>
+<td><code>NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=IOC\|QTY=100\|PRICE=150.00</code></td>
+</tr>
+<tr>
 <td>Iceberg</td>
 <td><code>NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=ICEBERG\|QTY=1000\|PRICE=150.00\|VISIBLE=100</code></td>
+</tr>
+<tr>
+<td>Trailing stop</td>
+<td><code>NEW\|SYM=AAPL\|SIDE=SELL\|TYPE=TRAILING_STOP\|QTY=100\|TRAIL=1.50</code></td>
 </tr>
 <tr>
 <td>With SMP</td>
@@ -2362,9 +2524,19 @@ manually: <code>TIF=ATO</code> or <code>TIF=ATC</code>. These orders are only va
 <td>SMP</td>
 </tr>
 <tr>
+<td>IOC</td>
+<td>SYM, SIDE, QTY</td>
+<td>PRICE, SMP</td>
+</tr>
+<tr>
 <td>ICEBERG</td>
 <td>SYM, SIDE, QTY, PRICE, VISIBLE (must be &lt; QTY)</td>
 <td>TIF, SMP</td>
+</tr>
+<tr>
+<td>TRAILING_STOP</td>
+<td>SYM, SIDE, QTY, TRAIL</td>
+<td>STOP (initial stop price), TIF, SMP</td>
 </tr>
 </tbody>
 </table>
@@ -2458,18 +2630,156 @@ manually: <code>TIF=ATO</code> or <code>TIF=ATC</code>. These orders are only va
 <li>No duplicate symbols (each leg must be a different instrument)</li>
 <li>All legs validated against <code>engine_config.yaml</code> symbol allowlist</li>
 </ul>
-<h3 id="cancel-cancel-a-resting-order">CANCEL — Cancel a Resting Order<a class="headerlink" href="#cancel-cancel-a-resting-order" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>CANCEL|ID=&lt;full-order-id&gt;
+<h3 id="amend-amend-a-resting-order">AMEND — Amend a Resting Order<a class="headerlink" href="#amend-amend-a-resting-order" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>AMEND|ID=&lt;full-order-id&gt;[|PRICE=&lt;new-price&gt;][|QTY=&lt;new-total-qty&gt;]
 </code></pre></div>
-<p>The full order ID is shown in the <code>ORDERS</code> table. Only the first 8 characters are shown
-in inline messages — use <code>ORDERS</code> to copy the full ID.</p>
-<h3 id="cancel-cancel-a-combo">CANCEL — Cancel a Combo<a class="headerlink" href="#cancel-cancel-a-combo" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>CANCEL|COMBO_ID=&lt;combo-label&gt;
+<p>At least one of <code>PRICE=</code> or <code>QTY=</code> must be present.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ID</code></td>
+<td>Yes</td>
+<td>Full order UUID (visible in the <code>ORDERS</code> table)</td>
+</tr>
+<tr>
+<td><code>PRICE</code></td>
+<td>Conditional</td>
+<td>New limit price; omit to keep current price</td>
+</tr>
+<tr>
+<td><code>QTY</code></td>
+<td>Conditional</td>
+<td>New total quantity; must be ≥ filled quantity</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Priority rules:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Change</th>
+<th>Time priority</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Quantity decrease only</td>
+<td><strong>Preserved</strong> — the order keeps its queue position</td>
+</tr>
+<tr>
+<td>Price change</td>
+<td><strong>Lost</strong> — the order moves to the back of the queue at the new price</td>
+</tr>
+<tr>
+<td>Quantity increase</td>
+<td><strong>Lost</strong> — the order moves to the back of the queue</td>
+</tr>
+</tbody>
+</table>
+<p>Reply: <code>AMENDED &lt;id&gt;  price=&lt;p&gt; qty=&lt;q&gt; remaining=&lt;r&gt;</code> on success, or a rejection via <code>REJECTED</code> with a reason.</p>
+<h3 id="new-oco-submit-a-one-cancels-other-pair">NEW (OCO) — Submit a One-Cancels-Other Pair<a class="headerlink" href="#new-oco-submit-a-one-cancels-other-pair" title="Permanent link">&para;</a></h3>
+<p>An OCO pair links two orders on the same symbol so that when one fills or is cancelled, the engine automatically cancels the other.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>NEW|TYPE=OCO|OCO_ID=&lt;label&gt;|SYM=&lt;symbol&gt;|QTY=&lt;qty&gt;[|TIF=&lt;DAY|GTC&gt;]
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>   |LEG1_SIDE=&lt;BUY|SELL&gt;|LEG1_TYPE=&lt;type&gt;[|LEG1_PRICE=&lt;p&gt;][|LEG1_STOP=&lt;p&gt;][|LEG1_TRAIL=&lt;offset&gt;]
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>   |LEG2_SIDE=&lt;BUY|SELL&gt;|LEG2_TYPE=&lt;type&gt;[|LEG2_PRICE=&lt;p&gt;][|LEG2_STOP=&lt;p&gt;][|LEG2_TRAIL=&lt;offset&gt;]
 </code></pre></div>
-<p>Cancels the combo and all its resting child legs atomically. Fills that already
-occurred are not reversed.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>OCO_ID</code></td>
+<td>Yes</td>
+<td>Client label for the pair</td>
+</tr>
+<tr>
+<td><code>SYM</code></td>
+<td>Yes</td>
+<td>Instrument ticker — shared by both legs</td>
+</tr>
+<tr>
+<td><code>QTY</code></td>
+<td>Yes</td>
+<td>Quantity — shared by both legs</td>
+</tr>
+<tr>
+<td><code>TIF</code></td>
+<td>No</td>
+<td><code>DAY</code> or <code>GTC</code>; defaults to <code>DAY</code></td>
+</tr>
+<tr>
+<td><code>LEG1_SIDE</code></td>
+<td>Yes</td>
+<td><code>BUY</code> or <code>SELL</code></td>
+</tr>
+<tr>
+<td><code>LEG1_TYPE</code></td>
+<td>Yes</td>
+<td>Order type for leg 1</td>
+</tr>
+<tr>
+<td><code>LEG1_PRICE</code></td>
+<td>Conditional</td>
+<td>Required for <code>LIMIT</code>, <code>STOP_LIMIT</code>, <code>FOK</code> legs</td>
+</tr>
+<tr>
+<td><code>LEG1_STOP</code></td>
+<td>Conditional</td>
+<td>Required for <code>STOP</code>, <code>STOP_LIMIT</code> legs</td>
+</tr>
+<tr>
+<td><code>LEG1_TRAIL</code></td>
+<td>Conditional</td>
+<td>Required for <code>TRAILING_STOP</code> legs</td>
+</tr>
+<tr>
+<td><code>LEG2_*</code></td>
+<td>Same rules as LEG1</td>
+<td>Second leg fields</td>
+</tr>
+</tbody>
+</table>
+<h4 id="example-bracket-order">Example — bracket order<a class="headerlink" href="#example-bracket-order" title="Permanent link">&para;</a></h4>
+<p>Buy limit below the market + stop-loss above (common bracket structure for a short position):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>NEW|TYPE=OCO|OCO_ID=BRACKET-001|SYM=AAPL|QTY=100|TIF=GTC
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>   |LEG1_SIDE=BUY|LEG1_TYPE=LIMIT|LEG1_PRICE=148.00
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>   |LEG2_SIDE=BUY|LEG2_TYPE=STOP|LEG2_STOP=155.00
+</code></pre></div>
+<p>If the LIMIT leg fills at 148.00, the engine automatically cancels the STOP leg. If the STOP triggers at 155.00, the LIMIT leg is cancelled.</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant GW as pm-gateway
+    participant ENG as pm-engine
+
+    GW-&gt;&gt;ENG: NEW|TYPE=OCO|OCO_ID=BRACKET-001|SYM=AAPL|QTY=100|...&lt;br/&gt;LEG1=LIMIT BUY @148.00  LEG2=STOP BUY @155.00
+    ENG--&gt;&gt;GW: oco.ack.GW {accepted: true, order_id_1: "abc..", order_id_2: "def.."}
+    Note over GW: [OCO ACK]  BRACKET-001  legs=abc.../def...
+
+    Note over ENG: Time passes — AAPL trades at 148.00
+    ENG--&gt;&gt;GW: order.fill.GW  {order_id: "abc..", fill_qty: 100, status: "FILLED"}
+    ENG--&gt;&gt;GW: oco.cancelled.GW {oco_id: "BRACKET-001", cancelled_order_id: "def..", reason: "OCO sibling filled"}
+    Note over GW: [FILL] abc...  qty=100 @148.00 [FILLED]
+    Note over GW: [OCO CANCEL]  BRACKET-001  sibling=def...  OCO sibling filled</code></pre>
+<h3 id="cancel-cancel-a-resting-order-combo-or-oco">CANCEL — Cancel a Resting Order, Combo, or OCO<a class="headerlink" href="#cancel-cancel-a-resting-order-combo-or-oco" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>CANCEL|ID=&lt;full-order-id&gt;          # single-leg order
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>CANCEL|COMBO_ID=&lt;combo-label&gt;      # combo and all its resting legs
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>CANCEL|OCO_ID=&lt;oco-label&gt;          # both legs of an OCO pair
+</code></pre></div>
+<p>The full order ID is shown in the <code>ORDERS</code> table. Only the first 8 characters appear in inline fill/cancel messages — use <code>ORDERS</code> to copy the full UUID.</p>
+<p>Cancelling a combo or OCO is atomic: all resting child legs are cancelled, but fills that already occurred are not reversed.</p>
 <h3 id="orders-view-this-sessions-orders">ORDERS — View This Session's Orders<a class="headerlink" href="#orders-view-this-sessions-orders" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>ORDERS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>ORDERS
 </code></pre></div>
 <p>Prints a rich table of all <strong>single-leg</strong> orders submitted in this gateway session with
 current status, remaining quantity, and last update time.</p>
@@ -2480,19 +2790,19 @@ via real-time <code>combo.ack</code> and <code>combo.status</code> messages prin
 To see all order activity (including combo children), use <code>pm-orders</code>.</p>
 </div>
 <h3 id="pos-view-current-positions">POS — View Current Positions<a class="headerlink" href="#pos-view-current-positions" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>POS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>POS
 </code></pre></div>
 <p>Displays a position summary table showing net quantity, average entry cost,
 last trade price, unrealized P&amp;L, and realized P&amp;L for each symbol traded:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>┌─────────────────────────────────────────────────────────────────────────┐
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>│                            Positions                                     │
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>├──────────┬─────────┬──────────┬──────────┬────────────┬─────────────────┤
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>│ Symbol   │ Net Qty │ Avg Cost │  Last Px │ Unreal P&amp;L │     Real P&amp;L    │
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>├──────────┼─────────┼──────────┼──────────┼────────────┼─────────────────┤
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>│ AAPL     │    +100 │   150.25 │   151.00 │     +75.00 │          +0.00  │
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a>│ MSFT     │     -50 │   415.00 │   414.50 │     +25.00 │        +120.00  │
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>│ TSLA     │       0 │        — │        — │          — │        +340.00  │
-<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>└──────────┴─────────┴──────────┴──────────┴────────────┴─────────────────┘
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>┌─────────────────────────────────────────────────────────────────────────┐
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>│                            Positions                                     │
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>├──────────┬─────────┬──────────┬──────────┬────────────┬─────────────────┤
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>│ Symbol   │ Net Qty │ Avg Cost │  Last Px │ Unreal P&amp;L │     Real P&amp;L    │
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>├──────────┼─────────┼──────────┼──────────┼────────────┼─────────────────┤
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>│ AAPL     │    +100 │   150.25 │   151.00 │     +75.00 │          +0.00  │
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>│ MSFT     │     -50 │   415.00 │   414.50 │     +25.00 │        +120.00  │
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>│ TSLA     │       0 │        — │        — │          — │        +340.00  │
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>└──────────┴─────────┴──────────┴──────────┴────────────┴─────────────────┘
 </code></pre></div>
 <p><strong>How it works:</strong></p>
 <ul>
@@ -2508,18 +2818,18 @@ last trade price, unrealized P&amp;L, and realized P&amp;L for each symbol trade
 <p>Use <code>POS</code> after each fill to monitor your exposure without switching to <code>pm-orders</code>.</p>
 </div>
 <h3 id="symbols-list-active-instruments">SYMBOLS — List Active Instruments<a class="headerlink" href="#symbols-list-active-instruments" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>SYMBOLS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>SYMBOLS
 </code></pre></div>
 <p>Requests the list of all symbols that currently have an active order book in the engine.
 The gateway sends the request and the engine replies with the current instrument list,
 which is printed as a rich table:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>┌─────────────────────┐
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>│  Active Instruments │
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>├────┬────────────────┤
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>│  1 │ AAPL           │
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>│  2 │ MSFT           │
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>│  3 │ TSLA           │
-<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>└────┴────────────────┘
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>┌─────────────────────┐
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>│  Active Instruments │
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>├────┬────────────────┤
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>│  1 │ AAPL           │
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>│  2 │ MSFT           │
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a>│  3 │ TSLA           │
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>└────┴────────────────┘
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -2535,13 +2845,13 @@ startup authentication. If your ID is not listed under <code>gateways.alf</code>
 the engine refuses the connection.</p>
 </div>
 <h3 id="help-command-reference">HELP — Command Reference<a class="headerlink" href="#help-command-reference" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>HELP
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>HELP
 </code></pre></div>
 <h3 id="exit-quit-disconnect">EXIT / QUIT — Disconnect<a class="headerlink" href="#exit-quit-disconnect" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>EXIT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>EXIT
 </code></pre></div>
 <h2 id="gateway-responses">Gateway Responses<a class="headerlink" href="#gateway-responses" title="Permanent link">&para;</a></h2>
-<p>The gateway prints responses inline as events arrive from the engine:</p>
+<p>All events are printed inline with a <code>[HH:MM:SS.mmm]</code> timestamp prefix. A background thread receives events from the engine while you continue typing.</p>
 <h3 id="order-events">Order Events<a class="headerlink" href="#order-events" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -2581,6 +2891,52 @@ the engine refuses the connection.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="quote-events">Quote Events<a class="headerlink" href="#quote-events" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>QUOTE ACK  &lt;quote_id&gt;  bid=&lt;8-char-id&gt; ask=&lt;8-char-id&gt;</code></td>
+<td>Both quote legs accepted and posted to the book</td>
+</tr>
+<tr>
+<td><code>QUOTE REJ  &lt;quote_id&gt;  &lt;reason&gt;</code></td>
+<td>Quote rejected (e.g. <code>BID &gt;= ASK</code>, missing gateway role)</td>
+</tr>
+<tr>
+<td><code>QUOTE &lt;status&gt;  &lt;quote_id&gt;  [reason]</code></td>
+<td>Quote lifecycle update — status is <code>INACTIVATED</code>, <code>CANCELLED</code>, or <code>FILLED</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="oco-events">OCO Events<a class="headerlink" href="#oco-events" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>OCO ACK  &lt;oco_id&gt;  legs=&lt;leg1_8char&gt;/&lt;leg2_8char&gt;</code></td>
+<td>Both legs linked; IDs are first 8 chars of each order UUID</td>
+</tr>
+<tr>
+<td><code>OCO REJ  &lt;oco_id&gt;  &lt;reason&gt;</code></td>
+<td>OCO rejected (invalid legs, symbol mismatch, etc.)</td>
+</tr>
+<tr>
+<td><code>OCO CANCEL  &lt;oco_id&gt;  sibling=&lt;order_8char&gt;  &lt;reason&gt;</code></td>
+<td>Engine auto-cancelled the sibling leg after the other leg filled or was cancelled</td>
+</tr>
+</tbody>
+</table>
 <h3 id="combo-events">Combo Events<a class="headerlink" href="#combo-events" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -2616,7 +2972,7 @@ the engine refuses the connection.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="session-events">Session Events<a class="headerlink" href="#session-events" title="Permanent link">&para;</a></h3>
+<h3 id="risk-events">Risk Events<a class="headerlink" href="#risk-events" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
@@ -2626,20 +2982,12 @@ the engine refuses the connection.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>SESSION  OPENING_AUCTION</code></td>
-<td>Trading phase changed (orders accumulate, no matching)</td>
+<td><code>KILL ACK  orders=&lt;n&gt; quote_legs=&lt;n&gt;</code></td>
+<td>Kill-switch applied; counts show what was cancelled</td>
 </tr>
 <tr>
-<td><code>SESSION  CONTINUOUS</code></td>
-<td>Continuous matching resumed</td>
-</tr>
-<tr>
-<td><code>SESSION  CLOSING_AUCTION</code></td>
-<td>Closing auction started</td>
-</tr>
-<tr>
-<td><code>SESSION  CLOSED</code></td>
-<td>Trading session ended</td>
+<td><code>KILL REJ  &lt;reason&gt;</code></td>
+<td>Kill-switch rejected (not expected in normal operation)</td>
 </tr>
 </tbody>
 </table>
@@ -2658,16 +3006,20 @@ the engine refuses the connection.</p>
 </tr>
 </tbody>
 </table>
+<div class="admonition note">
+<p class="admonition-title">Session phase changes</p>
+<p>The gateway does <strong>not</strong> subscribe to <code>session.state</code> events. Trading phase transitions are not displayed in the gateway terminal. To monitor session phases, run <code>pm-audit</code>, <code>pm-viewer</code>, or <code>pm-orders</code> in a separate terminal.</p>
+</div>
 <h2 id="multiple-gateways">Multiple Gateways<a class="headerlink" href="#multiple-gateways" title="Permanent link">&para;</a></h2>
 <p>Run as many gateways as needed — each in its own terminal window:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># Terminal A</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER01
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="c1"># Terminal B  </span>
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER02
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>
-<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="c1"># Terminal C</span>
-<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER03
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="c1"># Terminal A</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="c1"># Terminal B  </span>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER02
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="c1"># Terminal C</span>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER03
 </code></pre></div>
 <p>Before starting a new gateway ID (for example <code>TRADER03</code>), add it to
 <code>engine_config.yaml</code> in <code>gateways.alf</code> and restart the engine.</p>
@@ -2676,12 +3028,60 @@ gateways' activity.</p>
 <h2 id="interactive-features">Interactive Features<a class="headerlink" href="#interactive-features" title="Permanent link">&para;</a></h2>
 <h3 id="tab-completion">Tab Completion<a class="headerlink" href="#tab-completion" title="Permanent link">&para;</a></h3>
 <p>The gateway provides <strong>context-aware tab completion</strong>:</p>
-<ul>
-<li>First position: top-level commands (<code>NEW</code>, <code>CANCEL</code>, <code>ORDERS</code>, <code>SYMBOLS</code>, <code>HELP</code>, <code>EXIT</code>)</li>
-<li>After <code>NEW|</code>: field names (<code>SYM=</code>, <code>SIDE=</code>, <code>TYPE=</code>, <code>QTY=</code>, <code>PRICE=</code>, <code>STOP=</code>, <code>TIF=</code>, <code>VISIBLE=</code>, <code>SMP=</code>)</li>
-<li>After a <code>KEY=</code>: value suggestions (e.g., <code>SIDE=</code> suggests <code>BUY</code> / <code>SELL</code>; <code>TYPE=</code> suggests all order types; <code>SMP=</code> suggests all SMP actions)</li>
-<li><code>SYM=</code> suggests known symbols (populated from the last <code>SYMBOLS</code> response)</li>
-</ul>
+<table>
+<thead>
+<tr>
+<th>Position</th>
+<th>Completions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>First word</td>
+<td><code>NEW</code>, <code>AMEND</code>, <code>CANCEL</code>, <code>QUOTE</code>, <code>QUOTE_CANCEL</code>, <code>KILL</code>, <code>ORDERS</code>, <code>POS</code>, <code>SYMBOLS</code>, <code>HELP</code>, <code>EXIT</code>, <code>QUIT</code></td>
+</tr>
+<tr>
+<td>After <code>NEW\|</code></td>
+<td><code>SYM=</code>, <code>SIDE=</code>, <code>TYPE=</code>, <code>QTY=</code>, <code>PRICE=</code>, <code>STOP=</code>, <code>TRAIL=</code>, <code>TIF=</code>, <code>VISIBLE=</code>, <code>SMP=</code></td>
+</tr>
+<tr>
+<td>After <code>NEW\|TYPE=COMBO\|</code></td>
+<td><code>COMBO_ID=</code>, <code>COMBO_TYPE=</code>, <code>TIF=</code>, <code>LEG_COUNT=</code>, plus <code>LEG0.SYM=</code>, <code>LEG0.SIDE=</code>, etc.</td>
+</tr>
+<tr>
+<td>After <code>NEW\|TYPE=OCO\|</code></td>
+<td><code>OCO_ID=</code>, <code>SYM=</code>, <code>QTY=</code>, <code>TIF=</code>, <code>LEG1_SIDE=</code>, <code>LEG1_TYPE=</code>, etc.</td>
+</tr>
+<tr>
+<td>After <code>AMEND\|</code></td>
+<td><code>ID=</code>, <code>PRICE=</code>, <code>QTY=</code></td>
+</tr>
+<tr>
+<td>After <code>CANCEL\|</code></td>
+<td><code>ID=</code>, <code>COMBO_ID=</code>, <code>OCO_ID=</code></td>
+</tr>
+<tr>
+<td>After <code>TYPE=</code></td>
+<td>All order types: <code>MARKET</code>, <code>LIMIT</code>, <code>STOP</code>, <code>STOP_LIMIT</code>, <code>FOK</code>, <code>IOC</code>, <code>ICEBERG</code>, <code>TRAILING_STOP</code>, <code>COMBO</code>, <code>OCO</code></td>
+</tr>
+<tr>
+<td>After <code>SIDE=</code></td>
+<td><code>BUY</code>, <code>SELL</code></td>
+</tr>
+<tr>
+<td>After <code>TIF=</code></td>
+<td><code>DAY</code>, <code>GTC</code>, <code>ATO</code>, <code>ATC</code></td>
+</tr>
+<tr>
+<td>After <code>SMP=</code></td>
+<td><code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code></td>
+</tr>
+<tr>
+<td>After <code>SYM=</code></td>
+<td>Known symbols (populated from the last <code>SYMBOLS</code> reply)</td>
+</tr>
+</tbody>
+</table>
 <p>Press <strong>Tab</strong> to cycle through suggestions.</p>
 <h3 id="command-history">Command History<a class="headerlink" href="#command-history" title="Permanent link">&para;</a></h3>
 <p>Press <strong>↑</strong> / <strong>↓</strong> arrow keys to navigate through previously entered commands
@@ -2690,13 +3090,14 @@ gateways' activity.</p>
 <p>A background thread listens on the SUB socket and prints events (fills, cancels,
 combo status changes, session transitions) in real-time, interleaved cleanly with
 the command prompt. You can continue typing while events arrive.</p>
-<h2 id="tickns-migration-notes">Tick/Ns Migration Notes<a class="headerlink" href="#tickns-migration-notes" title="Permanent link">&para;</a></h2>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Gateway commands remain decimal-friendly (<code>PRICE=150.25</code>, <code>STOP=149.50</code>).</li>
-<li>Engine boundary logic converts these values to ticks before matching.</li>
-<li>Returned prices remain readable decimals.</li>
-<li>Timestamp displays in gateway views are seconds-based renderings derived from
-  internal nanosecond timestamps.</li>
+<li><a href="../01-configuration/#gateway-configuration">Configuration</a> — gateway roles, allowlists, disconnect behaviour, and MM obligations</li>
+<li><a href="../04-order-types/">Order Types</a> — full semantics for every order type accepted by the gateway</li>
+<li><a href="../20-app-alf-protocol/">ALF Protocol Reference</a> — formal ABNF grammar and field rules for the pipe-delimited syntax</li>
+<li><a href="../09-messages/">Messages</a> — the ZeroMQ messages the gateway publishes and subscribes to</li>
+<li><a href="../12-risk-controls/">Risk Controls</a> — how the engine enforces collars, halts, and kill switches on gateway flow</li>
+<li><a href="../03-running-the-engine/">Running the Engine</a> — how to start <code>pm-gateway</code> and verify the connection</li>
 </ul>
 
 

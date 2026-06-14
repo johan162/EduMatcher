@@ -289,7 +289,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../01-configuration/" class="md-tabs__link">
+        <a href="../00-getting-started/" class="md-tabs__link">
           
   
   
@@ -765,6 +765,34 @@
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../00-getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
             
               
                 
@@ -2025,6 +2053,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2273,6 +2312,62 @@
     
   
     Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../14-market-maker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../15-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Traders
   
 
     
@@ -2746,7 +2841,7 @@
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
 <ul>
-<li>What each of the ten order types does and when to use it</li>
+<li>What each of the eight order types does and when to use it</li>
 <li>The difference between aggressive (market/IOC/FOK) and passive (limit/iceberg) orders</li>
 <li>How stop-family orders trigger and what happens after trigger</li>
 <li>How time-in-force controls order lifetime across session phases</li>
@@ -2755,9 +2850,9 @@
 <p><strong>Prerequisite</strong>: <a href="../../concepts/01-concepts-order-book/">The Order Book</a> — you should understand
 price-time priority before diving into order type mechanics.</p>
 </div>
-<p>EduMatcher supports <strong>ten order types</strong>, from the simplest market order to
-multi-leg combo/OCO orders used to execute strategies across multiple symbols
-atomically.</p>
+<p>EduMatcher supports <strong>eight order types</strong> plus two multi-leg constructs (COMBO and
+OCO), from the simplest market order to multi-leg combo/OCO orders used to execute
+strategies across multiple symbols atomically.</p>
 <h2 id="market">MARKET<a class="headerlink" href="#market" title="Permanent link">&para;</a></h2>
 <p><a href="#contents">Back to Contents</a></p>
 <p>Executes immediately at the best available price.</p>
@@ -3004,10 +3099,15 @@ the matching system keeps lifecycle and cancellation coupling explicit.</p>
 </table>
 <p><strong>Educational note</strong>: The <code>COMBO_TYPE</code> field is reserved for future expansion. Currently only <code>AON</code> (All-Or-Nothing) is supported, meaning the combo is successful only if every leg fills in full. In the future, we may add <code>ANY</code> (combo succeeds if at least one leg fills) or <code>MIN</code> (combo succeeds if a minimum number of legs fill).</p>
 <h3 id="combo-lifecycle">Combo lifecycle<a class="headerlink" href="#combo-lifecycle" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>PENDING ──────► PARTIALLY_MATCHED ──────► MATCHED
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>                      │
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>                      ▼
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>                    FAILED  (cascade-cancel triggered)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>                              REJECTED
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>                                 ▲
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>                            (validation)
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>PENDING ──────► PARTIALLY_MATCHED ──────► MATCHED
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>   │                  │
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>   │                  ▼
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>   └──────────────► FAILED  (cascade-cancel: a child order cancelled or expired)
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>PENDING or PARTIALLY_MATCHED ──► CANCELLED  (explicit CANCEL|COMBO_ID=)
 </code></pre></div>
 <h3 id="cancelling-a-combo">Cancelling a combo<a class="headerlink" href="#cancelling-a-combo" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>CANCEL|COMBO_ID=PAIR-001
@@ -3035,7 +3135,7 @@ that instruction is valid under changing session states.</p>
 <li><code>DAY</code> for session-local participation.</li>
 <li><code>GTC</code> for persistence across restarts/sessions.</li>
 <li><code>ATO</code>/<code>ATC</code> for auction-specific participation windows.</li>
-<li><code>FOK</code> when immediacy and completeness must be coupled.</li>
+<li><code>FOK</code> order type when immediacy and completeness must be coupled (note: <code>FOK</code> is an order type, not a <code>TIF=</code> value).</li>
 </ul>
 <table>
 <thead>
@@ -3061,12 +3161,13 @@ that instruction is valid under changing session states.</p>
 <td><code>ATC</code></td>
 <td>At-The-Close. Only accepted during the <code>CLOSING_AUCTION</code> phase. Automatically expired when the closing auction ends (transition to CLOSED).</td>
 </tr>
-<tr>
-<td><code>FOK</code></td>
-<td>Fill-Or-Kill (also an order type). Must fill entirely and immediately, or is rejected.</td>
-</tr>
 </tbody>
 </table>
+<div class="admonition note">
+<p class="admonition-title">FOK is an order type, not a TIF</p>
+<p><code>TIF=FOK</code> is <strong>not valid</strong> and will be rejected by the gateway. FOK semantics
+(fill entirely or cancel) are specified via <code>TYPE=FOK</code>, not <code>TIF=FOK</code>.</p>
+</div>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=GTC
 </code></pre></div>
 <h2 id="stop-trigger-logic">Stop Trigger Logic<a class="headerlink" href="#stop-trigger-logic" title="Permanent link">&para;</a></h2>
@@ -3306,10 +3407,6 @@ definition. The engine will reject an IOC during auction phases.</p>
 <tr>
 <td>Price limit not specified</td>
 <td>Not supported — IOC requires a <code>PRICE=</code></td>
-</tr>
-<tr>
-<td>IOC against FOK resting order</td>
-<td>Normal interaction; FOK would already have been rejected if it had no fill</td>
 </tr>
 </tbody>
 </table>
@@ -3625,7 +3722,7 @@ make in-place amendment ambiguous (STOP, STOP_LIMIT, TRAILING_STOP).</p>
 </tr>
 <tr>
 <td>MARKET / STOP / FOK order</td>
-<td><strong>REJECTED</strong> — "Cannot amend MARKET orders"</td>
+<td><strong>REJECTED</strong> — e.g. <code>"Cannot amend STOP orders"</code> (message names the actual order type)</td>
 </tr>
 <tr>
 <td>New QTY ≤ already filled qty</td>
@@ -3764,9 +3861,19 @@ notify the gateway.</p>
 <a id="__codelineno-38-9" name="__codelineno-38-9" href="#__codelineno-38-9"></a># Two LIMITs (buy bracket)
 <a id="__codelineno-38-10" name="__codelineno-38-10" href="#__codelineno-38-10"></a>NEW|TYPE=OCO|OCO_ID=BB|SYM=AAPL|QTY=50|TIF=GTC|LEG1_SIDE=BUY|LEG1_TYPE=LIMIT|LEG1_PRICE=140|LEG2_SIDE=BUY|LEG2_TYPE=LIMIT|LEG2_PRICE=160
 <a id="__codelineno-38-11" name="__codelineno-38-11" href="#__codelineno-38-11"></a>
-<a id="__codelineno-38-12" name="__codelineno-38-12" href="#__codelineno-38-12"></a># Cancel the entire OCO pair
-<a id="__codelineno-38-13" name="__codelineno-38-13" href="#__codelineno-38-13"></a>CANCEL|OCO_ID=TPS
+<a id="__codelineno-38-12" name="__codelineno-38-12" href="#__codelineno-38-12"></a># LIMIT + TRAILING_STOP (take-profit with adaptive stop)
+<a id="__codelineno-38-13" name="__codelineno-38-13" href="#__codelineno-38-13"></a>NEW|TYPE=OCO|OCO_ID=TS_BRACKET|SYM=AAPL|QTY=50|TIF=GTC|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=160|LEG2_SIDE=SELL|LEG2_TYPE=TRAILING_STOP|LEG2_TRAIL=2.00|LEG2_STOP=145
+<a id="__codelineno-38-14" name="__codelineno-38-14" href="#__codelineno-38-14"></a>
+<a id="__codelineno-38-15" name="__codelineno-38-15" href="#__codelineno-38-15"></a># Cancel the entire OCO pair
+<a id="__codelineno-38-16" name="__codelineno-38-16" href="#__codelineno-38-16"></a>CANCEL|OCO_ID=TPS
 </code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">TRAILING_STOP legs</p>
+<p><code>TRAILING_STOP</code> is a valid OCO leg type. Use <code>LEG&lt;n&gt;_TRAIL=</code> for the trail
+offset and optionally <code>LEG&lt;n&gt;_STOP=</code> for the initial stop price (computed
+from <code>last_trade_price ± trail_offset</code> if omitted). <code>LEG&lt;n&gt;_TRAIL=</code> is
+required for any <code>TRAILING_STOP</code> leg or the OCO will be rejected.</p>
+</div>
 <h3 id="oco-events">OCO Events<a class="headerlink" href="#oco-events" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -3809,18 +3916,18 @@ notify the gateway.</p>
 <tbody>
 <tr>
 <td>OCO_ID already in use</td>
-<td><strong>REJECTED</strong> (not implemented as replacement)</td>
+<td><strong>Not checked</strong> — a duplicate <code>oco_id</code> silently replaces the tracked group; use a unique label per pair</td>
 </tr>
 <tr>
 <td>Unknown symbol or gateway</td>
 <td><strong>REJECTED</strong> with <code>oco.ack accepted=false</code></td>
 </tr>
 <tr>
-<td>LIMIT leg missing <code>LEG_PRICE=</code></td>
+<td>LIMIT leg missing <code>LEG1_PRICE=</code> or <code>LEG2_PRICE=</code></td>
 <td><strong>REJECTED</strong></td>
 </tr>
 <tr>
-<td>STOP leg missing <code>LEG_STOP=</code></td>
+<td>STOP leg missing <code>LEG1_STOP=</code> or <code>LEG2_STOP=</code></td>
 <td><strong>REJECTED</strong></td>
 </tr>
 <tr>
@@ -3837,6 +3944,15 @@ notify the gateway.</p>
 </tr>
 </tbody>
 </table>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../05-combos/">Combos</a> — multi-symbol multi-leg strategies with cascade cancellation</li>
+<li><a href="../06-auctions-scheduling/">Auctions &amp; Scheduling</a> — which order types are accepted in each session phase</li>
+<li><a href="../11-persistence/">Persistence</a> — how GTC orders survive engine restarts</li>
+<li><a href="../12-risk-controls/">Risk Controls</a> — how collars and halts affect order admission</li>
+<li><a href="../08-gateway/">Gateway</a> — the full command syntax for submitting these order types</li>
+<li><a href="../20-app-alf-protocol/">ALF Protocol Reference</a> — formal grammar for all order fields</li>
+</ul>
 
 
 

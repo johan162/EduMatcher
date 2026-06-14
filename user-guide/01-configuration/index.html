@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/01-configuration/">
       
       
-        <link rel="prev" href="../../concepts/06-concepts-market-data-feed/">
+        <link rel="prev" href="../00-getting-started/">
       
       
         <link rel="next" href="../02-commands/">
@@ -289,7 +289,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="./" class="md-tabs__link">
+        <a href="../00-getting-started/" class="md-tabs__link">
           
   
   
@@ -770,6 +770,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../00-getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -833,10 +861,21 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#confguring-the-exchange" class="md-nav__link">
+  <a href="#configuring-the-exchange" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Confguring the exchange
+        Configuring the exchange
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exchange-protocol-family" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exchange Protocol Family
       
     </span>
   </a>
@@ -911,15 +950,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#gateway-allowlist" class="md-nav__link">
+  <a href="#alf-gateway-allowlist" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Gateway Allowlist
+        ALF Gateway Allowlist
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Gateway Allowlist">
+    <nav class="md-nav" aria-label="ALF Gateway Allowlist">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1360,6 +1399,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1692,6 +1742,62 @@
     
   
     Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../14-market-maker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../15-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Traders
   
 
     
@@ -2164,7 +2270,6 @@
 <div class="admonition note">
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
-</div>
 <ul>
 <li>Which top-level <code>engine_config.yaml</code> sections are required vs optional, and what each one controls</li>
 <li>How to configure symbols (a.k.a. Order Books or LOBs), tick precision, seeded market-maker quotes/combos, and session schedules</li>
@@ -2172,10 +2277,11 @@
 <li>How risk-control settings are resolved (global defaults, levels, and symbol-level overrides)</li>
 <li>What startup and persistence precedence rules affect real runtime behavior (restore vs seed, <code>DAY</code> vs <code>GTC</code>)</li>
 </ul>
-<h2 id="confguring-the-exchange">Confguring the exchange<a class="headerlink" href="#confguring-the-exchange" title="Permanent link">&para;</a></h2>
+</div>
+<h2 id="configuring-the-exchange">Configuring the exchange<a class="headerlink" href="#configuring-the-exchange" title="Permanent link">&para;</a></h2>
 <p>The matching engine and session scheduler both consume the YAML configuration file in the project root. It defines:</p>
 <ul>
-<li>the allowed FIX gateways</li>
+<li>the allowed ALF order-entry gateways</li>
 <li>the traded symbol universe</li>
 <li>optional <code>sessions_enabled</code> control for auction/session enforcement</li>
 <li>optional seeded last-buy / last-sell statistics</li>
@@ -2185,6 +2291,45 @@
 <li>optional global risk-control level profiles</li>
 <li>optional daily session schedule for <code>pm-scheduler</code></li>
 </ul>
+<h2 id="exchange-protocol-family">Exchange Protocol Family<a class="headerlink" href="#exchange-protocol-family" title="Permanent link">&para;</a></h2>
+<p>EduMatcher defines a family of named protocols, each serving a different participant type:</p>
+<table>
+<thead>
+<tr>
+<th>Protocol</th>
+<th>Full name</th>
+<th>Purpose</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ALF</td>
+<td>ALmost FIX</td>
+<td>Text-based interactive order entry</td>
+<td>Implemented</td>
+</tr>
+<tr>
+<td>BALF</td>
+<td>Binary ALF</td>
+<td>Fixed-width binary order entry for low-latency clients</td>
+<td>Design proposal</td>
+</tr>
+<tr>
+<td>CALF</td>
+<td>Channel ALF</td>
+<td>Line-based market-data distribution and subscription</td>
+<td>Design proposal</td>
+</tr>
+</tbody>
+</table>
+<p>Each protocol has its own section under <code>gateways:</code> in <code>engine_config.yaml</code>. Currently only <code>gateways.alf</code> is active; <code>gateways.balf</code> and <code>gateways.calf</code> are reserved for future releases when those protocols are implemented.</p>
+<ul>
+<li><strong>ALF</strong> uses a pipe-delimited text format (<code>FIELD=VALUE|FIELD=VALUE</code>) delivered through the interactive <code>pm-gateway</code> terminal process. This is the only order-entry protocol currently available.</li>
+<li><strong>BALF</strong> will use fixed-width binary frames with sequence numbers and integer-scaled prices, targeting programmatic clients where text-parsing latency is undesirable. See the BALF appendix in the User Guide for the message layout specification.</li>
+<li><strong>CALF</strong> will provide a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection. See the CALF appendix in the User Guide for the full protocol specification.</li>
+</ul>
+<hr />
 <h2 id="file-location">File Location<a class="headerlink" href="#file-location" title="Permanent link">&para;</a></h2>
 <p>By default both processes look for <code>engine_config.yaml</code> in the project root.
 You can override it with <code>--config</code>.</p>
@@ -2199,7 +2344,7 @@ You can override it with <code>--config</code>.</p>
 path does not exist, the engine starts in unrestricted mode:</p>
 <ul>
 <li>no symbol allowlist</li>
-<li>no FIX gateway allowlist</li>
+<li>no ALF gateway allowlist</li>
 <li>no seeded market statistics</li>
 <li>no startup market-maker quotes</li>
 <li>no startup market-maker combos</li>
@@ -2326,7 +2471,17 @@ path does not exist, the engine starts in unrestricted mode:</p>
 </tr>
 <tr>
 <td><code>gateways.alf</code></td>
-<td>Yes</td>
+<td>Yes (ALF order-entry gateways)</td>
+<td>Engine</td>
+</tr>
+<tr>
+<td><code>gateways.balf</code></td>
+<td>No (reserved for future BALF support)</td>
+<td>Engine</td>
+</tr>
+<tr>
+<td><code>gateways.calf</code></td>
+<td>No (reserved for future CALF support)</td>
 <td>Engine</td>
 </tr>
 <tr>
@@ -2386,8 +2541,8 @@ a list. Otherwise config loading fails and the engine exits.</p>
 </ul>
 <p>The engine poll loop still runs every 200ms; this setting only controls how
 frequently a changed symbol is eligible for snapshot publication.</p>
-<h2 id="gateway-allowlist">Gateway Allowlist<a class="headerlink" href="#gateway-allowlist" title="Permanent link">&para;</a></h2>
-<p>Only FIX gateway IDs listed under <code>gateways.alf</code> may connect and submit orders.</p>
+<h2 id="alf-gateway-allowlist">ALF Gateway Allowlist<a class="headerlink" href="#alf-gateway-allowlist" title="Permanent link">&para;</a></h2>
+<p>Only ALF gateway IDs listed under <code>gateways.alf</code> may connect and submit orders.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">gateways</span><span class="p">:</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">alf</span><span class="p">:</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
@@ -2448,7 +2603,7 @@ frequently a changed symbol is eligible for snapshot publication.</p>
 </tbody>
 </table>
 <h3 id="role-privileges-and-obligations">Role Privileges and Obligations<a class="headerlink" href="#role-privileges-and-obligations" title="Permanent link">&para;</a></h3>
-<p><code>role</code> defines the participant class attached to a FIX gateway session. The
+<p><code>role</code> defines the participant class attached to an ALF gateway session. The
 engine currently enforces the following differences:</p>
 <table>
 <thead>
@@ -2552,14 +2707,14 @@ engine-side role checks.</p>
 <a id="__codelineno-4-16" name="__codelineno-4-16" href="#__codelineno-4-16"></a><span class="w">      </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
 </code></pre></div>
 <h3 id="runtime-effect">Runtime effect<a class="headerlink" href="#runtime-effect" title="Permanent link">&para;</a></h3>
-<p>Gateway startup flow:</p>
+<p>ALF gateway startup flow:</p>
 <ol>
-<li>Gateway sends <code>system.gateway_connect</code></li>
-<li>Engine checks the configured allowlist</li>
+<li>ALF gateway sends <code>system.gateway_connect</code></li>
+<li>Engine checks the configured <code>gateways.alf</code> allowlist</li>
 <li>Engine replies on <code>system.gateway_auth.&lt;GW_ID&gt;</code></li>
 <li>Rejected gateways cannot place orders</li>
 </ol>
-<p>Direct orders from an unauthorized gateway are rejected with reason:</p>
+<p>Direct orders from an unauthorised ALF gateway are rejected with reason:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Gateway not configured: &lt;GW_ID&gt;
 </code></pre></div>
 <h2 id="global-mm-obligation-defaults">Global MM Obligation Defaults<a class="headerlink" href="#global-mm-obligation-defaults" title="Permanent link">&para;</a></h2>
@@ -2793,6 +2948,7 @@ Config values are only used to fill gaps when no persisted value exists.</p>
 <a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">        </span><span class="nt">bid_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
 <a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="w">        </span><span class="nt">ask_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
 <a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="w">        </span><span class="nt">tif</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DAY</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="w">        </span><span class="nt">seed_once</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">   </span><span class="c1"># default — inject only on first startup</span>
 </code></pre></div>
 <p>These quotes are injected at engine startup by creating linked bid/ask quote
 legs on the target symbol.</p>
@@ -2803,7 +2959,7 @@ legs on the target symbol.</p>
 <li><code>gateway_id</code></li>
 <li><code>bid_price</code>, <code>ask_price</code></li>
 <li><code>bid_qty</code>, <code>ask_qty</code></li>
-<li><code>gateway_id</code> must reference a configured <code>gateways.alf</code> entry with role <code>MARKET_MAKER</code></li>
+<li><code>gateway_id</code> must reference a configured ALF gateway (<code>gateways.alf</code> entry) with role <code>MARKET_MAKER</code></li>
 <li>each quote requires <code>bid_price &lt; ask_price</code></li>
 <li>each quote requires positive quantities</li>
 <li>if at least one <code>MARKET_MAKER</code> gateway exists, each symbol must define at least one <code>market_maker_quotes</code> entry</li>
@@ -2821,7 +2977,7 @@ legs on the target symbol.</p>
 <tr>
 <td><code>gateway_id</code></td>
 <td>Yes</td>
-<td>Must be a configured FIX gateway with role <code>MARKET_MAKER</code>.</td>
+<td>Must be a configured ALF gateway (<code>gateways.alf</code> entry) with role <code>MARKET_MAKER</code>.</td>
 </tr>
 <tr>
 <td><code>quote_id</code></td>
@@ -2851,35 +3007,46 @@ legs on the target symbol.</p>
 <tr>
 <td><code>tif</code></td>
 <td>No</td>
-<td>Defaults to <code>DAY</code>; supports normal order TIF values (<code>DAY</code>, <code>GTC</code>, etc.).</td>
+<td>Defaults to <code>DAY</code>; supports <code>DAY</code> or <code>GTC</code>.</td>
+</tr>
+<tr>
+<td><code>seed_once</code></td>
+<td>No</td>
+<td>Defaults to <code>true</code>. When <code>true</code>, the seed is injected only on the very first startup for that symbol (detected via <code>book_stats.json</code>). When <code>false</code>, re-injected on every startup.</td>
 </tr>
 </tbody>
 </table>
 <h4 id="persistence-interaction">Persistence interaction<a class="headerlink" href="#persistence-interaction" title="Permanent link">&para;</a></h4>
+<p>Quote legs (regardless of <code>tif</code>) are <strong>never written to <code>gtc_orders.json</code></strong> at
+shutdown. Config seeds are always the authoritative source; saving the legs
+would create duplicate orders in the book on the next startup.</p>
+<p>The <code>seed_once</code> field controls how often the seed is applied:</p>
 <table>
 <thead>
 <tr>
-<th>TIF</th>
-<th>Behavior</th>
+<th><code>seed_once</code></th>
+<th>Day 1 (no <code>book_stats.json</code> entry for symbol)</th>
+<th>Day 2+ (entry exists)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>DAY</code></td>
-<td>Removed at shutdown and re-injected cleanly on next startup.</td>
+<td><code>true</code> <em>(default)</em></td>
+<td>Seed injected</td>
+<td>Skipped — symbol has prior history</td>
 </tr>
 <tr>
-<td><code>GTC</code></td>
-<td>Quote legs are persisted as regular orders, then quote seeds run again on restart, which can create duplicates.</td>
+<td><code>false</code></td>
+<td>Seed injected</td>
+<td>Seed injected</td>
 </tr>
 </tbody>
 </table>
-<div class="admonition warning">
-<p class="admonition-title">Warning</p>
+<div class="admonition tip">
+<p class="admonition-title">Resetting to day-one state</p>
+<p>Delete <code>src/data/book_stats.json</code> before starting the engine. Every symbol
+will appear new again and <code>seed_once: true</code> seeds will fire again.</p>
 </div>
-<p><code>GTC</code> market-maker quote seeds are usually the wrong choice for seeded books.
-    Because they are both persisted and re-injected from config, they will be
-    duplicated across restarts unless you explicitly clear persisted state.</p>
 <h2 id="first-startup-fresh-seeded-book">First Startup (Fresh Seeded Book)<a class="headerlink" href="#first-startup-fresh-seeded-book" title="Permanent link">&para;</a></h2>
 <p>The first time you start the engine there are no persisted files. The entire
 opening book is created from <code>market_maker_quotes</code> in the config.</p>
@@ -2918,10 +3085,18 @@ band, the symbol can halt immediately even before the market-maker process
 connects.  See <a href="../12-risk-controls/">Risk Controls</a> for exact circuit-breaker
 semantics.</p>
 <h3 id="subsequent-startups">Subsequent startups<a class="headerlink" href="#subsequent-startups" title="Permanent link">&para;</a></h3>
-<p>On every restart the engine re-runs the same seeding step from config (step 5
-in the startup sequence).  Previous <code>DAY</code> quotes are already gone (expired at
-shutdown); <code>GTC</code> quote seeds would be re-injected <em>and</em> restored from the GTC
-file, causing duplicates — use <code>tif: DAY</code> for seed quotes to avoid this.</p>
+<p>On every restart the engine evaluates each seed entry:</p>
+<ul>
+<li><strong><code>seed_once: true</code> (default)</strong>: if <code>book_stats.json</code> already has an entry
+  for the symbol, the seed is skipped. The symbol has been traded before; the
+  live market maker is expected to quote when ready.</li>
+<li><strong><code>seed_once: false</code></strong>: the seed is always injected, regardless of history.
+  Useful for demo setups where a specific spread must be the opening quote
+  every day.</li>
+</ul>
+<p>In both cases, quote legs are never persisted across restarts. To force a
+full day-one reset (re-inject all <code>seed_once: true</code> seeds), delete
+<code>src/data/book_stats.json</code> before starting the engine.</p>
 <h2 id="startup-market-maker-combo-orders">Startup Market-Maker Combo Orders<a class="headerlink" href="#startup-market-maker-combo-orders" title="Permanent link">&para;</a></h2>
 <p>Combos are configured at the top level because they span multiple symbols.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nt">market_maker_combos</span><span class="p">:</span>
@@ -3222,6 +3397,14 @@ With sessions disabled, the engine stays in <code>CONTINUOUS</code> and ignores 
 before the first migrated startup:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>rm<span class="w"> </span>-f<span class="w"> </span>data/gtc_orders.json<span class="w"> </span>data/book_stats.json<span class="w"> </span>data/gtc_combos.json
 </code></pre></div>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../03-running-the-engine/">Running the Engine</a> — minimum-viable config and startup order</li>
+<li><a href="../10-processes/">Processes</a> — what each process does and which config keys it reads</li>
+<li><a href="../12-risk-controls/">Risk Controls</a> — collar and circuit-breaker configuration in depth</li>
+<li><a href="../11-persistence/">Persistence</a> — how GTC orders, book stats, and combos are saved and restored</li>
+<li><a href="../08-gateway/">Gateway</a> — role privileges and disconnect behaviour at runtime</li>
+</ul>
 
 
 

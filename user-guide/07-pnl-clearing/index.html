@@ -289,7 +289,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../01-configuration/" class="md-tabs__link">
+        <a href="../00-getting-started/" class="md-tabs__link">
           
   
   
@@ -773,6 +773,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../00-getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../01-configuration/" class="md-nav__link">
         
   
@@ -1078,6 +1106,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pl-update-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        P&amp;L Update Flow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#clearing_reportcsv" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1100,10 +1139,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tickns-migration-note" class="md-nav__link">
+  <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tick/Ns Migration Note
+        See also
       
     </span>
   </a>
@@ -1274,6 +1313,62 @@
     
   
     Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../14-market-maker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../15-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Traders
   
 
     
@@ -1902,11 +1997,98 @@ in the market — nothing is locked in until you actually trade.</p>
 </ul>
 <p>Columns: <code>Gateway | Symbol | Position | Avg Cost | Last Price | Realized | Unrealized | Total P&amp;L</code></p>
 <p>Positive P&amp;L is shown in green, negative in red.</p>
+<p>Example terminal output:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>┌────────┬───────┬──────────┬──────────┬────────────┬───────────┬─────────────┬────────────┐
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Gateway Symbol  Position  Avg Cost  Last Price   Realized  Unrealized  Total P&amp;L
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>├────────┼───────┼──────────┼──────────┼────────────┼───────────┼─────────────┼────────────┤
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>GW01    AAPL    +50       151.00    155.00       +600.00   +200.00     +800.00
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>GW02    AAPL    -50       151.00    155.00       -600.00   -200.00     -800.00
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>GW01    MSFT    0         —         143.25       +125.00   0.00        +125.00
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>└────────┴───────┴──────────┴──────────┴────────────┴───────────┴─────────────┴────────────┘
+</code></pre></div>
+<h2 id="pl-update-flow">P&amp;L Update Flow<a class="headerlink" href="#pl-update-flow" title="Permanent link">&para;</a></h2>
+<pre class="mermaid"><code>flowchart TD
+    T[trade.executed event\nfrom engine PUB :5556]
+    B[Buy-side gateway\nledger update]
+    S[Sell-side gateway\nledger update]
+    BC{Fill increases\nor reduces position?}
+    SC{Fill increases\nor reduces position?}
+    BAVG[Update avg_cost\nVWAP formula]
+    SREALIZE[Add to realized P&amp;L\nprice − avg_cost]
+    SAVG[Update avg_cost\nVWAP formula]
+    BREALIZE[Add to realized P&amp;L\navg_cost − price]
+    UPD[Recompute unrealized P&amp;L\nposition × last_price − avg_cost]
+    CSV[Append row to\nclearing_report.csv]
+    DISP{Trade count mod 10 = 0?}
+    TABLE[Print P&amp;L table to terminal]
+
+    T --&gt; B
+    T --&gt; S
+    T --&gt; CSV
+    B --&gt; BC
+    BC --&gt;|increases| BAVG
+    BC --&gt;|reduces| BREALIZE
+    S --&gt; SC
+    SC --&gt;|increases| SAVG
+    SC --&gt;|reduces| SREALIZE
+    BAVG --&gt; UPD
+    BREALIZE --&gt; UPD
+    SAVG --&gt; UPD
+    SREALIZE --&gt; UPD
+    UPD --&gt; DISP
+    DISP --&gt;|yes| TABLE
+    DISP --&gt;|no| T</code></pre>
 <h2 id="clearing_reportcsv">clearing_report.csv<a class="headerlink" href="#clearing_reportcsv" title="Permanent link">&para;</a></h2>
 <p>Every trade is appended to <code>data/clearing_report.csv</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>trade_id,symbol,buy_order_id,sell_order_id,buy_gateway,sell_gateway,price,quantity,timestamp
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>abc123,AAPL,ord-aaa,ord-bbb,GW01,GW02,150.50,100,2026-04-29T14:32:01.123
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>trade_id,symbol,buy_order_id,sell_order_id,buy_gateway,sell_gateway,price,quantity,timestamp
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>abc123,AAPL,ord-aaa,ord-bbb,GW01,GW02,150.50,100,2026-04-29T14:32:01.123
 </code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>trade_id</code></td>
+<td>Engine-assigned unique trade identifier</td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td>Traded instrument symbol</td>
+</tr>
+<tr>
+<td><code>buy_order_id</code></td>
+<td>Order ID of the resting or aggressing buy order</td>
+</tr>
+<tr>
+<td><code>sell_order_id</code></td>
+<td>Order ID of the resting or aggressing sell order</td>
+</tr>
+<tr>
+<td><code>buy_gateway</code></td>
+<td>Gateway ID of the buyer</td>
+</tr>
+<tr>
+<td><code>sell_gateway</code></td>
+<td>Gateway ID of the seller</td>
+</tr>
+<tr>
+<td><code>price</code></td>
+<td>Execution price (decimal)</td>
+</tr>
+<tr>
+<td><code>quantity</code></td>
+<td>Executed quantity</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>ISO 8601 timestamp of the trade</td>
+</tr>
+</tbody>
+</table>
 <p>This file persists across restarts — it is never truncated, giving a complete history
 of all trades for the day.</p>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
@@ -1915,10 +2097,13 @@ of all trades for the day.</p>
 <li>Both sides of every trade (buyer and seller) have their ledgers updated independently.</li>
 <li>The <code>last_price</code> used for unrealized P&amp;L is the most recent trade price for that symbol.</li>
 </ul>
-<h2 id="tickns-migration-note">Tick/Ns Migration Note<a class="headerlink" href="#tickns-migration-note" title="Permanent link">&para;</a></h2>
-<p>Core engine trade prices are represented internally in ticks and timestamps in
-nanoseconds. Clearing/reporting views convert those values to decimal prices and
-human-readable timestamps at output boundaries.</p>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../10-processes/#pm-clearing--pnl--clearing">Processes</a> — how <code>pm-clearing</code> connects to the engine and what it subscribes to</li>
+<li><a href="../11-persistence/#other-persistent-files">Persistence</a> — <code>clearing_report.csv</code> across sessions</li>
+<li><a href="../04-order-types/">Order Types</a> — which fills produce P&amp;L events</li>
+<li><a href="../09-messages/">Messages</a> — <code>trade.executed</code> message fields consumed by <code>pm-clearing</code></li>
+</ul>
 
 
 

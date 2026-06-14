@@ -12,13 +12,13 @@
         <meta name="author" content="Johan Persson <johan162@gmail.com>">
       
       
-        <link rel="canonical" href="https://github.com/johan162/EduMatcher/concepts/01-concepts-order-book/">
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/00-getting-started/">
       
       
-        <link rel="prev" href="../../how-exchange-works/">
+        <link rel="prev" href="../../concepts/06-concepts-market-data-feed/">
       
       
-        <link rel="next" href="../02-concepts-order-book-deep-dive/">
+        <link rel="next" href="../01-configuration/">
       
       
         
@@ -29,7 +29,7 @@
     
     
       
-        <title>The Order Book - EduMatcher — Educational Trading System</title>
+        <title>Getting Started - EduMatcher — Educational Trading System</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#the-order-book" class="md-skip">
+        <a href="#getting-started-with-edumatcher" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              The Order Book
+              Getting Started
             
           </span>
         </div>
@@ -263,13 +263,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="./" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../concepts/01-concepts-order-book/" class="md-tabs__link">
           
   
   
@@ -285,11 +283,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../user-guide/00-getting-started/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
           
   
   
@@ -484,31 +484,28 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
             
   
   
@@ -526,7 +523,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -541,37 +538,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    The Order Book
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../concepts/01-concepts-order-book/" class="md-nav__link">
         
   
   
@@ -587,142 +557,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#what-is-an-order-book" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What is an order book?
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#a-concrete-order-book" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        A concrete order book
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-bid-ask-spread" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        The bid-ask spread
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#book-depth" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Book depth
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#price-time-priority" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Price-time priority
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Price-time priority">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#worked-example-three-bids-at-the-same-price" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Worked example — three bids at the same price
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#step-by-step-what-happens-when-orders-match" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Step-by-step: what happens when orders match
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#passive-vs-aggressive-orders" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Passive vs. aggressive orders
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#key-terms-summary" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Key terms summary
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#implementation-note-tick-prices" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Implementation Note: Tick Prices
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -735,7 +569,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../02-concepts-order-book-deep-dive/" class="md-nav__link">
+      <a href="../../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
         
   
   
@@ -763,7 +597,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../03-concepts-mm-quotes/" class="md-nav__link">
+      <a href="../../concepts/03-concepts-mm-quotes/" class="md-nav__link">
         
   
   
@@ -791,7 +625,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../04-concepts-first-trade/" class="md-nav__link">
+      <a href="../../concepts/04-concepts-first-trade/" class="md-nav__link">
         
   
   
@@ -819,7 +653,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../05-concepts-trading-day/" class="md-nav__link">
+      <a href="../../concepts/05-concepts-trading-day/" class="md-nav__link">
         
   
   
@@ -847,7 +681,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../06-concepts-market-data-feed/" class="md-nav__link">
+      <a href="../../concepts/06-concepts-market-data-feed/" class="md-nav__link">
         
   
   
@@ -879,28 +713,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
-        
-          
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
             
   
   
@@ -918,7 +755,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -933,10 +770,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../user-guide/00-getting-started/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -952,6 +816,186 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-edumatcher" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is EduMatcher?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-you-need" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What you need
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#five-minute-minimum-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Five-minute minimum session
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Five-minute minimum session">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-1-start-the-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1 — Start the engine
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-connect-participant-a-the-buyer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2 — Connect Participant A (the buyer)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-connect-participant-b-the-seller" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3 — Connect Participant B (the seller)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-4-check-the-session-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 4 — Check the session state
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-5-place-orders-and-trade" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 5 — Place orders and trade
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-happened-under-the-hood" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What happened under the hood
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#starting-more-processes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Starting more processes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#typical-architecture-for-a-classroom-demo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Typical architecture for a classroom demo
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading path
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#glossary-of-terms-used-throughout-this-guide" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Glossary of terms used throughout this guide
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -964,7 +1008,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/01-configuration/" class="md-nav__link">
+      <a href="../01-configuration/" class="md-nav__link">
         
   
   
@@ -992,7 +1036,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/02-commands/" class="md-nav__link">
+      <a href="../02-commands/" class="md-nav__link">
         
   
   
@@ -1020,7 +1064,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/03-running-the-engine/" class="md-nav__link">
+      <a href="../03-running-the-engine/" class="md-nav__link">
         
   
   
@@ -1048,7 +1092,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/04-order-types/" class="md-nav__link">
+      <a href="../04-order-types/" class="md-nav__link">
         
   
   
@@ -1076,7 +1120,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/05-combos/" class="md-nav__link">
+      <a href="../05-combos/" class="md-nav__link">
         
   
   
@@ -1104,7 +1148,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/06-auctions-scheduling/" class="md-nav__link">
+      <a href="../06-auctions-scheduling/" class="md-nav__link">
         
   
   
@@ -1132,7 +1176,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/07-pnl-clearing/" class="md-nav__link">
+      <a href="../07-pnl-clearing/" class="md-nav__link">
         
   
   
@@ -1160,7 +1204,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/08-gateway/" class="md-nav__link">
+      <a href="../08-gateway/" class="md-nav__link">
         
   
   
@@ -1188,7 +1232,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/09-messages/" class="md-nav__link">
+      <a href="../09-messages/" class="md-nav__link">
         
   
   
@@ -1216,7 +1260,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/10-processes/" class="md-nav__link">
+      <a href="../10-processes/" class="md-nav__link">
         
   
   
@@ -1244,7 +1288,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/11-persistence/" class="md-nav__link">
+      <a href="../11-persistence/" class="md-nav__link">
         
   
   
@@ -1272,7 +1316,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/12-risk-controls/" class="md-nav__link">
+      <a href="../12-risk-controls/" class="md-nav__link">
         
   
   
@@ -1300,7 +1344,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/13-drop-copy/" class="md-nav__link">
+      <a href="../13-drop-copy/" class="md-nav__link">
         
   
   
@@ -1328,7 +1372,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/14-market-maker/" class="md-nav__link">
+      <a href="../14-market-maker/" class="md-nav__link">
         
   
   
@@ -1356,7 +1400,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/15-ai-traders/" class="md-nav__link">
+      <a href="../15-ai-traders/" class="md-nav__link">
         
   
   
@@ -1384,7 +1428,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/20-app-alf-protocol/" class="md-nav__link">
+      <a href="../20-app-alf-protocol/" class="md-nav__link">
         
   
   
@@ -1412,7 +1456,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/21-app-balf-protocol/" class="md-nav__link">
+      <a href="../21-app-balf-protocol/" class="md-nav__link">
         
   
   
@@ -1440,7 +1484,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/22-app-calf-protocol/" class="md-nav__link">
+      <a href="../22-app-calf-protocol/" class="md-nav__link">
         
   
   
@@ -1832,283 +1876,352 @@
   
 
 
-<h1 id="the-order-book">The Order Book<a class="headerlink" href="#the-order-book" title="Permanent link">&para;</a></h1>
+<h1 id="getting-started-with-edumatcher">Getting Started with EduMatcher<a class="headerlink" href="#getting-started-with-edumatcher" title="Permanent link">&para;</a></h1>
 <div class="admonition note">
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
 <ul>
-<li>What an order book is and how it is structured</li>
-<li>The difference between a bid and an ask</li>
-<li>What the spread is and why it matters</li>
-<li>How price-time priority determines who gets filled first</li>
-<li>What happens step-by-step when two orders match</li>
+<li>What EduMatcher is and what you can do with it</li>
+<li>The minimum steps to start an exchange and execute your first trade</li>
+<li>What each process does and when to start it</li>
+<li>Which sections to read next based on your role</li>
 </ul>
 </div>
-<h2 id="what-is-an-order-book">What is an order book?<a class="headerlink" href="#what-is-an-order-book" title="Permanent link">&para;</a></h2>
-<p>When you buy a share of stock, someone else must sell it to you. But they may
-not be available at exactly the moment you want to trade, and you may not agree
-on price. The <strong>order book</strong> is the mechanism that bridges this gap.</p>
-<p>An order book is the live, sorted list of currently executable resting buy and
-sell orders for one instrument. Conditional orders such as stops are tracked
-separately until they trigger into executable orders. Every tradable instrument
-has its own book. Orders are separated into two sides:</p>
-<table>
-<thead>
-<tr>
-<th>Side</th>
-<th>Also called</th>
-<th>What it represents</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>Bids</strong></td>
-<td>Buy side</td>
-<td>Traders who want to buy, sorted highest price first</td>
-</tr>
-<tr>
-<td><strong>Asks</strong></td>
-<td>Offer / sell side</td>
-<td>Traders who want to sell, sorted lowest price first</td>
-</tr>
-</tbody>
-</table>
-<p>The matching engine continuously checks whether the best bid and the best ask
-overlap in price. When they do, a <strong>trade</strong> is produced.</p>
-<h2 id="a-concrete-order-book">A concrete order book<a class="headerlink" href="#a-concrete-order-book" title="Permanent link">&para;</a></h2>
-<p>Imagine AAPL is trading around $150. The live book might look like this:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>    BID (buy orders)          ASK (sell orders)
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    ─────────────────         ──────────────────
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    Qty    Price              Price    Qty
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    ───    ─────              ─────    ───
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    200    149.90             150.10    100
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    500    149.80             150.20    300
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    150    149.70             150.30    500
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    300    149.60             150.50    200
-</code></pre></div>
+<hr />
+<h2 id="what-is-edumatcher">What is EduMatcher?<a class="headerlink" href="#what-is-edumatcher" title="Permanent link">&para;</a></h2>
+<p>EduMatcher is a <strong>fully functional financial exchange matching engine</strong> built for
+education, research, and demo purposes. It implements the same core mechanics that
+underpin real stock exchanges:</p>
 <ul>
-<li>The <strong>best bid</strong> (highest buy price) is <strong>149.90</strong> for 200 shares.</li>
-<li>The <strong>best ask</strong> (lowest sell price) is <strong>150.10</strong> for 100 shares.</li>
-<li>These prices do not overlap — no trade happens yet.</li>
+<li>A <strong>continuous order book</strong> that matches buyers and sellers</li>
+<li><strong>Auction phases</strong> (opening and closing) with equilibrium price calculation</li>
+<li><strong>Market-maker quoting</strong> with obligations and protection</li>
+<li><strong>Risk controls</strong>: price collars, circuit breakers, kill switches</li>
+<li><strong>Combo and OCO orders</strong>: multi-leg strategies with cascade cancellation</li>
+<li><strong>Statistics recording</strong> (OHLCV, VWAP, mid prices) in SQLite</li>
+<li><strong>Drop-copy feed</strong> for compliance monitoring</li>
+<li><strong>Autonomous AI traders</strong> to simulate real order flow</li>
 </ul>
-<h2 id="the-bid-ask-spread">The bid-ask spread<a class="headerlink" href="#the-bid-ask-spread" title="Permanent link">&para;</a></h2>
-<p>The <strong>spread</strong> is the gap between the best bid and best ask:</p>
-<div class="arithmatex">\[\text{spread} = \text{best ask} - \text{best bid} = 150.10 - 149.90 = 0.20\]</div>
-<p>The spread represents the cost of an immediate round-trip (buy then sell). A
-trader who buys at the ask (<span class="arithmatex">\(150.10) and immediately sells at the bid (\)</span>149.90)
-loses $0.20 per share.</p>
-<p><strong>Narrow spread</strong> (e.g. $0.01) — a <strong>liquid</strong> market. Many participants are
-competing to trade, so prices are tight. Cheap to trade in and out.</p>
-<p><strong>Wide spread</strong> (e.g. $2.00) — an <strong>illiquid</strong> market. Few participants, or
-high uncertainty. Expensive to trade in and out.</p>
-<p>The <strong>mid-price</strong> is the midpoint between bid and ask:</p>
-<div class="arithmatex">\[\text{mid} = \frac{149.90 + 150.10}{2} = 150.00\]</div>
-<h2 id="book-depth">Book depth<a class="headerlink" href="#book-depth" title="Permanent link">&para;</a></h2>
-<p><strong>Depth</strong> refers to how much volume (quantity of shares) is available at or
-near the top of each side. A deep book absorbs large orders without moving
-the price much. A thin book has little resting quantity and even a moderate
-order can push the price significantly.</p>
-<p>Looking at our example book above, if a trader submits a market sell order for
-600 shares, it would:
-1. Fill 200 shares at the best bid of <strong>149.90</strong>
-2. Fill 400 shares at the next level, <strong>149.80</strong></p>
-<p>The average fill price would be:</p>
-<div class="arithmatex">\[\frac{(200 \times 149.90) + (400 \times 149.80)}{600} = \frac{29980 + 59920}{600} = \frac{89900}{600} \approx 149.83\]</div>
-<p>The trader wanted to sell at ~149.90 but the large size caused the actual
-average to be 149.83. This difference is called <strong>slippage</strong>.</p>
-<h2 id="price-time-priority">Price-time priority<a class="headerlink" href="#price-time-priority" title="Permanent link">&para;</a></h2>
-<p>When multiple orders rest at the same price, the matching engine must decide
-which one fills first. EduMatcher uses <strong>price-time priority</strong> (also called
-FIFO priority):</p>
-<ol>
-<li><strong>Price first</strong> — the order with the best price for the counterparty fills
-   first. For bids: the highest price wins. For asks: the lowest price wins.</li>
-<li><strong>Time second</strong> — among orders at the same price, the one that arrived
-   earliest fills first.</li>
-</ol>
-<h3 id="worked-example-three-bids-at-the-same-price">Worked example — three bids at the same price<a class="headerlink" href="#worked-example-three-bids-at-the-same-price" title="Permanent link">&para;</a></h3>
-<p>Suppose three traders each submitted a LIMIT BUY at exactly $149.90:</p>
+<p>Participants connect via a terminal (the <em>gateway</em>) and type commands to place
+orders. The engine matches them and publishes fill events over a ZeroMQ message bus
+that all other processes subscribe to.</p>
+<pre class="mermaid"><code>flowchart LR
+    GW1["pm-gateway\nParticipant A"]
+    GW2["pm-gateway\nParticipant B"]
+    AI["pm-ai-trader\nAutonomous bot"]
+    ENG["pm-engine\nMatching engine\nPULL :5555 / PUB :5556"]
+    ADM["pm-admin\nOperator console"]
+    CLR["pm-clearing\nP&amp;L tracker"]
+    STAT["pm-stats\nStatistics recorder"]
+    DC["pm-dropcopy\nDrop-copy feed :5557"]
+    SCH["pm-scheduler\nSession phases"]
+
+    GW1 -- "NEW|SYM=AAPL|..." --&gt; ENG
+    GW2 -- "NEW|SYM=AAPL|..." --&gt; ENG
+    AI -- "orders" --&gt; ENG
+    ADM -- "HALT / RESUME / STATUS" --&gt; ENG
+    ENG -- "fills / book / session" --&gt; GW1
+    ENG -- "fills / book / session" --&gt; GW2
+    ENG -- "trade.executed" --&gt; CLR
+    ENG -- "trade.executed / book." --&gt; STAT
+    ENG -- "per-fill drop-copy" --&gt; DC
+    SCH -- "session state" --&gt; ENG</code></pre>
+<hr />
+<h2 id="what-you-need">What you need<a class="headerlink" href="#what-you-need" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Order</th>
-<th>Trader</th>
-<th>Time submitted</th>
-<th>Qty</th>
+<th>Requirement</th>
+<th>Notes</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>A</td>
-<td>GW01</td>
-<td>09:30:01.100</td>
-<td>100</td>
+<td>Python 3.13 or later</td>
+<td>Check with <code>python --version</code></td>
 </tr>
 <tr>
-<td>B</td>
-<td>GW02</td>
-<td>09:30:01.250</td>
-<td>200</td>
+<td><a href="https://python-poetry.org/">Poetry</a></td>
+<td><code>pip install poetry</code> or <code>pipx install poetry</code></td>
 </tr>
 <tr>
-<td>C</td>
-<td>GW03</td>
-<td>09:30:03.900</td>
-<td>150</td>
+<td>Three terminal windows</td>
+<td>Or a terminal multiplexer such as <code>tmux</code> or <code>screen</code></td>
+</tr>
+<tr>
+<td>A text editor</td>
+<td>To create <code>engine_config.yaml</code></td>
 </tr>
 </tbody>
 </table>
-<p>Now a LIMIT SELL at $149.90 for 250 shares arrives. The engine processes bids
-in time order (A before B before C):</p>
-<ol>
-<li><strong>Order A</strong> (GW01, 100 shares) fills first — submitted earliest.</li>
-<li><strong>Order B</strong> (GW02, 200 shares) — only 150 more needed, so 150 of the 200
-   fills, leaving 50 shares of Order B resting.</li>
-<li><strong>Order C</strong> (GW03) — gets nothing this time; it was last in queue.</li>
-</ol>
-<p>The result:</p>
+<p>Install the project dependencies once:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/your-org/edumatcher.git
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">cd</span><span class="w"> </span>edumatcher
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>poetry<span class="w"> </span>install<span class="w"> </span>--with<span class="w"> </span>dev
+</code></pre></div>
+<hr />
+<h2 id="five-minute-minimum-session">Five-minute minimum session<a class="headerlink" href="#five-minute-minimum-session" title="Permanent link">&para;</a></h2>
+<p>This walkthrough starts a matching engine, connects two participant terminals,
+and executes one trade. No configuration file is required — the engine starts in
+<em>unrestricted mode</em> when <code>engine_config.yaml</code> is absent.</p>
+<h3 id="step-1-start-the-engine">Step 1 — Start the engine<a class="headerlink" href="#step-1-start-the-engine" title="Permanent link">&para;</a></h3>
+<p>Open a terminal and run:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine
+</code></pre></div>
+<p>Expected output:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[ENGINE] EduMatcher matching engine starting
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>[ENGINE] Listening for orders on tcp://127.0.0.1:5555
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>[ENGINE] Publishing events on tcp://127.0.0.1:5556
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>[ENGINE] Drop-copy feed on tcp://127.0.0.1:5557
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>[ENGINE] Session state: PRE_OPEN
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>[ENGINE] Ready
+</code></pre></div>
+<p>The engine is now running. Leave this terminal open.</p>
+<h3 id="step-2-connect-participant-a-the-buyer">Step 2 — Connect Participant A (the buyer)<a class="headerlink" href="#step-2-connect-participant-a-the-buyer" title="Permanent link">&para;</a></h3>
+<p>Open a second terminal:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW01
+</code></pre></div>
+<p>You should see a prompt after the connection banner:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[GW01] Connected to engine
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>GW01&gt;
+</code></pre></div>
+<h3 id="step-3-connect-participant-b-the-seller">Step 3 — Connect Participant B (the seller)<a class="headerlink" href="#step-3-connect-participant-b-the-seller" title="Permanent link">&para;</a></h3>
+<p>Open a third terminal:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW02
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[GW02] Connected to engine
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>GW02&gt;
+</code></pre></div>
+<h3 id="step-4-check-the-session-state">Step 4 — Check the session state<a class="headerlink" href="#step-4-check-the-session-state" title="Permanent link">&para;</a></h3>
+<p>On either gateway, ask what state the exchange is in:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>GW01&gt; STATUS
+</code></pre></div>
+<p>The engine replies with the current session state. In unrestricted mode it starts
+in <code>PRE_OPEN</code>. To enable matching, advance to <code>CONTINUOUS</code>:</p>
+<div class="admonition tip">
+<p class="admonition-title">Skipping auctions in testing</p>
+<p>Without <code>pm-scheduler</code>, the session state stays where you set it. Advance
+to <code>CONTINUOUS</code> with <code>pm-admin</code> or the operator console. The quickest way
+if you just have the engine running is to start with a config that sets
+<code>sessions_enabled: false</code> (which defaults to <code>CONTINUOUS</code>).</p>
+<p>For this walkthrough, start the engine with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;sessions_enabled: false&quot;</span><span class="w"> </span>&gt;<span class="w"> </span>/tmp/demo.yaml
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--config<span class="w"> </span>/tmp/demo.yaml
+</code></pre></div>
+</div>
+<h3 id="step-5-place-orders-and-trade">Step 5 — Place orders and trade<a class="headerlink" href="#step-5-place-orders-and-trade" title="Permanent link">&para;</a></h3>
+<p>On Participant B's terminal, post a sell order at 150.00:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>GW02&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+</code></pre></div>
+<p>Expected response:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[HH:MM:SS] ORDER ACK  ord-xxxx  AAPL SELL LIMIT 100@150.00 DAY → RESTING
+</code></pre></div>
+<p>On Participant A's terminal, buy at the same price:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>GW01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+</code></pre></div>
+<p>Both gateways see fill events:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[HH:MM:SS] FILL  ord-xxxx  AAPL BUY 100@150.00
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>[HH:MM:SS] FILL  ord-yyyy  AAPL SELL 100@150.00
+</code></pre></div>
+<p>A <code>trade.executed</code> event is published to all subscribers. Congratulations — you
+just ran a trade on your own exchange.</p>
+<h3 id="what-happened-under-the-hood">What happened under the hood<a class="headerlink" href="#what-happened-under-the-hood" title="Permanent link">&para;</a></h3>
+<pre class="mermaid"><code>sequenceDiagram
+    participant A as GW01 (buyer)
+    participant E as pm-engine
+    participant B as GW02 (seller)
+
+    B-&gt;&gt;E: NEW SELL AAPL 100@150.00
+    E--&gt;&gt;B: order.ack → RESTING
+
+    A-&gt;&gt;E: NEW BUY AAPL 100@150.00
+    E--&gt;&gt;A: order.ack → RESTING
+    note over E: bid price ≥ ask price → match
+    E--&gt;&gt;A: order.fill.GW01  AAPL BUY  100@150.00
+    E--&gt;&gt;B: order.fill.GW02  AAPL SELL 100@150.00
+    E--&gt;&gt;E: trade.executed published to all subscribers</code></pre>
+<hr />
+<h2 id="starting-more-processes">Starting more processes<a class="headerlink" href="#starting-more-processes" title="Permanent link">&para;</a></h2>
+<p>The engine is the only mandatory process. Add the others as you need them:</p>
 <table>
 <thead>
 <tr>
-<th>Order</th>
-<th>Fill</th>
-<th>Remaining</th>
+<th>When you want to…</th>
+<th>Start this process</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>A</td>
-<td>100</td>
-<td>0 (fully filled)</td>
+<td>Watch P&amp;L update in real time</td>
+<td><code>poetry run pm-clearing</code></td>
 </tr>
 <tr>
-<td>B</td>
-<td>150</td>
-<td>50 (partially filled, still resting)</td>
+<td>Record OHLCV statistics</td>
+<td><code>poetry run pm-stats</code></td>
 </tr>
 <tr>
-<td>C</td>
-<td>0</td>
-<td>150 (still resting, behind Order B in queue at this price)</td>
+<td>Use <code>pm-admin</code> operator commands</td>
+<td><code>poetry run pm-admin</code> (interactive REPL)</td>
+</tr>
+<tr>
+<td>Schedule opening/closing auctions</td>
+<td><code>poetry run pm-scheduler</code></td>
+</tr>
+<tr>
+<td>Add autonomous AI order flow</td>
+<td><code>poetry run pm-ai-swarm --count 5 --duration 60</code></td>
+</tr>
+<tr>
+<td>Feed compliance/risk systems</td>
+<td>Subscribe to <code>:5557</code> (drop-copy socket)</td>
 </tr>
 </tbody>
 </table>
-<p>This is why being early matters: all else being equal, the first order in
-queue has an advantage. This creates an incentive for market participants to
-submit orders quickly — one driver of the speed race in modern markets.</p>
-<h2 id="step-by-step-what-happens-when-orders-match">Step-by-step: what happens when orders match<a class="headerlink" href="#step-by-step-what-happens-when-orders-match" title="Permanent link">&para;</a></h2>
-<p>Here is the full lifecycle of a trade between a resting limit order and an
-incoming aggressive order.</p>
-<p><strong>State: AAPL book has a resting BID from GW01</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Resting bid: GW01 BUY 100 @ 150.00 (LIMIT, arrived at 09:31:00)
+<p>For a full classroom session, use the provided launch script:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>./scripts/launch_all.sh
 </code></pre></div>
-<p><strong>Action: GW02 submits a SELL LIMIT at 150.00 for 100 shares</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00
-</code></pre></div>
-<p><strong>Engine processing:</strong></p>
+<hr />
+<h2 id="typical-architecture-for-a-classroom-demo">Typical architecture for a classroom demo<a class="headerlink" href="#typical-architecture-for-a-classroom-demo" title="Permanent link">&para;</a></h2>
+<pre class="mermaid"><code>flowchart TD
+    subgraph Server
+        ENG["pm-engine"]
+        CLR["pm-clearing"]
+        STAT["pm-stats"]
+        SCH["pm-scheduler"]
+        AI["pm-ai-swarm\n(simulated order flow)"]
+    end
+    subgraph Student terminals
+        GW1["pm-gateway --id ST01"]
+        GW2["pm-gateway --id ST02"]
+        GWN["pm-gateway --id STnn"]
+    end
+    subgraph Instructor
+        ADM["pm-admin\n(operator console)"]
+    end
+
+    GW1 &amp; GW2 &amp; GWN -- "orders" --&gt; ENG
+    AI -- "orders" --&gt; ENG
+    ADM -- "halt / resume / session" --&gt; ENG
+    ENG -- "fills, book, session" --&gt; GW1 &amp; GW2 &amp; GWN
+    ENG --&gt; CLR &amp; STAT
+    SCH -- "phase changes" --&gt; ENG</code></pre>
+<p>Typical setup:</p>
 <ol>
-<li>Incoming order hits the matching engine via ZeroMQ PUSH socket.</li>
-<li>Engine checks: is there a resting bid at or above $150.00? Yes — GW01 at $150.00.</li>
-<li>Trade price is the <strong>resting order's price</strong> ($150.00) because it was first.</li>
-<li>Engine generates a <code>trade.executed</code> event:</li>
-<li>buyer: GW01, qty: 100, price: 150.00</li>
-<li>seller: GW02, qty: 100, price: 150.00</li>
-<li>Both orders are fully filled and removed from visible bid/ask levels.</li>
-<li>Engine publishes <code>order.fill.GW01</code> and <code>order.fill.GW02</code> to both gateways.</li>
-<li>Engine publishes a <code>book.AAPL</code> snapshot — that bid level is now gone.</li>
-<li>Clearing process receives <code>trade.executed</code> and updates both traders' P&amp;L.</li>
+<li>Instructor creates <code>engine_config.yaml</code> with student gateway IDs and symbols.</li>
+<li>Instructor starts engine, scheduler, clearing, stats, and a small AI swarm.</li>
+<li>Students each <code>ssh</code> to the server and run their gateway.</li>
+<li>Instructor uses <code>pm-admin</code> to manage session phases and monitor the market.</li>
 </ol>
-<p><strong>Result:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>GW01: bought 100 AAPL @ 150.00 — position +100, avg cost 150.00
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>GW02: sold   100 AAPL @ 150.00 — position -100 (or flat if they were long)
-</code></pre></div>
-<h2 id="passive-vs-aggressive-orders">Passive vs. aggressive orders<a class="headerlink" href="#passive-vs-aggressive-orders" title="Permanent link">&para;</a></h2>
-<p>An order that <strong>rests</strong> on the book, waiting for a counterparty, is called
-<strong>passive</strong> (or a <strong>maker</strong> order, because it "makes" liquidity for others to
-trade against).</p>
-<p>An order that <strong>crosses</strong> the spread and immediately matches against resting
-orders is called <strong>aggressive</strong> (or a <strong>taker</strong> order, because it "takes"
-available liquidity).</p>
+<hr />
+<h2 id="reading-path">Reading path<a class="headerlink" href="#reading-path" title="Permanent link">&para;</a></h2>
+<p>Use the table below to decide what to read based on your goal.</p>
 <table>
 <thead>
 <tr>
-<th>Role</th>
-<th>Also called</th>
-<th>What it does</th>
+<th>Goal</th>
+<th>Read these sections in order</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Passive</td>
-<td>Maker / resting</td>
-<td>Posts to the book, waits</td>
+<td><strong>Understand the full system</strong></td>
+<td>01 → 03 → 08 → 04 → 06 → 11 → 12 → 02 → 07 → 09 → 10</td>
 </tr>
 <tr>
-<td>Aggressive</td>
-<td>Taker / crossing</td>
-<td>Matches immediately against the book</td>
+<td><strong>Set up a classroom session</strong></td>
+<td>01 → 03 → 08 → 06 → 14 (MM) → 15 (AI)</td>
+</tr>
+<tr>
+<td><strong>Participate as a trader</strong></td>
+<td>08 → 04 → 05</td>
+</tr>
+<tr>
+<td><strong>Run as a market maker</strong></td>
+<td>01 → 08 → 14 (MM)</td>
+</tr>
+<tr>
+<td><strong>Monitor the market</strong></td>
+<td>09 → 10 → 13 → 07</td>
+</tr>
+<tr>
+<td><strong>Write a custom client</strong></td>
+<td>09 → 20 → 02</td>
+</tr>
+<tr>
+<td><strong>Understand risk controls</strong></td>
+<td>12 → 06 → 04</td>
 </tr>
 </tbody>
 </table>
-<p>In real exchanges, makers often pay lower fees than takers as a reward for
-providing liquidity. EduMatcher does not model fees, but the distinction
-is important for understanding order strategy.</p>
-<h2 id="key-terms-summary">Key terms summary<a class="headerlink" href="#key-terms-summary" title="Permanent link">&para;</a></h2>
+<hr />
+<h2 id="glossary-of-terms-used-throughout-this-guide">Glossary of terms used throughout this guide<a class="headerlink" href="#glossary-of-terms-used-throughout-this-guide" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>Term</th>
-<th>Definition</th>
+<th>Meaning</th>
 </tr>
 </thead>
 <tbody>
 <tr>
+<td><strong>Engine</strong></td>
+<td>The <code>pm-engine</code> matching engine process — the authoritative order book</td>
+</tr>
+<tr>
+<td><strong>Gateway</strong></td>
+<td>A <code>pm-gateway</code> participant terminal; one per trader</td>
+</tr>
+<tr>
+<td><strong>Symbol</strong></td>
+<td>A tradeable instrument, e.g. <code>AAPL</code>, <code>MSFT</code></td>
+</tr>
+<tr>
 <td><strong>Order book</strong></td>
-<td>The live, sorted collection of all resting buy and sell orders for one instrument</td>
+<td>Sorted list of resting bids and asks for one symbol</td>
 </tr>
 <tr>
-<td><strong>Bid</strong></td>
-<td>A resting buy order; bids are sorted highest price first</td>
+<td><strong>Fill</strong></td>
+<td>An execution — the result of two orders matching</td>
 </tr>
 <tr>
-<td><strong>Ask / offer</strong></td>
-<td>A resting sell order; asks are sorted lowest price first</td>
+<td><strong>TIF</strong></td>
+<td>Time-in-Force: how long an order lives (<code>DAY</code>, <code>GTC</code>, <code>ATO</code>, <code>ATC</code>)</td>
 </tr>
 <tr>
-<td><strong>Spread</strong></td>
-<td>Gap between best bid and best ask</td>
+<td><strong>Tick</strong></td>
+<td>Minimum price increment (e.g. 0.01 for most equities)</td>
 </tr>
 <tr>
-<td><strong>Mid-price</strong></td>
-<td>Average of best bid and best ask</td>
+<td><strong>Gateway ID</strong></td>
+<td>Unique identifier for a participant connection, e.g. <code>GW01</code></td>
 </tr>
 <tr>
-<td><strong>Depth</strong></td>
-<td>Total resting volume near the top of the book</td>
+<td><strong>Session state</strong></td>
+<td>Phase of the trading day: <code>PRE_OPEN</code>, <code>OPENING_AUCTION</code>, <code>CONTINUOUS</code>, <code>CLOSING_AUCTION</code>, <code>CLOSED</code></td>
 </tr>
 <tr>
-<td><strong>Slippage</strong></td>
-<td>Difference between expected and actual average fill price on a large order</td>
+<td><strong>Market maker</strong></td>
+<td>A participant with role <code>MARKET_MAKER</code> who quotes two-sided prices</td>
 </tr>
 <tr>
-<td><strong>Price-time priority</strong></td>
-<td>Fill ordering rule: best price first, then earliest arrival</td>
+<td><strong>Circuit breaker</strong></td>
+<td>Automatic halt triggered when price moves beyond a configured threshold</td>
 </tr>
 <tr>
-<td><strong>Passive / maker</strong></td>
-<td>An order resting on the book</td>
-</tr>
-<tr>
-<td><strong>Aggressive / taker</strong></td>
-<td>An order that crosses the spread and matches immediately</td>
+<td><strong>Drop copy</strong></td>
+<td>A copy of all fill events published to a dedicated socket for compliance systems</td>
 </tr>
 </tbody>
 </table>
-<p><a href="#the-order-book">Back to top</a> | <a href="../05-concepts-trading-day/">Next: A Full Trading Day →</a></p>
-<h2 id="implementation-note-tick-prices">Implementation Note: Tick Prices<a class="headerlink" href="#implementation-note-tick-prices" title="Permanent link">&para;</a></h2>
-<p>EduMatcher stores prices internally as integer ticks (not floating-point decimals).
-That means priority, comparisons, and level aggregation are exact in engine code.
-Displayed bid/ask values are converted back to decimals for user-facing views.</p>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../01-configuration/">Configuration</a> — full <code>engine_config.yaml</code> reference</li>
+<li><a href="../03-running-the-engine/">Running the Engine</a> — detailed startup, monitoring, and troubleshooting</li>
+<li><a href="../08-gateway/">Gateway Commands</a> — complete command reference for participants</li>
+<li><a href="../04-order-types/">Order Types</a> — LIMIT, MARKET, STOP, ICEBERG, TRAILING_STOP, OCO, COMBO</li>
+<li><a href="../14-market-maker/">Market Making</a> — QUOTE command, obligations, and MMP</li>
+<li><a href="../15-ai-traders/">AI Traders</a> — autonomous order flow with <code>pm-ai-trader</code> and <code>pm-ai-swarm</code></li>
+</ul>
 
 
 

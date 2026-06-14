@@ -289,7 +289,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../01-configuration/" class="md-tabs__link">
+        <a href="../00-getting-started/" class="md-tabs__link">
           
   
   
@@ -773,6 +773,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../00-getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../01-configuration/" class="md-nav__link">
         
   
@@ -1248,6 +1276,84 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Other Persistent Files">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#srcdataauditlog" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        src/data/audit.log
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#srcdataclearing_reportcsv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        src/data/clearing_report.csv
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#srcdatastatsdb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        src/data/stats.db
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="src/data/stats.db">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#table-daily_stats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Table: daily_stats
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#table-price_snapshots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Table: price_snapshots
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#table-trade_log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Table: trade_log
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1262,10 +1368,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tickns-schema-note" class="md-nav__link">
+  <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tick/Ns Schema Note
+        See also
       
     </span>
   </a>
@@ -1324,6 +1430,62 @@
     
   
     Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../14-market-maker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../15-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Traders
   
 
     
@@ -1822,15 +1984,16 @@ sessions to preserve market state and historical records.</p>
 </ol>
 <h3 id="at-startup">At Startup<a class="headerlink" href="#at-startup" title="Permanent link">&para;</a></h3>
 <ol>
-<li>The engine reads <code>data/book_stats.json</code> (if it exists) and restores <code>last_buy_price</code> / <code>last_sell_price</code> per symbol.  Persisted values take priority over config-seeded values.</li>
 <li>The engine reads <code>data/gtc_orders.json</code> (if it exists).</li>
 <li>Each GTC order is re-injected into its symbol's order book <strong>with its original timestamp preserved</strong>.</li>
 <li>The engine reads <code>data/gtc_combos.json</code> (if it exists) and rebuilds parent-child tracking maps.</li>
+<li>If any GTC orders were restored, initial book snapshots are published.</li>
+<li>The engine reads <code>data/book_stats.json</code> (if it exists) and restores <code>last_buy_price</code> / <code>last_sell_price</code> per symbol.  Persisted values take priority over config-seeded values.</li>
 <li>Market-maker quotes from each symbol's <code>market_maker_quotes</code> config section are injected as linked bid/ask quote legs.  <strong>No gateway connection is required</strong> — seeds enter the book before any participant dials in.  If a restored GTC order already crosses a seed price, a trade executes immediately during this step.</li>
 <li>Market-maker combos from the <code>market_maker_combos</code> config section are injected.</li>
+<li>Book snapshots are published for any symbol where MM quotes were injected.</li>
 <li>Original timestamps ensure that price-time priority carries over correctly — an order
    submitted yesterday still has seniority over a new order at the same price submitted today.</li>
-<li>Initial book snapshots are published so viewers show the restored state immediately.</li>
 </ol>
 <h2 id="operational-edge-cases">Operational edge cases<a class="headerlink" href="#operational-edge-cases" title="Permanent link">&para;</a></h2>
 <ul>
@@ -1852,7 +2015,7 @@ the same order ID in all events throughout the order's life.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=148.00|TIF=GTC
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=149.00|VISIBLE=100|TIF=GTC
 </code></pre></div>
-<p>MARKET and FOK orders are always DAY orders — they cannot be GTC because they do not rest.</p>
+<p>MARKET, FOK, and IOC orders are always DAY orders — they cannot be GTC because they do not rest.</p>
 <h2 id="the-datagtc_ordersjson-file">The data/gtc_orders.json File<a class="headerlink" href="#the-datagtc_ordersjson-file" title="Permanent link">&para;</a></h2>
 <p>Format: a JSON array of serialized <code>Order</code> objects.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">[</span>
@@ -1865,46 +2028,56 @@ the same order ID in all events throughout the order's life.</p>
 <a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="nt">&quot;quantity&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
 <a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="nt">&quot;remaining_qty&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
 <a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="nt">&quot;gateway_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GW01&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1714393921.345</span><span class="p">,</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">    </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1714393921345678000</span><span class="p">,</span>
 <a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">    </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;NEW&quot;</span><span class="p">,</span>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="nt">&quot;price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">148.00</span><span class="p">,</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="nt">&quot;price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">14800</span><span class="p">,</span>
 <a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="err">...</span>
 <a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">  </span><span class="p">}</span>
 <a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="p">]</span>
 </code></pre></div>
+<div class="admonition note">
+<p class="admonition-title">Internal representations in the JSON</p>
+<p>Prices (<code>price</code>, <code>stop_price</code>, <code>trail_offset</code>) are stored as <strong>integer tick
+values</strong> — e.g. <code>14800</code> represents <code>148.00</code> for a symbol with <code>tick_decimals: 2</code>.
+Timestamps are <strong>nanoseconds</strong> since the Unix epoch, not seconds.</p>
+</div>
 <p>You can inspect or edit this file between trading sessions. To cancel all GTC orders
 for the next day, simply delete the file before restarting the engine.</p>
 <h2 id="trading-day-lifecycle">Trading Day Lifecycle<a class="headerlink" href="#trading-day-lifecycle" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Engine start  (no gateways connected yet)
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    │
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    ├─ Load data/book_stats.json (restore last_buy/sell prices)
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    ├─ Load data/gtc_orders.json
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    ├─ Load data/gtc_combos.json (rebuild parent-child maps)
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    ├─ Re-inject GTC orders with original timestamps
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    ├─ Inject market-maker quotes from config  ← seeds posted without MM online
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    │       GTC resting orders may cross seeds here; trades fire immediately
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    ├─ Inject market-maker combos from config
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>    ├─ Publish initial book snapshots
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>    │
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>    │  ← Gateways begin connecting ──────────────────
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>    │  MM gateway connects and re-quotes if seed was consumed
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    │
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    │  ← Trading session ────────────────────────────
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    │  Orders arrive, match, fill, rest
-<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>    │
-<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a>Ctrl-C / SIGTERM
-<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>    │
-<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>    ├─ Publish order.expired for all DAY resting orders
-<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>    ├─ Cascade-cancel DAY combo children
-<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>    ├─ Save all resting GTC orders to data/gtc_orders.json
-<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>    ├─ Save active GTC combos to data/gtc_combos.json
-<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>    ├─ Save book stats to data/book_stats.json
-<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a>    ├─ Publish system.eod with final book snapshots
-<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>    └─ Shutdown
-</code></pre></div>
+<pre class="mermaid"><code>flowchart TD
+    START([Engine start\nno gateways connected])
+    GTC1[Load gtc_orders.json]
+    GTC2[Load gtc_combos.json\nrebuild parent-child maps]
+    REINJ[Re-inject GTC orders\nwith original timestamps]
+    SNAP1{Any GTC orders\nrestored?}
+    BSTAT[Load book_stats.json\nrestore last_buy/sell prices]
+    MMQ[Inject MM quotes from config\nseeds posted without MM online]
+    CROSS{GTC rests cross\nMM seeds?}
+    TRADE1[Trades fire immediately]
+    MMC[Inject MM combos from config]
+    SNAP2[Publish book snapshots\nfor symbols with MM quotes]
+    GW([Gateways connect\nMM re-quotes if seed consumed])
+    SESSION([Trading session\norders arrive, match, fill])
+    SIGTERM([Ctrl-C / SIGTERM])
+    EXP[Publish order.expired\nfor all DAY orders]
+    CASC[Cascade-cancel\nDAY combo children]
+    SAVEGTC[Save GTC orders → gtc_orders.json]
+    SAVECMB[Save GTC combos → gtc_combos.json]
+    SAVEBST[Save book stats → book_stats.json]
+    EOD[Publish system.eod\nfinal book snapshots]
+    DONE([Shutdown])
+
+    START --&gt; GTC1 --&gt; GTC2 --&gt; REINJ --&gt; SNAP1
+    SNAP1 --&gt;|yes| BSTAT
+    SNAP1 --&gt;|no| BSTAT
+    BSTAT --&gt; MMQ --&gt; CROSS
+    CROSS --&gt;|yes| TRADE1 --&gt; MMC
+    CROSS --&gt;|no| MMC
+    MMC --&gt; SNAP2 --&gt; GW --&gt; SESSION --&gt; SIGTERM
+    SIGTERM --&gt; EXP --&gt; CASC --&gt; SAVEGTC --&gt; SAVECMB --&gt; SAVEBST --&gt; EOD --&gt; DONE</code></pre>
 <h2 id="cancelling-a-gtc-order">Cancelling a GTC Order<a class="headerlink" href="#cancelling-a-gtc-order" title="Permanent link">&para;</a></h2>
 <p>Cancel it like any other order while the engine is running:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>CANCEL|ID=&lt;full-order-id&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>CANCEL|ID=&lt;full-order-id&gt;
 </code></pre></div>
 <p>Cancelled orders are <strong>not</strong> included in the GTC save at shutdown — they are
 already marked <code>CANCELLED</code>.</p>
@@ -1916,15 +2089,17 @@ already marked <code>CANCELLED</code>.</p>
 <p>Preserves the <strong>last trade price context</strong> per symbol across sessions.  This allows the
 engine to correctly trigger stop orders on the first trade of a new day (stops compare
 against <code>last_trade_price</code>, which would otherwise be unknown).</p>
-<p>Format: a JSON object keyed by symbol:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">&quot;AAPL&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;last_buy_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">150.25</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;last_sell_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">149.80</span><span class="p">},</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">&quot;MSFT&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;last_buy_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;last_sell_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">415.50</span><span class="p">}</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="p">}</span>
+<p>Format: a JSON object keyed by symbol.  Prices are stored as <strong>integer tick
+values</strong> (the engine's internal representation):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&quot;AAPL&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;last_buy_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">15025</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;last_sell_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">14980</span><span class="p">},</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">&quot;MSFT&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;last_buy_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;last_sell_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">41550</span><span class="p">}</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="p">}</span>
 </code></pre></div>
+<p>For a symbol with <code>tick_decimals: 2</code>, the value <code>15025</code> represents <code>150.25</code>.</p>
 <ul>
-<li><code>last_buy_price</code>: price of the most recent trade where the buyer was the aggressor</li>
-<li><code>last_sell_price</code>: price of the most recent trade where the seller was the aggressor</li>
+<li><code>last_buy_price</code>: tick-integer price of the most recent trade where the buyer was the aggressor</li>
+<li><code>last_sell_price</code>: tick-integer price of the most recent trade where the seller was the aggressor</li>
 <li><code>null</code> means no trade of that type occurred during the session</li>
 </ul>
 <p>On startup, persisted values <strong>override</strong> any <code>last_buy_price</code> / <code>last_sell_price</code> seeded
@@ -1932,126 +2107,320 @@ in <code>engine_config.yaml</code>.  Config seeds are only used when no persiste
 <h2 id="the-datagtc_combosjson-file">The data/gtc_combos.json File<a class="headerlink" href="#the-datagtc_combosjson-file" title="Permanent link">&para;</a></h2>
 <p>Format: a JSON array of serialized <code>ComboOrder</code> objects (only combos with TIF=GTC and
 status <code>PENDING</code> or <code>PARTIALLY_MATCHED</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">[</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="p">{</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;internal-uuid&quot;</span><span class="p">,</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="nt">&quot;combo_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;MY-PAIR-01&quot;</span><span class="p">,</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="nt">&quot;gateway_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GW01&quot;</span><span class="p">,</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="nt">&quot;combo_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AON&quot;</span><span class="p">,</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="nt">&quot;tif&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GTC&quot;</span><span class="p">,</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span><span class="nt">&quot;legs&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;PARTIALLY_MATCHED&quot;</span><span class="p">,</span>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">    </span><span class="nt">&quot;child_order_ids&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;uuid-1&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;uuid-2&quot;</span><span class="p">],</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">    </span><span class="nt">&quot;leg_fill_qty&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;0&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;1&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">},</span>
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">    </span><span class="nt">&quot;leg_statuses&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;0&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;PARTIAL&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;1&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;NEW&quot;</span><span class="p">}</span>
-<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">  </span><span class="p">}</span>
-<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="p">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">[</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="p">{</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;internal-uuid&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span><span class="nt">&quot;combo_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;MY-PAIR-01&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="nt">&quot;gateway_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GW01&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="nt">&quot;combo_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AON&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="nt">&quot;tif&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;GTC&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1714393921345678000</span><span class="p">,</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">    </span><span class="nt">&quot;legs&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">],</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">    </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;PARTIALLY_MATCHED&quot;</span><span class="p">,</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">    </span><span class="nt">&quot;child_order_ids&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;uuid-1&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;uuid-2&quot;</span><span class="p">],</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">    </span><span class="nt">&quot;leg_fill_qty&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;0&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">50</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;1&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">},</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">    </span><span class="nt">&quot;leg_statuses&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;0&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;PARTIAL&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;1&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;NEW&quot;</span><span class="p">}</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="w">  </span><span class="p">}</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="p">]</span>
 </code></pre></div>
 <p>On restore, the engine rebuilds the <code>_combos</code> and <code>_order_to_combo</code> tracking maps so
 that fill events on restored child orders correctly propagate to their parent combo.</p>
 <h2 id="other-persistent-files">Other Persistent Files<a class="headerlink" href="#other-persistent-files" title="Permanent link">&para;</a></h2>
-<p>These files are maintained by subscriber processes (not the engine) and accumulate data
-across sessions:</p>
+<p>These files are maintained by subscriber processes (not the engine) and accumulate
+data continuously across sessions. They are <strong>never truncated automatically</strong> — to
+reset them, delete them manually between sessions.</p>
+<hr />
+<h3 id="srcdataauditlog"><code>src/data/audit.log</code><a class="headerlink" href="#srcdataauditlog" title="Permanent link">&para;</a></h3>
+<p><strong>Written by</strong>: <code>pm-audit</code><br />
+<strong>Written</strong>: continuously — one line per ZeroMQ message received<br />
+<strong>Read by</strong>: manual inspection, <code>grep</code>, log-analysis tools<br />
+<strong>Reset</strong>: delete or rotate manually; the process creates a fresh file on startup  </p>
+<p><code>pm-audit</code> subscribes to <strong>all topics</strong> on the engine PUB socket (<code>:5556</code>) and
+appends every message as a single line:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[TIMESTAMP] [TOPIC] {JSON_PAYLOAD}
+</code></pre></div>
+<p>Example lines:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[2026-04-29T14:30:00.123+00:00] [system.gateway_auth.GW01] {&quot;accepted&quot;: true, &quot;gateway_id&quot;: &quot;GW01&quot;}
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>[2026-04-29T14:30:01.456+00:00] [order.ack.GW01] {&quot;id&quot;: &quot;3f2a1b4c-...&quot;, &quot;symbol&quot;: &quot;AAPL&quot;, &quot;accepted&quot;: true, &quot;status&quot;: &quot;RESTING&quot;}
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>[2026-04-29T14:30:02.789+00:00] [trade.executed] {&quot;id&quot;: &quot;abc123&quot;, &quot;symbol&quot;: &quot;AAPL&quot;, &quot;price&quot;: 150.05, &quot;quantity&quot;: 200, &quot;buy_gateway_id&quot;: &quot;GW01&quot;, &quot;sell_gateway_id&quot;: &quot;MM01&quot;, &quot;timestamp&quot;: 1714399802789000000}
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>[2026-04-29T14:30:02.791+00:00] [order.fill.GW01] {&quot;id&quot;: &quot;3f2a1b4c-...&quot;, &quot;symbol&quot;: &quot;AAPL&quot;, &quot;side&quot;: &quot;BUY&quot;, &quot;fill_qty&quot;: 200, &quot;fill_price&quot;: 150.05, &quot;remaining_qty&quot;: 0, &quot;status&quot;: &quot;FILLED&quot;}
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>[2026-04-29T16:05:00.000+00:00] [session.state] {&quot;state&quot;: &quot;CLOSED&quot;}
+</code></pre></div>
+<p><strong>Format details</strong>:</p>
 <table>
 <thead>
 <tr>
-<th>File</th>
-<th>Process</th>
-<th>Format</th>
-<th>Purpose</th>
+<th>Component</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>data/audit.log</code></td>
-<td>pm-audit</td>
-<td>Line-oriented JSON</td>
-<td>Full event audit trail (rotating: 10 MB × 5 backups)</td>
+<td><code>TIMESTAMP</code></td>
+<td>ISO 8601 UTC with millisecond precision (<code>2026-04-29T14:30:01.456+00:00</code>)</td>
 </tr>
 <tr>
-<td><code>data/clearing_report.csv</code></td>
-<td>pm-clearing</td>
-<td>CSV</td>
-<td>Append-only trade settlement records</td>
+<td><code>TOPIC</code></td>
+<td>The ZeroMQ topic string, e.g. <code>order.fill.GW01</code>, <code>trade.executed</code>, <code>session.state</code></td>
 </tr>
 <tr>
-<td><code>data/stats.db</code></td>
-<td>pm-stats</td>
-<td>SQLite</td>
-<td>OHLCV statistics, price snapshots, trade log</td>
+<td><code>{JSON_PAYLOAD}</code></td>
+<td>The full message payload as compact JSON — no pretty-printing</td>
 </tr>
 </tbody>
 </table>
-<p>These files are <strong>append-only</strong> (or upsert for SQLite) — they are never truncated by the
-system.  To reset, delete them manually between sessions.</p>
+<p>The topic is <strong>not</strong> a JSON field inside the payload; it appears as a separate
+bracket-delimited token on the same line.</p>
+<p><strong>File rotation</strong>: <code>RotatingFileHandler</code> — maximum 10 MB per file, 5 backup files
+(<code>audit.log.1</code> through <code>audit.log.5</code>). Oldest backup is deleted when a sixth
+would be created.</p>
+<p><strong>Useful grep patterns</strong>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># All trades</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>grep<span class="w"> </span><span class="s1">&#39;\[trade\.executed\]&#39;</span><span class="w"> </span>src/data/audit.log
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># All fills for gateway GW01</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>grep<span class="w"> </span><span class="s1">&#39;\[order\.fill\.GW01\]&#39;</span><span class="w"> </span>src/data/audit.log
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># All session-state changes</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>grep<span class="w"> </span><span class="s1">&#39;\[session\.state\]&#39;</span><span class="w"> </span>src/data/audit.log
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="c1"># Events in a specific time window</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>grep<span class="w"> </span><span class="s1">&#39;^\[2026-04-29T14:3&#39;</span><span class="w"> </span>src/data/audit.log
+</code></pre></div>
+<hr />
+<h3 id="srcdataclearing_reportcsv"><code>src/data/clearing_report.csv</code><a class="headerlink" href="#srcdataclearing_reportcsv" title="Permanent link">&para;</a></h3>
+<p><strong>Written by</strong>: <code>pm-clearing</code><br />
+<strong>Written</strong>: one row appended per <code>trade.executed</code> event<br />
+<strong>Read by</strong>: manual inspection, spreadsheets, post-trade analysis scripts<br />
+<strong>Reset</strong>: delete manually; <code>pm-clearing</code> writes the header row to a new file on startup  </p>
+<p>A plain CSV with one row per executed trade. The file <strong>accumulates across
+sessions</strong> — it is never truncated. If <code>pm-clearing</code> is not running when a trade
+executes, that trade is not recorded here (it is still in <code>stats.db</code> and <code>audit.log</code>).</p>
+<p><strong>Header and column definitions</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>trade_id</code></td>
+<td>string (UUID)</td>
+<td>Engine-assigned unique trade identifier</td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td>string</td>
+<td>Traded instrument, e.g. <code>AAPL</code></td>
+</tr>
+<tr>
+<td><code>buy_order_id</code></td>
+<td>string (UUID)</td>
+<td>Order ID of the buy-side order</td>
+</tr>
+<tr>
+<td><code>sell_order_id</code></td>
+<td>string (UUID)</td>
+<td>Order ID of the sell-side order</td>
+</tr>
+<tr>
+<td><code>buy_gateway</code></td>
+<td>string</td>
+<td>Gateway ID of the buyer, e.g. <code>GW01</code></td>
+</tr>
+<tr>
+<td><code>sell_gateway</code></td>
+<td>string</td>
+<td>Gateway ID of the seller, e.g. <code>MM01</code></td>
+</tr>
+<tr>
+<td><code>price</code></td>
+<td>decimal</td>
+<td>Execution price as a display decimal (e.g. <code>150.05</code>)</td>
+</tr>
+<tr>
+<td><code>quantity</code></td>
+<td>integer</td>
+<td>Executed quantity</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>ISO 8601</td>
+<td>UTC timestamp of the trade execution</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example</strong>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>trade_id,symbol,buy_order_id,sell_order_id,buy_gateway,sell_gateway,price,quantity,timestamp
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>abc12345-...,AAPL,3f2a1b4c-...,7e9d0f11-...,GW01,MM01,150.05,200,2026-04-29T14:30:02+00:00
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>def67890-...,MSFT,a1b2c3d4-...,e5f6g7h8-...,GW02,MM01,415.50,100,2026-04-29T14:31:15+00:00
+</code></pre></div>
+<p>The header row is written only once (when the file does not exist or is empty).
+Subsequent runs of <code>pm-clearing</code> open the file in append mode.</p>
+<hr />
+<h3 id="srcdatastatsdb"><code>src/data/stats.db</code><a class="headerlink" href="#srcdatastatsdb" title="Permanent link">&para;</a></h3>
+<p><strong>Written by</strong>: <code>pm-stats</code><br />
+<strong>Written</strong>: on every <code>trade.executed</code> event and every 15-minute book snapshot<br />
+<strong>Read by</strong>: <code>pm-ticker</code>, <code>pm-board</code>, direct SQL queries, <code>pm-stats-cli</code> (planned)<br />
+<strong>Reset</strong>: delete manually; <code>pm-stats</code> creates a fresh database with the schema on startup  </p>
+<p>A SQLite database containing three tables. The schema is created automatically
+by <code>pm-stats</code> using <code>CREATE TABLE IF NOT EXISTS</code> on startup; it is safe to
+restart <code>pm-stats</code> against an existing database.</p>
+<h4 id="table-daily_stats">Table: <code>daily_stats</code><a class="headerlink" href="#table-daily_stats" title="Permanent link">&para;</a></h4>
+<p>One row per <code>(date, symbol)</code> pair. Upserted on every trade and at end-of-day.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">daily_stats</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">    </span><span class="nb">date</span><span class="w">                </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">    </span><span class="c1">-- ISO date string, e.g. &#39;2026-04-29&#39;</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="n">symbol</span><span class="w">              </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">    </span><span class="c1">-- e.g. &#39;AAPL&#39;</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">    </span><span class="n">open_price</span><span class="w">          </span><span class="nb">REAL</span><span class="p">,</span><span class="w">             </span><span class="c1">-- first trade price of the day</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">    </span><span class="n">high_price</span><span class="w">          </span><span class="nb">REAL</span><span class="p">,</span><span class="w">             </span><span class="c1">-- highest trade price of the day</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">    </span><span class="n">low_price</span><span class="w">           </span><span class="nb">REAL</span><span class="p">,</span><span class="w">             </span><span class="c1">-- lowest trade price of the day</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">    </span><span class="n">close_price</span><span class="w">         </span><span class="nb">REAL</span><span class="p">,</span><span class="w">             </span><span class="c1">-- most recent trade price (updated on every trade)</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">    </span><span class="n">open_bid</span><span class="w">            </span><span class="nb">REAL</span><span class="p">,</span><span class="w">             </span><span class="c1">-- best bid at session open</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">    </span><span class="n">open_ask</span><span class="w">            </span><span class="nb">REAL</span><span class="p">,</span><span class="w">             </span><span class="c1">-- best ask at session open</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">    </span><span class="n">close_bid</span><span class="w">           </span><span class="nb">REAL</span><span class="p">,</span><span class="w">             </span><span class="c1">-- most recent best bid</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">    </span><span class="n">close_ask</span><span class="w">           </span><span class="nb">REAL</span><span class="p">,</span><span class="w">             </span><span class="c1">-- most recent best ask</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">    </span><span class="n">volume</span><span class="w">              </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">   </span><span class="c1">-- total shares traded today</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">    </span><span class="n">trade_count</span><span class="w">         </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w">   </span><span class="c1">-- number of individual executions</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">    </span><span class="n">vwap</span><span class="w">                </span><span class="nb">REAL</span><span class="p">,</span><span class="w">             </span><span class="c1">-- volume-weighted average price</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">    </span><span class="n">largest_trade_qty</span><span class="w">   </span><span class="nb">INTEGER</span><span class="p">,</span><span class="w">          </span><span class="c1">-- single largest execution quantity</span>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="w">    </span><span class="n">largest_trade_price</span><span class="w"> </span><span class="nb">REAL</span><span class="p">,</span><span class="w">             </span><span class="c1">-- price of that largest execution</span>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="w">    </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="nb">date</span><span class="p">,</span><span class="w"> </span><span class="n">symbol</span><span class="p">)</span>
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="p">);</span>
+</code></pre></div>
+<p>Example row:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">daily_stats</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">symbol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;AAPL&#39;</span><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="nb">date</span><span class="w"> </span><span class="k">DESC</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="c1">-- date=&#39;2026-04-29&#39;, symbol=&#39;AAPL&#39;, open_price=149.50, high_price=152.00,</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="c1">-- low_price=148.75, close_price=151.25, open_bid=149.45, open_ask=149.55,</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1">-- close_bid=151.20, close_ask=151.30, volume=42300, trade_count=184,</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="c1">-- vwap=150.37, largest_trade_qty=500, largest_trade_price=150.00</span>
+</code></pre></div>
+<h4 id="table-price_snapshots">Table: <code>price_snapshots</code><a class="headerlink" href="#table-price_snapshots" title="Permanent link">&para;</a></h4>
+<p>One row per <code>(timestamp, symbol)</code> pair, written approximately every 15 minutes
+from book-state events. Used by <code>pm-ticker</code> and <code>pm-board</code> for intraday charts.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">price_snapshots</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">    </span><span class="n">ts</span><span class="w">          </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">   </span><span class="c1">-- ISO datetime string, e.g. &#39;2026-04-29T14:30:00&#39;</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="n">symbol</span><span class="w">      </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">   </span><span class="c1">-- e.g. &#39;AAPL&#39;</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">    </span><span class="n">mid_price</span><span class="w">   </span><span class="nb">REAL</span><span class="p">,</span><span class="w">            </span><span class="c1">-- (best_bid + best_ask) / 2; NULL if no quote</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">    </span><span class="n">best_bid</span><span class="w">    </span><span class="nb">REAL</span><span class="p">,</span><span class="w">            </span><span class="c1">-- top-of-book bid price; NULL if empty</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">    </span><span class="n">best_ask</span><span class="w">    </span><span class="nb">REAL</span><span class="p">,</span><span class="w">            </span><span class="c1">-- top-of-book ask price; NULL if empty</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">    </span><span class="n">pct_change</span><span class="w">  </span><span class="nb">REAL</span><span class="p">,</span><span class="w">            </span><span class="c1">-- % change from open_price; NULL if no open yet</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">    </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="p">(</span><span class="n">ts</span><span class="p">,</span><span class="w"> </span><span class="n">symbol</span><span class="p">)</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="p">);</span>
+</code></pre></div>
+<p>The mid-price fallback chain when the book has no two-sided quote:
+1. <code>(best_bid + best_ask) / 2</code> if both sides present
+2. <code>best_bid</code> if only bids present
+3. <code>best_ask</code> if only asks present
+4. <code>NULL</code> if the book is completely empty</p>
+<p><code>INSERT OR IGNORE</code> is used — duplicate <code>(ts, symbol)</code> entries are silently
+discarded, so re-sending a snapshot for the same timestamp is safe.</p>
+<h4 id="table-trade_log">Table: <code>trade_log</code><a class="headerlink" href="#table-trade_log" title="Permanent link">&para;</a></h4>
+<p>One row per individual trade execution. Written on every <code>trade.executed</code> event.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">trade_log</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">    </span><span class="n">ts</span><span class="w">              </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">       </span><span class="c1">-- ISO datetime string</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">    </span><span class="n">trade_id</span><span class="w">        </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="p">,</span><span class="w">  </span><span class="c1">-- engine-assigned UUID</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">    </span><span class="n">symbol</span><span class="w">          </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">       </span><span class="c1">-- e.g. &#39;AAPL&#39;</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">    </span><span class="n">price</span><span class="w">           </span><span class="nb">REAL</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">       </span><span class="c1">-- execution price as display decimal</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">    </span><span class="n">quantity</span><span class="w">        </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span><span class="w">    </span><span class="c1">-- executed quantity</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">    </span><span class="n">buy_gateway_id</span><span class="w">  </span><span class="nb">TEXT</span><span class="p">,</span><span class="w">                </span><span class="c1">-- gateway that was the buyer</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">    </span><span class="n">sell_gateway_id</span><span class="w"> </span><span class="nb">TEXT</span><span class="w">                 </span><span class="c1">-- gateway that was the seller</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="p">);</span>
+</code></pre></div>
+<p><code>INSERT OR IGNORE</code> on <code>trade_id</code> makes replayed or duplicate events safe.</p>
+<p><strong>Example queries</strong>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1">-- Today&#39;s OHLCV for all symbols</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">symbol</span><span class="p">,</span><span class="w"> </span><span class="n">open_price</span><span class="p">,</span><span class="w"> </span><span class="n">high_price</span><span class="p">,</span><span class="w"> </span><span class="n">low_price</span><span class="p">,</span><span class="w"> </span><span class="n">close_price</span><span class="p">,</span><span class="w"> </span><span class="n">volume</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">daily_stats</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="k">WHERE</span><span class="w"> </span><span class="nb">date</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">date</span><span class="p">(</span><span class="s1">&#39;now&#39;</span><span class="p">)</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">symbol</span><span class="p">;</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="c1">-- Trade history for AAPL in the last hour</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">ts</span><span class="p">,</span><span class="w"> </span><span class="n">price</span><span class="p">,</span><span class="w"> </span><span class="n">quantity</span><span class="p">,</span><span class="w"> </span><span class="n">buy_gateway_id</span><span class="p">,</span><span class="w"> </span><span class="n">sell_gateway_id</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="k">FROM</span><span class="w"> </span><span class="n">trade_log</span>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">symbol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;AAPL&#39;</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="n">ts</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">datetime</span><span class="p">(</span><span class="s1">&#39;now&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;-1 hour&#39;</span><span class="p">)</span>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">ts</span><span class="p">;</span>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a>
+<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="c1">-- Intraday mid-price series for charting</span>
+<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">ts</span><span class="p">,</span><span class="w"> </span><span class="n">mid_price</span><span class="p">,</span><span class="w"> </span><span class="n">pct_change</span>
+<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a><span class="k">FROM</span><span class="w"> </span><span class="n">price_snapshots</span>
+<a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">symbol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;AAPL&#39;</span>
+<a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="n">ts</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="nb">date</span><span class="p">(</span><span class="s1">&#39;now&#39;</span><span class="p">)</span>
+<a id="__codelineno-13-19" name="__codelineno-13-19" href="#__codelineno-13-19"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">ts</span><span class="p">;</span>
+</code></pre></div>
+<hr />
 <h2 id="summary-of-all-data-files">Summary of All Data Files<a class="headerlink" href="#summary-of-all-data-files" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>File</th>
-<th>Written By</th>
-<th>Written At</th>
-<th>Read By</th>
-<th>Read At</th>
+<th>Written by</th>
+<th>When written</th>
+<th>Survives restart?</th>
+<th>Purpose</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>data/gtc_orders.json</code></td>
+<td><code>src/data/gtc_orders.json</code></td>
 <td>Engine</td>
 <td>Shutdown</td>
-<td>Engine</td>
-<td>Startup</td>
+<td>Used at next startup</td>
+<td>Resting GTC order book state</td>
 </tr>
 <tr>
-<td><code>data/gtc_combos.json</code></td>
+<td><code>src/data/gtc_combos.json</code></td>
 <td>Engine</td>
 <td>Shutdown</td>
-<td>Engine</td>
-<td>Startup</td>
+<td>Used at next startup</td>
+<td>Resting GTC combo parent state</td>
 </tr>
 <tr>
-<td><code>data/book_stats.json</code></td>
+<td><code>src/data/book_stats.json</code></td>
 <td>Engine</td>
 <td>Shutdown</td>
-<td>Engine</td>
-<td>Startup</td>
+<td>Used at next startup</td>
+<td>Last buy/sell prices; seed-once detection</td>
 </tr>
 <tr>
-<td><code>data/audit.log</code></td>
-<td>pm-audit</td>
+<td><code>src/data/audit.log</code></td>
+<td><code>pm-audit</code></td>
 <td>Continuously</td>
-<td>—</td>
-<td>Manual inspection</td>
+<td>Accumulates (rotating)</td>
+<td>Full event audit trail</td>
 </tr>
 <tr>
-<td><code>data/clearing_report.csv</code></td>
-<td>pm-clearing</td>
-<td>On each trade</td>
-<td>—</td>
-<td>Manual inspection</td>
+<td><code>src/data/clearing_report.csv</code></td>
+<td><code>pm-clearing</code></td>
+<td>Per trade</td>
+<td>Accumulates</td>
+<td>Trade settlement records</td>
 </tr>
 <tr>
-<td><code>data/stats.db</code></td>
-<td>pm-stats</td>
-<td>On each trade/snapshot</td>
-<td>pm-ticker</td>
-<td>At configured intervals</td>
+<td><code>src/data/stats.db</code></td>
+<td><code>pm-stats</code></td>
+<td>Per trade + 15 min</td>
+<td>Accumulates</td>
+<td>OHLCV, intraday charts, trade log</td>
 </tr>
 </tbody>
 </table>
-<p>All files reside in the <code>data/</code> directory relative to the project root.
-The directory is created automatically if it does not exist.</p>
-<h2 id="tickns-schema-note">Tick/Ns Schema Note<a class="headerlink" href="#tickns-schema-note" title="Permanent link">&para;</a></h2>
-<p>In the migrated v2 implementation:</p>
+<div class="admonition note">
+<p class="admonition-title">Why <code>src/data/</code> and not <code>data/</code>?</p>
+<p><code>DATA_DIR</code> is resolved relative to <code>src/edumatcher/config.py</code>, two parent
+directories up, which gives <code>src/data/</code>.  A project-root <code>data/</code> directory
+also exists (used for sample CSVs) but is not written to by the engine.</p>
+</div>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Persisted engine order/combo state stores internal tick/ns values.</li>
-<li><code>book_stats.json</code> stores side-specific last prices in tick units.</li>
-<li>User-facing displays continue to show decimal prices by converting at read/
-  publish boundaries.</li>
+<li><a href="../04-order-types/#time-in-force-tif">Order Types — TIF</a> — GTC, ATO, and ATC lifetime rules</li>
+<li><a href="../06-auctions-scheduling/">Auctions &amp; Scheduling</a> — how ATO/ATC orders expire at phase transitions</li>
+<li><a href="../10-processes/#pm-stats--statistics-recorder">Processes</a> — <code>pm-stats</code> writes <code>src/data/stats.db</code>; <code>pm-audit</code> writes <code>audit.log</code></li>
+<li><a href="../01-configuration/">Configuration</a> — <code>last_buy_price</code>/<code>last_sell_price</code> config seeds vs persisted values</li>
 </ul>
-<p>When switching from legacy float state to v2 with no backward compatibility,
-delete legacy persistence files before first startup.</p>
 
 
 

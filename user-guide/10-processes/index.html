@@ -289,7 +289,7 @@
     
     
       <li class="md-tabs__item md-tabs__item--active">
-        <a href="../01-configuration/" class="md-tabs__link">
+        <a href="../00-getting-started/" class="md-tabs__link">
           
   
   
@@ -773,6 +773,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../00-getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../01-configuration/" class="md-nav__link">
         
   
@@ -1224,6 +1252,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#how-statistics-are-computed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How statistics are computed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#statistics-database-schema" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1322,6 +1361,61 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#pm-admin-interactive-admin-console" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-admin — Interactive Admin Console
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pm-admin-cli-cli-admin-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-admin-cli — CLI Admin Commands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#order-lifecycle-message-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order Lifecycle Message Flow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#planned-processes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Planned Processes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1402,6 +1496,62 @@
     
   
     Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../14-market-maker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../15-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Traders
   
 
     
@@ -1879,8 +2029,8 @@
   message bus rather than a single monolithic program</li>
 <li>The trade-offs that architecture introduces: scalability and observability
   vs. deployment complexity and latency</li>
-<li>The role and responsibilities of each of the ten core runtime processes plus
-  the optional AI trader tools</li>
+<li>The role and responsibilities of each of the twelve core runtime processes plus
+  the optional AI trader and admin tools</li>
 <li>Which processes are mandatory and which are optional observers</li>
 <li>How to read the message-flow tables to trace an order from submission to fill</li>
 </ul>
@@ -1900,13 +2050,78 @@ as you need any of the following:</p>
 </ul>
 <h3 id="the-message-bus-approach">The message-bus approach<a class="headerlink" href="#the-message-bus-approach" title="Permanent link">&para;</a></h3>
 <p>EduMatcher distributes work across processes connected by a <strong>ZeroMQ message
-bus</strong>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Gateways ──PUSH──▶  Engine  ──PUB──▶  All subscribers
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                  (port 5555)        (port 5556)
-</code></pre></div>
+bus</strong>. The engine owns three sockets:</p>
+<pre class="mermaid"><code>flowchart LR
+    subgraph producers["Producers (PUSH → 5555)"]
+        GW["pm-gateway\n(ALF order entry)"]
+        SCH["pm-scheduler\n(session transitions)"]
+        ADM["pm-admin / pm-admin-cli\n(admin commands)"]
+        AI["pm-ai-trader / pm-ai-swarm\n(AI bots)"]
+    end
+
+    subgraph engine["pm-engine"]
+        PULL["PULL :5555"]
+        PUB["PUB :5556"]
+        DC["PUB :5557\n(drop-copy)"]
+    end
+
+    subgraph subscribers["Subscribers (SUB from 5556)"]
+        VW["pm-viewer"]
+        ORD["pm-orders"]
+        AUD["pm-audit"]
+        CLR["pm-clearing"]
+        STS["pm-stats"]
+        TKR["pm-ticker"]
+        BRD["pm-board"]
+    end
+
+    GW --&gt;|PUSH| PULL
+    SCH --&gt;|PUSH| PULL
+    ADM --&gt;|PUSH| PULL
+    AI --&gt;|PUSH| PULL
+    PUB --&gt;|SUB| GW
+    PUB --&gt;|SUB| VW
+    PUB --&gt;|SUB| ORD
+    PUB --&gt;|SUB| AUD
+    PUB --&gt;|SUB| CLR
+    PUB --&gt;|SUB| STS
+    PUB --&gt;|SUB| TKR
+    PUB --&gt;|SUB| BRD
+    PUB --&gt;|SUB| AI
+    DC -.-&gt;|drop-copy SUB| EXT["External risk /\ncompliance systems"]</code></pre>
 <p>The engine is the only process that writes to the order book.  Every other
 process is either a <strong>producer</strong> (sends commands via PUSH) or a <strong>subscriber</strong>
 (reads events via SUB), or both.  No process shares memory with any other.</p>
+<table>
+<thead>
+<tr>
+<th>Port</th>
+<th>Socket type</th>
+<th>Bound by</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>5555</strong></td>
+<td>PULL</td>
+<td>pm-engine</td>
+<td>Receives all inbound commands (orders, cancels, admin)</td>
+</tr>
+<tr>
+<td><strong>5556</strong></td>
+<td>PUB</td>
+<td>pm-engine</td>
+<td>Broadcasts all market events (fills, book updates, session changes)</td>
+</tr>
+<tr>
+<td><strong>5557</strong></td>
+<td>PUB</td>
+<td>pm-engine</td>
+<td>Drop-copy feed — fill events tagged per gateway, with sequence numbers and replay support</td>
+</tr>
+</tbody>
+</table>
 <p>This design has concrete advantages:</p>
 <table>
 <thead>
@@ -2003,15 +2218,14 @@ will miss messages sent before it subscribes.  This is why the engine publishes
 an initial book snapshot on startup: late-joining viewers can request the
 current state rather than waiting for the next change.</p>
 <h2 id="process-overview">Process Overview<a class="headerlink" href="#process-overview" title="Permanent link">&para;</a></h2>
-<p>A complete EduMatcher session usually uses <strong>ten core runtime processes</strong>, with
-two additional optional AI trader entrypoints available when you want automated
-flow.</p>
+<p>A complete EduMatcher session uses <strong>ten core runtime processes</strong> across three categories, plus optional AI trader and admin entrypoints.</p>
 <div class="admonition info">
 <p class="admonition-title">Why <code>pm-</code>?</p>
 <p>All CLI commands share the <code>pm-</code> prefix, short for <strong>Process for Matching</strong>.
 The prefix avoids name collisions with system utilities and makes it easy to
 identify EduMatcher processes in a process list (<code>ps aux | grep pm-</code>).</p>
 </div>
+<p><strong>Core processes:</strong></p>
 <table>
 <thead>
 <tr>
@@ -2031,8 +2245,14 @@ identify EduMatcher processes in a process list (<code>ps aux | grep pm-</code>)
 <tr>
 <td><strong>pm-gateway</strong></td>
 <td><code>poetry run pm-gateway --id GW01</code></td>
-<td>Order entry terminal (one per trader)</td>
+<td>ALF order entry terminal (one per trader)</td>
 <td>At least one</td>
+</tr>
+<tr>
+<td><strong>pm-scheduler</strong></td>
+<td><code>poetry run pm-scheduler</code></td>
+<td>Drives session phase transitions</td>
+<td>No</td>
 </tr>
 <tr>
 <td><strong>pm-viewer</strong></td>
@@ -2047,27 +2267,9 @@ identify EduMatcher processes in a process list (<code>ps aux | grep pm-</code>)
 <td>No</td>
 </tr>
 <tr>
-<td><strong>pm-audit</strong></td>
-<td><code>poetry run pm-audit</code></td>
-<td>Full event log to disk</td>
-<td>No</td>
-</tr>
-<tr>
-<td><strong>pm-clearing</strong></td>
-<td><code>poetry run pm-clearing</code></td>
-<td>P&amp;L and trade settlement</td>
-<td>No</td>
-</tr>
-<tr>
-<td><strong>pm-stats</strong></td>
-<td><code>poetry run pm-stats</code></td>
-<td>OHLCV statistics to SQLite</td>
-<td>No</td>
-</tr>
-<tr>
-<td><strong>pm-scheduler</strong></td>
-<td><code>poetry run pm-scheduler</code></td>
-<td>Drives session phase transitions</td>
+<td><strong>pm-board</strong></td>
+<td><code>poetry run pm-board</code></td>
+<td>Full-screen multi-symbol display</td>
 <td>No</td>
 </tr>
 <tr>
@@ -2077,11 +2279,61 @@ identify EduMatcher processes in a process list (<code>ps aux | grep pm-</code>)
 <td>No (needs pm-stats)</td>
 </tr>
 <tr>
-<td><strong>pm-board</strong></td>
-<td><code>poetry run pm-board</code></td>
-<td>Full-screen multi-symbol display</td>
+<td><strong>pm-stats</strong></td>
+<td><code>poetry run pm-stats</code></td>
+<td>OHLCV statistics to SQLite</td>
 <td>No</td>
 </tr>
+<tr>
+<td><strong>pm-clearing</strong></td>
+<td><code>poetry run pm-clearing</code></td>
+<td>P&amp;L and trade settlement</td>
+<td>No</td>
+</tr>
+<tr>
+<td><strong>pm-audit</strong></td>
+<td><code>poetry run pm-audit</code></td>
+<td>Full event log to disk</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Admin tools:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Command</th>
+<th>Role</th>
+<th>Required?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>pm-admin</strong></td>
+<td><code>poetry run pm-admin</code></td>
+<td>Interactive admin console</td>
+<td>No</td>
+</tr>
+<tr>
+<td><strong>pm-admin-cli</strong></td>
+<td><code>poetry run pm-admin-cli &lt;command&gt;</code></td>
+<td>One-shot CLI admin commands</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Optional AI trader tools:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Command</th>
+<th>Role</th>
+<th>Required?</th>
+</tr>
+</thead>
+<tbody>
 <tr>
 <td><strong>pm-ai-trader</strong></td>
 <td><code>poetry run pm-ai-trader</code></td>
@@ -2104,7 +2356,7 @@ immediately or silently lose its first messages.</p>
 </div>
 <h2 id="pm-engine-matching-engine">pm-engine — Matching Engine<a class="headerlink" href="#pm-engine-matching-engine" title="Permanent link">&para;</a></h2>
 <p>The heart of the system — receives orders, matches them, publishes events.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span><span class="o">[</span>--verbose<span class="o">]</span><span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span><span class="o">[</span>--verbose<span class="o">]</span><span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span>
 </code></pre></div>
 <table>
 <thead>
@@ -2180,6 +2432,18 @@ immediately or silently lose its first messages.</p>
 <td>Gateways</td>
 </tr>
 <tr>
+<td><code>risk.kill_switch</code></td>
+<td>Gateways, Admin</td>
+</tr>
+<tr>
+<td><code>risk.circuit_breaker_halt_all</code></td>
+<td>Admin gateways</td>
+</tr>
+<tr>
+<td><code>risk.circuit_breaker_resume_all</code></td>
+<td>Admin gateways</td>
+</tr>
+<tr>
 <td><code>session.transition</code></td>
 <td>Scheduler</td>
 </tr>
@@ -2252,6 +2516,22 @@ immediately or silently lose its first messages.</p>
 </tr>
 </tbody>
 </table>
+<p><strong>Messages published</strong> (drop-copy PUB :5557):</p>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>drop_copy.event.{GW_ID}</code></td>
+<td>Fill event with sequence number and nanosecond timestamp, filtered per gateway</td>
+</tr>
+</tbody>
+</table>
+<p>The drop-copy socket is lazily bound on startup. See <a href="../13-drop-copy/">Drop-Copy Feed</a> for subscription protocol and replay support.</p>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>Start the engine <strong>first</strong> — gateways and subscribers will fail to connect otherwise.</p>
@@ -2259,7 +2539,7 @@ immediately or silently lose its first messages.</p>
 <h2 id="pm-gateway-user-gateway">pm-gateway — User Gateway<a class="headerlink" href="#pm-gateway-user-gateway" title="Permanent link">&para;</a></h2>
 <p>One instance per user. Accepts ALF commands on stdin.
 See <a href="../20-app-alf-protocol/">ALF Protocol Reference</a>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>&lt;GW_ID&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>&lt;GW_ID&gt;
 </code></pre></div>
 <table>
 <thead>
@@ -2400,7 +2680,7 @@ is refused and the gateway exits.</p>
 <p>See the <a href="../08-gateway/">Gateway Reference</a> for the full command list.</p>
 <h2 id="pm-viewer-order-book-viewer">pm-viewer — Order Book Viewer<a class="headerlink" href="#pm-viewer-order-book-viewer" title="Permanent link">&para;</a></h2>
 <p>Live terminal view of a single symbol's order book.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="o">[</span>--depth<span class="w"> </span><span class="m">10</span><span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="o">[</span>--depth<span class="w"> </span><span class="m">10</span><span class="o">]</span>
 </code></pre></div>
 <table>
 <thead>
@@ -2435,9 +2715,9 @@ The hidden quantity is completely invisible — this is by design and demonstrat
 privacy feature of iceberg orders.</p>
 </div>
 <p>Run multiple viewers simultaneously for different symbols:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="p">&amp;</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span><span class="p">&amp;</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>TSLA
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span><span class="p">&amp;</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span><span class="p">&amp;</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>TSLA
 </code></pre></div>
 <p><strong>Messages subscribed</strong> (SUB from :5556):</p>
 <table>
@@ -2475,7 +2755,7 @@ privacy feature of iceberg orders.</p>
 </table>
 <h2 id="pm-orders-order-status-monitor">pm-orders — Order Status Monitor<a class="headerlink" href="#pm-orders-order-status-monitor" title="Permanent link">&para;</a></h2>
 <p>Live cross-gateway view of all orders in the system.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-orders<span class="w"> </span><span class="o">[</span>--gateway<span class="w"> </span>GW01<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-orders<span class="w"> </span><span class="o">[</span>--gateway<span class="w"> </span>GW01<span class="o">]</span>
 </code></pre></div>
 <table>
 <thead>
@@ -2521,7 +2801,7 @@ privacy feature of iceberg orders.</p>
 </table>
 <h2 id="pm-audit-event-logger">pm-audit — Event Logger<a class="headerlink" href="#pm-audit-event-logger" title="Permanent link">&para;</a></h2>
 <p>Records every message on the bus to a rotating log file.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-audit<span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>data/audit.log<span class="o">]</span><span class="w"> </span><span class="o">[</span>--terminal<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-audit<span class="w"> </span><span class="o">[</span>--log-file<span class="w"> </span>data/audit.log<span class="o">]</span><span class="w"> </span><span class="o">[</span>--terminal<span class="o">]</span>
 </code></pre></div>
 <table>
 <thead>
@@ -2545,8 +2825,8 @@ privacy feature of iceberg orders.</p>
 </tbody>
 </table>
 <p><strong>Log format</strong> (one entry per line):
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[2026-04-29T14:32:01.123] [trade.executed] {&quot;id&quot;: &quot;...&quot;, &quot;symbol&quot;: &quot;AAPL&quot;, ...}
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>[2026-04-29T14:32:01.125] [book.AAPL] {&quot;bids&quot;: [...], &quot;asks&quot;: [...], ...}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[2026-04-29T14:32:01.123] [trade.executed] {&quot;id&quot;: &quot;...&quot;, &quot;symbol&quot;: &quot;AAPL&quot;, ...}
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>[2026-04-29T14:32:01.125] [book.AAPL] {&quot;bids&quot;: [...], &quot;asks&quot;: [...], ...}
 </code></pre></div></p>
 <p>Log files rotate at 10 MB with 5 backups kept.</p>
 <p>Use <code>--terminal</code> during demos so the class can see every event in real time.</p>
@@ -2567,14 +2847,14 @@ privacy feature of iceberg orders.</p>
 </table>
 <h2 id="pm-clearing-clearing-pl">pm-clearing — Clearing &amp; P&amp;L<a class="headerlink" href="#pm-clearing-clearing-pl" title="Permanent link">&para;</a></h2>
 <p>Records all trades and tracks running P&amp;L per user per symbol.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-clearing
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-clearing
 </code></pre></div>
 <p>No flags required. Outputs:
 - Inline trade confirmation for each <code>trade.executed</code> event
 - Full P&amp;L table every 10 trades
 - Final P&amp;L summary on Ctrl-C</p>
 <p>Trade records are appended to <code>data/clearing_report.csv</code>:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>trade_id,symbol,buy_order_id,sell_order_id,buy_gateway,sell_gateway,price,quantity,timestamp
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>trade_id,symbol,buy_order_id,sell_order_id,buy_gateway,sell_gateway,price,quantity,timestamp
 </code></pre></div></p>
 <p><strong>Messages subscribed</strong> (SUB from :5556):</p>
 <table>
@@ -2594,7 +2874,7 @@ privacy feature of iceberg orders.</p>
 <p>See <a href="../07-pnl-clearing/">P&amp;L &amp; Clearing</a> for the full accounting model.</p>
 <h2 id="pm-stats-statistics-recorder">pm-stats — Statistics Recorder<a class="headerlink" href="#pm-stats-statistics-recorder" title="Permanent link">&para;</a></h2>
 <p>Records market statistics for every symbol to a SQLite database (<code>data/stats.db</code>).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-stats<span class="w"> </span><span class="o">[</span>--db<span class="w"> </span>data/stats.db<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-stats<span class="w"> </span><span class="o">[</span>--db<span class="w"> </span>data/stats.db<span class="o">]</span>
 </code></pre></div>
 <table>
 <thead>
@@ -2638,6 +2918,81 @@ privacy feature of iceberg orders.</p>
 <p><strong>On engine shutdown</strong>, the engine broadcasts <code>system.eod</code> before closing sockets.
 <code>pm-stats</code> receives it and immediately flushes the closing bid/ask for every active symbol
 into <code>daily_stats</code>.</p>
+<h3 id="how-statistics-are-computed">How statistics are computed<a class="headerlink" href="#how-statistics-are-computed" title="Permanent link">&para;</a></h3>
+<p><strong>OHLCV and VWAP</strong> accumulate in memory, one <code>SymbolStats</code> object per symbol, and are
+flushed to <code>daily_stats</code> after each trade.</p>
+<table>
+<thead>
+<tr>
+<th>Statistic</th>
+<th>Trigger</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>open_price</code></td>
+<td>First <code>trade.*</code> of the day</td>
+<td>Set once; never overwritten</td>
+</tr>
+<tr>
+<td><code>close_price</code></td>
+<td>Every <code>trade.*</code></td>
+<td>Always overwritten with the latest price</td>
+</tr>
+<tr>
+<td><code>high_price</code></td>
+<td>Every <code>trade.*</code></td>
+<td>Running <code>max(current, trade_price)</code></td>
+</tr>
+<tr>
+<td><code>low_price</code></td>
+<td>Every <code>trade.*</code></td>
+<td>Running <code>min(current, trade_price)</code></td>
+</tr>
+<tr>
+<td><code>volume</code></td>
+<td>Every <code>trade.*</code></td>
+<td>Cumulative sum of matched quantities</td>
+</tr>
+<tr>
+<td><code>trade_count</code></td>
+<td>Every <code>trade.*</code></td>
+<td>Incremented by 1</td>
+</tr>
+<tr>
+<td><code>vwap</code></td>
+<td>Every <code>trade.*</code></td>
+<td><span class="arithmatex">\(\sum(price \times qty) / \sum(qty)\)</span>; maintained as two running accumulators</td>
+</tr>
+<tr>
+<td><code>largest_trade_qty/price</code></td>
+<td>Every <code>trade.*</code></td>
+<td>Replaced when <code>qty &gt; current_largest</code></td>
+</tr>
+<tr>
+<td><code>open_bid/ask</code></td>
+<td>First <code>book.*</code> update of the day</td>
+<td>Set once from the book snapshot</td>
+</tr>
+<tr>
+<td><code>close_bid/ask</code></td>
+<td><code>system.eod</code></td>
+<td>Overwritten with the final bid/ask from the book</td>
+</tr>
+</tbody>
+</table>
+<p><strong>15-minute price snapshots</strong> are written to <code>price_snapshots</code> when a <code>book.*</code> message
+arrives and at least 15 minutes have elapsed since the last snapshot for that symbol
+(<code>SNAPSHOT_INTERVAL_SEC = 900</code>). The mid-price is computed as:</p>
+<div class="arithmatex">\[mid = \frac{best\_bid + best\_ask}{2}\]</div>
+<p>If one side of the book is empty the available side is used as the mid-price; if both
+sides are empty the last known trade price is used instead.</p>
+<p><strong>Trade log</strong> rows are appended on every <code>trade.*</code> event — no aggregation, one row per
+matched trade pair, using the trade UUID from the engine as the primary key.</p>
+<p><strong>Startup behaviour</strong> — on startup <code>pm-stats</code> sends a <code>book.snapshot_request</code> via PUSH
+<code>:5555</code> for every symbol it discovers from <code>system.symbols.STATS</code>. This primes the
+<code>open_bid</code>/<code>open_ask</code> values and the first snapshot interval even before the first trade.</p>
 <h3 id="statistics-database-schema">Statistics Database Schema<a class="headerlink" href="#statistics-database-schema" title="Permanent link">&para;</a></h3>
 <p>The database lives at <code>data/stats.db</code> (SQLite 3). Three tables are maintained.</p>
 <h4 id="daily_stats"><code>daily_stats</code><a class="headerlink" href="#daily_stats" title="Permanent link">&para;</a></h4>
@@ -2729,12 +3084,12 @@ into <code>daily_stats</code>.</p>
 </tbody>
 </table>
 <p>Example query — end-of-day summary:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="nb">date</span><span class="p">,</span><span class="w"> </span><span class="n">symbol</span><span class="p">,</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">       </span><span class="n">open_price</span><span class="p">,</span><span class="w"> </span><span class="n">high_price</span><span class="p">,</span><span class="w"> </span><span class="n">low_price</span><span class="p">,</span><span class="w"> </span><span class="n">close_price</span><span class="p">,</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">       </span><span class="n">volume</span><span class="p">,</span><span class="w"> </span><span class="n">trade_count</span><span class="p">,</span>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">       </span><span class="n">ROUND</span><span class="p">(</span><span class="n">vwap</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">vwap</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">daily_stats</span>
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="nb">date</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">symbol</span><span class="p">;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="nb">date</span><span class="p">,</span><span class="w"> </span><span class="n">symbol</span><span class="p">,</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">       </span><span class="n">open_price</span><span class="p">,</span><span class="w"> </span><span class="n">high_price</span><span class="p">,</span><span class="w"> </span><span class="n">low_price</span><span class="p">,</span><span class="w"> </span><span class="n">close_price</span><span class="p">,</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">       </span><span class="n">volume</span><span class="p">,</span><span class="w"> </span><span class="n">trade_count</span><span class="p">,</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">       </span><span class="n">ROUND</span><span class="p">(</span><span class="n">vwap</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">vwap</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">daily_stats</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="nb">date</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">symbol</span><span class="p">;</span>
 </code></pre></div></p>
 <h4 id="price_snapshots"><code>price_snapshots</code><a class="headerlink" href="#price_snapshots" title="Permanent link">&para;</a></h4>
 <p>One row per <code>(ts, symbol)</code> written every <strong>15 minutes</strong> when a book update arrives.</p>
@@ -2780,11 +3135,11 @@ into <code>daily_stats</code>.</p>
 </tbody>
 </table>
 <p>Example query — intraday price path for MSFT:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">ts</span><span class="p">,</span><span class="w"> </span><span class="n">mid_price</span><span class="p">,</span><span class="w"> </span><span class="n">best_bid</span><span class="p">,</span><span class="w"> </span><span class="n">best_ask</span><span class="p">,</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">       </span><span class="n">ROUND</span><span class="p">(</span><span class="n">pct_change</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;%&#39;</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">change</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">price_snapshots</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">symbol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;MSFT&#39;</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">ts</span><span class="p">;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">ts</span><span class="p">,</span><span class="w"> </span><span class="n">mid_price</span><span class="p">,</span><span class="w"> </span><span class="n">best_bid</span><span class="p">,</span><span class="w"> </span><span class="n">best_ask</span><span class="p">,</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">       </span><span class="n">ROUND</span><span class="p">(</span><span class="n">pct_change</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;%&#39;</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">change</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="k">FROM</span><span class="w"> </span><span class="n">price_snapshots</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">symbol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;MSFT&#39;</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">ts</span><span class="p">;</span>
 </code></pre></div></p>
 <h4 id="trade_log"><code>trade_log</code><a class="headerlink" href="#trade_log" title="Permanent link">&para;</a></h4>
 <p>Append-only record of every individual matched trade.</p>
@@ -2835,25 +3190,25 @@ into <code>daily_stats</code>.</p>
 </tbody>
 </table>
 <p>Example query — all trades for a symbol sorted by time:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">ts</span><span class="p">,</span><span class="w"> </span><span class="n">price</span><span class="p">,</span><span class="w"> </span><span class="n">quantity</span><span class="p">,</span><span class="w"> </span><span class="n">buy_gateway_id</span><span class="p">,</span><span class="w"> </span><span class="n">sell_gateway_id</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">trade_log</span>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">symbol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;AAPL&#39;</span>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">ts</span><span class="p">;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">ts</span><span class="p">,</span><span class="w"> </span><span class="n">price</span><span class="p">,</span><span class="w"> </span><span class="n">quantity</span><span class="p">,</span><span class="w"> </span><span class="n">buy_gateway_id</span><span class="p">,</span><span class="w"> </span><span class="n">sell_gateway_id</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">trade_log</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">symbol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;AAPL&#39;</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">ts</span><span class="p">;</span>
 </code></pre></div></p>
 <div class="admonition tip">
 <p class="admonition-title">Querying the database</p>
 <p>You can open <code>data/stats.db</code> with any SQLite client:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>sqlite3<span class="w"> </span>data/stats.db
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>.headers<span class="w"> </span>on
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>.mode<span class="w"> </span>column
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>SELECT<span class="w"> </span>*<span class="w"> </span>FROM<span class="w"> </span>daily_stats<span class="p">;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>sqlite3<span class="w"> </span>data/stats.db
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>.headers<span class="w"> </span>on
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>.mode<span class="w"> </span>column
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>SELECT<span class="w"> </span>*<span class="w"> </span>FROM<span class="w"> </span>daily_stats<span class="p">;</span>
 </code></pre></div></p>
 </div>
 <h2 id="pm-scheduler-session-scheduler">pm-scheduler — Session Scheduler<a class="headerlink" href="#pm-scheduler-session-scheduler" title="Permanent link">&para;</a></h2>
 <p>Drives session-phase transitions (PRE_OPEN → OPENING_AUCTION → CONTINUOUS →
 CLOSING_AUCTION → CLOSED) by sending <code>session.transition</code> messages to the
 engine at configured wall-clock times.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--now<span class="o">]</span><span class="w"> </span><span class="o">[</span>--delay<span class="w"> </span><span class="m">3</span><span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--now<span class="o">]</span><span class="w"> </span><span class="o">[</span>--delay<span class="w"> </span><span class="m">3</span><span class="o">]</span>
 </code></pre></div>
 <table>
 <thead>
@@ -2902,7 +3257,7 @@ and session-phase documentation.</p>
 <h2 id="pm-ticker-scrolling-market-ticker">pm-ticker — Scrolling Market Ticker<a class="headerlink" href="#pm-ticker-scrolling-market-ticker" title="Permanent link">&para;</a></h2>
 <p>Prints a scrolling ticker-tape line at regular intervals — one line per snapshot
 containing all active symbols with live prices, OHLCV, and bid/ask spreads.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-ticker<span class="w"> </span><span class="o">[</span>--interval<span class="w"> </span><span class="m">30</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--db<span class="w"> </span>data/stats.db<span class="o">]</span><span class="w"> </span><span class="o">[</span>--db-interval<span class="w"> </span><span class="m">900</span><span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-ticker<span class="w"> </span><span class="o">[</span>--interval<span class="w"> </span><span class="m">30</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--db<span class="w"> </span>data/stats.db<span class="o">]</span><span class="w"> </span><span class="o">[</span>--db-interval<span class="w"> </span><span class="m">900</span><span class="o">]</span>
 </code></pre></div>
 <table>
 <thead>
@@ -2931,7 +3286,7 @@ containing all active symbols with live prices, OHLCV, and bid/ask spreads.</p>
 </tbody>
 </table>
 <p><strong>Output format</strong> (one line per interval, scrolls up naturally):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>09:15:00  ◆  MSFT  415.00  +0.48%  H:418.00  L:412.00  Vol:52,400 (8T)  414.50/415.50  ◆  AAPL …
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>09:15:00  ◆  MSFT  415.00  +0.48%  H:418.00  L:412.00  Vol:52,400 (8T)  414.50/415.50  ◆  AAPL …
 </code></pre></div>
 <p>Each symbol segment shows:</p>
 <table>
@@ -2999,7 +3354,7 @@ and last price — OHLCV, volume, and trade count will be missing.</p>
 <h2 id="pm-board-market-board">pm-board — Market Board<a class="headerlink" href="#pm-board-market-board" title="Permanent link">&para;</a></h2>
 <p>Full-screen multi-symbol display designed for large monitors or projection screens.
 Shows all active symbols in a single paged table with exchange-style colouring.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-board<span class="w"> </span><span class="o">[</span>--rows<span class="w"> </span><span class="m">8</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--interval<span class="w"> </span><span class="m">10</span><span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-board<span class="w"> </span><span class="o">[</span>--rows<span class="w"> </span><span class="m">8</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--interval<span class="w"> </span><span class="m">10</span><span class="o">]</span>
 </code></pre></div>
 <table>
 <thead>
@@ -3129,12 +3484,13 @@ auto-rotate interval, and the current clock time.</p>
 <div class="admonition tip">
 <p class="admonition-title">Large-screen demo</p>
 <p>For classroom or conference demos, maximise the terminal and use large rows:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-board<span class="w"> </span>--rows<span class="w"> </span><span class="m">15</span><span class="w"> </span>--interval<span class="w"> </span><span class="m">8</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-board<span class="w"> </span>--rows<span class="w"> </span><span class="m">15</span><span class="w"> </span>--interval<span class="w"> </span><span class="m">8</span>
 </code></pre></div>
 The board auto-discovers symbols as they become active — no configuration needed.</p>
 </div>
 <h2 id="optional-ai-trader-tools">Optional AI trader tools<a class="headerlink" href="#optional-ai-trader-tools" title="Permanent link">&para;</a></h2>
-<p>EduMatcher also ships two AI-focused entrypoints:</p>
+<p>EduMatcher ships two AI-focused entrypoints that connect to the bus as
+ordinary gateway producers:</p>
 <table>
 <thead>
 <tr>
@@ -3157,6 +3513,135 @@ The board auto-discovers symbols as they become active — no configuration need
 </tbody>
 </table>
 <p>See <a href="../../developer/02-ai-bot/">AI Bot Traders</a> for configuration and runtime details.</p>
+<h2 id="pm-admin-interactive-admin-console">pm-admin — Interactive Admin Console<a class="headerlink" href="#pm-admin-interactive-admin-console" title="Permanent link">&para;</a></h2>
+<p>An interactive REPL for sending operational commands to a running engine without
+needing a full gateway session.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin
+</code></pre></div>
+<p>No flags required. On launch the console connects to the engine and presents a
+prompt. Supported commands include kill-switch, circuit-breaker halt/resume,
+and other operational controls.</p>
+<p><strong>Messages sent</strong> (PUSH → :5555):</p>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>risk.kill_switch</code></td>
+<td>Trigger an exchange-wide order kill</td>
+</tr>
+<tr>
+<td><code>risk.circuit_breaker_halt_all</code></td>
+<td>Halt all symbols (requires ADMIN gateway role)</td>
+</tr>
+<tr>
+<td><code>risk.circuit_breaker_resume_all</code></td>
+<td>Resume all halted symbols (requires ADMIN gateway role)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Messages subscribed</strong> (SUB from :5556):</p>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>system.gateway_auth.{GW_ID}</code></td>
+<td>Authentication reply</td>
+</tr>
+<tr>
+<td><code>risk.kill_switch_ack.{GW_ID}</code></td>
+<td>Kill-switch acknowledgement</td>
+</tr>
+<tr>
+<td><code>session.state</code></td>
+<td>Session phase changes</td>
+</tr>
+</tbody>
+</table>
+<h2 id="pm-admin-cli-cli-admin-commands">pm-admin-cli — CLI Admin Commands<a class="headerlink" href="#pm-admin-cli-cli-admin-commands" title="Permanent link">&para;</a></h2>
+<p>A non-interactive alternative to <code>pm-admin</code> for scripting or single-shot
+operational commands.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin-cli<span class="w"> </span>&lt;command&gt;<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</code></pre></div>
+<p>Each invocation sends one command to the engine, waits for an acknowledgement,
+prints the result, and exits. Suitable for use in shell scripts and CI
+automation.</p>
+<h2 id="order-lifecycle-message-flow">Order Lifecycle Message Flow<a class="headerlink" href="#order-lifecycle-message-flow" title="Permanent link">&para;</a></h2>
+<p>The following diagram traces a single limit order from submission to full fill,
+showing which process sends each message and on which socket:</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant GW as pm-gateway
+    participant ENG as pm-engine
+    participant VW as pm-viewer
+    participant CLR as pm-clearing
+    participant AUD as pm-audit
+
+    GW-&gt;&gt;ENG: order.new (PUSH :5555)
+    ENG--&gt;&gt;GW: order.ack.GW_ID (PUB :5556)
+    Note over ENG: order rests in book
+    ENG--&gt;&gt;VW: book.SYMBOL (PUB :5556)
+    ENG--&gt;&gt;AUD: order.ack.GW_ID (PUB :5556)
+
+    GW-&gt;&gt;ENG: order.new — aggressive order (PUSH :5555)
+    ENG--&gt;&gt;GW: order.ack.GW_ID (PUB :5556)
+    ENG--&gt;&gt;GW: order.fill.GW_ID (PUB :5556)
+    ENG--&gt;&gt;CLR: trade.executed (PUB :5556)
+    ENG--&gt;&gt;VW: book.SYMBOL (PUB :5556)
+    ENG--&gt;&gt;AUD: trade.executed (PUB :5556)</code></pre>
+<p>All subscribers (<code>pm-viewer</code>, <code>pm-clearing</code>, <code>pm-audit</code>, <code>pm-stats</code>, <code>pm-board</code>,
+etc.) receive the same <code>trade.executed</code> and <code>book.{SYMBOL}</code> events concurrently
+from the single PUB socket — none of them coordinate with each other.</p>
+<h2 id="planned-processes">Planned Processes<a class="headerlink" href="#planned-processes" title="Permanent link">&para;</a></h2>
+<p>The following processes are documented as design proposals and will be added in
+future releases. They do not yet exist as runnable scripts.</p>
+<table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Protocol</th>
+<th>Purpose</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>pm-balf-gateway</strong></td>
+<td>BALF</td>
+<td>Binary order entry gateway for low-latency programmatic clients</td>
+<td>Design proposal</td>
+</tr>
+<tr>
+<td><strong>pm-md-gwy</strong></td>
+<td>CALF</td>
+<td>Market-data distribution gateway delivering order-book snapshots, trade prints, and session-state changes over TCP</td>
+<td>Design proposal</td>
+</tr>
+<tr>
+<td><strong>pm-index</strong></td>
+<td>—</td>
+<td>Real-time index calculation service publishing index values on port 5558</td>
+<td>Design proposal</td>
+</tr>
+</tbody>
+</table>
+<p>See the <a href="../21-app-balf-protocol/">BALF Protocol Reference</a> and <a href="../22-app-calf-protocol/">CALF Protocol Reference</a> for the message specifications these processes will implement.</p>
+<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../03-running-the-engine/">Running the Engine</a> — startup order, launch scripts, and verification</li>
+<li><a href="../01-configuration/">Configuration</a> — how each process is configured via <code>engine_config.yaml</code></li>
+<li><a href="../09-messages/">Messages</a> — the full ZeroMQ message catalog all processes share</li>
+<li><a href="../11-persistence/">Persistence</a> — which process writes which data file</li>
+<li><a href="../13-drop-copy/">Drop Copy</a> — <code>pm-dropcopy</code> and the :5557 feed</li>
+</ul>
 
 
 
