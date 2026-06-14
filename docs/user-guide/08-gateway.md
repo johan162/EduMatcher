@@ -13,7 +13,12 @@
     - How to start a gateway, submit every order type, manage positions, and read
       responses
 
-
+    **Prerequisites**: [Configuration](01-configuration.md) — you need a valid
+    `engine_config.yaml` with your gateway ID and role configured before connecting.
+    [Order Types](04-order-types.md) — understand what NEW, AMEND, OCO, and COMBO
+    mean before using the commands here.
+    [Messages](09-messages.md) — for the raw two-frame format underlying every
+    gateway response.
 
 ## Background — Gateways in Real Exchange Architecture
 
@@ -623,10 +628,11 @@ A background thread listens on the SUB socket and prints events (fills, cancels,
 combo status changes, session transitions) in real-time, interleaved cleanly with
 the command prompt. You can continue typing while events arrive.
 
-## Tick/Ns Migration Notes
+## See also
 
-- Gateway commands remain decimal-friendly (`PRICE=150.25`, `STOP=149.50`).
-- Engine boundary logic converts these values to ticks before matching.
-- Returned prices remain readable decimals.
-- Timestamp displays in gateway views are seconds-based renderings derived from
-  internal nanosecond timestamps.
+- [Configuration](01-configuration.md#gateway-configuration) — gateway roles, allowlists, disconnect behaviour, and MM obligations
+- [Order Types](04-order-types.md) — full semantics for every order type accepted by the gateway
+- [ALF Protocol Reference](20-app-alf-protocol.md) — formal ABNF grammar and field rules for the pipe-delimited syntax
+- [Messages](09-messages.md) — the ZeroMQ messages the gateway publishes and subscribes to
+- [Risk Controls](12-risk-controls.md) — how the engine enforces collars, halts, and kill switches on gateway flow
+- [Running the Engine](03-running-the-engine.md) — how to start `pm-gateway` and verify the connection

@@ -1050,6 +1050,14 @@ event confirming the new phase.
 | Audit | *(empty filter — receives everything)* |
 | Statistics | `trade.`, `book.`, `system.eod`, `system.symbols.STATS`, `session.state`, `auction.result.` |
 
+## See also
+
+- [Processes](10-processes.md) — which process subscribes to which topic prefix
+- [Gateway](08-gateway.md) — how participants receive fill, book, and risk events
+- [Commands](02-commands.md) — `ExchangeCommandClient` methods and their underlying message topics
+- [Drop Copy](13-drop-copy.md) — the separate :5557 socket for fill-only event feeds
+- [Risk Controls](12-risk-controls.md) — `risk.*` message payloads in detail
+
 
 
 ## Price And Timestamp Semantics (v2)

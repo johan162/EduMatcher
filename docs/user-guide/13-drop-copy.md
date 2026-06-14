@@ -42,19 +42,18 @@ EduMatcher's drop copy publisher runs inside the matching engine in
 dedicated ZeroMQ PUB socket on port **5557** and publishes events as the
 engine processes fills.
 
-```
-                 ┌────────────────────────────────────────┐
- Gateways ──────►│  Engine (PUB :5556)                    │
-                 │                                        │
-                 │  _handle_new_order()                   │
-                 │     └── fill detected                  │
-                 │          ├── publish to :5556 (book)   │
-                 │          └── drop_copy.publish() ──────┼───► PUB :5557
-                 │                                        │
-                 └────────────────────────────────────────┘
-                                                          │
-                          Risk systems, compliance ◄──────┘
-                          monitors, back-office
+```mermaid
+flowchart LR
+    GW["Gateways\n(PUSH :5555)"]
+    ENG["Engine\n(PULL :5555 / PUB :5556)"]
+    DC["drop_copy.publish()\n(PUB :5557)"]
+    SUB56["Subscribers\nbook, trade, session\n:5556"]
+    SUB57["Drop-copy subscribers\nrisk systems, compliance\nback-office\n:5557"]
+
+    GW -- "orders" --> ENG
+    ENG -- "fill detected" --> DC
+    ENG -- "book / trade / session events" --> SUB56
+    DC -- "per-fill drop-copy messages" --> SUB57
 ```
 
 The drop copy socket is **lazily initialised** in `Engine.run()`.  It is not

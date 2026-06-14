@@ -131,7 +131,55 @@ Columns: `Gateway | Symbol | Position | Avg Cost | Last Price | Realized | Unrea
 
 Positive P&L is shown in green, negative in red.
 
+Example terminal output:
 
+```
+┌────────┬───────┬──────────┬──────────┬────────────┬───────────┬─────────────┬────────────┐
+Gateway Symbol  Position  Avg Cost  Last Price   Realized  Unrealized  Total P&L
+├────────┼───────┼──────────┼──────────┼────────────┼───────────┼─────────────┼────────────┤
+GW01    AAPL    +50       151.00    155.00       +600.00   +200.00     +800.00
+GW02    AAPL    -50       151.00    155.00       -600.00   -200.00     -800.00
+GW01    MSFT    0         —         143.25       +125.00   0.00        +125.00
+└────────┴───────┴──────────┴──────────┴────────────┴───────────┴─────────────┴────────────┘
+```
+
+
+
+## P&L Update Flow
+
+```mermaid
+flowchart TD
+    T[trade.executed event\nfrom engine PUB :5556]
+    B[Buy-side gateway\nledger update]
+    S[Sell-side gateway\nledger update]
+    BC{Fill increases\nor reduces position?}
+    SC{Fill increases\nor reduces position?}
+    BAVG[Update avg_cost\nVWAP formula]
+    SREALIZE[Add to realized P&L\nprice − avg_cost]
+    SAVG[Update avg_cost\nVWAP formula]
+    BREALIZE[Add to realized P&L\navg_cost − price]
+    UPD[Recompute unrealized P&L\nposition × last_price − avg_cost]
+    CSV[Append row to\nclearing_report.csv]
+    DISP{Trade count mod 10 = 0?}
+    TABLE[Print P&L table to terminal]
+
+    T --> B
+    T --> S
+    T --> CSV
+    B --> BC
+    BC -->|increases| BAVG
+    BC -->|reduces| BREALIZE
+    S --> SC
+    SC -->|increases| SAVG
+    SC -->|reduces| SREALIZE
+    BAVG --> UPD
+    BREALIZE --> UPD
+    SAVG --> UPD
+    SREALIZE --> UPD
+    UPD --> DISP
+    DISP -->|yes| TABLE
+    DISP -->|no| T
+```
 
 ## clearing_report.csv
 
@@ -141,6 +189,18 @@ Every trade is appended to `data/clearing_report.csv`:
 trade_id,symbol,buy_order_id,sell_order_id,buy_gateway,sell_gateway,price,quantity,timestamp
 abc123,AAPL,ord-aaa,ord-bbb,GW01,GW02,150.50,100,2026-04-29T14:32:01.123
 ```
+
+| Column | Description |
+|---|---|
+| `trade_id` | Engine-assigned unique trade identifier |
+| `symbol` | Traded instrument symbol |
+| `buy_order_id` | Order ID of the resting or aggressing buy order |
+| `sell_order_id` | Order ID of the resting or aggressing sell order |
+| `buy_gateway` | Gateway ID of the buyer |
+| `sell_gateway` | Gateway ID of the seller |
+| `price` | Execution price (decimal) |
+| `quantity` | Executed quantity |
+| `timestamp` | ISO 8601 timestamp of the trade |
 
 This file persists across restarts — it is never truncated, giving a complete history
 of all trades for the day.
@@ -153,8 +213,9 @@ of all trades for the day.
 - Both sides of every trade (buyer and seller) have their ledgers updated independently.
 - The `last_price` used for unrealized P&L is the most recent trade price for that symbol.
 
-## Tick/Ns Migration Note
+## See also
 
-Core engine trade prices are represented internally in ticks and timestamps in
-nanoseconds. Clearing/reporting views convert those values to decimal prices and
-human-readable timestamps at output boundaries.
+- [Processes](10-processes.md#pm-clearing--pnl--clearing) — how `pm-clearing` connects to the engine and what it subscribes to
+- [Persistence](11-persistence.md#other-persistent-files) — `clearing_report.csv` across sessions
+- [Order Types](04-order-types.md) — which fills produce P&L events
+- [Messages](09-messages.md) — `trade.executed` message fields consumed by `pm-clearing`

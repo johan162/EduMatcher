@@ -208,15 +208,18 @@ back to the parent.
 Single-leg orders have a simple lifecycle: NEW → PARTIAL → FILLED (or CANCELLED /
 EXPIRED). Combos add a **second layer**:
 
-```
-COMBO lifecycle:
-  PENDING ──────► PARTIALLY_MATCHED ──────► MATCHED
-                        │
-                        ▼
-                      FAILED  (if any leg cancelled or expired)
-                        │
-                        ▼
-               Cascade-cancel all siblings
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING : legs accepted
+    PENDING --> PARTIALLY_MATCHED : first leg fill
+    PARTIALLY_MATCHED --> MATCHED : all legs fully filled
+    PENDING --> FAILED : a leg cancelled or expired
+    PARTIALLY_MATCHED --> FAILED : a leg cancelled or expired
+    PENDING --> CANCELLED : explicit CANCEL|COMBO_ID=
+    PARTIALLY_MATCHED --> CANCELLED : explicit CANCEL|COMBO_ID=
+    FAILED --> [*] : cascade-cancel remaining legs
+    CANCELLED --> [*]
+    MATCHED --> [*]
 ```
 
 The engine must detect transitions at the combo level whenever a child-level event
@@ -902,3 +905,11 @@ Current EduMatcher combo handling is parent/child leg tracking over outright
 books. It does not yet implement a native synthetic instrument book with implied
 quote generation. This section describes the exchange-grade mechanism typically
 added in a later architectural step.
+
+## See also
+
+- [Order Types](04-order-types.md) — the individual order types used as combo legs
+- [Auctions & Scheduling](06-auctions-scheduling.md) — how combos interact with auction phases
+- [Persistence](11-persistence.md) — how GTC combos are saved and restored across sessions
+- [Messages](09-messages.md) — `combo.ack`, `order.fill`, and cascade-cancel events
+- [Gateway](08-gateway.md) — the full COMBO and CANCEL|COMBO_ID= command syntax

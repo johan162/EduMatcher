@@ -732,6 +732,14 @@ No. The only mandatory process is `pm-engine`.  Everything else is optional:
 For quick experiments, starting just the engine and one or two gateways is
 enough.
 
+## See also
+
+- [Configuration](01-configuration.md) — full `engine_config.yaml` reference
+- [Processes](10-processes.md) — what every process does and which ports it uses
+- [Gateway](08-gateway.md) — how to connect a participant terminal and place orders
+- [Persistence](11-persistence.md) — what data files survive a restart and how to manage them
+- [Auctions & Scheduling](06-auctions-scheduling.md) — how `pm-scheduler` drives session phases
+
 ### Does the exchange work without `engine_config.yaml`?
 
 Yes — the engine starts in **unrestricted mode** with no symbol allowlist and no

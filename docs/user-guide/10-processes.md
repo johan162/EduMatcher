@@ -842,3 +842,11 @@ future releases. They do not yet exist as runnable scripts.
 | **pm-index** | — | Real-time index calculation service publishing index values on port 5558 | Design proposal |
 
 See the [BALF Protocol Reference](21-app-balf-protocol.md) and [CALF Protocol Reference](22-app-calf-protocol.md) for the message specifications these processes will implement.
+
+## See also
+
+- [Running the Engine](03-running-the-engine.md) — startup order, launch scripts, and verification
+- [Configuration](01-configuration.md) — how each process is configured via `engine_config.yaml`
+- [Messages](09-messages.md) — the full ZeroMQ message catalog all processes share
+- [Persistence](11-persistence.md) — which process writes which data file
+- [Drop Copy](13-drop-copy.md) — `pm-dropcopy` and the :5557 feed

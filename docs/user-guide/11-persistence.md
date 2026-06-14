@@ -113,34 +113,38 @@ for the next day, simply delete the file before restarting the engine.
 
 ## Trading Day Lifecycle
 
-```
-Engine start  (no gateways connected yet)
-    │
-    ├─ Load data/gtc_orders.json
-    ├─ Load data/gtc_combos.json (rebuild parent-child maps)
-    ├─ Re-inject GTC orders with original timestamps
-    ├─ Publish book snapshots (only if GTC orders were restored)
-    ├─ Load data/book_stats.json (restore last_buy/sell prices)
-    ├─ Inject market-maker quotes from config  ← seeds posted without MM online
-    │       GTC resting orders may cross seeds here; trades fire immediately
-    ├─ Inject market-maker combos from config
-    ├─ Publish book snapshots (only for symbols where MM quotes injected)
-    │
-    │  ← Gateways begin connecting ──────────────────
-    │  MM gateway connects and re-quotes if seed was consumed
-    │
-    │  ← Trading session ────────────────────────────
-    │  Orders arrive, match, fill, rest
-    │
-Ctrl-C / SIGTERM
-    │
-    ├─ Publish order.expired for all DAY resting orders
-    ├─ Cascade-cancel DAY combo children
-    ├─ Save all resting GTC orders to data/gtc_orders.json
-    ├─ Save active GTC combos to data/gtc_combos.json
-    ├─ Save book stats to data/book_stats.json
-    ├─ Publish system.eod with final book snapshots
-    └─ Shutdown
+```mermaid
+flowchart TD
+    START([Engine start\nno gateways connected])
+    GTC1[Load gtc_orders.json]
+    GTC2[Load gtc_combos.json\nrebuild parent-child maps]
+    REINJ[Re-inject GTC orders\nwith original timestamps]
+    SNAP1{Any GTC orders\nrestored?}
+    BSTAT[Load book_stats.json\nrestore last_buy/sell prices]
+    MMQ[Inject MM quotes from config\nseeds posted without MM online]
+    CROSS{GTC rests cross\nMM seeds?}
+    TRADE1[Trades fire immediately]
+    MMC[Inject MM combos from config]
+    SNAP2[Publish book snapshots\nfor symbols with MM quotes]
+    GW([Gateways connect\nMM re-quotes if seed consumed])
+    SESSION([Trading session\norders arrive, match, fill])
+    SIGTERM([Ctrl-C / SIGTERM])
+    EXP[Publish order.expired\nfor all DAY orders]
+    CASC[Cascade-cancel\nDAY combo children]
+    SAVEGTC[Save GTC orders → gtc_orders.json]
+    SAVECMB[Save GTC combos → gtc_combos.json]
+    SAVEBST[Save book stats → book_stats.json]
+    EOD[Publish system.eod\nfinal book snapshots]
+    DONE([Shutdown])
+
+    START --> GTC1 --> GTC2 --> REINJ --> SNAP1
+    SNAP1 -->|yes| BSTAT
+    SNAP1 -->|no| BSTAT
+    BSTAT --> MMQ --> CROSS
+    CROSS -->|yes| TRADE1 --> MMC
+    CROSS -->|no| MMC
+    MMC --> SNAP2 --> GW --> SESSION --> SIGTERM
+    SIGTERM --> EXP --> CASC --> SAVEGTC --> SAVECMB --> SAVEBST --> EOD --> DONE
 ```
 
 
@@ -250,5 +254,12 @@ The directory is created automatically if it does not exist.
     `DATA_DIR` is resolved relative to `src/edumatcher/config.py`, two parent
     directories up, which gives `src/data/`.  A project-root `data/` directory
     also exists (used for sample CSVs) but is not written to by the engine.
+
+## See also
+
+- [Order Types — TIF](04-order-types.md#time-in-force-tif) — GTC, ATO, and ATC lifetime rules
+- [Auctions & Scheduling](06-auctions-scheduling.md) — how ATO/ATC orders expire at phase transitions
+- [Processes](10-processes.md#pm-stats--statistics-recorder) — `pm-stats` writes `src/data/stats.db`; `pm-audit` writes `audit.log`
+- [Configuration](01-configuration.md) — `last_buy_price`/`last_sell_price` config seeds vs persisted values
 
 

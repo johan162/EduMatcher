@@ -1121,3 +1121,12 @@ CANCEL|OCO_ID=TPS
 | Partial fill of one leg | Does NOT cancel the sibling — only a terminal state (FILLED, CANCELLED, REJECTED) does |
 | Both legs fill simultaneously | First fill to be processed cancels the second; race resolved by event order |
 | GTC OCO across sessions | Both legs persist with their TIF; if GTC they survive session reset |
+
+## See also
+
+- [Combos](05-combos.md) — multi-symbol multi-leg strategies with cascade cancellation
+- [Auctions & Scheduling](06-auctions-scheduling.md) — which order types are accepted in each session phase
+- [Persistence](11-persistence.md) — how GTC orders survive engine restarts
+- [Risk Controls](12-risk-controls.md) — how collars and halts affect order admission
+- [Gateway](08-gateway.md) — the full command syntax for submitting these order types
+- [ALF Protocol Reference](20-app-alf-protocol.md) — formal grammar for all order fields

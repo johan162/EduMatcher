@@ -865,3 +865,11 @@ before the first migrated startup:
 ```bash
 rm -f data/gtc_orders.json data/book_stats.json data/gtc_combos.json
 ```
+
+## See also
+
+- [Running the Engine](03-running-the-engine.md) — minimum-viable config and startup order
+- [Processes](10-processes.md) — what each process does and which config keys it reads
+- [Risk Controls](12-risk-controls.md) — collar and circuit-breaker configuration in depth
+- [Persistence](11-persistence.md) — how GTC orders, book stats, and combos are saved and restored
+- [Gateway](08-gateway.md) — role privileges and disconnect behaviour at runtime

@@ -99,16 +99,17 @@ shortcut):
 
 ### Valid state transitions
 
-```
-PRE_OPEN ─────────→ OPENING_AUCTION ──→ CONTINUOUS
-    │                                        │
-    └─────────────→ CONTINUOUS               │  (skip opening auction)
-                                             │
-                        CONTINUOUS ──→ CLOSING_AUCTION ──→ CLOSED
-                             │                                │
-                             └──────────→ CLOSED              │
-                                                              │
-                                   CLOSED ──→ PRE_OPEN ───────┘  (next day)
+```mermaid
+stateDiagram-v2
+    [*] --> PRE_OPEN : engine start (sessions enabled)
+    PRE_OPEN --> OPENING_AUCTION
+    PRE_OPEN --> CONTINUOUS : skip opening auction
+    OPENING_AUCTION --> CONTINUOUS : uncross + ATO expiry
+    CONTINUOUS --> CLOSING_AUCTION
+    CONTINUOUS --> CLOSED : skip closing auction
+    CLOSING_AUCTION --> CLOSED : uncross + ATC expiry
+    CLOSED --> PRE_OPEN : next day
+    CLOSED --> [*] : engine shutdown
 ```
 
 Invalid transitions are silently rejected by the engine and logged to
@@ -366,5 +367,14 @@ When an uncross completes, the engine publishes:
 | `auction.result.{symbol}` | Summary: equilibrium price, quantity, surplus, imbalance side |
 | `order.expired.{gateway_id}` | One per ATO/ATC order that did not fill and was expired |
 | `session.state` | Confirms the new session state after the transition |
+
+## See also
+
+- [Configuration](01-configuration.md#session-scheduling) — `schedule:` YAML keys and `sessions_enabled`
+- [Order Types](04-order-types.md#time-in-force-tif) — ATO and ATC time-in-force explained
+- [Processes](10-processes.md#pm-scheduler) — how to start and configure `pm-scheduler`
+- [Running the Engine](03-running-the-engine.md) — the `--now` shortcut for rapid session cycling
+- [Risk Controls](12-risk-controls.md) — circuit-breaker resumption modes that re-use the uncross algorithm
+- [Messages](09-messages.md) — `session.state`, `auction.result`, and `order.expired` message formats
 
 
