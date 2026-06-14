@@ -56,12 +56,17 @@ _pkg_dir = Path(__file__).parent  # .../edumatcher/
 _src_dir = _pkg_dir.parent  # .../src/   (source) or site-packages (installed)
 _IN_SOURCE_TREE: bool = _src_dir.name == "src"
 
-if os.environ.get("EDUMATCHER_DATA_DIR"):
-    DATA_DIR = Path(os.environ["EDUMATCHER_DATA_DIR"]).expanduser().resolve()
-elif _IN_SOURCE_TREE:
-    DATA_DIR = _src_dir / "data"
-else:
-    DATA_DIR = Path("~/.local/share/edumatcher").expanduser()
+
+def _resolve_data_dir() -> Path:
+    _env = os.environ.get("EDUMATCHER_DATA_DIR")
+    if _env:
+        return Path(_env).expanduser().resolve()
+    if _IN_SOURCE_TREE:
+        return _src_dir / "data"
+    return Path("~/.local/share/edumatcher").expanduser()
+
+
+DATA_DIR = _resolve_data_dir()
 
 GTC_ORDERS_FILE = DATA_DIR / "gtc_orders.json"
 GTC_COMBOS_FILE = DATA_DIR / "gtc_combos.json"
@@ -70,17 +75,22 @@ AUDIT_LOG_FILE = DATA_DIR / "audit.log"
 CLEARING_REPORT_FILE = DATA_DIR / "clearing_report.csv"
 STATS_DB_FILE = DATA_DIR / "stats.db"
 
+
 # ---------------------------------------------------------------------------
 # Engine configuration file resolution
 # ---------------------------------------------------------------------------
-if os.environ.get("EDUMATCHER_CONFIG"):
-    ENGINE_CONFIG_FILE = Path(os.environ["EDUMATCHER_CONFIG"]).expanduser().resolve()
-elif _IN_SOURCE_TREE:
-    # Repo root is three levels up from config.py (src/edumatcher/config.py)
-    ENGINE_CONFIG_FILE = _src_dir.parent / "engine_config.yaml"
-else:
+def _resolve_engine_config() -> Path:
+    _env = os.environ.get("EDUMATCHER_CONFIG")
+    if _env:
+        return Path(_env).expanduser().resolve()
+    if _IN_SOURCE_TREE:
+        # Repo root is three levels up from config.py (src/edumatcher/config.py)
+        return _src_dir.parent / "engine_config.yaml"
     # Installed: look in the current working directory
-    ENGINE_CONFIG_FILE = Path.cwd() / "engine_config.yaml"
+    return Path.cwd() / "engine_config.yaml"
+
+
+ENGINE_CONFIG_FILE = _resolve_engine_config()
 
 # ---------------------------------------------------------------------------
 # Misc

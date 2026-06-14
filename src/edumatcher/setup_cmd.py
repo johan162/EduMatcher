@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import sys
 from importlib import resources
 from pathlib import Path
@@ -104,7 +103,7 @@ def main() -> None:
     else:
         data_dir = _default_data_dir()
 
-    print(f"\npm-setup — EduMatcher session initialisation")
+    print("\npm-setup — EduMatcher session initialisation")
     print(f"{'=' * 50}")
 
     # -----------------------------------------------------------------------
@@ -133,10 +132,10 @@ def main() -> None:
         ok = _extract_sample_config(config_dest, force=args.force)
         if ok:
             print(f"  ✓ Sample config written to:        {config_dest}")
-            print(f"    → Edit this file before starting the engine.")
+            print("    → Edit this file before starting the engine.")
         else:
             print(f"  ✓ Config already exists (skipped): {config_dest}")
-            print(f"    → Use --force to overwrite.")
+            print("    → Use --force to overwrite.")
 
     # -----------------------------------------------------------------------
     # 4. Print shell profile snippet

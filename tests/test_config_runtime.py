@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-import importlib
-import os
 import sys
+import types
 from pathlib import Path
 
 import pytest
 
 
-def _reload_config(monkeypatch: pytest.MonkeyPatch, env: dict[str, str]) -> object:
+def _reload_config(
+    monkeypatch: pytest.MonkeyPatch, env: dict[str, str]
+) -> types.ModuleType:
     """Reload edumatcher.config with *env* set and return the module."""
     for var in ("EDUMATCHER_DATA_DIR", "EDUMATCHER_CONFIG"):
         monkeypatch.delenv(var, raising=False)
@@ -45,7 +46,6 @@ class TestDataDirResolution:
         """Simulate an installed (site-packages) environment by patching __file__."""
         cfg_module = _reload_config(monkeypatch, {})
         # Pretend the package is installed (parent dir is NOT named "src")
-        fake_pkg_dir = Path("/usr/lib/python3.13/site-packages/edumatcher")
         monkeypatch.setattr(cfg_module, "_IN_SOURCE_TREE", False)
         monkeypatch.setattr(
             cfg_module,
