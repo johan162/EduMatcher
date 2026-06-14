@@ -97,12 +97,18 @@ There is no length prefix. The receiver reads the header first, looks up the
 expected frame size from the message type, then reads exactly the remaining
 bytes.
 
+If `msg_type` is unknown, the receiver treats the frame as a protocol error and
+should close the connection.
+
 ### Flag semantics
 
 In BALF `1.0.0`, all header flag bits must be zero.
 
 The `RETRANSMIT` bit is reserved for a future recovery extension and is not
 active in `1.0.0`.
+
+Reserved fields in all message bodies must also be zero when sent and should be
+validated as zero when received.
 
 ### Identifier rules
 
@@ -427,6 +433,9 @@ Either side may send a heartbeat at any time. The recipient must respond with
 heartbeats) arrives within 5 seconds (configurable). The default send interval
 is 1 second.
 
+If the timeout is exceeded, the connection is considered stale and should be
+closed.
+
 **Body (8 bytes):**
 
 ```text
@@ -555,9 +564,39 @@ Body:
 
 
 
-## Deployment and configuration
+## Configuration reference
 
-A BALF gateway is configured separately from the ALF gateway.
+BALF settings are part of the main engine configuration file
+(`engine_config.yaml`). They use two related blocks:
+
+- `gateways.balf` for BALF gateway identity allowlist and role metadata
+- `balf_gateway` for BALF TCP listener/runtime parameters
+
+Path locations:
+
+- `engine_config.yaml` -> `gateways` -> `balf`
+- `engine_config.yaml` -> `balf_gateway`
+
+### `gateways.balf` fields
+
+| Field | Type / allowed range | Default | Description |
+|---|---|---|---|
+| `gateways.balf[].id` | Non-empty string | None (required) | BALF gateway identity used at `LOGON` and allowlist validation. |
+| `gateways.balf[].description` | String | Empty string | Human-readable operator description. |
+| `gateways.balf[].role` | Enum: `TRADER`, `MARKET_MAKER`, `ADMIN` | `TRADER` | Role attached to this BALF identity. |
+| `gateways.balf[].mm_max_spread_ticks` | Integer, `> 0` | `10` (common) | Market-maker max spread guard (when role/policy requires it). |
+| `gateways.balf[].mm_min_qty` | Integer, `> 0` | `100` (common) | Market-maker minimum displayed size guard (when role/policy requires it). |
+
+### `balf_gateway` fields
+
+| Field | Type / allowed range | Default | Description |
+|---|---|---|---|
+| `balf_gateway.bind_address` | IP/host bind string | `0.0.0.0` (common) | Local interface address for BALF TCP listening. |
+| `balf_gateway.port` | Integer, `1..65535` | `5560` | BALF listen port. |
+| `balf_gateway.heartbeat_interval_sec` | Integer, `> 0` | `1` | Default heartbeat send interval. |
+| `balf_gateway.heartbeat_timeout_sec` | Integer, `> 0` | `5` | Liveness timeout before session is considered dead and closed. |
+
+**Example:**
 
 ```yaml
 balf_gateway:
@@ -569,6 +608,26 @@ balf_gateway:
 
 The gateway ID allowlist is still enforced by the engine. BALF IDs do not need
 to match ALF IDs, but both use the same allowlist policy.
+
+
+
+## What to watch out for during implementation
+
+- Read exactly 8 bytes for the header first, then read the exact remaining
+  bytes for that `msg_type`; partial reads are normal on TCP.
+- Reject unknown `msg_type`, bad `magic`, wrong `version`, and non-zero reserved
+  fields deterministically; silent tolerance creates interoperability bugs.
+- Keep separate inbound and outbound sequence counters; never mix directions.
+- Treat `LOGON` and `LOGON_ACK` as `seq_no = 0` special cases and start normal
+  sequencing at `1` afterward.
+- Enforce little-endian decoding/encoding for all multi-byte numeric fields;
+  endianness mistakes are the most common BALF parser defect.
+- Respect fixed-width ASCII rules for `symbol` and `gateway_id` with zero
+  padding; trim only trailing zero bytes on decode.
+- Treat `order_id = 0` as invalid/reserved and do not allow it as an accepted
+  live order identifier.
+- On detected sequence gaps, treat the session as out-of-sync and reconnect;
+  BALF `1.0.0` does not define resend negotiation.
 
 
 
@@ -586,4 +645,4 @@ If you are writing another BALF client, the most important exact behaviors are:
 8. Combo, OCO, and recovery wire features are not part of `1.0.0`.
 9. Heartbeats are bidirectional and use their own fixed 8-byte body.
 10. The gateway generates the final engine mapping; clients do not send UUIDs.
-11. The protocol is Little-Endian Byte-order for efficientcy as that is the direct byte order on x86 architecture
+11. The protocol uses little-endian byte order for all multi-byte numeric fields.

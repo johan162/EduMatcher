@@ -940,6 +940,65 @@ Stops the gateway process.
 
 
 
+## Configuration reference
+
+ALF gateway authorization and behavior are configured in the main engine
+configuration file (`engine_config.yaml`), under the `gateways.alf` list.
+
+Path location:
+
+- `engine_config.yaml` -> `gateways` -> `alf` -> list of gateway entries
+
+All supported ALF gateway configuration fields are listed below.
+
+| Field | Type / allowed range | Default | Description |
+|---|---|---|---|
+| `gateways.alf[].id` | Non-empty string | None (required) | Gateway identity used by `pm-gateway --id ...` and engine allowlist checks. |
+| `gateways.alf[].description` | String | Empty string | Human-readable gateway description. |
+| `gateways.alf[].role` | Enum: `TRADER`, `MARKET_MAKER`, `ADMIN` | `TRADER` | Participant role used for authorization/policy checks. |
+| `gateways.alf[].disconnect_behaviour` | Enum: `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL` | `CANCEL_QUOTES_ONLY` | Engine behavior applied when that gateway disconnects. |
+| `gateways.alf[].quote_refresh_policy` | Enum: `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, `NEVER_INACTIVATE` | `INACTIVATE_ON_ANY_FILL` | Controls market-maker quote life-cycle after fills. |
+| `gateways.alf[].enforce_mm_obligation` | Boolean (`true`/`false`) | `false` | Enables per-gateway market-maker obligation checks. |
+| `gateways.alf[].mm_max_spread_ticks` | Integer, `> 0` | `10` | Maximum allowed quote spread for MM obligation checks. |
+| `gateways.alf[].mm_min_qty` | Integer, `> 0` | `100` | Minimum quote size for MM obligation checks. |
+| `gateways.alf[].mm_obligations` | Mapping of symbol -> obligation object | Empty mapping | Optional per-symbol MM overrides when configured. |
+
+**Example:**
+
+```yaml
+gateways:
+  alf:
+    - id: TRADER01
+      description: Human trader workstation
+      role: TRADER
+      disconnect_behaviour: CANCEL_ALL
+      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+      enforce_mm_obligation: false
+      mm_max_spread_ticks: 10
+      mm_min_qty: 100
+```
+
+
+
+## What to watch out for during implementation
+
+- Normalize command verbs, field names, symbols, and enum values to uppercase
+  before validation; mixed-case input is common in real clients.
+- Parse segments by splitting only on the first `=` in each `KEY=VALUE` token;
+  extra `=` characters in values should not break parsing.
+- Apply last-value-wins behavior for duplicate keys; do not reject a command only
+  because a key appears twice.
+- Do not trim field-level whitespace implicitly; only trim line boundaries,
+  otherwise behavior diverges from gateway semantics.
+- Treat `QTY` in `AMEND` as new total quantity (not delta) and reject values
+  below already-filled quantity.
+- Enforce OCO and combo field-shape constraints early (leg numbering, required
+  leg fields) to avoid partial acceptance of malformed multi-leg commands.
+- Keep a strict separation between user-facing ALF parsing and internal engine
+  payload format; do not expose internal message details in ALF syntax.
+
+
+
 ##  Worked examples
 
 ###  Basic buy-side session
