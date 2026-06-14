@@ -1,6 +1,5 @@
-# Makefile for building Documentation for the MCProjSim project
-#
-# For mermain rendering we use a mermaid Node filter so there is a need to install Node and the mermaid package:
+# Makefile for building Exchange Intro Documentation 
+# For mermaid rendering we use a mermaid Node filter so there is a need to install Node and the mermaid package:
 # npm install --save-dev mermaid-filter @mermaid-js/mermaid-cli
 
 NODE_MODULES_PATH := node_modules
@@ -14,7 +13,7 @@ MERMAID_FILTER_WIDTH ?= 600
 
 # Makefile itself as a dependency to ensure it is re-evaluated when changed
 # NOTE: This requires GNU Make 4.3+ and MacOS ships with vGNU Make 3.81 due to licensing issues
-# and then this line will be silently ignored.´unless you have upgrade make via brew or similar.	
+# and then this line will be silently ignored unless you have upgraded make via brew or similar.	
 .EXTRA_PREREQS := $(firstword $(MAKEFILE_LIST))
 
 # Make behavior

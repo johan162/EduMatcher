@@ -1,6 +1,6 @@
-Version: 0.1.0
+Version: 1.0.0
 
-Date: 2026-04-09
+Date: 2026-06-14
 
 Status: Design and Research Proposal
 
@@ -42,8 +42,8 @@ model — identical order types, TIF values, SMP rules, and gateway authenticati
 - RDMA / kernel-bypass — BALF is designed to sit cleanly above a standard TCP
   socket; the trade-off between TCP and kernel-bypass transports is a separate
   decision.
-- Multi-leg combo and OCO orders — deferred to Phase 2 once the core protocol
-  is validated.
+- Multi-leg combo and OCO orders — out of scope for BALF `1.0.0`; kept only as
+    future extension candidates.
 
 ---
 
@@ -84,8 +84,10 @@ allowlist, and relays order traffic in both directions.
   by the `msg_type` byte in the header. There is no length field to parse. The
   receiver reads exactly `BALF_MSG_SIZE[msg_type]` bytes after reading the
   8-byte header.
-- **Byte order:** Little-endian throughout. Modern trading infrastructure runs
-  on x86; little-endian avoids byte-swap overhead on every price field.
+- **Byte order:** Little-endian throughout for BALF `1.0.0`. This is an
+    explicit protocol convention and intentionally differs from ITCH/OUCH style
+    big-endian network byte order. Modern trading infrastructure runs on x86;
+    little-endian avoids byte-swap overhead on every hot-path numeric field.
 - **Connection limit:** One TCP connection per gateway ID. A second connection
   with the same ID rejects at LOGON unless the first connection has been
   cleanly closed.
@@ -117,7 +119,7 @@ size is determined by `msg_type`.
 | 0 | `magic` | `u8` | Always `0xBA`. Receiver must reject frames where this is wrong. |
 | 1 | `version` | `u8` | Protocol version. Currently `1`. |
 | 2 | `msg_type` | `u8` | Message type code — see §5. |
-| 3 | `flags` | `u8` | Bit 0: `RETRANSMIT` — set when replaying a previously sent message. All other bits reserved, must be zero. |
+| 3 | `flags` | `u8` | Bit 0 reserved for future retransmit support. In BALF `1.0.0` all flag bits must be zero. |
 | 4–7 | `seq_no` | `u32 LE` | Monotonically increasing sequence number. Client-to-server and server-to-client share separate counters, each starting at 1 on the first non-LOGON message. LOGON itself always carries seq_no `0`. |
 
 ### 4.2 Price encoding
@@ -150,9 +152,10 @@ Gateway IDs are stored as **16 bytes, zero-padded ASCII, left-aligned**.
 
 ### 4.5 Order ID encoding
 
-Engine-generated order IDs are UUIDs. In BALF they are stored as **16 raw bytes
-(RFC 4122 binary form, no hyphens)**. When the engine rejects an order, the
-order ID field is all-zeros.
+BALF uses a compact **session-scoped `u64` order_id** on the wire (little-endian).
+This is optimized for speed and frame compactness in cancel/amend/fill traffic.
+`pm-balf-gateway` maintains the mapping between this BALF `u64` and the engine's
+internal UUID order identifiers. An `order_id` of zero is invalid and reserved.
 
 ### 4.6 Client Order ID
 
@@ -171,12 +174,12 @@ lets clients correlate responses with requests without UUID parsing.
 | `0x01` | `LOGON` | Client → Server | 24 | 32 |
 | `0x02` | `LOGON_ACK` | Server → Client | 84 | 92 |
 | `0x10` | `NEW_ORDER` | Client → Server | 52 | 60 |
-| `0x11` | `ORDER_ACK` | Server → Client | 60 | 68 |
-| `0x12` | `CANCEL_ORDER` | Client → Server | 24 | 32 |
-| `0x13` | `CANCEL_ACK` | Server → Client | 32 | 40 |
-| `0x14` | `AMEND_ORDER` | Client → Server | 44 | 52 |
-| `0x15` | `AMEND_ACK` | Server → Client | 48 | 56 |
-| `0x20` | `EXECUTION_REPORT` | Server → Client | 64 | 72 |
+| `0x11` | `ORDER_ACK` | Server → Client | 52 | 60 |
+| `0x12` | `CANCEL_ORDER` | Client → Server | 16 | 24 |
+| `0x13` | `CANCEL_ACK` | Server → Client | 24 | 32 |
+| `0x14` | `AMEND_ORDER` | Client → Server | 36 | 44 |
+| `0x15` | `AMEND_ACK` | Server → Client | 40 | 48 |
+| `0x20` | `EXECUTION_REPORT` | Server → Client | 56 | 64 |
 | `0x30` | `HEARTBEAT` | Bidirectional | 8 | 16 |
 | `0x31` | `HEARTBEAT_ACK` | Bidirectional | 8 | 16 |
 | `0x40` | `LOGOUT` | Client → Server | 0 | 8 |
@@ -284,16 +287,16 @@ Offset 51  │  smp              │  u8      │  See SMP codes below
 Sent for every `NEW_ORDER`. Arrives before any `EXECUTION_REPORT` for the same
 order.
 
-**Body (60 bytes):**
+**Body (52 bytes):**
 
 ```
 Offset  0  │  client_order_id  │  u64 LE  │  Echoed from NEW_ORDER
-Offset  8  │  order_id         │  u8[16]  │  Binary UUID assigned by engine; all-zeros if rejected
-Offset 24  │  timestamp_ns     │  u64 LE  │  Nanoseconds since Unix epoch (engine receive time)
-Offset 32  │  accepted         │  u8      │  1 = accepted, 0 = rejected
-Offset 33  │  reject_code      │  u8      │  See reject codes below; 0 if accepted
-Offset 34  │  reason_len       │  u8      │  Length of meaningful bytes in reason[]
-Offset 35  │  reason           │  u8[25]  │  Rejection reason string (ASCII); zeros if accepted
+Offset  8  │  order_id         │  u64 LE  │  Session-scoped BALF order ID; 0 if rejected
+Offset 16  │  timestamp_ns     │  u64 LE  │  Nanoseconds since Unix epoch (engine receive time)
+Offset 24  │  accepted         │  u8      │  1 = accepted, 0 = rejected
+Offset 25  │  reject_code      │  u8      │  See reject codes below; 0 if accepted
+Offset 26  │  reason_len       │  u8      │  Length of meaningful bytes in reason[]
+Offset 27  │  reason           │  u8[25]  │  Rejection reason string (ASCII); zeros if accepted
 ```
 
 **Reject codes:**
@@ -315,25 +318,25 @@ Offset 35  │  reason           │  u8[25]  │  Rejection reason string (ASCI
 
 ### 5.6 `CANCEL_ORDER` (0x12) — Client → Server
 
-**Body (24 bytes):**
+**Body (16 bytes):**
 
 ```
 Offset  0  │  client_order_id  │  u64 LE  │  New client ref for this cancel request
-Offset  8  │  order_id         │  u8[16]  │  Binary UUID of the order to cancel
+Offset  8  │  order_id         │  u64 LE  │  Session-scoped BALF order ID to cancel
 ```
 
 ---
 
 ### 5.7 `CANCEL_ACK` (0x13) — Server → Client
 
-**Body (32 bytes):**
+**Body (24 bytes):**
 
 ```
 Offset  0  │  client_order_id  │  u64 LE  │  Echoed from CANCEL_ORDER
-Offset  8  │  order_id         │  u8[16]  │  Order being cancelled
-Offset 24  │  accepted         │  u8      │  1 = cancelled, 0 = rejected
-Offset 25  │  cancel_reason    │  u8      │  0 = client request, 1 = SMP, 2 = session end, 3 = IOC/FOK expire
-Offset 26  │  _reserved        │  u8[6]   │  Must be zero
+Offset  8  │  order_id         │  u64 LE  │  Order being cancelled
+Offset 16  │  accepted         │  u8      │  1 = cancelled, 0 = rejected
+Offset 17  │  cancel_reason    │  u8      │  0 = client request, 1 = SMP, 2 = session end, 3 = IOC/FOK expire
+Offset 18  │  _reserved        │  u8[6]   │  Must be zero
 ```
 
 ---
@@ -343,32 +346,32 @@ Offset 26  │  _reserved        │  u8[6]   │  Must be zero
 Amends price and/or quantity of a resting LIMIT or ICEBERG order. At least one
 of the `amend_flags` bits must be set.
 
-**Body (44 bytes):**
+**Body (36 bytes):**
 
 ```
 Offset  0  │  client_order_id  │  u64 LE  │  New client ref for this amend request
-Offset  8  │  order_id         │  u8[16]  │  Binary UUID of the order to amend
-Offset 24  │  new_price        │  i64 LE  │  New limit price × 10⁸; ignored if bit 0 of amend_flags is clear
-Offset 32  │  new_quantity     │  u32 LE  │  New total quantity; ignored if bit 1 of amend_flags is clear
-Offset 36  │  amend_flags      │  u8      │  Bit 0 = price changed, bit 1 = quantity changed
-Offset 37  │  _reserved        │  u8[7]   │  Must be zero
+Offset  8  │  order_id         │  u64 LE  │  Session-scoped BALF order ID to amend
+Offset 16  │  new_price        │  i64 LE  │  New limit price × 10⁸; ignored if bit 0 of amend_flags is clear
+Offset 24  │  new_quantity     │  u32 LE  │  New total quantity; ignored if bit 1 of amend_flags is clear
+Offset 28  │  amend_flags      │  u8      │  Bit 0 = price changed, bit 1 = quantity changed
+Offset 29  │  _reserved        │  u8[7]   │  Must be zero
 ```
 
 ---
 
 ### 5.9 `AMEND_ACK` (0x15) — Server → Client
 
-**Body (48 bytes):**
+**Body (40 bytes):**
 
 ```
 Offset  0  │  client_order_id  │  u64 LE  │  Echoed from AMEND_ORDER
-Offset  8  │  order_id         │  u8[16]  │  Amended order
-Offset 24  │  new_price        │  i64 LE  │  Price after amendment × 10⁸
-Offset 32  │  new_quantity     │  u32 LE  │  Total quantity after amendment
-Offset 36  │  remaining_qty    │  u32 LE  │  Unfilled quantity after amendment
-Offset 40  │  accepted         │  u8      │  1 = accepted, 0 = rejected
-Offset 41  │  priority_reset   │  u8      │  1 = order lost time priority; 0 = priority preserved
-Offset 42  │  _reserved        │  u8[6]   │  Must be zero
+Offset  8  │  order_id         │  u64 LE  │  Amended order
+Offset 16  │  new_price        │  i64 LE  │  Price after amendment × 10⁸
+Offset 24  │  new_quantity     │  u32 LE  │  Total quantity after amendment
+Offset 28  │  remaining_qty    │  u32 LE  │  Unfilled quantity after amendment
+Offset 32  │  accepted         │  u8      │  1 = accepted, 0 = rejected
+Offset 33  │  priority_reset   │  u8      │  1 = order lost time priority; 0 = priority preserved
+Offset 34  │  _reserved        │  u8[6]   │  Must be zero
 ```
 
 ---
@@ -378,19 +381,19 @@ Offset 42  │  _reserved        │  u8[6]   │  Must be zero
 Sent for every partial or full fill. Both sides of a match (aggressor and
 resting order) receive their own `EXECUTION_REPORT`.
 
-**Body (64 bytes):**
+**Body (56 bytes):**
 
 ```
 Offset  0  │  client_order_id  │  u64 LE  │  Echoed from the original NEW_ORDER
-Offset  8  │  order_id         │  u8[16]  │  Filled order UUID
-Offset 24  │  fill_price       │  i64 LE  │  Execution price × 10⁸
-Offset 32  │  fill_qty         │  u32 LE  │  Quantity matched in this event
-Offset 36  │  remaining_qty    │  u32 LE  │  Unfilled quantity after this fill
-Offset 40  │  timestamp_ns     │  u64 LE  │  Trade timestamp — nanoseconds since Unix epoch
-Offset 48  │  symbol           │  u8[8]   │  Symbol (for convenience; matches original order)
-Offset 56  │  side             │  u8      │  1 = BUY, 2 = SELL
-Offset 57  │  status           │  u8      │  1 = PARTIAL, 2 = FILLED
-Offset 58  │  _reserved        │  u8[6]   │  Must be zero
+Offset  8  │  order_id         │  u64 LE  │  Filled order ID
+Offset 16  │  fill_price       │  i64 LE  │  Execution price × 10⁸
+Offset 24  │  fill_qty         │  u32 LE  │  Quantity matched in this event
+Offset 28  │  remaining_qty    │  u32 LE  │  Unfilled quantity after this fill
+Offset 32  │  timestamp_ns     │  u64 LE  │  Trade timestamp — nanoseconds since Unix epoch
+Offset 40  │  symbol           │  u8[8]   │  Symbol (for convenience; matches original order)
+Offset 48  │  side             │  u8      │  1 = BUY, 2 = SELL
+Offset 49  │  status           │  u8      │  1 = PARTIAL, 2 = FILLED
+Offset 50  │  _reserved        │  u8[6]   │  Must be zero
 ```
 
 ---
@@ -467,9 +470,10 @@ Client                                    pm-balf-gateway
   `UINT32_MAX`.
 - A gap in the inbound sequence number is a protocol error; the receiver should
   log it and may close the connection.
-- The `RETRANSMIT` flag (bit 0 of `flags`) must be set when replaying a
-  previously sent message (e.g. during session recovery). The sequence number
-  on a retransmit carries the **original** sequence number of the message.
+- BALF `1.0.0` does not define a resend/recovery request. On detected gaps,
+    receivers should treat the session as out-of-sync and reconnect.
+- The `RETRANSMIT` flag is reserved for a future recovery extension and must
+    be `0` in BALF `1.0.0`.
 
 ---
 
@@ -512,7 +516,7 @@ Header:
 
 Body:
   02 00 00 00  00 00 00 00  │  client_order_id = 2
-  [16 bytes of binary UUID received in ORDER_ACK]
+    [8-byte LE session order_id received in ORDER_ACK]
 ```
 
 ---
@@ -560,12 +564,12 @@ pub fn frame_size(msg_type: u8) -> Option<usize> {
         msg::LOGON            => Some(32),
         msg::LOGON_ACK        => Some(92),
         msg::NEW_ORDER        => Some(60),
-        msg::ORDER_ACK        => Some(68),
-        msg::CANCEL_ORDER     => Some(32),
-        msg::CANCEL_ACK       => Some(40),
-        msg::AMEND_ORDER      => Some(52),
-        msg::AMEND_ACK        => Some(56),
-        msg::EXECUTION_REPORT => Some(72),
+        msg::ORDER_ACK        => Some(60),
+        msg::CANCEL_ORDER     => Some(24),
+        msg::CANCEL_ACK       => Some(32),
+        msg::AMEND_ORDER      => Some(44),
+        msg::AMEND_ACK        => Some(48),
+        msg::EXECUTION_REPORT => Some(64),
         msg::HEARTBEAT        => Some(16),
         msg::HEARTBEAT_ACK    => Some(16),
         msg::LOGOUT           => Some(8),
@@ -687,25 +691,25 @@ pub fn build_new_order(params: &NewOrderParams, seq_no: u32) -> Vec<u8> {
     buf
 }
 
-pub fn build_cancel_order(client_order_id: u64, order_id: [u8; 16], seq_no: u32) -> Vec<u8> {
-    let mut buf = Vec::with_capacity(32);
+pub fn build_cancel_order(client_order_id: u64, order_id: u64, seq_no: u32) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(24);
     buf.extend_from_slice(&build_header(msg::CANCEL_ORDER, 0, seq_no));
     buf.extend_from_slice(&client_order_id.to_le_bytes());
-    buf.extend_from_slice(&order_id);
+    buf.extend_from_slice(&order_id.to_le_bytes());
     buf
 }
 
 pub fn build_amend_order(
     client_order_id: u64,
-    order_id: [u8; 16],
+    order_id: u64,
     new_price: Option<f64>,
     new_quantity: Option<u32>,
     seq_no: u32,
 ) -> Vec<u8> {
-    let mut buf = Vec::with_capacity(52);
+    let mut buf = Vec::with_capacity(44);
     buf.extend_from_slice(&build_header(msg::AMEND_ORDER, 0, seq_no));
     buf.extend_from_slice(&client_order_id.to_le_bytes());
-    buf.extend_from_slice(&order_id);
+    buf.extend_from_slice(&order_id.to_le_bytes());
 
     let price_wire = new_price.map_or(0i64, encode_price);
     let qty_wire   = new_quantity.unwrap_or(0u32);
@@ -733,7 +737,7 @@ pub struct LogonAck {
 
 pub struct OrderAck {
     pub client_order_id: u64,
-    pub order_id:        [u8; 16],
+    pub order_id:        u64,
     pub timestamp_ns:    u64,
     pub accepted:        bool,
     pub reject_code:     u8,
@@ -742,7 +746,7 @@ pub struct OrderAck {
 
 pub struct ExecutionReport {
     pub client_order_id: u64,
-    pub order_id:        [u8; 16],
+    pub order_id:        u64,
     pub fill_price:      f64,
     pub fill_qty:        u32,
     pub remaining_qty:   u32,
@@ -791,29 +795,27 @@ pub fn parse_logon_ack(body: &[u8]) -> LogonAck {
 
 pub fn parse_order_ack(body: &[u8]) -> OrderAck {
     let client_order_id = u64::from_le_bytes(body[0..8].try_into().unwrap());
-    let mut order_id    = [0u8; 16];
-    order_id.copy_from_slice(&body[8..24]);
-    let timestamp_ns    = u64::from_le_bytes(body[24..32].try_into().unwrap());
-    let accepted        = body[32] == 1;
-    let reject_code     = body[33];
-    let reason_len      = body[34] as usize;
-    let reason = String::from_utf8_lossy(&body[35..35 + reason_len.min(25)]).to_string();
+    let order_id        = u64::from_le_bytes(body[8..16].try_into().unwrap());
+    let timestamp_ns    = u64::from_le_bytes(body[16..24].try_into().unwrap());
+    let accepted        = body[24] == 1;
+    let reject_code     = body[25];
+    let reason_len      = body[26] as usize;
+    let reason = String::from_utf8_lossy(&body[27..27 + reason_len.min(25)]).to_string();
     OrderAck { client_order_id, order_id, timestamp_ns, accepted, reject_code, reason }
 }
 
 pub fn parse_execution_report(body: &[u8]) -> ExecutionReport {
     let client_order_id = u64::from_le_bytes(body[0..8].try_into().unwrap());
-    let mut order_id    = [0u8; 16];
-    order_id.copy_from_slice(&body[8..24]);
-    let fill_price_raw  = i64::from_le_bytes(body[24..32].try_into().unwrap());
-    let fill_qty        = u32::from_le_bytes(body[32..36].try_into().unwrap());
-    let remaining_qty   = u32::from_le_bytes(body[36..40].try_into().unwrap());
-    let timestamp_ns    = u64::from_le_bytes(body[40..48].try_into().unwrap());
+    let order_id        = u64::from_le_bytes(body[8..16].try_into().unwrap());
+    let fill_price_raw  = i64::from_le_bytes(body[16..24].try_into().unwrap());
+    let fill_qty        = u32::from_le_bytes(body[24..28].try_into().unwrap());
+    let remaining_qty   = u32::from_le_bytes(body[28..32].try_into().unwrap());
+    let timestamp_ns    = u64::from_le_bytes(body[32..40].try_into().unwrap());
     let symbol = String::from_utf8_lossy(
-        body[48..56].split(|&b| b == 0).next().unwrap_or(&body[48..56])
+        body[40..48].split(|&b| b == 0).next().unwrap_or(&body[40..48])
     ).to_string();
-    let side   = body[56];
-    let status = body[57];
+    let side   = body[48];
+    let status = body[49];
     ExecutionReport {
         client_order_id,
         order_id,
@@ -848,6 +850,7 @@ fn main() -> std::io::Result<()> {
     let mut stream = TcpStream::connect("127.0.0.1:5560")?;
     let mut send_seq: u32 = 0;
     let mut client_order_counter: u64 = 0;
+    let mut active_order_id: u64 = 0;
 
     // ── Step 1: LOGON ────────────────────────────────────────────────────────
     let logon = build_logon("TRADER01");
@@ -896,10 +899,10 @@ fn main() -> std::io::Result<()> {
         return Ok(());
     }
     println!(
-        "Order accepted: order_id={:?} ts_ns={}",
-        &order_ack.order_id, order_ack.timestamp_ns
+        "Order accepted: order_id={} ts_ns={}",
+        order_ack.order_id, order_ack.timestamp_ns
     );
-    let active_order_id = order_ack.order_id;
+    active_order_id = order_ack.order_id;
 
     // ── Step 5: Wait for an EXECUTION_REPORT (if resting, may not arrive) ───
     // In a real client this would be in a receive loop on a separate thread.
@@ -922,7 +925,7 @@ fn main() -> std::io::Result<()> {
 
     let (msg_type, _, body) = read_frame(&mut stream)?;
     assert_eq!(msg_type, msg::CANCEL_ACK);
-    let accepted = body[24] == 1;
+    let accepted = body[16] == 1;
     println!("Cancel {}", if accepted { "confirmed" } else { "rejected" });
 
     // ── Step 7: Graceful logout ──────────────────────────────────────────────
@@ -1053,55 +1056,55 @@ typedef struct {
 typedef struct {
     BalfHeader hdr;
     uint64_t client_order_id;
-    uint8_t  order_id[16];
+    uint64_t order_id;
     uint64_t timestamp_ns;
     uint8_t  accepted;
     uint8_t  reject_code;
     uint8_t  reason_len;
     uint8_t  reason[25];
-} BalfOrderAck;           /* 68 bytes                      */
+} BalfOrderAck;           /* 60 bytes                      */
 
 typedef struct {
     BalfHeader hdr;
     uint64_t client_order_id;
-    uint8_t  order_id[16];
-} BalfCancelOrder;        /* 32 bytes                      */
+    uint64_t order_id;
+} BalfCancelOrder;        /* 24 bytes                      */
 
 typedef struct {
     BalfHeader hdr;
     uint64_t client_order_id;
-    uint8_t  order_id[16];
+    uint64_t order_id;
     uint8_t  accepted;
     uint8_t  cancel_reason;
     uint8_t  reserved[6];
-} BalfCancelAck;          /* 40 bytes                      */
+} BalfCancelAck;          /* 32 bytes                      */
 
 typedef struct {
     BalfHeader hdr;
     uint64_t client_order_id;
-    uint8_t  order_id[16];
+    uint64_t order_id;
     int64_t  new_price;
     uint32_t new_quantity;
     uint8_t  amend_flags;
     uint8_t  reserved[7];
-} BalfAmendOrder;         /* 52 bytes                      */
+} BalfAmendOrder;         /* 44 bytes                      */
 
 typedef struct {
     BalfHeader hdr;
     uint64_t client_order_id;
-    uint8_t  order_id[16];
+    uint64_t order_id;
     int64_t  new_price;
     uint32_t new_quantity;
     uint32_t remaining_qty;
     uint8_t  accepted;
     uint8_t  priority_reset;
     uint8_t  reserved[6];
-} BalfAmendAck;           /* 56 bytes                      */
+} BalfAmendAck;           /* 48 bytes                      */
 
 typedef struct {
     BalfHeader hdr;
     uint64_t client_order_id;
-    uint8_t  order_id[16];
+    uint64_t order_id;
     int64_t  fill_price;
     uint32_t fill_qty;
     uint32_t remaining_qty;
@@ -1110,7 +1113,7 @@ typedef struct {
     uint8_t  side;
     uint8_t  status;
     uint8_t  reserved[6];
-} BalfExecutionReport;    /* 72 bytes                      */
+} BalfExecutionReport;    /* 64 bytes                      */
 
 typedef struct {
     BalfHeader hdr;
@@ -1126,12 +1129,12 @@ static inline int balf_frame_size(uint8_t msg_type) {
         case BALF_LOGON:            return  32;
         case BALF_LOGON_ACK:        return  92;
         case BALF_NEW_ORDER:        return  60;
-        case BALF_ORDER_ACK:        return  68;
-        case BALF_CANCEL_ORDER:     return  32;
-        case BALF_CANCEL_ACK:       return  40;
-        case BALF_AMEND_ORDER:      return  52;
-        case BALF_AMEND_ACK:        return  56;
-        case BALF_EXECUTION_REPORT: return  72;
+        case BALF_ORDER_ACK:        return  60;
+        case BALF_CANCEL_ORDER:     return  24;
+        case BALF_CANCEL_ACK:       return  32;
+        case BALF_AMEND_ORDER:      return  44;
+        case BALF_AMEND_ACK:        return  48;
+        case BALF_EXECUTION_REPORT: return  64;
         case BALF_HEARTBEAT:        return  16;
         case BALF_HEARTBEAT_ACK:    return  16;
         case BALF_LOGOUT:           return   8;
@@ -1299,7 +1302,6 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Did not receive LOGON_ACK\n"); close(fd); return 1;
     }
     {
-        BalfLogonAck *ack = (BalfLogonAck *)(&frame - 1); /* body is frame.body */
         /* Parse from raw body bytes */
         uint8_t accepted    = frame.body[16];
         uint8_t reject_code = frame.body[17];
@@ -1307,7 +1309,6 @@ int main(int argc, char *argv[]) {
         char    msg[65];
         memset(msg, 0, sizeof(msg));
         memcpy(msg, frame.body + 20, msg_len < 64 ? msg_len : 64);
-        (void)ack;
 
         if (!accepted) {
             fprintf(stderr, "LOGON rejected: code=%d msg=%s\n", reject_code, msg);
@@ -1345,22 +1346,22 @@ int main(int argc, char *argv[]) {
     if (read_frame(fd, &frame) < 0 || frame.msg_type != BALF_ORDER_ACK) {
         fprintf(stderr, "Did not receive ORDER_ACK\n"); close(fd); return 1;
     }
-    uint8_t active_order_id[16];
+        uint64_t active_order_id;
     uint8_t order_accepted;
     {
-        /* body layout: [0..7]=client_order_id, [8..23]=order_id,
-           [24..31]=timestamp_ns, [32]=accepted, [33]=reject_code,
-           [34]=reason_len, [35..59]=reason */
+                /* body layout: [0..7]=client_order_id, [8..15]=order_id,
+                     [16..23]=timestamp_ns, [24]=accepted, [25]=reject_code,
+                     [26]=reason_len, [27..51]=reason */
         uint64_t echo_clordid;
         memcpy(&echo_clordid, frame.body,      8);
-        memcpy(active_order_id, frame.body + 8, 16);
+                memcpy(&active_order_id, frame.body + 8, 8);
         uint64_t ts_ns;
-        memcpy(&ts_ns, frame.body + 24, 8);
-        order_accepted  = frame.body[32];
-        uint8_t rcode   = frame.body[33];
-        uint8_t rlen    = frame.body[34];
+                memcpy(&ts_ns, frame.body + 16, 8);
+                order_accepted  = frame.body[24];
+                uint8_t rcode   = frame.body[25];
+                uint8_t rlen    = frame.body[26];
         char    reason[26]; memset(reason, 0, sizeof(reason));
-        memcpy(reason, frame.body + 35, rlen < 25 ? rlen : 25);
+                memcpy(reason, frame.body + 27, rlen < 25 ? rlen : 25);
 
         if (!order_accepted) {
             fprintf(stderr, "Order rejected: code=%d reason=%s\n", rcode, reason);
@@ -1377,13 +1378,13 @@ int main(int argc, char *argv[]) {
         int64_t  fp_wire;
         uint32_t fq, rq;
         uint64_t fill_ts;
-        memcpy(&fp_wire,  frame.body + 24, 8);
-        memcpy(&fq,       frame.body + 32, 4);
-        memcpy(&rq,       frame.body + 36, 4);
-        memcpy(&fill_ts,  frame.body + 40, 8);
+        memcpy(&fp_wire,  frame.body + 16, 8);
+        memcpy(&fq,       frame.body + 24, 4);
+        memcpy(&rq,       frame.body + 28, 4);
+        memcpy(&fill_ts,  frame.body + 32, 8);
         char sym[9]; memset(sym, 0, 9);
-        memcpy(sym, frame.body + 48, 8);
-        uint8_t status = frame.body[57];
+        memcpy(sym, frame.body + 40, 8);
+        uint8_t status = frame.body[49];
         printf("Fill: %s x%u @ %.4f  remaining=%u  status=%s\n",
                sym, fq, balf_decode_price(fp_wire), rq,
                status == BALF_STATUS_PARTIAL ? "PARTIAL" : "FILLED");
@@ -1397,12 +1398,12 @@ int main(int argc, char *argv[]) {
     memset(&cancel, 0, sizeof(cancel));
     balf_fill_header(&cancel.hdr, BALF_CANCEL_ORDER, 0, send_seq);
     memcpy(&cancel.client_order_id, &clordid_counter, 8);
-    memcpy(cancel.order_id, active_order_id, 16);
+    memcpy(&cancel.order_id, &active_order_id, 8);
     send(fd, &cancel, sizeof(cancel), 0);
     printf("Sent CANCEL seq=%u\n", send_seq);
 
     if (read_frame(fd, &frame) == 0 && frame.msg_type == BALF_CANCEL_ACK) {
-        printf("Cancel %s\n", frame.body[24] ? "confirmed" : "rejected");
+        printf("Cancel %s\n", frame.body[16] ? "confirmed" : "rejected");
     }
 
     /* ── Step 7: LOGOUT ───────────────────────────────────────────────────────── */
@@ -1417,9 +1418,263 @@ int main(int argc, char *argv[]) {
 }
 ```
 
+### 9.3 Python parser reference (customer-side)
+
+The snippet below is intentionally focused on the core parsing path: fixed 8-byte
+header, frame-size lookup by `msg_type`, exact-byte reads, and typed decode for
+the most common server responses (`LOGON_ACK`, `ORDER_ACK`, `EXECUTION_REPORT`).
+
+```python
+"""balf.py - minimal BALF framing/parser reference for Python clients.
+
+Python 3.11+ recommended.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import socket
+import struct
+from typing import Final
+
+
+BALF_MAGIC: Final[int] = 0xBA
+BALF_VERSION: Final[int] = 0x01
+PRICE_SCALE: Final[int] = 100_000_000
+
+
+class MsgType:
+    LOGON = 0x01
+    LOGON_ACK = 0x02
+    NEW_ORDER = 0x10
+    ORDER_ACK = 0x11
+    CANCEL_ORDER = 0x12
+    CANCEL_ACK = 0x13
+    AMEND_ORDER = 0x14
+    AMEND_ACK = 0x15
+    EXECUTION_REPORT = 0x20
+    HEARTBEAT = 0x30
+    HEARTBEAT_ACK = 0x31
+    LOGOUT = 0x40
+
+
+FRAME_SIZE: Final[dict[int, int]] = {
+    MsgType.LOGON: 32,
+    MsgType.LOGON_ACK: 92,
+    MsgType.NEW_ORDER: 60,
+    MsgType.ORDER_ACK: 68,
+    MsgType.CANCEL_ORDER: 32,
+    MsgType.CANCEL_ACK: 40,
+    MsgType.AMEND_ORDER: 52,
+    MsgType.AMEND_ACK: 56,
+    MsgType.EXECUTION_REPORT: 72,
+    MsgType.HEARTBEAT: 16,
+    MsgType.HEARTBEAT_ACK: 16,
+    MsgType.LOGOUT: 8,
+}
+
+
+def encode_price(display: float) -> int:
+    return round(display * PRICE_SCALE)
+
+
+def decode_price(wire: int) -> float:
+    return wire / PRICE_SCALE
+
+
+def _trim_zero_padded_ascii(raw: bytes) -> str:
+    return raw.split(b"\x00", 1)[0].decode("ascii", errors="strict")
+
+
+def _read_exact(sock: socket.socket, n: int) -> bytes:
+    chunks: list[bytes] = []
+    remaining = n
+    while remaining:
+        chunk = sock.recv(remaining)
+        if not chunk:
+            raise ConnectionError("connection closed while reading BALF frame")
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b"".join(chunks)
+
+
+@dataclasses.dataclass(frozen=True)
+class Header:
+    magic: int
+    version: int
+    msg_type: int
+    flags: int
+    seq_no: int
+
+
+@dataclasses.dataclass(frozen=True)
+class Frame:
+    header: Header
+    body: bytes
+
+
+def read_frame(sock: socket.socket) -> Frame:
+    hdr = _read_exact(sock, 8)
+    magic, version, msg_type, flags, seq_no = struct.unpack("<BBBBI", hdr)
+
+    if magic != BALF_MAGIC:
+        raise ValueError(f"bad BALF magic 0x{magic:02X}")
+    if version != BALF_VERSION:
+        raise ValueError(f"unsupported BALF version {version}")
+
+    total = FRAME_SIZE.get(msg_type)
+    if total is None:
+        raise ValueError(f"unknown msg_type 0x{msg_type:02X}")
+
+    body = _read_exact(sock, total - 8)
+    return Frame(Header(magic, version, msg_type, flags, seq_no), body)
+
+
+@dataclasses.dataclass(frozen=True)
+class LogonAck:
+    gateway_id: str
+    accepted: bool
+    reject_code: int
+    message: str
+
+
+@dataclasses.dataclass(frozen=True)
+class OrderAck:
+    client_order_id: int
+    order_id: int
+    timestamp_ns: int
+    accepted: bool
+    reject_code: int
+    reason: str
+
+
+@dataclasses.dataclass(frozen=True)
+class ExecutionReport:
+    client_order_id: int
+    order_id: int
+    fill_price: float
+    fill_qty: int
+    remaining_qty: int
+    timestamp_ns: int
+    symbol: str
+    side: int
+    status: int
+
+
+def parse_logon_ack(body: bytes) -> LogonAck:
+    if len(body) != 84:
+        raise ValueError(f"LOGON_ACK body must be 84 bytes, got {len(body)}")
+    gateway_id = _trim_zero_padded_ascii(body[0:16])
+    accepted = body[16] == 1
+    reject_code = body[17]
+    msg_len = body[18]
+    message = body[20:20 + min(msg_len, 64)].decode("ascii", errors="replace")
+    return LogonAck(gateway_id, accepted, reject_code, message)
+
+
+def parse_order_ack(body: bytes) -> OrderAck:
+    if len(body) != 52:
+        raise ValueError(f"ORDER_ACK body must be 52 bytes, got {len(body)}")
+    client_order_id = struct.unpack_from("<Q", body, 0)[0]
+    order_id = struct.unpack_from("<Q", body, 8)[0]
+    timestamp_ns = struct.unpack_from("<Q", body, 16)[0]
+    accepted = body[24] == 1
+    reject_code = body[25]
+    reason_len = body[26]
+    reason = body[27:27 + min(reason_len, 25)].decode("ascii", errors="replace")
+    return OrderAck(client_order_id, order_id, timestamp_ns, accepted, reject_code, reason)
+
+
+def parse_execution_report(body: bytes) -> ExecutionReport:
+    if len(body) != 56:
+        raise ValueError(f"EXECUTION_REPORT body must be 56 bytes, got {len(body)}")
+    client_order_id = struct.unpack_from("<Q", body, 0)[0]
+    order_id = struct.unpack_from("<Q", body, 8)[0]
+    fill_price_raw = struct.unpack_from("<q", body, 16)[0]
+    fill_qty = struct.unpack_from("<I", body, 24)[0]
+    remaining_qty = struct.unpack_from("<I", body, 28)[0]
+    timestamp_ns = struct.unpack_from("<Q", body, 32)[0]
+    symbol = _trim_zero_padded_ascii(body[40:48])
+    side = body[48]
+    status = body[49]
+    return ExecutionReport(
+        client_order_id=client_order_id,
+        order_id=order_id,
+        fill_price=decode_price(fill_price_raw),
+        fill_qty=fill_qty,
+        remaining_qty=remaining_qty,
+        timestamp_ns=timestamp_ns,
+        symbol=symbol,
+        side=side,
+        status=status,
+    )
+
+
+def decode_server_frame(frame: Frame) -> LogonAck | OrderAck | ExecutionReport | Frame:
+    """Decode known server frames; return raw Frame for unsupported types."""
+    if frame.header.msg_type == MsgType.LOGON_ACK:
+        return parse_logon_ack(frame.body)
+    if frame.header.msg_type == MsgType.ORDER_ACK:
+        return parse_order_ack(frame.body)
+    if frame.header.msg_type == MsgType.EXECUTION_REPORT:
+        return parse_execution_report(frame.body)
+    return frame
+```
+
+Quick usage pattern (blocking receive loop):
+
+```python
+import socket
+from balf import read_frame, decode_server_frame
+
+sock = socket.create_connection(("127.0.0.1", 5560))
+while True:
+    frame = read_frame(sock)
+    event = decode_server_frame(frame)
+    print(event)
+```
+
 ---
 
-## 10. Performance Characteristics
+## 10. Promotion Readiness Checklist (v1.0.0 gate)
+
+Before promoting this proposal to `1.0.0`, confirm the following are all true:
+
+1. **Wire conformance vectors exist**
+     - At least one byte-level golden vector per message type (including edge cases)
+         checked in CI for Rust, C, and Python examples.
+
+2. **Cross-language parser parity**
+     - Rust, C, and Python reference parsers decode the same sample frames to the
+         same semantic values (including signed price decoding and zero-padded ASCII fields).
+
+3. **Strict framing behavior is documented and tested**
+     - Wrong magic, unknown `msg_type`, short reads, and invalid frame sizes all fail
+         deterministically and close the session.
+
+4. **Sequence number policy is executable**
+     - Gap detection, wrap behavior, and `RETRANSMIT` semantics are covered by
+         implementation tests (not only prose).
+
+5. **Session lifecycle interoperability is validated**
+     - A client can complete LOGON → order flow → heartbeat → LOGOUT against a real
+         `pm-balf-gateway` prototype without manual frame tweaking.
+
+If any item above is missing, keep status as proposal/research and do not stamp `1.0.0`.
+
+### Validation note for reference code
+
+The Rust, C, and Python snippets in this document are intended as **reference parser implementations**, not copy-paste production libraries. Before publishing `1.0.0`, each snippet should be validated in CI with:
+
+- compile checks (`rustc` / `gcc -Wall -Wextra -Werror`)
+- framing-unit tests (good header, bad magic, unknown message type, short reads)
+- decode parity tests against shared golden frames
+
+Without these checks, examples can still drift from the normative wire spec over time.
+
+---
+
+## 11. Performance Characteristics
 
 ### Parse cost comparison
 
@@ -1428,7 +1683,7 @@ int main(int argc, char *argv[]) {
 | Split message into fields | `O(n)` string scan | None — offsets are fixed |
 | Price decode | `strtod()` or `float()` | `memcpy` + integer multiply |
 | Symbol lookup | `strcmp` | 8-byte integer compare (single instruction) |
-| Order ID (cancel/amend) | UUID string parse (36 chars) | 16-byte `memcpy` |
+| Order ID (cancel/amend) | UUID string parse (36 chars) | `u64` compare/copy (8-byte scalar) |
 | **Minimum bytes per LIMIT order** | 49 bytes (ASCII `NEW\|SYM=AAPL\|...`) | **60 bytes** (fixed) |
 | **Maximum bytes per LIMIT order** | Unbounded (long symbol/price strings) | **60 bytes** (fixed) |
 
@@ -1463,7 +1718,7 @@ called directly from the NIC receive callback without a thread context switch.
 
 ---
 
-## 11. Configuration (proposed additions to `engine_config.yaml`)
+## 12. Configuration (proposed additions to `engine_config.yaml`)
 
 ```yaml
 # Existing ALF gateway configuration — unchanged
@@ -1499,13 +1754,13 @@ independently of `alf:`.
 
 ---
 
-## 12. Implementation Plan (proposed)
+## 13. Implementation Plan (proposed)
 
 | Phase | Deliverable |
 |-------|-------------|
 | **Phase 1** | `pm-balf-gateway` process: TCP accept loop, LOGON/LOGON_ACK, `NEW_ORDER` → `ORDER_ACK` + `EXECUTION_REPORT`, `CANCEL_ORDER` → `CANCEL_ACK`, `AMEND_ORDER` → `AMEND_ACK`, heartbeat, logout |
-| **Phase 2** | `QUOTE_NEW` / `QUOTE_CANCEL` for market-maker gateways; `KILL_SWITCH` message; `OCO_ORDER` |
-| **Phase 3** | TLS support; per-session sequence-number recovery / retransmit request |
+| **Phase 2** | `QUOTE_NEW` / `QUOTE_CANCEL` for market-maker gateways; `KILL_SWITCH` message; optional study of combo/OCO wire models (not in `1.0.0`) |
+| **Phase 3** | TLS support; optional session recovery extension (resend request / retransmit semantics) |
 | **Phase 4** | Benchmark harness comparing ALF vs BALF round-trip latency under load |
 
 Phase 1 requires no changes to the matching engine — only a new process that
@@ -1513,31 +1768,23 @@ speaks BALF on one side and the existing ZeroMQ/JSON engine API on the other.
 
 ---
 
-## 13. Open Questions
+## 14. Resolved 1.0.0 Decisions
 
-1. **Byte order**: This proposal uses little-endian throughout. Network
-   convention is big-endian (as used by NASDAQ ITCH/OUCH). The argument for LE
-   is that all target hardware is x86 and avoiding `htons()`/`ntohl()` on every
-   price field saves real cycles. Big-endian would align with FIX binary FAST
-   and CME SBE. **Decision needed.**
+1. **Byte order is locked to little-endian.**
+    BALF `1.0.0` uses little-endian for all numeric wire fields and explicitly
+    differs from ITCH/OUCH big-endian convention.
 
-2. **Order ID space**: The proposal uses the engine's UUID (16 bytes binary).
-   Alternatively, BALF could assign a compact `u64` session-scoped order ID
-   and maintain a mapping internally, avoiding 16-byte UUIDs on the wire for
-   cancel and amend messages. This halves the CANCEL_ORDER frame from 32 to
-   24 bytes.
+2. **Order ID space is session-scoped `u64`.**
+    BALF order lifecycle messages use compact `u64` order IDs on the wire.
+    `pm-balf-gateway` maps this ID to internal engine UUIDs.
 
-3. **Combo and OCO**: Deferred to Phase 2. The binary encoding of multi-leg
-   orders is non-trivial; variable-length leg arrays would break the
-   fixed-frame property. Options include a separate `LEG` message type or a
-   pre-negotiated maximum leg count with a fixed struct of that size.
+3. **Combo/OCO orders are not in `1.0.0`.**
+    They remain future design work and are not part of current wire compatibility.
 
-4. **Sequence number recovery**: The current proposal detects gaps but does not
-   specify a retransmit-request mechanism. Real exchange protocols (CME iLink,
-   NASDAQ OUCH) use a separate `Resend Request` message. This needs design for
-   Phase 3.
+4. **Sequence recovery is a known limitation in `1.0.0`.**
+    Gap detection exists, but resend/recovery messages are not defined yet.
+    Recovery protocol design is deferred to a future phase.
 
-5. **Multicast market data**: BALF currently covers only order entry
-   (client → exchange). A companion read-only market data protocol (BDMD —
-   Binary Direct Market Data) could be proposed separately for low-latency
-   feed consumption.
+5. **Multicast market data is future work.**
+    A separate BDMD protocol remains a possible future improvement and is not
+    included in BALF `1.0.0` scope.
