@@ -1895,6 +1895,89 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#installation-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installation &amp; Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Installation &amp; Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#do-i-need-poetry-or-pipx" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Do I need Poetry or pipx?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#i-installed-with-pipx-but-pm-engine-is-not-found-what-do-i-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        I installed with pipx but pm-engine is not found. What do I do?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-does-pm-setup-do-and-do-i-have-to-run-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What does pm-setup do and do I have to run it?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-engine-says-it-cannot-find-engine_configyaml-where-should-the-file-be" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The engine says it cannot find engine_config.yaml. Where should the file be?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-are-my-data-files-stored" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where are my data files stored?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-do-i-upgrade-edumatcher-to-a-newer-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How do I upgrade EduMatcher to a newer version?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#architecture-setup" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1911,6 +1994,39 @@
     <span class="md-ellipsis">
       
         The engine started but gateways can't connect. What's wrong?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-book-already-has-liquidity-before-i-submit-any-orders-why" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The book already has liquidity before I submit any orders. Why?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-did-the-seed-mm-quote-disappear-after-the-second-day" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why did the seed MM quote disappear after the second day?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-is-the-engine-not-matching-orders-it-starts-in-closed-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why is the engine not matching orders? It starts in CLOSED state
       
     </span>
   </a>
@@ -1984,21 +2100,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#why-were-timestamps-changed-to-nanoseconds" class="md-nav__link">
+  <a href="#how-do-i-reset-all-persisted-state-to-start-fresh" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Why were timestamps changed to nanoseconds?
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#do-i-need-to-clean-persisted-files-for-the-migration" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Do I need to clean persisted files for the migration?
+        How do I reset all persisted state to start fresh?
       
     </span>
   </a>
@@ -2224,6 +2329,129 @@ filling against your own sell. Options:</p>
 </tbody>
 </table>
 <hr />
+<h2 id="installation-setup">Installation &amp; Setup<a class="headerlink" href="#installation-setup" title="Permanent link">&para;</a></h2>
+<h3 id="do-i-need-poetry-or-pipx">Do I need Poetry or pipx?<a class="headerlink" href="#do-i-need-poetry-or-pipx" title="Permanent link">&para;</a></h3>
+<p>It depends on your role:</p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Tool</th>
+<th>Install command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Student / instructor</strong> (just want to run the exchange)</td>
+<td>pipx</td>
+<td><code>pipx install edumatcher</code></td>
+</tr>
+<tr>
+<td><strong>Developer</strong> (modifying the engine, running tests)</td>
+<td>Poetry</td>
+<td><code>poetry install --with dev</code></td>
+</tr>
+</tbody>
+</table>
+<p>End users should not need a source checkout at all. After <code>pipx install edumatcher</code>
+all <code>pm-*</code> commands are on your PATH and ready to use.</p>
+<hr />
+<h3 id="i-installed-with-pipx-but-pm-engine-is-not-found-what-do-i-do">I installed with pipx but <code>pm-engine</code> is not found. What do I do?<a class="headerlink" href="#i-installed-with-pipx-but-pm-engine-is-not-found-what-do-i-do" title="Permanent link">&para;</a></h3>
+<p>pipx installs scripts to <code>~/.local/bin</code>, which may not be on your PATH yet.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pipx<span class="w"> </span>ensurepath<span class="w">        </span><span class="c1"># adds ~/.local/bin to your shell profile</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nb">exec</span><span class="w"> </span><span class="nv">$SHELL</span><span class="w">            </span><span class="c1"># reload your current shell</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>which<span class="w"> </span>pm-engine<span class="w">        </span><span class="c1"># should now print a path</span>
+</code></pre></div>
+<p>If you just installed pipx itself for the first time, open a <strong>new terminal
+window</strong> after running <code>pipx ensurepath</code> — the PATH change only takes effect
+in new shells.</p>
+<hr />
+<h3 id="what-does-pm-setup-do-and-do-i-have-to-run-it">What does <code>pm-setup</code> do and do I have to run it?<a class="headerlink" href="#what-does-pm-setup-do-and-do-i-have-to-run-it" title="Permanent link">&para;</a></h3>
+<p><code>pm-setup</code> is a one-time bootstrap command for <strong>installed</strong> (pipx) users:</p>
+<ol>
+<li>Creates the data directory (<code>~/.local/share/edumatcher</code> by default).</li>
+<li>Copies the bundled sample <code>engine_config.yaml</code> into your current working
+   directory.</li>
+<li>Prints a shell snippet to add to <code>~/.zshrc</code> or <code>~/.bashrc</code>.</li>
+</ol>
+<p>If you skip it, the engine still starts — but it looks for <code>engine_config.yaml</code>
+in <code>./</code> (your CWD) and writes data files to <code>~/.local/share/edumatcher</code>,
+creating that directory automatically. The main reason to run <code>pm-setup</code> is to
+get the sample config so you have a starting point to edit.</p>
+<p>Developer mode (Poetry + source checkout) does not need <code>pm-setup</code> at all.</p>
+<hr />
+<h3 id="the-engine-says-it-cannot-find-engine_configyaml-where-should-the-file-be">The engine says it cannot find <code>engine_config.yaml</code>. Where should the file be?<a class="headerlink" href="#the-engine-says-it-cannot-find-engine_configyaml-where-should-the-file-be" title="Permanent link">&para;</a></h3>
+<p>The search path depends on how you are running EduMatcher:</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Default config location</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>pipx installed</strong></td>
+<td><code>engine_config.yaml</code> in the <strong>current working directory</strong></td>
+</tr>
+<tr>
+<td><strong>Source checkout</strong></td>
+<td><code>engine_config.yaml</code> in the <strong>repository root</strong></td>
+</tr>
+<tr>
+<td><strong>Either</strong></td>
+<td><code>EDUMATCHER_CONFIG</code> environment variable (highest priority)</td>
+</tr>
+</tbody>
+</table>
+<p>The most common mistake is running <code>pm-engine</code> from a directory that does not
+contain <code>engine_config.yaml</code>. Either <code>cd</code> to the directory that has the file,
+or point to it explicitly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-engine<span class="w"> </span>--config<span class="w"> </span>~/my-session/engine_config.yaml
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="c1"># or:</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_CONFIG</span><span class="o">=</span>~/my-session/engine_config.yaml
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>pm-engine
+</code></pre></div>
+<hr />
+<h3 id="where-are-my-data-files-stored">Where are my data files stored?<a class="headerlink" href="#where-are-my-data-files-stored" title="Permanent link">&para;</a></h3>
+<p>Data files (<code>gtc_orders.json</code>, <code>stats.db</code>, <code>audit.log</code>, etc.) go to:</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Data directory</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>pipx installed</strong></td>
+<td><code>~/.local/share/edumatcher</code></td>
+</tr>
+<tr>
+<td><strong>Source checkout</strong></td>
+<td><code>&lt;repo&gt;/src/data/</code></td>
+</tr>
+<tr>
+<td><strong>Either</strong></td>
+<td><code>EDUMATCHER_DATA_DIR</code> environment variable (highest priority)</td>
+</tr>
+</tbody>
+</table>
+<p>To isolate two sessions from each other, run each in its own directory and set
+<code>EDUMATCHER_DATA_DIR</code> to a different path:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span>~/sessions/morning
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>pm-engine<span class="w"> </span>--config<span class="w"> </span>~/sessions/morning/engine_config.yaml
+</code></pre></div>
+<hr />
+<h3 id="how-do-i-upgrade-edumatcher-to-a-newer-version">How do I upgrade EduMatcher to a newer version?<a class="headerlink" href="#how-do-i-upgrade-edumatcher-to-a-newer-version" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pipx<span class="w"> </span>upgrade<span class="w"> </span>edumatcher<span class="w">            </span><span class="c1"># upgrade from PyPI</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="c1"># or, to install a locally built wheel:</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>poetry<span class="w"> </span>build
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>pipx<span class="w"> </span>install<span class="w"> </span>dist/edumatcher-*.whl<span class="w"> </span>--force
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>pm-setup<span class="w"> </span>--force<span class="w">                   </span><span class="c1"># refresh the sample config if needed</span>
+</code></pre></div>
+<p>Your existing <code>engine_config.yaml</code> and data files are not touched by the upgrade.</p>
+<hr />
 <h2 id="architecture-setup">Architecture &amp; Setup<a class="headerlink" href="#architecture-setup" title="Permanent link">&para;</a></h2>
 <h3 id="the-engine-started-but-gateways-cant-connect-whats-wrong">The engine started but gateways can't connect. What's wrong?<a class="headerlink" href="#the-engine-started-but-gateways-cant-connect-whats-wrong" title="Permanent link">&para;</a></h3>
 <p>Check that:
@@ -2233,6 +2461,54 @@ filling against your own sell. Options:</p>
 3. The gateway ID exists in <code>engine_config.yaml</code>.</p>
 <p>If the engine is down or unreachable, <code>pm-gateway</code> exits after about three
 seconds with <code>Gateway authentication timed out</code>.</p>
+<hr />
+<h3 id="the-book-already-has-liquidity-before-i-submit-any-orders-why">The book already has liquidity before I submit any orders. Why?<a class="headerlink" href="#the-book-already-has-liquidity-before-i-submit-any-orders-why" title="Permanent link">&para;</a></h3>
+<p>If your <code>engine_config.yaml</code> has a <code>market_maker_quotes</code> block for the symbol,
+the engine injects a two-sided seed quote on behalf of the configured market-maker
+gateway at startup. This is intentional — it gives the book immediate liquidity
+so participants always have something to trade against.</p>
+<p>A side effect is that your <strong>first aggressive order may fill immediately</strong> against
+the seed quote, before a second participant has typed anything.</p>
+<p>To run with a deliberately empty book (e.g. for a demo of price discovery from
+scratch), either:
+- Remove or comment out <code>market_maker_quotes</code> in the config, or
+- Start the engine without a config file (<code>sessions_enabled: false</code> minimum).</p>
+<hr />
+<h3 id="why-did-the-seed-mm-quote-disappear-after-the-second-day">Why did the seed MM quote disappear after the second day?<a class="headerlink" href="#why-did-the-seed-mm-quote-disappear-after-the-second-day" title="Permanent link">&para;</a></h3>
+<p>By default, <code>market_maker_quotes</code> entries have <code>seed_once: true</code>. This means the
+quote is only injected on the <strong>first</strong> startup for a symbol (detected by the
+absence of a <code>book_stats.json</code> entry). From the second day onward the real market
+maker is expected to submit its own quotes.</p>
+<p>To inject the seed on every startup (e.g. for a repeatable classroom demo):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">market_maker_quotes</span><span class="p">:</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM01</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="nt">bid_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">149.00</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">    </span><span class="nt">ask_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">151.00</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">    </span><span class="nt">bid_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">    </span><span class="nt">ask_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">    </span><span class="nt">tif</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DAY</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">    </span><span class="nt">seed_once</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">    </span><span class="c1"># inject on every startup</span>
+</code></pre></div>
+<p>To force a day-1 re-injection without changing the config:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>rm<span class="w"> </span>data/book_stats.json<span class="w">    </span><span class="c1"># or $EDUMATCHER_DATA_DIR/book_stats.json</span>
+</code></pre></div>
+<hr />
+<h3 id="why-is-the-engine-not-matching-orders-it-starts-in-closed-state">Why is the engine not matching orders? It starts in CLOSED state<a class="headerlink" href="#why-is-the-engine-not-matching-orders-it-starts-in-closed-state" title="Permanent link">&para;</a></h3>
+<p>With <code>sessions_enabled: true</code> (the default), the engine starts in <code>CLOSED</code> state
+and waits for <code>pm-scheduler</code> to drive it through the session phases before it
+accepts orders.</p>
+<p>Two ways to get to a matching state quickly:</p>
+<ol>
+<li><strong>Start <code>pm-scheduler</code></strong> alongside the engine — it drives the transition
+   from CLOSED → PRE_OPEN → OPENING_AUCTION → CONTINUOUS automatically at
+   the configured wall-clock times, or immediately with <code>pm-scheduler --now</code>.</li>
+<li><strong>Disable sessions</strong> for testing or demos:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># engine_config.yaml</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nt">sessions_enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</code></pre></div>
+   With <code>sessions_enabled: false</code> the engine enters CONTINUOUS state immediately
+   on startup and <code>pm-scheduler</code> has no effect.</li>
+</ol>
 <hr />
 <h3 id="why-is-my-viewer-empty-even-though-it-started-correctly">Why is my viewer empty even though it started correctly?<a class="headerlink" href="#why-is-my-viewer-empty-even-though-it-started-correctly" title="Permanent link">&para;</a></h3>
 <p>An empty viewer usually means the symbol has no resting orders yet. <code>pm-viewer</code>
@@ -2255,8 +2531,9 @@ so it does not behave like a generic Linux or Windows launcher.</p>
 <h3 id="why-do-i-need-five-terminal-windows">Why do I need five terminal windows?<a class="headerlink" href="#why-do-i-need-five-terminal-windows" title="Permanent link">&para;</a></h3>
 <p>Each process is an independent OS process communicating over ZeroMQ. They
 cannot run inside a single terminal because each blocks on its own event loop.
-For convenience, use the provided <code>./launch_all.sh</code> script which starts
-the standard setup in separate Terminal windows on macOS.</p>
+For convenience, use the provided <code>./tools/launch_all.sh</code> script which starts
+the standard setup in separate Terminal windows on macOS. In a remote server
+setting, <code>tmux</code> or <code>screen</code> are the standard alternatives.</p>
 <hr />
 <h3 id="how-do-i-see-what-messages-are-flowing-between-processes">How do I see what messages are flowing between processes?<a class="headerlink" href="#how-do-i-see-what-messages-are-flowing-between-processes" title="Permanent link">&para;</a></h3>
 <p>Run <code>pm-audit --terminal</code> in a separate window. It subscribes to <strong>all</strong>
@@ -2266,16 +2543,24 @@ every event in the system.</p>
 <h3 id="why-does-the-engine-use-integer-ticks-instead-of-float-prices">Why does the engine use integer ticks instead of float prices?<a class="headerlink" href="#why-does-the-engine-use-integer-ticks-instead-of-float-prices" title="Permanent link">&para;</a></h3>
 <p>Float arithmetic can introduce tiny representation errors in comparisons and
 aggregation. Using integer ticks makes price-time matching and level math exact.</p>
-<h3 id="why-were-timestamps-changed-to-nanoseconds">Why were timestamps changed to nanoseconds?<a class="headerlink" href="#why-were-timestamps-changed-to-nanoseconds" title="Permanent link">&para;</a></h3>
-<p>Nanosecond integer timestamps improve event ordering precision and avoid
-float-second precision loss at high message rates.</p>
-<h3 id="do-i-need-to-clean-persisted-files-for-the-migration">Do I need to clean persisted files for the migration?<a class="headerlink" href="#do-i-need-to-clean-persisted-files-for-the-migration" title="Permanent link">&para;</a></h3>
-<p>Yes, for the no-backward-compatibility cutover remove:</p>
-<ul>
-<li><code>data/gtc_orders.json</code></li>
-<li><code>data/book_stats.json</code></li>
-<li><code>data/gtc_combos.json</code></li>
-</ul>
+<hr />
+<h3 id="how-do-i-reset-all-persisted-state-to-start-fresh">How do I reset all persisted state to start fresh?<a class="headerlink" href="#how-do-i-reset-all-persisted-state-to-start-fresh" title="Permanent link">&para;</a></h3>
+<p>Delete the contents of the data directory:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Installed mode (default data dir)</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>rm<span class="w"> </span>-f<span class="w"> </span>~/.local/share/edumatcher/*.json<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">       </span>~/.local/share/edumatcher/*.csv<span class="w">  </span><span class="se">\</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">       </span>~/.local/share/edumatcher/*.db<span class="w">   </span><span class="se">\</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">       </span>~/.local/share/edumatcher/audit.log
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="c1"># Source checkout</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>rm<span class="w"> </span>-f<span class="w"> </span>src/data/*.json<span class="w"> </span>src/data/*.csv<span class="w"> </span>src/data/*.db<span class="w"> </span>src/data/audit.log
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="c1"># Or with a custom directory</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a>rm<span class="w"> </span>-f<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>/*.json<span class="w"> </span>...
+</code></pre></div>
+<p>This resets GTC orders, book statistics, clearing history, and audit logs.
+The engine will re-seed MM quotes as if it were day 1 (because <code>book_stats.json</code>
+no longer exists).</p>
 
 
 
