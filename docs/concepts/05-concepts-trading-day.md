@@ -307,4 +307,4 @@ SESSION|TRANSITION=CLOSED
 
 
 
-[← Your First Trade](04-concepts-first-trade.md) | [Next: Market Data Feed (CALF) →](06-concepts-market-data-feed.md) | [Glossary →](../glossary.md)
+[Glossary →](../glossary.md)

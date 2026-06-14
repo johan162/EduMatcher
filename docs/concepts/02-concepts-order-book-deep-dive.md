@@ -1,4 +1,4 @@
-# EduMatcher OrderBook — Deep Dive for Python Programmers
+# EduMatcher OrderBook — Deep Dive
 
 !!! note "Learning objectives"
     After reading this page you will thoroughly understand:
@@ -1360,6 +1360,4 @@ state.
 
 Where n = total resting orders, P = distinct price levels (typically P << n).
 
-
-
-*Part of the EduMatcher documentation series. v4 — May 2026.*
+[Glossary →](../glossary.md)

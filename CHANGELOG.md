@@ -1,3 +1,33 @@
+## [v0.3.0] - 2026-06-14
+
+Release Type: minor
+
+### 📋 Summary
+This release makes EduMatcher fully installable as a standalone runtime via `pipx install edumatcher`, with no source checkout or Poetry required for end users. A new `pm-setup` bootstrap command, two runtime environment variables (`EDUMATCHER_DATA_DIR`, `EDUMATCHER_CONFIG`), and an updated launch script give instructors and students a clean, repeatable installation path independent of the development environment.
+
+### ✨ Additions
+- Added `pm-setup` entry point to bootstrap a session directory: creates the data directory, copies the bundled sample `engine_config.yaml` to the working directory, and prints a shell profile snippet
+- Added `EDUMATCHER_DATA_DIR` environment variable to override the data directory at runtime (default: `~/.local/share/edumatcher` when installed, `src/data/` in a source checkout)
+- Added `EDUMATCHER_CONFIG` environment variable to override the engine config path at runtime (default: `./engine_config.yaml` in CWD when installed, repo-root file in a source checkout)
+- Added `scripts/install-runtime.sh` one-shot installer: checks Python 3.13+, installs pipx if absent, installs `edumatcher` from PyPI, and runs `pm-setup`
+- Bundled `engine_config.sample.yaml` as a package resource (extracted by `pm-setup` via `importlib.resources`)
+
+### 🚀 Improvements
+- Updated `tools/launch_all.sh` to detect installed vs source mode automatically: runs bare `pm-*` commands when on PATH, falls back to `poetry run` in a source checkout; exports `EDUMATCHER_DATA_DIR`/`EDUMATCHER_CONFIG` to each spawned Terminal window
+- Improved `config.py` resolution: source-tree detection (`_IN_SOURCE_TREE`) keeps the existing developer defaults unchanged while enabling XDG-standard paths for installed users
+
+### 📚 Documentation
+- Rewrote Getting Started installation section with separate end-user (pipx) and developer (Poetry) tracks, env var reference table, and `pm-setup` walkthrough
+- Added developer vs installed mode comparison table to Running the Exchange page
+- Stripped `poetry run` prefix from all command examples in Running the Exchange and Processes pages; added installation-mode admonition and env var reference table to Processes page
+- Added admonition in Getting Started five-minute walkthrough explaining that an existing MM seed quote may fill the first aggressive order before the second participant types anything
+
+### 🛠 Internal
+- Excluded `setup_cmd.py` from coverage reporting (bootstrap CLI not suitable for unit tests)
+- Added `tests/test_config_runtime.py` with 5 tests covering `EDUMATCHER_DATA_DIR` and `EDUMATCHER_CONFIG` env var resolution
+- Fixed pyright `reportConstantRedefinition` errors in `config.py` by replacing `if/elif/else` assignments with resolver functions
+- Fixed mypy `attr-defined` errors in `test_config_runtime.py` by typing the helper return as `types.ModuleType`
+
 ## [v0.2.1] - 2026-06-14
 
 Release Type: patch

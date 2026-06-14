@@ -240,3 +240,6 @@ confirm action scope.
     event. They remain live until they are filled, explicitly quote-cancelled,
     cancelled by a kill-switch from that gateway, or removed by another engine
     event such as a circuit-breaker halt.
+
+
+[Glossary →](../glossary.md)

@@ -55,22 +55,124 @@ flowchart LR
 
 ---
 
-## What you need
+## Installation
+
+EduMatcher supports two installation modes. Choose the one that matches your role.
+
+---
+
+### End-user / student mode — `pipx install` (recommended)
+
+This is the quickest path if you just want to *run* an exchange session —
+no source code, no Poetry, no virtual environment management.
+
+**Requirements**
+
+| Requirement | Notes |
+|---|---|
+| Python 3.13 or later | Check with `python --version` |
+| Three or more terminal windows | Or a terminal multiplexer such as `tmux` |
+
+**Install**
+
+```bash
+# Install pipx (once, if not already present)
+pip install pipx
+pipx ensurepath        # adds ~/.local/bin to PATH; reopen your shell after this
+
+# Install EduMatcher — all pm-* commands land on your PATH
+pipx install edumatcher
+```
+
+Or use the provided one-shot script (handles pipx installation automatically):
+
+```bash
+./scripts/install-runtime.sh
+```
+
+**Bootstrap your session directory**
+
+```bash
+cd ~/my-exchange-session    # create and cd into any working directory you like
+pm-setup                    # creates ~/.local/share/edumatcher  +  copies engine_config.yaml here
+```
+
+`pm-setup` prints a shell snippet to add to your `.zshrc` / `.bashrc`:
+
+```bash
+export EDUMATCHER_DATA_DIR="$HOME/.local/share/edumatcher"
+export EDUMATCHER_CONFIG="$HOME/my-exchange-session/engine_config.yaml"
+```
+
+After reloading your shell, every `pm-*` command picks up the right data
+directory automatically — no flags needed.
+
+**Edit the config, then start trading**
+
+```bash
+# Edit the sample config that pm-setup copied into your directory
+nano engine_config.yaml
+
+# Start the engine
+pm-engine --verbose
+```
+
+---
+
+### Developer mode — Poetry + source checkout
+
+Use this mode if you want to modify the engine, run tests, or contribute.
+
+**Requirements**
 
 | Requirement | Notes |
 |---|---|
 | Python 3.13 or later | Check with `python --version` |
 | [Poetry](https://python-poetry.org/) | `pip install poetry` or `pipx install poetry` |
-| Three terminal windows | Or a terminal multiplexer such as `tmux` or `screen` |
-| A text editor | To create `engine_config.yaml` |
+| Three terminal windows | Or `tmux` / `screen` |
 
-Install the project dependencies once:
+**Install**
 
 ```bash
-git clone https://github.com/your-org/edumatcher.git
-cd edumatcher
+git clone https://github.com/johan162/EduMatcher.git
+cd EduMatcher
 poetry install --with dev
 ```
+
+Data is stored in `src/data/` inside the repo and `engine_config.yaml` is
+read from the repo root — no environment variables needed.
+
+All commands are prefixed with `poetry run`:
+
+
+```bash
+poetry run pm-engine --verbose
+poetry run pm-gateway --id GW01
+```
+
+!!! tip "Switching from developer to end-user mode"
+    You can install the locally built wheel with pipx at any time:
+    
+```bash
+poetry build
+pipx install dist/edumatcher-*.whl --force
+pm-setup --force    # re-copy the latest sample config
+```
+
+---
+
+## Environment variables
+
+These two variables work in both modes. Set them in your shell profile to
+override the defaults permanently.
+
+| Variable | Default (installed) | Default (source) | Purpose |
+|---|---|---|---|
+| `EDUMATCHER_DATA_DIR` | `~/.local/share/edumatcher` | `<repo>/src/data/` | Where all persistent data files are stored |
+| `EDUMATCHER_CONFIG` | `./engine_config.yaml` (CWD) | `<repo>/engine_config.yaml` | Path to the engine configuration YAML |
+
+The `--config` flag on `pm-engine` and `pm-scheduler` always takes precedence
+over both the environment variable and the default.
 
 ---
 
@@ -84,9 +186,17 @@ and executes one trade. No configuration file is required — the engine starts 
 
 Open a terminal and run:
 
+**"Installed (pipx)"** mode
+
 ```bash
-poetry run pm-engine
+pm-engine
 ```
+
+**"Developer (Poetry)"** mode
+
+ ```bash
+ poetry run pm-engine
+ ```
 
 Expected output:
 
@@ -105,6 +215,14 @@ The engine is now running. Leave this terminal open.
 
 Open a second terminal:
 
+**"Installed (pipx)" mode**
+
+```bash
+pm-gateway --id GW01
+```
+
+**"Developer (Poetry)" mode**
+
 ```bash
 poetry run pm-gateway --id GW01
 ```
@@ -120,6 +238,13 @@ GW01>
 
 Open a third terminal:
 
+**"Installed (pipx)"** mode
+
+ ```bash
+ pm-gateway --id GW02
+ ```
+
+**"Developer (Poetry)"** mode
 ```bash
 poetry run pm-gateway --id GW02
 ```
@@ -146,14 +271,36 @@ in `PRE_OPEN`. To enable matching, advance to `CONTINUOUS`:
     if you just have the engine running is to start with a config that sets
     `sessions_enabled: false` (which defaults to `CONTINUOUS`).
 
-    For this walkthrough, start the engine with:
+For this walkthrough, start the engine with:
 
-    ```bash
-    echo "sessions_enabled: false" > /tmp/demo.yaml
-    poetry run pm-engine --config /tmp/demo.yaml
-    ```
+```bash
+echo "sessions_enabled: false" > /tmp/demo.yaml
+pm-engine --config /tmp/demo.yaml       # installed
+# or:  poetry run pm-engine --config /tmp/demo.yaml
+```
 
 ### Step 5 — Place orders and trade
+
+!!! info "Book liquidity depends on your configuration"
+    This walkthrough starts the engine with `sessions_enabled: false` and **no
+    `engine_config.yaml`**, so the book is completely empty at startup.
+
+    If you are running against an `engine_config.yaml` that configures `AAPL`
+    with a `market_maker_quotes` seed block, the book already has a two-sided
+    MM quote resting in it when trading opens. In that case, an aggressive order
+    from one participant will immediately match against the seed quote — **before**
+    the second participant even types anything. For example, a market buy from
+    GW01 would fill against the MM's resting ask rather than waiting for GW02's
+    sell.
+
+    If this happens and you are surprised by an unexpected fill, check whether
+    your config seeds the book:
+    ```bash
+    grep -A5 "market_maker_quotes" engine_config.yaml
+    ```
+    To follow this walkthrough exactly with a known-empty book, either start
+    the engine with no config file, or use a config with no `market_maker_quotes`
+    entries.
 
 On Participant B's terminal, post a sell order at 150.00:
 
@@ -210,18 +357,21 @@ The engine is the only mandatory process. Add the others as you need them:
 
 | When you want to… | Start this process |
 |---|---|
-| Watch P&L update in real time | `poetry run pm-clearing` |
-| Record OHLCV statistics | `poetry run pm-stats` |
-| Use `pm-admin` operator commands | `poetry run pm-admin` (interactive REPL) |
-| Schedule opening/closing auctions | `poetry run pm-scheduler` |
-| Add autonomous AI order flow | `poetry run pm-ai-swarm --count 5 --duration 60` |
+| Watch P&L update in real time | `pm-clearing` |
+| Record OHLCV statistics | `pm-stats` |
+| Use `pm-admin` operator commands | `pm-admin` (interactive REPL) |
+| Schedule opening/closing auctions | `pm-scheduler` |
+| Add autonomous AI order flow | `pm-ai-swarm --count 5 --duration 60` |
 | Feed compliance/risk systems | Subscribe to `:5557` (drop-copy socket) |
 
 For a full classroom session, use the provided launch script:
 
 ```bash
-./scripts/launch_all.sh
+./tools/launch_all.sh
 ```
+
+The script detects whether `pm-engine` is on PATH (installed mode) or falls
+back to `poetry run` automatically when running from a source checkout.
 
 ---
 

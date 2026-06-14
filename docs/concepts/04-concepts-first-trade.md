@@ -337,5 +337,5 @@ You have completed a full basic trading session:
 - [P&L & Clearing](../user-guide/07-pnl-clearing.md) — full explanation of VWAP cost basis and realized vs. unrealized
 
 
+[Glossary →](../glossary.md)
 
-[← The Order Book](01-concepts-order-book.md) | [Next: A Full Trading Day →](05-concepts-trading-day.md)

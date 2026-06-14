@@ -216,10 +216,10 @@ is important for understanding order strategy.
 
 
 
-[Back to top](#the-order-book) | [Next: A Full Trading Day →](05-concepts-trading-day.md)
-
 ## Implementation Note: Tick Prices
 
 EduMatcher stores prices internally as integer ticks (not floating-point decimals).
 That means priority, comparisons, and level aggregation are exact in engine code.
 Displayed bid/ask values are converted back to decimals for user-facing views.
+
+[Glossary →](../glossary.md)
