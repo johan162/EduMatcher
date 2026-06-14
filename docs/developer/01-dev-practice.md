@@ -98,14 +98,20 @@ When you are orienting yourself, this is the practical top-level map:
 |---|---|---|
 | `src/edumatcher/engine/` | Matching engine, config loading, persistence, risk logic | Core exchange behavior |
 | `src/edumatcher/gateway/` | Interactive gateway and command parsing | Trader entry workflow |
+| `src/edumatcher/commands/` | Admin/console command clients and tooling | Operator workflows and scripted control |
+| `src/edumatcher/messaging/` | Transport and message-bus helpers | Socket wiring and topic flow |
 | `src/edumatcher/models/` | Shared message, order, and domain models | Data structures and message payloads |
 | `src/edumatcher/clearing/` | P&L and trade-settlement logic | Post-trade reporting |
+| `src/edumatcher/ai_trader/` | AI trader and swarm entry points | Agent-based flow and experiments |
 | `src/edumatcher/viewer/`, `board/`, `ticker/`, `orders/`, `audit/`, `stats/` | Read-side processes and UIs | Operational visibility |
 | `src/edumatcher/scheduler/` | Session transitions | Trading-day lifecycle |
+| `src/edumatcher/setup_cmd.py` | `pm-setup` bootstrap command | Runtime setup for installed mode |
 | `tests/` | Unit, integration, and performance tests | Regression protection |
 | `tools/` | Verification utilities and launch helpers | Deterministic validation, scripted demos |
 | `scripts/` | Build, release, docs, and maintenance helpers | Automation |
 | `docs/` | User, architecture, concept, and developer documentation | Documentation updates |
+| `docs-design/` | Design proposals and implementation plans | Architecture and feature design review |
+| `release_checklist.md` | Canonical release checklist | Pre-release gate and release sequencing |
 
 ### Good first files to read
 
@@ -159,7 +165,9 @@ make build
 - **Linting**: `flake8`
 - **Typing**: `mypy` in strict mode
 - **Testing**: `pytest`
-- **Coverage gate**: `make test` enforces **85%**
+- **Coverage gates**:
+  - `make test` enforces **85%**
+  - `scripts/mkbld.sh` currently enforces **80%** (release automation threshold)
 - **Docs build**: `mkdocs build` should pass after doc changes
 
 ### What to preserve
@@ -361,10 +369,10 @@ authoritative. In general:
 
 | Script | Use it for | Notes |
 |---|---|---|
-| `scripts/mkbld.sh` | Full local build / validation pipeline | Runs tests, lint, typing, formatting, build, and package validation |
+| `scripts/mkbld.sh` | Full local build / validation pipeline | Runs lint/type/tests/build/docs; updates README version line; Exchange Intro PDF build is optional and requires `--intro` |
 | `scripts/mkchlogentry.sh` | Create a new `CHANGELOG.md` release template | Intended before `mkrelease.sh` |
-| `scripts/mkrelease.sh` | Local release workflow | Expects a clean `develop` branch and an existing changelog entry |
-| `scripts/mkghrelease.sh` | Publish the GitHub release after tagging and CI | Uses `gh` and release artifacts in `dist/` |
+| `scripts/mkrelease.sh` | Local release workflow from `develop` | Requires `GITHUB_USER`, clean/synced `develop`, existing changelog entry for current `pyproject.toml` version, and already-built `dist/` artifacts |
+| `scripts/mkghrelease.sh` | Publish the GitHub release from `main` | Requires `gh` auth, clean/synced `main`, latest `v*` tag, and release artifacts (wheel, sdist, user-guide bundle, Exchange Intro bundle) |
 | `scripts/mkdocs.sh` | Serve, build, deploy, or clean MkDocs docs | Helpful for docs-only work |
 | `scripts/mkcovupd.sh` | Update the README coverage badge from `coverage.xml` | Secondary helper; inspect output before committing |
 | `scripts/verify_setup.sh` | Smoke-check a local environment | Contains some inherited naming; use with caution |
@@ -416,29 +424,40 @@ than duplicating large explanations in new pages.
 
 ##  Current release workflow
 
+Follow [release_checklist.md](../../release_checklist.md) as the source of truth.
+The practical flow below is aligned with the current script behavior.
+
 The intended release flow is:
 
-1. Prepare and review the changelog entry
-2. Run the scripted release locally from `develop`
-3. Tag and push the release to `main`
-4. Wait for CI and artifacts
-5. Create the GitHub release
+1. Bump version and prepare changelog
+2. Build and validate all release artifacts
+3. Run scripted release from `develop`
+4. Verify CI on `main`
+5. Create GitHub release from latest tag on `main`
 
 ### Step-by-step
 
 ```bash
-# 1. Create the changelog template
-./scripts/mkchlogentry.sh 0.2.0rc5 minor
+# 1. Bump version in pyproject.toml
+poetry version 0.3.2
 
-# 2. Edit CHANGELOG.md and replace the placeholder bullets
+# 2. Create the changelog template (release type is major|minor|patch)
+./scripts/mkchlogentry.sh 0.3.2 patch
 
-# 3. Preview the release actions
-./scripts/mkrelease.sh 0.2.0rc5 minor --dry-run
+# 3. Edit CHANGELOG.md and replace placeholder bullets
 
-# 4. Execute the local release flow
-./scripts/mkrelease.sh 0.2.0rc5 minor
+# 4. Build and validate release artifacts.
+# Use --intro for real releases because mkghrelease.sh expects the intro bundle.
+./scripts/mkbld.sh --intro
 
-# 5. After CI is green and artifacts exist in dist/, create the GitHub release
+# 5. Commit release-ready changes on develop, then preview release actions
+GITHUB_USER=<your-gh-user> ./scripts/mkrelease.sh patch --dry-run
+
+# 6. Execute the local release flow (squash merge develop -> main, tag, push, sync back)
+GITHUB_USER=<your-gh-user> ./scripts/mkrelease.sh patch
+
+# 7. After CI is green on main, create the GitHub release from main
+git switch main && git pull --ff-only
 ./scripts/mkghrelease.sh
 ```
 
@@ -446,14 +465,55 @@ The intended release flow is:
 
 The script is designed around this model:
 
+- `GITHUB_USER` environment variable is set
 - you are on a **clean `develop` branch**
+- local `develop` is synced with remote
 - the requested version is not already tagged
 - `CHANGELOG.md` already contains an entry for that version
-- quality gates pass
-- release artifacts can be built and validated
+- release artifacts already exist in `dist/` and pass `twine check`
 
-The scripted workflow also assumes a **`develop` → squash-merge into `main`**
-style release model, followed by syncing `main` back into `develop`.
+Important usage detail: `mkrelease.sh` argument is only the release type
+(`major`, `minor`, or `patch`). The version is read from `pyproject.toml`.
+
+During execution, `mkrelease.sh` will:
+
+1. validate repo state and changelog/version/tag preconditions
+2. squash-merge `develop` into `main` and create `v<version>` tag
+3. push `main` and the tag
+4. merge `main` back into `develop` and push `develop`
+5. wait for GitHub Actions completion with `gh run watch --exit-status`
+
+### What `mkghrelease.sh` expects
+
+The script is designed around this model:
+
+- `GITHUB_USER` environment variable is set
+- authenticated `gh` CLI on PATH
+- you are on a **clean `main` branch** synced with remote
+- latest release tag already exists on `main`
+- required artifacts exist:
+  - wheel in `dist/`
+  - sdist in `dist/`
+  - user-guide bundle in `docs/dist/`
+  - exchange-intro bundle in `docs-exchange-intro/dist/`
+
+It auto-detects pre-releases from tags ending in `rcN` (or you can force with
+`--pre-release`) and creates the GitHub release using notes extracted from
+`CHANGELOG.md`.
+
+### What `mkbld.sh` currently does
+
+`mkbld.sh` is the build gate before release scripts. It currently:
+
+1. validates environment and required Poetry tools
+2. runs `black`, `flake8`, `mypy` (and `pyright` if available)
+3. runs tests with coverage threshold **80%**
+4. updates coverage badge when `coverage.xml` changed
+5. builds and verifies Python packages
+6. builds user-guide PDF bundle and HTML docs
+7. optionally builds Exchange Intro bundle when `--intro` is provided
+
+For release publishing, prefer running `./scripts/mkbld.sh --intro`.
 
 ### Release caution
 

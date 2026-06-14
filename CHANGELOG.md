@@ -1,3 +1,20 @@
+## [v0.3.2] - 2026-06-14
+
+Release Type: patch
+
+### 📋 Summary
+This patch release refreshes the documentation with an updated landing page and updated developer guidance and new design proposals for cross-host process distribution and statistics CLI reporting. No code changes.
+
+### ✨ Additions
+- Added cross-host load-balancing design proposal for running EduMatcher processes across multiple machines
+- Added statistics CLI command design proposal to replace error-prone direct SQL querying of `stats.db`
+
+### 📚 Documentation
+- Improved documentation landing page structure and navigation for faster onboarding
+- Updated developer practice and release workflow guidance to match current checklist and script behaviour
+- Refreshed experiments proposal
+
+
 ## [v0.3.1] - 2026-06-14
 
 Release Type: patch
