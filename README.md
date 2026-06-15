@@ -115,7 +115,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/edumatcher},
-  version = {0.3.2}
+  version = {0.3.3}
 }
 ```
 

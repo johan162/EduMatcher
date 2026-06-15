@@ -1,3 +1,26 @@
+## [v0.3.3] - 2026-06-15
+
+Release Type: patch
+
+### 📋 Summary
+This patch release hardens the documentation PDF toolchain and refreshes user-guide and architecture documentation. It focuses on reliable Mermaid and admonition rendering in generated PDFs while cleaning up docs build flow and fixing documentation issues.
+
+### ✨ Additions
+- Added Mermaid rendering support for User Guide and Design Docs PDF generation
+
+### 🚀 Improvements
+- Improved docs build flow by moving PDF bundle orchestration into Makefiles instead of `mkbld.sh`
+- Improved docs Makefile consistency by reusing the same `node_modules` build-tools directory across docs pipelines
+
+### 🐛 Bug Fixes
+- Fixed PDF rendering of `note` admonitions and Lua-filtered admonition boxes which was missing
+
+### 📚 Documentation
+- Updated User Guide content and corrected broken-link references
+- Updated architecture descriptions to match the current implementation
+- Fixed multiple broken documentation links in the User Guide and related docs
+
+
 ## [v0.3.2] - 2026-06-14
 
 Release Type: patch
