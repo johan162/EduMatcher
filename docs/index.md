@@ -45,16 +45,20 @@ EduMatcher reproduces this entire stack as independent processes
 communicating over a message bus, just as a real exchange does. The
 difference is that here, everything is visible and inspectable:
 
-```
-  Your terminal          Matching engine           Other participants
-  (pm-gateway)  ──────►  (pm-engine)  ◄──────────  (other pm-gateways)
-                              │
-                    broadcasts trades & fills
-                              │
-            ┌─────────────────┼────────────────────┐
-            ▼                 ▼                    ▼
-       pm-viewer          pm-clearing          pm-audit
-    (live order book)  (P&L accounting)   (full event log)
+```mermaid
+flowchart TD
+  GW1[Your terminal<br/>pm-gateway]
+  ENG[Matching engine<br/>pm-engine]
+  GW2[Other participants<br/>other pm-gateways]
+  VIEW[pm-viewer<br/>live order book]
+  CLR[pm-clearing<br/>P&L accounting]
+  AUD[pm-audit<br/>full event log]
+
+  GW1 --> ENG
+  GW2 --> ENG
+  ENG -->|broadcasts trades and fills| VIEW
+  ENG -->|broadcasts trades and fills| CLR
+  ENG -->|broadcasts trades and fills| AUD
 ```
 
 A **trade** happens when two orders cross: a buyer willing to pay at least

@@ -379,7 +379,12 @@ back to `poetry run` automatically when running from a source checkout.
 
 ```mermaid
 flowchart TD
+    subgraph Instructor
+        direction TB
+        ADM["pm-admin\n(operator console)"]
+    end
     subgraph Server
+        direction TB
         ENG["pm-engine"]
         CLR["pm-clearing"]
         STAT["pm-stats"]
@@ -387,20 +392,21 @@ flowchart TD
         AI["pm-ai-swarm\n(simulated order flow)"]
     end
     subgraph Student terminals
+        direction TB
         GW1["pm-gateway --id ST01"]
         GW2["pm-gateway --id ST02"]
         GWN["pm-gateway --id STnn"]
     end
-    subgraph Instructor
-        ADM["pm-admin\n(operator console)"]
-    end
 
-    GW1 & GW2 & GWN -- "orders" --> ENG
-    AI -- "orders" --> ENG
     ADM -- "halt / resume / session" --> ENG
-    ENG -- "fills, book, session" --> GW1 & GW2 & GWN
-    ENG --> CLR & STAT
-    SCH -- "phase changes" --> ENG
+    ENG -- "gateway traffic" --> GW1
+    GW1 --> GW2
+    GW2 --> GWN
+
+    AI -. "orders" .-> ENG
+    SCH -. "phase changes" .-> ENG
+    ENG -- "trade events" --> CLR
+    ENG -- "market data" --> STAT
 ```
 
 Typical setup:
