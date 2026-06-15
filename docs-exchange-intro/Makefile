@@ -1,14 +1,16 @@
 # Makefile for building Exchange Intro Documentation 
-# For mermaid rendering we use a mermaid Node filter so there is a need to install Node and the mermaid package:
-# npm install --save-dev mermaid-filter @mermaid-js/mermaid-cli
+# For mermaid rendering we use a mermaid Node filter, installed once in a
+# shared top-level tools directory used by all doc builds.
+# npm install --prefix ../build-tools --save-dev mermaid-filter @mermaid-js/mermaid-cli
 
-NODE_MODULES_PATH := node_modules
-MERMAID_FILTER := node_modules/.bin/mermaid-filter
+NODE_TOOLS_DIR := ../build-tools
+NODE_MODULES_PATH := $(NODE_TOOLS_DIR)/node_modules
+MERMAID_FILTER := $(NODE_MODULES_PATH)/.bin/mermaid-filter
 PUPPETER_EXECUTABLE_PATH ?= /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
 MERMAID_FILTER_FORMAT ?= pdf
 MERMAID_FILTER_WIDTH ?= 600
 
-.PHONY: pdfs _pdf-docs help clean
+.PHONY: pdf-docs help clean really-clean
 
 
 # Makefile itself as a dependency to ensure it is re-evaluated when changed
@@ -77,6 +79,7 @@ DOCS_DIR := .
 DIST_DIR := dist
 BUILD_DIR := .build
 SCRIPTS_DIR := ../scripts
+SITE_DIR := ./site
 
 # Project settings
 PROJECT := exchange-intro
@@ -172,19 +175,21 @@ help: ## Show this help message
 $(DIST_DIR):
 	@mkdir -p $(DIST_DIR)
 
-pdfs: _pdf-docs | $(DIST_DIR) ## Build all PDF documentation variants in parallel
-	@:
-
-_pdf-docs:  ## Build the exchange intro in all PDF variants (A4 light/dark, B5 light/dark) in parallel
+pdf-docs: ## Build all PDF documentation variants in parallel
 	@rm -rf $(EXCHANGE_INTRO_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm $(DIST_DIR)/$(PROJECT)-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(EXCHANGE_INTRO_A4_PDF) $(EXCHANGE_INTRO_DARK_A4_PDF) $(EXCHANGE_INTRO_B5_PDF) $(EXCHANGE_INTRO_DARK_B5_PDF)
-	@echo -e "$(GREEN)✓ Cover rendering is handled directly in LaTeX templates$(NC)"
-
+	@zip -9 -j $(DIST_DIR)/$(PROJECT)-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)-*-$(VERSION).pdf
+	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
 clean: ## Remove all generated files (PDFs, build artifacts, stamps)
-	@rm -rf $(EXCHANGE_INTRO_BUILD_DIR) $(DIST_DIR) $(STAMP_DIR)
+	@rm -rf $(EXCHANGE_INTRO_BUILD_DIR) $(DIST_DIR) $(STAMP_DIR) $(SITE_DIR) mermaid-filter.err
 	@echo -e "$(GREEN)✓ Cleaned all generated files$(NC)"
+
+really-clean: clean ## Remove all generated files and node_modules (use with caution)
+	@rm -rf $(NODE_MODULES_PATH)
+	@echo -e "$(GREEN)✓ Removed node_modules as well$(NC)"
+
 
 # ============================================================================================
 # Macro: BUILD_EXCHANGE_INTRO_PDF
@@ -274,9 +279,10 @@ $(eval $(call BUILD_EXCHANGE_INTRO_PDF,EXCHANGE_INTRO_DARK_B5,b5))
 
 
 $(NODE_MODULES_PATH):
-	@echo -e "$(DARKYELLOW)- Installing Node dependencies for Mermaid rendering...$(NC)"
-	@npm install --save-dev mermaid-filter @mermaid-js/mermaid-cli
-	@echo -e "$(GREEN)✓ Node dependencies installed$(NC)"
+	@echo -e "$(DARKYELLOW)- Installing shared Node dependencies for Mermaid rendering in $(NODE_TOOLS_DIR)...$(NC)"
+	@mkdir -p $(NODE_TOOLS_DIR)
+	@npm install --prefix $(NODE_TOOLS_DIR) --save-dev mermaid-filter @mermaid-js/mermaid-cli
+	@echo -e "$(GREEN)✓ Shared Node dependencies installed$(NC)"
 
 # EOF
 

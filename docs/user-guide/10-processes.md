@@ -888,4 +888,4 @@ See the [BALF Protocol Reference](21-app-balf-protocol.md) and [CALF Protocol Re
 - [Configuration](01-configuration.md) — how each process is configured via `engine_config.yaml`
 - [Messages](09-messages.md) — the full ZeroMQ message catalog all processes share
 - [Persistence](11-persistence.md) — which process writes which data file
-- [Drop Copy](13-drop-copy.md) — `pm-dropcopy` and the :5557 feed
+- [Drop Copy](13-drop-copy.md) — the engine's built-in :5557 drop-copy feed

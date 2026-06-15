@@ -41,13 +41,15 @@ before the engine will accept quotes from it:
 
 ```yaml
 gateways:
-  MM01:
-    role: MARKET_MAKER
-    quote_refresh_policy: INACTIVATE_ON_ANY_FILL   # default
-    disconnect_behaviour: CANCEL_QUOTES_ONLY        # default
-    enforce_mm_obligation: true
-    mm_max_spread_ticks: 10        # max spread in ticks (10 ticks = $0.10 for tick_size=0.01)
-    mm_min_qty: 100                # minimum size on each side
+  alf:
+    - id: MM01
+      description: Market maker
+      role: MARKET_MAKER
+      quote_refresh_policy: INACTIVATE_ON_ANY_FILL   # default
+      disconnect_behaviour: CANCEL_QUOTES_ONLY        # default
+      enforce_mm_obligation: true
+      mm_max_spread_ticks: 10        # max spread in ticks (10 ticks = $0.10 for tick_size=0.01)
+      mm_min_qty: 100                # minimum size on each side
 ```
 
 A `TRADER` gateway that tries to send a `QUOTE` command will receive a
@@ -81,7 +83,7 @@ The engine rejects a quote if:
 |---|---|
 | Gateway role is not `MARKET_MAKER` | `Quotes are only allowed for MARKET_MAKER participants` |
 | `BID_PRICE >= ASK_PRICE` | `Quote requires bid_price < ask_price` |
-| Either quantity ≤ 0 | `Quote quantities must be positive` |
+| Either quantity $\leq$ 0 | `Quote quantities must be positive` |
 | Symbol is halted | `{SYMBOL} is halted — quotes rejected during circuit breaker halt` |
 | Spread exceeds `mm_max_spread_ticks` | `Spread {n} ticks exceeds max {m}` |
 | Either side below `mm_min_qty` | `Quote size must be >= {n}` |
@@ -239,9 +241,9 @@ sequenceDiagram
     E-->>MM: order.fill.MM01 (fill 2)
     E-->>MM: order.fill.MM01 (fill 3)
     E-->>MM: order.fill.MM01 (fill 4)
-    E-->>MM: order.fill.MM01 (fill 5) — MMP threshold reached
-    note over E: MMP activates; requote deadline set
-    MM->>E: QUOTE|SYM=AAPL|... (re-quote within deadline)
+    E-->>MM: order.fill.MM01 (fill 5 - MMP threshold reached)
+    note over E: MMP activates and requote deadline is set
+    MM->>E: QUOTE\|SYM=AAPL\|... (re-quote within deadline)
     note over E: MMP reset
 ```
 

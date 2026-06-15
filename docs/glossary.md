@@ -59,7 +59,7 @@ can trade immediately.
 **Borrow Rate:** The annualised fee charged to a short seller for borrowing shares from a lender. Easy-to-borrow large-cap stocks typically have borrow rates near zero. Hard-to-borrow, heavily-shorted, or illiquid stocks can carry rates of 5–50% or more per annum, applied daily to the short position. Rising borrow rates signal increasing short interest and decreasing availability of lendable shares, and are themselves a market signal.
 
 **Bracket Order:** A strategy combining an entry order with both a take-profit LIMIT and a
-stop-loss STOP, typically implemented as an OCO pair. See [OCO](user-guide/04-order-types.md#13-oco-one-cancels-other).
+stop-loss STOP, typically implemented as an OCO pair. See [OCO](user-guide/04-order-types.md#oco-one-cancels-other).
 
 **Broker:** An intermediary who executes orders on behalf of clients without trading for their own account. The word traces to Old French/Norse roots meaning someone who opens a cask and sells by the cup, a retail intermediary.
 
@@ -214,7 +214,7 @@ orders are serialised to storage (disk) at shutdown and reloaded next session. H
 
 ### I
 
-**Iceberg Order / Hidden Order / Reserve Order:** An order that shows only a small visible peak while hiding a large reserve. Each time the visible portion fills, the order replenishes from the reserve. See [Order Types](user-guide/04-order-types.md#6-iceberg).
+**Iceberg Order / Hidden Order / Reserve Order:** An order that shows only a small visible peak while hiding a large reserve. Each time the visible portion fills, the order replenishes from the reserve. See [Order Types](user-guide/04-order-types.md#iceberg).
 
 **Imbalance:** The difference between total buy and sell quantity at the equilibrium price.  Expressed as a side (BUY or SELL) and a quantity.
 
@@ -249,7 +249,7 @@ data, better analytics) that others do not, giving them a trading advantage. Auc
 
 **IOC (Immediate-Or-Cancel):** A time-in-force (and order type) where an order sweeps available liquidity at
 the limit price and any unfilled remainder is immediately cancelled. Never
-rests on the book. See [Order Types](user-guide/04-order-types.md#10-ioc-immediate-or-cancel).
+rests on the book. See [Order Types](user-guide/04-order-types.md#ioc-immediate-or-cancel).
 
 **IPO (Initial Public Offering):** The first sale of a company's shares to the general public, after which the shares are listed and traded on a stock exchange.
 
@@ -364,7 +364,7 @@ Often used as a reference price when the spread is non-zero.
 
 **OCC (Options Clearing Corporation):** The central clearing house for equity options in the US.
 
-**OCO (One-Cancels-Other):** Two linked orders where filling either automatically cancels the other. See [Order Types](user-guide/04-order-types.md#13-oco-one-cancels-other).
+**OCO (One-Cancels-Other):** Two linked orders where filling either automatically cancels the other. See [Order Types](user-guide/04-order-types.md#oco-one-cancels-other).
 
 **OHLCV:** Open, High, Low, Close, Volume, the five standard summary statistics recorded for each trading session (or any time period). Open: the first traded price. High: the highest traded price. Low: the lowest traded price. Close: the last traded price (the official closing price in a closing auction). Volume: total shares traded. OHLCV data forms the basis of almost all price charts and historical market analysis.
 

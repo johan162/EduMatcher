@@ -319,9 +319,9 @@ sequenceDiagram
     C->>G: HELLO|CLIENT=bot01|PROTO=CALF1
     G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
     C->>G: SUB|CH=TOP|SYM=AAPL
-    Note over G: current SEQ for (TOP,AAPL) is 100
+    Note over G: current SEQ for TOP/AAPL is 100
     G-->>C: SNAP|CH=TOP|SYM=AAPL|SEQ=100|BID=150.10|...
-    Note over C: record last_seq[(TOP,AAPL)] = 100
+    Note over C: record last_seq for TOP/AAPL = 100
     G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=101|BID=150.11|...
     Note over C: 101 == 100+1 — no gap ✓
 ```
@@ -342,7 +342,7 @@ sequenceDiagram
     participant C as Client
     participant G as pm-md-gwy
 
-    Note over C,G: Client disconnected; last seen SEQ=1042 on (TOP,AAPL)
+    Note over C: Client disconnected and last seen SEQ=1042 on TOP/AAPL
 
     C->>G: HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
     G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
@@ -357,7 +357,7 @@ sequenceDiagram
     else Gap outside replay window
         G-->>C: ERR|CODE=REPLAY_MISS|CH=TOP|SYM=AAPL
         G-->>C: SNAP|CH=TOP|SYM=AAPL|SEQ=1105|BID=151.20|...
-        Note over C: reset last_seq[(TOP,AAPL)] = 1105
+        Note over C: reset last_seq for TOP/AAPL = 1105
     end
 ```
 
@@ -945,7 +945,7 @@ sequenceDiagram
     G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT
 
     C->>G: SUB|CH=TOP,TRADE|SYM=AAPL
-    Note over G: auto-sends SNAP for (TOP,AAPL); no SNAP for TRADE
+    Note over G: auto-sends SNAP for TOP/AAPL and no SNAP for TRADE
     G-->>C: SNAP|CH=TOP|SYM=AAPL|SEQ=100|BID=150.10|BIDSZ=500|ASK=150.12|ASKSZ=300
 
     E-->>G: book.AAPL (top changed)

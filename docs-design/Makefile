@@ -1,4 +1,15 @@
 # Makefile for Design Documentation in MCProjSim project
+# For mermaid rendering we use a mermaid Node filter, installed once in a
+# shared top-level tools directory used by all doc builds.
+# npm install --prefix ../build-tools --save-dev mermaid-filter @mermaid-js/mermaid-cli
+
+NODE_TOOLS_DIR := ../build-tools
+NODE_MODULES_PATH := $(NODE_TOOLS_DIR)/node_modules
+MERMAID_FILTER := $(NODE_MODULES_PATH)/.bin/mermaid-filter
+PUPPETER_EXECUTABLE_PATH ?= /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+MERMAID_FILTER_FORMAT ?= pdf
+MERMAID_FILTER_WIDTH ?= 600
+
 
 .PHONY: pdfs reqs help clean really-clean dark 
 
@@ -125,12 +136,17 @@ endef
 # ============================================================================================
 define DESIGN_DOC_PDF_RULE
 $$($1_PDF): $$($1_STAMP)
-$$($1_STAMP): $$($1_MD) $$(DESIGN_LATEX_TEMPLATE) $$($1_EXTRA_DEPS) | $$(BUILD_DIR) $$(STAMP_DIR) $$(DIST_DIR)
+$$($1_STAMP): $$($1_MD) $$(DESIGN_LATEX_TEMPLATE) $$($1_EXTRA_DEPS) | $$(BUILD_DIR) $$(STAMP_DIR) $$(DIST_DIR) $(NODE_MODULES_PATH)
 	@echo -e "\n$$(DARKYELLOW)- Building $2 PDF via LaTeX report pipeline...$$(NC)"
 	@rm -rf $$($1_BUILD_DIR); 
 	@mkdir -p $$($1_BUILD_DIR)
 	@sed -E 's/^(#{1,6}[[:space:]]+)[0-9]+([.][0-9]+)*[.]?[[:space:]]+/\1/' $$($1_MD) > $$($1_MD_CLEAN)
-	@pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none $$($1_PANDOC_OPTS) $$($1_MD_CLEAN) -o $$($1_BODY_TEX)
+	@mkdir -p $$($1_BUILD_DIR)/.mermaid-img
+	@PUPPETEER_EXECUTABLE_PATH="$(PUPPETER_EXECUTABLE_PATH)" \
+	MERMAID_FILTER_FORMAT="$(MERMAID_FILTER_FORMAT)" \
+	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
+	MERMAID_FILTER_LOC="$$($1_BUILD_DIR)/.mermaid-img" \
+	pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none --filter "$(MERMAID_FILTER)" $$(USER_GUIDE_LUA_FILTER_FLAGS) $$($1_PANDOC_OPTS) $$($1_MD_CLEAN) -o $$($1_BODY_TEX)
 	@sed -i.bak 's/\\def\\LTcaptype{none}/\\def\\LTcaptype{table}/g' $$($1_BODY_TEX)
 	@rm -f $$($1_BODY_TEX).bak
 	@awk -v body="$$($1_BODY_TEX)" '\
@@ -226,14 +242,14 @@ $(DIST_DIR):
 	@mkdir -p $(DIST_DIR)
 
 clean: ## Clean all generated intermediate documentation files
-	@rm -rf $(BUILD_DIR) $(STAMP_DIR) 
+	@rm -rf $(BUILD_DIR) $(STAMP_DIR) $(DIST_DIR)
 	@echo -e "$(GREEN)✓ Cleaned all generated documentation files$(NC)"
 
-really-clean: ## Clean all generated intermediate documentation files and all generated PDFs in the design-ideas directory
-	@rm -rf $(BUILD_DIR) $(STAMP_DIR) $(DIST_DIR)
-	@echo -e "$(GREEN)✓ Really cleaned all generated documentation files and PDFs$(NC)"
+really-clean: clean ## Clean all generated intermediate documentation files and all generated PDFs in the design-ideas directory
+	@rm -rf $(NODE_MODULES_PATH)
+	@echo -e "$(GREEN)✓ Really cleaned all build and generated files$(NC)"
 
-pdfs: $(PDF_DESIGN_DOCS) ## Build all the PDF versions of the design documents (light theme)
+pdf-docs: $(PDF_DESIGN_DOCS) ## Build all the PDF versions of the design documents (light theme)
 	@:
 
 dark: ## Build all PDFs in dark theme (adds -dark suffix to filenames)
@@ -242,3 +258,11 @@ dark: ## Build all PDFs in dark theme (adds -dark suffix to filenames)
 
 reqs: $(REQUIREMENTS_PDF) ## Build the MCPProjSim requirements design document PDF
 	@:
+
+
+$(NODE_MODULES_PATH):
+	@echo -e "$(DARKYELLOW)- Installing shared Node dependencies for Mermaid rendering in $(NODE_TOOLS_DIR)...$(NC)"
+	@mkdir -p $(NODE_TOOLS_DIR)
+	@npm install --prefix $(NODE_TOOLS_DIR) --save-dev mermaid-filter @mermaid-js/mermaid-cli
+	@echo -e "$(GREEN)✓ Shared Node dependencies installed in $(NODE_TOOLS_DIR)$(NC)"
+

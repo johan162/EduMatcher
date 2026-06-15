@@ -97,16 +97,16 @@ No ZMQ broker daemon, no message queue server, no external dependencies beyond Z
 ## ZMQ Topology
 
 ```
-                          ┌─────────────────────────────┐
-                          │      Matching Engine         │
-  Gateway(s)              │                             │
-  ──PUSH──────────────►   │  PULL :5555  receives orders │
+                          ┌───────────────────────────────┐
+                          │      Matching Engine          │
+  Gateway(s)              │                               │
+  ──PUSH──────────────►   │  PULL :5555  receives orders  │
                           │  PUB  :5556  broadcasts events│
-  Scheduler               │                             │
-  ──PUSH──────────────►   └───────────┬─────────────────┘
+  Scheduler               │                               │
+  ──PUSH──────────────►   └───────────┬───────────────────┘
                                       │ PUB :5556
                     ┌─────────────────┼──────────────────────┐
-                    │                 │                       │
+                    │                 │                      │
               ┌─────▼──────┐  ┌──────▼──────┐  ┌────────────▼──────┐
               │ Gateway(s) │  │  Viewer(s)  │  │  pm-orders        │
               │ SUB        │  │  SUB        │  │  SUB              │
@@ -164,7 +164,7 @@ All messages are two-frame ZMQ multipart:
 
 | Process | ZMQ Sockets | Binds/Connects | Role |
 |---------|------------|----------------|------|
-| Engine | PULL :5555, PUB :5556 | **Binds** both | Matching, session state, combo tracking |
+| Engine | PULL :5555, PUB :5556, PUB :5557 | **Binds** all | Matching, session state, combo tracking, drop-copy |
 | Gateway | PUSH→5555, SUB→5556 | Connects | User order entry, authenticates on connect |
 | Scheduler | PUSH→5555 | Connects | Drives session phase transitions |
 | Viewer | SUB→5556 | Connects | Real-time book display (per symbol) |
@@ -265,8 +265,8 @@ OrderBook("AAPL")
 ├── _buy_stops     min-heap  [(stop_price, timestamp, order), ...]
 ├── _sell_stops    max-heap  [(-stop_price, timestamp, order), ...]
 │
-├── _bid_qty       dict[float, int]    price → total visible resting qty
-├── _ask_qty       dict[float, int]    price → total visible resting qty
+├── _bid_qty       dict[int, int]      price_ticks → total visible resting qty
+├── _ask_qty       dict[int, int]      price_ticks → total visible resting qty
 │
 ├── _order_index   dict[order_id, Order]       all resting orders (fast cancel lookup)
 └── _entry_index   dict[order_id, HeapEntry]   heap entry pointers (lazy delete)
@@ -310,7 +310,7 @@ When an order is cancelled or filled, we do **not** remove it from the heap imme
 ┌────────────────────────────────────────────────────────┐
 │               _asks min-heap                           │
 │                                                        │
-│   top → [100.0, t=1, VALID]  ← best ask               │
+│   top → [100.0, t=1, VALID]  ← best ask                │
 │          [100.0, t=3, INVALID]  ← tombstone, skipped   │
 │          [101.5, t=2, VALID]                           │
 │          [102.0, t=4, VALID]                           │
@@ -629,13 +629,13 @@ function CASCADE_CANCEL(combo, terminal_status):
 
 ```
   ┌─────────────────────────────────────────────────────────────────────┐
-  │                       MATCHING ENGINE                                │
+  │                       MATCHING ENGINE                               │
   │                                                                     │
   │   incoming order ──► OrderBook.process()                            │
-  │         │                    │                                       │
-  │         │              fills/trades                                  │
-  │         │                    │                                       │
-  │         ▼                    ▼                                       │
+  │         │                    │                                      │
+  │         │              fills/trades                                 │
+  │         │                    │                                      │
+  │         ▼                    ▼                                      │
   │   publish fill       was this a combo child?                        │
   │   publish trade       │                                             │
   │                       ├── NO  → done                                │
@@ -643,20 +643,20 @@ function CASCADE_CANCEL(combo, terminal_status):
   │                                      │                              │
   │                         ┌────────────┴────────────┐                 │
   │                         │                         │                 │
-  │                    child FILLED?            child CANCELLED?         │
+  │                    child FILLED?            child CANCELLED?        │
   │                         │                         │                 │
   │                         ▼                         ▼                 │
-  │                  update leg_fill_qty       CASCADE_CANCEL            │
-  │                  update leg_statuses         │                       │
-  │                         │                    ├── cancel siblings     │
-  │                         ▼                    └── publish FAILED      │
-  │                  all legs FILLED?                                    │
-  │                    │          │                                      │
-  │                   YES         NO                                     │
-  │                    │          │                                      │
-  │                    ▼          ▼                                      │
-  │              publish      publish                                    │
-  │              MATCHED    PARTIALLY_MATCHED                            │
+  │                  update leg_fill_qty       CASCADE_CANCEL           │
+  │                  update leg_statuses         │                      │
+  │                         │                    ├── cancel siblings    │
+  │                         ▼                    └── publish FAILED     │
+  │                  all legs FILLED?                                   │
+  │                    │          │                                     │
+  │                   YES         NO                                    │
+  │                    │          │                                     │
+  │                    ▼          ▼                                     │
+  │              publish      publish                                   │
+  │              MATCHED    PARTIALLY_MATCHED                           │
   │                                                                     │
   └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -694,8 +694,8 @@ whether matching occurs.  The scheduler process drives transitions by sending
    │ PRE_OPEN │────────►│ OPENING_AUCTION  │────────►│ CONTINUOUS │
    │          │         │                  │         │            │
    └──────────┘         └──────────────────┘         └─────┬──────┘
-        ▲                                                   │
-        │                                                   ▼
+        ▲                                                  │
+        │                                                  ▼
    ┌────┴─────┐         ┌──────────────────┐         ┌────────────┐
    │  CLOSED  │◄────────│ CLOSING_AUCTION  │◄────────│            │
    │          │         │                  │         │            │
@@ -708,10 +708,10 @@ Additional valid shortcuts: `PRE_OPEN → CONTINUOUS`, `CONTINUOUS → CLOSED`.
 
 | Phase | Matching? | Accepts | Rejects |
 |-------|-----------|---------|---------|
-| PRE_OPEN | No | LIMIT, STOP, STOP_LIMIT, ICEBERG | MARKET, FOK, ATO, ATC |
-| OPENING_AUCTION | No | Same as PRE_OPEN + ATO | MARKET, FOK, ATC |
+| PRE_OPEN | No | LIMIT, STOP, STOP_LIMIT, ICEBERG | MARKET, FOK, IOC, ATO, ATC |
+| OPENING_AUCTION | No | Same as PRE_OPEN + ATO | MARKET, FOK, IOC, ATC |
 | CONTINUOUS | Yes | All types | ATO, ATC |
-| CLOSING_AUCTION | No | Same as PRE_OPEN + ATC | MARKET, FOK, ATO |
+| CLOSING_AUCTION | No | Same as PRE_OPEN + ATC | MARKET, FOK, IOC, ATO |
 | CLOSED | — | Nothing | All |
 
 During no-matching phases, accepted orders rest on the book but the sweep is never called.
@@ -814,18 +814,17 @@ Where p = distinct price levels, n = total resting orders, k = orders matched.
 Before a gateway can submit orders, it must authenticate with the engine.
 If the engine has a `gateways.alf` section in its config, only listed gateway IDs are accepted.
 
-```
-Gateway                              Engine
-   │                                    │
-   │─── system.gateway_connect ────────►│  { gateway_id: "GW01" }
-   │    (PUSH → PULL)                   │
-   │                                    │  check config allowlist
-   │                                    │
-   │◄── system.gateway_auth.GW01 ──────│  { accepted: true, description: "..." }
-   │    (PUB → SUB)                     │
-   │                                    │
-   │─── order.new ─────────────────────►│  (now allowed)
-   │                                    │
+```mermaid
+sequenceDiagram
+    participant G as Gateway
+    participant E as Engine
+
+    G->>E: system.gateway_connect {gateway_id: "GW01"}
+    Note over G,E: PUSH -> PULL
+    Note over E: check config allowlist
+    E-->>G: system.gateway_auth.GW01 {accepted: true, description: "..."}
+    Note over E,G: PUB -> SUB
+    G->>E: order.new (now allowed)
 ```
 
 If `accepted: false`, the gateway prints the rejection reason and exits.

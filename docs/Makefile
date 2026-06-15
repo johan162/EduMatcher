@@ -1,10 +1,16 @@
 # Makefile for building Documentation
+# For mermaid rendering we use a mermaid Node filter, installed once in a
+# shared top-level tools directory used by all doc builds.
+# npm install --prefix ../build-tools --save-dev mermaid-filter @mermaid-js/mermaid-cli
 
-.PHONY: docs pdf-docs 
+NODE_TOOLS_DIR := ../build-tools
+NODE_MODULES_PATH := $(NODE_TOOLS_DIR)/node_modules
+MERMAID_FILTER := $(NODE_MODULES_PATH)/.bin/mermaid-filter
+PUPPETER_EXECUTABLE_PATH ?= /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+MERMAID_FILTER_FORMAT ?= pdf
+MERMAID_FILTER_WIDTH ?= 600
 
-# container-engine-check docs-container-build docs-container-start docs-container-stop \
-# docs-container-restart docs-container-status docs-container-logs docs-deploy help clean 
-
+.PHONY: docs pdf-docs clean really-clean serve 
 
 # Makefile itself as a dependency to ensure it is re-evaluated when changed
 # NOTE: This requires GNU Make 4.3+ and MacOS ships with vGNU Make 3.81 due to licensing issues
@@ -16,6 +22,7 @@
 
 # Get full path to bash
 SHELL := $(shell which bash)
+.SHELLFLAGS := -euo pipefail -c
 
 # Delete target files on error to prevent stale timestamps
 .DELETE_ON_ERROR:
@@ -195,7 +202,7 @@ $(eval $(call DEFINE_USER_GUIDE_VARS,USER_GUIDE_DARK_B5))
 # $(call) expansion and are resolved at recipe-execution time.
 # ============================================================================================
 define BUILD_USER_GUIDE_PDF
-$$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$($1_TEMPLATE) $$(USER_GUIDE_LUA_FILTER)
+$$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$($1_TEMPLATE) $$(USER_GUIDE_LUA_FILTER) | $(NODE_MODULES_PATH) $(DIST_DIR) $(BUILD_DIR)
 	@echo -e "$(DARKYELLOW)- Updating version number $(BRIGHTCYAN)v$(VERSION)$(DARKYELLOW) in LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW)...$(NC)"
 	@sed -i.bak -E 's/Version: [0-9]+(\.[0-9]+)*(rc[0-9]{1,2})?/Version: $(VERSION)/g' $$($1_TEMPLATE)
 	@rm -f $$($1_TEMPLATE).bak
@@ -211,7 +218,12 @@ $$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$($1_TEMPLATE) $$
 	@echo -e "$$(DARKYELLOW)  - Concatenating markdown sources...$$(NC)"
 	@awk 'FNR==1 && NR!=1{print ""; print ""}1' $$(foreach f,$$(USER_GUIDE_MD_SOURCES),$$($1_EXPANDED_DIR)/$$(notdir $$f)) > $$($1_CONCAT_MD)
 	@echo -e "$$(DARKYELLOW)  - Converting concatenated markdown to LaTeX body...$$(NC)"
-	@pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none $$(USER_GUIDE_LUA_FILTER_FLAGS) --metadata paper_format=$(2) $$($1_CONCAT_MD) -o $$($1_BODY_TEX)
+	@mkdir -p $$($1_EXPANDED_DIR)/.mermaid-img
+	@PUPPETEER_EXECUTABLE_PATH="$(PUPPETER_EXECUTABLE_PATH)" \
+	MERMAID_FILTER_FORMAT="$(MERMAID_FILTER_FORMAT)" \
+	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
+	MERMAID_FILTER_LOC="$$($1_EXPANDED_DIR)/.mermaid-img" \
+	pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none --filter "$(MERMAID_FILTER)" $$(USER_GUIDE_LUA_FILTER_FLAGS) --metadata paper_format=$(2) $$($1_CONCAT_MD) -o $$($1_BODY_TEX)
 	@sed -i.bak 's/\\def\\LTcaptype{none}/\\def\\LTcaptype{table}/g' $$($1_BODY_TEX)
 	@rm -f $$($1_BODY_TEX).bak
 	@echo -e "$$(DARKYELLOW)  - Injecting body into handcrafted LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW) ...$$(NC)"
@@ -257,16 +269,24 @@ $(eval $(call BUILD_USER_GUIDE_PDF,USER_GUIDE_DARK_B5,b5))
 # $(info USER_GUIDE_DARK_B5_TEX: $(USER_GUIDE_DARK_B5_TEX))
 # $(info USER_GUIDE_DARK_B5_PDF_BUILT: $(USER_GUIDE_DARK_B5_PDF_BUILT))
 
+$(NODE_MODULES_PATH):
+	@echo -e "$(DARKYELLOW)- Installing shared Node dependencies for Mermaid rendering in $(NODE_TOOLS_DIR)...$(NC)"
+	@mkdir -p $(NODE_TOOLS_DIR)
+	@npm install --prefix $(NODE_TOOLS_DIR) --save-dev mermaid-filter @mermaid-js/mermaid-cli
+	@echo -e "$(GREEN)✓ Shared Node dependencies installed$(NC)"
+
 # ============================================================================================
 # Documentation Targets
 # ============================================================================================
 docs: $(DOC_STAMP) ## Build the HTML project documentation with MkDocs
 	@:
 
-pdf-docs:  | $(DIST_DIR) $(BUILD_DIR) ## Build the user guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
+pdf-docs:   ## Build the user guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
 	@rm -rf $(USER_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
-	@rm $(DIST_DIR)/$(PROJECT)_user-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
+	@rm -rf $(DIST_DIR)/$(PROJECT)_user-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(USER_GUIDE_A4_PDF) $(USER_GUIDE_DARK_A4_PDF) $(USER_GUIDE_B5_PDF) $(USER_GUIDE_DARK_B5_PDF)
+	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user-guide-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)_*-$(VERSION).pdf
+	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user-guide-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
 $(DIST_DIR) : ## Ensure the dist directory exists
 	@mkdir -p $(DIST_DIR)
@@ -278,6 +298,11 @@ clean: ## Clean build artifacts (HTML site, PDF build files, logs)
 	@echo -e "$(DARKYELLOW)- Cleaning build artifacts...$(NC)"
 	@rm -rf  $(BUILD_DIR) $(DIST_DIR) $(STAMP_DIR) $(SITE_DIR)
 	@echo -e "$(GREEN)✓ Cleaned build artifacts$(NC)"
+
+really-clean: clean ## Remove all generated files and node_modules (use with caution)
+	@rm -rf $(NODE_MODULES_PATH)
+	@echo -e "$(GREEN)✓ Removed node_modules as well$(NC)"
+
 
 # ============================================================================================
 # Doc-server

@@ -17,6 +17,42 @@ OCO), from the simplest market order to multi-leg combo/OCO orders used to execu
 strategies across multiple symbols atomically.
 
 
+## Contents
+
+| Order type | Category | Key characteristic |
+|---|---|---|
+| [MARKET](#market) | Aggressive | Immediate execution at best price; no price guarantee |
+| [LIMIT](#limit) | Passive | Rests on book at specified price or better |
+| [STOP](#stop-stop-market) | Conditional | Dormant until trigger; then becomes MARKET |
+| [STOP_LIMIT](#stop_limit) | Conditional | Dormant until trigger; then becomes LIMIT |
+| [FOK](#fok-fill-or-kill) | Aggressive | All-or-nothing; fill completely or cancel |
+| [IOC](#ioc-immediate-or-cancel) | Aggressive | Fill what you can immediately; cancel rest |
+| [ICEBERG](#iceberg) | Passive | Large order with hidden reserve; visible peak only |
+| [TRAILING_STOP](#trailing_stop) | Conditional | Dynamic stop that follows price by fixed offset |
+| [COMBO](#combo) | Multi-leg | Multiple linked orders across symbols |
+| [OCO](#oco-one-cancels-other) | Multi-leg | Two orders where fill/cancel of one cancels the other |
+
+### Single-order lifecycle
+
+Every order follows this state model from submission to final disposition:
+
+```mermaid
+stateDiagram-v2
+    [*] --> NEW : order accepted
+    NEW --> PARTIAL : first partial fill
+    NEW --> FILLED : fills completely immediately
+    NEW --> CANCELLED : cancel request or cascade
+    NEW --> EXPIRED : TIF expiry (DAY at close, ATO/ATC at phase end)
+    NEW --> REJECTED : validation failure
+    PARTIAL --> FILLED : remaining quantity fills
+    PARTIAL --> CANCELLED : cancel request or cascade
+    PARTIAL --> EXPIRED : TIF expiry
+    FILLED --> [*]
+    CANCELLED --> [*]
+    EXPIRED --> [*]
+    REJECTED --> [*]
+```
+
 
 
 ## MARKET
@@ -120,7 +156,7 @@ Use STOP when:
 
 - `STOP` price is the trigger, not the execution price
 - Buy STOP: triggers when last trade price ≥ stop price (used to enter long on breakout)
-- Sell STOP: triggers when last trade price ≤ stop price (used to limit downside loss)
+- Sell STOP: triggers when last trade price $\leq$ stop price (used to limit downside loss)
 
 ### Gateway Syntax
 
@@ -749,7 +785,7 @@ Setup: last trade price = 100. SELL trailing stop: `trail=2`, `stop=98`.
 ```
 Trade at 105  →  stop ratchets up  →  stop = max(98, 105−2) = 103
 Trade at 110  →  stop ratchets up  →  stop = max(103, 110−2) = 108
-Trade at 102  →  102 ≤ 108?  YES  →  TRIGGERED → MARKET SELL
+Trade at 102  →  102 $\leq$ 108?  YES  →  TRIGGERED → MARKET SELL
 ```
 
 
@@ -768,7 +804,7 @@ NEW|SYM=AAPL|SIDE=SELL|TYPE=TRAILING_STOP|QTY=100|TRAIL=2.00|STOP=98.00
 stop = 98, trail = 2, last_trade = 100
 
 Trade at 106  →  stop = max(98, 104) = 104
-Trade at 95   →  95 ≤ 104?  YES  →  TRIGGERED
+Trade at 95   →  95 $\leq$ 104?  YES  →  TRIGGERED
 ```
 
 Note that the trade at 95 did *not* move the stop down to 93 first.
@@ -935,9 +971,9 @@ AMEND|ID=abc123...|QTY=60
 | Order already filled | **REJECTED** — "Cannot amend FILLED order" |
 | Order already cancelled | **REJECTED** — "Cannot amend CANCELLED order" |
 | MARKET / STOP / FOK order | **REJECTED** — e.g. `"Cannot amend STOP orders"` (message names the actual order type) |
-| New QTY ≤ already filled qty | **REJECTED** — "New quantity must exceed already-filled quantity" |
+| New QTY $\leq$ already filled qty | **REJECTED** — "New quantity must exceed already-filled quantity" |
 | New QTY = 0 or negative | **REJECTED** — "Quantity must be positive" |
-| New PRICE ≤ 0 | **REJECTED** — "Price must be positive" |
+| New PRICE $\leq$ 0 | **REJECTED** — "Price must be positive" |
 | Neither PRICE nor QTY supplied | **REJECTED** — "Amend requires at least PRICE or QTY" |
 | Iceberg order amended | Supported — displayed_qty is recalculated from `visible_qty` |
 | Combo child order amended | Allowed — the child is a normal resting order |

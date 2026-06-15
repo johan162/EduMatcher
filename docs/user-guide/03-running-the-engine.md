@@ -743,7 +743,7 @@ grep '\[session.state\]' data/audit.log | tail -1 | awk '{$1=$2=""; print $0}' |
 sqlite3 data/stats.db "SELECT symbol, open_price, high_price, low_price, close_price, volume FROM daily_stats ORDER BY symbol;"
 ```
 
-See [pm-stats — Statistics Recorder](10-processes.md#pm-stats--statistics-recorder) for the full database schema (`daily_stats`, `price_snapshots`, `trade_log`) and details on how each statistic is computed.
+See [pm-stats — Statistics Recorder](10-processes.md#pm-stats-statistics-recorder) for the full database schema (`daily_stats`, `price_snapshots`, `trade_log`) and details on how each statistic is computed.
 
 
 

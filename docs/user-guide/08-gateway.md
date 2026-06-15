@@ -628,9 +628,23 @@ A background thread listens on the SUB socket and prints events (fills, cancels,
 combo status changes, session transitions) in real-time, interleaved cleanly with
 the command prompt. You can continue typing while events arrive.
 
+## Common mistakes
+
+New users frequently encounter these issues when first using the gateway:
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `Gateway authentication timed out` | Engine is not running | Start `pm-engine` first |
+| `Gateway not configured: GW01` | Gateway ID not in `engine_config.yaml` | Add the ID under `gateways.alf` or run in unrestricted mode (no config) |
+| `REJECTED: SYMBOL_NOT_CONFIGURED` | Symbol not in config | Add the symbol under `symbols:` in the config |
+| `REJECTED: SYMBOL_HALTED` | A circuit breaker fired or operator halted the symbol | Wait for resume, or use `pm-admin` to resume |
+| `REJECTED: STATIC_COLLAR_BREACH` | Order price too far from reference | Choose a price closer to the last traded price |
+| Order rests but does not fill | No counterparty at that price | Another gateway must post a crossing order |
+| `Quotes are only allowed for MARKET_MAKER participants` | Gateway role is `TRADER` | Change the role to `MARKET_MAKER` in config |
+
 ## See also
 
-- [Configuration](01-configuration.md#gateway-configuration) — gateway roles, allowlists, disconnect behaviour, and MM obligations
+- [Configuration](01-configuration.md#alf-gateway-allowlist) — gateway roles, allowlists, disconnect behaviour, and MM obligations
 - [Order Types](04-order-types.md) — full semantics for every order type accepted by the gateway
 - [ALF Protocol Reference](20-app-alf-protocol.md) — formal ABNF grammar and field rules for the pipe-delimited syntax
 - [Messages](09-messages.md) — the ZeroMQ messages the gateway publishes and subscribes to
