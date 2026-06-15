@@ -7,6 +7,7 @@
 # Example: ./scripts/mkbld.sh
 # Example: ./scripts/mkbld.sh --dry-run
 # Example: ./scripts/mkbld.sh --help
+# Example: ./scripts/mkbld.sh --intro  # Also builds the Exchange Intro PDF bundle (skipped by default)
 
 set -euo pipefail # Exit on any error or uninitialized variable
 
