@@ -788,7 +788,7 @@ This progression mirrors how real venues evolve: deterministic matching first, t
 
 **Status: Already Implemented ✓**
 
-*Implementation location*: [`src/edumatcher/models/order.py`](../../src/edumatcher/models/order.py) (SmpAction enum), [`src/edumatcher/engine/order_book.py`](../../src/edumatcher/engine/order_book.py) (`_sweep()` and `_smp_cancel_resting()`), [`src/edumatcher/gateway/main.py`](../../src/edumatcher/gateway/main.py) (SMP command syntax).
+*Implementation location*: `src/edumatcher/models/order.py` (SmpAction enum), `src/edumatcher/engine/order_book.py` (`_sweep()` and `_smp_cancel_resting()`), `src/edumatcher/gateway/main.py` (SMP command syntax).
 
 *Why included anyway*: Demonstrates that the roadmap's high-level abstractions map cleanly onto production code patterns. Can serve as a learning reference for understanding the matching engine's self-trade enforcement.
 
