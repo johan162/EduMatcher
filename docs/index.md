@@ -12,10 +12,10 @@ Use this page as a routing guide based on your background and intent.
 
 | If you are... | Read this first | Then continue with |
 |---|---|---|
-| New to finance / exchanges | [How an Exchange Works](how-exchange-works.md) | [Getting Started](user-guide/00-getting-started.md) → [The Order Book](concepts/01-concepts-order-book.md) |
+| New to finance / exchanges | [How an Exchange Works](how-exchange-works.md) | [Getting Started](user-guide/00-getting-started.md) → [The Order Book](concepts/01-concepts-order-book.md) → [Your First Trade](concepts/04-concepts-first-trade.md) |
 | Familiar with trading, new to EduMatcher | [Getting Started](user-guide/00-getting-started.md) | [Running the Engine](user-guide/03-running-the-engine.md) → [Gateway Commands](user-guide/08-gateway.md) |
 | Instructor running a classroom | [Getting Started](user-guide/00-getting-started.md) | [Configuration](user-guide/01-configuration.md) → [Processes](user-guide/10-processes.md) → [Auctions & Scheduling](user-guide/06-auctions-scheduling.md) |
-| Developer extending the system | [Architecture Overview](architecture/01-architecture.md) | [Detailed Walkthrough](architecture/02-architecture-guide.md) → [Developer Info](developer/01-dev-practice.md) |
+| Developer extending the system | [Architecture Overview](architecture/01-architecture.md) | [Detailed Walkthrough](architecture/02-architecture-guide.md) → [Developer Info](developer/01-dev-practice.md) → [Order Book Deep Dive](concepts/02-concepts-order-book-deep-dive.md) |
 
 ```mermaid
 flowchart TD
