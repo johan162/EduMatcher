@@ -17,6 +17,42 @@ OCO), from the simplest market order to multi-leg combo/OCO orders used to execu
 strategies across multiple symbols atomically.
 
 
+## Contents
+
+| Order type | Category | Key characteristic |
+|---|---|---|
+| [MARKET](#market) | Aggressive | Immediate execution at best price; no price guarantee |
+| [LIMIT](#limit) | Passive | Rests on book at specified price or better |
+| [STOP](#stop-stop-market) | Conditional | Dormant until trigger; then becomes MARKET |
+| [STOP_LIMIT](#stop_limit) | Conditional | Dormant until trigger; then becomes LIMIT |
+| [FOK](#fok-fill-or-kill) | Aggressive | All-or-nothing; fill completely or cancel |
+| [IOC](#ioc-immediate-or-cancel) | Aggressive | Fill what you can immediately; cancel rest |
+| [ICEBERG](#iceberg) | Passive | Large order with hidden reserve; visible peak only |
+| [TRAILING_STOP](#trailing_stop) | Conditional | Dynamic stop that follows price by fixed offset |
+| [COMBO](#combo) | Multi-leg | Multiple linked orders across symbols |
+| [OCO](#oco-one-cancels-other) | Multi-leg | Two orders where fill/cancel of one cancels the other |
+
+### Single-order lifecycle
+
+Every order follows this state model from submission to final disposition:
+
+```mermaid
+stateDiagram-v2
+    [*] --> NEW : order accepted
+    NEW --> PARTIAL : first partial fill
+    NEW --> FILLED : fills completely immediately
+    NEW --> CANCELLED : cancel request or cascade
+    NEW --> EXPIRED : TIF expiry (DAY at close, ATO/ATC at phase end)
+    NEW --> REJECTED : validation failure
+    PARTIAL --> FILLED : remaining quantity fills
+    PARTIAL --> CANCELLED : cancel request or cascade
+    PARTIAL --> EXPIRED : TIF expiry
+    FILLED --> [*]
+    CANCELLED --> [*]
+    EXPIRED --> [*]
+    REJECTED --> [*]
+```
+
 
 
 ## MARKET

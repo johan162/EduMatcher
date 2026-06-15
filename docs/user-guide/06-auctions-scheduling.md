@@ -162,10 +162,10 @@ Session gating in the engine is controlled by `sessions_enabled`:
 sessions_enabled: true
 ```
 
-- `true` (default): session transitions are enforced, the engine starts
+- `true`: session transitions are enforced, the engine starts
    `CLOSED`, and new orders are rejected outside order-accepting session
    states.
-- `false`: session handling is disabled, `session.transition` messages are
+- `false` (default): session handling is disabled, `session.transition` messages are
    ignored by the engine, and the engine starts (and remains) in `CONTINUOUS`
    state — all order types are accepted and matched immediately.
 
@@ -370,9 +370,9 @@ When an uncross completes, the engine publishes:
 
 ## See also
 
-- [Configuration](01-configuration.md#session-scheduling) — `schedule:` YAML keys and `sessions_enabled`
+- [Configuration](01-configuration.md#session-schedule) — `schedule:` YAML keys and `sessions_enabled`
 - [Order Types](04-order-types.md#time-in-force-tif) — ATO and ATC time-in-force explained
-- [Processes](10-processes.md#pm-scheduler) — how to start and configure `pm-scheduler`
+- [Processes](10-processes.md#pm-scheduler-session-scheduler) — how to start and configure `pm-scheduler`
 - [Running the Engine](03-running-the-engine.md) — the `--now` shortcut for rapid session cycling
 - [Risk Controls](12-risk-controls.md) — circuit-breaker resumption modes that re-use the uncross algorithm
 - [Messages](09-messages.md) — `session.state`, `auction.result`, and `order.expired` message formats

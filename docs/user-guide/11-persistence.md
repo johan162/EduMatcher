@@ -14,6 +14,18 @@ survive the end of a trading session and are automatically restored when the sys
 restarts for the next day.  Several other data files are also maintained across
 sessions to preserve market state and historical records.
 
+!!! tip "Where is the data directory?"
+    All persistence files live under the **data directory**, which varies by
+    installation mode:
+
+    | Mode | Default path |
+    |---|---|
+    | Developer (Poetry) | `<repo>/src/data/` |
+    | Installed (pipx) | `~/.local/share/edumatcher` |
+    | Custom | `$EDUMATCHER_DATA_DIR` |
+
+    See [Getting Started → Environment variables](00-getting-started.md#environment-variables) for override details.
+
 
 
 ## How It Works
@@ -459,7 +471,7 @@ ORDER BY ts;
 
 - [Order Types — TIF](04-order-types.md#time-in-force-tif) — GTC, ATO, and ATC lifetime rules
 - [Auctions & Scheduling](06-auctions-scheduling.md) — how ATO/ATC orders expire at phase transitions
-- [Processes](10-processes.md#pm-stats--statistics-recorder) — `pm-stats` writes `src/data/stats.db`; `pm-audit` writes `audit.log`
+- [Processes](10-processes.md#pm-stats-statistics-recorder) — `pm-stats` writes `src/data/stats.db`; `pm-audit` writes `audit.log`
 - [Configuration](01-configuration.md) — `last_buy_price`/`last_sell_price` config seeds vs persisted values
 
 

@@ -213,9 +213,19 @@ of all trades for the day.
 - Both sides of every trade (buyer and seller) have their ledgers updated independently.
 - The `last_price` used for unrealized P&L is the most recent trade price for that symbol.
 
+## Quick-reference: P&L formulas
+
+| Metric | Formula | When computed |
+|---|---|---|
+| **Avg cost** (building position) | $\frac{\text{old\_avg} \times \lvert\text{old\_pos}\rvert + \text{fill\_price} \times \text{fill\_qty}}{\lvert\text{new\_pos}\rvert}$ | Fill increases position |
+| **Realized P&L** (long closing) | $(\text{fill\_price} - \text{avg\_cost}) \times \text{reduce\_qty}$ | Sell reduces a long position |
+| **Realized P&L** (short closing) | $(\text{avg\_cost} - \text{fill\_price}) \times \text{reduce\_qty}$ | Buy reduces a short position |
+| **Unrealized P&L** | $\text{position} \times (\text{last\_price} - \text{avg\_cost})$ | After every trade event |
+| **Total P&L** | $\text{realized} + \text{unrealized}$ | Always |
+
 ## See also
 
-- [Processes](10-processes.md#pm-clearing--pnl--clearing) — how `pm-clearing` connects to the engine and what it subscribes to
+- [Processes](10-processes.md#pm-clearing-clearing-pl) — how `pm-clearing` connects to the engine and what it subscribes to
 - [Persistence](11-persistence.md#other-persistent-files) — `clearing_report.csv` across sessions
 - [Order Types](04-order-types.md) — which fills produce P&L events
 - [Messages](09-messages.md) — `trade.executed` message fields consumed by `pm-clearing`

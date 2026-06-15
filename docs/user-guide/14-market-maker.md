@@ -41,13 +41,15 @@ before the engine will accept quotes from it:
 
 ```yaml
 gateways:
-  MM01:
-    role: MARKET_MAKER
-    quote_refresh_policy: INACTIVATE_ON_ANY_FILL   # default
-    disconnect_behaviour: CANCEL_QUOTES_ONLY        # default
-    enforce_mm_obligation: true
-    mm_max_spread_ticks: 10        # max spread in ticks (10 ticks = $0.10 for tick_size=0.01)
-    mm_min_qty: 100                # minimum size on each side
+  alf:
+    - id: MM01
+      description: Market maker
+      role: MARKET_MAKER
+      quote_refresh_policy: INACTIVATE_ON_ANY_FILL   # default
+      disconnect_behaviour: CANCEL_QUOTES_ONLY        # default
+      enforce_mm_obligation: true
+      mm_max_spread_ticks: 10        # max spread in ticks (10 ticks = $0.10 for tick_size=0.01)
+      mm_min_qty: 100                # minimum size on each side
 ```
 
 A `TRADER` gateway that tries to send a `QUOTE` command will receive a

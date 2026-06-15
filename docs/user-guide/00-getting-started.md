@@ -38,7 +38,7 @@ flowchart LR
     ADM["pm-admin\nOperator console"]
     CLR["pm-clearing\nP&L tracker"]
     STAT["pm-stats\nStatistics recorder"]
-    DC["pm-dropcopy\nDrop-copy feed :5557"]
+    DC["Drop-copy feed\n(built into pm-engine)\n:5557"]
     SCH["pm-scheduler\nSession phases"]
 
     GW1 -- "NEW|SYM=AAPL|..." --> ENG

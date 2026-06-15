@@ -11,7 +11,7 @@
     - How to actively manage an exchange
 
     **Prerequisites**: [Messages](09-messages.md) for the raw two-frame format.
-    [Risk Controls § 6](12-risk-controls.md#6-admin-role-operator-controls) for
+    [Risk Controls](12-risk-controls.md#admin-role-operator-controls) for
     the halt/resume operational flow.
 
 

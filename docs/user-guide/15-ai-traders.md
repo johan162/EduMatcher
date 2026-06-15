@@ -81,8 +81,8 @@ aggressively it crosses the spread. The four built-in profiles are:
 
 | Profile | Decision interval | Order size | Cross probability | Offset | Size distribution | Character |
 |---|---|---|---|---|---|---|
-| `aggressive` | 250 ms | 20–120 | 35% | 0 ticks | uniform | Frequent trader; crosses the spread often; medium sizes |
-| `cautious` | 900 ms | 10–60 | 5% | 2 ticks away | uniform | Slow, patient; rarely crosses; small passive orders |
+| `aggressive` | 250 ms | 20–120 | 35% | 0 ticks | balanced | Frequent trader; crosses the spread often; medium sizes |
+| `cautious` | 900 ms | 10–60 | 5% | 2 ticks away | balanced | Slow, patient; rarely crosses; small passive orders |
 | `many-small` | 180 ms | 1–25 | 18% | 1 tick away | small-heavy | High-frequency tiny orders; generates many executions |
 | `few-large` | 1400 ms | 150–700 | 12% | 1 tick away | block-heavy | Infrequent institutional-style block orders |
 
@@ -98,7 +98,7 @@ posting 2 ticks behind the best price.
 
 ```mermaid
 flowchart LR
-    A["uniform\n(random between min and max)"]
+    A["balanced\n(uniform random between min and max)"]
     B["small-heavy\n(quadratic — skews toward min)"]
     C["block-heavy\n(quadratic — skews toward max)"]
 ```
@@ -233,21 +233,24 @@ Add the bot gateway IDs to the `gateways:` section. AI traders are ordinary
 
 ```yaml
 symbols:
-  - AAPL
-  - MSFT
+  AAPL:
+    tick_decimals: 2
+  MSFT:
+    tick_decimals: 2
 
 gateways:
-  AI01:
-    role: TRADER
-  AI02:
-    role: TRADER
-  AI03:
-    role: TRADER
-  # ... as many as --count
-  ST01:
-    role: TRADER
-  ST02:
-    role: TRADER
+  alf:
+    - id: AI01
+      description: AI bot 1
+    - id: AI02
+      description: AI bot 2
+    - id: AI03
+      description: AI bot 3
+    # ... as many as --count
+    - id: ST01
+      description: Student 1
+    - id: ST02
+      description: Student 2
 ```
 
 !!! tip "Using a range pattern"
@@ -268,39 +271,51 @@ must react to.
 
 ```yaml
 # engine_config.yaml
-symbols:
-  - AAPL
-  - MSFT
-  - TSLA
-
 sessions_enabled: true   # run opening and closing auctions
 
+symbols:
+  AAPL:
+    tick_decimals: 2
+    last_buy_price: 149.90
+    last_sell_price: 150.10
+  MSFT:
+    tick_decimals: 2
+    last_buy_price: 415.00
+    last_sell_price: 415.50
+  TSLA:
+    tick_decimals: 2
+    last_buy_price: 250.00
+    last_sell_price: 250.50
+
 gateways:
-  # Instructor / operator
-  OPS01:
-    role: ADMIN
+  alf:
+    # Instructor / operator
+    - id: OPS01
+      description: Operator console
+      role: ADMIN
 
-  # Market maker (optional, adds liquidity)
-  MM01:
-    role: MARKET_MAKER
-    quote_refresh_policy: INACTIVATE_ON_ANY_FILL
-    enforce_mm_obligation: true
-    mm_max_spread_ticks: 20
-    mm_min_qty: 100
+    # Market maker (optional, adds liquidity)
+    - id: MM01
+      description: Market maker
+      role: MARKET_MAKER
+      quote_refresh_policy: INACTIVATE_ON_ANY_FILL
+      enforce_mm_obligation: true
+      mm_max_spread_ticks: 20
+      mm_min_qty: 100
 
-  # AI bots (10 bots, IDs AI01–AI10)
-  AI01:
-    role: TRADER
-  AI02:
-    role: TRADER
-  # ... repeat through AI10
+    # AI bots (10 bots, IDs AI01–AI10)
+    - id: AI01
+      description: AI bot 1
+    - id: AI02
+      description: AI bot 2
+    # ... repeat through AI10
 
-  # Students (adjust count for your class size)
-  ST01:
-    role: TRADER
-  ST02:
-    role: TRADER
-  # ...
+    # Students (adjust count for your class size)
+    - id: ST01
+      description: Student 1
+    - id: ST02
+      description: Student 2
+    # ...
 ```
 
 ### Launch sequence
@@ -329,7 +344,7 @@ poetry run pm-gateway --id ST01
 For a quick demo without scheduling, use the launch script:
 
 ```bash
-./scripts/launch_all.sh
+./tools/launch_all.sh
 ```
 
 ---
