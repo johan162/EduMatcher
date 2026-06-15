@@ -1313,7 +1313,7 @@ legs are evaluated together before any fills are committed.
 
 -----
 
-##  The Message Bus: Why ZeroMQ?
+## 10. The Message Bus: Why ZeroMQ?
 
 ### The Problem with Direct Function Calls
 
@@ -1466,7 +1466,7 @@ registry. Just connect and start sending.
 
 -----
 
-##  The Full Process Architecture
+## 11. The Full Process Architecture
 
 EduMatcher is a **multi-process system**. Each process is a separate Python program
 with its own memory space, started independently. The diagram below shows the
@@ -1485,7 +1485,7 @@ graph TB
     One OrderBook per symbol
     Processes one message at a time
     from the PULL socket"]
-    CLR["pm-clear
+    CLR["pm-clearing
     P&L tracking + CSV"]
     STA["pm-stats
     SQLite · OHLCV"]
@@ -1634,7 +1634,7 @@ is the closest thing to a full audit trail in the system.
 
 -----
 
-##  Optimisations: Speed, Memory, and Latency
+## 12. Optimisations: Speed, Memory, and Latency
 
 This section collects all performance-oriented decisions in one place, explains
 the reasoning, and quantifies the expected impact where possible.
@@ -1910,7 +1910,7 @@ O(P) price levels before any fills are attempted, and rejection is clean.
 
 -----
 
-##  Persistence: Surviving a Restart
+## 13. Persistence: Surviving a Restart
 
 When the engine restarts, two categories of state need to be restored:
 
@@ -1996,7 +1996,7 @@ after restart.
 
 -----
 
-##  Clearing and Settlement: Following the Money
+## 14. Clearing and Settlement: Following the Money
 
 Clearing is the process of ensuring both sides of a trade actually deliver what they
 promised: the buyer delivers money, the seller delivers shares. EduMatcher
@@ -2084,7 +2084,7 @@ and legal infrastructure.
 
 -----
 
-##  What Is Missing: The Gap to Production
+## 15. What Is Missing: The Gap to Production
 
 EduMatcher is explicitly educational. Here is a complete and honest accounting of
 what would need to be added to make it production-grade. Each item is a
@@ -2222,24 +2222,27 @@ something is committed to the log, it happened; if it is not in the log, it did 
 
 ### Rate Limiting and Risk Checks
 
-**What is missing:** Any gateway can submit an unlimited number of orders per second.
-A buggy algorithm could send 100,000 orders per second, overwhelming the engine.
+**What is implemented:**
 
-**What production requires:**
+- **Price collars** — static and dynamic band checks that reject any order whose
+  price deviates by more than a configured percentage from the last trade price or
+  a reference price. Configured per symbol in `engine_config.yaml`.
+- **Circuit breakers** — multi-level halt mechanism. When a trade price moves beyond
+  configured thresholds within a time window, the symbol is halted. Configurable
+  resumption modes include `AUCTION` (runs a local uncross before resuming).
+- **Kill switch** — immediate cancellation of all resting orders (or all orders for
+  a specific symbol) for a gateway, invokable via the `risk.kill_switch` message.
 
-- **Rate limits**: maximum orders per second per gateway, enforced at the gateway
-  level before messages reach the engine.
-- **Pre-trade risk checks**: maximum order size, maximum position size, maximum
-  notional value per order, price sanity checks. These include **collar bands** —
-  price boundaries that reject any order whose price deviates by more than a
-  configured percentage from the last trade price or a reference price. A collar
-  protects the market from runaway prices during volatile periods.
-- **Kill switch**: immediate cancellation of all orders for a session, invokable
-  by the firm or the exchange.
-- **Fat finger protection**: “fat finger” is trading slang for accidentally typing
+**What is still missing:**
+
+- **Rate limits**: any gateway can submit an unlimited number of orders per second.
+  A buggy algorithm could overwhelm the engine. Production requires per-gateway
+  message rate enforcement at the gateway level.
+- **Fat finger protection**: "fat finger" is trading slang for accidentally typing
   the wrong number (e.g. selling 10,000 shares when you meant 100, or pricing at
   $15.00 when you meant $150.00). Fat finger filters reject orders whose price or
-  quantity deviates wildly from expected ranges.
+  quantity deviates wildly from expected ranges. The existing collars partially
+  address this but do not cover maximum order size or notional value checks.
 
 ### High-Precision Timestamps and Clock Synchronisation
 
@@ -2347,7 +2350,7 @@ engineering work for a real exchange.
 |Price arithmetic    |✅ Integer tick-based, configurable per symbol                           |+ Dynamic tick size changes, exchange tick tables |
 |Order protocol      |Custom text (`NEW|SYM=AAPL|...`)                                        |FIX 4.4 / 5.0                                     |
 |Rate limiting       |None                                                                    |Per-gateway limits enforced at gateway            |
-|Pre-trade risk      |None                                                                    |Fat finger, collar bands, kill switch             |
+|Pre-trade risk      |✅ Price collars, circuit breakers, kill switch                           |+ Per-gateway limits, fat finger thresholds       |
 |Regulatory reporting|None                                                                    |Real-time trade reporting, audit retention        |
 |Trade persistence   |CSV file                                                                |Durable, replicated, queryable store              |
 |Replay buffer       |None                                                                    |Persistent log with configurable retention        |
