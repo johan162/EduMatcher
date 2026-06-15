@@ -212,7 +212,7 @@ NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=100
 ```
 
 STOP and TRAILING_STOP orders activate here when `last_trade_price` crosses
-their trigger levels. See [Stop Trigger Logic](../user-guide/04-order-types.md#9-stop-trigger-logic)
+their trigger levels. See [Stop Trigger Logic](../user-guide/04-order-types.md#stop-trigger-logic)
 for details.
 
 
@@ -280,13 +280,13 @@ poetry run pm-scheduler --now
 `--now` starts immediately in PRE_OPEN and progresses through all phases.
 Transition times are configurable in `engine_config.yaml`.
 
-You can also trigger transitions manually from a gateway during development:
+You can also trigger transitions manually from the admin console during development:
 
 ```
-SESSION|TRANSITION=OPENING_AUCTION
-SESSION|TRANSITION=CONTINUOUS
-SESSION|TRANSITION=CLOSING_AUCTION
-SESSION|TRANSITION=CLOSED
+SESSION|STATE=OPENING_AUCTION
+SESSION|STATE=CONTINUOUS
+SESSION|STATE=CLOSING_AUCTION
+SESSION|STATE=CLOSED
 ```
 
 

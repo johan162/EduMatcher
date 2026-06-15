@@ -41,7 +41,7 @@ actively trading through its trigger level.
 Also check the trigger direction. A **SELL STOP** triggers when `last_trade_price <= stop_price`.
 If the market is above your stop, it won't fire until price falls *to* or *through* it.
 
-See [Stop Trigger Logic](user-guide/04-order-types.md#9-stop-trigger-logic) for full details.
+See [Stop Trigger Logic](user-guide/04-order-types.md#stop-trigger-logic) for full details.
 
 ---
 
