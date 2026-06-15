@@ -1,5 +1,19 @@
 # EduMatcher — Architecture, Data Structures, and Code Walkthrough
 
+
+!!! note "Learning objectives"
+    After reading this page you will understand:
+
+    - How a limit order book works end-to-end, from order arrival to trade publication
+    - Why the engine uses heaps, lazy deletion, and index maps for speed and correctness
+    - How session states and auctions change matching behavior across the trading day
+    - How advanced order types (FOK/IOC/STOP/ICEBERG/OCO/COMBO) are represented and executed
+    - How the multi-process ZeroMQ architecture decouples matching, gateway, clearing, stats, and audit
+    - What optimizations materially improve throughput and latency in the current Python implementation
+    - Which production-grade capabilities are intentionally out of scope and why
+
+
+
 > **Audience:** A developer new to both the codebase and financial systems. This
 > document builds understanding from first principles — starting with the simplest
 > possible trading concept and expanding layer by layer until the full system makes
@@ -14,7 +28,7 @@
 > matters it is called out explicitly. See `EduMatcher_Tick_Migration_Plan_v6.md`
 > for the full details.
 
------
+
 
 ## Quick-Reference Glossary
 
@@ -44,7 +58,7 @@ Terms you will encounter throughout this document, defined up front:
 |**GC**              |Garbage Collection — Python’s automatic memory reclamation; frequent allocation of large objects increases GC pressure (time spent collecting)|
 |**BST**             |Binary Search Tree — a tree data structure where each node has at most two children and values are stored in sorted order for O(log n) search |
 
------
+
 
 ## Table of Contents
 
@@ -65,7 +79,7 @@ Terms you will encounter throughout this document, defined up front:
 1. [Clearing and Settlement: Following the Money](#14-clearing-and-settlement-following-the-money)
 1. [What Is Missing: The Gap to Production](#15-what-is-missing-the-gap-to-production)
 
------
+
 
 ## How to Use This Document
 
@@ -86,7 +100,7 @@ The rest of the system (`stats`, `audit`, `ticker`, `board`, `scheduler`,
 `ai_trader`) are consumers of events produced by the above. Read them once you
 understand the core.
 
------
+
 
 ## 1. What Is an Exchange? The One-Sentence Version
 
@@ -100,7 +114,7 @@ clearing — is elaboration on that core.
 EduMatcher implements this job in Python. It is not production-grade (we will be
 explicit about what is missing), but it models every core concept faithfully.
 
------
+
 
 ## 2. The Limit Order: The Atom of Trading
 
@@ -180,7 +194,7 @@ Memory savings are also significant: no per-object `__dict__` means each `Order`
 uses roughly 40% less memory. With thousands of resting orders in the book, this
 reduces both memory consumption and garbage collection pressure.
 
------
+
 
 ## 3. The Order Book: A Sorted List of Promises
 
@@ -279,7 +293,7 @@ def _book(self, symbol: str) -> OrderBook:
     return self.books[symbol]
 ```
 
------
+
 
 ## 4. The First Match: How Two Orders Become a Trade
 
@@ -423,7 +437,7 @@ shares. After the fill:
 
 The next buy order that matches $211.00 would fill against those remaining 50 shares.
 
------
+
 
 ## 5. Data Structures: Why Heaps?
 
@@ -627,7 +641,7 @@ require iterating all resting orders, just the price-level dict.
 
 Where n = resting orders, P = distinct price levels (P << n in practice).
 
------
+
 
 ## 6. The Order Model: Every Field Explained
 
@@ -769,7 +783,7 @@ def from_dict(cls, d: dict[str, Any]) -> "Order":
 The normal dataclass `__init__` with 19 keyword arguments spends ~400ns on argument
 dispatch alone. Writing slot values directly via `__new__` eliminates this.
 
------
+
 
 ## 7. Beyond Limit Orders: The Full Order Type Taxonomy
 
@@ -982,7 +996,7 @@ The timestamp update is the key mechanism. By resetting the timestamp, the
 replenished iceberg gets a later key than any order that was already waiting at
 that price, correctly losing queue priority.
 
------
+
 
 ## 8. The Trading Day: Auctions and Continuous Matching
 
@@ -1140,7 +1154,7 @@ All auction fills happen at the single equilibrium price, simultaneously. The
 `now = monotonic_ns()` outside the loop means all trades in one auction uncross share
 the same timestamp — reflecting their logical simultaneity.
 
------
+
 
 ## 9. Complex Orders: Combos and OCO
 
@@ -1311,7 +1325,7 @@ sequenceDiagram
 This is why production combo matching uses a dedicated combo order book where both
 legs are evaluated together before any fills are committed.
 
------
+
 
 ## 10. The Message Bus: Why ZeroMQ?
 
@@ -1464,7 +1478,7 @@ The bus abstraction `messaging/bus.py` is 68 lines total.
 **Zero configuration** — no broker process, no configuration files, no schema
 registry. Just connect and start sending.
 
------
+
 
 ## 11. The Full Process Architecture
 
@@ -1632,7 +1646,7 @@ Every event — order acks, fills, cancellations, trades, book snapshots, sessio
 transitions — is written as a timestamped JSON line to a rotating log file. This
 is the closest thing to a full audit trail in the system.
 
------
+
 
 ## 12. Optimisations: Speed, Memory, and Latency
 
@@ -1908,7 +1922,7 @@ filling orders (generating events), realise partway through it cannot complete, 
 would need to reverse those fills — extremely complex. With the index, the check is
 O(P) price levels before any fills are attempted, and rejection is clean.
 
------
+
 
 ## 13. Persistence: Surviving a Restart
 
@@ -1994,7 +2008,7 @@ after restart.
 - **Positions** — clearing maintains positions in-memory. A clearing process
   restart loses all position state (cleared from the ledger in memory).
 
------
+
 
 ## 14. Clearing and Settlement: Following the Money
 
@@ -2082,7 +2096,7 @@ In a real exchange, clearing is far more complex:
 EduMatcher’s clearing is educational — it shows the concept without the regulatory
 and legal infrastructure.
 
------
+
 
 ## 15. What Is Missing: The Gap to Production
 
@@ -2357,7 +2371,7 @@ engineering work for a real exchange.
 
 ✅ = implemented in EduMatcher
 
------
+
 
 ## Conclusion
 
@@ -2380,6 +2394,3 @@ What it teaches:
 The codebase is designed to be read. Refer to the reading guide at the top of this
 document for the recommended sequence.
 
------
-
-*Part of the EduMatcher documentation series — May 2026. v6.*

@@ -694,8 +694,8 @@ whether matching occurs.  The scheduler process drives transitions by sending
    │ PRE_OPEN │────────►│ OPENING_AUCTION  │────────►│ CONTINUOUS │
    │          │         │                  │         │            │
    └──────────┘         └──────────────────┘         └─────┬──────┘
-        ▲                                                   │
-        │                                                   ▼
+        ▲                                                  │
+        │                                                  ▼
    ┌────┴─────┐         ┌──────────────────┐         ┌────────────┐
    │  CLOSED  │◄────────│ CLOSING_AUCTION  │◄────────│            │
    │          │         │                  │         │            │
@@ -814,18 +814,17 @@ Where p = distinct price levels, n = total resting orders, k = orders matched.
 Before a gateway can submit orders, it must authenticate with the engine.
 If the engine has a `gateways.alf` section in its config, only listed gateway IDs are accepted.
 
-```
-Gateway                              Engine
-   │                                    │
-   │─── system.gateway_connect ────────►│  { gateway_id: "GW01" }
-   │    (PUSH → PULL)                   │
-   │                                    │  check config allowlist
-   │                                    │
-   │◄── system.gateway_auth.GW01 ──────│  { accepted: true, description: "..." }
-   │    (PUB → SUB)                     │
-   │                                    │
-   │─── order.new ─────────────────────►│  (now allowed)
-   │                                    │
+```mermaid
+sequenceDiagram
+    participant G as Gateway
+    participant E as Engine
+
+    G->>E: system.gateway_connect {gateway_id: "GW01"}
+    Note over G,E: PUSH -> PULL
+    Note over E: check config allowlist
+    E-->>G: system.gateway_auth.GW01 {accepted: true, description: "..."}
+    Note over E,G: PUB -> SUB
+    G->>E: order.new (now allowed)
 ```
 
 If `accepted: false`, the gateway prints the rejection reason and exits.
