@@ -1139,6 +1139,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#quick-reference-pl-formulas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick-reference: P&amp;L formulas
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2097,9 +2108,46 @@ of all trades for the day.</p>
 <li>Both sides of every trade (buyer and seller) have their ledgers updated independently.</li>
 <li>The <code>last_price</code> used for unrealized P&amp;L is the most recent trade price for that symbol.</li>
 </ul>
+<h2 id="quick-reference-pl-formulas">Quick-reference: P&amp;L formulas<a class="headerlink" href="#quick-reference-pl-formulas" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Formula</th>
+<th>When computed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Avg cost</strong> (building position)</td>
+<td><span class="arithmatex">\(\frac{\text{old\_avg} \times \lvert\text{old\_pos}\rvert + \text{fill\_price} \times \text{fill\_qty}}{\lvert\text{new\_pos}\rvert}\)</span></td>
+<td>Fill increases position</td>
+</tr>
+<tr>
+<td><strong>Realized P&amp;L</strong> (long closing)</td>
+<td><span class="arithmatex">\((\text{fill\_price} - \text{avg\_cost}) \times \text{reduce\_qty}\)</span></td>
+<td>Sell reduces a long position</td>
+</tr>
+<tr>
+<td><strong>Realized P&amp;L</strong> (short closing)</td>
+<td><span class="arithmatex">\((\text{avg\_cost} - \text{fill\_price}) \times \text{reduce\_qty}\)</span></td>
+<td>Buy reduces a short position</td>
+</tr>
+<tr>
+<td><strong>Unrealized P&amp;L</strong></td>
+<td><span class="arithmatex">\(\text{position} \times (\text{last\_price} - \text{avg\_cost})\)</span></td>
+<td>After every trade event</td>
+</tr>
+<tr>
+<td><strong>Total P&amp;L</strong></td>
+<td><span class="arithmatex">\(\text{realized} + \text{unrealized}\)</span></td>
+<td>Always</td>
+</tr>
+</tbody>
+</table>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../10-processes/#pm-clearing--pnl--clearing">Processes</a> — how <code>pm-clearing</code> connects to the engine and what it subscribes to</li>
+<li><a href="../10-processes/#pm-clearing-clearing-pl">Processes</a> — how <code>pm-clearing</code> connects to the engine and what it subscribes to</li>
 <li><a href="../11-persistence/#other-persistent-files">Persistence</a> — <code>clearing_report.csv</code> across sessions</li>
 <li><a href="../04-order-types/">Order Types</a> — which fills produce P&amp;L events</li>
 <li><a href="../09-messages/">Messages</a> — <code>trade.executed</code> message fields consumed by <code>pm-clearing</code></li>

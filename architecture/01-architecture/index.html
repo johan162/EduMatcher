@@ -2422,16 +2422,16 @@ distribution, surveillance) that subscribe to the topics they care about.</p>
 The matching engine is the only process that <em>binds</em> sockets — all other processes <em>connect</em> to it.<br />
 No ZMQ broker daemon, no message queue server, no external dependencies beyond ZMQ itself.</p>
 <h2 id="zmq-topology">ZMQ Topology<a class="headerlink" href="#zmq-topology" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>                          ┌─────────────────────────────┐
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                          │      Matching Engine         │
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  Gateway(s)              │                             │
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  ──PUSH──────────────►   │  PULL :5555  receives orders │
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>                          ┌───────────────────────────────┐
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                          │      Matching Engine          │
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>  Gateway(s)              │                               │
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  ──PUSH──────────────►   │  PULL :5555  receives orders  │
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>                          │  PUB  :5556  broadcasts events│
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  Scheduler               │                             │
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  ──PUSH──────────────►   └───────────┬─────────────────┘
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  Scheduler               │                               │
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  ──PUSH──────────────►   └───────────┬───────────────────┘
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>                                      │ PUB :5556
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>                    ┌─────────────────┼──────────────────────┐
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>                    │                 │                       │
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>                    │                 │                      │
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>              ┌─────▼──────┐  ┌──────▼──────┐  ┌────────────▼──────┐
 <a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>              │ Gateway(s) │  │  Viewer(s)  │  │  pm-orders        │
 <a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>              │ SUB        │  │  SUB        │  │  SUB              │
@@ -2592,9 +2592,9 @@ No ZMQ broker daemon, no message queue server, no external dependencies beyond Z
 <tbody>
 <tr>
 <td>Engine</td>
-<td>PULL :5555, PUB :5556</td>
-<td><strong>Binds</strong> both</td>
-<td>Matching, session state, combo tracking</td>
+<td>PULL :5555, PUB :5556, PUB :5557</td>
+<td><strong>Binds</strong> all</td>
+<td>Matching, session state, combo tracking, drop-copy</td>
 </tr>
 <tr>
 <td>Gateway</td>
@@ -2716,8 +2716,8 @@ used by the matching engine.</p>
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>├── _buy_stops     min-heap  [(stop_price, timestamp, order), ...]
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>├── _sell_stops    max-heap  [(-stop_price, timestamp, order), ...]
 <a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>│
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>├── _bid_qty       dict[float, int]    price → total visible resting qty
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>├── _ask_qty       dict[float, int]    price → total visible resting qty
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>├── _bid_qty       dict[int, int]      price_ticks → total visible resting qty
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>├── _ask_qty       dict[int, int]      price_ticks → total visible resting qty
 <a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>│
 <a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>├── _order_index   dict[order_id, Order]       all resting orders (fast cancel lookup)
 <a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>└── _entry_index   dict[order_id, HeapEntry]   heap entry pointers (lazy delete)
@@ -2747,7 +2747,7 @@ heap entry.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>┌────────────────────────────────────────────────────────┐
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>│               _asks min-heap                           │
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>│                                                        │
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>│   top → [100.0, t=1, VALID]  ← best ask               │
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>│   top → [100.0, t=1, VALID]  ← best ask                │
 <a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>│          [100.0, t=3, INVALID]  ← tombstone, skipped   │
 <a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>│          [101.5, t=2, VALID]                           │
 <a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>│          [102.0, t=4, VALID]                           │
@@ -3042,13 +3042,13 @@ The engine uses two dictionaries to track the parent-child relationship:</p>
 </code></pre></div>
 <h4 id="combo-event-propagation-flow">Combo Event Propagation Flow<a class="headerlink" href="#combo-event-propagation-flow" title="Permanent link">&para;</a></h4>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>  ┌─────────────────────────────────────────────────────────────────────┐
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>  │                       MATCHING ENGINE                                │
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>  │                       MATCHING ENGINE                               │
 <a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>  │                                                                     │
 <a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a>  │   incoming order ──► OrderBook.process()                            │
-<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>  │         │                    │                                       │
-<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>  │         │              fills/trades                                  │
-<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a>  │         │                    │                                       │
-<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a>  │         ▼                    ▼                                       │
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>  │         │                    │                                      │
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>  │         │              fills/trades                                 │
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a>  │         │                    │                                      │
+<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a>  │         ▼                    ▼                                      │
 <a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a>  │   publish fill       was this a combo child?                        │
 <a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a>  │   publish trade       │                                             │
 <a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a>  │                       ├── NO  → done                                │
@@ -3056,20 +3056,20 @@ The engine uses two dictionaries to track the parent-child relationship:</p>
 <a id="__codelineno-21-13" name="__codelineno-21-13" href="#__codelineno-21-13"></a>  │                                      │                              │
 <a id="__codelineno-21-14" name="__codelineno-21-14" href="#__codelineno-21-14"></a>  │                         ┌────────────┴────────────┐                 │
 <a id="__codelineno-21-15" name="__codelineno-21-15" href="#__codelineno-21-15"></a>  │                         │                         │                 │
-<a id="__codelineno-21-16" name="__codelineno-21-16" href="#__codelineno-21-16"></a>  │                    child FILLED?            child CANCELLED?         │
+<a id="__codelineno-21-16" name="__codelineno-21-16" href="#__codelineno-21-16"></a>  │                    child FILLED?            child CANCELLED?        │
 <a id="__codelineno-21-17" name="__codelineno-21-17" href="#__codelineno-21-17"></a>  │                         │                         │                 │
 <a id="__codelineno-21-18" name="__codelineno-21-18" href="#__codelineno-21-18"></a>  │                         ▼                         ▼                 │
-<a id="__codelineno-21-19" name="__codelineno-21-19" href="#__codelineno-21-19"></a>  │                  update leg_fill_qty       CASCADE_CANCEL            │
-<a id="__codelineno-21-20" name="__codelineno-21-20" href="#__codelineno-21-20"></a>  │                  update leg_statuses         │                       │
-<a id="__codelineno-21-21" name="__codelineno-21-21" href="#__codelineno-21-21"></a>  │                         │                    ├── cancel siblings     │
-<a id="__codelineno-21-22" name="__codelineno-21-22" href="#__codelineno-21-22"></a>  │                         ▼                    └── publish FAILED      │
-<a id="__codelineno-21-23" name="__codelineno-21-23" href="#__codelineno-21-23"></a>  │                  all legs FILLED?                                    │
-<a id="__codelineno-21-24" name="__codelineno-21-24" href="#__codelineno-21-24"></a>  │                    │          │                                      │
-<a id="__codelineno-21-25" name="__codelineno-21-25" href="#__codelineno-21-25"></a>  │                   YES         NO                                     │
-<a id="__codelineno-21-26" name="__codelineno-21-26" href="#__codelineno-21-26"></a>  │                    │          │                                      │
-<a id="__codelineno-21-27" name="__codelineno-21-27" href="#__codelineno-21-27"></a>  │                    ▼          ▼                                      │
-<a id="__codelineno-21-28" name="__codelineno-21-28" href="#__codelineno-21-28"></a>  │              publish      publish                                    │
-<a id="__codelineno-21-29" name="__codelineno-21-29" href="#__codelineno-21-29"></a>  │              MATCHED    PARTIALLY_MATCHED                            │
+<a id="__codelineno-21-19" name="__codelineno-21-19" href="#__codelineno-21-19"></a>  │                  update leg_fill_qty       CASCADE_CANCEL           │
+<a id="__codelineno-21-20" name="__codelineno-21-20" href="#__codelineno-21-20"></a>  │                  update leg_statuses         │                      │
+<a id="__codelineno-21-21" name="__codelineno-21-21" href="#__codelineno-21-21"></a>  │                         │                    ├── cancel siblings    │
+<a id="__codelineno-21-22" name="__codelineno-21-22" href="#__codelineno-21-22"></a>  │                         ▼                    └── publish FAILED     │
+<a id="__codelineno-21-23" name="__codelineno-21-23" href="#__codelineno-21-23"></a>  │                  all legs FILLED?                                   │
+<a id="__codelineno-21-24" name="__codelineno-21-24" href="#__codelineno-21-24"></a>  │                    │          │                                     │
+<a id="__codelineno-21-25" name="__codelineno-21-25" href="#__codelineno-21-25"></a>  │                   YES         NO                                    │
+<a id="__codelineno-21-26" name="__codelineno-21-26" href="#__codelineno-21-26"></a>  │                    │          │                                     │
+<a id="__codelineno-21-27" name="__codelineno-21-27" href="#__codelineno-21-27"></a>  │                    ▼          ▼                                     │
+<a id="__codelineno-21-28" name="__codelineno-21-28" href="#__codelineno-21-28"></a>  │              publish      publish                                   │
+<a id="__codelineno-21-29" name="__codelineno-21-29" href="#__codelineno-21-29"></a>  │              MATCHED    PARTIALLY_MATCHED                           │
 <a id="__codelineno-21-30" name="__codelineno-21-30" href="#__codelineno-21-30"></a>  │                                                                     │
 <a id="__codelineno-21-31" name="__codelineno-21-31" href="#__codelineno-21-31"></a>  └─────────────────────────────────────────────────────────────────────┘
 </code></pre></div>
@@ -3129,8 +3129,8 @@ whether matching occurs.  The scheduler process drives transitions by sending
 <a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>   │ PRE_OPEN │────────►│ OPENING_AUCTION  │────────►│ CONTINUOUS │
 <a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>   │          │         │                  │         │            │
 <a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a>   └──────────┘         └──────────────────┘         └─────┬──────┘
-<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>        ▲                                                   │
-<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>        │                                                   ▼
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>        ▲                                                  │
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>        │                                                  ▼
 <a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a>   ┌────┴─────┐         ┌──────────────────┐         ┌────────────┐
 <a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>   │  CLOSED  │◄────────│ CLOSING_AUCTION  │◄────────│            │
 <a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>   │          │         │                  │         │            │
@@ -3152,13 +3152,13 @@ whether matching occurs.  The scheduler process drives transitions by sending
 <td>PRE_OPEN</td>
 <td>No</td>
 <td>LIMIT, STOP, STOP_LIMIT, ICEBERG</td>
-<td>MARKET, FOK, ATO, ATC</td>
+<td>MARKET, FOK, IOC, ATO, ATC</td>
 </tr>
 <tr>
 <td>OPENING_AUCTION</td>
 <td>No</td>
 <td>Same as PRE_OPEN + ATO</td>
-<td>MARKET, FOK, ATC</td>
+<td>MARKET, FOK, IOC, ATC</td>
 </tr>
 <tr>
 <td>CONTINUOUS</td>
@@ -3170,7 +3170,7 @@ whether matching occurs.  The scheduler process drives transitions by sending
 <td>CLOSING_AUCTION</td>
 <td>No</td>
 <td>Same as PRE_OPEN + ATC</td>
-<td>MARKET, FOK, ATO</td>
+<td>MARKET, FOK, IOC, ATO</td>
 </tr>
 <tr>
 <td>CLOSED</td>
@@ -3282,18 +3282,16 @@ limit is used directly.</p>
 <h3 id="gateway-authentication">Gateway Authentication<a class="headerlink" href="#gateway-authentication" title="Permanent link">&para;</a></h3>
 <p>Before a gateway can submit orders, it must authenticate with the engine.
 If the engine has a <code>gateways.alf</code> section in its config, only listed gateway IDs are accepted.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>Gateway                              Engine
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>   │                                    │
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>   │─── system.gateway_connect ────────►│  { gateway_id: &quot;GW01&quot; }
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>   │    (PUSH → PULL)                   │
-<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>   │                                    │  check config allowlist
-<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>   │                                    │
-<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>   │◄── system.gateway_auth.GW01 ──────│  { accepted: true, description: &quot;...&quot; }
-<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>   │    (PUB → SUB)                     │
-<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a>   │                                    │
-<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a>   │─── order.new ─────────────────────►│  (now allowed)
-<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a>   │                                    │
-</code></pre></div>
+<pre class="mermaid"><code>sequenceDiagram
+    participant G as Gateway
+    participant E as Engine
+
+    G-&gt;&gt;E: system.gateway_connect {gateway_id: "GW01"}
+    Note over G,E: PUSH -&gt; PULL
+    Note over E: check config allowlist
+    E--&gt;&gt;G: system.gateway_auth.GW01 {accepted: true, description: "..."}
+    Note over E,G: PUB -&gt; SUB
+    G-&gt;&gt;E: order.new (now allowed)</code></pre>
 <p>If <code>accepted: false</code>, the gateway prints the rejection reason and exits.
 If no <code>gateways.alf</code> section exists in config, all gateway IDs are auto-accepted
 (backward-compatible mode).</p>
@@ -3301,31 +3299,31 @@ If no <code>gateways.alf</code> section exists in config, all gateway IDs are au
 reason "Gateway not connected: {GW_ID}".</p>
 <h3 id="engine-event-loop">Engine Event Loop<a class="headerlink" href="#engine-event-loop" title="Permanent link">&para;</a></h3>
 <p>The engine processes messages sequentially in a single thread:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>function RUN():
-<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>    restore_gtc()          // reload GTC orders + combos from disk
-<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>    load_config()          // seed stats, inject MM orders
-<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>
-<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>    loop:
-<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>        poll PULL socket (200 ms timeout)
-<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a>
-<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>        if message available:
-<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a>            topic, payload = decode(message)
-<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a>            dispatch:
-<a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a>                &quot;order.new&quot;              → _handle_new_order(payload)
-<a id="__codelineno-26-12" name="__codelineno-26-12" href="#__codelineno-26-12"></a>                &quot;order.cancel&quot;           → _handle_cancel(payload)
-<a id="__codelineno-26-13" name="__codelineno-26-13" href="#__codelineno-26-13"></a>                &quot;order.combo&quot;            → _handle_combo_order(payload)
-<a id="__codelineno-26-14" name="__codelineno-26-14" href="#__codelineno-26-14"></a>                &quot;order.combo_cancel&quot;     → _handle_combo_cancel(payload)
-<a id="__codelineno-26-15" name="__codelineno-26-15" href="#__codelineno-26-15"></a>                &quot;session.transition&quot;     → _handle_session_transition(payload)
-<a id="__codelineno-26-16" name="__codelineno-26-16" href="#__codelineno-26-16"></a>                &quot;system.gateway_connect&quot; → _handle_gateway_connect(payload)
-<a id="__codelineno-26-17" name="__codelineno-26-17" href="#__codelineno-26-17"></a>                &quot;system.symbols_request&quot; → _handle_symbols_request(payload)
-<a id="__codelineno-26-18" name="__codelineno-26-18" href="#__codelineno-26-18"></a>                &quot;book.snapshot_request&quot;  → _handle_snapshot_request(payload)
-<a id="__codelineno-26-19" name="__codelineno-26-19" href="#__codelineno-26-19"></a>                &quot;order.orders_request&quot;   → _handle_orders_request(payload)
-<a id="__codelineno-26-20" name="__codelineno-26-20" href="#__codelineno-26-20"></a>
-<a id="__codelineno-26-21" name="__codelineno-26-21" href="#__codelineno-26-21"></a>        flush_snapshots()  // publish throttled book images for dirty symbols
-<a id="__codelineno-26-22" name="__codelineno-26-22" href="#__codelineno-26-22"></a>
-<a id="__codelineno-26-23" name="__codelineno-26-23" href="#__codelineno-26-23"></a>        if shutdown requested:
-<a id="__codelineno-26-24" name="__codelineno-26-24" href="#__codelineno-26-24"></a>            _shutdown()    // save GTC, expire DAY, save combos, publish EOD
-<a id="__codelineno-26-25" name="__codelineno-26-25" href="#__codelineno-26-25"></a>            break
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>function RUN():
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>    restore_gtc()          // reload GTC orders + combos from disk
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>    load_config()          // seed stats, inject MM orders
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>    loop:
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>        poll PULL socket (200 ms timeout)
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>        if message available:
+<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a>            topic, payload = decode(message)
+<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a>            dispatch:
+<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a>                &quot;order.new&quot;              → _handle_new_order(payload)
+<a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a>                &quot;order.cancel&quot;           → _handle_cancel(payload)
+<a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a>                &quot;order.combo&quot;            → _handle_combo_order(payload)
+<a id="__codelineno-25-14" name="__codelineno-25-14" href="#__codelineno-25-14"></a>                &quot;order.combo_cancel&quot;     → _handle_combo_cancel(payload)
+<a id="__codelineno-25-15" name="__codelineno-25-15" href="#__codelineno-25-15"></a>                &quot;session.transition&quot;     → _handle_session_transition(payload)
+<a id="__codelineno-25-16" name="__codelineno-25-16" href="#__codelineno-25-16"></a>                &quot;system.gateway_connect&quot; → _handle_gateway_connect(payload)
+<a id="__codelineno-25-17" name="__codelineno-25-17" href="#__codelineno-25-17"></a>                &quot;system.symbols_request&quot; → _handle_symbols_request(payload)
+<a id="__codelineno-25-18" name="__codelineno-25-18" href="#__codelineno-25-18"></a>                &quot;book.snapshot_request&quot;  → _handle_snapshot_request(payload)
+<a id="__codelineno-25-19" name="__codelineno-25-19" href="#__codelineno-25-19"></a>                &quot;order.orders_request&quot;   → _handle_orders_request(payload)
+<a id="__codelineno-25-20" name="__codelineno-25-20" href="#__codelineno-25-20"></a>
+<a id="__codelineno-25-21" name="__codelineno-25-21" href="#__codelineno-25-21"></a>        flush_snapshots()  // publish throttled book images for dirty symbols
+<a id="__codelineno-25-22" name="__codelineno-25-22" href="#__codelineno-25-22"></a>
+<a id="__codelineno-25-23" name="__codelineno-25-23" href="#__codelineno-25-23"></a>        if shutdown requested:
+<a id="__codelineno-25-24" name="__codelineno-25-24" href="#__codelineno-25-24"></a>            _shutdown()    // save GTC, expire DAY, save combos, publish EOD
+<a id="__codelineno-25-25" name="__codelineno-25-25" href="#__codelineno-25-25"></a>            break
 </code></pre></div>
 <p>No locks, no shared memory, no race conditions.  The sequential dispatch guarantees
 that combo status transitions and cascade-cancels are atomic from the system's
@@ -3358,28 +3356,28 @@ Python stores attributes in a fixed-size C array instead.</p>
 <li><code>OrderBook</code> (only a few instances, but accessed on every single order)</li>
 </ul>
 <p><strong>Before/after for a dataclass:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="c1"># Before</span>
-<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="nd">@dataclass</span>
-<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">Order</span><span class="p">:</span>
-<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
-<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>    <span class="n">symbol</span><span class="p">:</span> <span class="nb">str</span>
-<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>    <span class="o">...</span>
-<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>
-<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a><span class="c1"># After — just add slots=True</span>
-<a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<a id="__codelineno-27-10" name="__codelineno-27-10" href="#__codelineno-27-10"></a><span class="k">class</span><span class="w"> </span><span class="nc">Order</span><span class="p">:</span>
-<a id="__codelineno-27-11" name="__codelineno-27-11" href="#__codelineno-27-11"></a>    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
-<a id="__codelineno-27-12" name="__codelineno-27-12" href="#__codelineno-27-12"></a>    <span class="n">symbol</span><span class="p">:</span> <span class="nb">str</span>
-<a id="__codelineno-27-13" name="__codelineno-27-13" href="#__codelineno-27-13"></a>    <span class="o">...</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="c1"># Before</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="nd">@dataclass</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">Order</span><span class="p">:</span>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a>    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>    <span class="n">symbol</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>    <span class="o">...</span>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a>
+<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a><span class="c1"># After — just add slots=True</span>
+<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a><span class="k">class</span><span class="w"> </span><span class="nc">Order</span><span class="p">:</span>
+<a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a>    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-26-12" name="__codelineno-26-12" href="#__codelineno-26-12"></a>    <span class="n">symbol</span><span class="p">:</span> <span class="nb">str</span>
+<a id="__codelineno-26-13" name="__codelineno-26-13" href="#__codelineno-26-13"></a>    <span class="o">...</span>
 </code></pre></div>
 <p>For classes that aren't dataclasses (like <code>_HeapEntry</code>), you define it manually:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">_HeapEntry</span><span class="p">:</span>
-<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;key&#39;</span><span class="p">,</span> <span class="s1">&#39;order&#39;</span><span class="p">,</span> <span class="s1">&#39;valid&#39;</span><span class="p">)</span>
-<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>
-<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">valid</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">key</span>   <span class="o">=</span> <span class="n">key</span>
-<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="n">order</span>
-<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">valid</span> <span class="o">=</span> <span class="n">valid</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">_HeapEntry</span><span class="p">:</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;key&#39;</span><span class="p">,</span> <span class="s1">&#39;order&#39;</span><span class="p">,</span> <span class="s1">&#39;valid&#39;</span><span class="p">)</span>
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">order</span><span class="p">,</span> <span class="n">valid</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">key</span>   <span class="o">=</span> <span class="n">key</span>
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="n">order</span>
+<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">valid</span> <span class="o">=</span> <span class="n">valid</span>
 </code></pre></div>
 <p><strong>Drawbacks:</strong>  You can no longer add arbitrary attributes at runtime (e.g.
 <code>order.debug_tag = "test"</code> will raise <code>AttributeError</code>).  Multiple inheritance
@@ -3392,12 +3390,12 @@ is easy to forget.</p>
 <p><strong>Why it's faster:</strong>  Python's <code>Enum(value)</code> constructor iterates through <em>all</em>
 members comparing each string (~600–800 ns).  A dictionary lookup is ~50 ns.
 With 5 enums per order, this saves ~3 µs per deserialization call.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="c1"># Build once at module load time</span>
-<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="n">_SIDE_MAP</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="o">.</span><span class="n">value</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">Side</span><span class="p">}</span>      <span class="c1"># {&quot;BUY&quot;: Side.BUY, &quot;SELL&quot;: Side.SELL}</span>
-<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="n">_TYPE_MAP</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="o">.</span><span class="n">value</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">OrderType</span><span class="p">}</span>
-<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>
-<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="c1"># Then in from_dict():</span>
-<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="n">side</span> <span class="o">=</span> <span class="n">_SIDE_MAP</span><span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;side&quot;</span><span class="p">]]</span>   <span class="c1"># ~50 ns instead of Side(&quot;BUY&quot;) at ~700 ns</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1"># Build once at module load time</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="n">_SIDE_MAP</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="o">.</span><span class="n">value</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">Side</span><span class="p">}</span>      <span class="c1"># {&quot;BUY&quot;: Side.BUY, &quot;SELL&quot;: Side.SELL}</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="n">_TYPE_MAP</span> <span class="o">=</span> <span class="p">{</span><span class="n">v</span><span class="o">.</span><span class="n">value</span><span class="p">:</span> <span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">OrderType</span><span class="p">}</span>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="c1"># Then in from_dict():</span>
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="n">side</span> <span class="o">=</span> <span class="n">_SIDE_MAP</span><span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;side&quot;</span><span class="p">]]</span>   <span class="c1"># ~50 ns instead of Side(&quot;BUY&quot;) at ~700 ns</span>
 </code></pre></div>
 <p><strong>Drawbacks:</strong>  If you add a new enum member, you must remember that the lookup
 dict was built at import time — it won't automatically include the new member
@@ -3411,14 +3409,14 @@ the result (<code>now</code>) down to every function that needs a timestamp.</p>
 the OS kernel and back.  On macOS this costs ~300–500 ns.  A single aggressive
 order that triggers stops could call <code>time.time()</code> 4–6 times.  By caching it,
 we pay the cost exactly once.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_handle_new_order</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">payload</span><span class="p">):</span>
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>    <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>                    <span class="c1"># one syscall</span>
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>    <span class="o">...</span>
-<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>    <span class="n">trades</span><span class="p">,</span> <span class="n">events</span> <span class="o">=</span> <span class="n">book</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="n">now</span><span class="p">)</span>  <span class="c1"># passed through</span>
-<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>
-<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="c1"># Inside the order book:</span>
-<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">_apply_fill</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aggressor</span><span class="p">,</span> <span class="n">passive</span><span class="p">,</span> <span class="n">qty</span><span class="p">,</span> <span class="n">price</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">):</span>
-<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>    <span class="n">trade</span> <span class="o">=</span> <span class="n">Trade</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="n">now</span><span class="p">)</span>   <span class="c1"># reuses cached timestamp</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_handle_new_order</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">payload</span><span class="p">):</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>    <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>                    <span class="c1"># one syscall</span>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>    <span class="o">...</span>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a>    <span class="n">trades</span><span class="p">,</span> <span class="n">events</span> <span class="o">=</span> <span class="n">book</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="n">now</span><span class="p">)</span>  <span class="c1"># passed through</span>
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a>
+<a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="c1"># Inside the order book:</span>
+<a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">_apply_fill</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aggressor</span><span class="p">,</span> <span class="n">passive</span><span class="p">,</span> <span class="n">qty</span><span class="p">,</span> <span class="n">price</span><span class="p">,</span> <span class="n">trades</span><span class="p">,</span> <span class="n">events</span><span class="p">,</span> <span class="n">now</span><span class="p">):</span>
+<a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a>    <span class="n">trade</span> <span class="o">=</span> <span class="n">Trade</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">now</span><span class="o">=</span><span class="n">now</span><span class="p">)</span>   <span class="c1"># reuses cached timestamp</span>
 </code></pre></div>
 <p><strong>Drawbacks:</strong>  All fills and stop triggers within the same order share the exact
 same timestamp, even if matching takes a few microseconds.  This means you lose
@@ -3431,13 +3429,13 @@ instead of random UUIDs.</p>
 <p><strong>Why it's faster:</strong>  <code>uuid.uuid4()</code> reads from <code>/dev/urandom</code> (a kernel call) and
 then formats 128 random bits into a hyphenated string — total cost ~1.5 µs.
 <code>next(counter)</code> is a pure-Python operation costing ~30 ns.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">itertools</span>
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>
-<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="n">_trade_counter</span> <span class="o">=</span> <span class="n">itertools</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
-<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>
-<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="nd">@classmethod</span>
-<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
-<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a>    <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="n">_trade_counter</span><span class="p">)),</span> <span class="o">...</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">itertools</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="n">_trade_counter</span> <span class="o">=</span> <span class="n">itertools</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a><span class="nd">@classmethod</span>
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">create</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>    <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="nb">next</span><span class="p">(</span><span class="n">_trade_counter</span><span class="p">)),</span> <span class="o">...</span><span class="p">)</span>
 </code></pre></div>
 <blockquote>
 <p>Trade IDs only need to be unique within a single engine session, not globally,
@@ -3476,12 +3474,12 @@ volume by observing the ID gap between two of their fills).</p>
 </table>
 <p>With 2–4 messages published per order, this alone saved ~4–7 µs on aggressive
 orders.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">orjson</span>
-<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_dumps</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span> <span class="k">return</span> <span class="n">orjson</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
-<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
-<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
-<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_dumps</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span> <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">orjson</span>
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_dumps</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span> <span class="k">return</span> <span class="n">orjson</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>    <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_dumps</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span> <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
 </code></pre></div>
 <p>The fallback ensures the code works in environments where <code>orjson</code> isn't
 installed — it just runs slower.</p>
@@ -3498,21 +3496,21 @@ message actually needs, directly from object attributes.</p>
 <p><strong>Why it's faster:</strong>  <code>to_dict()</code> unconditionally copies all 18 fields and calls
 <code>.value</code> on every enum — cost ~3–4 µs.  The ack message only needs 6 of those
 fields.  Building a minimal dict inline costs ~250 ns.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="c1"># Before — wasteful</span>
-<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">pub_sock</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span>
-<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>    <span class="n">make_fill_msg</span><span class="p">(</span><span class="n">evt</span><span class="o">.</span><span class="n">gateway_id</span><span class="p">,</span> <span class="n">evt</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="o">...</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">evt</span><span class="o">.</span><span class="n">to_dict</span><span class="p">())</span>
-<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="p">)</span>
-<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>
-<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a><span class="c1"># After — only the fields the consumer needs</span>
-<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a><span class="bp">self</span><span class="o">.</span><span class="n">pub_sock</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">([</span>
-<a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a>    <span class="n">fill_topic_bytes</span><span class="p">,</span>
-<a id="__codelineno-33-9" name="__codelineno-33-9" href="#__codelineno-33-9"></a>    <span class="n">_dumps</span><span class="p">({</span>
-<a id="__codelineno-33-10" name="__codelineno-33-10" href="#__codelineno-33-10"></a>        <span class="s2">&quot;order_id&quot;</span><span class="p">:</span> <span class="n">evt</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
-<a id="__codelineno-33-11" name="__codelineno-33-11" href="#__codelineno-33-11"></a>        <span class="s2">&quot;fill_qty&quot;</span><span class="p">:</span> <span class="n">evt</span><span class="o">.</span><span class="n">quantity</span> <span class="o">-</span> <span class="n">evt</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">,</span>
-<a id="__codelineno-33-12" name="__codelineno-33-12" href="#__codelineno-33-12"></a>        <span class="s2">&quot;status&quot;</span><span class="p">:</span>   <span class="n">evt</span><span class="o">.</span><span class="n">status</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
-<a id="__codelineno-33-13" name="__codelineno-33-13" href="#__codelineno-33-13"></a>        <span class="o">...</span>
-<a id="__codelineno-33-14" name="__codelineno-33-14" href="#__codelineno-33-14"></a>    <span class="p">}),</span>
-<a id="__codelineno-33-15" name="__codelineno-33-15" href="#__codelineno-33-15"></a><span class="p">])</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="c1"># Before — wasteful</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">pub_sock</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">(</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>    <span class="n">make_fill_msg</span><span class="p">(</span><span class="n">evt</span><span class="o">.</span><span class="n">gateway_id</span><span class="p">,</span> <span class="n">evt</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="o">...</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="n">evt</span><span class="o">.</span><span class="n">to_dict</span><span class="p">())</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="p">)</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a><span class="c1"># After — only the fields the consumer needs</span>
+<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a><span class="bp">self</span><span class="o">.</span><span class="n">pub_sock</span><span class="o">.</span><span class="n">send_multipart</span><span class="p">([</span>
+<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a>    <span class="n">fill_topic_bytes</span><span class="p">,</span>
+<a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a>    <span class="n">_dumps</span><span class="p">({</span>
+<a id="__codelineno-32-10" name="__codelineno-32-10" href="#__codelineno-32-10"></a>        <span class="s2">&quot;order_id&quot;</span><span class="p">:</span> <span class="n">evt</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+<a id="__codelineno-32-11" name="__codelineno-32-11" href="#__codelineno-32-11"></a>        <span class="s2">&quot;fill_qty&quot;</span><span class="p">:</span> <span class="n">evt</span><span class="o">.</span><span class="n">quantity</span> <span class="o">-</span> <span class="n">evt</span><span class="o">.</span><span class="n">remaining_qty</span><span class="p">,</span>
+<a id="__codelineno-32-12" name="__codelineno-32-12" href="#__codelineno-32-12"></a>        <span class="s2">&quot;status&quot;</span><span class="p">:</span>   <span class="n">evt</span><span class="o">.</span><span class="n">status</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+<a id="__codelineno-32-13" name="__codelineno-32-13" href="#__codelineno-32-13"></a>        <span class="o">...</span>
+<a id="__codelineno-32-14" name="__codelineno-32-14" href="#__codelineno-32-14"></a>    <span class="p">}),</span>
+<a id="__codelineno-32-15" name="__codelineno-32-15" href="#__codelineno-32-15"></a><span class="p">])</span>
 </code></pre></div>
 <p><strong>Drawbacks:</strong>  The message schema is now implicitly defined at each call site
 instead of in one canonical <code>to_dict()</code> method.  If a downstream consumer adds a
@@ -3557,11 +3555,11 @@ dictionary, avoiding repeated <code>f"order.ack.{gw}".encode()</code> calls.</p>
 <p><strong>Why it's faster:</strong>  <code>f-string + .encode()</code> costs ~100 ns per call.  With 3–4
 messages per order, that's ~300–400 ns wasted on creating the same bytes.  A dict
 lookup is ~50 ns total.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="c1"># Populate on first use</span>
-<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_topic_cache</span><span class="p">[</span><span class="n">gw</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;order.ack.</span><span class="si">{</span><span class="n">gw</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
-<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>
-<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="c1"># Hot path</span>
-<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a><span class="n">topic</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_topic_cache</span><span class="p">[</span><span class="n">gw</span><span class="p">]</span>  <span class="c1"># ~50 ns instead of ~100 ns</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="c1"># Populate on first use</span>
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="bp">self</span><span class="o">.</span><span class="n">_topic_cache</span><span class="p">[</span><span class="n">gw</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;order.ack.</span><span class="si">{</span><span class="n">gw</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span>
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="c1"># Hot path</span>
+<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a><span class="n">topic</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_topic_cache</span><span class="p">[</span><span class="n">gw</span><span class="p">]</span>  <span class="c1"># ~50 ns instead of ~100 ns</span>
 </code></pre></div>
 <p><strong>Drawbacks:</strong>  The cache grows unboundedly — if gateways connect and disconnect
 frequently with unique IDs, the dict accumulates stale entries (a minor memory
@@ -3575,17 +3573,17 @@ object attributes into local variables.</p>
 direct array-index operation (~30 ns).  Attribute access (<code>LOAD_ATTR</code>) involves a
 descriptor lookup even with <code>__slots__</code> (~50–70 ns).  In a loop that runs 5–50
 iterations, this adds up.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_sweep</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aggressor</span><span class="p">,</span> <span class="n">opposite_heap</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
-<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>    <span class="c1"># Cache once before the loop</span>
-<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>    <span class="n">_side</span>       <span class="o">=</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">side</span>         <span class="c1"># LOAD_FAST inside loop</span>
-<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a>    <span class="n">_smp_action</span> <span class="o">=</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">smp_action</span>
-<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>    <span class="n">_peek</span>       <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_peek</span>             <span class="c1"># avoid self.__dict__ lookup per iteration</span>
-<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a>
-<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a>    <span class="k">while</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">opposite_heap</span><span class="p">:</span>
-<a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a>        <span class="n">best</span> <span class="o">=</span> <span class="n">_peek</span><span class="p">(</span><span class="n">opposite_heap</span><span class="p">)</span>      <span class="c1"># local call, not self._peek(...)</span>
-<a id="__codelineno-35-9" name="__codelineno-35-9" href="#__codelineno-35-9"></a>        <span class="k">if</span> <span class="n">_side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span> <span class="ow">and</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span> <span class="o">&gt;</span> <span class="n">price_limit</span><span class="p">:</span>
-<a id="__codelineno-35-10" name="__codelineno-35-10" href="#__codelineno-35-10"></a>            <span class="k">break</span>
-<a id="__codelineno-35-11" name="__codelineno-35-11" href="#__codelineno-35-11"></a>        <span class="o">...</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_sweep</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">aggressor</span><span class="p">,</span> <span class="n">opposite_heap</span><span class="p">,</span> <span class="o">...</span><span class="p">):</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>    <span class="c1"># Cache once before the loop</span>
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>    <span class="n">_side</span>       <span class="o">=</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">side</span>         <span class="c1"># LOAD_FAST inside loop</span>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a>    <span class="n">_smp_action</span> <span class="o">=</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">smp_action</span>
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>    <span class="n">_peek</span>       <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_peek</span>             <span class="c1"># avoid self.__dict__ lookup per iteration</span>
+<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a>
+<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a>    <span class="k">while</span> <span class="n">aggressor</span><span class="o">.</span><span class="n">remaining_qty</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">opposite_heap</span><span class="p">:</span>
+<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a>        <span class="n">best</span> <span class="o">=</span> <span class="n">_peek</span><span class="p">(</span><span class="n">opposite_heap</span><span class="p">)</span>      <span class="c1"># local call, not self._peek(...)</span>
+<a id="__codelineno-34-9" name="__codelineno-34-9" href="#__codelineno-34-9"></a>        <span class="k">if</span> <span class="n">_side</span> <span class="o">==</span> <span class="n">Side</span><span class="o">.</span><span class="n">BUY</span> <span class="ow">and</span> <span class="n">best</span><span class="o">.</span><span class="n">price</span> <span class="o">&gt;</span> <span class="n">price_limit</span><span class="p">:</span>
+<a id="__codelineno-34-10" name="__codelineno-34-10" href="#__codelineno-34-10"></a>            <span class="k">break</span>
+<a id="__codelineno-34-11" name="__codelineno-34-11" href="#__codelineno-34-11"></a>        <span class="o">...</span>
 </code></pre></div>
 <p><strong>Drawbacks:</strong>  Makes the code less obvious — a reader seeing <code>_peek(heap)</code> has
 to scroll up to understand it's actually <code>self._peek</code>.  If the cached attribute
@@ -3600,14 +3598,14 @@ calling the dataclass-generated <code>__init__</code> with 19 keyword arguments.
 each keyword argument — with 19 kwargs this alone costs ~400 ns.  <code>__new__</code>
 creates a bare instance in ~80 ns, and then each <code>o.field = value</code> is a simple
 <code>STORE_ATTR</code> (~30 ns with slots).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="nd">@classmethod</span>
-<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Order&quot;</span><span class="p">:</span>
-<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>    <span class="n">o</span> <span class="o">=</span> <span class="nb">object</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
-<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a>    <span class="n">o</span><span class="o">.</span><span class="n">id</span>         <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]</span>
-<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>    <span class="n">o</span><span class="o">.</span><span class="n">symbol</span>     <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;symbol&quot;</span><span class="p">]</span>
-<a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a>    <span class="n">o</span><span class="o">.</span><span class="n">side</span>       <span class="o">=</span> <span class="n">_SIDE_MAP</span><span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;side&quot;</span><span class="p">]]</span>
-<a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a>    <span class="o">...</span>
-<a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a>    <span class="k">return</span> <span class="n">o</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="nd">@classmethod</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">from_dict</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Order&quot;</span><span class="p">:</span>
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>    <span class="n">o</span> <span class="o">=</span> <span class="nb">object</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span>
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a>    <span class="n">o</span><span class="o">.</span><span class="n">id</span>         <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;id&quot;</span><span class="p">]</span>
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>    <span class="n">o</span><span class="o">.</span><span class="n">symbol</span>     <span class="o">=</span> <span class="n">d</span><span class="p">[</span><span class="s2">&quot;symbol&quot;</span><span class="p">]</span>
+<a id="__codelineno-35-6" name="__codelineno-35-6" href="#__codelineno-35-6"></a>    <span class="n">o</span><span class="o">.</span><span class="n">side</span>       <span class="o">=</span> <span class="n">_SIDE_MAP</span><span class="p">[</span><span class="n">d</span><span class="p">[</span><span class="s2">&quot;side&quot;</span><span class="p">]]</span>
+<a id="__codelineno-35-7" name="__codelineno-35-7" href="#__codelineno-35-7"></a>    <span class="o">...</span>
+<a id="__codelineno-35-8" name="__codelineno-35-8" href="#__codelineno-35-8"></a>    <span class="k">return</span> <span class="n">o</span>
 </code></pre></div>
 <p><strong>Drawbacks:</strong>  Completely bypasses <code>__init__</code>, so any validation, default value
 assignment, or <code>__post_init__</code> logic in the dataclass is skipped.  If you later

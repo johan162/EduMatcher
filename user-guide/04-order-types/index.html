@@ -945,6 +945,34 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contents
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Contents">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#single-order-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single-order lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#market" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2853,6 +2881,84 @@ price-time priority before diving into order type mechanics.</p>
 <p>EduMatcher supports <strong>eight order types</strong> plus two multi-leg constructs (COMBO and
 OCO), from the simplest market order to multi-leg combo/OCO orders used to execute
 strategies across multiple symbols atomically.</p>
+<h2 id="contents">Contents<a class="headerlink" href="#contents" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Order type</th>
+<th>Category</th>
+<th>Key characteristic</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="#market">MARKET</a></td>
+<td>Aggressive</td>
+<td>Immediate execution at best price; no price guarantee</td>
+</tr>
+<tr>
+<td><a href="#limit">LIMIT</a></td>
+<td>Passive</td>
+<td>Rests on book at specified price or better</td>
+</tr>
+<tr>
+<td><a href="#stop-stop-market">STOP</a></td>
+<td>Conditional</td>
+<td>Dormant until trigger; then becomes MARKET</td>
+</tr>
+<tr>
+<td><a href="#stop_limit">STOP_LIMIT</a></td>
+<td>Conditional</td>
+<td>Dormant until trigger; then becomes LIMIT</td>
+</tr>
+<tr>
+<td><a href="#fok-fill-or-kill">FOK</a></td>
+<td>Aggressive</td>
+<td>All-or-nothing; fill completely or cancel</td>
+</tr>
+<tr>
+<td><a href="#ioc-immediate-or-cancel">IOC</a></td>
+<td>Aggressive</td>
+<td>Fill what you can immediately; cancel rest</td>
+</tr>
+<tr>
+<td><a href="#iceberg">ICEBERG</a></td>
+<td>Passive</td>
+<td>Large order with hidden reserve; visible peak only</td>
+</tr>
+<tr>
+<td><a href="#trailing_stop">TRAILING_STOP</a></td>
+<td>Conditional</td>
+<td>Dynamic stop that follows price by fixed offset</td>
+</tr>
+<tr>
+<td><a href="#combo">COMBO</a></td>
+<td>Multi-leg</td>
+<td>Multiple linked orders across symbols</td>
+</tr>
+<tr>
+<td><a href="#oco-one-cancels-other">OCO</a></td>
+<td>Multi-leg</td>
+<td>Two orders where fill/cancel of one cancels the other</td>
+</tr>
+</tbody>
+</table>
+<h3 id="single-order-lifecycle">Single-order lifecycle<a class="headerlink" href="#single-order-lifecycle" title="Permanent link">&para;</a></h3>
+<p>Every order follows this state model from submission to final disposition:</p>
+<pre class="mermaid"><code>stateDiagram-v2
+    [*] --&gt; NEW : order accepted
+    NEW --&gt; PARTIAL : first partial fill
+    NEW --&gt; FILLED : fills completely immediately
+    NEW --&gt; CANCELLED : cancel request or cascade
+    NEW --&gt; EXPIRED : TIF expiry (DAY at close, ATO/ATC at phase end)
+    NEW --&gt; REJECTED : validation failure
+    PARTIAL --&gt; FILLED : remaining quantity fills
+    PARTIAL --&gt; CANCELLED : cancel request or cascade
+    PARTIAL --&gt; EXPIRED : TIF expiry
+    FILLED --&gt; [*]
+    CANCELLED --&gt; [*]
+    EXPIRED --&gt; [*]
+    REJECTED --&gt; [*]</code></pre>
 <h2 id="market">MARKET<a class="headerlink" href="#market" title="Permanent link">&para;</a></h2>
 <p><a href="#contents">Back to Contents</a></p>
 <p>Executes immediately at the best available price.</p>
@@ -2933,7 +3039,7 @@ requiring constant manual monitoring.</p>
 <p><code>STOP</code> price is the trigger, not the execution price</p>
 </li>
 <li>Buy STOP: triggers when last trade price ≥ stop price (used to enter long on breakout)</li>
-<li>Sell STOP: triggers when last trade price ≤ stop price (used to limit downside loss)</li>
+<li>Sell STOP: triggers when last trade price <span class="arithmatex">\(\leq\)</span> stop price (used to limit downside loss)</li>
 </ul>
 <h3 id="gateway-syntax_1">Gateway Syntax<a class="headerlink" href="#gateway-syntax_1" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP|QTY=100|STOP=148.00
@@ -3475,7 +3581,7 @@ If there is no last trade and no explicit <code>STOP=</code>, the order is <stro
 <p>Setup: last trade price = 100. SELL trailing stop: <code>trail=2</code>, <code>stop=98</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>Trade at 105  →  stop ratchets up  →  stop = max(98, 105−2) = 103
 <a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>Trade at 110  →  stop ratchets up  →  stop = max(103, 110−2) = 108
-<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>Trade at 102  →  102 ≤ 108?  YES  →  TRIGGERED → MARKET SELL
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>Trade at 102  →  102 $\leq$ 108?  YES  →  TRIGGERED → MARKET SELL
 </code></pre></div>
 <p>The trailing stop locked in a floor of 108 as the stock rallied to 110.
 When the stock dropped back to 102, the stop fired.</p>
@@ -3486,7 +3592,7 @@ When the stock dropped back to 102, the stop fired.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>stop = 98, trail = 2, last_trade = 100
 <a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>
 <a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>Trade at 106  →  stop = max(98, 104) = 104
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>Trade at 95   →  95 ≤ 104?  YES  →  TRIGGERED
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>Trade at 95   →  95 $\leq$ 104?  YES  →  TRIGGERED
 </code></pre></div>
 <p>Note that the trade at 95 did <em>not</em> move the stop down to 93 first.
 The trigger check happens in the same sweep as the ratchet update,
@@ -3725,7 +3831,7 @@ make in-place amendment ambiguous (STOP, STOP_LIMIT, TRAILING_STOP).</p>
 <td><strong>REJECTED</strong> — e.g. <code>"Cannot amend STOP orders"</code> (message names the actual order type)</td>
 </tr>
 <tr>
-<td>New QTY ≤ already filled qty</td>
+<td>New QTY <span class="arithmatex">\(\leq\)</span> already filled qty</td>
 <td><strong>REJECTED</strong> — "New quantity must exceed already-filled quantity"</td>
 </tr>
 <tr>
@@ -3733,7 +3839,7 @@ make in-place amendment ambiguous (STOP, STOP_LIMIT, TRAILING_STOP).</p>
 <td><strong>REJECTED</strong> — "Quantity must be positive"</td>
 </tr>
 <tr>
-<td>New PRICE ≤ 0</td>
+<td>New PRICE <span class="arithmatex">\(\leq\)</span> 0</td>
 <td><strong>REJECTED</strong> — "Price must be positive"</td>
 </tr>
 <tr>

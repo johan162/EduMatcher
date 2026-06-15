@@ -1517,6 +1517,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#common-mistakes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common mistakes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3090,9 +3101,57 @@ gateways' activity.</p>
 <p>A background thread listens on the SUB socket and prints events (fills, cancels,
 combo status changes, session transitions) in real-time, interleaved cleanly with
 the command prompt. You can continue typing while events arrive.</p>
+<h2 id="common-mistakes">Common mistakes<a class="headerlink" href="#common-mistakes" title="Permanent link">&para;</a></h2>
+<p>New users frequently encounter these issues when first using the gateway:</p>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Gateway authentication timed out</code></td>
+<td>Engine is not running</td>
+<td>Start <code>pm-engine</code> first</td>
+</tr>
+<tr>
+<td><code>Gateway not configured: GW01</code></td>
+<td>Gateway ID not in <code>engine_config.yaml</code></td>
+<td>Add the ID under <code>gateways.alf</code> or run in unrestricted mode (no config)</td>
+</tr>
+<tr>
+<td><code>REJECTED: SYMBOL_NOT_CONFIGURED</code></td>
+<td>Symbol not in config</td>
+<td>Add the symbol under <code>symbols:</code> in the config</td>
+</tr>
+<tr>
+<td><code>REJECTED: SYMBOL_HALTED</code></td>
+<td>A circuit breaker fired or operator halted the symbol</td>
+<td>Wait for resume, or use <code>pm-admin</code> to resume</td>
+</tr>
+<tr>
+<td><code>REJECTED: STATIC_COLLAR_BREACH</code></td>
+<td>Order price too far from reference</td>
+<td>Choose a price closer to the last traded price</td>
+</tr>
+<tr>
+<td>Order rests but does not fill</td>
+<td>No counterparty at that price</td>
+<td>Another gateway must post a crossing order</td>
+</tr>
+<tr>
+<td><code>Quotes are only allowed for MARKET_MAKER participants</code></td>
+<td>Gateway role is <code>TRADER</code></td>
+<td>Change the role to <code>MARKET_MAKER</code> in config</td>
+</tr>
+</tbody>
+</table>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../01-configuration/#gateway-configuration">Configuration</a> — gateway roles, allowlists, disconnect behaviour, and MM obligations</li>
+<li><a href="../01-configuration/#alf-gateway-allowlist">Configuration</a> — gateway roles, allowlists, disconnect behaviour, and MM obligations</li>
 <li><a href="../04-order-types/">Order Types</a> — full semantics for every order type accepted by the gateway</li>
 <li><a href="../20-app-alf-protocol/">ALF Protocol Reference</a> — formal ABNF grammar and field rules for the pipe-delimited syntax</li>
 <li><a href="../09-messages/">Messages</a> — the ZeroMQ messages the gateway publishes and subscribes to</li>

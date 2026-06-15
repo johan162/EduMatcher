@@ -2108,7 +2108,7 @@ for a detailed explanation.</p>
 <a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a># Trade: 100 shares @ 149.90
 </code></pre></div>
 <p>STOP and TRAILING_STOP orders activate here when <code>last_trade_price</code> crosses
-their trigger levels. See <a href="../../user-guide/04-order-types/#9-stop-trigger-logic">Stop Trigger Logic</a>
+their trigger levels. See <a href="../../user-guide/04-order-types/#stop-trigger-logic">Stop Trigger Logic</a>
 for details.</p>
 <h2 id="phase-4-closing_auction">Phase 4 — CLOSING_AUCTION<a class="headerlink" href="#phase-4-closing_auction" title="Permanent link">&para;</a></h2>
 <p>The closing auction works exactly like the opening auction, but for the end of
@@ -2173,11 +2173,11 @@ the day. The <code>TIF=ATC</code> (At-The-Close) order type is only valid in thi
 </code></pre></div>
 <p><code>--now</code> starts immediately in PRE_OPEN and progresses through all phases.
 Transition times are configurable in <code>engine_config.yaml</code>.</p>
-<p>You can also trigger transitions manually from a gateway during development:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>SESSION|TRANSITION=OPENING_AUCTION
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>SESSION|TRANSITION=CONTINUOUS
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>SESSION|TRANSITION=CLOSING_AUCTION
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>SESSION|TRANSITION=CLOSED
+<p>You can also trigger transitions manually from the admin console during development:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>SESSION|STATE=OPENING_AUCTION
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>SESSION|STATE=CONTINUOUS
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>SESSION|STATE=CLOSING_AUCTION
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>SESSION|STATE=CLOSED
 </code></pre></div>
 <h2 id="putting-it-all-together-a-full-day-scenario">Putting it all together — a full-day scenario<a class="headerlink" href="#putting-it-all-together-a-full-day-scenario" title="Permanent link">&para;</a></h2>
 <table>

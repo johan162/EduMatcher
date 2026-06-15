@@ -1903,15 +1903,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-message-bus-why-zeromq" class="md-nav__link">
+  <a href="#10-the-message-bus-why-zeromq" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The Message Bus: Why ZeroMQ?
+        10. The Message Bus: Why ZeroMQ?
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="The Message Bus: Why ZeroMQ?">
+    <nav class="md-nav" aria-label="10. The Message Bus: Why ZeroMQ?">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1986,15 +1986,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-full-process-architecture" class="md-nav__link">
+  <a href="#11-the-full-process-architecture" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The Full Process Architecture
+        11. The Full Process Architecture
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="The Full Process Architecture">
+    <nav class="md-nav" aria-label="11. The Full Process Architecture">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2058,15 +2058,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#optimisations-speed-memory-and-latency" class="md-nav__link">
+  <a href="#12-optimisations-speed-memory-and-latency" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Optimisations: Speed, Memory, and Latency
+        12. Optimisations: Speed, Memory, and Latency
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Optimisations: Speed, Memory, and Latency">
+    <nav class="md-nav" aria-label="12. Optimisations: Speed, Memory, and Latency">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2207,15 +2207,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#persistence-surviving-a-restart" class="md-nav__link">
+  <a href="#13-persistence-surviving-a-restart" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Persistence: Surviving a Restart
+        13. Persistence: Surviving a Restart
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Persistence: Surviving a Restart">
+    <nav class="md-nav" aria-label="13. Persistence: Surviving a Restart">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2235,10 +2235,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#clearing-and-settlement-following-the-money" class="md-nav__link">
+  <a href="#14-clearing-and-settlement-following-the-money" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Clearing and Settlement: Following the Money
+        14. Clearing and Settlement: Following the Money
       
     </span>
   </a>
@@ -2246,15 +2246,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-is-missing-the-gap-to-production" class="md-nav__link">
+  <a href="#15-what-is-missing-the-gap-to-production" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What Is Missing: The Gap to Production
+        15. What Is Missing: The Gap to Production
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="What Is Missing: The Gap to Production">
+    <nav class="md-nav" aria-label="15. What Is Missing: The Gap to Production">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -2658,6 +2658,19 @@
 
 
 <h1 id="edumatcher-architecture-data-structures-and-code-walkthrough">EduMatcher — Architecture, Data Structures, and Code Walkthrough<a class="headerlink" href="#edumatcher-architecture-data-structures-and-code-walkthrough" title="Permanent link">&para;</a></h1>
+<div class="admonition note">
+<p class="admonition-title">Learning objectives</p>
+<p>After reading this page you will understand:</p>
+<ul>
+<li>How a limit order book works end-to-end, from order arrival to trade publication</li>
+<li>Why the engine uses heaps, lazy deletion, and index maps for speed and correctness</li>
+<li>How session states and auctions change matching behavior across the trading day</li>
+<li>How advanced order types (FOK/IOC/STOP/ICEBERG/OCO/COMBO) are represented and executed</li>
+<li>How the multi-process ZeroMQ architecture decouples matching, gateway, clearing, stats, and audit</li>
+<li>What optimizations materially improve throughput and latency in the current Python implementation</li>
+<li>Which production-grade capabilities are intentionally out of scope and why</li>
+</ul>
+</div>
 <blockquote>
 <p><strong>Audience:</strong> A developer new to both the codebase and financial systems. This
 document builds understanding from first principles — starting with the simplest
@@ -2672,7 +2685,6 @@ concepts and logic are identical; only the types differ. Where the distinction
 matters it is called out explicitly. See <code>EduMatcher_Tick_Migration_Plan_v6.md</code>
 for the full details.</p>
 </blockquote>
-<hr />
 <h2 id="quick-reference-glossary">Quick-Reference Glossary<a class="headerlink" href="#quick-reference-glossary" title="Permanent link">&para;</a></h2>
 <p>Terms you will encounter throughout this document, defined up front:</p>
 <table>
@@ -2769,7 +2781,6 @@ for the full details.</p>
 </tr>
 </tbody>
 </table>
-<hr />
 <h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
 <ol>
 <li><a href="#quick-reference-glossary">Quick-Reference Glossary</a></li>
@@ -2789,7 +2800,6 @@ for the full details.</p>
 <li><a href="#14-clearing-and-settlement-following-the-money">Clearing and Settlement: Following the Money</a></li>
 <li><a href="#15-what-is-missing-the-gap-to-production">What Is Missing: The Gap to Production</a></li>
 </ol>
-<hr />
 <h2 id="how-to-use-this-document">How to Use This Document<a class="headerlink" href="#how-to-use-this-document" title="Permanent link">&para;</a></h2>
 <p>Read sections 1–5 in order — they build on each other and the later sections will
 not make sense without them. After Section 5, most sections are self-contained and
@@ -2806,7 +2816,6 @@ can be read in any order depending on what you want to understand.</p>
 <p>The rest of the system (<code>stats</code>, <code>audit</code>, <code>ticker</code>, <code>board</code>, <code>scheduler</code>,
 <code>ai_trader</code>) are consumers of events produced by the above. Read them once you
 understand the core.</p>
-<hr />
 <h2 id="1-what-is-an-exchange-the-one-sentence-version">1. What Is an Exchange? The One-Sentence Version<a class="headerlink" href="#1-what-is-an-exchange-the-one-sentence-version" title="Permanent link">&para;</a></h2>
 <p>An exchange is a system that takes <strong>buy orders</strong> and <strong>sell orders</strong> from many
 participants, figures out which buyers and sellers agree on a price, and executes
@@ -2815,7 +2824,6 @@ trades between them.</p>
 clearing — is elaboration on that core.</p>
 <p>EduMatcher implements this job in Python. It is not production-grade (we will be
 explicit about what is missing), but it models every core concept faithfully.</p>
-<hr />
 <h2 id="2-the-limit-order-the-atom-of-trading">2. The Limit Order: The Atom of Trading<a class="headerlink" href="#2-the-limit-order-the-atom-of-trading" title="Permanent link">&para;</a></h2>
 <p>A <strong>limit order</strong> is a participant saying: <em>“I want to buy X shares of AAPL, but
 I will not pay more than $150.00.”</em> Or the reverse: <em>“I want to sell X shares but
@@ -2876,7 +2884,6 @@ per order — about 15% of the total per-order budget.</p>
 <p>Memory savings are also significant: no per-object <code>__dict__</code> means each <code>Order</code>
 uses roughly 40% less memory. With thousands of resting orders in the book, this
 reduces both memory consumption and garbage collection pressure.</p>
-<hr />
 <h2 id="3-the-order-book-a-sorted-list-of-promises">3. The Order Book: A Sorted List of Promises<a class="headerlink" href="#3-the-order-book-a-sorted-list-of-promises" title="Permanent link">&para;</a></h2>
 <p>The <strong>order book</strong> is the core data structure of an exchange. It holds all resting
 (unfilled) orders, organised by price level, waiting for a counterparty.</p>
@@ -2954,7 +2961,6 @@ multiplies across every order processed.</p>
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">books</span><span class="p">[</span><span class="n">symbol</span><span class="p">]</span> <span class="o">=</span> <span class="n">OrderBook</span><span class="p">(</span><span class="n">symbol</span><span class="p">)</span>  <span class="c1"># create on first order</span>
 <a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">books</span><span class="p">[</span><span class="n">symbol</span><span class="p">]</span>
 </code></pre></div>
-<hr />
 <h2 id="4-the-first-match-how-two-orders-become-a-trade">4. The First Match: How Two Orders Become a Trade<a class="headerlink" href="#4-the-first-match-how-two-orders-become-a-trade" title="Permanent link">&para;</a></h2>
 <p>Here is the simplest possible matching scenario:</p>
 <p><strong>Scenario:</strong> The book has a resting sell order: 100 shares of AAPL at $211.00.
@@ -3071,7 +3077,6 @@ shares. After the fill:</p>
   remains in the book, still resting at $211.00, waiting for the next buyer.</li>
 </ul>
 <p>The next buy order that matches $211.00 would fill against those remaining 50 shares.</p>
-<hr />
 <h2 id="5-data-structures-why-heaps">5. Data Structures: Why Heaps?<a class="headerlink" href="#5-data-structures-why-heaps" title="Permanent link">&para;</a></h2>
 <h3 id="the-problem">The Problem<a class="headerlink" href="#the-problem" title="Permanent link">&para;</a></h3>
 <p>The matching engine’s inner loop asks one question thousands of times per second:
@@ -3264,7 +3269,6 @@ require iterating all resting orders, just the price-level dict.</p>
 </tbody>
 </table>
 <p>Where n = resting orders, P = distinct price levels (P &lt;&lt; n in practice).</p>
-<hr />
 <h2 id="6-the-order-model-every-field-explained">6. The Order Model: Every Field Explained<a class="headerlink" href="#6-the-order-model-every-field-explained" title="Permanent link">&para;</a></h2>
 <blockquote>
 <p><strong>Migration note:</strong> The field types shown below reflect the <strong>original</strong> codebase
@@ -3381,7 +3385,6 @@ deserialization budget.</p>
 </code></pre></div>
 <p>The normal dataclass <code>__init__</code> with 19 keyword arguments spends ~400ns on argument
 dispatch alone. Writing slot values directly via <code>__new__</code> eliminates this.</p>
-<hr />
 <h2 id="7-beyond-limit-orders-the-full-order-type-taxonomy">7. Beyond Limit Orders: The Full Order Type Taxonomy<a class="headerlink" href="#7-beyond-limit-orders-the-full-order-type-taxonomy" title="Permanent link">&para;</a></h2>
 <h3 id="market-order">Market Order<a class="headerlink" href="#market-order" title="Permanent link">&para;</a></h3>
 <p>A market order says “buy/sell at whatever price is available right now.” No price
@@ -3551,7 +3554,6 @@ turn at the back, just like any other new order arriving at that price.</p>
 <p>The timestamp update is the key mechanism. By resetting the timestamp, the
 replenished iceberg gets a later key than any order that was already waiting at
 that price, correctly losing queue priority.</p>
-<hr />
 <h2 id="8-the-trading-day-auctions-and-continuous-matching">8. The Trading Day: Auctions and Continuous Matching<a class="headerlink" href="#8-the-trading-day-auctions-and-continuous-matching" title="Permanent link">&para;</a></h2>
 <p>Real exchanges do not simply run continuous matching all day. A typical trading day
 looks like this:</p>
@@ -3672,7 +3674,6 @@ algorithm picks the price closest to the previous close (the reference price fro
 <p>All auction fills happen at the single equilibrium price, simultaneously. The
 <code>now = monotonic_ns()</code> outside the loop means all trades in one auction uncross share
 the same timestamp — reflecting their logical simultaneity.</p>
-<hr />
 <h2 id="9-complex-orders-combos-and-oco">9. Complex Orders: Combos and OCO<a class="headerlink" href="#9-complex-orders-combos-and-oco" title="Permanent link">&para;</a></h2>
 <p>Iceberg orders are covered in Section 7. This section covers the two order types
 that link multiple orders together at the engine level.</p>
@@ -3812,8 +3813,7 @@ book where both sides must match simultaneously. This is not implemented.</p>
     Note over P: ⚠️ Participant now holds 100 AAPL&lt;br/&gt;with no MSFT hedge.&lt;br/&gt;Leg risk: unintended directional exposure.</code></pre>
 <p>This is why production combo matching uses a dedicated combo order book where both
 legs are evaluated together before any fills are committed.</p>
-<hr />
-<h2 id="the-message-bus-why-zeromq">The Message Bus: Why ZeroMQ?<a class="headerlink" href="#the-message-bus-why-zeromq" title="Permanent link">&para;</a></h2>
+<h2 id="10-the-message-bus-why-zeromq">10. The Message Bus: Why ZeroMQ?<a class="headerlink" href="#10-the-message-bus-why-zeromq" title="Permanent link">&para;</a></h2>
 <h3 id="the-problem-with-direct-function-calls">The Problem with Direct Function Calls<a class="headerlink" href="#the-problem-with-direct-function-calls" title="Permanent link">&para;</a></h3>
 <p>Imagine implementing the exchange as a single monolithic program. The matching
 engine calls clearing functions directly; the viewer calls engine functions to get
@@ -3931,8 +3931,7 @@ For a trading system where each additional millisecond matters, this is essentia
 The bus abstraction <code>messaging/bus.py</code> is 68 lines total.</p>
 <p><strong>Zero configuration</strong> — no broker process, no configuration files, no schema
 registry. Just connect and start sending.</p>
-<hr />
-<h2 id="the-full-process-architecture">The Full Process Architecture<a class="headerlink" href="#the-full-process-architecture" title="Permanent link">&para;</a></h2>
+<h2 id="11-the-full-process-architecture">11. The Full Process Architecture<a class="headerlink" href="#11-the-full-process-architecture" title="Permanent link">&para;</a></h2>
 <p>EduMatcher is a <strong>multi-process system</strong>. Each process is a separate Python program
 with its own memory space, started independently. The diagram below shows the
 core message-flow processes. Display processes (<code>pm-viewer</code>, <code>pm-board</code>, <code>pm-ticker</code>)
@@ -3948,7 +3947,7 @@ orders to the engine.</p>
     One OrderBook per symbol
     Processes one message at a time
     from the PULL socket"]
-    CLR["pm-clear
+    CLR["pm-clearing
     P&amp;L tracking + CSV"]
     STA["pm-stats
     SQLite · OHLCV"]
@@ -4069,8 +4068,7 @@ SQLite:</p>
 <p>Every event — order acks, fills, cancellations, trades, book snapshots, session
 transitions — is written as a timestamped JSON line to a rotating log file. This
 is the closest thing to a full audit trail in the system.</p>
-<hr />
-<h2 id="optimisations-speed-memory-and-latency">Optimisations: Speed, Memory, and Latency<a class="headerlink" href="#optimisations-speed-memory-and-latency" title="Permanent link">&para;</a></h2>
+<h2 id="12-optimisations-speed-memory-and-latency">12. Optimisations: Speed, Memory, and Latency<a class="headerlink" href="#12-optimisations-speed-memory-and-latency" title="Permanent link">&para;</a></h2>
 <p>This section collects all performance-oriented decisions in one place, explains
 the reasoning, and quantifies the expected impact where possible.</p>
 <h3 id="the-latency-budget">The Latency Budget<a class="headerlink" href="#the-latency-budget" title="Permanent link">&para;</a></h3>
@@ -4340,8 +4338,7 @@ trade rates.</p>
 filling orders (generating events), realise partway through it cannot complete, and
 would need to reverse those fills — extremely complex. With the index, the check is
 O(P) price levels before any fills are attempted, and rejection is clean.</p>
-<hr />
-<h2 id="persistence-surviving-a-restart">Persistence: Surviving a Restart<a class="headerlink" href="#persistence-surviving-a-restart" title="Permanent link">&para;</a></h2>
+<h2 id="13-persistence-surviving-a-restart">13. Persistence: Surviving a Restart<a class="headerlink" href="#13-persistence-surviving-a-restart" title="Permanent link">&para;</a></h2>
 <p>When the engine restarts, two categories of state need to be restored:</p>
 <p><strong>GTC Orders</strong> — resting limit orders with <code>TIF.GTC</code> survive trading days. On
 shutdown they are serialised to JSON, wrapped in a versioned envelope so the engine
@@ -4409,8 +4406,7 @@ after restart.</p>
 <li><strong>Positions</strong> — clearing maintains positions in-memory. A clearing process
   restart loses all position state (cleared from the ledger in memory).</li>
 </ul>
-<hr />
-<h2 id="clearing-and-settlement-following-the-money">Clearing and Settlement: Following the Money<a class="headerlink" href="#clearing-and-settlement-following-the-money" title="Permanent link">&para;</a></h2>
+<h2 id="14-clearing-and-settlement-following-the-money">14. Clearing and Settlement: Following the Money<a class="headerlink" href="#14-clearing-and-settlement-following-the-money" title="Permanent link">&para;</a></h2>
 <p>Clearing is the process of ensuring both sides of a trade actually deliver what they
 promised: the buyer delivers money, the seller delivers shares. EduMatcher
 implements a simplified clearing process that tracks positions and P&amp;L.</p>
@@ -4485,8 +4481,7 @@ computed against this average, not against any specific purchase.</p>
 </ul>
 <p>EduMatcher’s clearing is educational — it shows the concept without the regulatory
 and legal infrastructure.</p>
-<hr />
-<h2 id="what-is-missing-the-gap-to-production">What Is Missing: The Gap to Production<a class="headerlink" href="#what-is-missing-the-gap-to-production" title="Permanent link">&para;</a></h2>
+<h2 id="15-what-is-missing-the-gap-to-production">15. What Is Missing: The Gap to Production<a class="headerlink" href="#15-what-is-missing-the-gap-to-production" title="Permanent link">&para;</a></h2>
 <p>EduMatcher is explicitly educational. Here is a complete and honest accounting of
 what would need to be added to make it production-grade. Each item is a
 non-trivial engineering project.</p>
@@ -4593,23 +4588,27 @@ reconnect receive replayed acks for any orders that were processed before the cr
 <p>This is similar to how database transaction logs work. The core principle: if
 something is committed to the log, it happened; if it is not in the log, it did not.</p>
 <h3 id="rate-limiting-and-risk-checks">Rate Limiting and Risk Checks<a class="headerlink" href="#rate-limiting-and-risk-checks" title="Permanent link">&para;</a></h3>
-<p><strong>What is missing:</strong> Any gateway can submit an unlimited number of orders per second.
-A buggy algorithm could send 100,000 orders per second, overwhelming the engine.</p>
-<p><strong>What production requires:</strong></p>
+<p><strong>What is implemented:</strong></p>
 <ul>
-<li><strong>Rate limits</strong>: maximum orders per second per gateway, enforced at the gateway
-  level before messages reach the engine.</li>
-<li><strong>Pre-trade risk checks</strong>: maximum order size, maximum position size, maximum
-  notional value per order, price sanity checks. These include <strong>collar bands</strong> —
-  price boundaries that reject any order whose price deviates by more than a
-  configured percentage from the last trade price or a reference price. A collar
-  protects the market from runaway prices during volatile periods.</li>
-<li><strong>Kill switch</strong>: immediate cancellation of all orders for a session, invokable
-  by the firm or the exchange.</li>
-<li><strong>Fat finger protection</strong>: “fat finger” is trading slang for accidentally typing
+<li><strong>Price collars</strong> — static and dynamic band checks that reject any order whose
+  price deviates by more than a configured percentage from the last trade price or
+  a reference price. Configured per symbol in <code>engine_config.yaml</code>.</li>
+<li><strong>Circuit breakers</strong> — multi-level halt mechanism. When a trade price moves beyond
+  configured thresholds within a time window, the symbol is halted. Configurable
+  resumption modes include <code>AUCTION</code> (runs a local uncross before resuming).</li>
+<li><strong>Kill switch</strong> — immediate cancellation of all resting orders (or all orders for
+  a specific symbol) for a gateway, invokable via the <code>risk.kill_switch</code> message.</li>
+</ul>
+<p><strong>What is still missing:</strong></p>
+<ul>
+<li><strong>Rate limits</strong>: any gateway can submit an unlimited number of orders per second.
+  A buggy algorithm could overwhelm the engine. Production requires per-gateway
+  message rate enforcement at the gateway level.</li>
+<li><strong>Fat finger protection</strong>: "fat finger" is trading slang for accidentally typing
   the wrong number (e.g. selling 10,000 shares when you meant 100, or pricing at
   $15.00 when you meant $150.00). Fat finger filters reject orders whose price or
-  quantity deviates wildly from expected ranges.</li>
+  quantity deviates wildly from expected ranges. The existing collars partially
+  address this but do not cover maximum order size or notional value checks.</li>
 </ul>
 <h3 id="high-precision-timestamps-and-clock-synchronisation">High-Precision Timestamps and Clock Synchronisation<a class="headerlink" href="#high-precision-timestamps-and-clock-synchronisation" title="Permanent link">&para;</a></h3>
 <p><strong>Status in EduMatcher:</strong> Nanosecond integer timestamps via <code>monotonic_ns()</code> (from
@@ -4740,8 +4739,8 @@ engineering work for a real exchange.</p>
 </tr>
 <tr>
 <td>Pre-trade risk</td>
-<td>None</td>
-<td>Fat finger, collar bands, kill switch</td>
+<td>✅ Price collars, circuit breakers, kill switch</td>
+<td>+ Per-gateway limits, fat finger thresholds</td>
 </tr>
 <tr>
 <td>Regulatory reporting</td>
@@ -4761,7 +4760,6 @@ engineering work for a real exchange.</p>
 </tbody>
 </table>
 <p>✅ = implemented in EduMatcher</p>
-<hr />
 <h2 id="conclusion">Conclusion<a class="headerlink" href="#conclusion" title="Permanent link">&para;</a></h2>
 <p>EduMatcher implements the intellectual core of a matching engine — the part that
 is genuinely difficult to reason about — with real optimisations and real trade-offs,
@@ -4780,8 +4778,6 @@ in clean Python that exposes the underlying decisions.</p>
 </ul>
 <p>The codebase is designed to be read. Refer to the reading guide at the top of this
 document for the recommended sequence.</p>
-<hr />
-<p><em>Part of the EduMatcher documentation series — May 2026. v6.</em></p>
 
 
 

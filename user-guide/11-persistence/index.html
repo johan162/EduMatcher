@@ -1970,6 +1970,34 @@
 survive the end of a trading session and are automatically restored when the system
 restarts for the next day.  Several other data files are also maintained across
 sessions to preserve market state and historical records.</p>
+<div class="admonition tip">
+<p class="admonition-title">Where is the data directory?</p>
+<p>All persistence files live under the <strong>data directory</strong>, which varies by
+installation mode:</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Default path</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Developer (Poetry)</td>
+<td><code>&lt;repo&gt;/src/data/</code></td>
+</tr>
+<tr>
+<td>Installed (pipx)</td>
+<td><code>~/.local/share/edumatcher</code></td>
+</tr>
+<tr>
+<td>Custom</td>
+<td><code>$EDUMATCHER_DATA_DIR</code></td>
+</tr>
+</tbody>
+</table>
+<p>See <a href="../00-getting-started/#environment-variables">Getting Started → Environment variables</a> for override details.</p>
+</div>
 <h2 id="how-it-works">How It Works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
 <h3 id="at-shutdown-ctrl-c-on-the-engine">At Shutdown (Ctrl-C on the engine)<a class="headerlink" href="#at-shutdown-ctrl-c-on-the-engine" title="Permanent link">&para;</a></h3>
 <ol>
@@ -2418,7 +2446,7 @@ also exists (used for sample CSVs) but is not written to by the engine.</p>
 <ul>
 <li><a href="../04-order-types/#time-in-force-tif">Order Types — TIF</a> — GTC, ATO, and ATC lifetime rules</li>
 <li><a href="../06-auctions-scheduling/">Auctions &amp; Scheduling</a> — how ATO/ATC orders expire at phase transitions</li>
-<li><a href="../10-processes/#pm-stats--statistics-recorder">Processes</a> — <code>pm-stats</code> writes <code>src/data/stats.db</code>; <code>pm-audit</code> writes <code>audit.log</code></li>
+<li><a href="../10-processes/#pm-stats-statistics-recorder">Processes</a> — <code>pm-stats</code> writes <code>src/data/stats.db</code>; <code>pm-audit</code> writes <code>audit.log</code></li>
 <li><a href="../01-configuration/">Configuration</a> — <code>last_buy_price</code>/<code>last_sell_price</code> config seeds vs persisted values</li>
 </ul>
 

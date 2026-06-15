@@ -1926,7 +1926,6 @@
 <li>Which sections to read next based on your role</li>
 </ul>
 </div>
-<hr />
 <h2 id="what-is-edumatcher">What is EduMatcher?<a class="headerlink" href="#what-is-edumatcher" title="Permanent link">&para;</a></h2>
 <p>EduMatcher is a <strong>fully functional financial exchange matching engine</strong> built for
 education, research, and demo purposes. It implements the same core mechanics that
@@ -1952,7 +1951,7 @@ that all other processes subscribe to.</p>
     ADM["pm-admin\nOperator console"]
     CLR["pm-clearing\nP&amp;L tracker"]
     STAT["pm-stats\nStatistics recorder"]
-    DC["pm-dropcopy\nDrop-copy feed :5557"]
+    DC["Drop-copy feed\n(built into pm-engine)\n:5557"]
     SCH["pm-scheduler\nSession phases"]
 
     GW1 -- "NEW|SYM=AAPL|..." --&gt; ENG
@@ -1965,10 +1964,8 @@ that all other processes subscribe to.</p>
     ENG -- "trade.executed / book." --&gt; STAT
     ENG -- "per-fill drop-copy" --&gt; DC
     SCH -- "session state" --&gt; ENG</code></pre>
-<hr />
 <h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h2>
 <p>EduMatcher supports two installation modes. Choose the one that matches your role.</p>
-<hr />
 <h3 id="end-user-student-mode-pipx-install-recommended">End-user / student mode — <code>pipx install</code> (recommended)<a class="headerlink" href="#end-user-student-mode-pipx-install-recommended" title="Permanent link">&para;</a></h3>
 <p>This is the quickest path if you just want to <em>run</em> an exchange session —
 no source code, no Poetry, no virtual environment management.</p>
@@ -2019,7 +2016,6 @@ directory automatically — no flags needed.</p>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Start the engine</span>
 <a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>pm-engine<span class="w"> </span>--verbose
 </code></pre></div>
-<hr />
 <h3 id="developer-mode-poetry-source-checkout">Developer mode — Poetry + source checkout<a class="headerlink" href="#developer-mode-poetry-source-checkout" title="Permanent link">&para;</a></h3>
 <p>Use this mode if you want to modify the engine, run tests, or contribute.</p>
 <p><strong>Requirements</strong></p>
@@ -2059,12 +2055,11 @@ read from the repo root — no environment variables needed.</p>
 <div class="admonition tip">
 <p class="admonition-title">Switching from developer to end-user mode</p>
 <p>You can install the locally built wheel with pipx at any time:</p>
-</div>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>poetry<span class="w"> </span>build
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pipx<span class="w"> </span>install<span class="w"> </span>dist/edumatcher-*.whl<span class="w"> </span>--force
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>pm-setup<span class="w"> </span>--force<span class="w">    </span><span class="c1"># re-copy the latest sample config</span>
 </code></pre></div>
-<hr />
+</div>
 <h2 id="environment-variables">Environment variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
 <p>These two variables work in both modes. Set them in your shell profile to
 override the defaults permanently.</p>
@@ -2094,7 +2089,6 @@ override the defaults permanently.</p>
 </table>
 <p>The <code>--config</code> flag on <code>pm-engine</code> and <code>pm-scheduler</code> always takes precedence
 over both the environment variable and the default.</p>
-<hr />
 <h2 id="five-minute-minimum-session">Five-minute minimum session<a class="headerlink" href="#five-minute-minimum-session" title="Permanent link">&para;</a></h2>
 <p>This walkthrough starts a matching engine, connects two participant terminals,
 and executes one trade. No configuration file is required — the engine starts in
@@ -2207,7 +2201,6 @@ just ran a trade on your own exchange.</p>
     E--&gt;&gt;A: order.fill.GW01  AAPL BUY  100@150.00
     E--&gt;&gt;B: order.fill.GW02  AAPL SELL 100@150.00
     E--&gt;&gt;E: trade.executed published to all subscribers</code></pre>
-<hr />
 <h2 id="starting-more-processes">Starting more processes<a class="headerlink" href="#starting-more-processes" title="Permanent link">&para;</a></h2>
 <p>The engine is the only mandatory process. Add the others as you need them:</p>
 <table>
@@ -2249,7 +2242,6 @@ just ran a trade on your own exchange.</p>
 </code></pre></div>
 <p>The script detects whether <code>pm-engine</code> is on PATH (installed mode) or falls
 back to <code>poetry run</code> automatically when running from a source checkout.</p>
-<hr />
 <h2 id="typical-architecture-for-a-classroom-demo">Typical architecture for a classroom demo<a class="headerlink" href="#typical-architecture-for-a-classroom-demo" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart TD
     subgraph Server
@@ -2281,7 +2273,6 @@ back to <code>poetry run</code> automatically when running from a source checkou
 <li>Students each <code>ssh</code> to the server and run their gateway.</li>
 <li>Instructor uses <code>pm-admin</code> to manage session phases and monitor the market.</li>
 </ol>
-<hr />
 <h2 id="reading-path">Reading path<a class="headerlink" href="#reading-path" title="Permanent link">&para;</a></h2>
 <p>Use the table below to decide what to read based on your goal.</p>
 <table>
@@ -2322,7 +2313,6 @@ back to <code>poetry run</code> automatically when running from a source checkou
 </tr>
 </tbody>
 </table>
-<hr />
 <h2 id="glossary-of-terms-used-throughout-this-guide">Glossary of terms used throughout this guide<a class="headerlink" href="#glossary-of-terms-used-throughout-this-guide" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
