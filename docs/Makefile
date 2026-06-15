@@ -285,8 +285,8 @@ pdf-docs:   ## Build the user guide in all PDF variants (A4 light/dark, B5 light
 	@rm -rf $(USER_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm -rf $(DIST_DIR)/$(PROJECT)_user-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(USER_GUIDE_A4_PDF) $(USER_GUIDE_DARK_A4_PDF) $(USER_GUIDE_B5_PDF) $(USER_GUIDE_DARK_B5_PDF)
-	@zip -9 -j $(DIST_DIR)/$(PROJECT)-user-guide-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)_*-$(VERSION).pdf
-	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
+	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user-guide-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)_*-$(VERSION).pdf
+	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user-guide-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
 $(DIST_DIR) : ## Ensure the dist directory exists
 	@mkdir -p $(DIST_DIR)
