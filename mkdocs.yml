@@ -6,6 +6,14 @@ site_url: https://github.com/johan162/EduMatcher
 repo_name: johan162/EduMatcher
 repo_url: https://github.com/johan162/EduMatcher
 
+exclude_docs: |
+  node_modules/
+  .build/
+  dist/
+  package.json
+  package-lock.json
+  mermaid-filter.err
+
 theme:
   name: material
   palette:
