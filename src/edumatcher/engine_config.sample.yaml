@@ -242,9 +242,12 @@
 #   Optional mapping. Values override inherited risk_controls level fields.
 #   static_band_pct and dynamic_band_pct must both be in (0, 1).
 # circuit_breaker:
-#   Optional mapping. Values merge with circuit_breaker_defaults. Level keys are
-#   arbitrary names, but each level must have price_shift_pct in (0, 1).
+#   Optional mapping. Level keys are arbitrary names. Symbol-level levels merge
+#   field by field over circuit_breaker_defaults, so a level may override only
+#   halt_duration_ns or resumption_mode and inherit price_shift_pct from the
+#   defaults. After merging, every level must have price_shift_pct in (0, 1).
 #   halt_duration_ns may be null, meaning halt for the rest of the trading day.
+#   reference_window_ns may also be set here to override the default window.
 # market_maker_quotes:
 #   Optional list unless any gateway has role MARKET_MAKER. If MARKET_MAKER
 #   gateways exist, every configured symbol must define at least one quote seed.
