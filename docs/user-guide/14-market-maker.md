@@ -239,9 +239,9 @@ sequenceDiagram
     E-->>MM: order.fill.MM01 (fill 2)
     E-->>MM: order.fill.MM01 (fill 3)
     E-->>MM: order.fill.MM01 (fill 4)
-    E-->>MM: order.fill.MM01 (fill 5) — MMP threshold reached
-    note over E: MMP activates; requote deadline set
-    MM->>E: QUOTE|SYM=AAPL|... (re-quote within deadline)
+    E-->>MM: order.fill.MM01 (fill 5 - MMP threshold reached)
+    note over E: MMP activates and requote deadline is set
+    MM->>E: QUOTE\|SYM=AAPL\|... (re-quote within deadline)
     note over E: MMP reset
 ```
 
