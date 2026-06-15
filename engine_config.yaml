@@ -132,14 +132,14 @@
 #         side: BUY
 #         order_type: LIMIT
 #         quantity: 100
-#         price: 209.50
+#         price: 20950
 #         stop_price:
 #         smp_action: NONE
 #       - symbol: MSFT
 #         side: SELL
 #         order_type: LIMIT
 #         quantity: 50
-#         price: 415.50
+#         price: 41550
 #         stop_price:
 #         smp_action: NONE
 #
@@ -153,6 +153,57 @@
 # =============================================================================
 # Field Notes and Accepted Values
 # =============================================================================
+#
+# mm_obligation_defaults entries
+# ------------------------------
+# enforce_mm_obligation:
+#   Boolean. Default: false.
+# mm_max_spread_ticks:
+#   Positive integer. Default: 10.
+# mm_min_qty:
+#   Positive integer. Default: 100.
+# symbols:
+#   Optional per-symbol override mapping. Each entry supports the same three
+#   fields: enforce_mm_obligation, mm_max_spread_ticks, mm_min_qty.
+#   Symbol keys are uppercased. Each symbol must be present in symbols:.
+#   Effective policy resolves most-specific-first: gateway mm_obligations >
+#   mm_obligation_defaults.symbols > gateway flat fields >
+#   mm_obligation_defaults flat fields > built-in defaults.
+#
+# risk_controls entries
+# ---------------------
+# default_level:
+#   Optional string. Must reference a key in risk_controls.levels.
+# levels:
+#   Mapping of named level configs. Level names are uppercased.
+# levels.<NAME>.collar:
+#   Optional mapping with static_band_pct and dynamic_band_pct in (0, 1).
+#   Defaults when a collar is active: static_band_pct=0.20, dynamic_band_pct=0.02.
+#   Collar precedence: symbols.<SYM>.collar > symbols.<SYM>.level >
+#   risk_controls.default_level > built-in defaults.
+#   Note: levels.<NAME>.circuit_breaker is not supported; use
+#   circuit_breaker_defaults at the top level instead.
+#
+# circuit_breaker_defaults entries
+# ---------------------------------
+# reference_window_ns:
+#   Integer nanoseconds. Default: 300000000000 (5 minutes).
+# levels:
+#   Non-empty mapping of named threshold levels. Applies to every symbol that
+#   does not define its own circuit_breaker section. Symbol-level
+#   circuit_breaker.levels entries merge over these defaults field by field.
+# levels.<NAME>.price_shift_pct:
+#   Required float in (0, 1). Halt triggers when a fill moves this far from
+#   the rolling reference price.
+# levels.<NAME>.halt_duration_ns:
+#   Positive integer nanoseconds, or null for a rest-of-day halt.
+#   Default: null. Built-in defaults: L1=300000000000 (5m), L2=900000000000
+#   (15m), L3=null.
+# levels.<NAME>.resumption_mode:
+#   AUCTION | CONTINUOUS. Default: AUCTION.
+#   AUCTION runs an uncross before returning to continuous matching.
+#   CONTINUOUS resumes matching immediately.
+#   Built-in default ladder: L1=7%/5m, L2=13%/15m, L3=20%/rest-of-day.
 #
 # gateways.alf entries
 # --------------------
@@ -199,6 +250,25 @@
 #   gateways exist, every configured symbol must define at least one quote seed.
 #   gateway_id must reference a configured MARKET_MAKER gateway.
 #
+# market_maker_quotes entries (under symbols.<SYM>.market_maker_quotes)
+# -----------------------------------------------------------------------
+# gateway_id:
+#   Required string. Uppercased. Must reference a MARKET_MAKER gateway.
+# quote_id:
+#   Optional string. Empty string is treated as absent; engine auto-generates.
+# bid_price / ask_price:
+#   Required numbers (display price). bid_price must be less than ask_price.
+#   Converted to integer ticks by the engine using tick_decimals.
+# bid_qty / ask_qty:
+#   Required positive integers.
+# tif:
+#   DAY | GTC | ATO | ATC. Default: DAY.
+#   Prefer DAY for seeds — GTC seeds can duplicate on restart if
+#   gtc_orders.json still contains the previous session's orders.
+# seed_once:
+#   Boolean. Default: true. When true, injection is skipped if
+#   book_stats.json already has history for this symbol.
+#
 # market_maker_combos entries
 # ---------------------------
 # combo_id:
@@ -210,6 +280,9 @@
 # legs:
 #   Required list with 2..10 entries. Symbols must be configured and unique
 #   within the combo.
+# leg.symbol:
+#   Required string. Must reference a configured symbol. Uppercased. Must be
+#   unique within the combo.
 # leg.side:
 #   BUY | SELL.
 # leg.order_type:
@@ -217,9 +290,11 @@
 # leg.quantity:
 #   Required integer quantity.
 # leg.price:
-#   Optional integer tick price used by priced order types.
+#   Optional integer tick price used by priced order types (LIMIT, STOP_LIMIT,
+#   FOK, ICEBERG, IOC). With tick_decimals: 2, display 209.50 = tick 20950.
 # leg.stop_price:
-#   Optional integer tick stop price used by stop order types.
+#   Optional integer tick stop price used by stop order types (STOP, STOP_LIMIT,
+#   TRAILING_STOP).
 # leg.smp_action:
 #   NONE | CANCEL_AGGRESSOR | CANCEL_RESTING | CANCEL_BOTH. Default: NONE.
 #
