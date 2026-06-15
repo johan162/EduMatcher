@@ -6,7 +6,7 @@
 
 > *No code. No fear. Just the concepts you need to understand the system you are building.*
 
-
+-----
 
 ### Preface
 
@@ -23,6 +23,8 @@ In other words, this document is an introduction to financial exchange systems a
 
 Johan Persson,
 July 2026, Järnboås, Bergslagen
+
+-----
 
 
 ### Table of Contents
@@ -122,7 +124,11 @@ Examine the engineering reality of exchanges at scale: deterministic engines, me
 
 ---
 
-In 1609, a Dutch merchant named Isaac Le Maire organised a consortium of traders to sell shares in the Dutch East India Company (VOC) that they did not yet own. The plan was to drive down the price and buy the shares back cheaply before delivery, the first recorded large-scale short selling operation in financial history. The scheme was brazen enough that the Amsterdam city council attempted to ban short selling the following year. The ban failed. Le Maire was undaunted: he had grasped something fundamental about financial markets that would take regulators centuries to fully accept. Markets are not just places where things are bought and sold. They are environments in which participants constantly probe the rules, exploit information asymmetries, and invent instruments to express views that the market has never had to handle before. The job of exchange infrastructure — the order books, the matching engines, the risk controls, and the audit trails, is to provide a fair, stable, and trustworthy arena for all of this to happen, without breaking when the participants are clever, aggressive, or occasionally reckless.
+!!! note "Historic Notes"
+
+    In 1609, a Dutch merchant named Isaac Le Maire organised a consortium of traders to sell shares in the Dutch East India Company (VOC) that they did not yet own. The plan was to drive down the price and buy the shares back cheaply before delivery, the first recorded large-scale short selling operation in financial history. The scheme was brazen enough that the Amsterdam city council attempted to ban short selling the following year. The ban failed. Le Maire was undaunted: he had grasped something fundamental about financial markets that would take regulators centuries to fully accept. Markets are not just places where things are bought and sold. They are environments in which participants constantly probe the rules, exploit information asymmetries, and invent instruments to express views that the market has never had to handle before. The job of exchange infrastructure — the order books, the matching engines, the risk controls, and the audit trails, is to provide a fair, stable, and trustworthy arena for all of this to happen, without breaking when the participants are clever, aggressive, or occasionally reckless.
+
+---
 
 Every section of this Part can be traced, directly or indirectly, back to what was happening in Amsterdam in 1602 when the VOC issued the world's first publicly traded shares. The primary market, the secondary market, the concept of equity, the vocabulary of long and short, the role of brokers, the need for a central marketplace — it was all there, in embryonic form, four centuries ago. Part I builds that foundation.
 
@@ -618,7 +624,12 @@ ASX serves the Australian equity and derivatives markets. It became notable in t
 
 ---
 
-In the summer of 1929, **Jesse Livermore** — then the most famous speculator in America began quietly selling short. He had been watching the tape for weeks, reading the continuous stream of prices and volumes that printed on the stock ticker, and he had seen something that troubled him: large blocks of stock were appearing at the top of rallies, absorbed by relentless selling pressure that the public could not see. The great bull market felt unstoppable, but the tape told a different story. Livermore increased his short positions through September and October. When the crash came in late October 1929, he made approximately $100 million, in 1929 dollars, in weeks [Reminiscences of a Stock Operator, Edwin Lefèvre, 1923].
+!!! note "Historic Notes"
+
+    In the summer of 1929, **Jesse Livermore** — then the most famous speculator in America began quietly selling short. He had been watching the tape for weeks, reading the continuous stream of prices and volumes that printed on the stock ticker, and he had seen something that troubled him: large blocks of stock were appearing at the top of rallies, absorbed by relentless selling pressure that the public could not see. The great bull market felt unstoppable, but the tape told a different story. Livermore increased his short positions through September and October. When the crash came in late October 1929, he made approximately $100 million, in 1929 dollars, in weeks [Reminiscences of a Stock Operator, Edwin Lefèvre, 1923].
+
+
+---
 
 Livermore did not know about matching engines, FIX protocols, or price-time priority. But he understood, intuitively and empirically, exactly what this entire Part formalises: that every trade is the intersection of a buyer's intent and a seller's intent, encoded in an order; that the order book is a record of unresolved intentions; that the sequence and size of fills reveals information about who is doing what; and that the rules governing when and how orders match determine the character of the market.
 
@@ -1650,9 +1661,13 @@ sequenceDiagram
 
 ---
 
-On the morning of 23 February 1995, Peter Baring, chairman of Barings Bank, called the Bank of England. The bank, founded in 1762, banker to the British royal family, and widely regarded as one of the most respected financial institutions in the world had a problem. One of its traders in Singapore, a 28-year-old named **Nick Leeson**, had accumulated positions in Nikkei 225 futures that nobody at headquarters knew about. The positions totalled approximately $7 billion in notional exposure. Leeson had hidden the losses in an error account numbered 88888, exploiting gaps in the firm's controls and the geographic distance between Singapore and London. When the 1995 Kobe earthquake sent Japanese equity markets sharply lower, Leeson's positions collapsed. Barings' total losses were £827 million. Three days after Peter Baring's phone call, the bank was placed in administration. It was eventually sold to ING for £1. The UK's oldest merchant bank had ceased to exist [Bank of England, February 1995].
+!!! note "Historic Notes"
+
+    On the morning of 23 February 1995, Peter Baring, chairman of Barings Bank, called the Bank of England. The bank, founded in 1762, banker to the British royal family, and widely regarded as one of the most respected financial institutions in the world had a problem. One of its traders in Singapore, a 28-year-old named **Nick Leeson**, had accumulated positions in Nikkei 225 futures that nobody at headquarters knew about. The positions totalled approximately $7 billion in notional exposure. Leeson had hidden the losses in an error account numbered 88888, exploiting gaps in the firm's controls and the geographic distance between Singapore and London. When the 1995 Kobe earthquake sent Japanese equity markets sharply lower, Leeson's positions collapsed. Barings' total losses were £827 million. Three days after Peter Baring's phone call, the bank was placed in administration. It was eventually sold to ING for £1. The UK's oldest merchant bank had ceased to exist [Bank of England, February 1995].
 
 Barings had pre-trade risk controls. They were simply not checking position limits at the firm level, not monitoring the error account's exposure, and not asking why a single trader in Singapore was generating such unusual patterns of activity.
+
+---
 
 Every section of Part III is, in some sense, the answer to the question: "What would have stopped Nick Leeson?" Pre-trade position limits would have flagged his accumulation. A firm-level kill switch, properly monitored, could have halted his trading. A drop copy feed to an independent risk team would have revealed the hidden positions. Regulatory surveillance would have detected the anomalous patterns. And the Knight Capital story at the end of this Part shows that a firm can implement all of these controls, and still fail — if a kill switch takes 45 minutes to operate when a system is running out of control.
 
@@ -2297,9 +2312,14 @@ Every requirement in the *Pre-Trade Risk Controls* section of this document, and
 
 ---
 
-In 1983, NASDAQ sent **Thomas Peterffy** a letter. Peterffy, a Hungarian-born engineer who had become a prolific options trader, had done something the exchange had never anticipated: he had wired a workstation terminal directly to a computer that automatically generated and submitted options orders based on his models. NASDAQ's rules required that a terminal be operated by a human hand. The letter demanded he comply.
+!!! note "Historic Notes"
 
-Peterffy's response was to hire a typist to sit at the keyboard and type the computer's output into the terminal as fast as the computer generated it. The absurdity lasted a few months before NASDAQ changed the rules to accommodate electronic order submission. Peterffy — who eventually founded Interactive Brokers and became a billionaire — had glimpsed the future of market infrastructure. Every exchange in the world is now built on exactly the principle that NASDAQ once tried to prohibit: automated, computer-generated orders, submitted at machine speed, processed by machine logic, without a human hand in the loop [Interactive Brokers company history].
+    In 1983, NASDAQ sent **Thomas Peterffy** a letter. Peterffy, a Hungarian-born engineer who had become a prolific options trader, had done something the exchange had never anticipated: he had wired a workstation terminal directly to a computer that automatically generated and submitted options orders based on his models. NASDAQ's rules required that a terminal be operated by a human hand. The letter demanded he comply.
+
+    Peterffy's response was to hire a typist to sit at the keyboard and type the computer's output into the terminal as fast as the computer generated it. The absurdity lasted a few months before NASDAQ changed the rules to accommodate electronic order submission. Peterffy — who eventually founded Interactive Brokers and became a billionaire — had glimpsed the future of market infrastructure. Every exchange in the world is now built on exactly the principle that NASDAQ once tried to prohibit: automated, computer-generated orders, submitted at machine speed, processed by machine logic, without a human hand in the loop [Interactive Brokers company history].
+
+---
+
 
 Part IV is the technical story of how that future was built. It covers the gateway that receives those automated orders, the matching engine that processes them in microseconds, the market data infrastructure that broadcasts results to thousands of subscribers simultaneously, and the resilience, latency, and operational systems that keep it all running twenty-four hours before the opening bell rings on the next trading day.
 
