@@ -288,7 +288,7 @@ At least one of `price` or `qty` must be present.
 
 Sent by a market-maker gateway to submit or replace a two-sided quote.
 Role requirements and MM obligation controls are documented in
-[Configuration - Role Privileges and Obligations](01-configuration.md#role-privileges-and-obligations).
+[Configuration - Role Privileges](01-configuration.md#role-privileges).
 
 | Field | Type | Description |
 |---|---|---|
@@ -527,7 +527,7 @@ gateways:
       disconnect_behaviour: CANCEL_QUOTES_ONLY
 ```
 
-See [Role Privileges and Obligations](01-configuration.md#role-privileges-and-obligations)
+See [Role Privileges](01-configuration.md#role-privileges)
 for the full permissions matrix.
 
 **Step 1 — connect the ADMIN gateway**

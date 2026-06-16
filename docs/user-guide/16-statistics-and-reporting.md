@@ -666,6 +666,6 @@ This calculates $\sum(price \times qty) / \sum(qty)$ from the trade log. Compare
 
 ## See Also
 
-- [Processes — pm-stats and pm-stats-cli](10-processes.md#pm-stats--statistics-recorder) — full process documentation
-- [Processes — pm-ticker](10-processes.md#pm-ticker--scrolling-market-ticker) — live ticker that uses statistics data
+- [Processes — pm-stats and pm-stats-cli](10-processes.md#pm-stats-statistics-recorder) — full process documentation
+- [Processes — pm-ticker](10-processes.md#pm-ticker-scrolling-market-ticker) — live ticker that uses statistics data
 - [Persistence](11-persistence.md) — where all data files are stored

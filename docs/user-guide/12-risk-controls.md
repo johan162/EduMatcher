@@ -98,7 +98,7 @@ rejected (both sides).
 
 Quote eligibility by participant role (for example, `MARKET_MAKER` vs
 `TRADER`) is described in
-[Configuration - Role Privileges and Obligations](01-configuration.md#role-privileges-and-obligations).
+[Configuration - Role Privileges](01-configuration.md#role-privileges).
 
 ### Interaction with auctions
 
@@ -482,7 +482,7 @@ gateways:
 The gateway connects to the engine via the standard PUSH socket (port 5555) and
 subscribes to the PUB socket (port 5556) to receive ack messages.
 
-See [Role Privileges and Obligations](01-configuration.md#role-privileges-and-obligations)
+See [Role Privileges](01-configuration.md#role-privileges)
 for the full permissions matrix.
 
 

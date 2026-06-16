@@ -13,6 +13,7 @@ exclude_docs: |
   package.json
   package-lock.json
   mermaid-filter.err
+  README.md
 
 theme:
   name: material
