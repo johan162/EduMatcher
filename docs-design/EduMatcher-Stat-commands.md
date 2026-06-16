@@ -1,4 +1,4 @@
-Version: 1.0.0
+Version: 1.1.0
 
 Date: 2026-06-14
 
@@ -21,6 +21,7 @@ Status: Design and Research Proposal
 9. [Documentation Changes](#9-documentation-changes)
 10. [Testing Guide](#10-testing-guide)
 11. [Acceptance Checklist](#11-acceptance-checklist)
+12. [Wider Analytics Extension for `pm-stats`](#12-wider-analytics-extension-for-pm-stats)
 
 
 
@@ -163,7 +164,7 @@ All subcommands should support these global flags:
 |---|---|---|
 | `--db` | `src/data/stats.db` | Path to the SQLite database |
 | `--format` | `table` | Output format: `table`, `json`, or `csv` |
-| `--no-header` | off | Suppress header row for `csv` and compact table output |
+| `--no-header` | off | Suppress header row for `csv` output and any compact table mode if added later |
 | `--limit` | command-specific | Maximum rows returned |
 
 `table` is for humans on a terminal. `json` and `csv` are for shell scripts, export,
@@ -180,6 +181,8 @@ poetry run pm-stats-cli daily [--date YYYY-MM-DD] [--symbol AAPL] [--limit 100]
 Behaviour:
 
 - If `--date` is omitted, use the **latest available date** in `daily_stats`.
+- `--date` always refers to the server-local trading date used by `pm-stats`
+  when it rolls daily aggregates into `daily_stats`.
 - If `--symbol` is omitted, show all symbols for the selected date.
 - Rows are ordered by `date DESC, symbol ASC`.
 - Default columns:
@@ -303,6 +306,9 @@ Behaviour:
 - If `--date` is omitted, list symbols seen anywhere in the DB.
 - If `--date` is supplied, list symbols that have data on that date.
 - Output is ordered alphabetically.
+- `symbols` should derive from the union of symbol values present in the
+  statistics tables so discovery stays useful even if one table is temporarily
+  sparse.
 
 Examples:
 
@@ -324,6 +330,8 @@ Behaviour:
 - If `--symbol` is omitted, show all distinct dates in `daily_stats`.
 - If `--symbol` is provided, show only dates available for that symbol.
 - Output is ordered descending so the newest date appears first.
+- `dates` should use `daily_stats` as the canonical source of trading dates,
+  because it is the table that represents the daily summary row.
 
 Examples:
 
@@ -573,3 +581,52 @@ following are true:
 - `symbols` and `dates` remove the need for discovery SQL.
 - Output works in `table`, `json`, and `csv` formats.
 - The user guide documents the new CLI as the preferred way to inspect statistics data.
+
+
+
+## 12. Wider Analytics Extension for `pm-stats`
+
+The current `pm-stats` tables are enough for the common operational queries
+covered by this proposal. They answer the basic questions operators usually ask:
+what traded, when it traded, and how the market moved intraday.
+
+For broader analytics, the next step should be to extend `pm-stats` with a few
+additional summaries that are still cheap to compute from the existing event
+stream.
+
+### 12.1 Additional statistics worth recording
+
+- Order activity by symbol and gateway: submitted, accepted, rejected, cancelled,
+  expired, and filled counts
+- Cancel ratios and fill ratios by gateway and by symbol
+- Top-of-book spread history and best-bid/best-ask depth at the time of each
+  snapshot
+- Book imbalance metrics such as bid-vs-ask quantity at the inside market
+- Session and halt history, including phase transitions and breaker-triggered
+  halts/resumes
+- Market-maker quote health, including quote freshness, duty coverage, and
+  spread compliance over time
+- Last trade timestamp and last book-update timestamp per symbol for easy
+  staleness checks
+
+### 12.2 Suggested future tables
+
+If EduMatcher grows beyond the current classroom and demo workflows, the
+statistics database could add these derived tables:
+
+| Table | Purpose |
+|---|---|
+| `order_activity_stats` | Per-day order lifecycle counts by symbol and gateway |
+| `book_depth_snapshots` | Top-of-book spread and depth history |
+| `session_events` | Scheduled and manual session transitions |
+| `halt_events` | Circuit-breaker and manual halt/resume history |
+| `gateway_activity_stats` | Gateway participation, fills, and rejection ratios |
+| `mm_quote_health` | Market-maker quote freshness and compliance summaries |
+
+### 12.3 How that affects the CLI design
+
+Those future tables would justify adding new read-only subcommands such as
+`orders`, `depth`, `halts`, or `gateways` to `pm-stats-cli`. The current
+proposal does not require them, but the CLI surface should remain open to that
+kind of extension so the statistics tooling can evolve without exposing raw SQL
+again.
