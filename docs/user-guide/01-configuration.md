@@ -4,6 +4,7 @@
     After reading this page you will understand:
 
     - Which `engine_config.yaml` sections are required when a config file exists
+    - How to generate a starter config with `pm-config-gen`
     - Which fields the current engine and scheduler parsers recognize
     - How to configure symbols, gateways, risk controls, market-maker seeds, combo seeds, and schedules
     - How to choose between minimal, medium, and fully featured configurations
@@ -71,6 +72,211 @@ The engine and scheduler handle missing config differently:
 Unrestricted engine mode means there is no symbol allowlist, no gateway
 allowlist, no configured risk levels, no seeded last prices, no seeded
 market-maker quotes, and no configured startup combos.
+
+
+## Generate Configs with `pm-config-gen`
+
+`pm-config-gen` creates a parser-compatible `engine_config.yaml` from concise
+CLI inputs. It is designed for operators and instructors who want to bootstrap
+new sessions without manually writing large YAML blocks.
+
+Use it when:
+
+- you are creating a new class/demo config from scratch
+- you want consistent defaults and validation hints
+- you need repeatable config generation in scripts
+
+### Quick start
+
+Installed mode:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT \
+  --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --sessions-enabled \
+  --output engine_config.yaml
+```
+
+Poetry/source mode:
+
+```bash
+poetry run pm-config-gen \
+  --symbols AAPL MSFT \
+  --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --sessions-enabled \
+  --output engine_config.yaml
+```
+
+Print to stdout only (no file write):
+
+```bash
+pm-config-gen --symbols AAPL --gateways TRADER01 --dry-run
+```
+
+### Important behavior
+
+- If `--output` is omitted, YAML is printed to stdout.
+- If `--output` exists, generation fails unless `--force` is set.
+- If any gateway is `MARKET_MAKER`, MM quote stubs are emitted with
+  `bid_price: null` and `ask_price: null`. Fill these values before starting
+  `pm-engine`.
+- Loader validation is automatically run only when no MM gateways are present
+  (MM stubs are intentionally null and would fail strict quote checks).
+
+### Option reference
+
+Required inputs:
+
+| Option | Type | Description |
+|---|---|---|
+| `--symbols SYM [SYM ...]` | Repeatable tokens | Symbol universe (uppercased on parse) |
+| `--gateways GW_SPEC [GW_SPEC ...]` | Repeatable tokens | Gateway specs as `ID[:ROLE[:DISCONNECT]]` |
+
+Session and schedule options:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--sessions-enabled` / `--no-sessions-enabled` | Flag pair | `false` | Enable/disable scheduler-driven sessions |
+| `--schedule` / `--no-schedule` | Flag pair | auto | Force include/exclude `schedule`; auto emits when sessions are enabled |
+| `--pre-open HH:MM` | String | `09:00` | Schedule pre-open time |
+| `--opening-auction HH:MM` | String | `09:25` | Opening auction start |
+| `--continuous HH:MM` | String | `09:30` | Continuous start |
+| `--closing-auction HH:MM` | String | `16:00` | Closing auction start |
+| `--closing-end HH:MM` | String | `16:05` | Closing auction end |
+
+Core engine and risk options:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--snapshot-interval SECS` | float (`> 0`) | `0.5` | `snapshot_interval_sec` |
+| `--no-collars` | Flag | off | Emit `enforce_collars: false` |
+| `--no-circuit-breakers` | Flag | off | Emit `enforce_circuit_breakers: false` |
+| `--static-band PCT` | float in `(0,1)` | unset | Default risk-control static band (`DEFAULT` level) |
+| `--dynamic-band PCT` | float in `(0,1)` | unset | Default risk-control dynamic band (`DEFAULT` level) |
+| `--risk-level NAME:STATIC[:DYNAMIC]` | Repeatable | none | Add named risk levels under `risk_controls.levels` |
+| `--cb-levels NAME:SHIFT[:HALT_MINS] ...` | List | built-in ladder | Circuit-breaker level specs |
+| `--cb-window-ns NS` | int (`> 0`) | `300000000000` | Circuit-breaker reference window |
+
+Market-maker and symbol defaults:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--mm-spread-ticks N` | int (`> 0`) | `20` | Global MM spread threshold |
+| `--mm-min-qty N` | int (`> 0`) | `100` | Global MM min quantity |
+| `--enforce-mm-obligations` / `--no-enforce-mm-obligations` | Flag pair | `false` | Global MM obligation toggle |
+| `--tick-decimals N` | int `0..8` | `2` | Default `tick_decimals` for symbols |
+| `--seed-last-prices` | Flag | off | Emit `last_buy_price`/`last_sell_price` placeholders |
+
+Output and safety options:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--output FILE` | Path | none | Write YAML to file |
+| `--force` | Flag | off | Overwrite existing output file |
+| `--dry-run` | Flag | off | Print YAML only; do not write file |
+
+### `--gateways` format
+
+Each gateway token is:
+
+```text
+ID[:ROLE[:DISCONNECT]]
+```
+
+Examples:
+
+- `TRADER01`
+- `MM01:MARKET_MAKER`
+- `OPS01:ADMIN:LEAVE_ALL`
+
+Role defaults for disconnect behavior:
+
+| Role | Default disconnect behavior |
+|---|---|
+| `TRADER` | `CANCEL_ALL` |
+| `MARKET_MAKER` | `CANCEL_QUOTES_ONLY` |
+| `ADMIN` | `LEAVE_ALL` |
+
+### `--symbol-opts` format
+
+Use `--symbol-opts` for per-symbol overrides:
+
+```text
+SYMBOL:KEY=VALUE[,KEY=VALUE,...]
+```
+
+Example:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT \
+  --gateways TRADER01 MM01:MARKET_MAKER \
+  --symbol-opts AAPL:tick_decimals=2,level=L1,mm_spread_ticks=8 \
+  --symbol-opts MSFT:dynamic_band=0.03,cb_halt_l1=10
+```
+
+Supported `KEY` values:
+
+| Key | Value type | Effect |
+|---|---|---|
+| `tick_decimals` | int `0..8` | Override symbol tick precision |
+| `static_band` | float `(0,1)` | Symbol collar static band |
+| `dynamic_band` | float `(0,1)` | Symbol collar dynamic band |
+| `cb_shift_l1` / `cb_shift_l2` / `cb_shift_l3` | float `(0,1)` | Override CB level shift pct |
+| `cb_halt_l1` / `cb_halt_l2` / `cb_halt_l3` | int `>= 0` minutes | Override CB halt duration (`0` means rest-of-day) |
+| `level` | string | Symbol risk level key |
+| `mm_spread_ticks` | int `> 0` | Symbol MM spread threshold |
+| `mm_min_qty` | int `> 0` | Symbol MM minimum quantity |
+
+Unknown symbols/keys or invalid values in `--symbol-opts` are reported as
+warnings and ignored.
+
+### Practical recipes
+
+Minimal classroom config:
+
+```bash
+pm-config-gen \
+  --symbols AAPL \
+  --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --no-sessions-enabled \
+  --output engine_config.yaml
+```
+
+Session-driven day with risk levels and CB ladder:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT TSLA \
+  --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --sessions-enabled \
+  --risk-level L1:0.30:0.05 \
+  --risk-level L2:0.20:0.02 \
+  --cb-levels L1:0.07:5 L2:0.13:15 L3:0.20 \
+  --output engine_config.yaml
+```
+
+Market-maker session (requires manual quote prices after generation):
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT \
+  --gateways TRADER01 MM01:MARKET_MAKER OPS01:ADMIN \
+  --sessions-enabled \
+  --enforce-mm-obligations \
+  --seed-last-prices \
+  --output engine_config.yaml
+```
+
+After generation, validate manually:
+
+```bash
+poetry run python -c 'from pathlib import Path; from edumatcher.engine.config_loader import load_engine_config; print(load_engine_config(Path("engine_config.yaml")))'
+```
+
+If MM gateways are present, fill all `market_maker_quotes` prices first, then
+run the validation command.
 
 
 ## Current Schema

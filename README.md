@@ -17,6 +17,22 @@ matching logic, and exchange architecture through runnable code.
 
 Unlike toy examples, it is designed to be both understandable and fast.
 
+## Quick Start
+
+Bootstrap a new session directory and either generate `engine_config.yaml`
+with sane defaults, or start from the sample config copied by `pm-setup`:
+
+```bash
+pm-setup
+pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --sessions-enabled --output engine_config.yaml
+pm-engine --verbose
+```
+
+Alternative: skip `pm-config-gen` and edit the sample `engine_config.yaml`
+that `pm-setup` already placed in your working directory.
+
+If you run from source, prefix commands with `poetry run`.
+
 ## Why EduMatcher?
 
 - Real exchange mechanics: order books, auctions, clearing, and risk controls

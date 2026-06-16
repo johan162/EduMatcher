@@ -6,6 +6,7 @@
     - What EduMatcher is and what you can do with it
     - The minimum steps to start an exchange and execute your first trade
     - What each process does and when to start it
+    - How to quickly bootstrap a new `engine_config.yaml` with `pm-config-gen`
     - Which sections to read next based on your role
 
 
@@ -108,6 +109,22 @@ After reloading your shell, every `pm-*` command picks up the right data
 directory automatically — no flags needed.
 
 **Edit the config, then start trading**
+
+If you prefer generating a starter config instead of manually writing YAML:
+
+```bash
+pm-config-gen \
+    --symbols AAPL MSFT \
+    --gateways TRADER01 TRADER02 OPS01:ADMIN \
+    --sessions-enabled \
+    --output engine_config.yaml
+```
+
+Then edit any remaining details and start the engine.
+
+For full generator details (all flags, `--symbol-opts`, MM quote stubs,
+validation hints, and recipes), see
+[Configuration](01-configuration.md#generate-configs-with-pm-config-gen).
 
 ```bash
 # Edit the sample config that pm-setup copied into your directory
@@ -454,6 +471,7 @@ Use the table below to decide what to read based on your goal.
 ## See also
 
 - [Configuration](01-configuration.md) — full `engine_config.yaml` reference
+- [Configuration generator](01-configuration.md#generate-configs-with-pm-config-gen) — build `engine_config.yaml` from CLI flags
 - [Running the Engine](03-running-the-engine.md) — detailed startup, monitoring, and troubleshooting
 - [Gateway Commands](08-gateway.md) — complete command reference for participants
 - [Order Types](04-order-types.md) — LIMIT, MARKET, STOP, ICEBERG, TRAILING_STOP, OCO, COMBO

@@ -151,6 +151,19 @@ pipx install edumatcher
 pm-setup
 ```
 
+After `pm-setup`, choose one config bootstrap path:
+
+```bash
+# Option A: generate a fresh config from CLI flags
+pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --sessions-enabled --output engine_config.yaml
+
+# Option B: start from the sample file copied by pm-setup
+# and edit engine_config.yaml in place
+```
+
+For full generator options, see
+[Configuration](user-guide/01-configuration.md#generate-configs-with-pm-config-gen).
+
 **Developer mode (Poetry)**
 
 ```bash
