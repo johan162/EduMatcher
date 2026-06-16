@@ -126,7 +126,7 @@ current state rather than waiting for the next change.
 
 ## Process Overview
 
-A complete EduMatcher session uses **ten core runtime processes** across three categories, plus optional AI trader and admin entrypoints.
+A complete EduMatcher session uses **ten core runtime processes** across three categories, plus optional AI trader, admin, and setup/config entrypoints.
 
 !!! info "Why `pm-`?"
     All CLI commands share the `pm-` prefix, short for **Process for Matching**.
@@ -194,6 +194,13 @@ pm-engine --verbose
 | **pm-admin** | `pm-admin` | Interactive admin console | No |
 | **pm-admin-cli** | `pm-admin-cli <command>` | One-shot CLI admin commands | No |
 
+**Setup and configuration tools:**
+
+| Process | Command | Role | Required? |
+|---------|---------|------|-----------|
+| **pm-setup** | `pm-setup` | Bootstrap working directory and runtime files | Recommended first run |
+| **pm-config-gen** | `pm-config-gen [options]` | Generate `engine_config.yaml` from CLI options | Optional |
+
 **Optional AI trader tools:**
 
 | Process | Command | Role | Required? |
@@ -206,6 +213,30 @@ pm-engine --verbose
     sockets.  If a process starts before the engine is ready, it will either fail
     immediately or silently lose its first messages.
 
+!!! tip "Recommended startup sequence"
+     For a deterministic first run, use this order:
+
+     1. Bootstrap session files:
+         ```bash
+         pm-setup
+         ```
+     2. Generate a config (or reuse/edit the sample config):
+         ```bash
+         pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --sessions-enabled --output engine_config.yaml
+         ```
+     3. Start the engine first:
+         ```bash
+         pm-engine --verbose
+         ```
+     4. Start one or more gateways:
+         ```bash
+         pm-gateway --id TRADER01
+         pm-gateway --id TRADER02
+         ```
+     5. Start optional observers/tools as needed (`pm-board`, `pm-viewer`,
+         `pm-audit --terminal`, `pm-stats`, `pm-clearing`, `pm-ticker`,
+         `pm-scheduler`).
+
 
 
 ## pm-engine — Matching Engine
@@ -216,10 +247,16 @@ The heart of the system — receives orders, matches them, publishes events.
 pm-engine [--verbose] [--config engine_config.yaml]
 ```
 
+**Startup options:**
+
 | Flag | Description |
 |------|-------------|
 | `--verbose` / `-v` | Print each order received and trade produced to stdout |
 | `--config` / `-c` | Path to engine config YAML (default: `engine_config.yaml`) |
+
+**Expected runtime input arguments:**
+
+None. `pm-engine` is a long-running background process after startup.
 
 **Startup behaviour**:
 1. Creates `data/` directory if needed
@@ -296,9 +333,19 @@ See [ALF Protocol Reference](20-app-alf-protocol.md).
 pm-gateway --id <GW_ID>
 ```
 
+**Startup options:**
+
 | Flag | Required | Description |
 |------|----------|-------------|
 | `--id` | Yes | Unique gateway identifier (e.g. `GW01`, `ALICE`) |
+
+**Expected runtime input arguments:**
+
+- `NEW|...` order-entry commands (including `LIMIT`, `MARKET`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP`)
+- `AMEND|...`, `CANCEL|...`
+- `QUOTE|...`, `QUOTE_CANCEL|...`
+- `ORDERS`, `SYMBOLS`, `HELP`, `EXIT`, `QUIT`
+- `KILL|...` for gateway-scoped kill-switch actions
 
 **Connection behaviour**:
 1. Sends `system.gateway_connect` to the engine
@@ -353,10 +400,16 @@ Live terminal view of a single symbol's order book.
 pm-viewer --symbol AAPL [--depth 10]
 ```
 
+**Startup options:**
+
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--symbol` / `-s` | required | Symbol to watch |
 | `--depth` / `-d` | 10 | Number of price levels to show per side |
+
+**Expected runtime input arguments:**
+
+None.
 
 **Display**:
 - Left panel: top-N **bid** levels (price, total qty, number of orders)
@@ -400,9 +453,15 @@ Live cross-gateway view of all orders in the system.
 pm-orders [--gateway GW01]
 ```
 
+**Startup options:**
+
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--gateway` / `-g` | (all) | Filter to a single gateway |
+
+**Expected runtime input arguments:**
+
+None.
 
 Displays a live table with columns:
 `ID | Gateway | Symbol | Side | Type | TIF | Qty | Remaining | Price | Status | Updated`
@@ -427,10 +486,16 @@ Records every message on the bus to a rotating log file.
 pm-audit [--log-file data/audit.log] [--terminal]
 ```
 
+**Startup options:**
+
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--log-file` | `data/audit.log` | Output log file path |
 | `--terminal` / `-t` | off | Also print each entry to stdout |
+
+**Expected runtime input arguments:**
+
+None.
 
 **Log format** (one entry per line):
 ```
@@ -457,6 +522,14 @@ Records all trades and tracks running P&L per user per symbol.
 ```bash
 pm-clearing
 ```
+
+**Startup options:**
+
+No startup flags.
+
+**Expected runtime input arguments:**
+
+None.
 
 No flags required. Outputs:
 - Inline trade confirmation for each `trade.executed` event
@@ -486,9 +559,15 @@ Records market statistics for every symbol to a SQLite database (`data/stats.db`
 pm-stats [--db data/stats.db]
 ```
 
+**Startup options:**
+
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--db` | `data/stats.db` | SQLite database file path |
+
+**Expected runtime input arguments:**
+
+None.
 
 **Subscriptions:**
 
@@ -641,11 +720,17 @@ engine at configured wall-clock times.
 pm-scheduler [--config engine_config.yaml] [--now] [--delay 3]
 ```
 
+**Startup options:**
+
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--config` / `-c` | `engine_config.yaml` | Config file containing the `schedule` section |
 | `--now` | off | Skip wall-clock waiting; send all transitions immediately with a delay between each |
 | `--delay` | 3 | Seconds between transitions in `--now` mode |
+
+**Expected runtime input arguments:**
+
+None.
 
 **Messages sent** (PUSH → :5555):
 
@@ -669,11 +754,17 @@ containing all active symbols with live prices, OHLCV, and bid/ask spreads.
 pm-ticker [--interval 30] [--db data/stats.db] [--db-interval 900]
 ```
 
+**Startup options:**
+
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--interval` | 30 | Seconds between printed ticker lines |
 | `--db` | `data/stats.db` | Path to the statistics SQLite database |
 | `--db-interval` | 900 | Seconds between daily_stats DB re-queries (15 min) |
+
+**Expected runtime input arguments:**
+
+None.
 
 **Output format** (one line per interval, scrolls up naturally):
 
@@ -719,10 +810,17 @@ Shows all active symbols in a single paged table with exchange-style colouring.
 pm-board [--rows 8] [--interval 10]
 ```
 
+**Startup options:**
+
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--rows` / `-r` | 8 | Maximum number of symbols (rows) displayed per page |
 | `--interval` / `-i` | 10 | Seconds before auto-rotating to the next page |
+
+**Expected runtime input arguments:**
+
+- ++enter++ to advance to the next page immediately
+- ++ctrl+c++ to exit
 
 **Controls:**
 
@@ -776,17 +874,68 @@ auto-rotate interval, and the current clock time.
     ```
     The board auto-discovers symbols as they become active — no configuration needed.
 
-## Optional AI trader tools
+## pm-ai-trader — Autonomous Trader Bot
 
-EduMatcher ships two AI-focused entrypoints that connect to the bus as
-ordinary gateway producers:
+Runs one autonomous trading gateway with a selectable behaviour profile.
 
-| Process | Command | Role |
-|---------|---------|------|
-| **pm-ai-trader** | `pm-ai-trader` | Single automated trader using the gateway interface |
-| **pm-ai-swarm** | `pm-ai-swarm` | Multi-agent trading swarm / orchestration entrypoint |
+```bash
+pm-ai-trader --id AI01 [options]
+```
 
-See [AI Bot Traders](../developer/02-ai-bot.md) for configuration and runtime details.
+**Startup options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--id` | required | Gateway ID used by the bot (e.g. `AI01`) |
+| `--profile` | `cautious` | Personality profile (`available_profiles()` set) |
+| `--symbols` | empty | Comma-separated symbol allowlist (e.g. `AAPL,MSFT`) |
+| `--seed` | `1` | RNG seed for deterministic behaviour |
+| `--duration` | `0` | Runtime in seconds; `0` means run until stopped |
+| `--run-id` | autogenerated | Optional run label for audit/traceability |
+| `--max-position` | `1000` | Absolute per-symbol position limit |
+| `--max-rejects` | `25` | Reject threshold before cooldown breaker trips |
+| `--reject-window` | `10.0` | Rolling reject window in seconds |
+| `--reject-cooldown` | `5.0` | Pause interval after reject breaker trips |
+| `--stale-data` | `4.0` | Max market-data age (seconds) before pausing orders |
+
+**Expected runtime input arguments:**
+
+None.
+
+
+
+## pm-ai-swarm — Multi-Bot Launcher
+
+Launches and supervises multiple `pm-ai-trader` bots as a coordinated swarm.
+
+```bash
+pm-ai-swarm [options]
+```
+
+**Startup options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--count` | `10` | Number of bot processes to launch |
+| `--prefix` | `AI` | Gateway-ID prefix |
+| `--start-index` | `1` | First numeric suffix for generated IDs |
+| `--profiles` | all profiles | Comma-separated profile cycle |
+| `--symbols` | from config | Comma-separated symbol list override |
+| `--config` | `engine_config.yaml` | Config used to discover symbols |
+| `--seed-base` | `1000` | Base seed; bot `i` gets `seed-base + i` |
+| `--duration` | `60.0` | Per-bot runtime in seconds |
+| `--python` | current interpreter | Python executable used for child processes |
+| `--max-position` | `1000` | Passed through to child bots |
+| `--max-rejects` | `25` | Passed through to child bots |
+| `--reject-window` | `10.0` | Passed through to child bots |
+| `--reject-cooldown` | `5.0` | Passed through to child bots |
+| `--stale-data` | `4.0` | Passed through to child bots |
+
+**Expected runtime input arguments:**
+
+None.
+
+See [AI Bot Traders](../developer/02-ai-bot.md) for strategy and orchestration details.
 
 
 
@@ -796,12 +945,28 @@ An interactive REPL for sending operational commands to a running engine without
 needing a full gateway session.
 
 ```bash
-pm-admin
+pm-admin --id <ADMIN_GW_ID>
 ```
 
-No flags required. On launch the console connects to the engine and presents a
-prompt. Supported commands include kill-switch, circuit-breaker halt/resume,
-and other operational controls.
+**Startup options:**
+
+| Flag | Required | Description |
+|---|---|---|
+| `--id` | Yes | ADMIN gateway ID configured in `engine_config.yaml` (e.g. `GW_ADMIN`) |
+
+**Expected runtime input arguments:**
+
+- `HALT`, `RESUME`
+- `HALT_SYM|SYM=<sym>`, `RESUME_SYM|SYM=<sym>`, `CANCEL_SYM|SYM=<sym>`
+- `KILL|GW=<gw>[|SYM=<sym>]`
+- `KICK|GW=<gw>[|REASON=<text>]`
+- `QCANCEL|GW=<gw>|SYM=<sym>`
+- `BOOK|SYM=<sym>`
+- `ORDERS|GW=<gw>`
+- `SYMBOLS`
+- `SESSION|STATE=<PRE_OPEN|OPENING_AUCTION|CONTINUOUS|CLOSING_AUCTION|CLOSED>`
+- `SESSION_STATUS`, `SCHEDULE`, `GATEWAYS`, `VOLUME`
+- `HELP`, `EXIT`, `QUIT`
 
 **Messages sent** (PUSH → :5555):
 
@@ -831,8 +996,126 @@ pm-admin-cli <command> [options]
 ```
 
 Each invocation sends one command to the engine, waits for an acknowledgement,
-prints the result, and exits. Suitable for use in shell scripts and CI
-automation.
+prints the result, and exits. Suitable for shell scripts and CI automation.
+
+**Startup options:**
+
+| Flag | Required | Description |
+|---|---|---|
+| `--id <GW_ID>` | Yes | ADMIN gateway ID |
+| `--push <ADDR>` | No | Engine PULL address (default from config) |
+| `--sub <ADDR>` | No | Engine PUB address (default from config) |
+| `--timeout <MS>` | No | Ack timeout in milliseconds (default: `3000`) |
+
+**Expected runtime input arguments:**
+
+Subcommands and required arguments:
+
+| Command | Required arguments | Optional arguments | Purpose |
+|---|---|---|---|
+| `halt` | none | none | Exchange-wide halt |
+| `resume` | none | none | Exchange-wide resume |
+| `halt-sym` | `--sym <SYMBOL>` | none | Halt one symbol |
+| `resume-sym` | `--sym <SYMBOL>` | none | Resume one symbol |
+| `cancel-sym` | `--sym <SYMBOL>` | none | Cancel all resting orders on one symbol |
+| `kill` | `--gw <GW_ID>` | `--sym <SYMBOL>` | Cancel all (or symbol-scoped) orders/quotes for gateway |
+| `kick` | `--gw <GW_ID>` | `--reason <TEXT>` | Disconnect a gateway |
+| `qcancel` | `--gw <GW_ID> --sym <SYMBOL>` | none | Cancel active quote for gateway on symbol |
+| `book` | `--sym <SYMBOL>` | none | Fetch book snapshot |
+| `orders` | `--gw <GW_ID>` | none | List resting orders for gateway |
+| `symbols` | none | none | List configured instruments |
+| `session` | `--state <STATE>` | none | Request session transition |
+| `session-status` | none | none | Read current session state |
+| `schedule` | none | none | Read configured schedule |
+| `gateways` | none | none | List gateway states |
+| `volume` | none | none | Show daily volume summary |
+
+
+
+## pm-setup — Session Bootstrap Tool
+
+Bootstraps a runnable EduMatcher session directory with sensible defaults.
+
+```bash
+pm-setup
+```
+
+**Startup options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--data-dir <PATH>` | `$EDUMATCHER_DATA_DIR` or `~/.local/share/edumatcher` | Data directory for persistent files |
+| `--config-dest <PATH>` | `./engine_config.yaml` | Destination path for copied sample config |
+| `--force` | off | Overwrite existing config destination |
+| `--no-config` | off | Skip sample config copy; create data dir only |
+
+**Expected runtime input arguments:**
+
+None.
+
+Typical actions include creating/confirming data directories and placing sample
+configuration files so first-time startup is repeatable.
+
+Use this once per new environment (VM, container volume, or fresh local
+workspace) before starting runtime processes.
+
+This tool is local bootstrap logic and does not participate in the ZeroMQ
+runtime message bus.
+
+
+
+## pm-config-gen — Engine Config Generator
+
+Generates an `engine_config.yaml` from explicit CLI parameters so environments
+can be recreated without manual YAML editing.
+
+```bash
+pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --sessions-enabled --output engine_config.yaml
+```
+
+**Startup options:**
+
+| Flag | Required | Default | Description |
+|---|---|---|---|
+| `--symbols <SYM ...>` | Yes | — | One or more symbols |
+| `--gateways <GW_SPEC ...>` | Yes | — | One or more gateway specs (`ID[:ROLE[:DISCONNECT]]`) |
+| `--symbol-opts <SPEC>` | No | repeatable | Per-symbol overrides (`SYMBOL:KEY=VALUE,...`) |
+| `--sessions-enabled` / `--no-sessions-enabled` | No | disabled | Enable/disable scheduler-driven sessions |
+| `--snapshot-interval <SECS>` | No | default | Snapshot interval in seconds (>0) |
+| `--no-collars` | No | off | Disable collar enforcement |
+| `--no-circuit-breakers` | No | off | Disable circuit-breaker enforcement |
+| `--static-band <PCT>` | No | unset | Default static band in `(0,1)` |
+| `--dynamic-band <PCT>` | No | unset | Default dynamic band in `(0,1)` |
+| `--risk-level <SPEC>` | No | repeatable | `NAME:STATIC_PCT[:DYNAMIC_PCT]` |
+| `--cb-levels <CB_SPEC ...>` | No | unset | `NAME:SHIFT_PCT[:HALT_MINS]` entries |
+| `--cb-window-ns <NS>` | No | default | Circuit-breaker reference window |
+| `--mm-spread-ticks <N>` | No | default | Global MM max spread ticks |
+| `--mm-min-qty <N>` | No | default | Global MM minimum quote qty |
+| `--enforce-mm-obligations` / `--no-enforce-mm-obligations` | No | disabled | Enable/disable MM obligations |
+| `--tick-decimals <N>` | No | default | Default tick decimals (`0..8`) |
+| `--seed-last-prices` | No | off | Emit null `last_buy_price`/`last_sell_price` placeholders |
+| `--schedule` / `--no-schedule` | No | auto | Force include/suppress schedule section |
+| `--pre-open <HH:MM>` | No | default | Pre-open schedule time |
+| `--opening-auction <HH:MM>` | No | default | Opening auction start time |
+| `--continuous <HH:MM>` | No | default | Continuous trading start time |
+| `--closing-auction <HH:MM>` | No | default | Closing auction start time |
+| `--closing-end <HH:MM>` | No | default | Closing auction end time |
+| `--output <FILE>` | No | stdout mode | Output path |
+| `--force` | No | off | Overwrite existing output file |
+| `--dry-run` | No | off | Print generated YAML only; do not write file |
+
+**Expected runtime input arguments:**
+
+None.
+
+Use cases:
+
+- Generate consistent configs across multiple machines.
+- Create deterministic demo/test environments quickly.
+- Avoid hand-editing errors in gateway/symbol/session configuration.
+
+Like `pm-setup`, this is a local tooling command and does not subscribe/publish
+on the runtime ZeroMQ sockets.
 
 
 

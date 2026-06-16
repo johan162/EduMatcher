@@ -193,6 +193,51 @@ over both the environment variable and the default.
 
 
 
+## PM command family overview
+
+Use these tables as a quick index for every `pm-` entry point currently
+documented. All commands are shown in pipx form; in developer mode prepend
+`poetry run`. All `pm-` processes/utilities are decribed in [Processes](10-processes.md)
+
+### Runtime processes (runnable)
+
+| Command | Interactivity | Purpose | More information |
+|---|---|---|---|
+| `pm-engine` | Background | Matching engine; central order-book writer | [Processes](10-processes.md), [Running the Engine](03-running-the-engine.md), [Configuration](01-configuration.md) |
+| `pm-gateway` | Interactive terminal | ALF participant terminal and order entry | [Processes](10-processes.md), [Gateway](08-gateway.md), [ALF Protocol](20-app-alf-protocol.md) |
+| `pm-scheduler` | Background | Session phase transitions by schedule | [Processes](10-processes.md), [Auctions and Scheduling](06-auctions-scheduling.md) |
+| `pm-viewer` | Terminal display | Single-symbol live order book view | [Processes](10-processes.md), [Order Book and Matching](04-order-book-and-matching.md) |
+| `pm-orders` | Terminal display | Live cross-gateway order status monitor | [Processes](10-processes.md), [Messages](09-messages.md) |
+| `pm-board` | Terminal display | Multi-symbol market board display | [Processes](10-processes.md) |
+| `pm-ticker` | Terminal display | Scrolling ticker with live plus OHLCV context | [Processes](10-processes.md), [Statistics](12-statistics.md) |
+| `pm-stats` | Background | Persist market statistics to SQLite | [Processes](10-processes.md), [Statistics](12-statistics.md) |
+| `pm-clearing` | Terminal display | Trade recording and running P&L | [Processes](10-processes.md), [P&L and Clearing](07-pnl-clearing.md) |
+| `pm-audit` | Background | Full event log capture from the bus | [Processes](10-processes.md), [Persistence](11-persistence.md) |
+| `pm-admin` | Interactive terminal | Interactive operational console | [Processes](10-processes.md), [Risk Controls](05-risk-controls.md) |
+| `pm-ai-trader` | Background | Single autonomous trading bot gateway | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
+| `pm-ai-swarm` | Background | Multi-agent autonomous trading swarm | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
+
+### CLI utilities (runnable)
+
+| Command |  Purpose | More information |
+|---|---|---|
+| `pm-admin-cli` | Non-interactive admin commands for scripts | [Processes](10-processes.md), [Risk Controls](05-risk-controls.md) |
+| `pm-setup` |  Bootstrap local session directory and defaults | [Processes](10-processes.md), [Installation](00-getting-started.md#installation) |
+| `pm-config-gen` | Generate `engine_config.yaml` from CLI options | [Processes](10-processes.md), [Configuration generator](01-configuration.md#generate-configs-with-pm-config-gen) |
+
+### Planned runtime processes (design proposals)
+
+| Command | Interactivity | Purpose | More information |
+|---|---|---|---|
+| `pm-balf-gateway` | Background | Binary order-entry gateway (BALF) | [Processes planned section](10-processes.md#planned-processes), [BALF Protocol](21-app-balf-protocol.md) |
+| `pm-md-gwy` | Background | Market-data distribution gateway (CALF) | [Processes planned section](10-processes.md#planned-processes), [CALF Protocol](22-app-calf-protocol.md) |
+| `pm-index` | Background | Real-time index calculation service | [Processes planned section](10-processes.md#planned-processes) |
+
+For startup order and a practical first-run sequence, see
+[Processes](10-processes.md#process-overview).
+
+
+
 ## Five-minute minimum session
 
 This walkthrough starts a matching engine, connects two participant terminals,
