@@ -200,6 +200,7 @@ pm-engine --verbose
 |---------|---------|------|-----------|
 | **pm-setup** | `pm-setup` | Bootstrap working directory and runtime files | Recommended first run |
 | **pm-config-gen** | `pm-config-gen [options]` | Generate `engine_config.yaml` from CLI options | Optional |
+| **pm-stats-cli** | `pm-stats-cli <command> [options]` | Read-only query interface for `stats.db` | Optional |
 
 **Optional AI trader tools:**
 
@@ -707,6 +708,73 @@ ORDER BY ts;
     .mode column
     SELECT * FROM daily_stats;
     ```
+
+
+
+## pm-stats-cli — Statistics Query CLI
+
+`pm-stats-cli` is a read-only command-line interface for querying
+`data/stats.db` without writing SQL manually.
+
+```bash
+pm-stats-cli [--db data/stats.db] [--format table|json|csv] COMMAND [options]
+```
+
+Unlike `pm-stats`, this is not a subscriber process. It runs one query,
+prints output, and exits.
+
+**Global options:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--db` | `data/stats.db` | SQLite database file path |
+| `--format` | `table` | Output format: `table`, `json`, or `csv` |
+| `--no-header` | off | Suppress header row in `csv` output |
+
+**Subcommands:**
+
+| Subcommand | Purpose | Typical filters |
+|---|---|---|
+| `daily` | Daily OHLCV summary from `daily_stats` | `--date`, `--symbol`, `--limit`, `--wide` |
+| `snapshots` | Intraday snapshots from `price_snapshots` | `--symbol` (required), `--date`, `--from`, `--to`, `--limit` |
+| `trades` | Trade history from `trade_log` | `--symbol`, `--date`, `--from`, `--to`, `--limit` |
+| `symbols` | Discover symbols available in stats data | `--date` |
+| `dates` | Discover trading dates available in `daily_stats` | `--symbol` |
+
+**Examples:**
+
+```bash
+# Latest available daily summary date
+pm-stats-cli daily
+
+# Daily summary for one date and one symbol
+pm-stats-cli daily --date 2026-06-14 --symbol AAPL
+
+# Include bid/ask and largest-trade fields
+pm-stats-cli daily --date 2026-06-14 --wide
+
+# Intraday snapshots for one symbol in a time window
+pm-stats-cli snapshots --symbol MSFT --from 2026-06-14T09:00:00+00:00 --to 2026-06-14T16:30:00+00:00
+
+# Trades as CSV for scripting/export
+pm-stats-cli --format csv trades --symbol AAPL --date 2026-06-14
+
+# Trades as JSON for automation
+pm-stats-cli --format json trades --symbol AAPL --limit 50
+
+# Discovery helpers
+pm-stats-cli symbols
+pm-stats-cli dates --symbol AAPL
+```
+
+**No-row behaviour:**
+
+- `table`: prints `No rows found.`
+- `json`: prints `[]`
+- `csv`: prints only header row unless `--no-header` is set
+
+For schema details, see the `pm-stats` section above and
+[Statistics and Reporting](16-statistics-and-reporting.md).
 
 
 

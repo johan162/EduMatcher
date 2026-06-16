@@ -222,6 +222,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | Command |  Purpose | More information |
 |---|---|---|
 | `pm-admin-cli` | Non-interactive admin commands for scripts | [Processes](10-processes.md), [Risk Controls](05-risk-controls.md) |
+| pm-stats-cli | Query stats.db without writing SQL | [Processes](10-processes.md#pm-stats-cli--statistics-query-cli), [Statistics and Reporting](16-statistics-and-reporting.md) |
 | `pm-setup` |  Bootstrap local session directory and defaults | [Processes](10-processes.md), [Installation](00-getting-started.md#installation) |
 | `pm-config-gen` | Generate `engine_config.yaml` from CLI options | [Processes](10-processes.md), [Configuration generator](01-configuration.md#generate-configs-with-pm-config-gen) |
 
@@ -421,6 +422,7 @@ The engine is the only mandatory process. Add the others as you need them:
 |---|---|
 | Watch P&L update in real time | `pm-clearing` |
 | Record OHLCV statistics | `pm-stats` |
+| Query recorded statistics without SQL | pm-stats-cli daily --date 2026-06-14 | [Statistics and Reporting](16-statistics-and-reporting.md) |
 | Use `pm-admin` operator commands | `pm-admin` (interactive REPL) |
 | Schedule opening/closing auctions | `pm-scheduler` |
 | Add autonomous AI order flow | `pm-ai-swarm --count 5 --duration 60` |
