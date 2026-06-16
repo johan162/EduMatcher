@@ -1,4 +1,4 @@
-Version: 1.0.0
+Version: 1.1.0
 
 Date: 2026-06-16
 
@@ -115,6 +115,7 @@ usage: pm-config-gen [-h] --symbols SYM [SYM ...]
                      [--snapshot-interval SECS]
                      [--no-collars] [--no-circuit-breakers]
                      [--static-band PCT] [--dynamic-band PCT]
+                     [--risk-level LEVEL_SPEC [LEVEL_SPEC ...]]
                      [--cb-levels CB_SPEC [CB_SPEC ...]]
                      [--cb-window-ns NS]
                      [--mm-spread-ticks N] [--mm-min-qty N]
@@ -188,13 +189,39 @@ omitted, it defaults to the role's natural default:
 
 ### 5.4 Risk Controls and Collars
 
+The engine applies a collar to a symbol only when a collar source is present
+(`symbols.<SYM>.collar`, the symbol's `level`, or `risk_controls.default_level`).
+The generator therefore maps collars onto `risk_controls` as follows:
+
 | Argument | Default | Description |
 |---|---|---|
-| `--static-band` | `0.20` | Global `static_band_pct` for all symbols. Applied as `risk_controls.levels.DEFAULT.collar.static_band_pct`. |
-| `--dynamic-band` | `0.02` | Global `dynamic_band_pct` for all symbols. |
+| `--static-band` | `0.20` | `static_band_pct` for the generated `DEFAULT` level. Applied as `risk_controls.levels.DEFAULT.collar.static_band_pct`. |
+| `--dynamic-band` | `0.02` | `dynamic_band_pct` for the generated `DEFAULT` level. |
+| `--risk-level` | — | Define one or more *additional* named collar levels (repeatable). |
 
-If either collar argument is supplied, the generator emits a `risk_controls` block
-with a single named level `DEFAULT` and sets `risk_controls.default_level: DEFAULT`.
+If either `--static-band` or `--dynamic-band` is supplied, the generator emits a
+`risk_controls` block containing a level named `DEFAULT` and sets
+`risk_controls.default_level: DEFAULT`, so every symbol inherits that collar
+unless it overrides it.
+
+`--risk-level` accepts one or more specs of the form:
+
+```
+LEVEL_SPEC := NAME:STATIC_PCT[:DYNAMIC_PCT]
+
+Examples:
+  STRICT:0.12:0.01     → static 12%, dynamic 1%
+  RELAXED:0.30:0.05    → static 30%, dynamic 5%
+  WIDE:0.40            → static 40%, dynamic defaults to 0.02
+```
+
+Each named level is added under `risk_controls.levels.<NAME>` and can be
+referenced from a symbol via `--symbol-opts <SYM>:level=<NAME>` (section 5.7).
+Named levels created with `--risk-level` are **not** the default; only the
+`DEFAULT` level (from `--static-band`/`--dynamic-band`) becomes `default_level`.
+If no global band flags are supplied, `default_level` is omitted and symbols
+without an explicit `level=` get no collar — matching the engine rule that a
+symbol has no collar unless a level or inline collar applies.
 
 ### 5.5 Circuit Breakers
 
@@ -270,7 +297,7 @@ Accepted keys:
 | `cb_halt_L2` | integer minutes or `0` | `symbols.<SYM>.circuit_breaker.levels.L2.halt_duration_ns` | |
 | `cb_shift_L3` | float `(0,1)` | `symbols.<SYM>.circuit_breaker.levels.L3.price_shift_pct` | |
 | `cb_halt_L3` | integer minutes or `0` | `symbols.<SYM>.circuit_breaker.levels.L3.halt_duration_ns` | |
-| `level` | string | `symbols.<SYM>.level` | Assigns a named risk level from `risk_controls.levels`; requires the matching `--static-band`/`--dynamic-band` to have been specified so the level exists. |
+| `level` | string | `symbols.<SYM>.level` | Assigns a named risk level. The level must exist in `risk_controls.levels` — i.e. `DEFAULT` (from `--static-band`/`--dynamic-band`) or a name defined with `--risk-level` (section 5.4). Referencing an undefined level triggers a `[WARN]` and would fail `load_engine_config()`. |
 | `mm_spread_ticks` | positive integer | per-symbol entry in `mm_obligation_defaults.symbols.<SYM>.mm_max_spread_ticks` | |
 | `mm_min_qty` | positive integer | per-symbol entry in `mm_obligation_defaults.symbols.<SYM>.mm_min_qty` | |
 
@@ -289,7 +316,7 @@ Example:
 | `collar.static_band_pct` | `--static-band` (global) or `--symbol-opts static_band` | Emitted as inline symbol collar when per-symbol override given; emitted under `risk_controls` when only global flag given. |
 | `collar.dynamic_band_pct` | `--dynamic-band` (global) or `--symbol-opts dynamic_band` | Same rule as `static_band_pct`. |
 | `circuit_breaker.levels.*` | `--cb-levels` (global defaults) or `--symbol-opts cb_shift_*`/`cb_halt_*` | Per-symbol CB override block emitted only when at least one CB key is provided for that symbol. |
-| `level` | `--symbol-opts level` | Emitted as `level: <NAME>` on the symbol; requires the named level to exist in `risk_controls.levels`. |
+| `level` | `--symbol-opts level` | Emitted as `level: <NAME>` on the symbol; the named level must exist in `risk_controls.levels` (`DEFAULT` or a `--risk-level` name). |
 | `last_buy_price` | Cannot be set via CLI | Emitted as `null` placeholder with fill-in comment only when `--seed-last-prices` is given. **Must be edited manually.** |
 | `last_sell_price` | Cannot be set via CLI | Same as `last_buy_price`. **Must be edited manually.** |
 | `market_maker_quotes[].bid_price` | Cannot be set via CLI | Always emitted as `null` stub when a `MARKET_MAKER` gateway exists. **Must be edited manually.** |
@@ -347,8 +374,8 @@ contain and how each one is populated:
 | `market_maker_quotes[].gateway_id` | Any `MARKET_MAKER` gateway exists | Taken from gateway list | No |
 | `market_maker_quotes[].bid_price` | Any `MARKET_MAKER` gateway exists | Always `null` | **Yes — must be set to a real price** |
 | `market_maker_quotes[].ask_price` | Any `MARKET_MAKER` gateway exists | Always `null` | **Yes — must be set to a real price** |
-| `market_maker_quotes[].bid_qty` | Any `MARKET_MAKER` gateway exists | `--mm-min-qty` (default `1000`) | Optional |
-| `market_maker_quotes[].ask_qty` | Any `MARKET_MAKER` gateway exists | `--mm-min-qty` (default `1000`) | Optional |
+| `market_maker_quotes[].bid_qty` | Any `MARKET_MAKER` gateway exists | Fixed stub default: `1000` | Optional — adjust to satisfy `mm_min_qty` |
+| `market_maker_quotes[].ask_qty` | Any `MARKET_MAKER` gateway exists | Fixed stub default: `1000` | Optional — adjust to satisfy `mm_min_qty` |
 | `market_maker_quotes[].tif` | Any `MARKET_MAKER` gateway exists | Fixed: `DAY` | Optional — edit if `GTC` needed |
 | `market_maker_quotes[].seed_once` | Any `MARKET_MAKER` gateway exists | Fixed: `true` | Optional — edit if repeat injection needed |
 | `market_maker_quotes[].quote_id` | Never | Omitted — engine auto-generates | No |
@@ -363,7 +390,8 @@ contain and how each one is populated:
 |---|---|
 | At least one `MARKET_MAKER` gateway | `mm_obligation_defaults` block; stub `market_maker_quotes` list for every symbol |
 | `--sessions-enabled` | `sessions_enabled: true` + `schedule` block |
-| `--static-band` or `--dynamic-band` | `risk_controls` block with a `DEFAULT` level |
+| `--static-band` or `--dynamic-band` | `risk_controls` block with a `DEFAULT` level (set as `default_level`) |
+| `--risk-level NAME:...` | Additional named level(s) under `risk_controls.levels` |
 | `--cb-levels` | `circuit_breaker_defaults` block |
 | `--enforce-mm-obligations` | `mm_obligation_defaults.enforce_mm_obligation: true` |
 
@@ -442,6 +470,7 @@ advisory only.
 | Symbol name contains lowercase | `[INFO] Symbol names are uppercased by the engine loader; "aapl" will become "AAPL".` |
 | Gateway ID contains lowercase | `[INFO] Gateway IDs are uppercased by the engine loader; "trader01" will become "TRADER01".` |
 | `--seed-last-prices` not given with `MARKET_MAKER` | `[INFO] Consider --seed-last-prices to emit placeholder last_buy_price/last_sell_price fields for viewer reference. They are required for collar initialization.` |
+| `--symbol-opts <SYM>:level=<NAME>` references a level not defined by `--static-band`/`--dynamic-band` (DEFAULT) or `--risk-level` | `[WARN] Symbol SYM references undefined risk level NAME. Define it with --risk-level NAME:STATIC:DYNAMIC or the engine will reject the config.` |
 
 
 
@@ -494,6 +523,7 @@ src/edumatcher/
         gateway_spec.py        ← GW_SPEC parser (ID[:ROLE[:DISCONNECT]])
         cb_spec.py             ← CB_SPEC parser (NAME:SHIFT[:HALT_MINS])
         symbol_spec.py         ← --symbol-opts parser (SYMBOL:k=v[,k=v,...])
+        risk_spec.py           ← LEVEL_SPEC parser (NAME:STATIC[:DYNAMIC])
 ```
 
 ### 9.2 Data Flow
@@ -544,6 +574,10 @@ class ConfigSpec:
     enforce_circuit_breakers: bool = True
     static_band_pct: float | None = None      # global collar default
     dynamic_band_pct: float | None = None     # global collar default
+    # Additional named collar levels from --risk-level; name → (static, dynamic|None).
+    # The DEFAULT level (from static_band_pct/dynamic_band_pct) is added separately
+    # and becomes default_level when present.
+    risk_levels: dict[str, tuple[float, float | None]] = field(default_factory=dict)
     cb_levels: list[CbSpec] = field(default_factory=list)
     cb_window_ns: int = 300_000_000_000
     mm_spread_ticks: int = 20
@@ -659,8 +693,9 @@ poetry run pm-config-gen \
   --output engine_config.yaml
 ```
 
-Emits: `sessions_enabled: true`, `schedule` (default times), a `risk_controls`
-block with one level named `DEFAULT`, and collar percentages on each symbol.
+Emits: `sessions_enabled: true`, `schedule` (default times), and a `risk_controls`
+block with one level named `DEFAULT` set as `default_level`, so every symbol
+inherits that collar (the collar is **not** written inline on each symbol).
 
 ### 10.4 Market-maker setup with obligations and circuit breakers
 
@@ -768,9 +803,7 @@ gateways:
       role: MARKET_MAKER
       disconnect_behaviour: CANCEL_QUOTES_ONLY
       quote_refresh_policy: INACTIVATE_ON_ANY_FILL
-      enforce_mm_obligation: true
-      mm_max_spread_ticks: 20
-      mm_min_qty: 100
+      # obligation limits inherited from mm_obligation_defaults above
 
     - id: OPS01
       role: ADMIN
@@ -817,16 +850,17 @@ schedule:
 ### Phase 1 — Core generator (no MM stubs)
 
 1. Add `src/edumatcher/config_gen/` package with `defaults.py`, `gateway_spec.py`,
-   `cb_spec.py`, `builder.py`, `warnings.py`.
+   `cb_spec.py`, `risk_spec.py`, `builder.py`, `warnings.py`.
 2. Add `src/edumatcher/commands/config_gen.py` with `argparse` wiring and
    `main()` entry point.
 3. Register `pm-config-gen` in `pyproject.toml`.
 4. Implement `builder.py` to produce the minimal config dict.
 5. Implement `renderer.py` with PyYAML fallback only (no `ruamel.yaml` yet).
 6. Add `symbol_spec.py` to parse `--symbol-opts SYMBOL:k=v,...` into
-   `SymbolOverride` objects.
-7. Add unit tests for `gateway_spec.py`, `cb_spec.py`, and `symbol_spec.py`
-   parsers.
+   `SymbolOverride` objects, and `risk_spec.py` to parse
+   `--risk-level NAME:STATIC[:DYNAMIC]` into named collar levels.
+7. Add unit tests for `gateway_spec.py`, `cb_spec.py`, `symbol_spec.py`, and
+   `risk_spec.py` parsers.
 8. Add integration test: invoke `pm-config-gen` and parse the output with
    `load_engine_config()`.
 
@@ -871,7 +905,8 @@ generation metadata block.
 | `tests/test_config_gen_gateway_spec.py` | `gateway_spec.py` parser: valid specs, invalid specs, role defaults, disconnect defaults |
 | `tests/test_config_gen_cb_spec.py` | `cb_spec.py` parser: valid levels, missing halt, invalid shift |
 | `tests/test_config_gen_symbol_spec.py` | `symbol_spec.py` parser: valid overrides, unknown keys, type coercion, multiple flags for same symbol |
-| `tests/test_config_gen_builder.py` | `builder.py`: minimal build, with sessions, with global collars, with per-symbol collar overrides, with MM gateways, with CB levels, with per-symbol CB overrides |
+| `tests/test_config_gen_risk_spec.py` | `risk_spec.py` parser: valid level specs, default dynamic band, invalid percentages |
+| `tests/test_config_gen_builder.py` | `builder.py`: minimal build, with sessions, with global collars, with named risk levels, with per-symbol collar overrides, with per-symbol `level` references, with MM gateways, with CB levels, with per-symbol CB overrides |
 | `tests/test_config_gen_warnings.py` | `warnings.py`: each warning condition |
 | `tests/test_config_gen_renderer.py` | `renderer.py`: output is valid YAML; output parses with `load_engine_config()` |
 
@@ -917,7 +952,9 @@ coverage. The integration test file is excluded from the coverage target.
 - [ ] `--symbol-opts AAPL:tick_decimals=4` overrides `tick_decimals` for that symbol only
 - [ ] `--symbol-opts TSLA:static_band=0.30,dynamic_band=0.05` emits inline `collar:` block on that symbol
 - [ ] `--symbol-opts TSLA:cb_shift_L1=0.10,cb_halt_L1=10` emits inline `circuit_breaker:` override on that symbol
-- [ ] `--symbol-opts AAPL:level=STRICT` emits `level: STRICT` on that symbol
+- [ ] `--risk-level STRICT:0.12:0.01` defines a named level under `risk_controls.levels`
+- [ ] `--symbol-opts AAPL:level=STRICT` emits `level: STRICT` referencing a defined level
+- [ ] `--symbol-opts AAPL:level=UNDEFINED` with no matching `--risk-level` produces a `[WARN]`
 - [ ] Multiple `--symbol-opts` flags for the same symbol are merged correctly
 - [ ] Unknown `--symbol-opts` keys produce a `[WARN]` and are ignored
 - [ ] Output from any supported invocation passes `load_engine_config()` after

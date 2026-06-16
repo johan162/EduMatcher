@@ -682,12 +682,20 @@ Validation rules:
 - `risk_controls.levels.<LEVEL>.circuit_breaker` is not supported; use top-level `circuit_breaker_defaults`
 - collar percentages must be in `(0, 1)` after level and symbol overrides are merged
 
-Collar precedence is:
+A symbol only gets a collar if at least one of these is present:
+`symbols.<SYMBOL>.collar`, the symbol's `level` collar, or the
+`risk_controls.default_level` collar. If none of them apply, the symbol has
+**no collar at all**, even when `enforce_collars: true`.
 
-1. `symbols.<SYMBOL>.collar`
-2. `symbols.<SYMBOL>.level`
-3. `risk_controls.default_level`
-4. built-in collar defaults
+When a collar *is* active, its two fields are resolved most-specific first:
+
+1. `symbols.<SYMBOL>.collar` (per-field override)
+2. `symbols.<SYMBOL>.level` collar
+3. `risk_controls.default_level` collar
+4. built-in field defaults (`static_band_pct: 0.20`, `dynamic_band_pct: 0.02`)
+
+The built-in defaults in step 4 only fill in fields that none of the higher tiers
+set; they never create a collar on their own.
 
 
 ## Circuit Breakers
@@ -729,11 +737,18 @@ Validation rules:
 - `resumption_mode` must be `AUCTION` or `CONTINUOUS`
 - `reference_window_ns` is converted to integer nanoseconds
 
-Circuit-breaker precedence is:
+A symbol only gets a circuit breaker if `circuit_breaker_defaults` or its own
+`symbols.<SYMBOL>.circuit_breaker` section is present. If neither exists, the
+symbol has **no circuit breaker at all**, even when
+`enforce_circuit_breakers: true`.
 
-1. `symbols.<SYMBOL>.circuit_breaker`
+When a breaker *is* active, configuration is resolved as follows:
+
+1. `symbols.<SYMBOL>.circuit_breaker` (per-level, per-field override)
 2. `circuit_breaker_defaults`
-3. built-in defaults: L1 7%/5m, L2 13%/15m, L3 20%/rest-of-day
+3. built-in ladder fallback (L1 7%/5m, L2 13%/15m, L3 20%/rest-of-day),
+   used **only** when a circuit-breaker section is present but supplies no
+   `levels`
 
 ### Circuit-breaker Fields
 
@@ -1034,7 +1049,7 @@ Ranges use mathematical interval notation: `(a, b)` is open (exclusive),
 | Field | Type | Required | Default | Allowed values / range | Constraint |
 |---|---|---:|---|---|---|
 | `reference_window_ns` | int | No | `300000000000` (5 min) | Positive integer nanoseconds | Coerced to `int` |
-| `levels` | mapping | No | Built-in L1/L2/L3 ladder when none supplied | Level name → level config mapping | Values must be mappings |
+| `levels` | mapping | No | Built-in L1/L2/L3 ladder only when a CB section is present but omits `levels` | Level name → level config mapping | Values must be mappings |
 
 ### `circuit_breaker_defaults.levels.<LEVEL>` and `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>` fields
 
@@ -1046,7 +1061,9 @@ Symbol-level entries merge over the defaults: only the fields you specify are ov
 | `halt_duration_ns` | int or null | No | `null` | Positive integer nanoseconds, or `null`/omitted | `null` means rest-of-day halt; must be `> 0` when provided |
 | `resumption_mode` | Enum | No | `AUCTION` | `AUCTION`, `CONTINUOUS` | Case-insensitive |
 
-**Built-in default CB ladder** (used when `circuit_breaker_defaults` is absent):
+**Built-in default CB ladder** (used only when a circuit-breaker section exists
+but supplies no `levels`; if no circuit-breaker section is present at all, the
+symbol has no breaker):
 
 | Level | `price_shift_pct` | `halt_duration_ns` | `resumption_mode` |
 |---|---|---|---|
