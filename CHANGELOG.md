@@ -1,3 +1,28 @@
+## [v0.4.0] - 2026-06-16
+
+Release Type: minor
+
+### 📋 Summary
+This release focus on improving config documentation and generation. It adds a new `pm-config-gen` CLI for generating 
+egine config `engine_config.yaml` file from concise command-line inputs. It also expands the
+configuration documentation and design material so users can bootstrap configs
+faster with fewer manual YAML errors.
+
+### ✨ Additions
+- Added `pm-config-gen` CLI tool for generating `engine_config.yaml` from high-level flags to make it less error prone to correctly write the engine configuration.
+
+### 📚 Documentation
+- Expanded the configuration guide with a full `pm-config-gen` reference, option tables, formats, and practical recipes
+- Updated Getting Started, Running the Engine, docs landing page, and README quick-start paths to include `pm-config-gen`
+- Refreshed configuration examples and design references to match current parser behaviour and defaults
+- Improved FAQ
+- Updated admonition rendering in Exchange Intro
+- Updated various Mermaid graphs in docs
+
+### 🛠 Internal
+- Added design proposal for config-generator behaviour, option surface, and implementation plan
+
+
 ## [v0.3.3] - 2026-06-15
 
 Release Type: patch

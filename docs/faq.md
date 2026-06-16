@@ -4,6 +4,166 @@ Common questions and gotchas when learning EduMatcher.
 
 ---
 
+## Architecture & Setup
+
+### The engine started but gateways can't connect. What's wrong?
+
+Check that:
+1. The engine is running *before* the gateways try to connect.
+2. ZMQ ports 5555 and 5556 are not blocked by a firewall or in use by another
+    process: `lsof -i :5555 -i :5556`
+3. The gateway ID exists in `engine_config.yaml`.
+
+If the engine is down or unreachable, `pm-gateway` exits after about three
+seconds with `Gateway authentication timed out`.
+
+---
+
+### The book already has liquidity before I submit any orders. Why?
+
+If your `engine_config.yaml` has a `market_maker_quotes` block for the symbol,
+the engine injects a two-sided seed quote on behalf of the configured market-maker
+gateway at startup. This is intentional — it gives the book immediate liquidity
+so participants always have something to trade against.
+
+A side effect is that your **first aggressive order may fill immediately** against
+the seed quote, before a second participant has typed anything.
+
+To run with a deliberately empty book (e.g. for a demo of price discovery from
+scratch), either:
+- Remove or comment out `market_maker_quotes` in the config, or
+- Start the engine without a config file (`sessions_enabled: false` minimum).
+
+---
+
+### Why did the seed MM quote disappear after the second day?
+
+By default, `market_maker_quotes` entries have `seed_once: true`. This means the
+quote is only injected on the **first** startup for a symbol (detected by the
+absence of a `book_stats.json` entry). From the second day onward the real market
+maker is expected to submit its own quotes.
+
+To inject the seed on every startup (e.g. for a repeatable classroom demo):
+
+```yaml
+market_maker_quotes:
+  - gateway_id: MM01
+    bid_price: 149.00
+    ask_price: 151.00
+    bid_qty: 500
+    ask_qty: 500
+    tif: DAY
+    seed_once: false    # inject on every startup
+```
+
+To force a day-1 re-injection without changing the config:
+
+```bash
+rm data/book_stats.json    # or $EDUMATCHER_DATA_DIR/book_stats.json
+```
+
+---
+
+### Why is the engine not matching orders? It starts in CLOSED state
+
+With `sessions_enabled: true` (the default), the engine starts in `CLOSED` state
+and waits for `pm-scheduler` to drive it through the session phases before it
+accepts orders.
+
+Two ways to get to a matching state quickly:
+
+1. **Start `pm-scheduler`** alongside the engine — it drives the transition
+   from CLOSED → PRE_OPEN → OPENING_AUCTION → CONTINUOUS automatically at
+   the configured wall-clock times, or immediately with `pm-scheduler --now`.
+2. **Disable sessions** for testing or demos:
+   ```yaml
+   # engine_config.yaml
+   sessions_enabled: false
+   ```
+   With `sessions_enabled: false` the engine enters CONTINUOUS state immediately
+   on startup and `pm-scheduler` has no effect.
+
+---
+
+### Why is my viewer empty even though it started correctly?
+
+An empty viewer usually means the symbol has no resting orders yet. `pm-viewer`
+subscribes to `book.<SYMBOL>` and then requests an initial snapshot, but if the
+book is empty the snapshot is also empty.
+
+**Fix:** Submit a resting order, enable market-maker quote seeds for that
+symbol, or verify that you are watching a configured symbol.
+
+---
+
+### Why did `pm-scheduler --config ...` exit immediately?
+
+An explicit `--config` path is treated strictly. If the file does not exist,
+the scheduler exits with a fatal error instead of silently falling back.
+
+If you omit `--config`, the scheduler uses `engine_config.yaml` when present and
+otherwise falls back to its built-in default times.
+
+---
+
+### Why doesn't `./launch_all.sh` work on my machine?
+
+`launch_all.sh` is macOS-specific. It uses `osascript` to open Terminal windows,
+so it does not behave like a generic Linux or Windows launcher.
+
+Use the manual process commands from the home page if you are not on macOS.
+
+---
+
+### Why do I need five terminal windows?
+
+Each process is an independent OS process communicating over ZeroMQ. They
+cannot run inside a single terminal because each blocks on its own event loop.
+For convenience, use the provided `./tools/launch_all.sh` script which starts
+the standard setup in separate Terminal windows on macOS. In a remote server
+setting, `tmux` or `screen` are the standard alternatives.
+
+---
+
+### How do I see what messages are flowing between processes?
+
+Run `pm-audit --terminal` in a separate window. It subscribes to **all**
+ZeroMQ messages and prints them to stdout, giving a full real-time trace of
+every event in the system.
+
+---
+
+### Why does the engine use integer ticks instead of float prices?
+
+Float arithmetic can introduce tiny representation errors in comparisons and
+aggregation. Using integer ticks makes price-time matching and level math exact.
+
+---
+
+### How do I reset all persisted state to start fresh?
+
+Delete the contents of the data directory:
+
+```bash
+# Installed mode (default data dir)
+rm -f ~/.local/share/edumatcher/*.json \
+       ~/.local/share/edumatcher/*.csv  \
+       ~/.local/share/edumatcher/*.db   \
+       ~/.local/share/edumatcher/audit.log
+
+# Source checkout
+rm -f src/data/*.json src/data/*.csv src/data/*.db src/data/audit.log
+
+# Or with a custom directory
+rm -f "$EDUMATCHER_DATA_DIR"/*.json ...
+```
+
+This resets GTC orders, book statistics, clearing history, and audit logs.
+The engine will re-seed MM quotes as if it were day 1 (because `book_stats.json`
+no longer exists).
+
+----
+
 ## Orders & Execution
 
 ### Why was my IOC order rejected?
@@ -324,161 +484,3 @@ pm-setup --force                   # refresh the sample config if needed
 Your existing `engine_config.yaml` and data files are not touched by the upgrade.
 
 ---
-
-## Architecture & Setup
-
-### The engine started but gateways can't connect. What's wrong?
-
-Check that:
-1. The engine is running *before* the gateways try to connect.
-2. ZMQ ports 5555 and 5556 are not blocked by a firewall or in use by another
-    process: `lsof -i :5555 -i :5556`
-3. The gateway ID exists in `engine_config.yaml`.
-
-If the engine is down or unreachable, `pm-gateway` exits after about three
-seconds with `Gateway authentication timed out`.
-
----
-
-### The book already has liquidity before I submit any orders. Why?
-
-If your `engine_config.yaml` has a `market_maker_quotes` block for the symbol,
-the engine injects a two-sided seed quote on behalf of the configured market-maker
-gateway at startup. This is intentional — it gives the book immediate liquidity
-so participants always have something to trade against.
-
-A side effect is that your **first aggressive order may fill immediately** against
-the seed quote, before a second participant has typed anything.
-
-To run with a deliberately empty book (e.g. for a demo of price discovery from
-scratch), either:
-- Remove or comment out `market_maker_quotes` in the config, or
-- Start the engine without a config file (`sessions_enabled: false` minimum).
-
----
-
-### Why did the seed MM quote disappear after the second day?
-
-By default, `market_maker_quotes` entries have `seed_once: true`. This means the
-quote is only injected on the **first** startup for a symbol (detected by the
-absence of a `book_stats.json` entry). From the second day onward the real market
-maker is expected to submit its own quotes.
-
-To inject the seed on every startup (e.g. for a repeatable classroom demo):
-
-```yaml
-market_maker_quotes:
-  - gateway_id: MM01
-    bid_price: 149.00
-    ask_price: 151.00
-    bid_qty: 500
-    ask_qty: 500
-    tif: DAY
-    seed_once: false    # inject on every startup
-```
-
-To force a day-1 re-injection without changing the config:
-
-```bash
-rm data/book_stats.json    # or $EDUMATCHER_DATA_DIR/book_stats.json
-```
-
----
-
-### Why is the engine not matching orders? It starts in CLOSED state
-
-With `sessions_enabled: true` (the default), the engine starts in `CLOSED` state
-and waits for `pm-scheduler` to drive it through the session phases before it
-accepts orders.
-
-Two ways to get to a matching state quickly:
-
-1. **Start `pm-scheduler`** alongside the engine — it drives the transition
-   from CLOSED → PRE_OPEN → OPENING_AUCTION → CONTINUOUS automatically at
-   the configured wall-clock times, or immediately with `pm-scheduler --now`.
-2. **Disable sessions** for testing or demos:
-   ```yaml
-   # engine_config.yaml
-   sessions_enabled: false
-   ```
-   With `sessions_enabled: false` the engine enters CONTINUOUS state immediately
-   on startup and `pm-scheduler` has no effect.
-
----
-
-### Why is my viewer empty even though it started correctly?
-
-An empty viewer usually means the symbol has no resting orders yet. `pm-viewer`
-subscribes to `book.<SYMBOL>` and then requests an initial snapshot, but if the
-book is empty the snapshot is also empty.
-
-**Fix:** Submit a resting order, enable market-maker quote seeds for that
-symbol, or verify that you are watching a configured symbol.
-
----
-
-### Why did `pm-scheduler --config ...` exit immediately?
-
-An explicit `--config` path is treated strictly. If the file does not exist,
-the scheduler exits with a fatal error instead of silently falling back.
-
-If you omit `--config`, the scheduler uses `engine_config.yaml` when present and
-otherwise falls back to its built-in default times.
-
----
-
-### Why doesn't `./launch_all.sh` work on my machine?
-
-`launch_all.sh` is macOS-specific. It uses `osascript` to open Terminal windows,
-so it does not behave like a generic Linux or Windows launcher.
-
-Use the manual process commands from the home page if you are not on macOS.
-
----
-
-### Why do I need five terminal windows?
-
-Each process is an independent OS process communicating over ZeroMQ. They
-cannot run inside a single terminal because each blocks on its own event loop.
-For convenience, use the provided `./tools/launch_all.sh` script which starts
-the standard setup in separate Terminal windows on macOS. In a remote server
-setting, `tmux` or `screen` are the standard alternatives.
-
----
-
-### How do I see what messages are flowing between processes?
-
-Run `pm-audit --terminal` in a separate window. It subscribes to **all**
-ZeroMQ messages and prints them to stdout, giving a full real-time trace of
-every event in the system.
-
----
-
-### Why does the engine use integer ticks instead of float prices?
-
-Float arithmetic can introduce tiny representation errors in comparisons and
-aggregation. Using integer ticks makes price-time matching and level math exact.
-
----
-
-### How do I reset all persisted state to start fresh?
-
-Delete the contents of the data directory:
-
-```bash
-# Installed mode (default data dir)
-rm -f ~/.local/share/edumatcher/*.json \
-       ~/.local/share/edumatcher/*.csv  \
-       ~/.local/share/edumatcher/*.db   \
-       ~/.local/share/edumatcher/audit.log
-
-# Source checkout
-rm -f src/data/*.json src/data/*.csv src/data/*.db src/data/audit.log
-
-# Or with a custom directory
-rm -f "$EDUMATCHER_DATA_DIR"/*.json ...
-```
-
-This resets GTC orders, book statistics, clearing history, and audit logs.
-The engine will re-seed MM quotes as if it were day 1 (because `book_stats.json`
-no longer exists).

@@ -1,0 +1,15 @@
+from __future__ import annotations
+
+import subprocess
+
+
+def test_pm_config_gen_help_runs() -> None:
+    result = subprocess.run(
+        ["poetry", "run", "pm-config-gen", "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "pm-config-gen" in result.stdout
+    assert "--symbols" in result.stdout

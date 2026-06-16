@@ -12,10 +12,10 @@ Use this page as a routing guide based on your background and intent.
 
 | If you are... | Read this first | Then continue with |
 |---|---|---|
-| New to finance / exchanges | [How an Exchange Works](how-exchange-works.md) | [Getting Started](user-guide/00-getting-started.md) → [The Order Book](concepts/01-concepts-order-book.md) |
+| New to finance / exchanges | [How an Exchange Works](how-exchange-works.md) | [Getting Started](user-guide/00-getting-started.md) → [The Order Book](concepts/01-concepts-order-book.md) → [Your First Trade](concepts/04-concepts-first-trade.md) |
 | Familiar with trading, new to EduMatcher | [Getting Started](user-guide/00-getting-started.md) | [Running the Engine](user-guide/03-running-the-engine.md) → [Gateway Commands](user-guide/08-gateway.md) |
 | Instructor running a classroom | [Getting Started](user-guide/00-getting-started.md) | [Configuration](user-guide/01-configuration.md) → [Processes](user-guide/10-processes.md) → [Auctions & Scheduling](user-guide/06-auctions-scheduling.md) |
-| Developer extending the system | [Architecture Overview](architecture/01-architecture.md) | [Detailed Walkthrough](architecture/02-architecture-guide.md) → [Developer Info](developer/01-dev-practice.md) |
+| Developer extending the system | [Architecture Overview](architecture/01-architecture.md) | [Detailed Walkthrough](architecture/02-architecture-guide.md) → [Developer Info](developer/01-dev-practice.md) → [Order Book Deep Dive](concepts/02-concepts-order-book-deep-dive.md) |
 
 ```mermaid
 flowchart TD
@@ -45,16 +45,20 @@ EduMatcher reproduces this entire stack as independent processes
 communicating over a message bus, just as a real exchange does. The
 difference is that here, everything is visible and inspectable:
 
-```
-  Your terminal          Matching engine           Other participants
-  (pm-gateway)  ──────►  (pm-engine)  ◄──────────  (other pm-gateways)
-                              │
-                    broadcasts trades & fills
-                              │
-            ┌─────────────────┼────────────────────┐
-            ▼                 ▼                    ▼
-       pm-viewer          pm-clearing          pm-audit
-    (live order book)  (P&L accounting)   (full event log)
+```mermaid
+flowchart TD
+  GW1[Your terminal<br/>pm-gateway]
+  ENG[Matching engine<br/>pm-engine]
+  GW2[Other participants<br/>other pm-gateways]
+  VIEW[pm-viewer<br/>live order book]
+  CLR[pm-clearing<br/>P&L accounting]
+  AUD[pm-audit<br/>full event log]
+
+  GW1 --> ENG
+  GW2 --> ENG
+  ENG -->|broadcasts trades and fills| VIEW
+  ENG -->|broadcasts trades and fills| CLR
+  ENG -->|broadcasts trades and fills| AUD
 ```
 
 A **trade** happens when two orders cross: a buyer willing to pay at least
@@ -146,6 +150,19 @@ This quick start points to the full walkthrough in
 pipx install edumatcher
 pm-setup
 ```
+
+After `pm-setup`, choose one config bootstrap path:
+
+```bash
+# Option A: generate a fresh config from CLI flags
+pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --sessions-enabled --output engine_config.yaml
+
+# Option B: start from the sample file copied by pm-setup
+# and edit engine_config.yaml in place
+```
+
+For full generator options, see
+[Configuration](user-guide/01-configuration.md#generate-configs-with-pm-config-gen).
 
 **Developer mode (Poetry)**
 

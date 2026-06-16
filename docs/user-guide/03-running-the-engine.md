@@ -52,6 +52,17 @@ the prefix if you are in developer mode.
 Before starting anything, verify your configuration covers the mandatory
 fields.  A completely minimal `engine_config.yaml` looks like this:
 
+!!! tip "Generate this instead of writing it manually"
+  If you do not already have a config, generate one first:
+  ```bash
+  pm-config-gen --symbols AAPL --gateways TRADER01 MM01:MARKET_MAKER GW_ADMIN:ADMIN --output engine_config.yaml
+  ```
+  Or start from the sample `engine_config.yaml` copied by `pm-setup` and edit
+  it in place.
+  Then fill in `market_maker_quotes` bid/ask prices before starting
+  `pm-engine`. For the full flag reference, see
+  [Configuration](01-configuration.md#generate-configs-with-pm-config-gen).
+
 ```yaml
 gateways:
   alf:

@@ -11,14 +11,17 @@ documentation workflows, setup verification, and containerized docs serving.
   - [Script Conventions](#script-conventions)
   - [Scripts Overview](#scripts-overview)
     - [`mkbld.sh` - Main Build Script](#mkbldsh---main-build-script)
-    - [`mkchlogentry.sh` - CHANGELOG Entry Script](#mkchlogentrysh---changelog-entry-script)
     - [`mkcovupd.sh` - Coverage Badge Updater](#mkcovupdsh---coverage-badge-updater)
     - [`mkrelease.sh` - Release Automation Script](#mkreleasesh---release-automation-script)
     - [`mkghrelease.sh` - GitHub Release Creator](#mkghreleasesh---github-release-creator)
-    - [`mkmcpbundle.sh` - MCP Bundle Builder](#mkmcpbundlesh---mcp-bundle-builder)
     - [`mkdocs.sh` - Documentation Automation Script](#mkdocssh---documentation-automation-script)
+    - [`expand-shell-outputs.py` - Markdown Command Output Expander](#expand-shell-outputspy---markdown-command-output-expander)
+    - [`install-runtime.sh` - End-user Runtime Installer](#install-runtimesh---end-user-runtime-installer)
     - [`verify_setup.sh` - Local Setup Verification](#verify_setupsh---local-setup-verification)
     - [`docs-contctl.sh` - Containerized Docs Server Manager](#docs-contctlsh---containerized-docs-server-manager)
+  - [Deprecated Scripts](#deprecated-scripts)
+    - [`mkchlogentry.sh` - CHANGELOG Entry Script](#mkchlogentrysh---changelog-entry-script)
+    - [`mkcover.sh` - PDF Cover Inserter](#mkcoversh---pdf-cover-inserter)
   - [Typical Workflows](#typical-workflows)
     - [Daily Development Check](#daily-development-check)
     - [Fresh Local Setup Verification](#fresh-local-setup-verification)
@@ -33,12 +36,13 @@ documentation workflows, setup verification, and containerized docs serving.
 - Several scripts support `--dry-run`, but not all do.
 - The project is Poetry-based, so the scripts generally assume `poetry` is installed.
 - Scripts that are meant for guarded automation typically exit on the first error.
+- Run scripts from the project root unless a script explicitly says otherwise.
 
 ## Scripts Overview
 
 ### `mkbld.sh` - Main Build Script
 
-Runs the main quality and packaging pipeline and is the primary script used by CI.
+Runs the main quality and packaging pipeline and is the primary script used by CI. This script **must** be run as a step in the release process.
 
 ```bash
 ./scripts/mkbld.sh [OPTIONS]
@@ -55,6 +59,7 @@ Runs the main quality and packaging pipeline and is the primary script used by C
 **Options:**
 - `--dry-run` - Show commands without executing them
 - `--help` - Display help message
+- `--intro` - Build the Exchange Intro PDF bundle (needed for a release)
 
 **Requirements:**
 - Poetry installed and available on `PATH`
@@ -65,35 +70,7 @@ Runs the main quality and packaging pipeline and is the primary script used by C
 - `coverage.xml`
 - `htmlcov/`
 - `dist/`
-
-### `mkchlogentry.sh` - CHANGELOG Entry Script
-
-Creates and prepends a new release-entry template in the top-level `CHANGELOG.md`.
-Run this before `mkrelease.sh`.
-
-```bash
-./scripts/mkchlogentry.sh <version> [major|minor|patch] [OPTIONS]
-```
-
-**Examples:**
-```bash
-./scripts/mkchlogentry.sh 0.7.2 patch
-./scripts/mkchlogentry.sh 0.8.0 minor --dry-run
-```
-
-**What it does:**
-1. Validates the requested version format
-2. Refuses to create duplicate entries for an existing version
-3. Prepends a new entry using the established release layout
-4. Leaves `CHANGELOG.md` ready for the developer to replace placeholders with final release notes
-
-**Options:**
-- `--dry-run` - Preview the entry without modifying files
-- `--help`, `-h` - Display help message
-
-**Requirements:**
-- Run from the project root
-- Update the generated placeholder bullets before running `mkrelease.sh`
+- `docs-exchange-intro/dist/`
 
 ### `mkcovupd.sh` - Coverage Badge Updater
 
@@ -184,30 +161,6 @@ It will base the GitHub release on the latest tag on `main`
 - Release artifacts already built in `dist/`
 - Typically run after `mkrelease.sh` and after CI completes successfully
 
-
-### `mkmcpbundle.sh` - MCP Bundle Builder
-
-Creates a versioned MCP server bundle zip file containing a manifest, a bootstrap script, and the project wheel.
-Useful for distributing the MCP server independently of PyPI.
-
-```bash
-./scripts/mkmcpbundle.sh [OPTIONS]
-```
-
-**What it does:**
-1. Reads the version from `pyproject.toml`
-2. Ensures a wheel exists in `dist/` (builds one if missing)
-3. Creates a bundle payload containing `manifest.json`, `bootstrap.sh`, and `README.md`
-4. Produces a versioned zip archive in `dist/`
-
-**Options:**
-- `--help` - Display help message
-
-**Requirements:**
-- `mkbld.sh` should be run first to ensure the wheel is up to date
-- Run from the project root
-
-
 ### `mkdocs.sh` - Documentation Automation Script
 
 Builds, serves, deploys, or cleans the MkDocs documentation site.
@@ -229,6 +182,66 @@ Builds, serves, deploys, or cleans the MkDocs documentation site.
 
 **Requirements:**
 - Poetry docs dependencies preferred: `poetry install --with docs`
+
+### `expand-shell-outputs.py` - Markdown Command Output Expander
+
+Expands `{{!command}}` placeholders inside markdown files into fenced code blocks containing the command output.
+The docs PDF pipeline uses this to materialize command examples before concatenating markdown sources.
+
+```bash
+./scripts/expand-shell-outputs.py --output-dir DIR [--cwd DIR] [--format FORMAT] FILE [FILE ...]
+```
+
+**Examples:**
+```bash
+./scripts/expand-shell-outputs.py --output-dir /tmp/expanded docs/user-guide/00-getting-started.md
+./scripts/expand-shell-outputs.py --output-dir .build/expanded --cwd . --format a4 docs/user-guide/*.md
+```
+
+**Placeholder examples:**
+- `{{!cmd}}` - Insert full command output in one code block
+- `{{!cmd:10}}` - Insert the first 10 lines
+- `{{!cmd:10:20}}` - Insert first 10 lines and last 20 lines in separate code blocks
+- `{{!cmd@A4:25:25,B5:20:20}}` - Use format-specific truncation
+- `{{!cmd@L}}` - Add line numbers to emitted output
+
+**Options:**
+- `--output-dir DIR` - Directory where expanded markdown copies are written
+- `--cwd DIR` - Working directory for placeholder commands
+- `--format FORMAT` - Format selector used by format-specific truncation specs, for example `a4` or `b5`
+
+**Behavior:**
+- Preserves the basename of each input file in the output directory
+- Processes files in parallel
+- Exits non-zero if any placeholder command fails
+
+### `install-runtime.sh` - End-user Runtime Installer
+
+Installs EduMatcher for students and instructors using `pipx`, without requiring a source checkout or Poetry environment.
+
+```bash
+./scripts/install-runtime.sh [OPTIONS]
+```
+
+**What it does:**
+1. Checks for Python 3.13 or later
+2. Ensures `pipx` is installed, installing it when possible
+3. Installs or upgrades `edumatcher` from PyPI via `pipx`
+4. Runs `pm-setup` to initialize the runtime data/config environment
+5. Prints next steps for starting an exchange session
+
+**Options:**
+- `--upgrade` - Force reinstall / upgrade of the existing `pipx` installation
+- `--help` - Display help message
+
+**Environment variables:**
+- `EDUMATCHER_DATA_DIR` - Override the data directory initialized by `pm-setup`
+- `EDUMATCHER_CONFIG` - Override where EduMatcher expects `engine_config.yaml`
+
+**Requirements:**
+- Python 3.13 or later
+- Network access to install from PyPI
+- `pipx`, or a platform where the script can install `pipx`
 
 ### `verify_setup.sh` - Local Setup Verification
 
@@ -280,6 +293,78 @@ Manages the containerized documentation server built from `Dockerfile.docs`.
 - Prefer `make docs-serve` or `poetry run mkdocs serve` for the fastest local editing feedback
 
 
+## Deprecated scripts
+
+Documented for historical reasons.
+
+### `mkchlogentry.sh` - CHANGELOG Entry Script
+
+**THIS IS NOW A DEPRECATED SCRIPT. USE THE CoPilot SKILL `/changelog-entry` INSTEAD**
+
+Creates and prepends a new release-entry template in the top-level `CHANGELOG.md`.
+Run this before `mkrelease.sh`.
+
+```bash
+./scripts/mkchlogentry.sh <version> [major|minor|patch] [OPTIONS]
+```
+
+**Examples:**
+```bash
+./scripts/mkchlogentry.sh 0.7.2 patch
+./scripts/mkchlogentry.sh 0.8.0 minor --dry-run
+```
+
+**What it does:**
+1. Validates the requested version format
+2. Refuses to create duplicate entries for an existing version
+3. Prepends a new entry using the established release layout
+4. Leaves `CHANGELOG.md` ready for the developer to replace placeholders with final release notes
+
+**Options:**
+- `--dry-run` - Preview the entry without modifying files
+- `--help`, `-h` - Display help message
+
+**Requirements:**
+- Run from the project root
+- Update the generated placeholder bullets before running `mkrelease.sh`
+
+
+### `mkcover.sh` - PDF Cover Inserter
+
+**THIS IS DEPRECATED THE COVER FOR THE PDF BOOKS ARE INSERTED AS PART OF THE LATEX-TEMPLATE**
+
+Inserts an image as the first page of an existing PDF, replacing the PDF's current first page.
+This is used by documentation PDF workflows that generate a placeholder cover page first and then replace it with a rendered image.
+
+```bash
+./scripts/mkcover.sh [OPTIONS] <image> <pdf>
+```
+
+**Examples:**
+```bash
+./scripts/mkcover.sh assets/cover.png docs/dist/book.pdf
+./scripts/mkcover.sh --dpi 300 -o docs/dist/book-with-cover.pdf assets/cover.png docs/dist/book.pdf
+```
+
+**What it does:**
+1. Reads the page size from the target PDF
+2. Converts the image into a single-page PDF at the target page size
+3. Replaces the target PDF's first page with the generated cover page
+4. Writes either in place or to a separate output file
+
+**Options:**
+- `-q`, `--quiet` - Suppress normal output
+- `--dpi N` - Set image conversion DPI, default `72`
+- `-o`, `--output FILE` - Write to a separate output PDF instead of overwriting the input
+- `-h`, `--help` - Display help message
+
+**Requirements:**
+- ImageMagick (`magick` or `convert`) for image-to-PDF conversion
+- One PDF merge/page tool: `pdftk`, Ghostscript (`gs`), or Poppler (`pdfseparate` and `pdfunite`)
+- `pdfinfo` from Poppler or Ghostscript for page-size detection
+
+
+
 ## Typical Workflows
 
 ### Daily Development Check
@@ -306,6 +391,22 @@ make docs-serve
 make docs-container-start
 ./scripts/docs-contctl.sh status
 ./scripts/docs-contctl.sh logs --follow
+```
+
+### Runtime Installation
+
+```bash
+# Install EduMatcher as an end-user runtime
+./scripts/install-runtime.sh
+
+# Upgrade an existing pipx installation
+./scripts/install-runtime.sh --upgrade
+```
+
+### PDF Cover Replacement
+
+```bash
+./scripts/mkcover.sh --dpi 300 assets/cover.png docs/dist/book.pdf
 ```
 
 ### Release Workflow
@@ -351,8 +452,12 @@ poetry install --with dev
 
 - Install Podman and ensure the engine is running before using `docs-contctl.sh`
 
-**Problem: `pandoc_sprint_planning_table_widths.lua` not applied**
+**Problem: PDF cover insertion fails**
 
-- Ensure Pandoc is installed and that you pass `--lua-filter scripts/pandoc_sprint_planning_table_widths.lua` explicitly on the command line
+- Install ImageMagick and one supported PDF tool: `pdftk`, Ghostscript, or Poppler
+
+**Problem: `expand-shell-outputs.py` fails during docs PDF build**
+
+- Run the failing placeholder command manually from the configured `--cwd` directory and fix its exit status or output assumptions
 
 
