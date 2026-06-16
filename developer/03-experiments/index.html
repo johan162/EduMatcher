@@ -2627,7 +2627,7 @@ Understand how high-level execution intent is translated into low-level exchange
 <p><strong>Note</strong>: Experiment 16 (Self-Trade Prevention) is already implemented in the gateway and matching engine as <code>SmpAction</code> modes. It serves as a validation that the roadmap's abstractions align with production needs.</p>
 <h2 id="experiment-16-self-trade-prevention">Experiment 16: Self-Trade Prevention<a class="headerlink" href="#experiment-16-self-trade-prevention" title="Permanent link">&para;</a></h2>
 <p><strong>Status: Already Implemented ✓</strong></p>
-<p><em>Implementation location</em>: <a href="../../src/edumatcher/models/order.py"><code>src/edumatcher/models/order.py</code></a> (SmpAction enum), <a href="../../src/edumatcher/engine/order_book.py"><code>src/edumatcher/engine/order_book.py</code></a> (<code>_sweep()</code> and <code>_smp_cancel_resting()</code>), <a href="../../src/edumatcher/gateway/main.py"><code>src/edumatcher/gateway/main.py</code></a> (SMP command syntax).</p>
+<p><em>Implementation location</em>: <code>src/edumatcher/models/order.py</code> (SmpAction enum), <code>src/edumatcher/engine/order_book.py</code> (<code>_sweep()</code> and <code>_smp_cancel_resting()</code>), <code>src/edumatcher/gateway/main.py</code> (SMP command syntax).</p>
 <p><em>Why included anyway</em>: Demonstrates that the roadmap's high-level abstractions map cleanly onto production code patterns. Can serve as a learning reference for understanding the matching engine's self-trade enforcement.</p>
 <p>Difficulty: Intermediate
 Estimated effort: —

@@ -1923,6 +1923,7 @@
 <li>What EduMatcher is and what you can do with it</li>
 <li>The minimum steps to start an exchange and execute your first trade</li>
 <li>What each process does and when to start it</li>
+<li>How to quickly bootstrap a new <code>engine_config.yaml</code> with <code>pm-config-gen</code></li>
 <li>Which sections to read next based on your role</li>
 </ul>
 </div>
@@ -2010,11 +2011,22 @@ no source code, no Poetry, no virtual environment management.</p>
 <p>After reloading your shell, every <code>pm-*</code> command picks up the right data
 directory automatically — no flags needed.</p>
 <p><strong>Edit the config, then start trading</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Edit the sample config that pm-setup copied into your directory</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>nano<span class="w"> </span>engine_config.yaml
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># Start the engine</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>pm-engine<span class="w"> </span>--verbose
+<p>If you prefer generating a starter config instead of manually writing YAML:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">    </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span>--output<span class="w"> </span>engine_config.yaml
+</code></pre></div>
+<p>Then edit any remaining details and start the engine.</p>
+<p>For full generator details (all flags, <code>--symbol-opts</code>, MM quote stubs,
+validation hints, and recipes), see
+<a href="../01-configuration/#generate-configs-with-pm-config-gen">Configuration</a>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Edit the sample config that pm-setup copied into your directory</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>nano<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Start the engine</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>pm-engine<span class="w"> </span>--verbose
 </code></pre></div>
 <h3 id="developer-mode-poetry-source-checkout">Developer mode — Poetry + source checkout<a class="headerlink" href="#developer-mode-poetry-source-checkout" title="Permanent link">&para;</a></h3>
 <p>Use this mode if you want to modify the engine, run tests, or contribute.</p>
@@ -2042,22 +2054,22 @@ directory automatically — no flags needed.</p>
 </tbody>
 </table>
 <p><strong>Install</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/johan162/EduMatcher.git
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>poetry<span class="w"> </span>install<span class="w"> </span>--with<span class="w"> </span>dev
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/johan162/EduMatcher.git
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>poetry<span class="w"> </span>install<span class="w"> </span>--with<span class="w"> </span>dev
 </code></pre></div>
 <p>Data is stored in <code>src/data/</code> inside the repo and <code>engine_config.yaml</code> is
 read from the repo root — no environment variables needed.</p>
 <p>All commands are prefixed with <code>poetry run</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW01
 </code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">Switching from developer to end-user mode</p>
 <p>You can install the locally built wheel with pipx at any time:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>poetry<span class="w"> </span>build
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pipx<span class="w"> </span>install<span class="w"> </span>dist/edumatcher-*.whl<span class="w"> </span>--force
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>pm-setup<span class="w"> </span>--force<span class="w">    </span><span class="c1"># re-copy the latest sample config</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>poetry<span class="w"> </span>build
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>pipx<span class="w"> </span>install<span class="w"> </span>dist/edumatcher-*.whl<span class="w"> </span>--force
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>pm-setup<span class="w"> </span>--force<span class="w">    </span><span class="c1"># re-copy the latest sample config</span>
 </code></pre></div>
 </div>
 <h2 id="environment-variables">Environment variables<a class="headerlink" href="#environment-variables" title="Permanent link">&para;</a></h2>
@@ -2096,46 +2108,46 @@ and executes one trade. No configuration file is required — the engine starts 
 <h3 id="step-1-start-the-engine">Step 1 — Start the engine<a class="headerlink" href="#step-1-start-the-engine" title="Permanent link">&para;</a></h3>
 <p>Open a terminal and run:</p>
 <p><strong>"Installed (pipx)"</strong> mode</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-engine
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-engine
 </code></pre></div>
 <p><strong>"Developer (Poetry)"</strong> mode</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine
 </code></pre></div>
 <p>Expected output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[ENGINE] EduMatcher matching engine starting
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>[ENGINE] Listening for orders on tcp://127.0.0.1:5555
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>[ENGINE] Publishing events on tcp://127.0.0.1:5556
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>[ENGINE] Drop-copy feed on tcp://127.0.0.1:5557
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>[ENGINE] Session state: PRE_OPEN
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>[ENGINE] Ready
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>[ENGINE] EduMatcher matching engine starting
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>[ENGINE] Listening for orders on tcp://127.0.0.1:5555
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>[ENGINE] Publishing events on tcp://127.0.0.1:5556
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>[ENGINE] Drop-copy feed on tcp://127.0.0.1:5557
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>[ENGINE] Session state: PRE_OPEN
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>[ENGINE] Ready
 </code></pre></div>
 <p>The engine is now running. Leave this terminal open.</p>
 <h3 id="step-2-connect-participant-a-the-buyer">Step 2 — Connect Participant A (the buyer)<a class="headerlink" href="#step-2-connect-participant-a-the-buyer" title="Permanent link">&para;</a></h3>
 <p>Open a second terminal:</p>
 <p><strong>"Installed (pipx)" mode</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW01
 </code></pre></div>
 <p><strong>"Developer (Poetry)" mode</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW01
 </code></pre></div>
 <p>You should see a prompt after the connection banner:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[GW01] Connected to engine
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>GW01&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[GW01] Connected to engine
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>GW01&gt;
 </code></pre></div>
 <h3 id="step-3-connect-participant-b-the-seller">Step 3 — Connect Participant B (the seller)<a class="headerlink" href="#step-3-connect-participant-b-the-seller" title="Permanent link">&para;</a></h3>
 <p>Open a third terminal:</p>
 <p><strong>"Installed (pipx)"</strong> mode</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW02
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW02
 </code></pre></div>
 <p><strong>"Developer (Poetry)"</strong> mode
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW02
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW02
 </code></pre></div></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>[GW02] Connected to engine
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>GW02&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>[GW02] Connected to engine
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>GW02&gt;
 </code></pre></div>
 <h3 id="step-4-check-the-session-state">Step 4 — Check the session state<a class="headerlink" href="#step-4-check-the-session-state" title="Permanent link">&para;</a></h3>
 <p>On either gateway, ask what state the exchange is in:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>GW01&gt; STATUS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>GW01&gt; STATUS
 </code></pre></div>
 <p>The engine replies with the current session state. In unrestricted mode it starts
 in <code>PRE_OPEN</code>. To enable matching, advance to <code>CONTINUOUS</code>:</p>
@@ -2147,9 +2159,9 @@ if you just have the engine running is to start with a config that sets
 <code>sessions_enabled: false</code> (which defaults to <code>CONTINUOUS</code>).</p>
 </div>
 <p>For this walkthrough, start the engine with:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;sessions_enabled: false&quot;</span><span class="w"> </span>&gt;<span class="w"> </span>/tmp/demo.yaml
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>pm-engine<span class="w"> </span>--config<span class="w"> </span>/tmp/demo.yaml<span class="w">       </span><span class="c1"># installed</span>
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="c1"># or:  poetry run pm-engine --config /tmp/demo.yaml</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;sessions_enabled: false&quot;</span><span class="w"> </span>&gt;<span class="w"> </span>/tmp/demo.yaml
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>pm-engine<span class="w"> </span>--config<span class="w"> </span>/tmp/demo.yaml<span class="w">       </span><span class="c1"># installed</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="c1"># or:  poetry run pm-engine --config /tmp/demo.yaml</span>
 </code></pre></div>
 <h3 id="step-5-place-orders-and-trade">Step 5 — Place orders and trade<a class="headerlink" href="#step-5-place-orders-and-trade" title="Permanent link">&para;</a></h3>
 <div class="admonition info">
@@ -2165,24 +2177,24 @@ GW01 would fill against the MM's resting ask rather than waiting for GW02's
 sell.</p>
 <p>If this happens and you are surprised by an unexpected fill, check whether
 your config seeds the book:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>grep<span class="w"> </span>-A5<span class="w"> </span><span class="s2">&quot;market_maker_quotes&quot;</span><span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>grep<span class="w"> </span>-A5<span class="w"> </span><span class="s2">&quot;market_maker_quotes&quot;</span><span class="w"> </span>engine_config.yaml
 </code></pre></div>
 To follow this walkthrough exactly with a known-empty book, either start
 the engine with no config file, or use a config with no <code>market_maker_quotes</code>
 entries.</p>
 </div>
 <p>On Participant B's terminal, post a sell order at 150.00:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>GW02&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>GW02&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
 </code></pre></div>
 <p>Expected response:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>[HH:MM:SS] ORDER ACK  ord-xxxx  AAPL SELL LIMIT 100@150.00 DAY → RESTING
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>[HH:MM:SS] ORDER ACK  ord-xxxx  AAPL SELL LIMIT 100@150.00 DAY → RESTING
 </code></pre></div>
 <p>On Participant A's terminal, buy at the same price:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>GW01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>GW01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=DAY
 </code></pre></div>
 <p>Both gateways see fill events:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>[HH:MM:SS] FILL  ord-xxxx  AAPL BUY 100@150.00
-<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>[HH:MM:SS] FILL  ord-yyyy  AAPL SELL 100@150.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>[HH:MM:SS] FILL  ord-xxxx  AAPL BUY 100@150.00
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>[HH:MM:SS] FILL  ord-yyyy  AAPL SELL 100@150.00
 </code></pre></div>
 <p>A <code>trade.executed</code> event is published to all subscribers. Congratulations — you
 just ran a trade on your own exchange.</p>
@@ -2238,13 +2250,18 @@ just ran a trade on your own exchange.</p>
 </tbody>
 </table>
 <p>For a full classroom session, use the provided launch script:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>./tools/launch_all.sh
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>./tools/launch_all.sh
 </code></pre></div>
 <p>The script detects whether <code>pm-engine</code> is on PATH (installed mode) or falls
 back to <code>poetry run</code> automatically when running from a source checkout.</p>
 <h2 id="typical-architecture-for-a-classroom-demo">Typical architecture for a classroom demo<a class="headerlink" href="#typical-architecture-for-a-classroom-demo" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart TD
+    subgraph Instructor
+        direction TB
+        ADM["pm-admin\n(operator console)"]
+    end
     subgraph Server
+        direction TB
         ENG["pm-engine"]
         CLR["pm-clearing"]
         STAT["pm-stats"]
@@ -2252,20 +2269,21 @@ back to <code>poetry run</code> automatically when running from a source checkou
         AI["pm-ai-swarm\n(simulated order flow)"]
     end
     subgraph Student terminals
+        direction TB
         GW1["pm-gateway --id ST01"]
         GW2["pm-gateway --id ST02"]
         GWN["pm-gateway --id STnn"]
     end
-    subgraph Instructor
-        ADM["pm-admin\n(operator console)"]
-    end
 
-    GW1 &amp; GW2 &amp; GWN -- "orders" --&gt; ENG
-    AI -- "orders" --&gt; ENG
     ADM -- "halt / resume / session" --&gt; ENG
-    ENG -- "fills, book, session" --&gt; GW1 &amp; GW2 &amp; GWN
-    ENG --&gt; CLR &amp; STAT
-    SCH -- "phase changes" --&gt; ENG</code></pre>
+    ENG -- "gateway traffic" --&gt; GW1
+    GW1 --&gt; GW2
+    GW2 --&gt; GWN
+
+    AI -. "orders" .-&gt; ENG
+    SCH -. "phase changes" .-&gt; ENG
+    ENG -- "trade events" --&gt; CLR
+    ENG -- "market data" --&gt; STAT</code></pre>
 <p>Typical setup:</p>
 <ol>
 <li>Instructor creates <code>engine_config.yaml</code> with student gateway IDs and symbols.</li>
@@ -2375,6 +2393,7 @@ back to <code>poetry run</code> automatically when running from a source checkou
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../01-configuration/">Configuration</a> — full <code>engine_config.yaml</code> reference</li>
+<li><a href="../01-configuration/#generate-configs-with-pm-config-gen">Configuration generator</a> — build <code>engine_config.yaml</code> from CLI flags</li>
 <li><a href="../03-running-the-engine/">Running the Engine</a> — detailed startup, monitoring, and troubleshooting</li>
 <li><a href="../08-gateway/">Gateway Commands</a> — complete command reference for participants</li>
 <li><a href="../04-order-types/">Order Types</a> — LIMIT, MARKET, STOP, ICEBERG, TRAILING_STOP, OCO, COMBO</li>

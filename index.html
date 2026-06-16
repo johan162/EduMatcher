@@ -1956,7 +1956,7 @@ fully runnable system.</p>
 <tr>
 <td>New to finance / exchanges</td>
 <td><a href="how-exchange-works/">How an Exchange Works</a></td>
-<td><a href="user-guide/00-getting-started/">Getting Started</a> → <a href="concepts/01-concepts-order-book/">The Order Book</a></td>
+<td><a href="user-guide/00-getting-started/">Getting Started</a> → <a href="concepts/01-concepts-order-book/">The Order Book</a> → <a href="concepts/04-concepts-first-trade/">Your First Trade</a></td>
 </tr>
 <tr>
 <td>Familiar with trading, new to EduMatcher</td>
@@ -1971,7 +1971,7 @@ fully runnable system.</p>
 <tr>
 <td>Developer extending the system</td>
 <td><a href="architecture/01-architecture/">Architecture Overview</a></td>
-<td><a href="architecture/02-architecture-guide/">Detailed Walkthrough</a> → <a href="developer/01-dev-practice/">Developer Info</a></td>
+<td><a href="architecture/02-architecture-guide/">Detailed Walkthrough</a> → <a href="developer/01-dev-practice/">Developer Info</a> → <a href="concepts/02-concepts-order-book-deep-dive/">Order Book Deep Dive</a></td>
 </tr>
 </tbody>
 </table>
@@ -1995,16 +1995,19 @@ orders, and produces <strong>trades</strong> when prices agree.</p>
 <p>EduMatcher reproduces this entire stack as independent processes
 communicating over a message bus, just as a real exchange does. The
 difference is that here, everything is visible and inspectable:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>  Your terminal          Matching engine           Other participants
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  (pm-gateway)  ──────►  (pm-engine)  ◄──────────  (other pm-gateways)
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                              │
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>                    broadcasts trades &amp; fills
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>                              │
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>            ┌─────────────────┼────────────────────┐
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>            ▼                 ▼                    ▼
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>       pm-viewer          pm-clearing          pm-audit
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    (live order book)  (P&amp;L accounting)   (full event log)
-</code></pre></div>
+<pre class="mermaid"><code>flowchart TD
+  GW1[Your terminal&lt;br/&gt;pm-gateway]
+  ENG[Matching engine&lt;br/&gt;pm-engine]
+  GW2[Other participants&lt;br/&gt;other pm-gateways]
+  VIEW[pm-viewer&lt;br/&gt;live order book]
+  CLR[pm-clearing&lt;br/&gt;P&amp;L accounting]
+  AUD[pm-audit&lt;br/&gt;full event log]
+
+  GW1 --&gt; ENG
+  GW2 --&gt; ENG
+  ENG --&gt;|broadcasts trades and fills| VIEW
+  ENG --&gt;|broadcasts trades and fills| CLR
+  ENG --&gt;|broadcasts trades and fills| AUD</code></pre>
 <p>A <strong>trade</strong> happens when two orders cross: a buyer willing to pay at least
 what a seller is willing to accept. The matching engine applies
 <strong>price-time priority</strong> — the best-priced order fills first; among orders at
@@ -2137,9 +2140,18 @@ ready to run commands.</p>
 </ul>
 <h3 id="install-choose-one">Install (choose one)<a class="headerlink" href="#install-choose-one" title="Permanent link">&para;</a></h3>
 <p><strong>Installed mode (pipx)</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>edumatcher
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pm-setup
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>edumatcher
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pm-setup
 </code></pre></div>
+<p>After <code>pm-setup</code>, choose one config bootstrap path:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Option A: generate a fresh config from CLI flags</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pm-config-gen<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>--sessions-enabled<span class="w"> </span>--output<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># Option B: start from the sample file copied by pm-setup</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># and edit engine_config.yaml in place</span>
+</code></pre></div>
+<p>For full generator options, see
+<a href="user-guide/01-configuration/#generate-configs-with-pm-config-gen">Configuration</a>.</p>
 <p><strong>Developer mode (Poetry)</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/johan162/EduMatcher.git
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher
