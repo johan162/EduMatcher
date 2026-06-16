@@ -19,7 +19,8 @@ MERMAID_FILTER_WIDTH ?= 600
 .EXTRA_PREREQS := $(firstword $(MAKEFILE_LIST))
 
 # Make behavior
-.DEFAULT_GOAL := pdfs
+.DEFAULT_GOAL := pdf-docs
+# .SILENT: # Comment out to show command lines during execution for debugging
 
 # Get full path to bash
 SHELL := $(shell which bash)
