@@ -1,0 +1,72 @@
+title = "How a Financial Exchange Works"
+
+[frontmatter]
+files = ["src/00-frontmatter/00-preface-intro.md"]
+
+[[parts]]
+title = 'Part I: Foundation — Markets, History, and Participants'
+dir = 'src/01-foundation'
+files = [
+  '00-part.md',
+  '01-before-the-exchange-how-companies-raise-capital.md',
+  '02-what-is-a-financial-exchange-and-why-does-it-exist.md',
+  '03-the-language-of-the-market-a-short-history.md',
+  '04-the-participants.md',
+  '05-a-brief-tour-of-real-world-exchanges.md',
+]
+
+[[parts]]
+title = 'Part II: Orders, Matching, and the Trading Day'
+dir = 'src/02-orders-and-matching'
+files = [
+  '00-part.md',
+  '01-the-order-the-fundamental-unit.md',
+  '02-order-types-the-vocabulary-of-intent.md',
+  '03-time-in-force-how-long-should-the-order-live.md',
+  '04-the-order-book-the-exchange-s-memory.md',
+  '05-price-time-priority-the-fairness-rule.md',
+  '06-the-matching-engine-the-heart-of-the-exchange.md',
+  '07-the-life-of-a-trade.md',
+  '08-market-makers-the-providers-of-liquidity.md',
+  '09-the-opening-and-closing-auction.md',
+  '10-trading-sessions-the-day-in-the-life-of-a-market.md',
+  '11-putting-it-all-together.md',
+]
+
+[[parts]]
+title = 'Part III: Risk, Compliance, and Post-Trade'
+dir = 'src/03-risk-and-compliance'
+files = [
+  '00-part.md',
+  '01-pre-trade-risk-controls-before-the-matching-engine.md',
+  '02-risk-controls-protecting-the-market.md',
+  '03-self-match-prevention-when-you-would-trade-with-yourself.md',
+  '04-drop-copy-the-shadow-record.md',
+  '05-clearing-and-settlement-when-the-trade-becomes-real.md',
+  '06-regulatory-surveillance-exchanges-are-not-passive.md',
+  '07-a-cautionary-tale-knight-capital-august-1-2012.md',
+]
+
+[[parts]]
+title = 'Part IV: Technology, Infrastructure, and Market Ecology'
+dir = 'src/04-technology-and-infrastructure'
+files = [
+  '00-part.md',
+  '01-speed-bumps-leveling-the-playing-field.md',
+  '02-the-technology-architecture.md',
+  '03-primary-and-secondary-sites-resilience-architecture.md',
+  '04-load-balancing-distributing-the-work.md',
+  '05-market-data-architecture-how-the-market-sees-itself.md',
+  '06-smart-order-routing-and-market-fragmentation.md',
+  '07-latency-and-co-location-the-speed-dimension.md',
+  '08-operational-observability-and-incident-response.md',
+  '09-corporate-actions-when-the-instrument-changes.md',
+  '10-determinism-replay-and-persistence-the-exchange-must-not-forget.md',
+  '11-reference-data-the-exchange-s-ground-truth.md',
+]
+
+[backmatter]
+files = [
+  'src/90-backmatter/20-glossary.md',
+  'src/90-backmatter/21-references.md',
+]

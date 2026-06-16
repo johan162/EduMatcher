@@ -34,10 +34,11 @@ Placeholder syntax
 
 Usage
 -----
-  expand-shell-outputs.py --output-dir DIR [--cwd DIR] [--format FORMAT] FILE [FILE ...]
+    expand-shell-outputs.py --output-dir DIR [--cwd DIR] [--format FORMAT] [--preserve-paths] FILE [FILE ...]
 
-The basename of each FILE is preserved; expanded copies are written under
---output-dir. The script exits 1 if any file or command fails.
+By default the basename of each FILE is preserved; with --preserve-paths the
+path relative to --cwd is preserved under --output-dir. The script exits 1 if
+any file or command fails.
 """
 
 import argparse
@@ -278,13 +279,27 @@ def _expand_match(
     return result
 
 
-def _process_file(src: Path, out_dir: Path, cwd: Path, target_format: str | None) -> None:
-    """Expand all placeholders in *src* and write the result to *out_dir/src.name*."""
+def _process_file(
+    src: Path,
+    out_dir: Path,
+    cwd: Path,
+    target_format: str | None,
+    preserve_paths: bool,
+) -> None:
+    """Expand all placeholders in *src* and write the result to the output tree."""
     text = src.read_text(encoding="utf-8")
     expanded = _PLACEHOLDER.sub(
         lambda m: _expand_match(m, cwd, target_format), text
     )
-    (out_dir / src.name).write_text(expanded, encoding="utf-8")
+    if preserve_paths:
+        try:
+            out_path = out_dir / src.resolve().relative_to(cwd)
+        except ValueError:
+            out_path = out_dir / src
+    else:
+        out_path = out_dir / src.name
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(expanded, encoding="utf-8")
 
 
 def main() -> None:
@@ -313,6 +328,11 @@ def main() -> None:
         "truncation rules are applied if present in placeholders (e.g. @A4:25:25). "
         "If the format is not specified in a placeholder, full output is used.",
     )
+    ap.add_argument(
+        "--preserve-paths",
+        action="store_true",
+        help="Preserve each file's path relative to --cwd under --output-dir.",
+    )
     ap.add_argument("files", nargs="+", type=Path, help="Markdown files to process.")
     args = ap.parse_args()
 
@@ -323,7 +343,14 @@ def main() -> None:
     failed = False
     with ThreadPoolExecutor() as pool:
         futures = {
-            pool.submit(_process_file, Path(f), out_dir, cwd, args.format): f
+            pool.submit(
+                _process_file,
+                Path(f),
+                out_dir,
+                cwd,
+                args.format,
+                args.preserve_paths,
+            ): f
             for f in args.files
         }
         for fut in as_completed(futures):

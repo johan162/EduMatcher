@@ -89,6 +89,10 @@ VERSION := $(shell grep '^version' version.toml | head -1 | cut -d'"' -f2)
 # Temporary build directory for exchange intro PDF generation
 EXCHANGE_INTRO_BUILD_DIR := $(BUILD_DIR)
 
+# Manifest-driven source ordering for the split chapter tree.
+BOOK_MANIFEST := $(DOCS_DIR)/book.toml
+BOOK_SOURCES_SCRIPT := $(DOCS_DIR)/scripts/book_sources.py
+
 # Exchange Intro Book PDF output paths and templates
 # Variant-specific paths are derived by DEFINE_EXCHANGE_INTRO_VARS below.
 # EXCHANGE_INTRO_LUA_FILTER is shared across all variants.
@@ -100,15 +104,14 @@ EXCHANGE_INTRO_LUA_FILTER_FLAGS := --lua-filter $(BOOK_STRUCTURE_LUA_FILTER) --l
 # Markdown sources that are concatenated into the User Guide PDF body.
 # Keep this list markdown-only; non-markdown assets are tracked separately
 # via EXCHANGE_INTRO_PDF_DEPS so they trigger rebuilds without polluting content.
-# NOTE: wildcard/sort split on spaces; use find + escaped spaces so filenames
-# like "00-Preface & Intro.md" remain a single list item in make.
-EXCHANGE_INTRO_MD_SOURCES := \
-	$(shell find $(DOCS_DIR)/src -maxdepth 1 -type f -name '[0-9][0-9]-*.md' -print | sed 's/ /\\ /g' | sort)
+EXCHANGE_INTRO_MD_SOURCES := $(shell poetry run python $(BOOK_SOURCES_SCRIPT) --manifest $(BOOK_MANIFEST))
 
 # $(info EXCHANGE_INTRO_MD_SOURCES: $(EXCHANGE_INTRO_MD_SOURCES))
 
 # Non-markdown assets that should still trigger a rebuild when changed.
 EXCHANGE_INTRO_PDF_DEPS := \
+	$(BOOK_MANIFEST) \
+	$(BOOK_SOURCES_SCRIPT) \
 	$(DOCS_DIR)/book_structure.lua \
 	$(DOCS_DIR)/pagebreaks.lua \
 	$(DOCS_DIR)/admonitions.lua \
@@ -147,7 +150,7 @@ $(eval $(call DEFINE_EXCHANGE_INTRO_VARS,EXCHANGE_INTRO_DARK_B5))
 # $(info EXCHANGE_INTRO_A4_PDF_BUILT: $(EXCHANGE_INTRO_A4_PDF_BUILT))
 
 # Source and Test Files
-DOC_FILES :=  $(shell find $(DOCS_DIR) -name 'src/*.md' -o -name '*.yml' -o -name '*.yaml' -o -name '*.lua' -o -name '*.tex') 
+DOC_FILES := $(shell find $(DOCS_DIR) -type f \( -name '*.md' -o -name '*.yml' -o -name '*.yaml' -o -name '*.lua' -o -name '*.tex' -o -name 'book.toml' \))
 
 # Timestamp files
 STAMP_DIR := .makefile-stamps
@@ -209,14 +212,14 @@ $$($1_PDF): $$(EXCHANGE_INTRO_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_TEMP
 	@mkdir -p $$(EXCHANGE_INTRO_BUILD_DIR)
 	@echo -e "$$(DARKYELLOW)  - Expanding shell command outputs in markdown sources...$$(NC)"
 	@mkdir -p $$($1_EXPANDED_DIR)
-	@find $(DOCS_DIR)/src -maxdepth 1 -type f -name '[0-9][0-9]-*.md' -print0 \
-		| sort -z \
+	@printf '%s\0' $(EXCHANGE_INTRO_MD_SOURCES) \
 		| xargs -0 poetry run python $$(SCRIPTS_DIR)/expand-shell-outputs.py \
 			--output-dir $$($1_EXPANDED_DIR) \
 			--cwd $$(SCRIPTS_DIR)/.. \
+			--preserve-paths \
 			--format $(2)
 	@echo -e "$$(DARKYELLOW)  - Concatenating markdown sources...$$(NC)"
-	@find $$($1_EXPANDED_DIR) -maxdepth 1 -type f -name '[0-9][0-9]-*.md' -print0 \
+	@find $$($1_EXPANDED_DIR) -type f -name '*.md' -print0 \
 		| sort -z \
 		| xargs -0 awk 'FNR==1 && NR!=1{print ""; print ""}1' > $$($1_CONCAT_MD)
 	@echo -e "$$(DARKYELLOW)  - Converting concatenated markdown to LaTeX body...$$(NC)"
