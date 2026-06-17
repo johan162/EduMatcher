@@ -1230,7 +1230,7 @@ flowchart TD
   F -->|No| H[Quote may still be active]
   G --> I[Compute replacement quote]
   H --> J{Leave live, cancel, or replace?}
-  J -->|Cancel| K[Send QUOTE_CANCEL|SYM=...]
+  J -->|Cancel| K[Send QUOTE_CANCEL&#124;SYM=...]
   J -->|Replace| L[Send new QUOTE on same symbol]
   J -->|Leave live| M[Continue monitoring fills]
   I --> L
