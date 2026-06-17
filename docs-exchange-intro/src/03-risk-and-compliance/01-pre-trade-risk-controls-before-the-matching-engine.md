@@ -17,9 +17,9 @@ A professional trading firm may submit thousands of orders per second. Even a br
 
 **Position limits and credit limits.** These two controls are frequently grouped together but measure different things and require different data to evaluate.
 
-*Position limits* cap the number of units a participant may hold in a given instrument, long or short. A position limit of 500,000 shares means a participant cannot hold more than 500,000 shares long or be more than 500,000 shares short at any time. Checking a position limit requires knowing the participant's current settled and unsettled position — data fed from the clearing system into the gateway as a continuously updated parameter. They are designed to prevent any single participant from accumulating a position large enough to create settlement or market concentration risk.
+*Position limits* cap the number of units a participant may hold in a given instrument, long or short. A position limit of 500,000 shares means a participant cannot hold more than 500,000 shares long or be more than 500,000 shares short at any time. Checking a position limit requires knowing the participant's current settled and unsettled position , data fed from the clearing system into the gateway as a continuously updated parameter. They are designed to prevent any single participant from accumulating a position large enough to create settlement or market concentration risk.
 
-*Credit limits* (also called notional or exposure limits) cap the total financial obligation outstanding at any moment: the mark-to-market value of current positions plus the notional value of all open orders not yet filled. A credit limit of $10 million means the sum of position value plus unfilled order commitments cannot exceed $10 million. Credit limits are harder to check in real time than position limits because they require tracking the full "open order book" — every outstanding order submission and cancellation — as well as settled positions. The example above: already long 50,000 shares, new order would take you to 100,000, limit is 75,000 — that is a position limit breach. A separate check might reject an order because the notional value of all outstanding orders already exceeds the credit threshold, even if the eventual position itself would be within limits.
+*Credit limits* (also called notional or exposure limits) cap the total financial obligation outstanding at any moment: the mark-to-market value of current positions plus the notional value of all open orders not yet filled. A credit limit of $10 million means the sum of position value plus unfilled order commitments cannot exceed $10 million. Credit limits are harder to check in real time than position limits because they require tracking the full "open order book" , every outstanding order submission and cancellation , as well as settled positions. The example above: already long 50,000 shares, new order would take you to 100,000, limit is 75,000 , that is a position limit breach. A separate check might reject an order because the notional value of all outstanding orders already exceeds the credit threshold, even if the eventual position itself would be within limits.
 
 **Rate limiting / throttling.** Each participant connection (gateway) is permitted to submit at most N orders per second. If submissions arrive faster than this rate, excess orders are queued or rejected. This protects the exchange from denial-of-service conditions, whether deliberate or accidental.
 
@@ -31,14 +31,14 @@ A professional trading firm may submit thousands of orders per second. Even a br
 
 The sequence in which pre-trade checks run is not arbitrary. Checks requiring external state lookups are more expensive than checks that can be performed on the order message alone. The standard pattern is to fail-fast with the cheapest checks first:
 
-1. **Format and syntax** — Is the message well-formed? Are required fields present and correctly typed? Zero external lookups. Cheapest possible rejection.
-2. **Symbol validity** — Is the symbol known, active, and in a session state that accepts orders? Requires only a reference data table lookup.
-3. **Rate limiting** — Is this gateway within its message rate allowance? In-memory counter per gateway, no external state.
-4. **Fat-finger price check** — Is the submitted price within a configured percentage of the reference price? Requires only a cached reference price per symbol.
-5. **Quantity and notional limits** — Does the order exceed size or value thresholds? Requires only the order fields and configured thresholds.
-6. **Short sale flag check** — If the order is a sell, is the flag correctly set and locate valid?
-7. **Position and credit limits** — Would this order breach the participant's position or credit limits? Requires current position data from the clearing system — the most expensive check.
-8. **SMP pre-check** — Does an obvious self-match with a resting order exist?
+1. **Format and syntax** , Is the message well-formed? Are required fields present and correctly typed? Zero external lookups. Cheapest possible rejection.
+2. **Symbol validity** , Is the symbol known, active, and in a session state that accepts orders? Requires only a reference data table lookup.
+3. **Rate limiting** , Is this gateway within its message rate allowance? In-memory counter per gateway, no external state.
+4. **Fat-finger price check** , Is the submitted price within a configured percentage of the reference price? Requires only a cached reference price per symbol.
+5. **Quantity and notional limits** , Does the order exceed size or value thresholds? Requires only the order fields and configured thresholds.
+6. **Short sale flag check** , If the order is a sell, is the flag correctly set and locate valid?
+7. **Position and credit limits** , Would this order breach the participant's position or credit limits? Requires current position data from the clearing system , the most expensive check.
+8. **SMP pre-check** , Does an obvious self-match with a resting order exist?
 
 Failing at step 1 takes nanoseconds. Failing at step 7 takes longer because it requires consulting external state. Running all checks in parallel wastes resources on orders that would be rejected at step 1; running them in this sequence minimises latency for both accepted and rejected orders.
 

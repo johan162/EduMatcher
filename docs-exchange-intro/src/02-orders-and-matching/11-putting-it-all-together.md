@@ -48,7 +48,7 @@ sequenceDiagram
 
     INV->>GW3: FIX: SELL 50,000 AAPL LIMIT $150.20
     GW3->>ME: Validated order (internal format)
-    ME->>GW3: ACK — order NEW (UUID assigned)
+    ME->>GW3: ACK , order NEW (UUID assigned)
     GW3->>INV: Execution report: NEW
 
     loop Sweep bids $150.35 → $150.20

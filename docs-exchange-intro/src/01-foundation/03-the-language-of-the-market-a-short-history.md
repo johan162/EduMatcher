@@ -35,13 +35,13 @@ When you see terms like "tick" (the minimum price movement), "tick data" (a reco
 
 These historical terms are not just in trading rooms and textbooks. They are in the source code. A developer reading an exchange codebase for the first time will find:
 
-- `bid_price`, `ask_price`, `spread` — the physical ledger's two columns, reduced to struct fields
-- `lot_size`, `tick_size` — the standardisation introduced by the early commodity pits
-- `aggressor_side` — which party crossed the spread; matters for fee calculation and regulatory reporting
-- `book.add_order()`, `book.cancel_order()`, `book.sweep()` — the specialist's actions, now function calls
-- `GTC`, `DAY`, `IOC` — time-in-force codes whose full names (Good-Till-Cancelled, Day, Immediate-or-Cancel) are rarely spoken, used daily in hundreds of millions of orders
-- `tape_price`, `last_trade_price` — what the ticker printed, now a field in a trade record
-- `long_position`, `short_position` — the Amsterdam merchant's grain warehouse, abstracted to a signed integer
+- `bid_price`, `ask_price`, `spread` , the physical ledger's two columns, reduced to struct fields
+- `lot_size`, `tick_size` , the standardisation introduced by the early commodity pits
+- `aggressor_side` , which party crossed the spread; matters for fee calculation and regulatory reporting
+- `book.add_order()`, `book.cancel_order()`, `book.sweep()` , the specialist's actions, now function calls
+- `GTC`, `DAY`, `IOC` , time-in-force codes whose full names (Good-Till-Cancelled, Day, Immediate-or-Cancel) are rarely spoken, used daily in hundreds of millions of orders
+- `tape_price`, `last_trade_price` , what the ticker printed, now a field in a trade record
+- `long_position`, `short_position` , the Amsterdam merchant's grain warehouse, abstracted to a signed integer
 
 Every time you read a function name or a variable name in exchange software that sounds like it belongs in a different century, it does. The codebase is the physical exchange, translated.
 
@@ -49,7 +49,7 @@ Every time you read a function name or a variable name in exchange software that
 
 On 19 October 1987, US stock markets fell **22.6%** in a single day, the largest single-day percentage drop in the history of the Dow Jones Industrial Average. This event, known as **Black Monday**, remains the most severe one-day market crash on record. A more detailed account of this is described in secion [18.4 Historical circuit breaker](03-PART%20III%20-%20Risk%20and%20Compliance.md#historical-circuit-breaker)
 
-The crash was not driven by a single piece of bad news. It was amplified by automated **portfolio insurance** programmes, algorithmic selling strategies designed to protect institutional portfolios by automatically selling futures contracts as prices fell. As these programmes sold, prices fell further, triggering more programme selling, which pushed prices further down — a feedback loop that human traders could not interrupt. The lack of any coordinated mechanism to pause trading made the spiral self-reinforcing.
+The crash was not driven by a single piece of bad news. It was amplified by automated **portfolio insurance** programmes, algorithmic selling strategies designed to protect institutional portfolios by automatically selling futures contracts as prices fell. As these programmes sold, prices fell further, triggering more programme selling, which pushed prices further down , a feedback loop that human traders could not interrupt. The lack of any coordinated mechanism to pause trading made the spiral self-reinforcing.
 
 The Presidential Task Force on Market Mechanisms (the "Brady Commission"), reporting to President Reagan in January 1988, concluded that the absence of circuit breakers and coordinated pause mechanisms across markets had allowed the panic to become catastrophic. Its central recommendation was explicit: create automatic trading halts that could interrupt the feedback loop and give participants time to assess [Brady Commission Report, January 1988].
 
@@ -73,7 +73,7 @@ The two most fundamental prices in any market are the **bid** and the **ask** (a
 
 The **spread** is the difference between the best bid and the best ask at any moment: if the best bid is $150.30 and the best ask is $150.35, the spread is $0.05. The spread is both a measure of market quality (tight spreads mean the market is liquid and efficient; wide spreads mean it is illiquid or uncertain) and the primary source of income for market makers, who earn the spread by continuously standing ready to buy at the bid and sell at the ask.
 
-The phrase **"crossing the spread"** means submitting an order aggressive enough to immediately match against a resting order. An investor who submits a buy order at $150.35 (the ask) rather than waiting at $150.30 (the bid) is crossing the spread and paying for the privilege of immediate execution. This small payment — a few cents, or a fraction of a cent in liquid markets — is the cost of immediacy, and it is the foundation of the market maker's business model.
+The phrase **"crossing the spread"** means submitting an order aggressive enough to immediately match against a resting order. An investor who submits a buy order at $150.35 (the ask) rather than waiting at $150.30 (the bid) is crossing the spread and paying for the privilege of immediate execution. This small payment , a few cents, or a fraction of a cent in liquid markets , is the cost of immediacy, and it is the foundation of the market maker's business model.
 
 ## Blue Chips, Bulls, and Bears
 

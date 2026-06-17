@@ -11,7 +11,7 @@ Every order carries several key pieces of information:
 | **Quantity** | How many units to trade | Typically a positive integer. The **lot** is the standard unit; for US equities one lot = one share; Asian markets often have lot sizes of 100 or 1,000 shares. |
 | **Price** | Limit price (for limit orders) | Maximum a buyer will pay, or minimum a seller will accept. Market orders carry no price. |
 | **Time-In-Force** | How long the order remains valid | So important it gets its own section below. |
-| **Arrival timestamp** | When the exchange received the order | Recorded to nanosecond precision. Not just metadata — it is the tiebreaker in price-time priority. |
+| **Arrival timestamp** | When the exchange received the order | Recorded to nanosecond precision. Not just metadata , it is the tiebreaker in price-time priority. |
 | **Identity** | Which gateway (participant) submitted it | Used for self-match prevention, kill switches, and regulatory reporting. |
 
 

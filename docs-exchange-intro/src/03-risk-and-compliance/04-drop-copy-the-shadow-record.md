@@ -37,7 +37,7 @@ The fill price and aggressor flag are used by the clearing broker to calculate r
 
 ## Drop Copy vs Market Data
 
-Drop copy is a **private** feed — it contains information about a specific participant's orders, which they would not want published to the whole market. Market data (the order book, trades) is **public**, published to all subscribers. Drop copy is delivered on a separate, secured channel, typically authenticated with the participant's credentials.
+Drop copy is a **private** feed , it contains information about a specific participant's orders, which they would not want published to the whole market. Market data (the order book, trades) is **public**, published to all subscribers. Drop copy is delivered on a separate, secured channel, typically authenticated with the participant's credentials.
 
 ## Sequence Numbers and Gap Recovery
 
@@ -45,7 +45,7 @@ Each event in the drop copy includes a **sequence number**, a monotonically incr
 
 Worked example: the clearing broker's risk system receives sequence numbers 1, 2, 3, 4 and then loses connectivity briefly. When it reconnects, it sees sequence number 7 arrive. It immediately knows events 5 and 6 were missed. It sends a retransmission request: "resend from sequence 5." The exchange replays events 5, 6, 7 over a separate unicast channel. The risk system processes them in order and is now fully caught up before sequence 8 arrives.
 
-Without sequence numbers, the risk system would have no reliable way to detect the gap. It might operate with a stale position view — showing a position of, say, 5,000 shares when the true position is 7,000 — until the next end-of-day reconciliation. For a real-time risk management system, this is unacceptable.
+Without sequence numbers, the risk system would have no reliable way to detect the gap. It might operate with a stale position view , showing a position of, say, 5,000 shares when the true position is 7,000 , until the next end-of-day reconciliation. For a real-time risk management system, this is unacceptable.
 
 > **Key idea:** The drop copy sequence number is the risk manager's safety net. A system that processes drop copy events without checking sequence numbers for gaps will eventually make risk decisions based on incorrect positions. Sequence integrity monitoring is not optional.
 
