@@ -214,6 +214,7 @@ The bot subscribes to the following topics on the engine PUB socket:
 | `system.symbols.{GW_ID}` | Receive the list of tradeable symbols on startup |
 | `book.{SYMBOL}` | Track best bid/ask and mid-price updates |
 | `trade.executed` | Update last-trade reference price when no book data is available |
+| `system.quote_bootstrap.{GW_ID}` | Receive active quote-slot bootstrap state after startup query |
 | `order.fill.{GW_ID}` | Detect when a quote leg is filled (correlate `order_id` with IDs from `quote.ack`) |
 | `order.cancelled.{GW_ID}` | Track sibling-leg cancellations and explicit cancel confirmations |
 | `quote.ack.{GW_ID}` | Capture `quote_id` plus `bid_order_id`/`ask_order_id` mapping |
@@ -273,8 +274,11 @@ sequenceDiagram
     E-->>B: system.gateway_auth.MM_AAPL_01 accepted=true
     B->>E: system.symbols_request gateway_id=MM_AAPL_01
     E-->>B: system.symbols.MM_AAPL_01 symbols=AAPL/MSFT/...
+    B->>E: system.quote_bootstrap_request gateway_id=MM_AAPL_01 symbol=AAPL
+    E-->>B: system.quote_bootstrap.MM_AAPL_01 quotes=[...]
     Note over B: verify assigned symbol is in the list
-    Note over B: resolve initial reference: book -> trade -> engine initial quote -> random range
+    Note over B: if active quote exists for (gateway_id,symbol), adopt mapping/state and do not send quote.new
+    Note over B: else resolve reference: book -> trade -> bootstrap quote -> random range
     E-->>B: book.AAPL best_bid=149.95 best_ask=150.05
     Note over B: mid = 150.00 -- compute bid/ask
     B->>E: quote.new {symbol: AAPL, bid_price: 149.95, ask_price: 150.05, bid_qty: 500, ask_qty: 500}
@@ -388,16 +392,20 @@ reference yet, it resolves an initial reference in this strict order:
 
 1. Current book-derived mid for the symbol (if available).
 2. Last `trade.executed` price for the symbol.
-3. Engine-provided initial quote reference for the symbol (if present in engine
-   configuration and published to the bot).
+3. `system.quote_bootstrap.{GW}` quote state (requested via
+  `system.quote_bootstrap_request`) for the same gateway and symbol.
 4. Random bootstrap price sampled from a configured range:
    `--initial_min` to `--initial_max`.
 
 Resolution details:
 
-- The engine-initial-quote reference is recognized as a special-case bootstrap
-  source. If the engine provides both bid and ask, the bot uses their midpoint;
-  if it provides a single reference price, that value is used directly.
+- If the bootstrap reply contains an active quote for `(gateway_id, symbol)`,
+  the bot must adopt it instead of submitting a duplicate quote. Adoption means:
+  loading `quote_id`, `bid_order_id`, `ask_order_id`, leg remaining quantities,
+  and setting state to `QUOTING`.
+- If bootstrap reply exists but has no active quote, and book/trade are empty,
+  the bot may derive a temporary reference from bootstrap bid/ask values when
+  available; otherwise it continues to random-range fallback.
 - Random bootstrap uses a uniform sample in `[initial_min, initial_max]`, then
   rounds to the nearest tick and verifies resulting quote prices are valid.
 - `--initial_min` and `--initial_max` must be supplied together, and
@@ -407,6 +415,12 @@ Resolution details:
 
 Bootstrap is one-time behavior for obtaining the first usable quote reference.
 After quoting begins, normal mid tracking and drift logic apply.
+
+Operational note: `QLEGS` is a gateway command (not a bot wire message) and is
+useful for human verification during bring-up. Before or after starting the bot,
+an operator can run `QLEGS|SYM=<symbol>|SHOW=ALL` on the same gateway identity
+to confirm whether quote legs already exist and whether the bot should adopt or
+replace existing state.
 
 
 
@@ -530,9 +544,14 @@ engine.
 
 ### 7.2 Transition to CONTINUOUS
 
-When a `session.state` event arrives with `state=CONTINUOUS`, the bot transitions
-from `WAITING_FOR_SESSION` (or `PAUSED`) to `REISSUING` only if a valid price
-reference is available.
+On startup, the bot must not assume it will receive a fresh `session.state`
+broadcast immediately. It waits up to `startup_session_timeout_sec` for the
+first session snapshot/event. If none arrives, it fails fast with a clear error
+instead of waiting indefinitely.
+
+When a `session.state` event arrives with `state=CONTINUOUS`, the bot
+transitions from `WAITING_FOR_SESSION` (or `PAUSED`) to `REISSUING` only if a
+valid price reference is available.
 
 If book/trade data are unavailable (fresh startup), the bot must invoke the
 bootstrap resolver from Section 5.5 and either:
@@ -607,6 +626,7 @@ poetry run pm-mm-bot --symbol AAPL --gap 0.10 --qty 500 -v
 | `--reissue-delay-ms N` | No | `200` | Milliseconds to wait after a fill before re-issuing |
 | `--tif {DAY,GTC}` | No | `DAY` | Time-in-force for quote legs |
 | `--heartbeat-interval-sec F` | No | `5.0` | Interval for the periodic "do I have a live quote?" check |
+| `--startup-session-timeout-sec F` | No | `5.0` | Max wait for first `session.state` snapshot/event before startup fails fast |
 | `--cancel-timeout-sec F` | No | `1.0` | Max wait for cancel confirmation before proceeding with reissue |
 | `--shutdown-timeout-sec F` | No | `2.0` | Max wait for cancel confirmation on SIGINT/SIGTERM |
 | `--initial_min PRICE` | No | unset | Lower bound for random bootstrap reference when no book/trade/engine initial quote exists |
@@ -718,8 +738,9 @@ quotes resting would mislead other participants.
 |---|---|---|
 | `system.gateway_connect` | Startup | `gateway_id` |
 | `system.symbols_request` | After auth ACK | `gateway_id` |
+| `system.quote_bootstrap_request` | Startup after symbols | `gateway_id`, `symbol` |
 | `quote.new` | Entering QUOTING state | `gateway_id`, `symbol`, `bid_price`, `ask_price`, `bid_qty`, `ask_qty`, `quote_id`, `tif` |
-| `quote.cancel` | Before reissue; on PAUSED; on shutdown | `gateway_id`, `symbol` |
+| `quote.cancel` | On PAUSED/shutdown and optional defensive reissue path | `gateway_id`, `symbol` |
 
 > The `QUOTE` command on the ALF gateway protocol translates to a `quote.new`
 > ZMQ message. The bot uses the same message structure directly, bypassing the
@@ -731,6 +752,7 @@ quotes resting would mislead other participants.
 |---|---|---|
 | `system.gateway_auth.{GW}` | After connect | Check `accepted`; abort if false |
 | `system.symbols.{GW}` | After symbols request | Extract symbol list; verify assigned symbol exists |
+| `system.quote_bootstrap.{GW}` | After bootstrap request | Detect and adopt existing active quote for `(gateway_id, symbol)` |
 | `book.{SYMBOL}` | On every book update | Update `_mid_price`; check for drift |
 | `trade.executed` | On every fill | Update last-trade price if book mid unavailable |
 | `quote.ack.{GW}` | After QUOTE/QUOTE_CANCEL flows | Record `quote_id` and leg IDs for correlation; treat rejection via `accepted=false` |
@@ -758,10 +780,9 @@ sequenceDiagram
     Note over B: ask inactivated -- 400 remaining
     Note over B: reissue timer started
     Note over B: timer fires
-    B->>E: quote.cancel {gateway_id: MM_AAPL_01, symbol: AAPL}
-    E-->>B: quote.status.MM_AAPL_01 status=CANCELLED
     Note over B: mid still 150.00 -- recompute bid/ask
     B->>E: quote.new {symbol: AAPL, bid_price: 149.97, ask_price: 150.03, bid_qty: 500, ask_qty: 500}
+    Note over E: replace active quote in slot (MM_AAPL_01, AAPL)
     E-->>B: quote.ack.MM_AAPL_01 accepted=true quote_id=q-002
     Note over B: state = QUOTING with fresh full-size quote
 ```
@@ -779,10 +800,9 @@ sequenceDiagram
     Note over B: new mid = 150.10
     Note over B: drift = 0.10 exceeds drift_ticks=3 threshold
     Note over B: state = REPRICING
-    B->>E: quote.cancel {gateway_id: MM_AAPL_01, symbol: AAPL}
-    E-->>B: quote.status.MM_AAPL_01 status=CANCELLED
     Note over B: compute new bid=150.05 / ask=150.15
     B->>E: quote.new {symbol: AAPL, bid_price: 150.05, ask_price: 150.15, bid_qty: 500, ask_qty: 500}
+    Note over E: replace active quote in slot (MM_AAPL_01, AAPL)
     E-->>B: quote.ack.MM_AAPL_01 accepted=true quote_id=q-003
     Note over B: state = QUOTING
     Note over B: _quoted_at_mid = 150.10
@@ -810,9 +830,11 @@ sequenceDiagram
 | `engine_config.yaml` (example) | Add sample `MM_*` gateway entries (see Section 9.2) |
 | `docs/user-guide/15-ai-traders.md` | Add a note pointing to the new MM bot |
 
-No changes are required to the engine, models, or message layer — all necessary
-ZMQ message types (`quote.new`, `quote.cancel`, `order.fill`, `quote.status`,
-`quote.ack`) are already implemented.
+This proposal assumes bootstrap support exists in protocol and engine
+(`system.quote_bootstrap_request` and `system.quote_bootstrap.{GW}`).
+If those messages are not already available in the target branch,
+engine/message-layer changes are required before the bot can adopt existing
+quotes at startup.
 
 ### 11.3 Module Responsibilities
 
@@ -821,6 +843,7 @@ ZMQ message types (`quote.new`, `quote.cancel`, `order.fill`, `quote.status`,
 - Parse CLI arguments.
 - Validate `--gap` against `mm_max_spread_ticks` after receiving symbol config.
 - Validate `--initial_min`/`--initial_max` pair and ordering.
+- Validate `--startup-session-timeout-sec` is positive.
 - Instantiate `MMBot` and call `bot.run()`.
 - Install signal handlers for `SIGINT`/`SIGTERM` that call `bot.shutdown()`.
 
@@ -832,7 +855,9 @@ ZMQ message types (`quote.new`, `quote.cancel`, `order.fill`, `quote.status`,
 - Dispatch incoming messages to handler methods.
 - Manage `_state`, `_quote_id`, `_reissue_at`, `_quoted_at_mid`,
   `order_id -> quote_id` mapping, and pending pre-ack fill buffer.
-- Resolve bootstrap reference price (book/trade/engine initial quote/random range)
+- Request and process quote bootstrap state via
+  `system.quote_bootstrap_request/system.quote_bootstrap.{GW}`.
+- Resolve bootstrap reference price (book/trade/bootstrap quote/random range)
   before first quote.
 - Delegate price calculation to `QuotePricer`.
 
@@ -950,14 +975,17 @@ The bot is instantiated with a mock engine; events are injected directly.
 |---|---|
 | `test_startup_sends_gateway_connect` | On `run()`, the first PUSH message is `system.gateway_connect` |
 | `test_auth_failure_exits` | Bot exits cleanly if `gateway_auth.accepted = false` |
+| `test_bootstrap_request_sent_on_startup` | Bot sends `system.quote_bootstrap_request` after symbols/auth startup steps |
+| `test_adopt_existing_active_quote_from_bootstrap` | Bootstrap reply with active quote causes state adoption (no duplicate `QUOTE`) |
 | `test_quote_issued_after_book_update` | Bot sends `QUOTE` after receiving first `book.SYMBOL` in CONTINUOUS state |
-| `test_bootstrap_from_engine_initial_quote` | Empty book/trade at startup but engine initial quote exists → bot still issues first quote |
+| `test_bootstrap_from_engine_initial_quote` | Empty book/trade at startup but engine quote exists for this `(gateway_id,symbol)` → bot adopts without duplicate `QUOTE` |
 | `test_bootstrap_from_random_range` | Empty book/trade and no engine initial quote, with initial range configured → bot samples and quotes |
 | `test_startup_fails_without_bootstrap_source` | Empty book/trade and no engine initial quote/range → clean startup failure (no hang) |
-| `test_reissue_after_fill` | `order.fill` → timer fires → CANCEL sent → QUOTE sent |
+| `test_startup_fails_without_session_snapshot` | No `session.state` snapshot/event before timeout → clean startup failure (no hang) |
+| `test_reissue_after_fill` | `order.fill` → timer fires → `quote.new` replace sent (no mandatory pre-cancel) |
 | `test_reissue_batches_rapid_fills` | Three fills in 50 ms produce exactly one reissue |
 | `test_fill_before_ack_buffering` | `order.fill` received before `quote.ack` is buffered and reconciled correctly once ack arrives |
-| `test_drift_triggers_reprice` | Mid moves 4 ticks → CANCEL then QUOTE at new mid |
+| `test_drift_triggers_reprice` | Mid moves 4 ticks → `quote.new` replace at new mid |
 | `test_no_quote_in_auction` | Bot in QUOTING receives `session.state=OPENING_AUCTION` → CANCEL, no reissue |
 | `test_resume_from_pause` | `session.state=CONTINUOUS` from PAUSED → bot re-enters QUOTING |
 | `test_halt_cancels_quote` | `circuit_breaker.halt.AAPL` → CANCEL, state=PAUSED |
@@ -1036,4 +1064,87 @@ Add a `--metrics-port` option to expose a simple HTTP metrics endpoint
 
 This would allow an instructor to monitor all running bots from a single
 dashboard during a classroom session.
+
+
+
+## 15. Implementation Readiness
+
+This design is ready to be implemented, with two guardrails:
+
+1. Bootstrap protocol support must exist in the target branch
+   (`system.quote_bootstrap_request` and `system.quote_bootstrap.{GW}`), as
+   described in Section 11.2.
+2. Work should follow the test-first scope in Section 13 to prevent state-machine
+   regressions.
+
+The design defines:
+
+- A deterministic startup path (including empty-book bootstrap behaviour).
+- A clear replace-first reissue strategy.
+- Explicit session and halt handling.
+- Concrete file/module responsibilities.
+- A complete initial integration test matrix.
+
+
+
+## 16. End-of-Feature Checklist
+
+Use this checklist before opening a PR:
+
+- [ ] `mm_bot` package files created: `main.py`, `bot.py`, `pricer.py`, `__init__.py`.
+- [ ] Console entry point `pm-mm-bot` added in `pyproject.toml`.
+- [ ] CLI arguments implemented with validation (including bootstrap/session timeout flags).
+- [ ] Startup sequence implemented: connect → auth → symbols → bootstrap request.
+- [ ] Active quote adoption implemented (no duplicate `quote.new` when bootstrap shows active quote for same `(gateway_id, symbol)`).
+- [ ] Bootstrap resolver implemented: book → trade → bootstrap quote → random range → fail fast.
+- [ ] Session handling implemented (`CONTINUOUS`, auctions, `CLOSED`, symbol halt/resume).
+- [ ] Reissue logic implemented with replace-first `quote.new` path and optional defensive cancel path.
+- [ ] Fill correlation implemented with ack mapping and pre-ack fill buffering.
+- [ ] Graceful shutdown implemented with cancel + timeout + socket close.
+- [ ] Logging output is actionable for operators (startup failures, state transitions, reissues).
+- [ ] Unit and integration tests from Section 13 implemented.
+- [ ] Docs updates completed (`15-ai-traders.md`, launch script notes, usage examples).
+- [ ] Quality gates pass: black, flake8, mypy, pyright, pytest.
+
+
+
+## 17. High-Level Implementation Plan
+
+### Phase 1: Project Skeleton and Pure Pricing Logic
+
+- Create `src/edumatcher/mm_bot/` package and wire `pm-mm-bot` entry point.
+- Implement `QuotePricer` and all unit tests first.
+- Verify pricing, rounding, drift detection, and parameter validation in isolation.
+
+### Phase 2: CLI and Startup Handshake
+
+- Implement argument parsing and validation in `main.py`.
+- Implement ZMQ setup and startup handshake in `bot.py`:
+  `gateway_connect`, `gateway_auth`, `symbols_request`, `quote_bootstrap_request`.
+- Add startup fail-fast behaviour for missing bootstrap sources and missing session snapshot/event within timeout.
+
+### Phase 3: State Machine and Core Event Handlers
+
+- Implement state machine transitions from Section 4.
+- Implement handlers for `book`, `trade.executed`, `quote.ack`, `quote.status`,
+  `order.fill`, `order.cancelled`, `session.state`, and circuit breaker topics.
+- Implement active-quote adoption path on bootstrap response.
+
+### Phase 4: Reissue, Drift, and Shutdown Safety
+
+- Implement delayed reissue timer and replace-first quote refresh.
+- Add optional defensive cancel-before-reissue branch guarded by timeout.
+- Implement graceful shutdown (`SIGINT`/`SIGTERM`) with cancel timeout handling.
+
+### Phase 5: Integration Tests and Hardening
+
+- Implement the Section 13.2 integration test matrix using dummy sockets.
+- Fix any ordering/idempotency defects surfaced by pre-ack fill and lifecycle race tests.
+- Confirm no hangs in startup failure paths.
+
+### Phase 6: Documentation and Operational Validation
+
+- Finalize operator docs and example launch commands.
+- Dry-run with one symbol and then two concurrent MM instances on same symbol.
+- Validate that book liquidity appears immediately after activation and is maintained through fill/reprice/session transitions.
 
