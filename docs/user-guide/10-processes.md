@@ -83,7 +83,7 @@ process is either a **producer** (sends commands via PUSH) or a **subscriber**
 |------|------------|----------|---------|
 | **5555** | PULL | pm-engine | Receives all inbound commands (orders, cancels, admin) |
 | **5556** | PUB | pm-engine | Broadcasts all market events (fills, book updates, session changes) |
-| **5557** | PUB | pm-engine | Drop-copy feed — fill events tagged per gateway, with sequence numbers and replay support |
+| **5557** | PUB | pm-engine | Drop-copy feed, fill events tagged per gateway, with sequence numbers and replay support |
 
 This design has concrete advantages:
 
@@ -1185,7 +1185,7 @@ Use cases:
 Like `pm-setup`, this is a local tooling command and does not subscribe/publish
 on the runtime ZeroMQ sockets.
 
-
+For more details on the options see [Configuration Chapter](01-configuration.md#option-reference)
 
 ## Order Lifecycle Message Flow
 
