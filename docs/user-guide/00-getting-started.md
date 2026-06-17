@@ -193,6 +193,52 @@ over both the environment variable and the default.
 
 
 
+## PM command family overview
+
+Use these tables as a quick index for every `pm-` entry point currently
+documented. All commands are shown in pipx form; in developer mode prepend
+`poetry run`. All `pm-` processes/utilities are described in [Processes](10-processes.md).
+
+### Runtime processes (runnable)
+
+| Command | Interactivity | Purpose | More information |
+|---|---|---|---|
+| `pm-engine` | Background | Matching engine; central order-book writer | [Processes](10-processes.md), [Running the Engine](03-running-the-engine.md), [Configuration](01-configuration.md) |
+| `pm-gateway` | Interactive terminal | ALF participant terminal and order entry | [Processes](10-processes.md), [Gateway](08-gateway.md), [ALF Protocol](20-app-alf-protocol.md) |
+| `pm-scheduler` | Background | Session phase transitions by schedule | [Processes](10-processes.md), [Auctions and Scheduling](06-auctions-scheduling.md) |
+| `pm-viewer` | Terminal display | Single-symbol live order book view | [Processes](10-processes.md), [Order Types](04-order-types.md) |
+| `pm-orders` | Terminal display | Live cross-gateway order status monitor | [Processes](10-processes.md), [Messages](09-messages.md) |
+| `pm-board` | Terminal display | Multi-symbol market board display | [Processes](10-processes.md) |
+| `pm-ticker` | Terminal display | Scrolling ticker with live plus OHLCV context | [Processes](10-processes.md), [Statistics and Reporting](16-statistics-and-reporting.md) |
+| `pm-stats` | Background | Persist market statistics to SQLite | [Processes](10-processes.md), [Statistics and Reporting](16-statistics-and-reporting.md) |
+| `pm-clearing` | Terminal display | Trade recording and running P&L | [Processes](10-processes.md), [P&L and Clearing](07-pnl-clearing.md) |
+| `pm-audit` | Background | Full event log capture from the bus | [Processes](10-processes.md), [Persistence](11-persistence.md) |
+| `pm-admin` | Interactive terminal | Interactive operational console | [Processes](10-processes.md), [Risk Controls](12-risk-controls.md) |
+| `pm-ai-trader` | Background | Single autonomous trading bot gateway | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
+| `pm-ai-swarm` | Background | Multi-agent autonomous trading swarm | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
+
+### CLI utilities (runnable)
+
+| Command |  Purpose | More information |
+|---|---|---|
+| `pm-admin-cli` | Non-interactive admin commands for scripts | [Processes](10-processes.md), [Risk Controls](12-risk-controls.md) |
+| `pm-stats-cli` | Query `stats.db` without writing SQL | [Processes](10-processes.md#pm-stats-cli-statistics-query-cli), [Statistics and Reporting](16-statistics-and-reporting.md) |
+| `pm-setup` |  Bootstrap local session directory and defaults | [Processes](10-processes.md), [Installation](00-getting-started.md#installation) |
+| `pm-config-gen` | Generate `engine_config.yaml` from CLI options | [Processes](10-processes.md), [Configuration generator](01-configuration.md#generate-configs-with-pm-config-gen) |
+
+### Planned runtime processes (design proposals)
+
+| Command | Interactivity | Purpose | More information |
+|---|---|---|---|
+| `pm-balf-gateway` | Background | Binary order-entry gateway (BALF) | [Processes planned section](10-processes.md#planned-processes), [BALF Protocol](21-app-balf-protocol.md) |
+| `pm-md-gwy` | Background | Market-data distribution gateway (CALF) | [Processes planned section](10-processes.md#planned-processes), [CALF Protocol](22-app-calf-protocol.md) |
+| `pm-index` | Background | Real-time index calculation service | [Processes planned section](10-processes.md#planned-processes) |
+
+For startup order and a practical first-run sequence, see
+[Processes](10-processes.md#process-overview).
+
+
+
 ## Five-minute minimum session
 
 This walkthrough starts a matching engine, connects two participant terminals,
@@ -372,14 +418,15 @@ sequenceDiagram
 
 The engine is the only mandatory process. Add the others as you need them:
 
-| When you want to… | Start this process |
-|---|---|
-| Watch P&L update in real time | `pm-clearing` |
-| Record OHLCV statistics | `pm-stats` |
-| Use `pm-admin` operator commands | `pm-admin` (interactive REPL) |
-| Schedule opening/closing auctions | `pm-scheduler` |
-| Add autonomous AI order flow | `pm-ai-swarm --count 5 --duration 60` |
-| Feed compliance/risk systems | Subscribe to `:5557` (drop-copy socket) |
+| When you want to… | Start this process | More information |
+|---|---|---|
+| Watch P&L update in real time | `pm-clearing` | [P&L and Clearing](07-pnl-clearing.md) |
+| Record OHLCV statistics | `pm-stats` | [Statistics and Reporting](16-statistics-and-reporting.md) |
+| Query recorded statistics without SQL | `pm-stats-cli daily --date 2026-06-14` | [Statistics and Reporting](16-statistics-and-reporting.md) |
+| Use `pm-admin` operator commands | `pm-admin` (interactive REPL) | [Risk Controls](12-risk-controls.md) |
+| Schedule opening/closing auctions | `pm-scheduler` | [Auctions and Scheduling](06-auctions-scheduling.md) |
+| Add autonomous AI order flow | `pm-ai-swarm --count 5 --duration 60` | [AI Traders](15-ai-traders.md) |
+| Feed compliance/risk systems | Subscribe to `:5557` (drop-copy socket) | [Drop Copy](13-drop-copy.md) |
 
 For a full classroom session, use the provided launch script:
 

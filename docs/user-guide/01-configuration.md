@@ -25,7 +25,7 @@ present, the parser requires two sections:
 - `symbols` - a mapping of accepted symbols
 - `gateways.alf` - a list with at least one accepted ALF gateway
 
-The sample [engine_config.yaml](../../engine_config.yaml) intentionally keeps the
+The sample `engine_config.yaml` intentionally keeps the
 live configuration minimal and places the full parser-recognized shape in
 comments. This page explains that shape in operational terms.
 
@@ -307,7 +307,7 @@ but they should not be relied on for runtime behavior.
 
 Use this when you want the smallest fully working configured exchange. It starts
 in continuous matching mode, accepts only `AAPL`, and allows two trader gateways.
-This mirrors the live sample [engine_config.yaml](../../engine_config.yaml).
+This mirrors the live sample `engine_config.yaml`.
 
 ```yaml
 sessions_enabled: false

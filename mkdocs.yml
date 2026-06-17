@@ -13,6 +13,7 @@ exclude_docs: |
   package.json
   package-lock.json
   mermaid-filter.err
+  README.md
 
 theme:
   name: material
@@ -96,6 +97,7 @@ nav:
     - Drop Copy: user-guide/13-drop-copy.md
     - Market Making: user-guide/14-market-maker.md
     - AI Traders: user-guide/15-ai-traders.md
+    - Statistics and Reporting: user-guide/16-statistics-and-reporting.md
     - Appendix - ALF Protocol: user-guide/20-app-alf-protocol.md
     - Appendix - BALF Protocol: user-guide/21-app-balf-protocol.md
     - Appendix - CALF Protocol: user-guide/22-app-calf-protocol.md

@@ -11,6 +11,9 @@
 --   !!! info "Title"
 --       Body text
 --
+--   !!! note "Title"
+--       Body text
+--
 -- Notes:
 -- - This filter targets LaTeX output only.
 -- - Requires \usepackage[most]{tcolorbox} in the LaTeX template preamble.

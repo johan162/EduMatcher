@@ -12,7 +12,7 @@ The following definitions are written to be concise and standalone, useful as a 
 
 **Adverse Selection:** The risk a market maker faces when their quote is hit by a counterparty who has superior information about where prices are heading, causing the market maker to trade at a price that will quickly move against them. A market maker who is repeatedly adversely selected will lose money even while quoting at "correct" prices. MMP exists specifically to limit adverse selection damage.
 
-**Aggressive order:** (also called a **taker**) — an incoming order that immediately
+**Aggressive order:** (also called a **taker**), an incoming order that immediately
 trades against resting orders. It "sweeps" the book.
 
 **Aggressor / Taker:** The participant whose incoming order triggered a match by crossing the spread to meet a resting order. The aggressor "takes" liquidity that was already available. Contrast with *Maker*, the participant whose resting order was already in the book.
@@ -41,10 +41,10 @@ The collection of all active asks forms the sell side of the book.
 
 **Bear Market:** A sustained decline of 20% or more from a recent market peak. Originates from the image of a bear swiping its paws downward. Contrast with *Bull Market*.
 
-**Best Ask:** The lowest resting sell price in the order book — the price at which a buyer
+**Best Ask:** The lowest resting sell price in the order book, the price at which a buyer
 can trade immediately.
 
-**Best Bid:** The highest resting buy price in the order book — the price at which a seller
+**Best Bid:** The highest resting buy price in the order book, the price at which a seller
 can trade immediately.
 
 
@@ -81,7 +81,7 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 **Calendar Spread:** A derivatives strategy involving the simultaneous purchase and sale of contracts on the same underlying instrument but with different expiry dates, for example, buy the March futures contract, sell the June futures contract. Used to profit from expected changes in the price difference (the "spread") between contract months. Requires cross-symbol coordination in the matching engine.
 
-**Call auction:**  Synonym for auction — "call" refers to the fact that all participants are "called" to submit orders before a single price is determined.
+**Call auction:**  Synonym for auction, "call" refers to the fact that all participants are "called" to submit orders before a single price is determined.
 
 **Capital Appreciation:** An increase in the market price of a share (or other asset) above the price paid. The primary way equity investors generate returns.
 
@@ -348,7 +348,7 @@ as a positive number  P&L ledger.
 
 **NBBO (National Best Bid and Offer):** The best available bid and ask prices aggregated across all US exchanges, as required by Regulation NMS. Brokers must offer clients execution at or better than the NBBO.
 
-**NAV (Net Asset Value):** The total value of a fund's holdings divided by the number of shares outstanding. For mutual funds, NAV is computed daily using the official **closing price** of each holding — one reason the closing price matters so much.
+**NAV (Net Asset Value):** The total value of a fund's holdings divided by the number of shares outstanding. For mutual funds, NAV is computed daily using the official **closing price** of each holding, one reason the closing price matters so much.
 
 **Novation:** The legal process by which a CCP replaces the original buyer-seller relationship: the CCP becomes buyer to the seller and seller to the buyer, eliminating bilateral counterparty risk.
 
@@ -517,7 +517,7 @@ orders in thin books experience more slippage.
 
 **Stop-Loss:** A sell stop order used to automatically exit a losing long position if the price falls to a specified level.
 
- **Surplus:**  The absolute difference between cumulative buy and sell quantity at the equilibrium price — the quantity that cannot be matched.
+ **Surplus:**  The absolute difference between cumulative buy and sell quantity at the equilibrium price, the quantity that cannot be matched.
 
 **Sweeping:** The process of an aggressive order filling against resting orders at successive price levels.
 

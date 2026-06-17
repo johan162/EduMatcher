@@ -132,6 +132,51 @@ run_command() {
     fi
 }
 
+# Function to execute two commands in parallel when both are required
+run_parallel_commands() {
+    local cmd1="$1"
+    local description1="$2"
+    local cmd2="$3"
+    local description2="$4"
+
+    if [ "$DRY_RUN" = true ]; then
+        echo -e "${YELLOW}[DRY-RUN]${NC} Would execute in parallel: ${cmd1}"
+        echo -e "${YELLOW}[DRY-RUN]${NC} Would execute in parallel: ${cmd2}"
+        return 0
+    fi
+
+    print_sub_step "Running PDF bundle builds in parallel"
+    echo "Executing (background): $cmd1"
+    eval "$cmd1" &
+    local pid1=$!
+
+    echo "Executing (background): $cmd2"
+    eval "$cmd2" &
+    local pid2=$!
+
+    local status1=0
+    local status2=0
+
+    wait "$pid1" || status1=$?
+    wait "$pid2" || status2=$?
+
+    if [ "$status1" -eq 0 ]; then
+        print_success_colored "$description1 completed"
+    else
+        print_error_colored "$description1 failed"
+    fi
+
+    if [ "$status2" -eq 0 ]; then
+        print_success_colored "$description2 completed"
+    else
+        print_error_colored "$description2 failed"
+    fi
+
+    if [ "$status1" -ne 0 ] || [ "$status2" -ne 0 ]; then
+        exit 1
+    fi
+}
+
 # Help function
 show_help() {
     cat << EOF
@@ -356,18 +401,18 @@ run_command "poetry build" "Building package"
 run_command "poetry run twine check dist/*" "Validating package with twine"
 
 # Step 4.4: Build Exchange Intro PDF (optional — requires --intro flag)
+BUILD_EXCHANGE_INTRO_PDF=false
 if [ "$BUILD_INTRO" = true ]; then
     if [ -d "docs-exchange-intro" ]; then
         if [ -f "docs-exchange-intro/version.toml" ]; then
             EXCHANGE_INTRO_VERSION=$(awk -F'=' '/version/ { gsub(/[ "]/, "", $2); print $2; exit }' docs-exchange-intro/version.toml)
             print_sub_step "Detected Exchange Intro version: ${EXCHANGE_INTRO_VERSION}"
+            BUILD_EXCHANGE_INTRO_PDF=true
         else
             print_warning "docs-exchange-intro/version.toml not found; skipping Exchange Intro PDF build"
             EXCHANGE_INTRO_VERSION="unknown"
             exit 1;
         fi
-        print_sub_step "Building Exchange Intro Booklet"
-        run_command "make -C docs-exchange-intro -j4" "Building Exchange Intro Booklet"
     else
         print_warning "docs-exchange-intro directory not found; skipping Exchange Intro PDF build"
     fi
@@ -376,11 +421,29 @@ else
 fi
 
 # Step 4.5: Build User Guide PDF bundle 
+BUILD_USER_GUIDE_PDF=false
 if [ -d "docs" ]; then
     print_sub_step "Generating PDF version of User Guide for release assets..."
-    run_command "make -C docs -j4 pdf-docs" "Building User Guide PDFs (v${VERSION}) with Makefile"
+    BUILD_USER_GUIDE_PDF=true
 else
     print_warning "docs directory not found; skipping User Guide PDF build"
+fi
+
+if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ] && [ "$BUILD_USER_GUIDE_PDF" = true ]; then
+    run_parallel_commands \
+        "make -C docs-exchange-intro -j4" \
+        "Building Exchange Intro Booklet" \
+        "make -C docs -j4 pdf-docs" \
+        "Building User Guide PDFs (v${VERSION}) with Makefile"
+else
+    if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ]; then
+        print_sub_step "Building Exchange Intro Booklet"
+        run_command "make -C docs-exchange-intro -j4" "Building Exchange Intro Booklet"
+    fi
+
+    if [ "$BUILD_USER_GUIDE_PDF" = true ]; then
+        run_command "make -C docs -j4 pdf-docs" "Building User Guide PDFs (v${VERSION}) with Makefile"
+    fi
 fi
 
 # Step 4.6: Build HTML docs site/

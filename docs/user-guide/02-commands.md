@@ -933,6 +933,6 @@ To add a new command:
 
 - [Messages](09-messages.md) — raw frame format for every message
 - [Risk Controls](12-risk-controls.md) — how halt state affects order matching
-- [Configuration — Role Privileges](01-configuration.md#role-privileges-and-obligations) — the permissions matrix
+- [Configuration — Role Privileges](01-configuration.md#role-privileges) — the permissions matrix
 - [Gateway Commands](08-gateway.md) — participant-facing CLI commands (TRADER / MM role)
 - [Auctions & Scheduling](06-auctions-scheduling.md) — valid session-state transitions

@@ -1,0 +1,182 @@
+"""Read-only query helpers for pm-stats-cli."""
+
+from __future__ import annotations
+
+import sqlite3
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+
+def open_readonly_connection(db_path: Path) -> sqlite3.Connection:
+    """Open stats SQLite DB in read-only mode."""
+    if not db_path.exists():
+        raise FileNotFoundError(f"Statistics DB not found: {db_path}")
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def validate_date(raw: str) -> None:
+    try:
+        datetime.strptime(raw, "%Y-%m-%d")
+    except ValueError as exc:
+        raise ValueError(f"Invalid date format: {raw} (expected YYYY-MM-DD)") from exc
+
+
+def validate_iso_ts(raw: str) -> None:
+    candidate = raw.strip()
+    if candidate.endswith("Z"):
+        candidate = candidate[:-1] + "+00:00"
+    try:
+        datetime.fromisoformat(candidate)
+    except ValueError as exc:
+        raise ValueError(
+            f"Invalid timestamp format: {raw} (expected ISO timestamp)"
+        ) from exc
+
+
+def latest_daily_date(conn: sqlite3.Connection) -> str | None:
+    row = conn.execute("SELECT MAX(date) AS d FROM daily_stats").fetchone()
+    if row is None:
+        return None
+    value = row["d"]
+    return str(value) if value is not None else None
+
+
+def query_daily(
+    conn: sqlite3.Connection,
+    *,
+    date_value: str | None,
+    symbol: str | None,
+    limit: int,
+) -> list[dict[str, Any]]:
+    selected_date = date_value or latest_daily_date(conn)
+    if selected_date is None:
+        return []
+
+    sql = (
+        "SELECT date, symbol, open_price, high_price, low_price, close_price, "
+        "open_bid, open_ask, close_bid, close_ask, volume, trade_count, vwap, "
+        "largest_trade_qty, largest_trade_price "
+        "FROM daily_stats WHERE date = ?"
+    )
+    params: list[Any] = [selected_date]
+    if symbol is not None:
+        sql += " AND symbol = ?"
+        params.append(symbol)
+
+    sql += " ORDER BY date DESC, symbol ASC LIMIT ?"
+    params.append(limit)
+
+    rows = conn.execute(sql, params).fetchall()
+    return [dict(row) for row in rows]
+
+
+def query_snapshots(
+    conn: sqlite3.Connection,
+    *,
+    symbol: str,
+    date_value: str | None,
+    from_ts: str | None,
+    to_ts: str | None,
+    limit: int,
+) -> list[dict[str, Any]]:
+    sql = (
+        "SELECT ts, symbol, mid_price, best_bid, best_ask, pct_change "
+        "FROM price_snapshots WHERE symbol = ?"
+    )
+    params: list[Any] = [symbol]
+
+    if date_value is not None:
+        sql += " AND substr(ts, 1, 10) = ?"
+        params.append(date_value)
+    if from_ts is not None:
+        sql += " AND ts >= ?"
+        params.append(from_ts)
+    if to_ts is not None:
+        sql += " AND ts <= ?"
+        params.append(to_ts)
+
+    sql += " ORDER BY ts ASC LIMIT ?"
+    params.append(limit)
+
+    rows = conn.execute(sql, params).fetchall()
+    return [dict(row) for row in rows]
+
+
+def query_trades(
+    conn: sqlite3.Connection,
+    *,
+    symbol: str | None,
+    date_value: str | None,
+    from_ts: str | None,
+    to_ts: str | None,
+    limit: int,
+) -> list[dict[str, Any]]:
+    sql = (
+        "SELECT ts, trade_id, symbol, price, quantity, buy_gateway_id, "
+        "sell_gateway_id FROM trade_log WHERE 1=1"
+    )
+    params: list[Any] = []
+
+    if symbol is not None:
+        sql += " AND symbol = ?"
+        params.append(symbol)
+    if date_value is not None:
+        sql += " AND substr(ts, 1, 10) = ?"
+        params.append(date_value)
+    if from_ts is not None:
+        sql += " AND ts >= ?"
+        params.append(from_ts)
+    if to_ts is not None:
+        sql += " AND ts <= ?"
+        params.append(to_ts)
+
+    sql += " ORDER BY ts ASC LIMIT ?"
+    params.append(limit)
+
+    rows = conn.execute(sql, params).fetchall()
+    return [dict(row) for row in rows]
+
+
+def query_symbols(
+    conn: sqlite3.Connection,
+    *,
+    date_value: str | None,
+) -> list[dict[str, Any]]:
+    if date_value is None:
+        sql = (
+            "SELECT symbol FROM daily_stats "
+            "UNION SELECT symbol FROM price_snapshots "
+            "UNION SELECT symbol FROM trade_log "
+            "ORDER BY symbol ASC"
+        )
+        params: list[Any] = []
+    else:
+        sql = (
+            "SELECT symbol FROM daily_stats WHERE date = ? "
+            "UNION SELECT symbol FROM price_snapshots WHERE substr(ts, 1, 10) = ? "
+            "UNION SELECT symbol FROM trade_log WHERE substr(ts, 1, 10) = ? "
+            "ORDER BY symbol ASC"
+        )
+        params = [date_value, date_value, date_value]
+
+    rows = conn.execute(sql, params).fetchall()
+    return [dict(row) for row in rows]
+
+
+def query_dates(
+    conn: sqlite3.Connection,
+    *,
+    symbol: str | None,
+) -> list[dict[str, Any]]:
+    sql = "SELECT DISTINCT date FROM daily_stats"
+    params: list[Any] = []
+    if symbol is not None:
+        sql += " WHERE symbol = ?"
+        params.append(symbol)
+    sql += " ORDER BY date DESC"
+
+    rows = conn.execute(sql, params).fetchall()
+    return [dict(row) for row in rows]

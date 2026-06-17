@@ -11,11 +11,19 @@
 --   !!! info "Title"
 --       Body text
 --
+--   !!! note "Title"
+--       Body text
+--
 -- Notes:
 -- - This filter targets LaTeX output only.
 -- - Requires \usepackage[most]{tcolorbox} in the LaTeX template preamble.
 
 local STYLE = {
+  note = {
+    label = "Note",
+    colback = "blue!4",
+    colframe = "blue!55!black",
+  },
   tip = {
     label = "Tip",
     colback = "green!8",
@@ -106,10 +114,8 @@ local function parse_embedded_markdown_from_codeblock(block)
   if block.t ~= "CodeBlock" then
     return nil
   end
+  -- Only try to parse code blocks with no language specified (indented content)
   if #block.classes > 0 then
-    return nil
-  end
-  if not starts_with(block.text, "```") then
     return nil
   end
 
@@ -143,7 +149,7 @@ end
 
 local function build_tcolorbox(kind, title, body_latex)
   local style = STYLE[kind]
-  local safe_title = title:gsub("([%%{}])", "\\%1")
+  local safe_title = title:gsub("([%%{}_$#&])", "\\%1")
 
   local options = table.concat({
     "enhanced",
@@ -169,6 +175,21 @@ local function build_tcolorbox(kind, title, body_latex)
   }, "\n")
 end
 
+local function is_list_block(block)
+  return block and (
+    block.t == "BulletList" or
+    block.t == "OrderedList" or
+    block.t == "DefinitionList"
+  )
+end
+
+local function is_richcontent_block(block)
+  return block and (
+    block.t == "BlockQuote" or
+    block.t == "Table"
+  )
+end
+
 function Pandoc(doc)
   if FORMAT ~= "latex" then
     return doc
@@ -189,13 +210,33 @@ function Pandoc(doc)
           body_blocks:insert(pandoc.Para(header.inline_body))
         end
 
-        local next_block = doc.blocks[i + 1]
-        local consumed_next = false
-        if next_block then
+        -- Collect immediately following blocks that belong to the admonition
+        local collected = 0
+        while i + 1 + collected <= #doc.blocks do
+          local next_block = doc.blocks[i + 1 + collected]
+          
+          -- Stop at headers, horizontal rules, or other admonitions
+          if next_block.t == "Header" or 
+             next_block.t == "HorizontalRule" or
+             (next_block.t == "Para" and parse_admonition_header(next_block.content)) then
+            break
+          end
+
+          -- Try to parse embedded code as markdown
           local parsed = parse_embedded_markdown_from_codeblock(next_block)
           if parsed and #parsed > 0 then
             body_blocks:extend(parsed)
-            consumed_next = true
+            collected = collected + 1
+          -- Include lists, blockquotes, tables directly
+          elseif is_list_block(next_block) or is_richcontent_block(next_block) then
+            body_blocks:insert(next_block)
+            collected = collected + 1
+          -- Include paragraphs that follow (body content)
+          elseif next_block.t == "Para" then
+            body_blocks:insert(next_block)
+            collected = collected + 1
+          else
+            break
           end
         end
 
@@ -204,7 +245,7 @@ function Pandoc(doc)
           out:insert(pandoc.RawBlock("latex", build_tcolorbox(header.kind, header.title, body_latex)))
         end
 
-        i = i + (consumed_next and 2 or 1)
+        i = i + 1 + collected
         goto continue
       end
     end
