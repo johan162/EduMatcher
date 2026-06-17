@@ -163,7 +163,7 @@ endef
 
 help: ## Show this help message
 	@echo -e "$(DARKYELLOW)OneSelect - Makefile Targets$(NC)"
-	@$(call print_section,Documentation,docs|pdf-docs)
+	@$(call print_section,Documentation,docs|pdf-docs|exchange-intro)
 	@$(call print_section,Container,docs-container-build|docs-container-start|docs-container-stop|docs-container-restart|docs-container-status|docs-container-logs)
 	@echo ""
 
@@ -293,6 +293,75 @@ $(DIST_DIR) : ## Ensure the dist directory exists
 
 $(BUILD_DIR) : ## Ensure the build directory exists
 	@mkdir -p $(BUILD_DIR)
+
+# ============================================================================================
+# Exchange Introduction target
+# Assembles docs/how-exchange-works.md from the canonical source files in
+# docs-exchange-intro/src (Parts I–IV plus the References backmatter).
+#
+# Rules:
+#   - 00-frontmatter/ is excluded (version header, title page, preface).
+#   - 90-backmatter/20-glossary.md is excluded.
+#   - 90-backmatter/21-references.md is included.
+#   - Heading levels are shifted one step deeper throughout:
+#       #   → ##    (part / chapter titles)
+#       ##  → ###   (section headings)
+#       ### → ####  (sub-sections)
+#   - A blank line is inserted between concatenated files so pandoc/MkDocs
+#     does not merge the last line of one file with the first of the next.
+#
+# Prerequisites: sed, awk (both available on macOS and Linux).
+# ============================================================================================
+
+# Source directories (in document order)
+EXCHANGE_INTRO_SRC := ../docs-exchange-intro/src
+
+# All Part I–IV source files in sorted order, excluding 00-frontmatter entirely
+EXCHANGE_INTRO_PART_FILES := \
+	$(sort $(wildcard $(EXCHANGE_INTRO_SRC)/01-foundation/[0-9][0-9]-*.md)) \
+	$(sort $(wildcard $(EXCHANGE_INTRO_SRC)/02-orders-and-matching/[0-9][0-9]-*.md)) \
+	$(sort $(wildcard $(EXCHANGE_INTRO_SRC)/03-risk-and-compliance/[0-9][0-9]-*.md)) \
+	$(sort $(wildcard $(EXCHANGE_INTRO_SRC)/04-technology-and-infrastructure/[0-9][0-9]-*.md))
+
+# References backmatter only (glossary intentionally excluded)
+EXCHANGE_INTRO_BACKMATTER := $(EXCHANGE_INTRO_SRC)/90-backmatter/21-references.md
+
+# All inputs that should trigger a rebuild of the output file
+EXCHANGE_INTRO_SOURCES := $(EXCHANGE_INTRO_PART_FILES) $(EXCHANGE_INTRO_BACKMATTER)
+
+# The generated output file
+HOW_EXCHANGE_WORKS := $(DOCS_DIR)/how-exchange-works.md
+
+$(HOW_EXCHANGE_WORKS): $(EXCHANGE_INTRO_SOURCES)
+	@echo -e "$(DARKYELLOW)- Assembling $(BRIGHTCYAN)how-exchange-works.md$(DARKYELLOW) from exchange-intro sources...$(NC)"
+	@# Write the fixed page header (kept outside the source files so it is never generated)
+	@printf '%s\n' \
+		'## How a Financial Exchange Works' \
+		'' \
+		'**A Conceptual Introduction for Software Developers**' \
+		'' \
+		'> *No code. No fear. Just the concepts you need to understand the system you are building.*' \
+		'' \
+		'---' \
+		'' > $@
+	@# Concatenate every source file, separated by a blank line, and shift heading levels:
+	@#   #   →  ##    (part and chapter titles)
+	@#   ##  →  ###   (sections)
+	@#   ### →  ####  (sub-sections)
+	@# awk adds the blank separator between files; sed does the heading shift.
+	@awk 'FNR==1 && NR!=1 { print "" }; { print }' \
+		$(EXCHANGE_INTRO_SOURCES) \
+		| sed -E \
+			-e 's/^#### /##### /g' \
+			-e 's/^### /#### /g' \
+			-e 's/^## /### /g' \
+			-e 's/^# /## /g' \
+		>> $@
+	@echo -e "$(GREEN)✓ $(BRIGHTCYAN)how-exchange-works.md$(GREEN) assembled ($(words $(EXCHANGE_INTRO_SOURCES)) source files)$(NC)"
+
+exchange-intro: $(HOW_EXCHANGE_WORKS) ## Regenerate docs/how-exchange-works.md from docs-exchange-intro/src sources
+
+.PHONY: exchange-intro
 
 clean: ## Clean build artifacts (HTML site, PDF build files, logs)
 	@echo -e "$(DARKYELLOW)- Cleaning build artifacts...$(NC)"

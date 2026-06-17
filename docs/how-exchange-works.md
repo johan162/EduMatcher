@@ -1,122 +1,10 @@
-
-
 ## How a Financial Exchange Works
 
 **A Conceptual Introduction for Software Developers**
 
 > *No code. No fear. Just the concepts you need to understand the system you are building.*
 
------
-
-### Preface
-
-This is a book for anyone who find themselves having been asked to work on a financial exchange system, and yet, has no financial background. Scary. The codebase is full of words like "bid," "ask," "FOK," "the book," "OCO," "circuit breaker," "drop copy," and "kill switch," and many more. These are not arbitrary names, each one represents a concept that evolved over decades of real-world market operation, regulation, and hard-won lessons about what can go wrong when large amounts of money change hands at high speed. You just happened be "unlucky" enough to start when all these terms have already been defined. Had you instead started 50:ish years ago all the terms did not yet exist and you would instead had seen them come to live organically.
-
-This document is a conceptual map. It will not, on purpose, show you a single line of code. Instead, it will walk you through the world your code inhabits: the participants, the rules, the safeguards, and the architecture that together constitute the outlines of a financial exchange. By the end, you should be able to read a description of a market event, "GW01 submitted a GTC iceberg order that triggered a circuit breaker halt; the matching engine moved to CLOSING_AUCTION state and the scheduler notified all subscribers via the PUB socket", and understand every word of it.
-
-By necessity most of the concepts are only very briefly discussed. Any fuller discussion would render 100's of pages of hard-core finance literature and the point of this document is not to be a complete introduction to finance (if even such a thing is possible). Instead you will find excellent academic references (that I have drawn upon in writing this) that do indeed have 100's of pages of, sometimes very complex math, at the end of this document.
-
-Real exchanges are referenced throughout to anchor the concepts in reality. The NYSE (New York Stock Exchange), CME Group (Chicago Mercantile Exchange), Eurex, LSE (London Stock Exchange), NASDAQ, and IEX are among the most influential exchanges in the world, and each has contributed to the vocabulary and practices you will encounter here. 
-
-In other words, this document is an introduction to financial exchange systems aimed at persons with no prior professional financial background that will need to understands these concepts, on occasions even on a very detailed level. The concepts described here apply equally to production exchange systems at NYSE, NASDAQ, CME, Eurex, LSE, and any other regulated marketplace. The regulations, market structures, and specific rules of real exchanges are often much more complex than described here, this document is only an introduction, not a complete specification. When in doubt, consult the official rulebooks of the relevant exchange.
-
-
-Johan Persson,
-July 2026, Järnboås, Bergslagen
-
------
-
-
-### Table of Contents
-
-**Part I: Foundation , Markets, History, and Participants**
-
-**Part Summary:**
-Build the conceptual base: why exchanges exist, how capital formation connects to secondary trading, how market language evolved, and who the key participants are in modern venues.
-
-**Learning Objectives:**
-- Explain the economic purpose of exchanges in the broader capital-raising cycle.
-- Distinguish primary vs secondary markets and debt vs equity at a practical level.
-- Use core market vocabulary confidently in historical and modern context.
-- Identify major participant types and their incentives in real-world exchange ecosystems.
-
-**Content:**
-- Before the Exchange: How Companies Raise Capital
-- What Is a Financial Exchange, and Why Does It Exist?
-- The Language of the Market: A Short History
-- The Participants
-- A Brief Tour of Real-World Exchanges
-
-**Part II: Orders, Matching, and the Trading Day**
-
-**Part Summary:**
-Move from concepts to mechanics: how participant intent is encoded in order types, how matching logic enforces fairness, and how the trading session progresses from open through close.
-
-**Learning Objectives:**
-- Read an order ticket and understand each field's execution implications.
-- Compare major order types and time-in-force instructions by risk and behavior.
-- Trace how price-time priority and order book state changes produce trades.
-- Describe the end-to-end lifecycle of a trade across a full trading day.
-
-**Content:**
-- The Order: The Fundamental Unit
-- Order Types, The Vocabulary of Intent
-- Time-In-Force, How Long Should the Order Live?
-- The Order Book, The Exchange's Memory
-- Price-Time Priority, The Fairness Rule
-- The Matching Engine, The Heart of the Exchange
-- The Life of a Trade
-- Market Makers, The Providers of Liquidity
-- The Opening and Closing Auction
-- Trading Sessions, The Day in the Life of a Market
-- Putting It All Together
-
-**Part III: Risk, Compliance, and Post-Trade**
-
-**Part Summary:**
-Focus on market safety and accountability: the controls that prevent bad orders, the mechanisms that stabilize volatility, and the post-trade processes that make executed trades legally and financially final.
-
-**Learning Objectives:**
-- Explain why pre-trade controls are separated from matching in production architectures.
-- Understand circuit breakers, collars, SMP, and kill switches as layered protections.
-- Distinguish routine order-management actions from emergency risk interventions.
-- Follow the trade path beyond execution into clearing, settlement, and surveillance.
-
-**Content:**
-- Pre-Trade Risk Controls: Before the Matching Engine
-- Risk Controls, Protecting the Market
-- Self-Match Prevention, When You Would Trade with Yourself
-- Drop Copy, The Shadow Record
-- Clearing and Settlement, When the Trade Becomes Real
-- Regulatory Surveillance, Exchanges Are Not Passive
-- A Cautionary Tale, Knight Capital, August 1, 2012
-
-**Part IV: Technology, Infrastructure, and Market Ecology**
-
-**Part Summary:**
-Examine the engineering reality of exchanges at scale: deterministic engines, messaging and market-data distribution, resilience patterns, and the fragmented multi-venue environment where routing and latency shape outcomes.
-
-**Learning Objectives:**
-- Understand the roles of gateways, matching engines, buses, and subscribers.
-- Evaluate resilience strategies such as replication, failover, and site architecture.
-- Explain how market data sequencing, replay, and snapshots preserve correctness.
-- Relate routing, venue fragmentation, and latency design to execution quality.
-
-**Content:**
-- Speed Bumps, Leveling the Playing Field
-- The Technology Architecture
-- Primary and Secondary Sites, Resilience Architecture
-- Load Balancing, Distributing the Work
-- Market Data Architecture, How the Market Sees Itself
-- Smart Order Routing and Market Fragmentation
-- Latency and Co-location, The Speed Dimension
-- Corporate Actions, When the Instrument Changes
-- Determinism, Replay, and Persistence, The Exchange Must Not Forget
-- Reference Data, The Exchange's Ground Truth
-
-- Glossary
-- References
-
+---
 
 ## Part I: Foundation , Markets, History, and Participants
 
@@ -126,12 +14,13 @@ Examine the engineering reality of exchanges at scale: deterministic engines, me
 
 !!! note "Historic Notes"
 
-    In 1609, a Dutch merchant named Isaac Le Maire organised a consortium of traders to sell shares in the Dutch East India Company (VOC) that they did not yet own. The plan was to drive down the price and buy the shares back cheaply before delivery, the first recorded large-scale short selling operation in financial history. The scheme was brazen enough that the Amsterdam city council attempted to ban short selling the following year. The ban failed. Le Maire was undaunted: he had grasped something fundamental about financial markets that would take regulators centuries to fully accept. Markets are not just places where things are bought and sold. They are environments in which participants constantly probe the rules, exploit information asymmetries, and invent instruments to express views that the market has never had to handle before. The job of exchange infrastructure, the order books, the matching engines, the risk controls, and the audit trails, is to provide a fair, stable, and trustworthy arena for all of this to happen, without breaking when the participants are clever, aggressive, or occasionally reckless.
+    In 1609, a Dutch merchant named Isaac Le Maire organised a consortium of traders to sell shares in the Dutch East India Company (VOC) that they did not yet own. The plan was to drive down the price and buy the shares back cheaply before delivery, the first recorded large-scale short selling operation in financial history. The scheme was brazen enough that the Amsterdam city council attempted to ban short selling the following year. The ban failed. Le Maire was undaunted: he had grasped something fundamental about financial markets that would take regulators centuries to fully accept. Markets are not just places where things are bought and sold. They are environments in which participants constantly probe the rules, exploit information asymmetries, and invent instruments to express views that the market has never had to handle before. The job of exchange infrastructure , the order books, the matching engines, the risk controls, and the audit trails, is to provide a fair, stable, and trustworthy arena for all of this to happen, without breaking when the participants are clever, aggressive, or occasionally reckless.
 
-    Every section of this Part can be traced, directly or indirectly, back to what was happening in Amsterdam in 1602 when the VOC issued the world's first publicly traded shares. The primary market, the secondary market, the concept of equity, the vocabulary of long and short, the role of brokers, the need for a central marketplace, it was all there, in embryonic form, four centuries ago. Part I builds that foundation.
+    Every section of this Part can be traced, directly or indirectly, back to what was happening in Amsterdam in 1602 when the VOC issued the world's first publicly traded shares. The primary market, the secondary market, the concept of equity, the vocabulary of long and short, the role of brokers, the need for a central marketplace, it was all there, in embryonic form, four centuries ago. 
+    
+    Part I builds that foundation.
 
 ---
-
 
 
 **Part Summary:**
@@ -152,6 +41,7 @@ Build the conceptual base: why exchanges exist, how capital formation connects t
 - The Language of the Market: A Short History
 - The Participants
 - A Brief Tour of Real-World Exchanges
+
 
 
 
@@ -299,6 +189,7 @@ The same framework applies to other instruments:
 
 With this foundation in place, understanding what a share is, why companies issue them, and what role the exchange plays, we can now look at the mechanics of how an exchange actually operates.
 
+
 ## What Is a Financial Exchange, and Why Does It Exist?
 
 
@@ -364,6 +255,7 @@ An exchange does not trade "things" in a physical sense. It trades **instruments
 
 An equity exchange handles each **symbol** (like AAPL, MSFT, or TSLA) as a separate tradeable instrument, each with its own independent order book.
 
+
 ## The Language of the Market: A Short History
 
 
@@ -413,7 +305,7 @@ Every time you read a function name or a variable name in exchange software that
 
 ### Black Monday and the Origin of Circuit Breakers
 
-On 19 October 1987, US stock markets fell **22.6%** in a single day, the largest single-day percentage drop in the history of the Dow Jones Industrial Average. This event, known as **Black Monday**, remains the most severe one-day market crash on record. 
+On 19 October 1987, US stock markets fell **22.6%** in a single day, the largest single-day percentage drop in the history of the Dow Jones Industrial Average. This event, known as **Black Monday**, remains the most severe one-day market crash on record. A more detailed account of this is described in secion [18.4 Historical circuit breaker](03-PART%20III%20-%20Risk%20and%20Compliance.md#historical-circuit-breaker)
 
 The crash was not driven by a single piece of bad news. It was amplified by automated **portfolio insurance** programmes, algorithmic selling strategies designed to protect institutional portfolios by automatically selling futures contracts as prices fell. As these programmes sold, prices fell further, triggering more programme selling, which pushed prices further down , a feedback loop that human traders could not interrupt. The lack of any coordinated mechanism to pause trading made the spiral self-reinforcing.
 
@@ -489,6 +381,7 @@ When you encounter a term in the codebase that seems oddly concrete for a piece 
 
 This is also why you will find financial terminology resistant to renaming even when better alternatives exist. Saying "priority queue" instead of "the book" would be technically precise but professionally unintelligible. Finance is a conservative industry with deep institutional memory, and the vocabulary is part of that memory. Learning the words, and where they came from, is learning the culture.
 
+
 ## The Participants
 
 
@@ -549,6 +442,7 @@ Internationally: the **FCA** (Financial Conduct Authority) in the UK, **ESMA** (
 For exchange developers, the practical implication is that regulatory requirements are non-negotiable features. A matching engine that produces a legally insufficient audit trail is not a working matching engine, regardless of its throughput. Understanding which regulator and which ruleset governs a given exchange is part of the technical specification.
 
 > **Note, quotes vs orders:** Throughout this document, the terms "order" and "quote" are sometimes used to describe resting instructions in the book. Operationally they are different: a **quote** is a two-sided bid/ask pair submitted by a market maker (a single instruction generating two linked legs), while an **order** is a one-sided instruction submitted by any participant. A quote may internally generate one or two order records with linked identifiers; quote IDs and order IDs may differ. The *Market Makers* section of Part II covers this distinction in detail.
+
 
 ## A Brief Tour of Real-World Exchanges
 
@@ -620,6 +514,7 @@ ASX serves the Australian equity and derivatives markets. It became notable in t
 
 
 
+
 ## Part II: Orders, Matching, and the Trading Day
 
 *How orders work, how the matching engine processes them, and how a complete trading day unfolds from open to close.*
@@ -628,7 +523,7 @@ ASX serves the Australian equity and derivatives markets. It became notable in t
 
 !!! note "Historic Notes"
 
-    In the summer of 1929, **Jesse Livermore** , then the most famous speculator in America began quietly selling short. He had been watching the tape for weeks, reading the continuous stream of prices and volumes that printed on the stock ticker, and he had seen something that troubled him: large blocks of stock were appearing at the top of rallies, absorbed by relentless selling pressure that the public could not see. The great bull market felt unstoppable, but the tape told a different story. Livermore increased his short positions through September and October. When the crash came in late October 1929, he made approximately $100 million, in 1929 dollars, in weeks [Reminiscences of a Stock Operator, Edwin Lefèvre, 1923].
+    In the summer of 1929, **Jesse Livermore** — then the most famous speculator in America began quietly selling short. He had been watching the tape for weeks, reading the continuous stream of prices and volumes that printed on the stock ticker, and he had seen something that troubled him: large blocks of stock were appearing at the top of rallies, absorbed by relentless selling pressure that the public could not see. The great bull market felt unstoppable, but the tape told a different story. Livermore increased his short positions through September and October. When the crash came in late October 1929, he made approximately $100 million, in 1929 dollars, in weeks [Reminiscences of a Stock Operator, Edwin Lefèvre, 1923].
     
     Livermore did not know about matching engines, FIX protocols, or price-time priority. But he understood, intuitively and empirically, exactly what this entire Part formalises: that every trade is the intersection of a buyer's intent and a seller's intent, encoded in an order; that the order book is a record of unresolved intentions; that the sequence and size of fills reveals information about who is doing what; and that the rules governing when and how orders match determine the character of the market.
 
@@ -662,6 +557,7 @@ Move from concepts to mechanics: how participant intent is encoded in order type
 - Putting It All Together
 
 
+
 ## The Order: The Fundamental Unit
 
 Everything in an exchange system revolves around the **order**. An order is an instruction from a participant to the exchange: "I want to buy (or sell) a certain quantity of a certain instrument, subject to certain conditions."
@@ -677,6 +573,7 @@ Every order carries several key pieces of information:
 | **Time-In-Force** | How long the order remains valid | So important it gets its own section below. |
 | **Arrival timestamp** | When the exchange received the order | Recorded to nanosecond precision. Not just metadata , it is the tiebreaker in price-time priority. |
 | **Identity** | Which gateway (participant) submitted it | Used for self-match prevention, kill switches, and regulatory reporting. |
+
 
 
 
@@ -970,6 +867,7 @@ Implied matching creates several engineering challenges that are absent from sim
 
 > **Key idea:** Implied orders are not free liquidity. They are a mechanism for expressing in one market the combined willingness already committed in two other markets. When an implied order matches, it consumes real orders from real books. The total liquidity in the system decreases by exactly the quantity matched, just as it would in any ordinary trade.
 
+
 ## Time-In-Force, How Long Should the Order Live?
 
 
@@ -1021,6 +919,7 @@ The exchange must verify available liquidity before executing any fills. In prac
 | **ATC** | Closing auction only | Yes | Closing auction | Benchmark to the close |
 | **IOC** | No | Yes (partial OK) | Immediate only | Aggressive, price-limited; remainder cancelled |
 | **FOK** | No | No (all or nothing) | Immediate only | Arbitrage, multi-leg strategies |
+
 
 ## The Order Book, The Exchange's Memory
 
@@ -1130,6 +1029,7 @@ For exchange developers, the closing price has several concrete implications. It
 
 Most market participants see only an **aggregated view** of the book: total quantity at each price level, without knowing how many individual orders make up that quantity or who placed them. The exchange itself knows the full detail, every individual order, its owner, its arrival time, its type. Publishing the aggregated view is part of the exchange's **market data** service; it's how participants observe the market.
 
+
 ## Price-Time Priority, The Fairness Rule
 
 
@@ -1193,6 +1093,7 @@ In software, storing prices as floating-point decimals (like Python's `float`) i
 The standard solution is to store prices as **integer tick counts**: the number of minimum increments from zero. $150.30 with a tick size of $0.01 is stored as the integer 15030. Integers are exact. 15030 always equals 15030. All arithmetic, comparison, addition, subtraction, is exact with integers. Prices are only converted back to decimal notation when displaying them to humans, at the output boundary.
 
 **What happens when a non-aligned price is submitted?** If a participant submits a limit buy at $150.305 when the tick size is $0.01, the price is not a valid tick multiple. The pre-trade validation layer rejects the order before it reaches the matching engine and returns an error message identifying the nearest valid prices on either side ($150.30 and $150.31) so the participant can resubmit correctly. The order receives REJECTED status and never enters the book. This becomes especially important at larger tick sizes, a futures product with a $0.25 tick makes it easy to accidentally submit a price like $150.10 that falls between valid multiples.
+
 
 ## The Matching Engine, The Heart of the Exchange
 
@@ -1281,6 +1182,7 @@ The order book needs to answer one question extremely fast: "What is the best av
 
 Production exchange engines, however, often use more specialised data structures optimised for FIFO ordering within price levels, cache locality, and deterministic latency: balanced trees, skip lists, or intrusive linked lists indexed by price level are common. The conceptual model of "best price always accessible in O(1)" is correct regardless of the underlying structure; the heap is a pedagogically useful approximation of what these structures achieve.
 
+
 ## The Life of a Trade
 
 
@@ -1361,6 +1263,7 @@ stateDiagram-v2
 ```
 
 > **Key idea for developers:** REJECTED is fundamentally different from CANCELLED. A rejected order never existed in the book; a cancelled order did. Audit trails must record both, but they have different implications for position tracking (a rejected order has no position impact) and for regulatory reporting.
+
 
 ## Market Makers, The Providers of Liquidity
 
@@ -1450,6 +1353,7 @@ flowchart TD
 
 This cycle, repeating dozens of times per minute per symbol, is what "providing liquidity" means operationally. A professional market maker runs sophisticated algorithms that evaluate every fill, update pricing models, and decide within microseconds whether and at what prices to re-quote.
 
+
 ## The Opening and Closing Auction
 
 
@@ -1510,6 +1414,7 @@ The equilibrium price is **$151** , the single price at which the most volume (1
 ### The Closing Auction
 
 The closing auction works identically but at the end of the day, establishing the official **closing price**. This is one of the most important prices in the market, it is used to benchmark fund performance, price derivatives, and compute official valuations of positions. The NYSE closing auction is one of the most liquidity-rich events in the US equity market: it regularly accounts for 10–15% of a stock's entire day's trading volume, compressed into a few seconds of uncrossing [NYSE Closing Auction Dynamics, 2023]. On some benchmark index rebalancing days the proportion is even higher, as index funds must trade at exactly the closing price to match their benchmarks.
+
 
 ## Trading Sessions, The Day in the Life of a Market
 
@@ -1580,6 +1485,7 @@ stateDiagram-v2
 ```
 
 Each arrow represents a permitted transition. Any attempt to trigger a transition not shown is rejected as invalid. This state machine is enforced in the exchange's session scheduler, which issues state change commands to the matching engine at the appropriate times.
+
 
 ## Putting It All Together
 
@@ -1655,7 +1561,6 @@ sequenceDiagram
 ```
 
 
-
 ## Part III: Risk, Compliance, and Post-Trade
 
 *The safeguards that protect markets and participants , before, during, and after each trade , and the regulatory obligations that underpin them.*
@@ -1692,6 +1597,7 @@ Focus on market safety and accountability: the controls that prevent bad orders,
 - Clearing and Settlement, When the Trade Becomes Real
 - Regulatory Surveillance, Exchanges Are Not Passive
 - A Cautionary Tale, Knight Capital, August 1, 2012
+
 
 
 ## Pre-Trade Risk Controls: Before the Matching Engine
@@ -1782,6 +1688,7 @@ In most production architectures, the gateway performs these checks. The gateway
 The consequence for software design: the gateway and the matching engine have different codebases, different deployment configurations, and different update cadences. The gateway can be scaled horizontally (multiple gateway processes); the matching engine is typically single-threaded per symbol.
 
 > **Key idea:** The matching engine is optimised for speed, not safety. Safety is enforced before the order arrives. Developers working on gateway code must treat pre-trade checks as first-class functionality, not as an afterthought.
+
 
 ## Risk Controls, Protecting the Market
 
@@ -1974,6 +1881,7 @@ A kill switch is invoked when a system is out of control. A mass cancel is invok
 
 > **Key idea:** Use a kill switch when something has gone wrong and a human must intervene before trading resumes. Use a mass cancel when a participant wants to cancel orders as part of normal operation. The difference is not just functional, it is architectural: the kill switch changes the gateway state; the mass cancel does not.
 
+
 ## Self-Match Prevention, When You Would Trade with Yourself
 
 
@@ -2010,6 +1918,7 @@ The matching engine identifies orders from the same participant by their **gatew
 SMP is implemented inside the matching sweep loop, it runs after price compatibility is checked but before any fill is committed. The code path must handle all three cancellation outcomes, generate appropriate event notifications (the cancelled order receives a cancellation event, not a fill), and continue the sweep to look for non-self counterparties if the resting order was cancelled.
 
 > **Key idea:** SMP is not just a courtesy feature, it is a legal requirement on regulated exchanges. An exchange that facilitates wash trading faces regulatory action. Every exchange system must implement it correctly.
+
 
 ## Drop Copy, The Shadow Record
 
@@ -2061,6 +1970,7 @@ Worked example: the clearing broker's risk system receives sequence numbers 1, 2
 Without sequence numbers, the risk system would have no reliable way to detect the gap. It might operate with a stale position view , showing a position of, say, 5,000 shares when the true position is 7,000 , until the next end-of-day reconciliation. For a real-time risk management system, this is unacceptable.
 
 > **Key idea:** The drop copy sequence number is the risk manager's safety net. A system that processes drop copy events without checking sequence numbers for gaps will eventually make risk decisions based on incorrect positions. Sequence integrity monitoring is not optional.
+
 
 ## Clearing and Settlement, When the Trade Becomes Real
 
@@ -2185,6 +2095,7 @@ A clearing system tracks each participant's **position** (how many units they ho
 
 For exchange developers, the distinction matters because position monitoring systems must track both: unrealised P&L is what triggers margin calls and risk alerts in real time, while realised P&L is what flows into the official accounting records at end of day.
 
+
 ## Regulatory Surveillance, Exchanges Are Not Passive
 
 
@@ -2232,6 +2143,7 @@ This replayability requirement is not incidental. It is the reason exchange syst
 **Suspicious Transaction Reports (STRs).** Exchanges are not merely passive data sources. When the surveillance system identifies activity that may constitute market abuse, the exchange is legally required to file a **Suspicious Transaction Report** with the relevant regulator (the SEC or CFTC in the US, the FCA in the UK). Exchanges have internal compliance teams that review surveillance flags and decide whether to file. The audit trail is the primary evidence attached to these reports.
 
 > **Key idea:** Every event in the exchange system should be written to the audit log before the response is sent to the participant. The audit log is primary; the matching engine state is derived from it.
+
 
 ## A Cautionary Tale, Knight Capital, August 1, 2012
 
@@ -2317,7 +2229,7 @@ Every requirement in the *Pre-Trade Risk Controls* section of this document, and
 
     In 1983, NASDAQ sent **Thomas Peterffy** a letter. Peterffy, a Hungarian-born engineer who had become a prolific options trader, had done something the exchange had never anticipated: he had wired a workstation terminal directly to a computer that automatically generated and submitted options orders based on his models. NASDAQ's rules required that a terminal be operated by a human hand. The letter demanded he comply.
 
-    Peterffy's response was to hire a typist to sit at the keyboard and type the computer's output into the terminal as fast as the computer generated it. The absurdity lasted a few months before NASDAQ changed the rules to accommodate electronic order submission. Peterffy , who eventually founded Interactive Brokers and became a billionaire , had glimpsed the future of market infrastructure. Every exchange in the world is now built on exactly the principle that NASDAQ once tried to prohibit: automated, computer-generated orders, submitted at machine speed, processed by machine logic, without a human hand in the loop [Interactive Brokers company history].
+    Peterffy's response was to hire a typist to sit at the keyboard and type the computer's output into the terminal as fast as the computer generated it. The absurdity lasted a few months before NASDAQ changed the rules to accommodate electronic order submission. Peterffy, who eventually founded Interactive Brokers and became a billionaire, had glimpsed the future of market infrastructure. Every exchange in the world is now built on exactly the principle that NASDAQ once tried to prohibit: automated, computer-generated orders, submitted at machine speed, processed by machine logic, without a human hand in the loop [Interactive Brokers company history].
 
     Part IV is the technical story of how that future was built. It covers the gateway that receives those automated orders, the matching engine that processes them in microseconds, the market data infrastructure that broadcasts results to thousands of subscribers simultaneously, and the resilience, latency, and operational systems that keep it all running twenty-four hours before the opening bell rings on the next trading day.
 
@@ -2348,6 +2260,7 @@ Examine the engineering reality of exchanges at scale: deterministic engines, me
 - Reference Data, The Exchange's Ground Truth
 
 
+
 ## Speed Bumps, Leveling the Playing Field
 
 
@@ -2368,6 +2281,7 @@ IEX's founders argued in the book *Flash Boys* (Lewis, 2014) [6] that speed adva
 Speed bumps can be applied selectively, for example, only to **cancel** messages but not to new orders. This prevents a practice called **last-look** where a market maker posts an order, and then when someone attempts to fill it, the market maker races to cancel before the fill completes. If cancels are delayed but the fill is immediate, the market maker cannot escape the fill.
 
 Several European venue operators and regulators have discussed asymmetric speed bump rules for cancel messages under MiFID II's framework for algorithmic trading controls, though no major European exchange has adopted a speed bump comparable to IEX's.
+
 
 ## The Technology Architecture
 
@@ -2438,25 +2352,25 @@ FIX is human-readable and widely compatible but inefficient for high-throughput,
 
 Production exchanges use **binary protocols** for the critical paths. The most widely deployed are those developed by NASDAQ and adopted or adapted by many exchanges globally:
 
-**NASDAQ ITCH (market data)** is a binary UDP-based protocol for publishing the full order book feed. Instead of text like `35=D|44=150.30`, an ITCH message is a fixed-width binary structure , a 44-byte trade execution message, for example, contains the timestamp (8 bytes), order reference number (8 bytes), side (1 byte), shares (4 bytes), stock symbol (8 bytes padded), and price (4 bytes). An ITCH message is 2–5× smaller than its FIX equivalent and requires no text parsing; the fields are at fixed offsets and read directly as integers. ITCH 5.0 is the current version and is publicly documented by NASDAQ. Many other exchanges (Euronext, LSE, SIX, and others) publish protocols that are ITCH-inspired or ITCH-compatible [NASDAQ ITCH 5.0 specification].
+**NASDAQ ITCH (market data)** is a binary UDP-based protocol for publishing the full order book feed. Instead of text like `35=D|44=150.30`, an ITCH message is a fixed-width binary structure, a 44-byte trade execution message, for example, contains the timestamp (8 bytes), order reference number (8 bytes), side (1 byte), shares (4 bytes), stock symbol (8 bytes padded), and price (4 bytes). An ITCH message is 2–5× smaller than its FIX equivalent and requires no text parsing; the fields are at fixed offsets and read directly as integers. ITCH 5.0 is the current version and is publicly documented by NASDAQ. Many other exchanges (Euronext, LSE, SIX, and others) publish protocols that are ITCH-inspired or ITCH-compatible [NASDAQ ITCH 5.0 specification].
 
 **NASDAQ OUCH (order submission)** is the binary counterpart for order entry. Where FIX is session-based and feature-rich, OUCH is minimal: an "Enter Order" message is 40 bytes. OUCH is transmitted over TCP (for reliability) in the same way FIX is, but the compact binary format dramatically reduces serialisation overhead.
 
 **CME MDP3 (Market Data Platform 3)** is CME Group's binary market data protocol, based on the **SBE (Simple Binary Encoding)** standard. SBE is schema-driven: a protocol specification file defines every message type's field layout, and code generators produce optimised parsers for multiple languages. The generated parsers decode directly from the raw buffer with no heap allocation, which is critical for deterministic latency. CME's GLOBEX matching engine publishes all market data in MDP3 format [CME Group MDP3 specification].
 
-For exchange developers, the practical implication is that systems dealing with high-volume data , market data normalisation, risk engines, algo trading systems , will almost always use binary protocols on the critical path, with FIX reserved for session management and less latency-sensitive channels.
+For exchange developers, the practical implication is that systems dealing with high-volume data, market data normalisation, risk engines, algo trading systems, will almost always use binary protocols on the critical path, with FIX reserved for session management and less latency-sensitive channels.
 
 ### TCP vs UDP: Why Market Data and Order Submission Use Different Transports
 
-Order submission uses **TCP** (Transmission Control Protocol). TCP guarantees reliable, in-order delivery: if a packet is lost, TCP automatically retransmits it. For order management, this is essential , a lost order acknowledgement or fill notification must eventually arrive. TCP also provides backpressure: if the receiver falls behind, the sender slows down automatically.
+Order submission uses **TCP** (Transmission Control Protocol). TCP guarantees reliable, in-order delivery: if a packet is lost, TCP automatically retransmits it. For order management, this is essential, a lost order acknowledgement or fill notification must eventually arrive. TCP also provides backpressure: if the receiver falls behind, the sender slows down automatically.
 
-Market data uses **UDP multicast**. UDP (User Datagram Protocol) has no reliability guarantee , packets can be lost and are not retransmitted automatically. But UDP's advantages are significant:
+Market data uses **UDP multicast**. UDP (User Datagram Protocol) has no reliability guarantee, packets can be lost and are not retransmitted automatically. But UDP's advantages are significant:
 
-- **One-to-many delivery:** A single UDP multicast packet can be received by hundreds of subscribers simultaneously. With TCP, the exchange would need to maintain a separate connection and send a separate copy of each message to each subscriber , which does not scale.
+- **One-to-many delivery:** A single UDP multicast packet can be received by hundreds of subscribers simultaneously. With TCP, the exchange would need to maintain a separate connection and send a separate copy of each message to each subscriber, which does not scale.
 - **No connection overhead:** UDP is connectionless; there is no TCP handshake, no per-connection state.
 - **Lower latency:** No TCP acknowledgement flow, no retransmission delay.
 
-How does UDP's unreliability get handled? Through **sequence numbers**. Every ITCH/MDP3 message carries a sequence number. If a subscriber receives message 1000 followed by 1002, it knows 1001 was lost. It requests a retransmission via a separate **TCP unicast recovery channel** (specifically for replay requests). This hybrid design , UDP multicast for the live feed, TCP unicast for recovery , is standard across all major exchange market data architectures.
+How does UDP's unreliability get handled? Through **sequence numbers**. Every ITCH/MDP3 message carries a sequence number. If a subscriber receives message 1000 followed by 1002, it knows 1001 was lost. It requests a retransmission via a separate **TCP unicast recovery channel** (specifically for replay requests). This hybrid design, UDP multicast for the live feed, TCP unicast for recovery, is standard across all major exchange market data architectures.
 
 ```mermaid
 flowchart LR
@@ -2473,7 +2387,7 @@ flowchart LR
     TCP -- "seq 47 retransmitted" --> SUB3
 ```
 
-Order submission uses the reverse pattern , TCP from participant to exchange , because every order must be reliably received and acknowledged.
+Order submission uses the reverse pattern, TCP from participant to exchange, because every order must be reliably received and acknowledged.
 
 ### The Matching Engine
 
@@ -2517,6 +2431,7 @@ Snapshots include:
 - Recent trade history (a rolling window of the last N trades)
 - The current tick size for the symbol (so subscribers can correctly format prices)
 
+
 ## Primary and Secondary Sites, Resilience Architecture
 
 
@@ -2524,9 +2439,9 @@ A financial exchange is critical infrastructure. If it goes down unexpectedly, d
 
 Two metrics define the resilience targets:
 
-**RPO (Recovery Point Objective):** The maximum amount of data loss acceptable. For a matching engine, RPO is effectively **zero** , no committed trade or order acknowledgement can ever be lost. A trade that was confirmed to a participant and then lost in a crash would represent a contractual failure with regulatory and legal consequences.
+**RPO (Recovery Point Objective):** The maximum amount of data loss acceptable. For a matching engine, RPO is effectively **zero**, no committed trade or order acknowledgement can ever be lost. A trade that was confirmed to a participant and then lost in a crash would represent a contractual failure with regulatory and legal consequences.
 
-**RTO (Recovery Time Objective):** The maximum acceptable downtime. Different systems have different RTOs: a batch reporting system might tolerate hours; a matching engine must recover in **seconds to minutes**. NYSE and NASDAQ publish target failover times; for critical components, modern exchanges target sub-minute RTO. The 2015 NYSE trading halt, discussed in the Reference Data section, lasted 3.5 hours , widely considered an unacceptable RTO for a major exchange, and a benchmark against which subsequent resilience investments were made.
+**RTO (Recovery Time Objective):** The maximum acceptable downtime. Different systems have different RTOs: a batch reporting system might tolerate hours; a matching engine must recover in **seconds to minutes**. NYSE and NASDAQ publish target failover times; for critical components, modern exchanges target sub-minute RTO. The 2015 NYSE trading halt, discussed in the Reference Data section, lasted 3.5 hours, widely considered an unacceptable RTO for a major exchange, and a benchmark against which subsequent resilience investments were made.
 
 ### Primary and Secondary Sites
 
@@ -2569,9 +2484,9 @@ flowchart TD
     SA -->|"Sequence continues\nno gap to participants"| SA
 ```
 
-- **Automatic (active-passive):** The system detects the primary has stopped responding (via heartbeat monitoring) and automatically promotes the secondary to primary, alerting participants. The challenge: detecting a true failure vs. a temporary network partition without making hasty decisions , the **split-brain problem**: if both sites think the other is dead, both might try to become primary simultaneously, resulting in two active engines accepting conflicting orders.
+- **Automatic (active-passive):** The system detects the primary has stopped responding (via heartbeat monitoring) and automatically promotes the secondary to primary, alerting participants. The challenge: detecting a true failure vs. a temporary network partition without making hasty decisions, the **split-brain problem**: if both sites think the other is dead, both might try to become primary simultaneously, resulting in two active engines accepting conflicting orders.
 
-  The standard distributed-systems solutions are **fencing** (issuing a command that forces the suspected-failed node to stop operating before the secondary takes over , sometimes called **STONITH: Shoot The Other Node In The Head**) and **quorum requirements** (requiring the agreement of a majority of nodes before any single node can assume the primary role). Without one of these mechanisms, split-brain in a matching engine produces a catastrophic situation: two independent order books diverging while both believe they are the authoritative state.
+  The standard distributed-systems solutions are **fencing** (issuing a command that forces the suspected-failed node to stop operating before the secondary takes over, sometimes called **STONITH: Shoot The Other Node In The Head**) and **quorum requirements** (requiring the agreement of a majority of nodes before any single node can assume the primary role). Without one of these mechanisms, split-brain in a matching engine produces a catastrophic situation: two independent order books diverging while both believe they are the authoritative state.
 
 - **Manual (operator-controlled):** A human operator monitors the primary and initiates failover when a problem is confirmed. This is slower (seconds or minutes, not milliseconds) but avoids false failovers.
 
@@ -2584,6 +2499,7 @@ flowchart TD
 Placing the secondary site far from the primary protects against geographically localised disasters (earthquakes, floods, building fires). But distance means higher network latency, making synchronisation slower.
 
 A common compromise: a "near" site (same city or region, connected by dark fibre) provides fast synchronisation and fast failover, plus a "far" site (different country or continent) for true disaster recovery.
+
 
 ## Load Balancing, Distributing the Work
 
@@ -2636,6 +2552,7 @@ This requires clock synchronisation (NTP or PTP), monotonic enforcement via a wr
 
 **An important nuance:** in practice, deterministic sequencing identifiers matter more than absolute wall-clock timestamp precision. Production exchange systems frequently tolerate small amounts of clock drift and same-timestamp collisions, because the canonical ordering of events is defined by **sequencing infrastructure**, the order in which the single-threaded engine processes messages from its queue, not by the wall-clock value of the timestamp. Timestamps are primarily for auditability and observability; the sequencing of the input queue defines what actually happens. The monotonic enforcement described here prevents the most obvious failures (a clock jumping backward and assigning a "past" timestamp to a new order), but it is the engine's input queue, not the clock, that ultimately determines priority.
 
+
 ## Market Data Architecture, How the Market Sees Itself
 
 
@@ -2683,6 +2600,7 @@ When the exchange is under high load, market data messages may queue behind each
 Some participants subscribe only to **top-of-book** data (best bid and ask prices and quantities only, Level 1). Others subscribe to **depth-of-book** (multiple price levels, Level 2). Depth data requires more bandwidth and processing but enables more sophisticated analysis of near-term price pressure.
 
 > **Key idea:** Market data is not just a convenience, it is the primary input to every trading algorithm and market maker. Its correctness, latency, and sequencing directly affect the quality of market participants' decisions. Exchange developers must treat market data publishing with the same rigour as the matching engine itself.
+
 
 ## Smart Order Routing and Market Fragmentation
 
@@ -2748,7 +2666,7 @@ Dark pools are legal but have attracted significant regulatory attention when op
 
 **Credit Suisse** paid $84.3 million to settle similar allegations about its CrossFinder dark pool in the same period.
 
-These cases established that dark pool operators have affirmative obligations of transparency to their clients about pool membership and execution policies , not just about prices. For exchange developers, the lesson is that any venue offering dark or non-displayed liquidity must have defensible, auditable, and accurate representations of its matching rules and participant population.
+These cases established that dark pool operators have affirmative obligations of transparency to their clients about pool membership and execution policies, not just about prices. For exchange developers, the lesson is that any venue offering dark or non-displayed liquidity must have defensible, auditable, and accurate representations of its matching rules and participant population.
 
 ### Exchange Fee Models: Maker-Taker and Taker-Maker
 
@@ -2756,11 +2674,11 @@ Understanding how exchanges charge for trading is essential for anyone building 
 
 **Maker-taker** is the dominant fee model among US equity exchanges. It works as follows:
 
-- **Makers** (participants who post resting limit orders, providing liquidity) receive a **rebate** , the exchange pays them a small amount per share, typically $0.0020–$0.0030.
+- **Makers** (participants who post resting limit orders, providing liquidity) receive a **rebate**, the exchange pays them a small amount per share, typically $0.0020–$0.0030.
 - **Takers** (participants who submit aggressive orders that execute against resting orders) pay a **fee**, typically $0.0025–$0.0035 per share.
 - The exchange retains the difference as its revenue.
 
-This model incentivises liquidity provision: market makers are paid to quote, and the payment compensates partly for adverse selection risk. NYSE Arca and NASDAQ use maker-taker structures. A SOR routing a large aggressive order that sweeps through multiple levels will pay taker fees on every share executed , for a million-share institutional order, fees can be $25,000–$35,000 on a single execution, making fee comparison between venues a significant input to routing decisions.
+This model incentivises liquidity provision: market makers are paid to quote, and the payment compensates partly for adverse selection risk. NYSE Arca and NASDAQ use maker-taker structures. A SOR routing a large aggressive order that sweeps through multiple levels will pay taker fees on every share executed, for a million-share institutional order, fees can be $25,000–$35,000 on a single execution, making fee comparison between venues a significant input to routing decisions.
 
 **Taker-maker** (sometimes called the **inverted model**) reverses the incentives: takers are paid a rebate and makers are charged a fee. This sounds counterintuitive, but it attracts aggressive order flow from participants who want to execute immediately and are willing to pay to provide that flow to the maker side. EDGA and EDGX (Cboe US Equities) have offered inverted structures. Inverted venues are often used for orders in highly liquid symbols where the maker-taker economics of the dominant venues create distortions.
 
@@ -2784,9 +2702,9 @@ An exchange's matching engine does not operate in regulatory silence. Every exec
 
 **EU markets under MiFID II:** Investment firms must report every trade to a regulator via an **Approved Reporting Mechanism (ARM)** within T+1, and publish the trade to the market via an **Approved Publication Arrangement (APA)** as close to real time as technologically possible (immediately for liquid instruments; deferred up to 15 minutes for illiquid instruments with large size). Large exchanges typically operate their own APAs and ARMs as part of their data services.
 
-**Derivatives under EMIR (EU) and Dodd-Frank (US):** Most standardised OTC derivatives trades must be reported to a **Trade Repository (TR)** , DTCC Derivatives Repository, ICE Trade Vault, and CME Trade Repository are the major EU TRs. Both counterparties must report, or one must be designated to report on both sides.
+**Derivatives under EMIR (EU) and Dodd-Frank (US):** Most standardised OTC derivatives trades must be reported to a **Trade Repository (TR)**, DTCC Derivatives Repository, ICE Trade Vault, and CME Trade Repository are the major EU TRs. Both counterparties must report, or one must be designated to report on both sides.
 
-For exchange developers, these obligations mean the clearing and audit systems must produce reports in multiple formats to multiple regulatory recipients within multiple latency windows , without impacting the matching engine's performance. The reporting infrastructure is a first-class engineering component, not an afterthought.
+For exchange developers, these obligations mean the clearing and audit systems must produce reports in multiple formats to multiple regulatory recipients within multiple latency windows, without impacting the matching engine's performance. The reporting infrastructure is a first-class engineering component, not an afterthought.
 
 ### Execution Algorithms, Slicing Large Orders
 
@@ -2803,6 +2721,7 @@ Understanding execution algorithms matters for exchange developers because they 
 **Percentage of Volume (POV) / In-Line.** Participate at a fixed percentage of the market's traded volume, for example, "be 10% of whatever the market trades." If the market trades 100,000 shares in an interval, the algo sends 10,000. This limits market impact (you are never the dominant force in the market) and adapts naturally to varying liquidity throughout the day.
 
 > **Key idea:** The vast majority of exchange order flow originates from execution algorithms, not from humans pressing buttons. Understanding how these algos work helps explain patterns visible in market data, clustering of activity near the open and close (VWAP/ATC algos), evenly-spaced order arrivals (TWAP), and bursts of activity when prices move (IS algos increasing urgency).
+
 
 ## Latency and Co-location, The Speed Dimension
 
@@ -2861,6 +2780,7 @@ When events across multiple machines must be compared, all machines must share a
 
 > **Key idea:** In exchange infrastructure, latency is not just a performance metric, it determines who gets to trade at what price. Every architectural decision (data structures, networking, hardware) has latency implications. Understanding this context helps you make better design choices even in components not directly in the critical path.
 
+
 ## Operational Observability and Incident Response
 
 Production readiness depends not only on matching correctness, but on fast, reliable detection and recovery when something degrades.
@@ -2890,6 +2810,7 @@ A professional venue maintains tested runbooks for:
 Runbooks should include operator decision thresholds, not just command sequences. Drills should be rehearsed under load and during controlled session simulations, not only in staging idle conditions.
 
 > **Key idea:** Low latency is valuable, but operational predictability is what keeps markets open during stress. A venue is publishable and production-grade only when observability and incident response are engineered as first-class features.
+
 
 ## Corporate Actions, When the Instrument Changes
 
@@ -2929,6 +2850,7 @@ Corporate actions are among the most operationally complex events an exchange sy
 A developer who underestimates corporate action complexity will eventually face a bug report like: "after the split, the order that was resting at $200 for 100 shares is now resting at $200 for 100 shares instead of $50 for 400 shares." The split was never propagated to the open order book.
 
 > **Key idea:** Instruments are not static. Every system that touches order, position, or price data must be prepared to handle corporate action adjustments. Reference data management is a discipline in its own right in production exchange systems.
+
 
 ## Determinism, Replay, and Persistence, The Exchange Must Not Forget
 
@@ -2977,6 +2899,7 @@ A production exchange cannot lose state across restarts or failures. This requir
 **Failover:** When the primary engine fails, the secondary takes over. For failover to be seamless, the secondary must have been receiving and processing all input messages in parallel (shadow mode), maintaining an up-to-date copy of the book state. When the primary fails, the secondary's warm state is already current; it only needs to begin accepting new inputs and publishing outputs.
 
 > **Key idea:** The exchange cannot lose a single order or trade. Persistence is not optional. Every production exchange system is built around the assumption that hardware will fail, software will crash, and the system must recover to exactly the state it had before the failure.
+
 
 ## Reference Data, The Exchange's Ground Truth
 
@@ -3031,7 +2954,7 @@ Because reference data is read by every component, matching engine, gateway, cle
 
 All of these have happened in real exchanges. Reference data errors have caused trading halts, regulatory interventions, and significant financial losses.
 
-A prominent real-world example: on **8 July 2015, NYSE halted all trading for approximately 3.5 hours**. The cause was a software configuration mismatch introduced during a gateway update deployed the previous evening. The new gateway software version was incompatible with the version running on some internal systems, causing connectivity failures that propagated into a halt of the entire venue. Trading migrated to NASDAQ and other venues, demonstrating both the fragility of reference data and system configuration , and the resilience of the fragmented US equity market structure as a whole, since the market continued to function on other venues while NYSE was dark [NYSE Inc. statement, July 2015; SEC review].
+A prominent real-world example: on **8 July 2015, NYSE halted all trading for approximately 3.5 hours**. The cause was a software configuration mismatch introduced during a gateway update deployed the previous evening. The new gateway software version was incompatible with the version running on some internal systems, causing connectivity failures that propagated into a halt of the entire venue. Trading migrated to NASDAQ and other venues, demonstrating both the fragility of reference data and system configuration, and the resilience of the fragmented US equity market structure as a whole, since the market continued to function on other venues while NYSE was dark [NYSE Inc. statement, July 2015; SEC review].
 
 ### Reference Data as an Exchange Engineering Problem
 
@@ -3044,7 +2967,6 @@ For developers, reference data has several important architectural properties:
 **Version control and audit matter.** Reference data changes must be versioned and audited. Regulators may ask: "What were the circuit breaker parameters for AAPL at 2:43pm on the day of the halt?" If reference data is overwritten rather than versioned, that question cannot be answered.
 
 > **Key idea:** Reference data is the configuration that all exchange software depends on. Treat it with the same rigour as code changes, version controlled, tested before deployment, applied atomically, and auditable after the fact. A wrong tick size is just as dangerous as a bug in the matching loop.
-
 
 
 ## References
