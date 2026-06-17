@@ -1739,6 +1739,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../16-statistics-and-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics and Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../20-app-alf-protocol/" class="md-nav__link">
         
   
@@ -2311,7 +2339,7 @@ dictionary is implicitly <code>ACTIVE</code>.</p>
 rejected (both sides).</p>
 <p>Quote eligibility by participant role (for example, <code>MARKET_MAKER</code> vs
 <code>TRADER</code>) is described in
-<a href="../01-configuration/#role-privileges-and-obligations">Configuration - Role Privileges and Obligations</a>.</p>
+<a href="../01-configuration/#role-privileges">Configuration - Role Privileges</a>.</p>
 <h3 id="interaction-with-auctions">Interaction with auctions<a class="headerlink" href="#interaction-with-auctions" title="Permanent link">&para;</a></h3>
 <p>If a symbol is halted during an auction phase the engine will still accept
 LIMIT orders so they can participate in the uncross when the halt is lifted and
@@ -2709,7 +2737,7 @@ requires every symbol to be frozen simultaneously.</p>
 </code></pre></div>
 <p>The gateway connects to the engine via the standard PUSH socket (port 5555) and
 subscribes to the PUB socket (port 5556) to receive ack messages.</p>
-<p>See <a href="../01-configuration/#role-privileges-and-obligations">Role Privileges and Obligations</a>
+<p>See <a href="../01-configuration/#role-privileges">Role Privileges</a>
 for the full permissions matrix.</p>
 <h3 id="triggering-an-exchange-wide-halt">Triggering an exchange-wide halt<a class="headerlink" href="#triggering-an-exchange-wide-halt" title="Permanent link">&para;</a></h3>
 <p>Send the following frame to the engine's PUSH socket (port <strong>5555</strong>):</p>

@@ -894,6 +894,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pm-command-family-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PM command family overview
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="PM command family overview">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#runtime-processes-runnable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Runtime processes (runnable)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cli-utilities-runnable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI utilities (runnable)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#planned-runtime-processes-design-proposals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Planned runtime processes (design proposals)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#five-minute-minimum-session" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1447,6 +1497,34 @@
     
   
     AI Traders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../16-statistics-and-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistics and Reporting
   
 
     
@@ -2101,6 +2179,166 @@ override the defaults permanently.</p>
 </table>
 <p>The <code>--config</code> flag on <code>pm-engine</code> and <code>pm-scheduler</code> always takes precedence
 over both the environment variable and the default.</p>
+<h2 id="pm-command-family-overview">PM command family overview<a class="headerlink" href="#pm-command-family-overview" title="Permanent link">&para;</a></h2>
+<p>Use these tables as a quick index for every <code>pm-</code> entry point currently
+documented. All commands are shown in pipx form; in developer mode prepend
+<code>poetry run</code>. All <code>pm-</code> processes/utilities are described in <a href="../10-processes/">Processes</a>.</p>
+<h3 id="runtime-processes-runnable">Runtime processes (runnable)<a class="headerlink" href="#runtime-processes-runnable" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Interactivity</th>
+<th>Purpose</th>
+<th>More information</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pm-engine</code></td>
+<td>Background</td>
+<td>Matching engine; central order-book writer</td>
+<td><a href="../10-processes/">Processes</a>, <a href="../03-running-the-engine/">Running the Engine</a>, <a href="../01-configuration/">Configuration</a></td>
+</tr>
+<tr>
+<td><code>pm-gateway</code></td>
+<td>Interactive terminal</td>
+<td>ALF participant terminal and order entry</td>
+<td><a href="../10-processes/">Processes</a>, <a href="../08-gateway/">Gateway</a>, <a href="../20-app-alf-protocol/">ALF Protocol</a></td>
+</tr>
+<tr>
+<td><code>pm-scheduler</code></td>
+<td>Background</td>
+<td>Session phase transitions by schedule</td>
+<td><a href="../10-processes/">Processes</a>, <a href="../06-auctions-scheduling/">Auctions and Scheduling</a></td>
+</tr>
+<tr>
+<td><code>pm-viewer</code></td>
+<td>Terminal display</td>
+<td>Single-symbol live order book view</td>
+<td><a href="../10-processes/">Processes</a>, <a href="../04-order-types/">Order Types</a></td>
+</tr>
+<tr>
+<td><code>pm-orders</code></td>
+<td>Terminal display</td>
+<td>Live cross-gateway order status monitor</td>
+<td><a href="../10-processes/">Processes</a>, <a href="../09-messages/">Messages</a></td>
+</tr>
+<tr>
+<td><code>pm-board</code></td>
+<td>Terminal display</td>
+<td>Multi-symbol market board display</td>
+<td><a href="../10-processes/">Processes</a></td>
+</tr>
+<tr>
+<td><code>pm-ticker</code></td>
+<td>Terminal display</td>
+<td>Scrolling ticker with live plus OHLCV context</td>
+<td><a href="../10-processes/">Processes</a>, <a href="../16-statistics-and-reporting/">Statistics and Reporting</a></td>
+</tr>
+<tr>
+<td><code>pm-stats</code></td>
+<td>Background</td>
+<td>Persist market statistics to SQLite</td>
+<td><a href="../10-processes/">Processes</a>, <a href="../16-statistics-and-reporting/">Statistics and Reporting</a></td>
+</tr>
+<tr>
+<td><code>pm-clearing</code></td>
+<td>Terminal display</td>
+<td>Trade recording and running P&amp;L</td>
+<td><a href="../10-processes/">Processes</a>, <a href="../07-pnl-clearing/">P&amp;L and Clearing</a></td>
+</tr>
+<tr>
+<td><code>pm-audit</code></td>
+<td>Background</td>
+<td>Full event log capture from the bus</td>
+<td><a href="../10-processes/">Processes</a>, <a href="../11-persistence/">Persistence</a></td>
+</tr>
+<tr>
+<td><code>pm-admin</code></td>
+<td>Interactive terminal</td>
+<td>Interactive operational console</td>
+<td><a href="../10-processes/">Processes</a>, <a href="../12-risk-controls/">Risk Controls</a></td>
+</tr>
+<tr>
+<td><code>pm-ai-trader</code></td>
+<td>Background</td>
+<td>Single autonomous trading bot gateway</td>
+<td><a href="../10-processes/">Processes</a>, <a href="../../developer/02-ai-bot/">AI Bot Traders</a></td>
+</tr>
+<tr>
+<td><code>pm-ai-swarm</code></td>
+<td>Background</td>
+<td>Multi-agent autonomous trading swarm</td>
+<td><a href="../10-processes/">Processes</a>, <a href="../../developer/02-ai-bot/">AI Bot Traders</a></td>
+</tr>
+</tbody>
+</table>
+<h3 id="cli-utilities-runnable">CLI utilities (runnable)<a class="headerlink" href="#cli-utilities-runnable" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Purpose</th>
+<th>More information</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pm-admin-cli</code></td>
+<td>Non-interactive admin commands for scripts</td>
+<td><a href="../10-processes/">Processes</a>, <a href="../12-risk-controls/">Risk Controls</a></td>
+</tr>
+<tr>
+<td><code>pm-stats-cli</code></td>
+<td>Query <code>stats.db</code> without writing SQL</td>
+<td><a href="../10-processes/#pm-stats-cli-statistics-query-cli">Processes</a>, <a href="../16-statistics-and-reporting/">Statistics and Reporting</a></td>
+</tr>
+<tr>
+<td><code>pm-setup</code></td>
+<td>Bootstrap local session directory and defaults</td>
+<td><a href="../10-processes/">Processes</a>, <a href="./#installation">Installation</a></td>
+</tr>
+<tr>
+<td><code>pm-config-gen</code></td>
+<td>Generate <code>engine_config.yaml</code> from CLI options</td>
+<td><a href="../10-processes/">Processes</a>, <a href="../01-configuration/#generate-configs-with-pm-config-gen">Configuration generator</a></td>
+</tr>
+</tbody>
+</table>
+<h3 id="planned-runtime-processes-design-proposals">Planned runtime processes (design proposals)<a class="headerlink" href="#planned-runtime-processes-design-proposals" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Interactivity</th>
+<th>Purpose</th>
+<th>More information</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pm-balf-gateway</code></td>
+<td>Background</td>
+<td>Binary order-entry gateway (BALF)</td>
+<td><a href="../10-processes/#planned-processes">Processes planned section</a>, <a href="../21-app-balf-protocol/">BALF Protocol</a></td>
+</tr>
+<tr>
+<td><code>pm-md-gwy</code></td>
+<td>Background</td>
+<td>Market-data distribution gateway (CALF)</td>
+<td><a href="../10-processes/#planned-processes">Processes planned section</a>, <a href="../22-app-calf-protocol/">CALF Protocol</a></td>
+</tr>
+<tr>
+<td><code>pm-index</code></td>
+<td>Background</td>
+<td>Real-time index calculation service</td>
+<td><a href="../10-processes/#planned-processes">Processes planned section</a></td>
+</tr>
+</tbody>
+</table>
+<p>For startup order and a practical first-run sequence, see
+<a href="../10-processes/#process-overview">Processes</a>.</p>
 <h2 id="five-minute-minimum-session">Five-minute minimum session<a class="headerlink" href="#five-minute-minimum-session" title="Permanent link">&para;</a></h2>
 <p>This walkthrough starts a matching engine, connects two participant terminals,
 and executes one trade. No configuration file is required — the engine starts in
@@ -2220,32 +2458,44 @@ just ran a trade on your own exchange.</p>
 <tr>
 <th>When you want to…</th>
 <th>Start this process</th>
+<th>More information</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Watch P&amp;L update in real time</td>
 <td><code>pm-clearing</code></td>
+<td><a href="../07-pnl-clearing/">P&amp;L and Clearing</a></td>
 </tr>
 <tr>
 <td>Record OHLCV statistics</td>
 <td><code>pm-stats</code></td>
+<td><a href="../16-statistics-and-reporting/">Statistics and Reporting</a></td>
+</tr>
+<tr>
+<td>Query recorded statistics without SQL</td>
+<td><code>pm-stats-cli daily --date 2026-06-14</code></td>
+<td><a href="../16-statistics-and-reporting/">Statistics and Reporting</a></td>
 </tr>
 <tr>
 <td>Use <code>pm-admin</code> operator commands</td>
 <td><code>pm-admin</code> (interactive REPL)</td>
+<td><a href="../12-risk-controls/">Risk Controls</a></td>
 </tr>
 <tr>
 <td>Schedule opening/closing auctions</td>
 <td><code>pm-scheduler</code></td>
+<td><a href="../06-auctions-scheduling/">Auctions and Scheduling</a></td>
 </tr>
 <tr>
 <td>Add autonomous AI order flow</td>
 <td><code>pm-ai-swarm --count 5 --duration 60</code></td>
+<td><a href="../15-ai-traders/">AI Traders</a></td>
 </tr>
 <tr>
 <td>Feed compliance/risk systems</td>
 <td>Subscribe to <code>:5557</code> (drop-copy socket)</td>
+<td><a href="../13-drop-copy/">Drop Copy</a></td>
 </tr>
 </tbody>
 </table>
