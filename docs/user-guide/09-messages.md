@@ -866,6 +866,32 @@ Requests the current order list for a specific gateway.
 
 **Reply:** `order.orders.{GW_ID}` — see above.
 
+### `system.quote_bootstrap_request`
+
+Request active quote bootstrap state for a gateway. This is useful for market-
+maker startup/reconnect flows to discover currently active quote slots (for
+example config-seeded quotes that were injected before the gateway connected).
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Gateway identifier whose active quote slots are queried |
+| `symbol` | string \\| empty | Optional symbol filter (empty means all symbols for the gateway) |
+
+**Reply:** `system.quote_bootstrap.{GW_ID}`
+
+| Field | Type | Description |
+|---|---|---|
+| `quotes` | array | Active quote slot entries for the requested gateway/symbol filter |
+
+Each element in `quotes` includes:
+
+- `quote_id`, `gateway_id`, `symbol`, `state`
+- `bid_order_id`, `ask_order_id`
+- `bid_price`, `ask_price`
+- `bid_qty`, `ask_qty`
+- `bid_remaining_qty`, `ask_remaining_qty`
+- `bid_status`, `ask_status`
+
 
 
 ### `system.session_state_request`
@@ -1043,7 +1069,7 @@ event confirming the new phase.
 
 | Subscriber | Topics subscribed |
 |---|---|
-| Gateway | `system.gateway_auth.{GW}`, `order.ack.{GW}`, `order.fill.{GW}`, `order.amended.{GW}`, `order.cancelled.{GW}`, `order.expired.{GW}`, `order.orders.{GW}`, `combo.ack.{GW}`, `combo.status.{GW}`, `oco.ack.{GW}`, `oco.cancelled.{GW}`, `quote.ack.{GW}`, `quote.status.{GW}`, `risk.kill_switch_ack.{GW}`, `system.symbols.{GW}`, `system.session_status.{GW}`, `system.session_schedule.{GW}`, `system.gateways.{GW}`, `system.volume.{GW}`, `session.state` |
+| Gateway | `system.gateway_auth.{GW}`, `order.ack.{GW}`, `order.fill.{GW}`, `order.amended.{GW}`, `order.cancelled.{GW}`, `order.expired.{GW}`, `order.orders.{GW}`, `combo.ack.{GW}`, `combo.status.{GW}`, `oco.ack.{GW}`, `oco.cancelled.{GW}`, `quote.ack.{GW}`, `quote.status.{GW}`, `risk.kill_switch_ack.{GW}`, `system.symbols.{GW}`, `system.quote_bootstrap.{GW}`, `system.session_status.{GW}`, `system.session_schedule.{GW}`, `system.gateways.{GW}`, `system.volume.{GW}`, `session.state` |
 | Order-book viewer | `book.{SYMBOL}`, `session.state` |
 | Order monitor | `order.` (prefix — all order events), `combo.`, `session.state` |
 | Clearing | `trade.executed` |

@@ -4,11 +4,13 @@ Date: 2026-06-17
 
 Status: Design Proposal
 
+
+
 # MM quote identification and quote-leg mapping
 
 ## Scope
 
-This note explains exactly how EduMatcher represents a market-maker quote,
+The rest of this chapter explains exactly how EduMatcher represents a market-maker quote,
 how a quote is mapped to its two child orders, how the MM can identify that a
 fill belongs to the currently active quote, and what the MM must do to cancel
 or re-issue a quote.
@@ -21,9 +23,7 @@ It answers these questions:
 4. When is sibling cancellation automatic, and when must the MM do it?
 5. What state and data must the MM keep in order to re-quote safely?
 
-This note is based on the current engine implementation, not on an abstract
-protocol idealization. Where the implementation has message-ordering quirks,
-those quirks are documented here explicitly.
+The chapter describes the engine behavior in full details
 
 ## Executive summary
 
@@ -83,6 +83,8 @@ Automatic sibling cancellation depends on `quote_refresh_policy`:
 - `INACTIVATE_ON_ANY_FILL`: sibling leg is auto-cancelled on any fill
 - `INACTIVATE_ON_FULL_FILL`: sibling leg is auto-cancelled only when the filled leg reaches `remaining_qty=0`
 - `NEVER_INACTIVATE`: no automatic sibling cancellation due to fills
+
+The `quote_refresh_policy` is set per gateway in `engine_config.yaml` under `gateways.alf[].quote_refresh_policy`.
 
 ### What the MM needs in order to re-issue a quote
 
@@ -491,6 +493,16 @@ So a human operator correlates events using:
 - `quote_id` for the logical quote instance
 - the displayed 8-character order-id prefixes for the bid and ask legs
 
+To reduce manual correlation load in fast markets, the gateway supports:
+
+```text
+QLEGS[|SYM=<symbol>][|SHOW=ACTIVE|RECENT|ALL]
+```
+
+`QLEGS` shows per-gateway quote legs with explicit `Filled` and `Filled?`
+columns, so the operator can identify the traded leg without mentally joining
+multiple event lines.
+
 A programmatic MM should keep the full IDs from the message payload. A human
 operator using the terminal will usually work from the 8-character prefixes
 printed by the gateway.
@@ -553,6 +565,18 @@ If instead the operator saw:
 
 that would mean the ask side of `Q123` traded.
 
+With `QLEGS`, this becomes a direct read:
+
+```text
+MM01> QLEGS|SYM=AAPL|SHOW=ALL
+```
+
+Interpretation pattern:
+
+- `Filled?=YES` with `Leg=BUY` means the bid leg traded
+- `Filled?=YES` with `Leg=SELL` means the ask leg traded
+- `Rem>0` with leg status `NEW` or `PARTIAL` identifies still-active exposure
+
 ## Step 3: interpret what happens next
 
 What the operator should do next depends on the configured refresh policy.
@@ -578,6 +602,7 @@ Operator action:
 
 - no manual `QUOTE_CANCEL` is needed
 - compute the new bid/ask and send a fresh `QUOTE`
+- optionally run `QLEGS|SYM=AAPL|SHOW=ALL` before re-quoting to confirm final leg state
 
 ### Case B: `INACTIVATE_ON_FULL_FILL`
 
@@ -779,7 +804,7 @@ active_quote[symbol] = {
 order_to_quote[order_id] = {
   quote_id,
   symbol,
-  leg_side,   # BID or ASK
+  leg_side,   ## BID or ASK
 }
 ```
 
@@ -1073,7 +1098,7 @@ active_quote[symbol] = {
 order_to_quote[order_id] = {
   quote_id,
   symbol,
-  leg_side,   # BID or ASK
+  leg_side,   ## BID or ASK
 }
 ```
 
@@ -1231,3 +1256,5 @@ sequenceDiagram
 - Add pending-submit buffering for the immediate-fill-before-ack edge case.
 - Treat `quote.status INACTIVE_*` or `quote.status CANCELLED` as the authoritative signal that the previous quote slot is no longer active.
 - Use direct replacement `QUOTE` when you want the engine to perform atomic replace semantics on the same symbol.
+
+---

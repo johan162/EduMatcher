@@ -74,6 +74,7 @@ from edumatcher.models.message import (
     make_kill_switch_ack_msg,
     make_orders_msg,
     make_quote_ack_msg,
+    make_quote_bootstrap_msg,
     make_quote_status_msg,
     make_symbols_msg,
     make_session_state_msg,
@@ -1082,6 +1083,60 @@ class Engine:
                         }
                     )
         self.pub_sock.send_multipart(make_orders_msg(gateway_id, orders))
+
+    def _handle_quote_bootstrap_request(self, payload: dict[str, Any]) -> None:
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        symbol_filter = str(payload.get("symbol", "")).upper()
+
+        ok, _ = self._gateway_status(gateway_id)
+        if not ok:
+            self.pub_sock.send_multipart(make_quote_bootstrap_msg(gateway_id, []))
+            return
+
+        order_by_id: dict[str, Order] = {}
+        for book in self.books.values():
+            for order in book.resting_orders():
+                order_by_id[order.id] = order
+
+        entries = self._quote_index.entries_for_gateway(gateway_id)
+        if symbol_filter:
+            entries = [e for e in entries if e.symbol == symbol_filter]
+
+        quotes: list[dict[str, Any]] = []
+        for entry in entries:
+            bid = order_by_id.get(entry.bid_order_id)
+            ask = order_by_id.get(entry.ask_order_id)
+            if bid is None and ask is None:
+                continue
+
+            quotes.append(
+                {
+                    "quote_id": entry.quote_id,
+                    "gateway_id": entry.gateway_id,
+                    "symbol": entry.symbol,
+                    "state": entry.state.value,
+                    "bid_order_id": entry.bid_order_id,
+                    "ask_order_id": entry.ask_order_id,
+                    "bid_price": (
+                        from_ticks(bid.price, bid.symbol)
+                        if bid is not None and bid.price is not None
+                        else None
+                    ),
+                    "ask_price": (
+                        from_ticks(ask.price, ask.symbol)
+                        if ask is not None and ask.price is not None
+                        else None
+                    ),
+                    "bid_qty": bid.quantity if bid is not None else 0,
+                    "ask_qty": ask.quantity if ask is not None else 0,
+                    "bid_remaining_qty": bid.remaining_qty if bid is not None else 0,
+                    "ask_remaining_qty": ask.remaining_qty if ask is not None else 0,
+                    "bid_status": bid.status.value if bid is not None else "MISSING",
+                    "ask_status": ask.status.value if ask is not None else "MISSING",
+                }
+            )
+
+        self.pub_sock.send_multipart(make_quote_bootstrap_msg(gateway_id, quotes))
 
     def _cancel_order_by_id(self, order_id: str) -> bool:
         symbol = self._order_symbol.get(order_id)
@@ -2860,6 +2915,8 @@ class Engine:
                         self._handle_book_snapshot_request(payload)
                     elif topic == "order.orders_request":
                         self._handle_orders_request(payload)
+                    elif topic == "system.quote_bootstrap_request":
+                        self._handle_quote_bootstrap_request(payload)
                     elif topic == "risk.kill_switch":
                         self._handle_kill_switch(payload)
                     elif topic == "risk.circuit_breaker_halt_all":

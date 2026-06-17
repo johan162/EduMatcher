@@ -262,8 +262,8 @@ ALF commands fall into three groups:
 
 | Group | Commands |
 |---|---|
-| Trading commands forwarded to the engine | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `KILL`, `SYMBOLS` |
-| Gateway-local informational commands | `ORDERS`, `POS`, `HELP` |
+| Trading commands forwarded to the engine | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `KILL`, `SYMBOLS`, `QBOOT` |
+| Gateway-local informational commands | `ORDERS`, `POS`, `QLEGS`, `HELP` |
 | Session-control commands for the CLI process | `EXIT`, `QUIT` |
 
 If you are writing another interface that wants to submit orders, the most
@@ -921,6 +921,85 @@ SYMBOLS
 
 Requests the currently active symbols from the engine.
 
+### `QBOOT`
+
+```text
+QBOOT
+QBOOT|SYM=<symbol>
+```
+
+Requests active quote bootstrap state for the current gateway from the engine.
+
+This is intended for MM startup/reconnect flows where quote legs may have been
+seeded by configuration before the gateway connected. The gateway prints a
+table of active quote bootstrap entries including quote id, symbol, state,
+bid/ask prices, and remaining quantities.
+
+Use `QBOOT|SYM=<symbol>` when you only need one symbol.
+
+### `QLEGS`
+
+```text
+QLEGS
+QLEGS|SYM=<symbol>
+QLEGS|SHOW=<ACTIVE|RECENT|ALL>
+QLEGS|SYM=<symbol>|SHOW=<ACTIVE|RECENT|ALL>
+```
+
+Prints the gateway's local quote-leg projection for market-maker quote
+lifecycle monitoring. This command is read-only and does not send modify or
+cancel actions to the engine.
+
+`QLEGS` is designed to reduce cognitive load when operating a market-maker
+gateway by showing quote legs with explicit fill state, remaining size, and
+latest lifecycle status in one place.
+
+Field behavior:
+
+- `SYM` (optional): limit output to one symbol.
+- `SHOW` (optional): controls filtering mode; defaults to `ACTIVE`.
+  - `ACTIVE`: quote legs that are currently live or still have remaining size.
+  - `RECENT`: completed/cancelled legs with no remaining size.
+  - `ALL`: union of active and recent rows.
+
+Typical output columns:
+
+- `Symbol`, `Quote`, `Leg`, `Order`
+- `Qty`, `Rem`, `Filled`, `Filled?`
+- `Leg status`, `Quote status`, `Time`
+
+Operational usage pattern:
+
+1. Submit a quote.
+2. Run `QLEGS|SYM=<symbol>` to confirm both legs are active.
+3. After a fill/status event, run `QLEGS|SYM=<symbol>|SHOW=ALL`.
+4. Determine which leg traded and whether the quote is still active before
+   re-quoting.
+
+Examples:
+
+```text
+MM_AAPL_01> QLEGS
+# show currently active quote legs across all symbols
+
+MM_AAPL_01> QLEGS|SYM=AAPL
+# show currently active quote legs for AAPL only
+
+MM_AAPL_01> QLEGS|SYM=AAPL|SHOW=ALL
+# show both active and recently completed/cancelled AAPL quote legs
+
+MM_AAPL_01> QLEGS|SHOW=RECENT
+# show recent completed quote legs across all symbols
+```
+
+Important notes:
+
+- `QLEGS` is a gateway-local view built from quote acknowledgements and order
+  lifecycle events observed by this gateway session.
+- On reconnect, the local view is rebuilt from current order snapshots and new
+  events; use `QBOOT` when you need protocol-level startup bootstrap state for
+  active quote slots owned by this gateway.
+
 ### `HELP`
 
 ```text
@@ -1019,7 +1098,10 @@ NEW|TYPE=OCO|OCO_ID=EXIT-AAPL|SYM=AAPL|QTY=100|TIF=GTC|LEG1_SIDE=SELL|LEG1_TYPE=
 
 ```text
 QUOTE|SYM=MSFT|BID=414.90|ASK=415.10|BID_QTY=250|ASK_QTY=250|QUOTE_ID=MSFT-MM-01
+QLEGS|SYM=MSFT
 QUOTE_CANCEL|SYM=MSFT
+QBOOT|SYM=MSFT
+QLEGS|SYM=MSFT|SHOW=ALL
 ```
 
 ###  Multi-symbol combo
@@ -1045,6 +1127,10 @@ If you are writing another ALF producer, the most important exact behaviors are:
 8. Combo ALF syntax does **not** expose per-leg `STOP`, `TRAIL`, or `VISIBLE`
    fields, so some engine-level leg types are not practically expressible in
    ALF combo form.
+9. `QBOOT` is the protocol-level way to discover active quote bootstrap state
+   for the current gateway (optionally filtered by symbol).
+10. `QLEGS` is a gateway-local monitoring view for quote legs; use
+    `SHOW=ALL` after fills to inspect both live and recently completed legs.
 
 ## See also
 

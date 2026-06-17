@@ -91,6 +91,7 @@ from edumatcher.models.message import (  # noqa: E402
     make_order_cancel_msg,
     make_order_new_msg,
     make_orders_request_msg,
+    make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
     make_quote_new_msg,
     make_symbols_request_msg,
@@ -118,6 +119,7 @@ _TOP_LEVEL_CMDS = [
     "NEW",
     "QUOTE",
     "QUOTE_CANCEL",
+    "QBOOT",
     "QLEGS",
     "KILL",
     "AMEND",
@@ -251,6 +253,8 @@ class GatewayCompleter(Completer):
             candidates = [
                 f for f in ["SYM=", "SHOW="] if f.rstrip("=") not in already_keys
             ]
+        elif cmd == "QBOOT":
+            candidates = [f for f in ["SYM="] if f.rstrip("=") not in already_keys]
         elif cmd == "AMEND":
             candidates = [
                 f
@@ -374,6 +378,7 @@ _HELP_TEXT = """
   CANCEL|COMBO_ID=<combo-label>   — cancel a combo and all its legs
     QUOTE|SYM=<sym>|BID=<p>|ASK=<p>|BID_QTY=<n>|ASK_QTY=<n>[|TIF=DAY|GTC][|QUOTE_ID=<label>]
     QUOTE_CANCEL|SYM=<sym>          — cancel active quote for a symbol
+    QBOOT[|SYM=<sym>]               — request active quote bootstrap state from engine
         QLEGS[|SYM=<sym>][|SHOW=ACTIVE|RECENT|ALL]  — show MM quote legs and fill flags
     KILL[|SYM=<sym>]                — kill-switch cancel for this gateway
   ORDERS      — show all outstanding orders for this gateway
@@ -417,6 +422,7 @@ class Gateway:
             f"quote.status.{self.gateway_id}",
             f"risk.kill_switch_ack.{self.gateway_id}",
             f"system.symbols.{self.gateway_id}",
+            f"system.quote_bootstrap.{self.gateway_id}",
             f"system.gateway_auth.{self.gateway_id}",
             "trade.executed",
         )
@@ -582,6 +588,41 @@ class Gateway:
             )
         console.print(t)
 
+    def _print_quote_bootstrap(self, quotes: list[dict[str, Any]]) -> None:
+        if not quotes:
+            console.print("[dim]No active quote bootstrap entries returned.[/dim]")
+            return
+
+        t = Table(
+            title=f"Quote bootstrap - {self.gateway_id}",
+            show_header=True,
+            header_style="bold magenta",
+        )
+        t.add_column("Symbol", style="bold")
+        t.add_column("Quote", style="cyan")
+        t.add_column("State", style="white")
+        t.add_column("Bid", style="green")
+        t.add_column("Ask", style="red")
+        t.add_column("BidRem", justify="right")
+        t.add_column("AskRem", justify="right")
+
+        for q in quotes:
+            bid_px = q.get("bid_price")
+            ask_px = q.get("ask_price")
+            bid_txt = f"{bid_px:.2f}" if isinstance(bid_px, (int, float)) else "-"
+            ask_txt = f"{ask_px:.2f}" if isinstance(ask_px, (int, float)) else "-"
+            t.add_row(
+                str(q.get("symbol", "?")),
+                str(q.get("quote_id", "?")),
+                str(q.get("state", "?")),
+                bid_txt,
+                ask_txt,
+                str(q.get("bid_remaining_qty", 0)),
+                str(q.get("ask_remaining_qty", 0)),
+            )
+
+        console.print(t)
+
     def _authenticate(self, timeout_sec: float = 3.0) -> bool:
         # Give sockets time to connect and SUB filters to propagate.
         time.sleep(0.1)
@@ -732,6 +773,13 @@ class Gateway:
                 console.print(
                     "[dim]No active instruments yet — submit an order to create a book.[/dim]"
                 )
+
+        elif "system.quote_bootstrap" in topic:
+            quotes = payload.get("quotes", [])
+            if isinstance(quotes, list):
+                self._print_quote_bootstrap(quotes)
+            else:
+                console.print("[red]Malformed quote bootstrap response.[/red]")
 
         elif "order.orders" in topic:
             orders = payload.get("orders", [])
@@ -1019,6 +1067,14 @@ class Gateway:
                 console.print("[red]QLEGS SHOW must be ACTIVE, RECENT, or ALL[/red]")
                 return
             self._print_quote_legs(symbol=symbol, show=show)
+            return
+
+        if cmd == "QBOOT":
+            kv = self._kv(parts[1:])
+            symbol = kv.get("SYM", "")
+            self.push_sock.send_multipart(
+                make_quote_bootstrap_request_msg(self.gateway_id, symbol)
+            )
             return
 
         if cmd == "POS":

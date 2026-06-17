@@ -295,6 +295,37 @@ MM01> QLEGS|SYM=AAPL|SHOW=ALL
 `QLEGS` is read-only. It does not send modify/cancel actions to the engine.
 Use `QUOTE`, `QUOTE_CANCEL`, or `KILL` for control actions.
 
+### QBOOT — Request Quote Bootstrap State
+
+`QBOOT` asks the engine for the current active quote slot state for this
+gateway. It is intended for MM startup/reconnect workflows where quote legs may
+have been seeded by config before the gateway connected.
+
+```
+QBOOT[|SYM=<symbol>]
+```
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `SYM` | No | all symbols | Restrict bootstrap response to one symbol |
+
+Examples:
+
+```text
+MM_AAPL_01> QBOOT
+# prints all active quote bootstrap entries owned by MM_AAPL_01
+
+MM_AAPL_01> QBOOT|SYM=AAPL
+# prints only AAPL bootstrap quote state for MM_AAPL_01
+```
+
+Typical startup use:
+
+1. Connect gateway / bot as `MM_<SYMBOL>_01` (or matching seed owner).
+2. Run `QBOOT|SYM=<symbol>`.
+3. If exactly one healthy two-leg quote is returned, adopt it.
+4. If state is missing/partial, cancel and re-issue.
+
 ### KILL — Trigger Kill-Switch
 
 ```
@@ -671,7 +702,7 @@ The gateway provides **context-aware tab completion**:
 
 | Position | Completions |
 |----------|-------------|
-| First word | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `KILL`, `ORDERS`, `POS`, `SYMBOLS`, `HELP`, `EXIT`, `QUIT` |
+| First word | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `QBOOT`, `KILL`, `ORDERS`, `POS`, `SYMBOLS`, `HELP`, `EXIT`, `QUIT` |
 | After `NEW\|` | `SYM=`, `SIDE=`, `TYPE=`, `QTY=`, `PRICE=`, `STOP=`, `TRAIL=`, `TIF=`, `VISIBLE=`, `SMP=` |
 | After `NEW\|TYPE=COMBO\|` | `COMBO_ID=`, `COMBO_TYPE=`, `TIF=`, `LEG_COUNT=`, plus `LEG0.SYM=`, `LEG0.SIDE=`, etc. |
 | After `NEW\|TYPE=OCO\|` | `OCO_ID=`, `SYM=`, `QTY=`, `TIF=`, `LEG1_SIDE=`, `LEG1_TYPE=`, etc. |

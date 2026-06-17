@@ -242,6 +242,22 @@ def make_symbols_msg(gateway_id: str, symbols: list[str]) -> list[bytes]:
     return encode(topic, {"symbols": symbols})
 
 
+def make_quote_bootstrap_request_msg(gateway_id: str, symbol: str = "") -> list[bytes]:
+    """Gateway -> engine: request active quote bootstrap state."""
+    return encode(
+        "system.quote_bootstrap_request",
+        {"gateway_id": gateway_id, "symbol": symbol.upper()},
+    )
+
+
+def make_quote_bootstrap_msg(
+    gateway_id: str, quotes: list[dict[str, Any]]
+) -> list[bytes]:
+    """Engine -> gateway: reply with active quote bootstrap state."""
+    topic = f"system.quote_bootstrap.{gateway_id}"
+    return encode(topic, {"quotes": quotes})
+
+
 # ------------------------------------------------------------------
 # Session-status query (read current state without advancing it)
 # ------------------------------------------------------------------

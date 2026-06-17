@@ -26,6 +26,7 @@ Status: Design Proposal
     - [5.2 Quote Price Calculation](#52-quote-price-calculation)
     - [5.3 Drift Detection](#53-drift-detection)
     - [5.4 Quantity Policy](#54-quantity-policy)
+    - [5.5 Bootstrap Reference for Empty Book](#55-bootstrap-reference-for-empty-book)
   - [6. Quote Refresh Logic](#6-quote-refresh-logic)
     - [6.1 Refresh Triggers](#61-refresh-triggers)
     - [6.2 Reissue Delay](#62-reissue-delay)
@@ -214,6 +215,8 @@ The bot subscribes to the following topics on the engine PUB socket:
 | `book.{SYMBOL}` | Track best bid/ask and mid-price updates |
 | `trade.executed` | Update last-trade reference price when no book data is available |
 | `order.fill.{GW_ID}` | Detect when a quote leg is filled (correlate `order_id` with IDs from `quote.ack`) |
+| `order.cancelled.{GW_ID}` | Track sibling-leg cancellations and explicit cancel confirmations |
+| `quote.ack.{GW_ID}` | Capture `quote_id` plus `bid_order_id`/`ask_order_id` mapping |
 | `quote.status.{GW_ID}` | Know when a quote transitions to INACTIVE or CANCELLED |
 | `session.state` | Pause and resume quoting based on session phase |
 | `circuit_breaker.halt.{SYMBOL}` | Stop quoting immediately on a symbol halt |
@@ -232,15 +235,16 @@ stateDiagram-v2
     CONNECTING --> AUTHENTICATING : ZMQ sockets open
     AUTHENTICATING --> WAITING_FOR_SESSION : gateway_auth ACK received
     AUTHENTICATING --> [*] : auth rejected or timeout
-    WAITING_FOR_SESSION --> QUOTING : session = CONTINUOUS
+  WAITING_FOR_SESSION --> REISSUING : session = CONTINUOUS and reference available
     WAITING_FOR_SESSION --> WAITING_FOR_SESSION : session = PRE_OPEN / AUCTION / CLOSED
     QUOTING --> QUOTING : book update, drift within threshold
     QUOTING --> REPRICING : mid drift exceeds threshold
     QUOTING --> REISSUING : quote.status = INACTIVE_* received
     QUOTING --> PAUSED : session != CONTINUOUS, or HALTED
-    REPRICING --> REISSUING : old quote cancelled
+  REPRICING --> REISSUING : replacement quote required
     REISSUING --> QUOTING : new QUOTE sent, ack received
     REISSUING --> REISSUING : ack rejected, retry after delay
+  REISSUING --> WAITING_FOR_SESSION : no reference available yet
     PAUSED --> WAITING_FOR_SESSION : resume trigger received
     QUOTING --> [*] : SIGINT / SIGTERM — cancel quote, disconnect
     PAUSED --> [*] : SIGINT / SIGTERM
@@ -252,7 +256,7 @@ stateDiagram-v2
 |---|---|
 | `CONNECTING` | Opening ZMQ PUSH and SUB sockets; not yet authenticated |
 | `AUTHENTICATING` | `gateway_connect` sent; waiting for `gateway_auth` ACK |
-| `WAITING_FOR_SESSION` | Connected but session is not `CONTINUOUS`; no quotes posted |
+| `WAITING_FOR_SESSION` | Connected but either session is not `CONTINUOUS` or no valid reference price is available yet |
 | `QUOTING` | Active quote resting in the book; monitoring for fills and drift |
 | `REPRICING` | Mid-price has drifted; cancelling existing quote before re-issuing |
 | `REISSUING` | Sending a fresh `QUOTE` command; waiting for engine `quote.ack` |
@@ -270,7 +274,7 @@ sequenceDiagram
     B->>E: system.symbols_request gateway_id=MM_AAPL_01
     E-->>B: system.symbols.MM_AAPL_01 symbols=AAPL/MSFT/...
     Note over B: verify assigned symbol is in the list
-    Note over B: wait for first book.AAPL to get mid-price
+    Note over B: resolve initial reference: book -> trade -> engine initial quote -> random range
     E-->>B: book.AAPL best_bid=149.95 best_ask=150.05
     Note over B: mid = 150.00 -- compute bid/ask
     B->>E: quote.new {symbol: AAPL, bid_price: 149.95, ask_price: 150.05, bid_qty: 500, ask_qty: 500}
@@ -314,8 +318,11 @@ def _update_mid(self, best_bid: float | None, best_ask: float | None) -> None:
 
 If no book event has arrived yet (the book is completely empty), the bot also
 listens to `trade.executed` for the symbol and uses the last trade price as a
-fallback reference. If neither source is available, the bot remains in
-`WAITING_FOR_SESSION` until at least one price reference is established.
+fallback reference.
+
+To avoid startup deadlock on a fresh exchange (empty book and no trades yet),
+the bot must run a bootstrap reference resolver (Section 5.5) and must not wait
+indefinitely for first book data.
 
 ### 5.2 Quote Price Calculation
 
@@ -345,8 +352,8 @@ def _compute_quote_prices(self) -> tuple[float, float]:
 ```
 
 > **`_PRICE_DECIMALS`** is derived from `tick_size`: e.g. `tick_size=0.01`
-> gives `_PRICE_DECIMALS=2`. It is computed once at startup from the symbol
-> config in the `system.symbols` payload.
+> gives `_PRICE_DECIMALS=2`. It is computed once at startup from symbol
+> metadata loaded by the bot.
 
 ### 5.3 Drift Detection
 
@@ -374,6 +381,33 @@ quantity on the filled leg drops below `--qty`, but the bot does not top it up
 in place — it cancels the quote and re-issues a fresh full-size quote. This
 keeps the logic simple and avoids accumulating stale partial quotes.
 
+### 5.5 Bootstrap Reference for Empty Book
+
+When the bot has to quote for the first time and there is no usable book/trade
+reference yet, it resolves an initial reference in this strict order:
+
+1. Current book-derived mid for the symbol (if available).
+2. Last `trade.executed` price for the symbol.
+3. Engine-provided initial quote reference for the symbol (if present in engine
+   configuration and published to the bot).
+4. Random bootstrap price sampled from a configured range:
+   `--initial_min` to `--initial_max`.
+
+Resolution details:
+
+- The engine-initial-quote reference is recognized as a special-case bootstrap
+  source. If the engine provides both bid and ask, the bot uses their midpoint;
+  if it provides a single reference price, that value is used directly.
+- Random bootstrap uses a uniform sample in `[initial_min, initial_max]`, then
+  rounds to the nearest tick and verifies resulting quote prices are valid.
+- `--initial_min` and `--initial_max` must be supplied together, and
+  `initial_min < initial_max`.
+- If no source is available and no random range is configured, the bot exits
+  with a clear startup error instead of hanging.
+
+Bootstrap is one-time behavior for obtaining the first usable quote reference.
+After quoting begins, normal mid tracking and drift logic apply.
+
 
 
 ## 6. Quote Refresh Logic
@@ -390,6 +424,7 @@ The bot re-issues a quote in response to any of these events:
 | `quote.status` with `INACTIVE_BID_FILLED` | Engine → Bot | Cancel ask leg if still live, then reissue |
 | `quote.status` with `INACTIVE_ASK_FILLED` | Engine → Bot | Cancel bid leg if still live, then reissue |
 | `quote.status` with `CANCELLED` | Engine → Bot | Reissue immediately (unless in PAUSED state) |
+| `quote.ack` with `accepted = false` | Engine → Bot | Retry quote submit after backoff |
 | `order.fill` with `remaining_qty = 0` | Engine → Bot | Full fill on one leg; reissue after delay |
 | `order.fill` with `remaining_qty > 0` | Engine → Bot | Partial fill; schedule reissue after `reissue_delay_ms` |
 | Mid-price drift exceeds `drift_ticks` | `book.SYMBOL` event | Cancel current quote, reissue at new mid |
@@ -431,20 +466,22 @@ def _tick(self) -> None:
 
 ### 6.3 Cancel Before Reissue
 
-Before posting a new quote the bot always cancels the previous one explicitly,
-even if it believes the quote is already fully consumed. This defensive approach
+The engine active quote slot is keyed by `(gateway_id, symbol)`. A new
+`quote.new` on the same symbol is therefore a valid replace operation and can be
+used as the default reprice/reissue path.
+
+Explicit `quote.cancel` remains necessary for PAUSED/shutdown transitions and
+may also be used defensively before reissue when desired. This defensive path
 handles edge cases where:
 
 - A partial fill left one leg partially alive.
 - The engine inactivated one leg but the other is still resting.
 - A network hiccup delayed a status update.
 
-The cancellation uses `quote.cancel` with `gateway_id` and `symbol` as the key
-(the engine looks up the active quote by this pair). After
-sending the cancel, the bot waits for the `quote.status` event confirming
-`CANCELLED` state, then issues the new `QUOTE`. If no confirmation arrives
-within `cancel_timeout_sec` (default: 1 s), the bot issues the new quote anyway
-to avoid being stuck without liquidity.
+The cancellation uses `quote.cancel` with `gateway_id` and `symbol` as the key.
+The bot should not assume strict message ordering (for example `quote.status`
+may arrive before `quote.ack` in some paths). Reissue logic must be idempotent
+and timeout-guarded to avoid waiting forever for a specific lifecycle message.
 
 ```mermaid
 sequenceDiagram
@@ -453,10 +490,10 @@ sequenceDiagram
 
     Note over B: fill received -- start reissue_delay timer
     Note over B: timer fires
-    B->>E: quote.cancel {gateway_id: MM_AAPL_01, symbol: AAPL}
-    E-->>B: quote.status.MM_AAPL_01 status=CANCELLED
-    Note over B: compute new bid/ask from current mid
     B->>E: quote.new {symbol: AAPL, bid_price: 149.97, ask_price: 150.03, bid_qty: 500, ask_qty: 500}
+    Note over E: replace active quote in slot (MM_AAPL_01, AAPL)
+    E-->>B: quote.status.MM_AAPL_01 status=CANCELLED (old quote)
+    Note over B: compute new bid/ask from current mid
     E-->>B: quote.ack.MM_AAPL_01 accepted=true quote_id=q-002
     Note over B: state = QUOTING
     Note over B: _quoted_at_mid = current_mid
@@ -494,9 +531,14 @@ engine.
 ### 7.2 Transition to CONTINUOUS
 
 When a `session.state` event arrives with `state=CONTINUOUS`, the bot transitions
-from `WAITING_FOR_SESSION` (or `PAUSED`) to `REISSUING`. It first checks that a
-valid `_mid_price` is available. If no book data has been received yet (the book
-is empty), it waits for the first `book.{SYMBOL}` event before posting.
+from `WAITING_FOR_SESSION` (or `PAUSED`) to `REISSUING` only if a valid price
+reference is available.
+
+If book/trade data are unavailable (fresh startup), the bot must invoke the
+bootstrap resolver from Section 5.5 and either:
+
+- quote immediately from engine initial quote / random range, or
+- fail fast with a clear configuration error if no bootstrap source is configured.
 
 ### 7.3 Quote Cancellation on Auction Entry
 
@@ -546,6 +588,9 @@ pm-mm-bot --symbol MSFT --gap 0.20 --drift-ticks 1 --reissue-delay-ms 100
 # GTC quotes that survive session boundaries
 pm-mm-bot --symbol TSLA --gap 0.30 --tif GTC
 
+# Fresh exchange startup: bootstrap from random price range if book is empty
+pm-mm-bot --symbol AAPL --initial_min 95.00 --initial_max 105.00
+
 # In developer (Poetry) mode
 poetry run pm-mm-bot --symbol AAPL --gap 0.10 --qty 500 -v
 ```
@@ -564,6 +609,8 @@ poetry run pm-mm-bot --symbol AAPL --gap 0.10 --qty 500 -v
 | `--heartbeat-interval-sec F` | No | `5.0` | Interval for the periodic "do I have a live quote?" check |
 | `--cancel-timeout-sec F` | No | `1.0` | Max wait for cancel confirmation before proceeding with reissue |
 | `--shutdown-timeout-sec F` | No | `2.0` | Max wait for cancel confirmation on SIGINT/SIGTERM |
+| `--initial_min PRICE` | No | unset | Lower bound for random bootstrap reference when no book/trade/engine initial quote exists |
+| `--initial_max PRICE` | No | unset | Upper bound for random bootstrap reference when no book/trade/engine initial quote exists |
 | `--engine-pull ADDR` | No | `tcp://127.0.0.1:5555` | Engine PUSH/PULL address |
 | `--engine-pub ADDR` | No | `tcp://127.0.0.1:5556` | Engine PUB address |
 | `-v`, `--verbose` | No | `false` | Print debug-level events (every book update, fill, status) |
@@ -577,9 +624,9 @@ If `mm_max_spread_ticks` is configured on the engine for this symbol, the
 gap ≤ mm_max_spread_ticks × tick_size
 ```
 
-The bot validates this at startup (after receiving the `system.symbols` response
-which includes `tick_size`) and exits with a clear error message if the gap
-violates the obligation. The operator is expected to fix the gap and restart.
+The bot validates this at startup (after loading symbol metadata including
+`tick_size`) and exits with a clear error message if the gap violates the
+obligation. The operator is expected to fix the gap and restart.
 
 If `--gap` is not provided and the engine's `mm_max_spread_ticks` for the symbol
 is known, the bot **defaults the gap to half of the maximum** as a conservative
@@ -683,11 +730,12 @@ quotes resting would mislead other participants.
 | Topic | When Received | Action |
 |---|---|---|
 | `system.gateway_auth.{GW}` | After connect | Check `accepted`; abort if false |
-| `system.symbols.{GW}` | After symbols request | Extract symbol list; verify assigned symbol exists; get `tick_size` |
+| `system.symbols.{GW}` | After symbols request | Extract symbol list; verify assigned symbol exists |
 | `book.{SYMBOL}` | On every book update | Update `_mid_price`; check for drift |
 | `trade.executed` | On every fill | Update last-trade price if book mid unavailable |
-| `quote.ack.{GW}` | After QUOTE sent | Record `quote_id`; transition to QUOTING |
-| `order.fill.{GW}` | When a quote leg is hit | Correlate `order_id` with quote's `bid_order_id`/`ask_order_id`; log fill; start/reset reissue timer |
+| `quote.ack.{GW}` | After QUOTE/QUOTE_CANCEL flows | Record `quote_id` and leg IDs for correlation; treat rejection via `accepted=false` |
+| `order.fill.{GW}` | When a quote leg is hit | Correlate by `order_id`; if ack mapping not available yet, buffer until ack arrives |
+| `order.cancelled.{GW}` | Child order cancelled | Confirm sibling-leg cleanup and explicit cancel outcomes |
 | `quote.status.{GW}` | When quote state changes | Handle INACTIVE/CANCELLED; trigger reissue |
 | `session.state` | On every session transition | Update session state; trigger PAUSED/QUOTING |
 | `circuit_breaker.halt.{SYMBOL}` | On circuit breaker fire | Cancel quote; enter PAUSED |
@@ -772,6 +820,7 @@ ZMQ message types (`quote.new`, `quote.cancel`, `order.fill`, `quote.status`,
 
 - Parse CLI arguments.
 - Validate `--gap` against `mm_max_spread_ticks` after receiving symbol config.
+- Validate `--initial_min`/`--initial_max` pair and ordering.
 - Instantiate `MMBot` and call `bot.run()`.
 - Install signal handlers for `SIGINT`/`SIGTERM` that call `bot.shutdown()`.
 
@@ -781,7 +830,10 @@ ZMQ message types (`quote.new`, `quote.cancel`, `order.fill`, `quote.status`,
 - Implement the event loop: `zmq.Poller` on `sub_sock` with a timeout equal
   to `min(heartbeat_interval_sec, reissue_delay_sec / 2)`.
 - Dispatch incoming messages to handler methods.
-- Manage the `_state`, `_quote_id`, `_reissue_at`, and `_quoted_at_mid` fields.
+- Manage `_state`, `_quote_id`, `_reissue_at`, `_quoted_at_mid`,
+  `order_id -> quote_id` mapping, and pending pre-ack fill buffer.
+- Resolve bootstrap reference price (book/trade/engine initial quote/random range)
+  before first quote.
 - Delegate price calculation to `QuotePricer`.
 
 #### `mm_bot/pricer.py`
@@ -864,6 +916,8 @@ that detects pipx vs. Poetry mode:
 | Drift threshold | `--drift-ticks` | — (runtime only) | `3` | Ticks from posted mid before reprice |
 | Reissue delay | `--reissue-delay-ms` | — (runtime only) | `200` | Batches rapid fills |
 | TIF | `--tif` | — (runtime only) | `DAY` | `DAY` or `GTC` |
+| Bootstrap min | `--initial_min` | — (runtime only) | unset | Used only when book/trade/engine-initial reference are unavailable |
+| Bootstrap max | `--initial_max` | — (runtime only) | unset | Must be provided together with `--initial_min` |
 | Refresh policy | — | `quote_refresh_policy` | `INACTIVATE_ON_ANY_FILL` | Engine-side; controls automatic inactivation |
 | Disconnect policy | — | `disconnect_behaviour` | `CANCEL_QUOTES_ONLY` | Engine-side; controls cleanup on crash |
 
@@ -885,6 +939,7 @@ that detects pipx vs. Poetry mode:
 | `test_mid_from_ask_only` | Falls back to ask when no bid |
 | `test_mid_from_bid_only` | Falls back to bid when no ask |
 | `test_gap_validation` | Raises `ValueError` when `gap < 2 × tick_size` |
+| `test_bootstrap_random_range_validation` | Rejects startup when only one of `initial_min`/`initial_max` is provided or min ≥ max |
 
 ### 13.2 Integration Tests — `MMBot`
 
@@ -896,8 +951,12 @@ The bot is instantiated with a mock engine; events are injected directly.
 | `test_startup_sends_gateway_connect` | On `run()`, the first PUSH message is `system.gateway_connect` |
 | `test_auth_failure_exits` | Bot exits cleanly if `gateway_auth.accepted = false` |
 | `test_quote_issued_after_book_update` | Bot sends `QUOTE` after receiving first `book.SYMBOL` in CONTINUOUS state |
+| `test_bootstrap_from_engine_initial_quote` | Empty book/trade at startup but engine initial quote exists → bot still issues first quote |
+| `test_bootstrap_from_random_range` | Empty book/trade and no engine initial quote, with initial range configured → bot samples and quotes |
+| `test_startup_fails_without_bootstrap_source` | Empty book/trade and no engine initial quote/range → clean startup failure (no hang) |
 | `test_reissue_after_fill` | `order.fill` → timer fires → CANCEL sent → QUOTE sent |
 | `test_reissue_batches_rapid_fills` | Three fills in 50 ms produce exactly one reissue |
+| `test_fill_before_ack_buffering` | `order.fill` received before `quote.ack` is buffered and reconciled correctly once ack arrives |
 | `test_drift_triggers_reprice` | Mid moves 4 ticks → CANCEL then QUOTE at new mid |
 | `test_no_quote_in_auction` | Bot in QUOTING receives `session.state=OPENING_AUCTION` → CANCEL, no reissue |
 | `test_resume_from_pause` | `session.state=CONTINUOUS` from PAUSED → bot re-enters QUOTING |
