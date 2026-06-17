@@ -1,4 +1,4 @@
-Version: 0.1.0
+Version: 1.0.0
 
 Date: 2026-06-17
 
@@ -192,9 +192,9 @@ flowchart LR
     B2 -- "QUOTE / CANCEL → PUSH :5555" --> E
     B3 -- "QUOTE / CANCEL → PUSH :5555" --> E
     GW -- "order.new → PUSH :5555" --> E
-    E -- "book.AAPL, quote.fill, quote.status → SUB :5556" --> B1
-    E -- "book.AAPL, quote.fill, quote.status → SUB :5556" --> B2
-    E -- "book.MSFT, quote.fill, quote.status → SUB :5556" --> B3
+    E -- "book.AAPL, order.fill, quote.status → SUB :5556" --> B1
+    E -- "book.AAPL, order.fill, quote.status → SUB :5556" --> B2
+    E -- "book.MSFT, order.fill, quote.status → SUB :5556" --> B3
 ```
 
 Each bot instance is entirely independent. Two bots quoting the same symbol
@@ -213,7 +213,7 @@ The bot subscribes to the following topics on the engine PUB socket:
 | `system.symbols.{GW_ID}` | Receive the list of tradeable symbols on startup |
 | `book.{SYMBOL}` | Track best bid/ask and mid-price updates |
 | `trade.executed` | Update last-trade reference price when no book data is available |
-| `quote.fill.{GW_ID}` | Know immediately when a quote leg is filled |
+| `order.fill.{GW_ID}` | Detect when a quote leg is filled (correlate `order_id` with IDs from `quote.ack`) |
 | `quote.status.{GW_ID}` | Know when a quote transitions to INACTIVE or CANCELLED |
 | `session.state` | Pause and resume quoting based on session phase |
 | `circuit_breaker.halt.{SYMBOL}` | Stop quoting immediately on a symbol halt |
@@ -273,8 +273,8 @@ sequenceDiagram
     Note over B: wait for first book.AAPL to get mid-price
     E-->>B: book.AAPL best_bid=149.95 best_ask=150.05
     Note over B: mid = 150.00 -- compute bid/ask
-    B->>E: quote.new SYM=AAPL BID=149.95 ASK=150.05
-    E-->>B: quote.ack.MM_AAPL_01 accepted=true
+    B->>E: quote.new {symbol: AAPL, bid_price: 149.95, ask_price: 150.05, bid_qty: 500, ask_qty: 500}
+    E-->>B: quote.ack.MM_AAPL_01 accepted=true quote_id=q-001
     Note over B: state = QUOTING
 ```
 
@@ -282,7 +282,7 @@ sequenceDiagram
 
 On `SIGINT` or `SIGTERM` the bot:
 
-1. Sends `CANCEL|QUOTE_ID=<current_id>` to pull its live quote.
+1. Sends `quote.cancel` (with `gateway_id` and `symbol`) to pull its live quote.
 2. Waits up to `shutdown_timeout_sec` (default: 2 s) for `quote.status` confirmation.
 3. Closes ZMQ sockets and exits.
 
@@ -390,8 +390,8 @@ The bot re-issues a quote in response to any of these events:
 | `quote.status` with `INACTIVE_BID_FILLED` | Engine → Bot | Cancel ask leg if still live, then reissue |
 | `quote.status` with `INACTIVE_ASK_FILLED` | Engine → Bot | Cancel bid leg if still live, then reissue |
 | `quote.status` with `CANCELLED` | Engine → Bot | Reissue immediately (unless in PAUSED state) |
-| `quote.fill` with `remaining_qty = 0` | Engine → Bot | Full fill on one leg; reissue after delay |
-| `quote.fill` with `remaining_qty > 0` | Engine → Bot | Partial fill; schedule reissue after `reissue_delay_ms` |
+| `order.fill` with `remaining_qty = 0` | Engine → Bot | Full fill on one leg; reissue after delay |
+| `order.fill` with `remaining_qty > 0` | Engine → Bot | Partial fill; schedule reissue after `reissue_delay_ms` |
 | Mid-price drift exceeds `drift_ticks` | `book.SYMBOL` event | Cancel current quote, reissue at new mid |
 | Periodic heartbeat check | Internal timer | If no active quote and session is CONTINUOUS, reissue |
 
@@ -408,9 +408,16 @@ starts the timer over), so a burst of fills results in exactly one reissue
 `reissue_delay_ms` after the last fill in the burst.
 
 ```python
-def _on_quote_fill(self, payload: dict) -> None:
-    """Called when a fill event arrives for our quote."""
-    self._log(f"Fill: {payload['filled_side']} {payload['fill_qty']}@{payload['fill_price']}")
+def _on_order_fill(self, payload: dict) -> None:
+    """Called when an order.fill event arrives — check if it belongs to our quote."""
+    order_id = payload["order_id"]
+    # The bot maintains a mapping from order_id to quote leg using the IDs
+    # returned in quote.ack (bid_order_id, ask_order_id). On each order.fill,
+    # it checks whether the filled order_id belongs to its active quote.
+    if order_id not in (self._bid_order_id, self._ask_order_id):
+        return  # not our quote
+    side = "BID" if order_id == self._bid_order_id else "ASK"
+    self._log(f"Fill: {side} {payload['fill_qty']}@{payload['fill_price']}")
     # Reset or start the reissue timer
     self._reissue_at = time.monotonic() + self._reissue_delay_sec
 
@@ -432,7 +439,8 @@ handles edge cases where:
 - The engine inactivated one leg but the other is still resting.
 - A network hiccup delayed a status update.
 
-The cancellation uses `CANCEL|QUOTE_ID=<id>` (symbol-specific cancel). After
+The cancellation uses `quote.cancel` with `gateway_id` and `symbol` as the key
+(the engine looks up the active quote by this pair). After
 sending the cancel, the bot waits for the `quote.status` event confirming
 `CANCELLED` state, then issues the new `QUOTE`. If no confirmation arrives
 within `cancel_timeout_sec` (default: 1 s), the bot issues the new quote anyway
@@ -445,10 +453,10 @@ sequenceDiagram
 
     Note over B: fill received -- start reissue_delay timer
     Note over B: timer fires
-    B->>E: CANCEL|QUOTE_ID=q-001
+    B->>E: quote.cancel {gateway_id: MM_AAPL_01, symbol: AAPL}
     E-->>B: quote.status.MM_AAPL_01 status=CANCELLED
     Note over B: compute new bid/ask from current mid
-    B->>E: QUOTE|SYM=AAPL|BID=149.97|ASK=150.03|BID_QTY=500|ASK_QTY=500
+    B->>E: quote.new {symbol: AAPL, bid_price: 149.97, ask_price: 150.03, bid_qty: 500, ask_qty: 500}
     E-->>B: quote.ack.MM_AAPL_01 accepted=true quote_id=q-002
     Note over B: state = QUOTING
     Note over B: _quoted_at_mid = current_mid
@@ -493,7 +501,7 @@ is empty), it waits for the first `book.{SYMBOL}` event before posting.
 ### 7.3 Quote Cancellation on Auction Entry
 
 When a `session.state` event signals `OPENING_AUCTION` or `CLOSING_AUCTION`,
-the bot sends `CANCEL|QUOTE_ID=<id>` immediately without waiting for the
+the bot sends `quote.cancel` immediately without waiting for the
 reissue delay. Auction phases collect orders under different rules; the MM
 bot should not interfere with the auction price formation.
 
@@ -644,7 +652,7 @@ gateways:
 ```
 
 > **Tip:** Use `pm-config-gen --gateways MM_AAPL_01:MARKET_MAKER MM_MSFT_01:MARKET_MAKER`
-> to generate the gateway stanzas automatically.
+> to generate the gateway stanzas automatically. *(To be created as part of this feature.)*
 
 ### 9.3 Recommended disconnect_behaviour
 
@@ -663,8 +671,8 @@ quotes resting would mislead other participants.
 |---|---|---|
 | `system.gateway_connect` | Startup | `gateway_id` |
 | `system.symbols_request` | After auth ACK | `gateway_id` |
-| `quote.new` | Entering QUOTING state | `gateway_id`, `symbol`, `bid`, `ask`, `bid_qty`, `ask_qty`, `quote_id`, `tif` |
-| `quote.cancel` | Before reissue; on PAUSED; on shutdown | `gateway_id`, `symbol` (or `quote_id`) |
+| `quote.new` | Entering QUOTING state | `gateway_id`, `symbol`, `bid_price`, `ask_price`, `bid_qty`, `ask_qty`, `quote_id`, `tif` |
+| `quote.cancel` | Before reissue; on PAUSED; on shutdown | `gateway_id`, `symbol` |
 
 > The `QUOTE` command on the ALF gateway protocol translates to a `quote.new`
 > ZMQ message. The bot uses the same message structure directly, bypassing the
@@ -679,7 +687,7 @@ quotes resting would mislead other participants.
 | `book.{SYMBOL}` | On every book update | Update `_mid_price`; check for drift |
 | `trade.executed` | On every fill | Update last-trade price if book mid unavailable |
 | `quote.ack.{GW}` | After QUOTE sent | Record `quote_id`; transition to QUOTING |
-| `quote.fill.{GW}` | When a quote leg is hit | Log fill; start/reset reissue timer |
+| `order.fill.{GW}` | When a quote leg is hit | Correlate `order_id` with quote's `bid_order_id`/`ask_order_id`; log fill; start/reset reissue timer |
 | `quote.status.{GW}` | When quote state changes | Handle INACTIVE/CANCELLED; trigger reissue |
 | `session.state` | On every session transition | Update session state; trigger PAUSED/QUOTING |
 | `circuit_breaker.halt.{SYMBOL}` | On circuit breaker fire | Cancel quote; enter PAUSED |
@@ -694,18 +702,18 @@ sequenceDiagram
     participant T as Trader Gateway
 
     Note over B,E: bot is QUOTING — bid=149.97 / ask=150.03
-    T->>E: NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.03
+    T->>E: order.new {symbol: AAPL, side: BUY, type: LIMIT, qty: 100, price: 150.03}
     E-->>T: order.fill.TRD01 100@150.03
-    E-->>B: quote.fill.MM_AAPL_01 filled_side=ASK qty=100 remaining=400
+    E-->>B: order.fill.MM_AAPL_01 order_id=ask-001 qty=100 remaining=400
     E-->>B: quote.status.MM_AAPL_01 status=INACTIVE_ASK_FILLED
     Note over B: bid still resting at 149.97 for 500
     Note over B: ask inactivated -- 400 remaining
     Note over B: reissue timer started
     Note over B: timer fires
-    B->>E: CANCEL|QUOTE_ID=q-001
+    B->>E: quote.cancel {gateway_id: MM_AAPL_01, symbol: AAPL}
     E-->>B: quote.status.MM_AAPL_01 status=CANCELLED
     Note over B: mid still 150.00 -- recompute bid/ask
-    B->>E: QUOTE|SYM=AAPL|BID=149.97|ASK=150.03|BID_QTY=500|ASK_QTY=500
+    B->>E: quote.new {symbol: AAPL, bid_price: 149.97, ask_price: 150.03, bid_qty: 500, ask_qty: 500}
     E-->>B: quote.ack.MM_AAPL_01 accepted=true quote_id=q-002
     Note over B: state = QUOTING with fresh full-size quote
 ```
@@ -723,10 +731,10 @@ sequenceDiagram
     Note over B: new mid = 150.10
     Note over B: drift = 0.10 exceeds drift_ticks=3 threshold
     Note over B: state = REPRICING
-    B->>E: CANCEL|QUOTE_ID=q-002
+    B->>E: quote.cancel {gateway_id: MM_AAPL_01, symbol: AAPL}
     E-->>B: quote.status.MM_AAPL_01 status=CANCELLED
     Note over B: compute new bid=150.05 / ask=150.15
-    B->>E: QUOTE|SYM=AAPL|BID=150.05|ASK=150.15|BID_QTY=500|ASK_QTY=500
+    B->>E: quote.new {symbol: AAPL, bid_price: 150.05, ask_price: 150.15, bid_qty: 500, ask_qty: 500}
     E-->>B: quote.ack.MM_AAPL_01 accepted=true quote_id=q-003
     Note over B: state = QUOTING
     Note over B: _quoted_at_mid = 150.10
@@ -755,7 +763,7 @@ sequenceDiagram
 | `docs/user-guide/15-ai-traders.md` | Add a note pointing to the new MM bot |
 
 No changes are required to the engine, models, or message layer — all necessary
-ZMQ message types (`quote.new`, `quote.cancel`, `quote.fill`, `quote.status`,
+ZMQ message types (`quote.new`, `quote.cancel`, `order.fill`, `quote.status`,
 `quote.ack`) are already implemented.
 
 ### 11.3 Module Responsibilities
@@ -840,7 +848,8 @@ pm-mm-bot --symbol AAPL --gap 0.12 --qty 300 --id-suffix 02 &
 pm-mm-bot --symbol MSFT --gap 0.10 --qty 500 &
 ```
 
-Or using the provided launch script that detects pipx vs. Poetry mode:
+Or using the provided launch script *(to be created as part of this feature)*
+that detects pipx vs. Poetry mode:
 
 ```bash
 ./tools/launch_mm_bots.sh   # starts MM bots for all symbols in engine_config.yaml
@@ -887,7 +896,7 @@ The bot is instantiated with a mock engine; events are injected directly.
 | `test_startup_sends_gateway_connect` | On `run()`, the first PUSH message is `system.gateway_connect` |
 | `test_auth_failure_exits` | Bot exits cleanly if `gateway_auth.accepted = false` |
 | `test_quote_issued_after_book_update` | Bot sends `QUOTE` after receiving first `book.SYMBOL` in CONTINUOUS state |
-| `test_reissue_after_fill` | `quote.fill` → timer fires → CANCEL sent → QUOTE sent |
+| `test_reissue_after_fill` | `order.fill` → timer fires → CANCEL sent → QUOTE sent |
 | `test_reissue_batches_rapid_fills` | Three fills in 50 ms produce exactly one reissue |
 | `test_drift_triggers_reprice` | Mid moves 4 ticks → CANCEL then QUOTE at new mid |
 | `test_no_quote_in_auction` | Bot in QUOTING receives `session.state=OPENING_AUCTION` → CANCEL, no reissue |
