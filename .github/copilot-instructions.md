@@ -54,6 +54,8 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 The canonical workflow is Poetry-first. Use `Makefile` targets as convenience wrappers, but when exact behavior matters, prefer the Poetry/CI commands below.
 
+All changes should have a clean run for black, flake8, mypy, pyright, and pytest locally before pushing. The CI will run these checks again, but it's faster to catch issues early.
+
 ```bash
 # install the local dev environment
 poetry config virtualenvs.in-project true
@@ -69,6 +71,7 @@ poetry run pytest tests/ -n auto --cov=src/edumatcher --cov-report=term-missing 
 poetry run black --check src tests
 poetry run flake8 src tests
 poetry run mypy src tests
+poetry run pyright src tests
 
 # docs
 poetry run mkdocs build
