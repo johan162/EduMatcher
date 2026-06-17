@@ -337,6 +337,9 @@ poetry run pytest -o addopts='' tests/test_perf.py -v -s -m perf -p no:cov
 # Throughput-focused view
 poetry run pytest -o addopts='' tests/test_perf.py -v -s -m perf -k max_tps -p no:cov
 
+# Latency-focused view
+poetry run pytest -o addopts='' tests/test_perf.py -v -s -m perf -k latency -p no:cov
+
 # Normal test run without perf tests
 poetry run pytest tests/ -m "not perf"
 ```
