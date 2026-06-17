@@ -118,6 +118,7 @@ _TOP_LEVEL_CMDS = [
     "NEW",
     "QUOTE",
     "QUOTE_CANCEL",
+    "QLEGS",
     "KILL",
     "AMEND",
     "CANCEL",
@@ -220,6 +221,8 @@ class GatewayCompleter(Completer):
                 candidates = ["DAY", "GTC", "ATO", "ATC"]
             elif key == "COMBO_TYPE":
                 candidates = ["AON"]
+            elif cmd == "QLEGS" and key == "SHOW":
+                candidates = ["ACTIVE", "RECENT", "ALL"]
             elif field == "SMP" or key == "SMP":
                 candidates = [
                     "NONE",
@@ -243,6 +246,10 @@ class GatewayCompleter(Completer):
                 f
                 for f in ["ID=", "COMBO_ID=", "OCO_ID="]
                 if f.rstrip("=") not in already_keys
+            ]
+        elif cmd == "QLEGS":
+            candidates = [
+                f for f in ["SYM=", "SHOW="] if f.rstrip("=") not in already_keys
             ]
         elif cmd == "AMEND":
             candidates = [
@@ -367,6 +374,7 @@ _HELP_TEXT = """
   CANCEL|COMBO_ID=<combo-label>   — cancel a combo and all its legs
     QUOTE|SYM=<sym>|BID=<p>|ASK=<p>|BID_QTY=<n>|ASK_QTY=<n>[|TIF=DAY|GTC][|QUOTE_ID=<label>]
     QUOTE_CANCEL|SYM=<sym>          — cancel active quote for a symbol
+        QLEGS[|SYM=<sym>][|SHOW=ACTIVE|RECENT|ALL]  — show MM quote legs and fill flags
     KILL[|SYM=<sym>]                — kill-switch cancel for this gateway
   ORDERS      — show all outstanding orders for this gateway
   POS         — show current positions with P&L
@@ -380,6 +388,10 @@ class Gateway:
     def __init__(self, gateway_id: str) -> None:
         self.gateway_id = gateway_id.upper()
         self.order_cache: dict[str, dict[str, Any]] = {}  # order_id → state dict
+        self.quote_leg_cache: dict[str, dict[str, Any]] = (
+            {}
+        )  # order_id → quote leg state
+        self._quote_id_by_order_id: dict[str, str] = {}  # order_id → quote_id
         self._known_symbols: list[str] = []
         self._positions: dict[str, dict[str, Any]] = (
             {}
@@ -410,6 +422,165 @@ class Gateway:
         )
         self._auth_reason: str = ""
         self._auth_description: str = ""
+
+    # ------------------------------------------------------------------
+    # Quote-leg tracking
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _is_active_leg_status(status: str) -> bool:
+        return status in {"NEW", "PARTIAL", "PENDING"}
+
+    def _upsert_quote_leg(
+        self,
+        *,
+        order_id: str,
+        quote_id: str,
+        symbol: str,
+        leg_side: str,
+        quantity: int,
+        remaining_qty: int,
+        status: str,
+        event_time: str,
+        quote_status: str = "",
+    ) -> None:
+        existing = self.quote_leg_cache.get(order_id, {})
+        filled_qty = max(0, quantity - remaining_qty)
+        self.quote_leg_cache[order_id] = {
+            "order_id": order_id,
+            "quote_id": quote_id,
+            "symbol": symbol,
+            "leg_side": leg_side,
+            "qty": quantity,
+            "remaining": remaining_qty,
+            "filled": filled_qty,
+            "status": status,
+            "quote_status": quote_status or str(existing.get("quote_status", "")),
+            "last_event_time": event_time,
+        }
+        self._quote_id_by_order_id[order_id] = quote_id
+
+    def _mark_quote_status(
+        self, quote_id: str, quote_status: str, event_time: str
+    ) -> None:
+        for row in self.quote_leg_cache.values():
+            if row.get("quote_id") != quote_id:
+                continue
+            row["quote_status"] = quote_status
+            row["last_event_time"] = event_time
+            if quote_status == "CANCELLED" and self._is_active_leg_status(
+                str(row.get("status", ""))
+            ):
+                row["status"] = "CANCELLED"
+                row["remaining"] = 0
+
+    def _record_fill_for_quote_leg(
+        self,
+        *,
+        order_id: str,
+        fill_qty: int,
+        remaining_qty: int,
+        status: str,
+        symbol: str,
+        side: str,
+        qty: int | None,
+        event_time: str,
+    ) -> None:
+        if order_id in self.quote_leg_cache:
+            row = self.quote_leg_cache[order_id]
+            row["remaining"] = remaining_qty
+            row["status"] = status
+            row["filled"] = int(row.get("filled", 0)) + fill_qty
+            if qty is not None and int(row.get("qty", 0)) <= 0:
+                row["qty"] = qty
+            row["last_event_time"] = event_time
+            return
+
+        quote_id = self._quote_id_by_order_id.get(order_id, "?")
+        base_qty = qty if qty is not None else fill_qty + max(0, remaining_qty)
+        self._upsert_quote_leg(
+            order_id=order_id,
+            quote_id=quote_id,
+            symbol=symbol,
+            leg_side=side,
+            quantity=base_qty,
+            remaining_qty=remaining_qty,
+            status=status,
+            event_time=event_time,
+        )
+        self.quote_leg_cache[order_id]["filled"] = fill_qty
+
+    def _print_quote_legs(self, symbol: str | None, show: str) -> None:
+        rows = list(self.quote_leg_cache.values())
+        if symbol:
+            rows = [r for r in rows if str(r.get("symbol", "")).upper() == symbol]
+
+        if show == "ACTIVE":
+            rows = [
+                r
+                for r in rows
+                if self._is_active_leg_status(str(r.get("status", "")))
+                or int(r.get("remaining", 0)) > 0
+            ]
+        elif show == "RECENT":
+            rows = [
+                r
+                for r in rows
+                if not self._is_active_leg_status(str(r.get("status", "")))
+                and int(r.get("remaining", 0)) <= 0
+            ]
+
+        if not rows:
+            console.print("[dim]No quote legs match this filter.[/dim]")
+            return
+
+        rows.sort(key=lambda r: str(r.get("last_event_time", "")), reverse=True)
+
+        title = f"Quote legs — {self.gateway_id}  (show={show}"
+        if symbol:
+            title += f", sym={symbol}"
+        title += ")"
+        t = Table(title=title, show_lines=True)
+        t.add_column("Symbol", style="bold")
+        t.add_column("Quote", style="cyan")
+        t.add_column("Leg", style="magenta")
+        t.add_column("Order", style="dim", width=10)
+        t.add_column("Qty", justify="right")
+        t.add_column("Rem", justify="right")
+        t.add_column("Filled", justify="right")
+        t.add_column("Filled?", justify="center")
+        t.add_column("Leg status", style="bold")
+        t.add_column("Quote status", style="dim")
+        t.add_column("Time", style="dim")
+
+        status_colour = {
+            "NEW": "green",
+            "PARTIAL": "yellow",
+            "FILLED": "bright_green",
+            "CANCELLED": "red",
+            "EXPIRED": "dim",
+            "PENDING": "dim",
+        }
+
+        for row in rows:
+            leg_status = str(row.get("status", "?"))
+            colour = status_colour.get(leg_status, "white")
+            filled_qty = int(row.get("filled", 0))
+            fill_flag = "YES" if filled_qty > 0 else "NO"
+            t.add_row(
+                str(row.get("symbol", "?")),
+                str(row.get("quote_id", "?")),
+                str(row.get("leg_side", "?")),
+                str(row.get("order_id", "?"))[:8],
+                str(row.get("qty", "?")),
+                str(row.get("remaining", "?")),
+                str(filled_qty),
+                fill_flag,
+                f"[{colour}]{leg_status}[/{colour}]",
+                str(row.get("quote_status", "")) or "—",
+                str(row.get("last_event_time", "")),
+            )
+        console.print(t)
 
     def _authenticate(self, timeout_sec: float = 3.0) -> bool:
         # Give sockets time to connect and SUB filters to propagate.
@@ -485,11 +656,34 @@ class Gateway:
             if symbol and side and qty and price:
                 self._update_position(symbol, side, qty, price)
 
+            if (
+                isinstance(qty, int)
+                and isinstance(rem, int)
+                and isinstance(status, str)
+                and isinstance(symbol, str)
+                and isinstance(side, str)
+            ):
+                qty_total = payload.get("qty")
+                self._record_fill_for_quote_leg(
+                    order_id=payload.get("order_id", "?"),
+                    fill_qty=qty,
+                    remaining_qty=rem,
+                    status=status,
+                    symbol=symbol,
+                    side=side,
+                    qty=qty_total if isinstance(qty_total, int) else None,
+                    event_time=ts,
+                )
+
         elif "order.cancelled" in topic:
             console.print(f"[{ts}] [yellow]CANCELLED[/yellow] {oid}")
             full_id = payload.get("order_id", "?")
             if full_id in self.order_cache:
                 self.order_cache[full_id]["status"] = "CANCELLED"
+            if full_id in self.quote_leg_cache:
+                self.quote_leg_cache[full_id]["status"] = "CANCELLED"
+                self.quote_leg_cache[full_id]["remaining"] = 0
+                self.quote_leg_cache[full_id]["last_event_time"] = ts
 
         elif "order.amended" in topic:
             new_price = payload.get("price")
@@ -558,6 +752,24 @@ class Gateway:
                         "time": ts,
                     }
 
+                if od.get("origin") == "QUOTE":
+                    quote_id = str(od.get("quote_id") or "?")
+                    symbol = str(od.get("symbol") or "?")
+                    leg_side = str(od.get("side") or "?")
+                    quantity = int(od.get("quantity") or 0)
+                    remaining = int(od.get("remaining_qty") or 0)
+                    status = str(od.get("status") or "NEW")
+                    self._upsert_quote_leg(
+                        order_id=oid,
+                        quote_id=quote_id,
+                        symbol=symbol,
+                        leg_side=leg_side,
+                        quantity=quantity,
+                        remaining_qty=remaining,
+                        status=status,
+                        event_time=ts,
+                    )
+
         elif "combo.ack" in topic:
             cid = payload.get("combo_id", "?")
             if payload.get("accepted"):
@@ -611,6 +823,42 @@ class Gateway:
                 console.print(
                     f"[{ts}] [green]QUOTE ACK[/green]  {quote_id}  bid={bid_id} ask={ask_id}"
                 )
+
+                full_bid = payload.get("bid_order_id", "")
+                full_ask = payload.get("ask_order_id", "")
+                if isinstance(full_bid, str) and full_bid:
+                    self._quote_id_by_order_id[full_bid] = str(quote_id)
+                    if full_bid in self.quote_leg_cache:
+                        self.quote_leg_cache[full_bid]["quote_id"] = str(quote_id)
+                        self.quote_leg_cache[full_bid]["leg_side"] = "BUY"
+                    else:
+                        self._upsert_quote_leg(
+                            order_id=full_bid,
+                            quote_id=str(quote_id),
+                            symbol="?",
+                            leg_side="BUY",
+                            quantity=0,
+                            remaining_qty=0,
+                            status="PENDING",
+                            event_time=ts,
+                        )
+
+                if isinstance(full_ask, str) and full_ask:
+                    self._quote_id_by_order_id[full_ask] = str(quote_id)
+                    if full_ask in self.quote_leg_cache:
+                        self.quote_leg_cache[full_ask]["quote_id"] = str(quote_id)
+                        self.quote_leg_cache[full_ask]["leg_side"] = "SELL"
+                    else:
+                        self._upsert_quote_leg(
+                            order_id=full_ask,
+                            quote_id=str(quote_id),
+                            symbol="?",
+                            leg_side="SELL",
+                            quantity=0,
+                            remaining_qty=0,
+                            status="PENDING",
+                            event_time=ts,
+                        )
             else:
                 console.print(
                     f"[{ts}] [red]QUOTE REJ[/red]  {quote_id}  {payload.get('reason', '')}"
@@ -624,6 +872,7 @@ class Gateway:
             if reason:
                 msg += f"  {reason}"
             console.print(msg)
+            self._mark_quote_status(str(quote_id), str(status), ts)
 
         elif "risk.kill_switch_ack" in topic:
             if payload.get("accepted"):
@@ -760,6 +1009,16 @@ class Gateway:
 
         if cmd == "ORDERS":
             self._print_orders()
+            return
+
+        if cmd == "QLEGS":
+            kv = self._kv(parts[1:])
+            symbol = kv.get("SYM")
+            show = kv.get("SHOW", "ACTIVE").upper()
+            if show not in {"ACTIVE", "RECENT", "ALL"}:
+                console.print("[red]QLEGS SHOW must be ACTIVE, RECENT, or ALL[/red]")
+                return
+            self._print_quote_legs(symbol=symbol, show=show)
             return
 
         if cmd == "POS":

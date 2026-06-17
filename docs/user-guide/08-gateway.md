@@ -227,6 +227,74 @@ Rules:
 QUOTE_CANCEL|SYM=<symbol>
 ```
 
+### QLEGS — Inspect MM Quote Legs and Fill Flags
+
+`QLEGS` prints a local quote-leg projection for the current gateway session.
+It is intended for `MARKET_MAKER` ALF sessions where operators need a compact,
+low-cognitive-load view of which quote legs are still active and which have
+already traded.
+
+```
+QLEGS[|SYM=<symbol>][|SHOW=ACTIVE|RECENT|ALL]
+```
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `SYM` | No | all symbols | Restrict output to one symbol |
+| `SHOW` | No | `ACTIVE` | `ACTIVE` = currently live legs, `RECENT` = completed legs, `ALL` = both |
+
+Output columns:
+
+- `Symbol`, `Quote`, `Leg` (`BUY`/`SELL`), `Order`
+- `Qty`, `Rem`, `Filled`, `Filled?`
+- `Leg status`, `Quote status`, `Time`
+
+#### Operator examples
+
+1. Show only currently active quote legs across all symbols:
+
+```text
+MM01> QLEGS
+```
+
+2. Show active legs for one symbol while managing a live quote:
+
+```text
+MM01> QLEGS|SYM=AAPL
+```
+
+3. Show recent completed/cancelled legs to understand what just happened:
+
+```text
+MM01> QLEGS|SHOW=RECENT
+```
+
+4. Full audit-style view (active + recent) for one symbol:
+
+```text
+MM01> QLEGS|SYM=AAPL|SHOW=ALL
+```
+
+#### Example workflow (manual MM session)
+
+```text
+MM01> QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|QUOTE_ID=Q123
+[09:30:00.101] QUOTE ACK   Q123  bid=7c4a91e2 ask=be2170fd
+[09:30:00.102] QUOTE ACTIVE  Q123
+
+MM01> QLEGS|SYM=AAPL
+# shows BUY leg 7c4a91e2 and SELL leg be2170fd as active, Filled?=NO
+
+[09:31:02.417] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
+
+MM01> QLEGS|SYM=AAPL|SHOW=ALL
+# BUY leg now shows Filled=100, Filled?=YES, status=PARTIAL
+# SELL leg state reflects remaining quote lifecycle events
+```
+
+`QLEGS` is read-only. It does not send modify/cancel actions to the engine.
+Use `QUOTE`, `QUOTE_CANCEL`, or `KILL` for control actions.
+
 ### KILL — Trigger Kill-Switch
 
 ```

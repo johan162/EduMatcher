@@ -345,6 +345,7 @@ pm-gateway --id <GW_ID>
 - `NEW|...` order-entry commands (including `LIMIT`, `MARKET`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP`)
 - `AMEND|...`, `CANCEL|...`
 - `QUOTE|...`, `QUOTE_CANCEL|...`
+- `QLEGS|...` (market-maker quote-leg monitor with fill flags)
 - `ORDERS`, `SYMBOLS`, `HELP`, `EXIT`, `QUIT`
 - `KILL|...` for gateway-scoped kill-switch actions
 

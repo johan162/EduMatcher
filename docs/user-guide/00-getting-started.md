@@ -238,6 +238,31 @@ For startup order and a practical first-run sequence, see
 [Processes](10-processes.md#process-overview).
 
 
+## Market-Maker Quick Reference
+
+If your gateway role is `MARKET_MAKER`, this is the fastest practical command
+set for quote operation and fill recognition:
+
+| Goal | Command |
+|---|---|
+| Submit/replace quote | `QUOTE\|SYM=AAPL\|BID=209.80\|ASK=210.20\|BID_QTY=500\|ASK_QTY=500\|QUOTE_ID=Q123` |
+| Cancel active quote | `QUOTE_CANCEL\|SYM=AAPL` |
+| Show active quote legs | `QLEGS` |
+| Show one-symbol quote legs | `QLEGS\|SYM=AAPL` |
+| Show recent completed legs | `QLEGS\|SHOW=RECENT` |
+| Show active + recent legs | `QLEGS\|SYM=AAPL\|SHOW=ALL` |
+
+Recommended manual loop:
+
+1. Send `QUOTE` with an explicit `QUOTE_ID`.
+2. After any `FILL`, run `QLEGS|SYM=<symbol>|SHOW=ALL`.
+3. Read `Filled?`, `Rem`, and `Leg status` to decide whether to re-quote.
+
+See [Gateway](08-gateway.md#qlegs-inspect-mm-quote-legs-and-fill-flags) for
+full `QLEGS` behavior and [Market Making](14-market-maker.md) for operator
+workflows and policy-specific behavior.
+
+
 
 ## Five-minute minimum session
 

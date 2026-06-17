@@ -292,6 +292,78 @@ class TestGatewayHelpers:
             },
         )
 
+    def test_handle_event_orders_tracks_quote_legs(self) -> None:
+        gw = _make_gateway()
+        import time as _time
+
+        gw._handle_event(
+            "order.orders.GW01",
+            {
+                "orders": [
+                    {
+                        "id": "BID-001",
+                        "symbol": "AAPL",
+                        "side": "BUY",
+                        "order_type": "LIMIT",
+                        "tif": "DAY",
+                        "quantity": 500,
+                        "remaining_qty": 500,
+                        "price": 150.0,
+                        "status": "NEW",
+                        "timestamp": _time.time(),
+                        "origin": "QUOTE",
+                        "quote_id": "Q123",
+                    }
+                ]
+            },
+        )
+        assert "BID-001" in gw.quote_leg_cache
+        assert gw.quote_leg_cache["BID-001"]["quote_id"] == "Q123"
+
+    def test_handle_event_fill_updates_quote_leg_projection(self) -> None:
+        gw = _make_gateway()
+        gw._handle_event(
+            "quote.ack.GW01",
+            {
+                "quote_id": "Q123",
+                "accepted": True,
+                "bid_order_id": "BID-123",
+                "ask_order_id": "ASK-123",
+            },
+        )
+        gw._handle_event(
+            "order.fill.GW01",
+            {
+                "order_id": "BID-123",
+                "fill_qty": 100,
+                "fill_price": 149.9,
+                "remaining_qty": 400,
+                "status": "PARTIAL",
+                "symbol": "AAPL",
+                "side": "BUY",
+                "qty": 500,
+            },
+        )
+        assert gw.quote_leg_cache["BID-123"]["filled"] == 100
+        assert gw.quote_leg_cache["BID-123"]["status"] == "PARTIAL"
+
+    def test_handle_event_quote_status_marks_quote_legs(self) -> None:
+        gw = _make_gateway()
+        gw._handle_event(
+            "quote.ack.GW01",
+            {
+                "quote_id": "Q900",
+                "accepted": True,
+                "bid_order_id": "BID-900",
+                "ask_order_id": "ASK-900",
+            },
+        )
+        gw._handle_event(
+            "quote.status.GW01",
+            {"quote_id": "Q900", "status": "CANCELLED", "reason": ""},
+        )
+        assert gw.quote_leg_cache["BID-900"]["quote_status"] == "CANCELLED"
+
     def test_handle_event_kill_switch_ack(self) -> None:
         gw = _make_gateway()
         gw._handle_event(
@@ -404,6 +476,14 @@ class TestGatewayParseAndSend:
     def test_orders_command(self) -> None:
         gw = _make_gateway()
         gw._parse_and_send("ORDERS")  # Calls _print_orders — should not raise
+
+    def test_qlegs_command(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send("QLEGS|SHOW=ALL")  # should not raise
+
+    def test_qlegs_invalid_show(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send("QLEGS|SHOW=INVALID")  # validation error path
 
     def test_symbols_command(self) -> None:
         gw = _make_gateway()
@@ -974,6 +1054,20 @@ class TestGatewayCompleterMoreEdgeCases:
         results = list(completer.get_completions(doc, None))
         texts = [c.text for c in results]
         assert "AON" in texts
+
+    def test_qlegs_show_value_completion(self) -> None:
+        completer = self._completer()
+        doc = self._document("QLEGS|SHOW=")
+        results = list(completer.get_completions(doc, None))
+        texts = [c.text for c in results]
+        assert "ACTIVE" in texts
+
+    def test_qlegs_field_completion(self) -> None:
+        completer = self._completer()
+        doc = self._document("QLEGS|")
+        results = list(completer.get_completions(doc, None))
+        texts = [c.text for c in results]
+        assert "SHOW=" in texts
 
 
 # ---------------------------------------------------------------------------
