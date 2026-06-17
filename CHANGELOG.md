@@ -1,3 +1,28 @@
+## [v0.5.0] - 2026-06-17
+
+Release Type: minor
+
+### 📋 Summary
+This release adds a new `pm-stats-cli` command for querying simulation statistics, refactors the exchange introduction documentation for easier maintenance, and optimizes the PDF build pipeline. It also improves process documentation and updates dependencies.
+
+### ✨ Additions
+- Added `pm-stats-cli` command for querying and reporting on simulation statistics stored in `stats.db`, replacing the need for direct SQL access
+
+### 🚀 Improvements
+- Improved documentation of all `pm-` CLI commands and processes
+- Improved PDF build pipeline to run all builds in full parallel mode for faster build time
+- Refactored Exchange Intro documentation into separate chapter files with a Manifest configuration for easier maintenance
+
+### 📚 Documentation
+- Added comprehensive statistics and reporting chapter to the User Guide documenting `pm-stats-cli` usage and capabilities
+- Fixed broken documentation links in user-guide and related docs
+
+### 🛠 Internal
+- Bumped project dependencies to latest versions
+- Bumped build-tools to latest version
+- Updated default Make target
+
+
 ## [v0.4.0] - 2026-06-16
 
 Release Type: minor
