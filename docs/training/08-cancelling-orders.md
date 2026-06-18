@@ -2,8 +2,8 @@
 
 ## Objective
 
-Master the `CANCEL` and `ORDERS` commands for managing your resting orders
-and understanding the order lifecycle.
+Master the `STATUS`, `ORDERS`, and `CANCEL` commands for understanding gateway
+state, inspecting resting orders, and managing the order lifecycle.
 
 ---
 
@@ -45,18 +45,35 @@ Expected: the unfilled portion is cancelled; the filled portion remains executed
 
 ---
 
-## Exercise 3: List All Resting Orders
+## Exercise 3: Compare STATUS and ORDERS
 
-The ORDERS command shows all your resting orders:
+Place a fresh resting order so the gateway has something to inspect:
+
+```
+TRADER01> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=25|PRICE=419.00|TIF=DAY
+```
+
+First run `STATUS`:
+
+```
+TRADER01> STATUS
+```
+
+`STATUS` gives a quick gateway/session summary: gateway ID, known symbols,
+cached order counts by lifecycle state, cached quote legs, and position symbols.
+It is useful for a fast health check, but it is not the detailed order table.
+
+Now inspect the actual orders:
 
 ```
 TRADER01> ORDERS
 ```
 
-This displays order ID, symbol, side, type, price, qty, filled qty, and status
-for every resting order belonging to your gateway.
+`ORDERS` is the gateway command for detailed order inspection. It displays order
+ID, symbol, side, type, TIF, price, quantity, remaining quantity, and status for
+orders belonging to your gateway.
 
-:material-checkbox-blank-outline: **Checkpoint:** ORDERS lists your current resting orders.
+:material-checkbox-blank-outline: **Checkpoint:** `STATUS` shows summary counts; `ORDERS` shows the full order row and ID.
 
 ---
 
@@ -69,9 +86,9 @@ TRADER01> ORDERS
 Find your order in the table. The response includes:
 
 - `symbol`, `side`, `type`, `price`, `qty`
-- `filled_qty`, `remaining_qty`
+- remaining quantity
 - `status` (NEW, PARTIAL, FILLED, CANCELLED)
-- `tif`, timestamps
+- `tif`, last update time
 
 :material-checkbox-blank-outline: **Checkpoint:** `ORDERS` returns full details for each resting order.
 
