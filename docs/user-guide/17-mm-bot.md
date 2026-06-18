@@ -351,6 +351,36 @@ pm-mm-bot --symbol AAPL --gap 0.10 --qty 500 -v
 
 ---
 
+## Understanding bot output
+
+Each bot prefixes every log line with its gateway ID and timestamp:
+
+```
+[MM:MM_AAPL_01 09:30:01] authenticated
+[MM:MM_AAPL_01 09:30:01] received symbols: AAPL, MSFT, TSLA
+[MM:MM_AAPL_01 09:30:01] QBOOT: no active quote
+[MM:MM_AAPL_01 09:30:01] session state: CONTINUOUS
+[MM:MM_AAPL_01 09:30:01] bootstrap: mid from book = 150.00
+[MM:MM_AAPL_01 09:30:01] quote sent: bid=149.95 ask=150.05 qty=500
+[MM:MM_AAPL_01 09:30:01] quote.ack: accepted quote_id=q-001
+[MM:MM_AAPL_01 09:30:14] fill: ask side 200@150.05
+[MM:MM_AAPL_01 09:30:14] quote inactivated — scheduling reissue
+[MM:MM_AAPL_01 09:30:15] quote sent: bid=149.95 ask=150.05 qty=500
+[MM:MM_AAPL_01 09:30:15] quote.ack: accepted quote_id=q-002
+[MM:MM_AAPL_01 09:31:02] mid drift: 150.00 → 150.04 (>3 ticks) — repricing
+[MM:MM_AAPL_01 09:31:02] quote sent: bid=149.99 ask=150.09 qty=500
+```
+
+With `--verbose` (`-v`), additional debug lines appear:
+
+```
+[MM:MM_AAPL_01 09:30:01] [debug] book update: bid=149.95 ask=150.05
+[MM:MM_AAPL_01 09:30:05] [debug] heartbeat check: quote active
+[MM:MM_AAPL_01 09:30:15] [debug] QLEGS reconciliation: OK
+```
+
+---
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |

@@ -212,6 +212,11 @@ flowchart LR
 The swarm waits for all bots to finish (or until Ctrl-C), then exits. Each
 bot's output is interleaved in the terminal.
 
+!!! tip "Graceful shutdown"
+    Pressing Ctrl-C sends SIGINT to the swarm process, which forwards it to all
+    child bots.  Each bot cancels pending orders, prints its summary line, and
+    disconnects cleanly.  A second Ctrl-C force-kills immediately.
+
 ---
 
 ## Configuring gateway IDs
@@ -303,12 +308,12 @@ gateways:
       mm_max_spread_ticks: 20
       mm_min_qty: 100
 
-    # AI bots (10 bots, IDs AI01–AI10)
+    # AI bots (30 bots, IDs AI01–AI30)
     - id: AI01
       description: AI bot 1
     - id: AI02
       description: AI bot 2
-    # ... repeat through AI10
+    # ... repeat through AI30
 
     # Students (adjust count for your class size)
     - id: ST01

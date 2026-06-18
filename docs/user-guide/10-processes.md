@@ -7,8 +7,8 @@
       message bus rather than a single monolithic program
     - The trade-offs that architecture introduces: scalability and observability
       vs. deployment complexity and latency
-    - The role and responsibilities of each of the twelve core runtime processes plus
-      the optional AI trader and admin tools
+    - The role and responsibilities of each of the ten core runtime processes plus
+      the optional AI trader, market-maker bot, and admin tools
     - Which processes are mandatory and which are optional observers
     - How to read the message-flow tables to trace an order from submission to fill
 
@@ -275,8 +275,8 @@ None. `pm-engine` is a long-running background process after startup.
 See [Configuration](01-configuration.md) for full details on the config file.
 
 **Shutdown (Ctrl-C)**:
-1. Serializes all resting GTC orders to `data/gtc_orders.json`
-2. Publishes `order.expired` for all resting DAY orders
+1. Publishes `order.expired` for all resting DAY orders
+2. Serializes all resting GTC orders to `data/gtc_orders.json`
 3. Publishes `system.eod` with the final book snapshot for every active symbol
 4. Closes sockets
 

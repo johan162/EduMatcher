@@ -685,7 +685,8 @@ NEW|SYM=AAPL|SIDE=BUY|TYPE=IOC|QTY=100|PRICE=150.00
 ```
 
 `IOC` ignores the `TIF=` field — it is always immediate-or-cancel by
-definition. The engine will reject an IOC during auction phases.
+definition.  If you supply `TIF=GTC` (or any other value) alongside `TYPE=IOC`,
+the field is silently discarded.  The engine will reject an IOC during auction phases.
 
 ### Edge Cases and Gotchas
 
@@ -980,6 +981,11 @@ AMEND|ID=abc123...|QTY=60
 | OCO leg amended | Allowed — does not affect the OCO linkage |
 | Amend during auction phase | Allowed — the resting order's price/qty is updated in the book |
 
+!!! warning "QTY means *total* quantity"
+    `QTY=` in an `AMEND` command sets the **new total order size**, not the
+    additional quantity you want.  For example, if 40 of 100 shares have already
+    filled and you want 80 total, send `QTY=80` (not `QTY=40`).
+
 
 
 ## OCO (One-Cancels-Other)
@@ -1148,9 +1154,13 @@ CANCEL|OCO_ID=TPS
 
 ### Edge Cases and Gotchas
 
+!!! warning "OCO_ID uniqueness is not enforced"
+    A duplicate `oco_id` silently replaces the previously tracked group.
+    Always use a unique label per OCO pair.
+
 | Scenario | Behaviour |
 |----------|-----------|
-| OCO_ID already in use | **Not checked** — a duplicate `oco_id` silently replaces the tracked group; use a unique label per pair |
+| OCO_ID already in use | **Not checked** — a duplicate `oco_id` silently replaces the tracked group |
 | Unknown symbol or gateway | **REJECTED** with `oco.ack accepted=false` |
 | LIMIT leg missing `LEG1_PRICE=` or `LEG2_PRICE=` | **REJECTED** |
 | STOP leg missing `LEG1_STOP=` or `LEG2_STOP=` | **REJECTED** |

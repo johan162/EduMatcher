@@ -247,6 +247,21 @@ sequenceDiagram
     note over E: MMP reset
 ```
 
+What the MM operator sees in the terminal when MMP fires:
+
+```text
+[09:30:01.002] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
+[09:30:01.003] FILL      7c4a91e2  qty=100 @209.8  remaining=300  [PARTIAL]
+[09:30:01.004] FILL      7c4a91e2  qty=100 @209.8  remaining=200  [PARTIAL]
+[09:30:01.005] FILL      7c4a91e2  qty=100 @209.8  remaining=100  [PARTIAL]
+[09:30:01.006] FILL      7c4a91e2  qty=100 @209.8  remaining=0    [FILLED]
+[09:30:01.006] CANCELLED be2170fd
+[09:30:01.006] QUOTE INACTIVE_BID_FILLED  Q1
+```
+
+The bot (or operator) must re-quote within `max_requote_delay_ns` to avoid
+an obligation breach flag.
+
 ---
 
 ## Cancelling a quote

@@ -368,6 +368,30 @@ When an uncross completes, the engine publishes:
 | `order.expired.{gateway_id}` | One per ATO/ATC order that did not fill and was expired |
 | `session.state` | Confirms the new session state after the transition |
 
+---
+
+## Hands-on: driving an opening auction manually
+
+This short walkthrough uses two terminals with `sessions_enabled: true`.
+
+```text
+# Terminal 1 — ADMIN gateway
+OPS01> ADVANCE
+[PRE_OPEN → OPENING_AUCTION]
+
+# Terminal 2 — trader submits orders during auction
+TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=ATO
+TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=ATO
+
+# Terminal 1 — trigger the uncross
+OPS01> ADVANCE
+[OPENING_AUCTION → CONTINUOUS]
+# Engine prints: auction.result AAPL price=149.75 qty=100 surplus=0
+```
+
+Both ATO orders fill at the equilibrium price.  The `TIF=ATO` orders are
+expired if they did *not* fill.
+
 ## See also
 
 - [Configuration](01-configuration.md#session-schedule) — `schedule:` YAML keys and `sessions_enabled`

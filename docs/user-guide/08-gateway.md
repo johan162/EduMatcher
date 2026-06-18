@@ -156,7 +156,7 @@ On startup, the gateway:
 
 1. Connects PUSH socket to the engine PULL port (5555)
 2. Connects SUB socket to the engine PUB port (5556)
-3. Subscribes to: `order.ack.{ID}`, `order.fill.{ID}`, `order.amended.{ID}`, `order.cancelled.{ID}`, `order.expired.{ID}`, `order.orders.{ID}`, `combo.ack.{ID}`, `combo.status.{ID}`, `oco.ack.{ID}`, `oco.cancelled.{ID}`, `quote.ack.{ID}`, `quote.status.{ID}`, `risk.kill_switch_ack.{ID}`, `system.symbols.{ID}`, `system.gateway_auth.{ID}`, `trade.executed`
+3. Subscribes to: `order.ack.{ID}`, `order.fill.{ID}`, `order.amended.{ID}`, `order.cancelled.{ID}`, `order.expired.{ID}`, `order.orders.{ID}`, `combo.ack.{ID}`, `combo.status.{ID}`, `oco.ack.{ID}`, `oco.cancelled.{ID}`, `quote.ack.{ID}`, `quote.status.{ID}`, `risk.kill_switch_ack.{ID}`, `system.symbols.{ID}`, `system.quote_bootstrap.{ID}`, `system.gateway_auth.{ID}`, `trade.executed`
 4. Sends `system.gateway_connect` and waits up to **3 seconds** for the auth response
 5. If accepted: enters the interactive prompt loop
 6. If rejected: prints the reason and exits immediately
@@ -216,6 +216,14 @@ All commands use the ALF pipe-separated key=value format.
 
 ```
 QUOTE|SYM=<symbol>|BID=<price>|ASK=<price>|BID_QTY=<n>|ASK_QTY=<n>[|TIF=<DAY|GTC>][|QUOTE_ID=<label>]
+```
+
+Example:
+
+```text
+MM01> QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|QUOTE_ID=Q1
+[09:30:00.101] QUOTE ACK   Q1  bid=7c4a91e2 ask=be2170fd
+[09:30:00.102] QUOTE ACTIVE  Q1
 ```
 
 Rules:
@@ -320,6 +328,17 @@ MM_AAPL_01> QBOOT
 
 MM_AAPL_01> QBOOT|SYM=AAPL
 # prints only AAPL bootstrap quote state for MM_AAPL_01
+```
+
+Sample output:
+
+```text
+       Quote bootstrap - MM_AAPL_01
+┏━━━━━━━━┳━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━┓
+┃ Symbol ┃ Quote ┃ State  ┃ Bid    ┃ Ask    ┃BidRem ┃AskRem ┃
+┡━━━━━━━━╇━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━┩
+│ AAPL   │ Q123  │ ACTIVE │ 209.80 │ 210.20 │  500  │  500  │
+└────────┴───────┴────────┴────────┴────────┴───────┴───────┘
 ```
 
 Typical startup use:

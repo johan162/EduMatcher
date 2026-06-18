@@ -306,6 +306,37 @@ Replies:
 - `quote.ack.{GW_ID}`
 - `quote.status.{GW_ID}`
 
+### `quote.ack.{GW_ID}`
+
+Acknowledgement of a `quote.new` submission.
+
+| Field | Type | Description |
+|---|---|---|
+| `quote_id` | string | Client-provided quote label (echoed from request) |
+| `accepted` | boolean | `true` = accepted; `false` = rejected |
+| `reason` | string | Rejection reason (empty string when accepted) |
+| `bid_order_id` | string (UUID) | Order ID of the bid leg *(present when accepted)* |
+| `ask_order_id` | string (UUID) | Order ID of the ask leg *(present when accepted)* |
+
+### `quote.status.{GW_ID}`
+
+Published when the quote's lifecycle state changes (e.g. a fill inactivates the quote or a cancel removes it).
+
+| Field | Type | Description |
+|---|---|---|
+| `quote_id` | string | Client-provided quote label |
+| `status` | string | New quote state (see values below) |
+| `reason` | string | Additional context (e.g. halt reason); empty when not applicable |
+
+**Status values:**
+
+| Value | Meaning |
+|---|---|
+| `ACTIVE` | Quote successfully placed on the book (both legs resting) |
+| `INACTIVE_BID_FILLED` | Bid leg filled; ask leg auto-cancelled |
+| `INACTIVE_ASK_FILLED` | Ask leg filled; bid leg auto-cancelled |
+| `CANCELLED` | Quote removed (explicit cancel, kill switch, or halt) |
+
 ### `quote.cancel`
 
 Cancel the active quote for one symbol.
@@ -1069,7 +1100,7 @@ event confirming the new phase.
 
 | Subscriber | Topics subscribed |
 |---|---|
-| Gateway | `system.gateway_auth.{GW}`, `order.ack.{GW}`, `order.fill.{GW}`, `order.amended.{GW}`, `order.cancelled.{GW}`, `order.expired.{GW}`, `order.orders.{GW}`, `combo.ack.{GW}`, `combo.status.{GW}`, `oco.ack.{GW}`, `oco.cancelled.{GW}`, `quote.ack.{GW}`, `quote.status.{GW}`, `risk.kill_switch_ack.{GW}`, `system.symbols.{GW}`, `system.quote_bootstrap.{GW}`, `system.session_status.{GW}`, `system.session_schedule.{GW}`, `system.gateways.{GW}`, `system.volume.{GW}`, `session.state` |
+| Gateway | `order.ack.{GW}`, `order.fill.{GW}`, `order.amended.{GW}`, `order.cancelled.{GW}`, `order.expired.{GW}`, `order.orders.{GW}`, `combo.ack.{GW}`, `combo.status.{GW}`, `oco.ack.{GW}`, `oco.cancelled.{GW}`, `quote.ack.{GW}`, `quote.status.{GW}`, `risk.kill_switch_ack.{GW}`, `system.symbols.{GW}`, `system.quote_bootstrap.{GW}`, `system.gateway_auth.{GW}`, `trade.executed` |
 | Order-book viewer | `book.{SYMBOL}`, `session.state` |
 | Order monitor | `order.` (prefix — all order events), `combo.`, `session.state` |
 | Clearing | `trade.executed` |

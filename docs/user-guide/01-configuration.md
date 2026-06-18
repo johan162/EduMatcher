@@ -1148,6 +1148,25 @@ For a quick parser check from a source checkout:
 poetry run python -c 'from pathlib import Path; from edumatcher.engine.config_loader import load_engine_config; print(load_engine_config(Path("engine_config.yaml")))'
 ```
 
+If the file is valid, this prints the parsed `EngineConfig` object.  On error
+you get a traceback ending with a descriptive message:
+
+```text
+ValueError: Engine config must have a 'symbols' mapping
+```
+
+```text
+ValueError: Gateway 'TRADER01' has invalid disconnect_behaviour: 'CANCEL_NONE'
+  (allowed: CANCEL_QUOTES_ONLY, CANCEL_ALL, LEAVE_ALL)
+```
+
+For installed (pipx) users who do not have access to the `poetry run` environment,
+pass the config file to the engine directly — it validates on startup:
+
+```bash
+pm-engine --config engine_config.yaml
+```
+
 For the focused config parser test suite:
 
 ```bash

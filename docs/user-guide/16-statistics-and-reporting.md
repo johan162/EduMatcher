@@ -130,7 +130,7 @@ Intraday mid-price, bid/ask, and percentage-change history captured every 15 min
 | `mid_price` | REAL | `(best_bid + best_ask) / 2`; falls back to last trade price if book is empty |
 | `best_bid` | REAL | Best bid at snapshot time (null if empty) |
 | `best_ask` | REAL | Best ask at snapshot time (null if empty) |
-| `pct_change` | REAL | Percentage change of mid-price from previous snapshot |
+| `pct_change` | REAL | Percentage change of mid-price from previous snapshot (e.g. `1.25` means +1.25 %) |
 
 **Use case**: Intraday price trends, volatility analysis, spread history, detecting trading halts or gaps.
 
