@@ -64,6 +64,9 @@ markdown_extensions:
   - toc:
       permalink: true
 
+hooks:
+  - docs/hooks/section_numbering.py
+
 extra_javascript:
   - javascripts/mathjax.js
   - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
@@ -101,6 +104,24 @@ nav:
     - Appendix - ALF Protocol: user-guide/20-app-alf-protocol.md
     - Appendix - BALF Protocol: user-guide/21-app-balf-protocol.md
     - Appendix - CALF Protocol: user-guide/22-app-calf-protocol.md
+  - Training:
+    - Overview: training/index.md
+    - "00 — Installation & Setup": training/00-installation.md
+    - "01 — Configuring & Starting Up": training/01-configuring-startup.md
+    - "02 — Setting Up MM Bots": training/02-setting-up-MM-bots.md
+    - "03 — The First Trade": training/03-the-first-trade.md
+    - "04 — Amending Orders": training/04-amending-orders.md
+    - "05 — Order Types Deep Dive": training/05-order-types.md
+    - "06 — Time-in-Force & Sessions": training/06-time-in-force-sessions.md
+    - "07 — Auctions": training/07-auctions.md
+    - "08 — Cancelling & Managing Orders": training/08-cancelling-orders.md
+    - "09 — Market Making": training/09-market-making.md
+    - "10 — Combo Orders": training/10-combo-orders.md
+    - "11 — Risk Controls": training/11-risk-controls.md
+    - "12 — P&L & Clearing": training/12-pnl-clearing.md
+    - "13 — Market Data & Drop Copy": training/13-market-data-drop-copy.md
+    - "14 — AI Traders & Swarm": training/14-ai-traders.md
+    - "15 — Statistics & Reporting": training/15-statistics-reporting.md
   - Architecture: 
     - Overview: architecture/01-architecture.md
     - Detailed Walkthrough: architecture/02-architecture-guide.md

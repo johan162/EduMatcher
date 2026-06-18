@@ -1,0 +1,167 @@
+# 00 — Installation & Setup
+
+## Objective
+
+Install EduMatcher from PyPI, configure environment variables for config and
+data directories, and use the `pm-setup` helper to bootstrap your workspace.
+
+---
+
+## Exercise 1: Install EduMatcher
+
+The recommended way to install is via `pipx` (isolates the package in its own
+virtual environment while making all `pm-*` commands globally available):
+
+```bash
+pip install pipx
+pipx ensurepath
+pipx install edumatcher
+```
+
+Verify the installation:
+
+```bash
+pm-engine --version
+```
+
+!!! tip "Alternative: Poetry (developer mode)"
+    If you're working from source:
+    ```bash
+    git clone https://github.com/johan162/EduMatcher.git
+    cd EduMatcher
+    poetry install --with dev
+    ```
+    All commands must be prefixed with `poetry run` (e.g. `poetry run pm-engine`).
+
+:material-checkbox-blank-outline: **Checkpoint:** `pm-engine --version` prints a version number.
+
+---
+
+## Exercise 2: Run pm-setup
+
+The `pm-setup` helper bootstraps your local environment in one command:
+
+```bash
+pm-setup
+```
+
+What it does:
+
+1. Creates the data directory at `~/.local/share/edumatcher/`.
+2. Copies a sample `engine_config.yaml` into the current working directory.
+3. Prints a shell snippet with the environment variable exports you need.
+
+Expected output:
+
+```
+✓ Created data directory: /Users/you/.local/share/edumatcher
+✓ Copied sample engine_config.yaml to ./engine_config.yaml
+
+Add the following to your shell profile (~/.zshrc or ~/.bashrc):
+
+  export EDUMATCHER_DATA_DIR="$HOME/.local/share/edumatcher"
+  export EDUMATCHER_CONFIG="./engine_config.yaml"
+```
+
+!!! note "Re-running pm-setup"
+    Use `pm-setup --force` to overwrite an existing sample config with the
+    latest version from the package.
+
+:material-checkbox-blank-outline: **Checkpoint:** data directory exists; sample config in place.
+
+---
+
+## Exercise 3: Set Environment Variables
+
+Add the exports to your shell profile:
+
+```bash
+# Add to ~/.zshrc (macOS) or ~/.bashrc (Linux)
+export EDUMATCHER_DATA_DIR="$HOME/.local/share/edumatcher"
+export EDUMATCHER_CONFIG="./engine_config.yaml"
+```
+
+Then reload:
+
+```bash
+source ~/.zshrc   # or source ~/.bashrc
+```
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `EDUMATCHER_DATA_DIR` | Where persistent data (stats DB, logs, state) is stored | `~/.local/share/edumatcher` |
+| `EDUMATCHER_CONFIG` | Path to the engine configuration YAML | `./engine_config.yaml` |
+
+!!! tip "Override per-session"
+    You can point to a different config for different scenarios:
+    ```bash
+    EDUMATCHER_CONFIG=~/configs/classroom.yaml pm-engine
+    ```
+    The `--config` flag on `pm-engine` and `pm-scheduler` takes precedence
+    over the environment variable.
+
+:material-checkbox-blank-outline: **Checkpoint:** `echo $EDUMATCHER_DATA_DIR` prints the correct path.
+
+---
+
+## Exercise 4: Verify the Data Directory
+
+Check that the data directory was created and is writable:
+
+```bash
+ls -la "$EDUMATCHER_DATA_DIR"
+```
+
+This directory will hold:
+
+- `stats.db` — trade and market statistics (created by `pm-stats`).
+- Session state and persistence files (created by `pm-engine`).
+- Log files (if file logging is enabled).
+
+:material-checkbox-blank-outline: **Checkpoint:** directory exists and is writable.
+
+---
+
+## Exercise 5: Inspect the Sample Configuration
+
+Open the generated config:
+
+```bash
+cat engine_config.yaml
+```
+
+You should see a `symbols:` section and a `gateways:` section. This is the file
+you will customise in the next chapter.
+
+:material-checkbox-blank-outline: **Checkpoint:** sample config contains symbols and gateways.
+
+---
+
+## Exercise 6: Confirm All Entry Points
+
+Verify that the key commands are available:
+
+```bash
+pm-engine --help
+pm-scheduler --help
+pm-gateway --help
+pm-mm-bot --help
+pm-setup --help
+```
+
+Each should print usage information without errors.
+
+:material-checkbox-blank-outline: **Checkpoint:** all commands respond to `--help`.
+
+---
+
+## Summary
+
+You now have:
+
+- EduMatcher installed and accessible as `pm-*` commands.
+- A data directory for persistent state.
+- Environment variables configured.
+- A sample `engine_config.yaml` ready for customisation.
+
+**Next:** [01 — Configuring & Starting Up](01-configuring-startup.md)
