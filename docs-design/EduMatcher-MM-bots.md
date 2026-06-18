@@ -1,6 +1,6 @@
-Version: 1.0.0
+Version: 1.1.0
 
-Date: 2026-06-17
+Date: 2026-06-18
 
 Status: Design Proposal
 
@@ -214,7 +214,8 @@ The bot subscribes to the following topics on the engine PUB socket:
 | `system.symbols.{GW_ID}` | Receive the list of tradeable symbols on startup |
 | `book.{SYMBOL}` | Track best bid/ask and mid-price updates |
 | `trade.executed` | Update last-trade reference price when no book data is available |
-| `system.quote_bootstrap.{GW_ID}` | Receive active quote-slot bootstrap state after startup query |
+| `system.quote_bootstrap.{GW_ID}` | Receive `QBOOT` snapshot after startup query |
+| `system.quote_legs.{GW_ID}` | Receive `QLEGS` snapshot for startup/heartbeat reconciliation |
 | `order.fill.{GW_ID}` | Detect when a quote leg is filled (correlate `order_id` with IDs from `quote.ack`) |
 | `order.cancelled.{GW_ID}` | Track sibling-leg cancellations and explicit cancel confirmations |
 | `quote.ack.{GW_ID}` | Capture `quote_id` plus `bid_order_id`/`ask_order_id` mapping |
@@ -274,11 +275,14 @@ sequenceDiagram
     E-->>B: system.gateway_auth.MM_AAPL_01 accepted=true
     B->>E: system.symbols_request gateway_id=MM_AAPL_01
     E-->>B: system.symbols.MM_AAPL_01 symbols=AAPL/MSFT/...
-    B->>E: system.quote_bootstrap_request gateway_id=MM_AAPL_01 symbol=AAPL
+    B->>E: system.quote_bootstrap_request gateway_id=MM_AAPL_01 symbol=AAPL (QBOOT)
     E-->>B: system.quote_bootstrap.MM_AAPL_01 quotes=[...]
+    B->>E: system.quote_legs_request gateway_id=MM_AAPL_01 symbol=AAPL show=ALL (QLEGS)
+    E-->>B: system.quote_legs.MM_AAPL_01 legs=[...]
     Note over B: verify assigned symbol is in the list
     Note over B: if active quote exists for (gateway_id,symbol), adopt mapping/state and do not send quote.new
-    Note over B: else resolve reference: book -> trade -> bootstrap quote -> random range
+    Note over B: reconcile boot/adopted mapping with QLEGS leg IDs before first reissue decision
+    Note over B: else resolve reference: QBOOT -> book -> trade -> bootstrap quote -> random range
     E-->>B: book.AAPL best_bid=149.95 best_ask=150.05
     Note over B: mid = 150.00 -- compute bid/ask
     B->>E: quote.new {symbol: AAPL, bid_price: 149.95, ask_price: 150.05, bid_qty: 500, ask_qty: 500}
@@ -388,24 +392,32 @@ keeps the logic simple and avoids accumulating stale partial quotes.
 ### 5.5 Bootstrap Reference for Empty Book
 
 When the bot has to quote for the first time and there is no usable book/trade
-reference yet, it resolves an initial reference in this strict order:
+reference yet, it runs a startup bootstrap pass using `QBOOT` first, then
+resolves an initial reference in this strict order:
 
-1. Current book-derived mid for the symbol (if available).
-2. Last `trade.executed` price for the symbol.
-3. `system.quote_bootstrap.{GW}` quote state (requested via
-  `system.quote_bootstrap_request`) for the same gateway and symbol.
-4. Random bootstrap price sampled from a configured range:
+1. `QBOOT` / `system.quote_bootstrap.{GW}` for the same `(gateway_id, symbol)`.
+2. Current book-derived mid for the symbol (if available).
+3. Last `trade.executed` price for the symbol.
+4. Bootstrap quote values from `QBOOT` snapshot (if not active but prices exist).
+5. Random bootstrap price sampled from a configured range:
    `--initial_min` to `--initial_max`.
 
 Resolution details:
 
-- If the bootstrap reply contains an active quote for `(gateway_id, symbol)`,
-  the bot must adopt it instead of submitting a duplicate quote. Adoption means:
-  loading `quote_id`, `bid_order_id`, `ask_order_id`, leg remaining quantities,
-  and setting state to `QUOTING`.
-- If bootstrap reply exists but has no active quote, and book/trade are empty,
-  the bot may derive a temporary reference from bootstrap bid/ask values when
+- `QBOOT` is the deadlock breaker: the bot must request it at startup and wait up
+  to `bootstrap_timeout_sec` (new runtime parameter, default `1.0`).
+- If the `QBOOT` reply contains an active quote for `(gateway_id, symbol)`, the
+  bot must adopt it instead of submitting a duplicate quote. Adoption means:
+  loading `quote_id`, `bid_order_id`, `ask_order_id`, and remaining quantities.
+- Immediately after adopt (or if `QBOOT` reports no active quote), the bot runs
+  one `QLEGS` snapshot to reconcile quote-to-leg mapping and detect orphan legs.
+  If `QBOOT` and `QLEGS` disagree, `QLEGS` wins for leg-level state and the bot
+  transitions to a safe reissue path.
+- If `QBOOT` reply exists but has no active quote, and book/trade are empty, the
+  bot may derive a temporary reference from bootstrap bid/ask values when
   available; otherwise it continues to random-range fallback.
+- If `QBOOT` is unavailable (timeout/not implemented), startup continues via
+  book/trade/random fallback and logs one clear warning; it must never hang.
 - Random bootstrap uses a uniform sample in `[initial_min, initial_max]`, then
   rounds to the nearest tick and verifies resulting quote prices are valid.
 - `--initial_min` and `--initial_max` must be supplied together, and
@@ -416,11 +428,13 @@ Resolution details:
 Bootstrap is one-time behavior for obtaining the first usable quote reference.
 After quoting begins, normal mid tracking and drift logic apply.
 
-Operational note: `QLEGS` is a gateway command (not a bot wire message) and is
-useful for human verification during bring-up. Before or after starting the bot,
-an operator can run `QLEGS|SYM=<symbol>|SHOW=ALL` on the same gateway identity
-to confirm whether quote legs already exist and whether the bot should adopt or
-replace existing state.
+Operational notes:
+
+- `QBOOT` and `QLEGS` are command-level concepts. In this design, the bot uses
+  their wire equivalents (`system.quote_bootstrap_*` and `system.quote_legs_*`).
+- For manual bring-up or troubleshooting, operators can run
+  `QBOOT|SYM=<symbol>` and `QLEGS|SYM=<symbol>|SHOW=ALL` on the same gateway
+  identity to verify whether the bot should adopt, cancel, or replace state.
 
 
 
@@ -442,6 +456,7 @@ The bot re-issues a quote in response to any of these events:
 | `order.fill` with `remaining_qty = 0` | Engine → Bot | Full fill on one leg; reissue after delay |
 | `order.fill` with `remaining_qty > 0` | Engine → Bot | Partial fill; schedule reissue after `reissue_delay_ms` |
 | Mid-price drift exceeds `drift_ticks` | `book.SYMBOL` event | Cancel current quote, reissue at new mid |
+| `QLEGS` mismatch (`quote_id` or leg IDs diverge) | Engine snapshot | Enter safe cancel/reissue reconciliation path |
 | Periodic heartbeat check | Internal timer | If no active quote and session is CONTINUOUS, reissue |
 
 ### 6.2 Reissue Delay
@@ -520,6 +535,15 @@ In addition to event-driven refresh, the bot runs a periodic check every
 has no record of an active `quote_id` — which should never happen but can occur
 after a missed event — it logs a warning and re-issues the quote.
 
+Every `qlegs_reconcile_interval_sec` (default: `15 s`), the heartbeat also runs
+a `QLEGS` snapshot reconciliation pass for the configured symbol:
+
+- If local state and `QLEGS` agree, no action is taken.
+- If local state has an active quote but `QLEGS` reports no active legs, the bot
+  clears local mapping and reissues.
+- If `QLEGS` reports active legs that do not match local `quote_id`/order IDs,
+  the bot enters a defensive cancel/reissue path to converge state.
+
 This provides resilience against dropped ZMQ messages in unreliable network
 environments.
 
@@ -556,7 +580,7 @@ valid price reference is available.
 If book/trade data are unavailable (fresh startup), the bot must invoke the
 bootstrap resolver from Section 5.5 and either:
 
-- quote immediately from engine initial quote / random range, or
+- adopt/derive from `QBOOT` (and reconcile with `QLEGS`) or quote from random range, or
 - fail fast with a clear configuration error if no bootstrap source is configured.
 
 ### 7.3 Quote Cancellation on Auction Entry
@@ -627,8 +651,10 @@ poetry run pm-mm-bot --symbol AAPL --gap 0.10 --qty 500 -v
 | `--tif {DAY,GTC}` | No | `DAY` | Time-in-force for quote legs |
 | `--heartbeat-interval-sec F` | No | `5.0` | Interval for the periodic "do I have a live quote?" check |
 | `--startup-session-timeout-sec F` | No | `5.0` | Max wait for first `session.state` snapshot/event before startup fails fast |
+| `--bootstrap-timeout-sec F` | No | `1.0` | Max wait for startup `QBOOT` snapshot before fallback logic continues |
 | `--cancel-timeout-sec F` | No | `1.0` | Max wait for cancel confirmation before proceeding with reissue |
 | `--shutdown-timeout-sec F` | No | `2.0` | Max wait for cancel confirmation on SIGINT/SIGTERM |
+| `--qlegs-reconcile-interval-sec F` | No | `15.0` | Interval for periodic `QLEGS` snapshot reconciliation while running |
 | `--initial_min PRICE` | No | unset | Lower bound for random bootstrap reference when no book/trade/engine initial quote exists |
 | `--initial_max PRICE` | No | unset | Upper bound for random bootstrap reference when no book/trade/engine initial quote exists |
 | `--engine-pull ADDR` | No | `tcp://127.0.0.1:5555` | Engine PUSH/PULL address |
@@ -738,7 +764,8 @@ quotes resting would mislead other participants.
 |---|---|---|
 | `system.gateway_connect` | Startup | `gateway_id` |
 | `system.symbols_request` | After auth ACK | `gateway_id` |
-| `system.quote_bootstrap_request` | Startup after symbols | `gateway_id`, `symbol` |
+| `system.quote_bootstrap_request` | Startup after symbols (`QBOOT`) | `gateway_id`, `symbol` |
+| `system.quote_legs_request` | Startup reconciliation and periodic heartbeat (`QLEGS`) | `gateway_id`, `symbol`, `show` |
 | `quote.new` | Entering QUOTING state | `gateway_id`, `symbol`, `bid_price`, `ask_price`, `bid_qty`, `ask_qty`, `quote_id`, `tif` |
 | `quote.cancel` | On PAUSED/shutdown and optional defensive reissue path | `gateway_id`, `symbol` |
 
@@ -752,7 +779,8 @@ quotes resting would mislead other participants.
 |---|---|---|
 | `system.gateway_auth.{GW}` | After connect | Check `accepted`; abort if false |
 | `system.symbols.{GW}` | After symbols request | Extract symbol list; verify assigned symbol exists |
-| `system.quote_bootstrap.{GW}` | After bootstrap request | Detect and adopt existing active quote for `(gateway_id, symbol)` |
+| `system.quote_bootstrap.{GW}` | After `QBOOT` request | Detect and adopt existing active quote for `(gateway_id, symbol)` |
+| `system.quote_legs.{GW}` | After `QLEGS` request | Reconcile local leg/quote mapping and detect divergence |
 | `book.{SYMBOL}` | On every book update | Update `_mid_price`; check for drift |
 | `trade.executed` | On every fill | Update last-trade price if book mid unavailable |
 | `quote.ack.{GW}` | After QUOTE/QUOTE_CANCEL flows | Record `quote_id` and leg IDs for correlation; treat rejection via `accepted=false` |
@@ -831,10 +859,12 @@ sequenceDiagram
 | `docs/user-guide/15-ai-traders.md` | Add a note pointing to the new MM bot |
 
 This proposal assumes bootstrap support exists in protocol and engine
-(`system.quote_bootstrap_request` and `system.quote_bootstrap.{GW}`).
-If those messages are not already available in the target branch,
-engine/message-layer changes are required before the bot can adopt existing
-quotes at startup.
+(`QBOOT` plus `system.quote_bootstrap_request/system.quote_bootstrap.{GW}`)
+and quote-leg snapshot support (`QLEGS` plus
+`system.quote_legs_request/system.quote_legs.{GW}`). If these are not already
+available in the target branch, engine/message-layer changes are required
+before the bot can fully support deadlock-free startup adoption and periodic
+reconciliation.
 
 ### 11.3 Module Responsibilities
 
@@ -844,6 +874,7 @@ quotes at startup.
 - Validate `--gap` against `mm_max_spread_ticks` after receiving symbol config.
 - Validate `--initial_min`/`--initial_max` pair and ordering.
 - Validate `--startup-session-timeout-sec` is positive.
+- Validate `--bootstrap-timeout-sec` and `--qlegs-reconcile-interval-sec` are positive.
 - Instantiate `MMBot` and call `bot.run()`.
 - Install signal handlers for `SIGINT`/`SIGTERM` that call `bot.shutdown()`.
 
@@ -855,10 +886,14 @@ quotes at startup.
 - Dispatch incoming messages to handler methods.
 - Manage `_state`, `_quote_id`, `_reissue_at`, `_quoted_at_mid`,
   `order_id -> quote_id` mapping, and pending pre-ack fill buffer.
-- Request and process quote bootstrap state via
+- Request and process `QBOOT` via
   `system.quote_bootstrap_request/system.quote_bootstrap.{GW}`.
-- Resolve bootstrap reference price (book/trade/bootstrap quote/random range)
+- Request and process `QLEGS` via
+  `system.quote_legs_request/system.quote_legs.{GW}` for startup and heartbeat.
+- Resolve bootstrap reference price (`QBOOT` -> book -> trade -> bootstrap quote -> random range)
   before first quote.
+- Reconcile local quote state against `QLEGS` periodically and trigger safe
+  cancel/reissue convergence on mismatch.
 - Delegate price calculation to `QuotePricer`.
 
 #### `mm_bot/pricer.py`
@@ -941,6 +976,8 @@ that detects pipx vs. Poetry mode:
 | Drift threshold | `--drift-ticks` | — (runtime only) | `3` | Ticks from posted mid before reprice |
 | Reissue delay | `--reissue-delay-ms` | — (runtime only) | `200` | Batches rapid fills |
 | TIF | `--tif` | — (runtime only) | `DAY` | `DAY` or `GTC` |
+| QBOOT timeout | `--bootstrap-timeout-sec` | — (runtime only) | `1.0` | Startup wait cap before fallback |
+| QLEGS reconcile interval | `--qlegs-reconcile-interval-sec` | — (runtime only) | `15.0` | Snapshot reconciliation cadence |
 | Bootstrap min | `--initial_min` | — (runtime only) | unset | Used only when book/trade/engine-initial reference are unavailable |
 | Bootstrap max | `--initial_max` | — (runtime only) | unset | Must be provided together with `--initial_min` |
 | Refresh policy | — | `quote_refresh_policy` | `INACTIVATE_ON_ANY_FILL` | Engine-side; controls automatic inactivation |
@@ -975,8 +1012,10 @@ The bot is instantiated with a mock engine; events are injected directly.
 |---|---|
 | `test_startup_sends_gateway_connect` | On `run()`, the first PUSH message is `system.gateway_connect` |
 | `test_auth_failure_exits` | Bot exits cleanly if `gateway_auth.accepted = false` |
-| `test_bootstrap_request_sent_on_startup` | Bot sends `system.quote_bootstrap_request` after symbols/auth startup steps |
+| `test_qboot_request_sent_on_startup` | Bot sends startup `QBOOT` request after symbols/auth startup steps |
+| `test_qlegs_request_sent_after_qboot` | Bot sends initial `QLEGS` request to reconcile startup state |
 | `test_adopt_existing_active_quote_from_bootstrap` | Bootstrap reply with active quote causes state adoption (no duplicate `QUOTE`) |
+| `test_startup_qboot_timeout_falls_back` | Missing `QBOOT` reply past timeout falls back to normal resolver (no hang) |
 | `test_quote_issued_after_book_update` | Bot sends `QUOTE` after receiving first `book.SYMBOL` in CONTINUOUS state |
 | `test_bootstrap_from_engine_initial_quote` | Empty book/trade at startup but engine quote exists for this `(gateway_id,symbol)` → bot adopts without duplicate `QUOTE` |
 | `test_bootstrap_from_random_range` | Empty book/trade and no engine initial quote, with initial range configured → bot samples and quotes |
@@ -985,6 +1024,7 @@ The bot is instantiated with a mock engine; events are injected directly.
 | `test_reissue_after_fill` | `order.fill` → timer fires → `quote.new` replace sent (no mandatory pre-cancel) |
 | `test_reissue_batches_rapid_fills` | Three fills in 50 ms produce exactly one reissue |
 | `test_fill_before_ack_buffering` | `order.fill` received before `quote.ack` is buffered and reconciled correctly once ack arrives |
+| `test_qlegs_mismatch_triggers_safe_reconcile` | Divergence between local mapping and `QLEGS` snapshot triggers cancel/reissue convergence |
 | `test_drift_triggers_reprice` | Mid moves 4 ticks → `quote.new` replace at new mid |
 | `test_no_quote_in_auction` | Bot in QUOTING receives `session.state=OPENING_AUCTION` → CANCEL, no reissue |
 | `test_resume_from_pause` | `session.state=CONTINUOUS` from PAUSED → bot re-enters QUOTING |
@@ -1072,14 +1112,19 @@ dashboard during a classroom session.
 This design is ready to be implemented, with two guardrails:
 
 1. Bootstrap protocol support must exist in the target branch
-   (`system.quote_bootstrap_request` and `system.quote_bootstrap.{GW}`), as
-   described in Section 11.2.
-2. Work should follow the test-first scope in Section 13 to prevent state-machine
+  (`QBOOT` and `system.quote_bootstrap_request/system.quote_bootstrap.{GW}`),
+  as described in Section 11.2.
+2. Quote-leg snapshot support must exist in the target branch
+  (`QLEGS` and `system.quote_legs_request/system.quote_legs.{GW}`), so the bot
+  can reconcile startup and heartbeat state safely.
+3. Work should follow the test-first scope in Section 13 to prevent state-machine
    regressions.
 
 The design defines:
 
 - A deterministic startup path (including empty-book bootstrap behaviour).
+- A deterministic startup path with `QBOOT` deadlock avoidance and `QLEGS`
+  startup reconciliation.
 - A clear replace-first reissue strategy.
 - Explicit session and halt handling.
 - Concrete file/module responsibilities.
@@ -1094,11 +1139,12 @@ Use this checklist before opening a PR:
 - [ ] `mm_bot` package files created: `main.py`, `bot.py`, `pricer.py`, `__init__.py`.
 - [ ] Console entry point `pm-mm-bot` added in `pyproject.toml`.
 - [ ] CLI arguments implemented with validation (including bootstrap/session timeout flags).
-- [ ] Startup sequence implemented: connect → auth → symbols → bootstrap request.
+- [ ] Startup sequence implemented: connect → auth → symbols → `QBOOT` → `QLEGS` reconciliation.
 - [ ] Active quote adoption implemented (no duplicate `quote.new` when bootstrap shows active quote for same `(gateway_id, symbol)`).
-- [ ] Bootstrap resolver implemented: book → trade → bootstrap quote → random range → fail fast.
+- [ ] Bootstrap resolver implemented: `QBOOT` → book → trade → bootstrap quote → random range → fail fast.
 - [ ] Session handling implemented (`CONTINUOUS`, auctions, `CLOSED`, symbol halt/resume).
 - [ ] Reissue logic implemented with replace-first `quote.new` path and optional defensive cancel path.
+- [ ] Periodic `QLEGS` reconciliation implemented with safe convergence on mismatch.
 - [ ] Fill correlation implemented with ack mapping and pre-ack fill buffering.
 - [ ] Graceful shutdown implemented with cancel + timeout + socket close.
 - [ ] Logging output is actionable for operators (startup failures, state transitions, reissues).
@@ -1120,14 +1166,14 @@ Use this checklist before opening a PR:
 
 - Implement argument parsing and validation in `main.py`.
 - Implement ZMQ setup and startup handshake in `bot.py`:
-  `gateway_connect`, `gateway_auth`, `symbols_request`, `quote_bootstrap_request`.
+  `gateway_connect`, `gateway_auth`, `symbols_request`, `QBOOT`, `QLEGS`.
 - Add startup fail-fast behaviour for missing bootstrap sources and missing session snapshot/event within timeout.
 
 ### Phase 3: State Machine and Core Event Handlers
 
 - Implement state machine transitions from Section 4.
 - Implement handlers for `book`, `trade.executed`, `quote.ack`, `quote.status`,
-  `order.fill`, `order.cancelled`, `session.state`, and circuit breaker topics.
+  `order.fill`, `order.cancelled`, `QBOOT`, `QLEGS`, `session.state`, and circuit breaker topics.
 - Implement active-quote adoption path on bootstrap response.
 
 ### Phase 4: Reissue, Drift, and Shutdown Safety
@@ -1139,7 +1185,8 @@ Use this checklist before opening a PR:
 ### Phase 5: Integration Tests and Hardening
 
 - Implement the Section 13.2 integration test matrix using dummy sockets.
-- Fix any ordering/idempotency defects surfaced by pre-ack fill and lifecycle race tests.
+- Fix any ordering/idempotency defects surfaced by pre-ack fill, `QBOOT` timeout,
+  and `QLEGS` mismatch reconciliation tests.
 - Confirm no hangs in startup failure paths.
 
 ### Phase 6: Documentation and Operational Validation
