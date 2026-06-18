@@ -64,8 +64,8 @@ markdown_extensions:
   - toc:
       permalink: true
 
-hooks:
-  - docs/hooks/section_numbering.py
+#hooks:
+#  - docs/hooks/section_numbering.py
 
 extra_javascript:
   - javascripts/mathjax.js
@@ -124,6 +124,7 @@ nav:
     - "15 — Statistics & Reporting": training/15-statistics-reporting.md
     - "16 — Persistence & Recovery": training/16-persistence-recovery.md
     - "17 — Capstone Scenario": training/17-capstone-scenario.md
+    - "18 — Exchange Observer Processes": training/18-exchange-observer-processes.md
   - Architecture: 
     - Overview: architecture/01-architecture.md
     - Detailed Walkthrough: architecture/02-architecture-guide.md

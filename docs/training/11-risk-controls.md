@@ -3,7 +3,8 @@
 ## Objective
 
 Configure and trigger the exchange's safety mechanisms: price collars, circuit
-breakers, symbol halts, and the kill switch.
+breakers, symbol halts, and the kill switch. You will use both the interactive
+`pm-admin` console and the one-shot `pm-admin-cli` tool.
 
 ---
 
@@ -16,6 +17,16 @@ Risk controls prevent erroneous or manipulative orders from distorting the marke
 - **Symbol halt** — manually halt trading on one instrument.
 - **Exchange halt** — halt all trading.
 - **Kill switch** — cancel all orders for a specific gateway.
+
+Administrative controls can be sent through an admin gateway session, but the
+preferred operator tools are:
+
+- `pm-admin --id GW_ADMIN` — interactive admin console with tab completion.
+- `pm-admin-cli --id GW_ADMIN <command>` — one command, one response, useful for
+  scripts, demos, and operational runbooks.
+
+Both require a gateway configured with `role: ADMIN`, such as the `GW_ADMIN`
+gateway from chapter 01.
 
 ---
 
@@ -86,12 +97,39 @@ All resting orders on AAPL are preserved but no new matching occurs.
 
 ---
 
-## Exercise 5: Manual Symbol Halt and Resume
+## Exercise 5: Open the Admin Console
 
-From the admin gateway:
+In a new terminal, start the interactive admin console:
+
+```bash
+pm-admin --id GW_ADMIN
+```
+
+At the prompt, inspect the exchange:
 
 ```
-GW_ADMIN> HALT_SYM|SYM=MSFT
+[GW_ADMIN|ADMIN]> HELP
+[GW_ADMIN|ADMIN]> SYMBOLS
+[GW_ADMIN|ADMIN]> SESSION_STATUS
+[GW_ADMIN|ADMIN]> GATEWAYS
+```
+
+Use `BOOK|SYM=AAPL` to confirm the console can query market state:
+
+```
+[GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
+```
+
+:material-checkbox-blank-outline: **Checkpoint:** `pm-admin` authenticates as `GW_ADMIN` and can show symbols, session status, gateways, and book state.
+
+---
+
+## Exercise 6: Manual Symbol Halt and Resume
+
+From the `pm-admin` console:
+
+```
+[GW_ADMIN|ADMIN]> HALT_SYM|SYM=MSFT
 ```
 
 Try trading MSFT from TRADER01:
@@ -105,35 +143,84 @@ Expected: rejection — symbol halted.
 Resume:
 
 ```
-GW_ADMIN> RESUME_SYM|SYM=MSFT
+[GW_ADMIN|ADMIN]> RESUME_SYM|SYM=MSFT
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** halt prevents trading; resume restores it.
 
 ---
 
-## Exercise 6: Exchange-Wide Halt
+## Exercise 7: Exchange-Wide Halt with pm-admin-cli
+
+Use the one-shot CLI form when you want an operation to run from a script or
+checklist without opening an interactive console:
+
+```bash
+pm-admin-cli --id GW_ADMIN halt
+```
+
+All symbols stop matching. Confirm status:
+
+```bash
+pm-admin-cli --id GW_ADMIN session-status
+pm-admin-cli --id GW_ADMIN symbols
+```
+
+Then resume:
+
+```bash
+pm-admin-cli --id GW_ADMIN resume
+```
+
+:material-checkbox-blank-outline: **Checkpoint:** `pm-admin-cli` halts and resumes the exchange without entering a REPL.
+
+---
+
+## Exercise 8: Query and Manage with pm-admin-cli
+
+Try the read-only commands first:
+
+```bash
+pm-admin-cli --id GW_ADMIN book --sym AAPL
+pm-admin-cli --id GW_ADMIN orders --gw TRADER01
+pm-admin-cli --id GW_ADMIN gateways
+pm-admin-cli --id GW_ADMIN volume
+pm-admin-cli --id GW_ADMIN schedule
+```
+
+Now halt and resume one symbol through the CLI:
+
+```bash
+pm-admin-cli --id GW_ADMIN halt-sym --sym TSLA
+pm-admin-cli --id GW_ADMIN resume-sym --sym TSLA
+```
+
+:material-checkbox-blank-outline: **Checkpoint:** you can choose `pm-admin` for interactive operation and `pm-admin-cli` for repeatable one-shot commands.
+
+---
+
+## Exercise 9: Exchange-Wide Halt from the Admin Console
 
 ```
-GW_ADMIN> HALT
+[GW_ADMIN|ADMIN]> HALT
 ```
 
 All symbols stop matching. Then:
 
 ```
-GW_ADMIN> RESUME
+[GW_ADMIN|ADMIN]> RESUME
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** full halt and resume works across all symbols.
 
 ---
 
-## Exercise 7: Kill Switch
+## Exercise 10: Kill Switch
 
 Cancel all orders for a misbehaving gateway:
 
 ```
-GW_ADMIN> KILL|GATEWAY_ID=TRADER02
+[GW_ADMIN|ADMIN]> KILL|GW=TRADER02
 ```
 
 Expected: all of TRADER02's resting orders cancelled.
@@ -141,7 +228,13 @@ Expected: all of TRADER02's resting orders cancelled.
 Or scope to a single symbol:
 
 ```
-GW_ADMIN> KILL|GATEWAY_ID=TRADER02|SYM=AAPL
+[GW_ADMIN|ADMIN]> KILL|GW=TRADER02|SYM=AAPL
+```
+
+The same operation as a one-shot CLI command is:
+
+```bash
+pm-admin-cli --id GW_ADMIN kill --gw TRADER02 --sym AAPL
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** kill switch cancels targeted orders.
@@ -155,9 +248,9 @@ GW_ADMIN> KILL|GATEWAY_ID=TRADER02|SYM=AAPL
 | Static collar | Per symbol | Order price vs reference | Order rejected |
 | Dynamic collar | Per symbol | Order price vs last trade | Order rejected |
 | Circuit breaker | Per symbol | Price move % in session | Symbol halted |
-| Symbol halt | Per symbol | Admin command | Trading paused |
-| Exchange halt | All symbols | Admin command | All trading paused |
-| Kill switch | Per gateway | Admin command | All orders cancelled |
+| Symbol halt | Per symbol | `pm-admin` / `pm-admin-cli` | Trading paused |
+| Exchange halt | All symbols | `pm-admin` / `pm-admin-cli` | All trading paused |
+| Kill switch | Per gateway | `pm-admin` / `pm-admin-cli` | All orders cancelled |
 
 ---
 
@@ -165,6 +258,7 @@ GW_ADMIN> KILL|GATEWAY_ID=TRADER02|SYM=AAPL
 
 - [Risk Controls](../user-guide/12-risk-controls.md)
 - [Controlling the Exchange](../user-guide/02-commands.md)
+- [Processes](../user-guide/10-processes.md)
 - [Drop Copy](../user-guide/13-drop-copy.md)
 
 ---

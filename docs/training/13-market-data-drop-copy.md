@@ -140,3 +140,6 @@ flowchart LR
 - [CALF Protocol Reference](../user-guide/22-app-calf-protocol.md)
 
 **Next:** [14 — AI Traders & Swarm](14-ai-traders.md)
+
+For a fuller hands-on tour of every viewer and observer process, see
+[18 — Exchange Observer Processes](18-exchange-observer-processes.md).

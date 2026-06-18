@@ -183,5 +183,8 @@ Answer these without looking at earlier chapters:
 - [User Guide](../user-guide/00-getting-started.md)
 - [Architecture Overview](../architecture/01-architecture.md)
 - [Glossary](../glossary.md)
+- [Exchange Observer Processes](18-exchange-observer-processes.md)
 
-You have completed the training guide.
+You have completed the capstone. Finish with
+[18 — Exchange Observer Processes](18-exchange-observer-processes.md) to compare
+the different live views of the exchange.
