@@ -3,7 +3,8 @@
 ## Objective
 
 Execute your first buy and sell trades against the market-maker quotes and
-understand fill messages, order IDs, and the order book lifecycle.
+understand fill messages, clearing records, order IDs, and the order book
+lifecycle.
 
 ---
 
@@ -11,10 +12,27 @@ understand fill messages, order IDs, and the order book lifecycle.
 
 - Engine, scheduler, and MM bots running from chapters 01–02.
 - `TRADER01` gateway connected.
+- One spare terminal for the clearing process.
 
 ---
 
-## Exercise 1: Buy at Market — Lift the Ask
+## Exercise 1: Start Clearing
+
+In a new terminal, start the clearing process before you trade:
+
+```bash
+pm-clearing
+```
+
+`pm-clearing` subscribes to executed trades, updates per-gateway positions and
+P&L, and appends trades to `clearing_report.csv` in the data directory. Leave it
+running while you work through this chapter.
+
+:material-checkbox-blank-outline: **Checkpoint:** clearing is running and waiting for trades.
+
+---
+
+## Exercise 2: Buy at Market — Lift the Ask
 
 From `TRADER01`, send a market buy order for AAPL:
 
@@ -30,11 +48,15 @@ Expected output:
 
 The order matched against the MM's ask at 150.05.
 
-:material-checkbox-blank-outline: **Checkpoint:** you received a fill confirmation.
+Now switch to the `pm-clearing` terminal. You should see the trade reflected in
+the clearing output: `TRADER01` has bought AAPL, the market-maker gateway has
+sold AAPL, and positions/P&L are updated from the execution price.
+
+:material-checkbox-blank-outline: **Checkpoint:** you received a fill confirmation and can see the trade in `pm-clearing`.
 
 ---
 
-## Exercise 2: Sell at Market — Hit the Bid
+## Exercise 3: Sell at Market — Hit the Bid
 
 ```
 TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=100
@@ -50,7 +72,7 @@ Expected output:
 
 ---
 
-## Exercise 3: Place a Limit Buy Order
+## Exercise 4: Place a Limit Buy Order
 
 Place a buy order below the current bid — it should rest on the book:
 
@@ -72,7 +94,7 @@ You should see your 200-lot bid at 149.80 below the MM's bid.
 
 ---
 
-## Exercise 4: Place a Limit Sell and Get a Fill
+## Exercise 5: Place a Limit Sell and Get a Fill
 
 Now from `TRADER02` (open a second gateway if not already):
 
@@ -95,7 +117,7 @@ Both gateways receive fill notifications:
 
 ---
 
-## Exercise 5: Check Order State
+## Exercise 6: Check Order State
 
 From TRADER01, inspect the partially filled order:
 
@@ -103,16 +125,21 @@ From TRADER01, inspect the partially filled order:
 TRADER01> ORDERS
 ```
 
-Expected: the order from Exercise 3 appears with filled and remaining quantity
+Expected: the order from Exercise 4 appears with filled and remaining quantity
 showing the partial fill.
 
 :material-checkbox-blank-outline: **Checkpoint:** ORDERS shows partial fill state correctly.
 
 ---
 
-## Exercise 6: Observe the MM Bot Re-quoting
+**Optional:** If you have `pm-viewer` running on AAPL, you should see the bid size drop from 200 to 150 after the fill.
 
-After your market order in Exercise 1 lifted the MM's ask, the MM bot
+
+**Exercise 7: Observe the MM Bot Re-quoting** Only applies after the MM Bot has been implemented! 
+
+## Exercise 7: Observe the MM Bot Re-quoting
+
+After your market order in Exercise 2 lifted the MM's ask, the MM bot
 automatically re-quoted. Run BOOK again:
 
 ```
@@ -131,6 +158,7 @@ mid if the trade moved the reference price).
 - **Market orders** execute immediately against the best available price.
 - **Limit orders** rest on the book until a matching counterparty arrives.
 - **Fills** generate fill messages to both buyer and seller.
+- **Clearing** consumes executed trades and turns them into positions and P&L.
 - **Partial fills** leave the remainder resting.
 - **Order IDs** are used for AMEND and CANCEL operations.
 

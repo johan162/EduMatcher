@@ -4,6 +4,12 @@ Welcome to the EduMatcher self-study training programme. This hands-on guide
 takes you from a cold start to confidently operating every major feature of the
 exchange.
 
+If you are new to finance we strongly recommend you start by 
+reading the [How an Exchange Works](../how-exchange-works) which is 
+a non-technical introduction to the core components and data flows in an exchange. 
+It will make the training exercises more intuitive and meaningful.
+
+
 ## How to Use This Guide
 
 Each chapter is a self-contained exercise session. Work through them in order —
@@ -14,6 +20,10 @@ later chapters build on configuration and positions established in earlier ones.
 - EduMatcher installed (`pipx install edumatcher` or Poetry dev environment).
 - A terminal (or several) available.
 - Basic familiarity with YAML and the command line.
+
+**Bonus:**
+- If you are familiar with a terminal multiplexer like `tmux` or `screen`, it can be helpful to run multiple processes in one window with panes. Otherwise, just open several terminal windows. All commands are designed to be run from the command line. Processes that are started often prints status information to the terminal (in addition to data log files) so you can see activity in real time.
+
 
 **Conventions:**
 
