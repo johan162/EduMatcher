@@ -28,9 +28,18 @@ reprices when:
 - The mid-price drifts beyond a configurable threshold
 - The session state changes (e.g. entering or leaving an auction phase)
 
-Each instance handles **one symbol**. To provide liquidity for multiple symbols,
-run one instance per symbol. Multiple instances can also compete on the same
-symbol — they appear as independent market makers in the book.
+Each instance handles **exactly one symbol** — this is a deliberate design
+constraint that keeps the bot simple, stateless per-book, and easy to reason
+about. To provide liquidity for multiple symbols, run one instance per symbol:
+
+```bash
+pm-mm-bot --symbol AAPL &
+pm-mm-bot --symbol MSFT &
+pm-mm-bot --symbol TSLA &
+```
+
+Multiple instances can also compete on the same symbol — they appear as
+independent market makers in the book (use `--id-suffix` to distinguish them).
 
 | Feature | Manual `QUOTE` | `pm-mm-bot` |
 |---|---|---|
