@@ -258,6 +258,24 @@ def make_quote_bootstrap_msg(
     return encode(topic, {"quotes": quotes})
 
 
+def make_quote_legs_request_msg(
+    gateway_id: str, symbol: str = "", show: str = "ALL"
+) -> list[bytes]:
+    """Gateway -> engine: request quote leg snapshot (QLEGS)."""
+    return encode(
+        "system.quote_legs_request",
+        {"gateway_id": gateway_id, "symbol": symbol.upper(), "show": show.upper()},
+    )
+
+
+def make_quote_legs_msg(
+    gateway_id: str, legs: list[dict[str, Any]]
+) -> list[bytes]:
+    """Engine -> gateway: reply with quote legs snapshot."""
+    topic = f"system.quote_legs.{gateway_id}"
+    return encode(topic, {"legs": legs})
+
+
 # ------------------------------------------------------------------
 # Session-status query (read current state without advancing it)
 # ------------------------------------------------------------------

@@ -1720,6 +1720,7 @@ sequenceDiagram
 
 ## See also
 
+- [Market-Maker Bot (pm-mm-bot)](17-mm-bot.md) — autonomous quoting process that implements the strategies described on this page
 - [Configuration](01-configuration.md) — full gateway and `mm_obligation_defaults` config schema
 - [Order Types](04-order-types.md) — the LIMIT orders that quote legs create under the hood
 - [Risk Controls](12-risk-controls.md) — how circuit breakers cancel quotes during a halt

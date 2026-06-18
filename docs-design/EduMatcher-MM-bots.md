@@ -2,7 +2,7 @@ Version: 1.1.0
 
 Date: 2026-06-18
 
-Status: Design Proposal
+Status: Implemented
 
 # EduMatcher — Market-Maker Bot (pm-mm-bot)
 

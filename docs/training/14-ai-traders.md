@@ -131,6 +131,7 @@ providing base liquidity.
 ## Further Reading
 
 - [AI Traders](../user-guide/15-ai-traders.md)
+- [Market-Maker Bot (pm-mm-bot)](../user-guide/17-mm-bot.md) — sibling automation tool for liquidity provision
 - [Developer AI Bot Traders](../developer/02-ai-bot.md)
 - [Risk Controls](../user-guide/12-risk-controls.md)
 

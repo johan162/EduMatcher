@@ -161,6 +161,7 @@ You now have:
 ## Further Reading
 
 - [Market Making](../user-guide/14-market-maker.md)
+- [Market-Maker Bot (pm-mm-bot)](../user-guide/17-mm-bot.md)
 - [Gateway Commands](../user-guide/08-gateway.md)
 - [ALF Protocol Reference](../user-guide/20-app-alf-protocol.md)
 - MM Bot design proposal: `docs-design/EduMatcher-MM-bots.md`

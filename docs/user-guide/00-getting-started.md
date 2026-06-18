@@ -216,6 +216,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | `pm-admin` | Interactive terminal | Interactive operational console | [Processes](10-processes.md), [Risk Controls](12-risk-controls.md) |
 | `pm-ai-trader` | Background | Single autonomous trading bot gateway | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
 | `pm-ai-swarm` | Background | Multi-agent autonomous trading swarm | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
+| `pm-mm-bot` | Background | Autonomous market-maker quoting bot | [Processes](10-processes.md), [Market-Maker Bot](17-mm-bot.md) |
 
 ### CLI utilities (runnable)
 
@@ -451,6 +452,7 @@ The engine is the only mandatory process. Add the others as you need them:
 | Use `pm-admin` operator commands | `pm-admin` (interactive REPL) | [Risk Controls](12-risk-controls.md) |
 | Schedule opening/closing auctions | `pm-scheduler` | [Auctions and Scheduling](06-auctions-scheduling.md) |
 | Add autonomous AI order flow | `pm-ai-swarm --count 5 --duration 60` | [AI Traders](15-ai-traders.md) |
+| Add automated market-maker liquidity | `pm-mm-bot --symbol AAPL` | [Market-Maker Bot](17-mm-bot.md) |
 | Feed compliance/risk systems | Subscribe to `:5557` (drop-copy socket) | [Drop Copy](13-drop-copy.md) |
 
 For a full classroom session, use the provided launch script:
@@ -549,3 +551,4 @@ Use the table below to decide what to read based on your goal.
 - [Order Types](04-order-types.md) — LIMIT, MARKET, STOP, ICEBERG, TRAILING_STOP, OCO, COMBO
 - [Market Making](14-market-maker.md) — QUOTE command, obligations, and MMP
 - [AI Traders](15-ai-traders.md) — autonomous order flow with `pm-ai-trader` and `pm-ai-swarm`
+- [Market-Maker Bot](17-mm-bot.md) — automated quoting with `pm-mm-bot`

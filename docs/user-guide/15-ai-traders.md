@@ -373,6 +373,7 @@ configured in the engine.
 
 ## See also
 
+- [Market-Maker Bot (pm-mm-bot)](17-mm-bot.md) — autonomous market-maker process; complements AI traders by providing liquidity
 - [Running the Engine](03-running-the-engine.md) — startup order and launch scripts
 - [Configuration](01-configuration.md) — how to register gateway IDs and symbols
 - [Order Types](04-order-types.md) — AI bots submit LIMIT DAY orders only

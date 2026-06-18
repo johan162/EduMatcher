@@ -211,6 +211,9 @@ All commands use the ALF pipe-separated key=value format.
 
 ### QUOTE — Submit/Replace A Two-Sided MM Quote
 
+!!! tip
+    For automated quoting, see [Market-Maker Bot (pm-mm-bot)](17-mm-bot.md).
+
 ```
 QUOTE|SYM=<symbol>|BID=<price>|ASK=<price>|BID_QTY=<n>|ASK_QTY=<n>[|TIF=<DAY|GTC>][|QUOTE_ID=<label>]
 ```
