@@ -145,11 +145,17 @@ Verify that the key commands are available:
 pm-engine --help
 pm-scheduler --help
 pm-gateway --help
-pm-mm-bot --help
 pm-setup --help
+pm-config-gen --help
 ```
 
 Each should print usage information without errors.
+
+!!! note "Coming soon: pm-mm-bot"
+    `pm-mm-bot` is planned market-maker automation described in
+    `docs-design/EduMatcher-MM-bots.md`. It is not
+    part of the installed command set yet, so this training uses manual market
+    maker quotes until that feature lands.
 
 :material-checkbox-blank-outline: **Checkpoint:** all commands respond to `--help`.
 
@@ -163,5 +169,11 @@ You now have:
 - A data directory for persistent state.
 - Environment variables configured.
 - A sample `engine_config.yaml` ready for customisation.
+
+## Further Reading
+
+- [Getting Started](../user-guide/00-getting-started.md)
+- [Running the Engine](../user-guide/03-running-the-engine.md)
+- [Processes](../user-guide/10-processes.md)
 
 **Next:** [01 — Configuring & Starting Up](01-configuring-startup.md)

@@ -30,7 +30,7 @@ later chapters build on configuration and positions established in earlier ones.
 |---|---------|--------|
 | 00 | [Installation & Setup](00-installation.md) | PyPI install, pm-setup, environment variables, data directory |
 | 01 | [Configuring & Starting Up](01-configuring-startup.md) | engine_config.yaml, symbols, gateways, starting pm-engine & pm-scheduler |
-| 02 | [Setting Up MM Bots](02-setting-up-MM-bots.md) | Market-maker role, pm-mm-bot, two-sided quotes, liquidity |
+| 02 | [Setting Up Market-Maker Liquidity](02-setting-up-MM-bots.md) | Market-maker role, manual quotes, QLEGS, planned pm-mm-bot workflow |
 | 03 | [The First Trade](03-the-first-trade.md) | BUY/SELL limit orders, fills, order book basics |
 | 04 | [Amending Orders](04-amending-orders.md) | AMEND command, price/qty changes, priority rules |
 | 05 | [Order Types Deep Dive](05-order-types.md) | MARKET, STOP, FOK, IOC, ICEBERG, TRAILING_STOP |
@@ -44,6 +44,8 @@ later chapters build on configuration and positions established in earlier ones.
 | 13 | [Market Data & Drop Copy](13-market-data-drop-copy.md) | CALF feed, drop-copy, subscribing to book/trade events |
 | 14 | [AI Traders & Swarm](14-ai-traders.md) | pm-ai-trader, pm-ai-swarm, personality profiles, classroom demos |
 | 15 | [Statistics & Reporting](15-statistics-reporting.md) | pm-stats, pm-stats-cli, OHLCV, VWAP queries |
+| 16 | [Persistence & Recovery](16-persistence-recovery.md) | data directory, GTC persistence, stats.db, audit logs |
+| 17 | [Capstone Scenario](17-capstone-scenario.md) | full exchange session combining all major features |
 
 ---
 

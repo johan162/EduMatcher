@@ -113,6 +113,28 @@ class TestGatewayHelpers:
         result = Gateway._kv(["sym=aapl"])
         assert "SYM" in result
 
+    def test_status_command_prints_summary(self, capsys) -> None:
+        gw = _make_gateway()
+        gw._known_symbols = ["AAPL"]
+        gw.order_cache["ORD-001"] = {
+            "status": "NEW",
+            "id": "ORD-001",
+            "symbol": "AAPL",
+            "side": "BUY",
+            "type": "LIMIT",
+            "tif": "DAY",
+            "qty": 100,
+            "remaining": 100,
+            "price": 150.0,
+            "time": "00:00:00",
+        }
+
+        gw._parse_and_send("STATUS")
+
+        captured = capsys.readouterr()
+        assert "Gateway status" in captured.out
+        assert "Use ORDERS for detailed order inspection" in captured.out
+
     def test_handle_event_ack_accepted(self) -> None:
         gw = _make_gateway()
         order_id = "ORD-001"

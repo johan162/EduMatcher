@@ -263,7 +263,7 @@ ALF commands fall into three groups:
 | Group | Commands |
 |---|---|
 | Trading commands forwarded to the engine | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `KILL`, `SYMBOLS`, `QBOOT` |
-| Gateway-local informational commands | `ORDERS`, `POS`, `QLEGS`, `HELP` |
+| Gateway-local informational commands | `STATUS`, `ORDERS`, `POS`, `QLEGS`, `HELP` |
 | Session-control commands for the CLI process | `EXIT`, `QUIT` |
 
 If you are writing another interface that wants to submit orders, the most
@@ -897,13 +897,33 @@ will cancel all of the above gateway-owned resting exposure across all symbols.
 These commands are part of the ALF command language accepted by `pm-gateway`,
 but they are not order-entry messages in the strict sense.
 
+### `STATUS`
+
+Purpose: quick local gateway/session summary.
+
+```text
+STATUS
+```
+
+`STATUS` reports the current gateway ID, known symbols, cached order counts by
+lifecycle state, cached quote-leg counts, and position symbols. It is useful as
+a fast health check after connecting or after a burst of activity.
+
+`STATUS` is not the detailed order-inspection command. Use `ORDERS` when you
+need order IDs, prices, quantities, remaining quantity, TIF, or per-order
+lifecycle state.
+
 ### `ORDERS`
 
 ```text
 ORDERS
 ```
 
-Prints the gateway's local order table.
+Purpose: detailed order inspection for the current gateway session.
+
+`ORDERS` prints the gateway's order table, including order IDs, symbol, side,
+type, TIF, quantity, remaining quantity, price, current lifecycle status, and
+last update time.
 
 ### `POS`
 

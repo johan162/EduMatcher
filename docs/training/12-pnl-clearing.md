@@ -126,4 +126,12 @@ tracking in the clearing output.
 
 ---
 
+## Further Reading
+
+- [P&L & Clearing](../user-guide/07-pnl-clearing.md)
+- [Messages](../user-guide/09-messages.md)
+- [Statistics and Reporting](../user-guide/16-statistics-and-reporting.md)
+
+---
+
 **Next:** [13 — Market Data & Drop Copy](13-market-data-drop-copy.md)

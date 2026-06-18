@@ -22,7 +22,7 @@ TRADER01> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=300|PRICE=419.50|TIF=DAY
 
 Note the `order_id` returned.
 
-:material-checkbox-blank-outline: **Checkpoint:** order resting; STATUS confirms qty=300, price=419.50.
+:material-checkbox-blank-outline: **Checkpoint:** order resting; `ORDERS` confirms qty=300, price=419.50.
 
 ---
 
@@ -31,7 +31,7 @@ Note the `order_id` returned.
 Reduce the order to 200 shares:
 
 ```
-TRADER01> AMEND|ORDER_ID=<order_id>|QTY=200
+TRADER01> AMEND|ID=<order_id>|QTY=200
 ```
 
 Expected: amendment accepted; new qty=200.
@@ -40,7 +40,7 @@ Expected: amendment accepted; new qty=200.
     Reducing quantity does **not** lose time priority — your order keeps its
     place in the queue.
 
-:material-checkbox-blank-outline: **Checkpoint:** STATUS shows qty=200, same price.
+:material-checkbox-blank-outline: **Checkpoint:** `ORDERS` shows qty=200, same price.
 
 ---
 
@@ -49,7 +49,7 @@ Expected: amendment accepted; new qty=200.
 Move the order to a more aggressive price:
 
 ```
-TRADER01> AMEND|ORDER_ID=<order_id>|PRICE=419.70
+TRADER01> AMEND|ID=<order_id>|PRICE=419.70
 ```
 
 Expected: amendment accepted; new price=419.70.
@@ -58,14 +58,14 @@ Expected: amendment accepted; new price=419.70.
     A price change **always** loses time priority — the order moves to the back
     of the queue at the new price level.
 
-:material-checkbox-blank-outline: **Checkpoint:** STATUS shows price=419.70.
+:material-checkbox-blank-outline: **Checkpoint:** `ORDERS` shows price=419.70.
 
 ---
 
 ## Exercise 4: Amend Both Price and Quantity
 
 ```
-TRADER01> AMEND|ORDER_ID=<order_id>|PRICE=419.60|QTY=150
+TRADER01> AMEND|ID=<order_id>|PRICE=419.60|QTY=150
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** both fields updated in one command.
@@ -77,7 +77,7 @@ TRADER01> AMEND|ORDER_ID=<order_id>|PRICE=419.60|QTY=150
 Try setting quantity to zero:
 
 ```
-TRADER01> AMEND|ORDER_ID=<order_id>|QTY=0
+TRADER01> AMEND|ID=<order_id>|QTY=0
 ```
 
 Expected: rejection — quantity must be positive.
@@ -85,7 +85,7 @@ Expected: rejection — quantity must be positive.
 Try amending a non-existent order:
 
 ```
-TRADER01> AMEND|ORDER_ID=INVALID123|PRICE=100.00
+TRADER01> AMEND|ID=INVALID123|PRICE=100.00
 ```
 
 Expected: rejection — order not found.
@@ -104,7 +104,7 @@ Expected: rejection — order not found.
 
 2. If partially filled, amend the remaining quantity:
    ```
-   TRADER01> AMEND|ORDER_ID=<order_id>|QTY=200
+    TRADER01> AMEND|ID=<order_id>|QTY=200
    ```
 
 !!! note
@@ -123,6 +123,13 @@ Expected: rejection — order not found.
 | Quantity up | Priority lost |
 | Price change (any direction) | Priority lost |
 | Both price and qty | Priority lost |
+
+---
+
+## Further Reading
+
+- [Gateway Commands](../user-guide/08-gateway.md)
+- [ALF Protocol — AMEND](../user-guide/20-app-alf-protocol.md)
 
 ---
 

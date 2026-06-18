@@ -108,7 +108,7 @@ nav:
     - Overview: training/index.md
     - "00 — Installation & Setup": training/00-installation.md
     - "01 — Configuring & Starting Up": training/01-configuring-startup.md
-    - "02 — Setting Up MM Bots": training/02-setting-up-MM-bots.md
+    - "02 — Setting Up Market-Maker Liquidity": training/02-setting-up-MM-bots.md
     - "03 — The First Trade": training/03-the-first-trade.md
     - "04 — Amending Orders": training/04-amending-orders.md
     - "05 — Order Types Deep Dive": training/05-order-types.md
@@ -122,6 +122,8 @@ nav:
     - "13 — Market Data & Drop Copy": training/13-market-data-drop-copy.md
     - "14 — AI Traders & Swarm": training/14-ai-traders.md
     - "15 — Statistics & Reporting": training/15-statistics-reporting.md
+    - "16 — Persistence & Recovery": training/16-persistence-recovery.md
+    - "17 — Capstone Scenario": training/17-capstone-scenario.md
   - Architecture: 
     - Overview: architecture/01-architecture.md
     - Detailed Walkthrough: architecture/02-architecture-guide.md

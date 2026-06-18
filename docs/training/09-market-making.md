@@ -168,4 +168,13 @@ verifying what the engine thinks your active quote is.
 
 ---
 
+## Further Reading
+
+- [Market Making](../user-guide/14-market-maker.md)
+- [Gateway Commands](../user-guide/08-gateway.md)
+- [MM Quotes Concept](../concepts/03-concepts-mm-quotes.md)
+- [ALF Protocol Reference](../user-guide/20-app-alf-protocol.md)
+
+---
+
 **Next:** [10 — Combo Orders](10-combo-orders.md)

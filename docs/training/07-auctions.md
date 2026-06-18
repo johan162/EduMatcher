@@ -114,4 +114,12 @@ The auction algorithm selects the price that:
 
 ---
 
+## Further Reading
+
+- [Auctions & Scheduling](../user-guide/06-auctions-scheduling.md)
+- [Order Types](../user-guide/04-order-types.md)
+- [A Full Trading Day](../concepts/05-concepts-trading-day.md)
+
+---
+
 **Next:** [08 — Cancelling & Managing Orders](08-cancelling-orders.md)

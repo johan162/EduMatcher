@@ -1,17 +1,23 @@
-# 02 — Setting Up MM Bots
+# 02 — Setting Up Market-Maker Liquidity
 
 ## Objective
 
-Add market-maker gateways to your configuration and launch `pm-mm-bot` to
-provide continuous two-sided liquidity for all three symbols.
+Configure market-maker gateways and use manual `QUOTE` commands to provide
+two-sided liquidity for all three symbols. You will also see how the planned
+`pm-mm-bot` command will automate this workflow when it lands.
 
 ---
 
 ## Background
 
 A market maker posts simultaneous buy (bid) and sell (ask) prices. Without one,
-the order book is empty and no trader can get an immediate fill. `pm-mm-bot` is
-an autonomous bot that maintains a two-sided quote on one symbol.
+the order book is empty and no trader can get an immediate fill.
+
+!!! note "Coming soon: pm-mm-bot"
+    `pm-mm-bot` is planned functionality, not a currently installed command.
+    The design lives in `docs-design/EduMatcher-MM-bots.md`.
+    In this chapter you perform the same work manually with `pm-gateway` and
+    `QUOTE` so the exercises are runnable today.
 
 ---
 
@@ -25,19 +31,19 @@ gateways:
     # ... existing TRADER01, TRADER02, GW_ADMIN entries ...
 
     - id: MM_AAPL_01
-      description: "AAPL market-maker bot"
+      description: "AAPL market-maker"
       role: MARKET_MAKER
       disconnect_behaviour: CANCEL_QUOTES_ONLY
       quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 
     - id: MM_MSFT_01
-      description: "MSFT market-maker bot"
+      description: "MSFT market-maker"
       role: MARKET_MAKER
       disconnect_behaviour: CANCEL_QUOTES_ONLY
       quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 
     - id: MM_TSLA_01
-      description: "TSLA market-maker bot"
+      description: "TSLA market-maker"
       role: MARKET_MAKER
       disconnect_behaviour: CANCEL_QUOTES_ONLY
       quote_refresh_policy: INACTIVATE_ON_ANY_FILL
@@ -49,38 +55,43 @@ Restart `pm-engine` to pick up the new gateways.
 
 ---
 
-## Exercise 2: Launch MM Bot for AAPL
+## Exercise 2: Connect the AAPL Market Maker
 
 In a new terminal:
 
 ```bash
-pm-mm-bot --symbol AAPL --gap 0.10 --qty 500
+pm-gateway --id MM_AAPL_01
 ```
 
-Expected output:
+At the prompt, submit a two-sided quote:
 
 ```
-[INFO] MM_AAPL_01 connected
-[INFO] Session: CONTINUOUS — quoting AAPL bid=149.95 ask=150.05
+MM_AAPL_01> QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-MM-001
 ```
 
-The bot uses `last_price` from config as initial mid-price reference.
+Expected output should include a quote acknowledgement and active status.
 
-:material-checkbox-blank-outline: **Checkpoint:** bot is running; no errors.
+:material-checkbox-blank-outline: **Checkpoint:** AAPL quote acknowledged and active.
 
 ---
 
-## Exercise 3: Launch Bots for MSFT and TSLA
+## Exercise 3: Quote MSFT and TSLA
+
+Open one terminal per MM gateway:
 
 ```bash
-# Terminal 5
-pm-mm-bot --symbol MSFT --gap 0.20 --qty 300
-
-# Terminal 6
-pm-mm-bot --symbol TSLA --gap 0.50 --qty 200
+pm-gateway --id MM_MSFT_01
+pm-gateway --id MM_TSLA_01
 ```
 
-:material-checkbox-blank-outline: **Checkpoint:** all three bots report quoting state.
+Submit quotes:
+
+```
+MM_MSFT_01> QUOTE|SYM=MSFT|BID=419.90|ASK=420.10|BID_QTY=300|ASK_QTY=300|TIF=DAY|QUOTE_ID=MSFT-MM-001
+MM_TSLA_01> QUOTE|SYM=TSLA|BID=249.75|ASK=250.25|BID_QTY=200|ASK_QTY=200|TIF=DAY|QUOTE_ID=TSLA-MM-001
+```
+
+:material-checkbox-blank-outline: **Checkpoint:** all three market makers report active quotes.
 
 ---
 
@@ -99,46 +110,42 @@ TRADER01> BOOK|SYM=MSFT
 TRADER01> BOOK|SYM=TSLA
 ```
 
-:material-checkbox-blank-outline: **Checkpoint:** all three books show bid and ask prices.
+:material-checkbox-blank-outline: **Checkpoint:** all three books show two-sided liquidity.
 
 ---
 
-## Exercise 5: Understand the Gap Parameter
+## Exercise 5: Inspect Quote State with QLEGS
 
-The `--gap` controls the total spread:
+From each market-maker gateway, inspect quote legs:
 
-| Symbol | Gap | Tick | Bid | Ask |
-|--------|-----|------|-----|-----|
-| AAPL | 0.10 | 0.01 | mid − 0.05 | mid + 0.05 |
-| MSFT | 0.20 | 0.01 | mid − 0.10 | mid + 0.10 |
-| TSLA | 0.50 | 0.05 | mid − 0.25 | mid + 0.25 |
-
-Try stopping the AAPL bot (Ctrl+C) and restarting with a tighter gap:
-
-```bash
-pm-mm-bot --symbol AAPL --gap 0.04 --qty 500
+```
+MM_AAPL_01> QLEGS|SYM=AAPL|SHOW=ALL
+MM_MSFT_01> QLEGS|SYM=MSFT|SHOW=ALL
+MM_TSLA_01> QLEGS|SYM=TSLA|SHOW=ALL
 ```
 
-Check the book again — the spread should be narrower.
+`QLEGS` shows the bid and ask leg order IDs, prices, remaining quantities, and
+fill flags. This is the operator view that helps you reconcile fills.
 
-:material-checkbox-blank-outline: **Checkpoint:** you can see the gap reflected in the book.
+:material-checkbox-blank-outline: **Checkpoint:** QLEGS shows both quote legs for each symbol.
 
 ---
 
-## Exercise 6: Run Two Competing MMs on the Same Symbol
+## Exercise 6: Preview the Future Bot Workflow
 
-Launch a second AAPL bot with a different suffix:
+When `pm-mm-bot` is implemented, the manual quote sequence above will become:
 
 ```bash
-pm-mm-bot --symbol AAPL --gap 0.12 --qty 200 --id-suffix 02
+pm-mm-bot --symbol AAPL --gap 0.10 --qty 500
+pm-mm-bot --symbol MSFT --gap 0.20 --qty 300
+pm-mm-bot --symbol TSLA --gap 0.50 --qty 200
 ```
 
-!!! note
-    You must have `MM_AAPL_02` defined in `engine_config.yaml` first.
+The bot will connect as `MM_<SYMBOL>_01`, quote around the current mid-price,
+reissue after fills, and use `QBOOT`/`QLEGS`-style state to avoid startup
+deadlocks and reconcile quote legs.
 
-Check the book — you should see two bid levels and two ask levels.
-
-:material-checkbox-blank-outline: **Checkpoint:** BOOK shows multiple price levels from different MMs.
+:material-checkbox-blank-outline: **Checkpoint:** explain what the bot will automate compared with your manual `QUOTE` workflow.
 
 ---
 
@@ -147,7 +154,15 @@ Check the book — you should see two bid levels and two ask levels.
 You now have:
 
 - Market-maker gateways configured for all symbols.
-- `pm-mm-bot` providing continuous liquidity.
-- Understanding of `--gap`, `--qty`, and multiple competing MMs.
+- Manual `QUOTE` liquidity in AAPL, MSFT, and TSLA.
+- Familiarity with `QLEGS` as the quote-leg inspection tool.
+- A clear picture of what the planned `pm-mm-bot` will automate.
+
+## Further Reading
+
+- [Market Making](../user-guide/14-market-maker.md)
+- [Gateway Commands](../user-guide/08-gateway.md)
+- [ALF Protocol Reference](../user-guide/20-app-alf-protocol.md)
+- MM Bot design proposal: `docs-design/EduMatcher-MM-bots.md`
 
 **Next:** [03 — The First Trade](03-the-first-trade.md)

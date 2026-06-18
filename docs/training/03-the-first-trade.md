@@ -95,17 +95,18 @@ Both gateways receive fill notifications:
 
 ---
 
-## Exercise 5: Check Order Status
+## Exercise 5: Check Order State
 
-From TRADER01, check the status of the partially filled order:
+From TRADER01, inspect the partially filled order:
 
 ```
-TRADER01> STATUS|ORDER_ID=<order_id_from_exercise_3>
+TRADER01> ORDERS
 ```
 
-Expected: `qty=200, filled=50, remaining=150, status=PARTIAL`
+Expected: the order from Exercise 3 appears with filled and remaining quantity
+showing the partial fill.
 
-:material-checkbox-blank-outline: **Checkpoint:** STATUS shows partial fill correctly.
+:material-checkbox-blank-outline: **Checkpoint:** ORDERS shows partial fill state correctly.
 
 ---
 
@@ -131,7 +132,13 @@ mid if the trade moved the reference price).
 - **Limit orders** rest on the book until a matching counterparty arrives.
 - **Fills** generate fill messages to both buyer and seller.
 - **Partial fills** leave the remainder resting.
-- **Order IDs** are used for STATUS, AMEND, and CANCEL operations.
+- **Order IDs** are used for AMEND and CANCEL operations.
+
+## Further Reading
+
+- [Your First Trade](../concepts/04-concepts-first-trade.md)
+- [The Order Book](../concepts/01-concepts-order-book.md)
+- [Gateway Commands](../user-guide/08-gateway.md)
 
 ---
 

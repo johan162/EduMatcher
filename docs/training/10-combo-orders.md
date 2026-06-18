@@ -20,7 +20,7 @@ the danger of only one side of a spread filling.
 Buy AAPL and sell MSFT atomically:
 
 ```
-TRADER01> NEW|TYPE=COMBO|TIF=DAY|LEGS=BUY:AAPL:100:150.10,SELL:MSFT:50:420.50
+TRADER01> NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.10|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
 ```
 
 The engine tries to match both legs simultaneously. If both sides have
@@ -45,7 +45,7 @@ Check that you cannot get a partial combo (one leg filled, other not):
 ## Exercise 3: Cancel a Resting Combo
 
 ```
-TRADER01> CANCEL|ORDER_ID=<combo_order_id>
+TRADER01> CANCEL|COMBO_ID=PAIR-001
 ```
 
 All legs are cancelled together.
@@ -60,8 +60,7 @@ Link two independent orders so that when one fills or is cancelled, the other
 is automatically cancelled:
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=DAY|OCO_GROUP=oco1
-TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=148.00|TIF=DAY|OCO_GROUP=oco1
+TRADER01> NEW|TYPE=OCO|OCO_ID=OCO-AAPL-ENTRY|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=BUY|LEG1_TYPE=LIMIT|LEG1_PRICE=149.50|LEG2_SIDE=BUY|LEG2_TYPE=LIMIT|LEG2_PRICE=148.00
 ```
 
 When the first order fills (price drops to 149.50), the second order at 148.00
@@ -76,8 +75,7 @@ is automatically cancelled.
 A common pattern — bracket order (take-profit + stop-loss):
 
 ```
-TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=151.00|TIF=DAY|OCO_GROUP=bracket1
-TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP|QTY=100|STOP_PRICE=149.00|TIF=DAY|OCO_GROUP=bracket1
+TRADER01> NEW|TYPE=OCO|OCO_ID=BRACKET-AAPL-001|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=151.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=149.00
 ```
 
 If price rises to 151.00 (take-profit fills), the stop is cancelled.
@@ -95,6 +93,13 @@ If price drops to 149.00 (stop triggers and fills), the limit sell is cancelled.
 | Hedging (must have both sides or neither) | Combo |
 | Take-profit + stop-loss (only want one to execute) | OCO |
 | Multiple entries at different prices (only want one) | OCO |
+
+---
+
+## Further Reading
+
+- [Combo Orders](../user-guide/05-combos.md)
+- [ALF Protocol — OCO and Combo Orders](../user-guide/20-app-alf-protocol.md)
 
 ---
 

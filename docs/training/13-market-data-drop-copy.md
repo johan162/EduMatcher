@@ -2,116 +2,121 @@
 
 ## Objective
 
-Subscribe to real-time market data via the CALF protocol and set up a drop-copy
-feed for compliance/back-office purposes.
+Observe real-time market data with the current EduMatcher tools and understand
+where the engine's drop-copy feed fits into the architecture.
 
 ---
 
 ## Background
 
-EduMatcher publishes two data streams:
+EduMatcher publishes two event streams from `pm-engine`:
 
-- **PUB :5556** — primary market data (book updates, trades, session state).
-- **PUB :5557** — drop-copy feed (all fills for compliance/risk).
+- **PUB :5556** — primary market data: books, trades, session state, order events.
+- **PUB :5557** — drop-copy feed: per-participant fill events for risk,
+  compliance, and back-office consumers.
 
-The **CALF** (Common Application-Level Feed) protocol describes the message
-format on these streams.
+There is no separate `pm-drop-copy` process. The engine binds the drop-copy feed
+itself when it starts.
 
 ---
 
-## Exercise 1: Subscribe to Book Updates
+## Exercise 1: Open a Live Book Viewer
 
-Any ZMQ SUB client can subscribe to topics. Start a simple subscriber:
+Start a live viewer for AAPL:
 
 ```bash
-pm-market-data --topic book.AAPL
+pm-viewer --symbol AAPL --depth 10
 ```
 
-Or using the gateway:
+In a trader gateway, place or cancel a resting order and watch the viewer update:
 
 ```
-TRADER01> BOOK|SYM=AAPL
+TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.80|TIF=DAY
 ```
 
-As orders are placed and filled, you'll see bid/ask updates in real-time.
-
-:material-checkbox-blank-outline: **Checkpoint:** book updates stream in as trades occur.
+:material-checkbox-blank-outline: **Checkpoint:** `pm-viewer` changes when the book changes.
 
 ---
 
-## Exercise 2: Subscribe to Trade Events
+## Exercise 2: Run the Cross-Gateway Order Monitor
+
+Start the order monitor:
 
 ```bash
-pm-market-data --topic trade.executed
+pm-orders
 ```
 
-Every fill generates a `trade.executed` event with:
+Now place orders from both `TRADER01` and `TRADER02`. The monitor should show
+resting order state across gateways.
 
-- symbol, price, quantity
-- aggressor side
-- timestamp
-
-:material-checkbox-blank-outline: **Checkpoint:** trade events visible after executing trades.
+:material-checkbox-blank-outline: **Checkpoint:** `pm-orders` shows orders from multiple gateways.
 
 ---
 
-## Exercise 3: Subscribe to Session State
+## Exercise 3: Capture Events with pm-audit
+
+Start the audit logger in terminal mode:
 
 ```bash
-pm-market-data --topic session.state
+pm-audit --terminal
 ```
 
-You'll see session transitions as the scheduler drives them.
+Execute a trade:
 
-:material-checkbox-blank-outline: **Checkpoint:** session state changes visible on the feed.
+```
+TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+```
+
+Watch `pm-audit` print the resulting events. This is the easiest training-safe
+way to observe the event stream without writing a custom ZMQ subscriber.
+
+:material-checkbox-blank-outline: **Checkpoint:** audit output shows the trade/order lifecycle events.
 
 ---
 
-## Exercise 4: Start the Drop-Copy Feed
+## Exercise 4: Confirm the Drop-Copy Feed Is Bound
 
-The drop-copy is a secondary PUB socket on port 5557:
+Restart `pm-engine --verbose` and look for this startup line:
+
+```
+[ENGINE] Drop copy PUB bound on port 5557
+```
+
+That confirms the drop-copy publisher is active. It is intended for external
+risk/compliance subscribers and publishes topics such as
+`drop_copy.event.<gateway_id>`.
+
+:material-checkbox-blank-outline: **Checkpoint:** you can identify the drop-copy socket in engine startup output.
+
+---
+
+## Exercise 5: Compare Public Events and Drop-Copy Purpose
+
+Execute another trade and compare what each consumer is for:
+
+| Consumer | Source | Purpose |
+|----------|--------|---------|
+| `pm-viewer` | PUB :5556 | Human-readable book view |
+| `pm-orders` | PUB :5556 | Cross-gateway resting order monitor |
+| `pm-audit --terminal` | PUB :5556 | Full event stream for inspection/logging |
+| External drop-copy client | PUB :5557 | Per-participant fill feed for risk/compliance |
+
+:material-checkbox-blank-outline: **Checkpoint:** explain why drop-copy is separate from the public market-data stream.
+
+---
+
+## Exercise 6: Launch the Market Board
+
+Start the multi-symbol dashboard:
 
 ```bash
-pm-drop-copy
+pm-board --rows 8 --interval 10
 ```
 
-Subscribe to it separately — it mirrors all fill events for compliance recording:
+If `pm-stats` is running, `pm-board` combines live book state with recent OHLCV
+context from `stats.db`.
 
-```bash
-pm-market-data --port 5557 --topic order.fill
-```
-
-:material-checkbox-blank-outline: **Checkpoint:** drop-copy shows fills in parallel with primary feed.
-
----
-
-## Exercise 5: Compare Primary vs Drop-Copy
-
-Execute a trade and verify:
-
-1. The primary feed (:5556) shows the `trade.executed` event.
-2. The drop-copy feed (:5557) shows the `order.fill` events for both parties.
-
-The drop-copy includes gateway-specific information (which gateway was filled)
-that the public trade feed does not expose.
-
-:material-checkbox-blank-outline: **Checkpoint:** both feeds show the trade from different angles.
-
----
-
-## Exercise 6: Topic Filtering
-
-ZMQ SUB allows topic prefix filtering:
-
-| Subscribe to | Receives |
-|-------------|----------|
-| `book.AAPL` | Only AAPL book updates |
-| `book.` | All book updates (all symbols) |
-| `trade.` | All trade events |
-| `session.` | Session state changes |
-| `circuit_breaker.` | Halt/resume events |
-
-:material-checkbox-blank-outline: **Checkpoint:** you can selectively filter the feed.
+:material-checkbox-blank-outline: **Checkpoint:** board shows AAPL, MSFT, and TSLA in one view.
 
 ---
 
@@ -120,14 +125,18 @@ ZMQ SUB allows topic prefix filtering:
 ```mermaid
 flowchart LR
     E[pm-engine]
-    E -->|PUB :5556| MD[Market Data Subscribers]
-    E -->|PUB :5557| DC[Drop-Copy Subscribers]
-    MD --> G[Gateways]
-    MD --> S[pm-stats]
-    MD --> C[pm-clearing]
-    DC --> R[Risk / Compliance]
+    E -->|PUB :5556| V[pm-viewer / pm-orders / pm-audit / pm-stats]
+    E -->|PUB :5557| DC[external drop-copy consumers]
+    V --> B[pm-board / pm-ticker]
 ```
 
 ---
+
+## Further Reading
+
+- [Messages](../user-guide/09-messages.md)
+- [Drop Copy](../user-guide/13-drop-copy.md)
+- [Processes](../user-guide/10-processes.md)
+- [CALF Protocol Reference](../user-guide/22-app-calf-protocol.md)
 
 **Next:** [14 — AI Traders & Swarm](14-ai-traders.md)

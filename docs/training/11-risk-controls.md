@@ -161,4 +161,12 @@ GW_ADMIN> KILL|GATEWAY_ID=TRADER02|SYM=AAPL
 
 ---
 
+## Further Reading
+
+- [Risk Controls](../user-guide/12-risk-controls.md)
+- [Controlling the Exchange](../user-guide/02-commands.md)
+- [Drop Copy](../user-guide/13-drop-copy.md)
+
+---
+
 **Next:** [12 — P&L & Clearing](12-pnl-clearing.md)

@@ -128,7 +128,7 @@ The CSV can be imported into Excel or a Jupyter notebook for further analysis.
 
 ## Summary
 
-You've now covered all 15 training chapters. You can:
+You can now:
 
 - Configure and start the full exchange stack.
 - Provide liquidity with MM bots.
@@ -143,5 +143,10 @@ You've now covered all 15 training chapters. You can:
 - Generate realistic flow with AI traders.
 - Record and query statistics.
 
-**For reference:** see the [User Guide](../user-guide/00-getting-started.md)
-and [Glossary](../glossary.md).
+## Further Reading
+
+- [Statistics and Reporting](../user-guide/16-statistics-and-reporting.md)
+- [Processes](../user-guide/10-processes.md)
+- [Persistence](../user-guide/11-persistence.md)
+
+**Next:** [16 — Persistence & Recovery](16-persistence-recovery.md)

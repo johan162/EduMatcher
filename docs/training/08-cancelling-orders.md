@@ -2,7 +2,7 @@
 
 ## Objective
 
-Master the CANCEL, STATUS, and ORDERS commands for managing your resting orders
+Master the `CANCEL` and `ORDERS` commands for managing your resting orders
 and understanding the order lifecycle.
 
 ---
@@ -18,12 +18,12 @@ TRADER01> NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=248.00|TIF=DAY
 Note the `order_id`, then:
 
 ```
-TRADER01> CANCEL|ORDER_ID=<order_id>
+TRADER01> CANCEL|ID=<order_id>
 ```
 
 Expected: cancellation confirmed.
 
-:material-checkbox-blank-outline: **Checkpoint:** order cancelled; STATUS shows status=CANCELLED.
+:material-checkbox-blank-outline: **Checkpoint:** order cancelled; `ORDERS` no longer lists it as resting.
 
 ---
 
@@ -36,7 +36,7 @@ Expected: cancellation confirmed.
 
 2. After partial fill, cancel the remainder:
    ```
-   TRADER01> CANCEL|ORDER_ID=<order_id>
+   TRADER01> CANCEL|ID=<order_id>
    ```
 
 Expected: the unfilled portion is cancelled; the filled portion remains executed.
@@ -60,27 +60,27 @@ for every resting order belonging to your gateway.
 
 ---
 
-## Exercise 4: Check Specific Order Status
+## Exercise 4: Inspect Resting Order Details
 
 ```
-TRADER01> STATUS|ORDER_ID=<order_id>
+TRADER01> ORDERS
 ```
 
-The response includes:
+Find your order in the table. The response includes:
 
 - `symbol`, `side`, `type`, `price`, `qty`
 - `filled_qty`, `remaining_qty`
 - `status` (NEW, PARTIAL, FILLED, CANCELLED)
 - `tif`, timestamps
 
-:material-checkbox-blank-outline: **Checkpoint:** STATUS returns full order details.
+:material-checkbox-blank-outline: **Checkpoint:** `ORDERS` returns full details for each resting order.
 
 ---
 
 ## Exercise 5: Cancel a Non-Existent Order
 
 ```
-TRADER01> CANCEL|ORDER_ID=DOES_NOT_EXIST
+TRADER01> CANCEL|ID=DOES_NOT_EXIST
 ```
 
 Expected: rejection — order not found.
@@ -94,7 +94,7 @@ Expected: rejection — order not found.
 Try cancelling an order belonging to TRADER02:
 
 ```
-TRADER01> CANCEL|ORDER_ID=<trader02_order_id>
+TRADER01> CANCEL|ID=<trader02_order_id>
 ```
 
 Expected: rejection — you can only cancel your own orders.
@@ -134,6 +134,13 @@ stateDiagram-v2
     PARTIAL --> FILLED : remaining filled
     PARTIAL --> CANCELLED : cancel remainder
 ```
+
+---
+
+## Further Reading
+
+- [Gateway Commands](../user-guide/08-gateway.md)
+- [ALF Protocol — Cancellation Semantics](../user-guide/20-app-alf-protocol.md)
 
 ---
 

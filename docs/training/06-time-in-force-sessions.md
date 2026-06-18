@@ -135,4 +135,12 @@ OPENING_AUCTION phase.
 
 ---
 
+## Further Reading
+
+- [Auctions & Scheduling](../user-guide/06-auctions-scheduling.md)
+- [Persistence](../user-guide/11-persistence.md)
+- [A Full Trading Day](../concepts/05-concepts-trading-day.md)
+
+---
+
 **Next:** [07 — Auctions](07-auctions.md)

@@ -19,6 +19,7 @@ Commands
   AMEND|ID=ORD-xxxx|QTY=200
   AMEND|ID=ORD-xxxx|PRICE=151.00|QTY=200
   CANCEL|ID=ORD-xxxx
+    STATUS                 — print gateway/session summary
   ORDERS                 — print table of this session's orders
   HELP                   — show command reference
   EXIT / QUIT            — disconnect
@@ -124,6 +125,7 @@ _TOP_LEVEL_CMDS = [
     "KILL",
     "AMEND",
     "CANCEL",
+    "STATUS",
     "ORDERS",
     "POS",
     "SYMBOLS",
@@ -381,7 +383,8 @@ _HELP_TEXT = """
     QBOOT[|SYM=<sym>]               — request active quote bootstrap state from engine
         QLEGS[|SYM=<sym>][|SHOW=ACTIVE|RECENT|ALL]  — show MM quote legs and fill flags
     KILL[|SYM=<sym>]                — kill-switch cancel for this gateway
-  ORDERS      — show all outstanding orders for this gateway
+    STATUS      — show gateway/session summary (identity, symbols, order counts)
+    ORDERS      — inspect this gateway's order table with IDs, quantities, and status
   POS         — show current positions with P&L
   SYMBOLS     — list all active instruments in the engine
   HELP        — this message
@@ -1055,6 +1058,10 @@ class Gateway:
             self._running = False
             return
 
+        if cmd == "STATUS":
+            self._print_status()
+            return
+
         if cmd == "ORDERS":
             self._print_orders()
             return
@@ -1411,6 +1418,56 @@ class Gateway:
         )
 
         self.push_sock.send_multipart(make_combo_order_msg(combo.to_dict()))
+
+    # ------------------------------------------------------------------
+    # Gateway status summary
+    # ------------------------------------------------------------------
+
+    def _print_status(self) -> None:
+        status_counts: dict[str, int] = {}
+        for order in self.order_cache.values():
+            status = str(order.get("status", "UNKNOWN"))
+            status_counts[status] = status_counts.get(status, 0) + 1
+
+        active_orders = sum(
+            count
+            for status, count in status_counts.items()
+            if status in {"NEW", "PARTIAL", "PENDING"}
+        )
+        active_quote_legs = sum(
+            1
+            for leg in self.quote_leg_cache.values()
+            if self._is_active_leg_status(str(leg.get("status", "")))
+        )
+
+        table = Table(title=f"Gateway status — {self.gateway_id}", show_lines=True)
+        table.add_column("Field", style="bold")
+        table.add_column("Value")
+        table.add_row("Gateway ID", self.gateway_id)
+        table.add_row("Authenticated", "yes" if self._running else "no")
+        table.add_row(
+            "Known symbols",
+            ", ".join(self._known_symbols) if self._known_symbols else "—",
+        )
+        table.add_row("Cached orders", str(len(self.order_cache)))
+        table.add_row("Active/resting orders", str(active_orders))
+        table.add_row("Cached quote legs", str(len(self.quote_leg_cache)))
+        table.add_row("Active quote legs", str(active_quote_legs))
+        table.add_row(
+            "Position symbols",
+            ", ".join(sorted(self._positions)) if self._positions else "—",
+        )
+        if status_counts:
+            counts = ", ".join(
+                f"{status}={count}" for status, count in sorted(status_counts.items())
+            )
+        else:
+            counts = "—"
+        table.add_row("Order status counts", counts)
+        console.print(table)
+        console.print(
+            "[dim]Use ORDERS for detailed order inspection and POS for P&L.[/dim]"
+        )
 
     # ------------------------------------------------------------------
     # ORDERS table

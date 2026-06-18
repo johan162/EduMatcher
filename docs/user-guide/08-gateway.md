@@ -510,14 +510,32 @@ Cancelling a combo or OCO is atomic: all resting child legs are cancelled, but f
 
 
 
-### ORDERS — View This Session's Orders
+### STATUS — View Gateway Summary
+
+`STATUS` prints a quick local summary for the current gateway session.
+
+```
+STATUS
+```
+
+Use it when you want to confirm the gateway identity, known symbols, cached
+order counts by lifecycle state, cached quote legs, and position symbols without
+opening the full order table.
+
+!!! note "Order inspection is via ORDERS"
+    `STATUS` is a summary command. For detailed order inspection — full order
+    IDs, quantities, remaining quantity, price, TIF, and current status — use
+    `ORDERS`.
+
+### ORDERS — Inspect This Gateway's Orders
 
 ```
 ORDERS
 ```
 
 Prints a rich table of all **single-leg** orders submitted in this gateway session with
-current status, remaining quantity, and last update time.
+full order ID, current status, remaining quantity, and last update time. This is
+the primary command for order inspection inside `pm-gateway`.
 
 !!! note
     Combo orders are not shown in the `ORDERS` table. Their lifecycle is tracked
@@ -702,7 +720,7 @@ The gateway provides **context-aware tab completion**:
 
 | Position | Completions |
 |----------|-------------|
-| First word | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `QBOOT`, `KILL`, `ORDERS`, `POS`, `SYMBOLS`, `HELP`, `EXIT`, `QUIT` |
+| First word | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `QBOOT`, `KILL`, `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `HELP`, `EXIT`, `QUIT` |
 | After `NEW\|` | `SYM=`, `SIDE=`, `TYPE=`, `QTY=`, `PRICE=`, `STOP=`, `TRAIL=`, `TIF=`, `VISIBLE=`, `SMP=` |
 | After `NEW\|TYPE=COMBO\|` | `COMBO_ID=`, `COMBO_TYPE=`, `TIF=`, `LEG_COUNT=`, plus `LEG0.SYM=`, `LEG0.SIDE=`, etc. |
 | After `NEW\|TYPE=OCO\|` | `OCO_ID=`, `SYM=`, `QTY=`, `TIF=`, `LEG1_SIDE=`, `LEG1_TYPE=`, etc. |

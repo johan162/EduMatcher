@@ -165,7 +165,7 @@ You should see:
 TRADER01>
 ```
 
-Try typing `STATUS` — it should report no orders.
+Try typing `ORDERS` — it should report no resting orders for this gateway.
 
 :material-checkbox-blank-outline: **Checkpoint:** gateway prompt is interactive and connected.
 
@@ -217,4 +217,10 @@ You now have:
 - A running engine, scheduler, and at least one trader gateway.
 - Confirmation that all symbols accept orders.
 
-**Next:** [02 — Setting Up MM Bots](02-setting-up-MM-bots.md)
+## Further Reading
+
+- [Configuration](../user-guide/01-configuration.md)
+- [Running the Engine](../user-guide/03-running-the-engine.md)
+- [Gateway Commands](../user-guide/08-gateway.md)
+
+**Next:** [02 — Setting Up Market-Maker Liquidity](02-setting-up-MM-bots.md)
