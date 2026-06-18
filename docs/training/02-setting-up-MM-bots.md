@@ -3,8 +3,16 @@
 ## Objective
 
 Configure market-maker gateways and use manual `QUOTE` commands to provide
-two-sided liquidity for all three symbols. You will also see how the planned
-`pm-mm-bot` command will automate this workflow when it lands.
+two-sided liquidity for all three symbols. You will also compare this manual
+workflow with `pm-mm-bot`, which automates the same lifecycle.
+
+---
+
+## Prerequisites
+
+- Chapters 00–01 completed.
+- `pm-engine` and `pm-scheduler` running.
+- At least one trader gateway connected (for book checks).
 
 ---
 
@@ -13,11 +21,10 @@ two-sided liquidity for all three symbols. You will also see how the planned
 A market maker posts simultaneous buy (bid) and sell (ask) prices. Without one,
 the order book is empty and no trader can get an immediate fill.
 
-!!! note "Coming soon: pm-mm-bot"
-    `pm-mm-bot` is planned functionality, not a currently installed command.
-    The design lives in `docs-design/EduMatcher-MM-bots.md`.
-    In this chapter you perform the same work manually with `pm-gateway` and
-    `QUOTE` so the exercises are runnable today.
+!!! note "Manual first, automation second"
+  `pm-mm-bot` is available, but this chapter starts with manual
+  `pm-gateway` + `QUOTE` so you can see quote lifecycle and operator tools
+  directly before using automation.
 
 ---
 
@@ -131,9 +138,9 @@ fill flags. This is the operator view that helps you reconcile fills.
 
 ---
 
-## Exercise 6: Preview the Future Bot Workflow
+## Exercise 6: Run the Equivalent Bot Workflow (Optional)
 
-When `pm-mm-bot` is implemented, the manual quote sequence above will become:
+The manual quote sequence above can be automated with one bot per symbol:
 
 ```bash
 pm-mm-bot --symbol AAPL --gap 0.10 --qty 500
@@ -145,7 +152,7 @@ The bot will connect as `MM_<SYMBOL>_01`, quote around the current mid-price,
 reissue after fills, and use `QBOOT`/`QLEGS`-style state to avoid startup
 deadlocks and reconcile quote legs.
 
-:material-checkbox-blank-outline: **Checkpoint:** explain what the bot will automate compared with your manual `QUOTE` workflow.
+:material-checkbox-blank-outline: **Checkpoint:** explain what the bot automates compared with your manual `QUOTE` workflow.
 
 ---
 
@@ -156,7 +163,7 @@ You now have:
 - Market-maker gateways configured for all symbols.
 - Manual `QUOTE` liquidity in AAPL, MSFT, and TSLA.
 - Familiarity with `QLEGS` as the quote-leg inspection tool.
-- A clear picture of what the planned `pm-mm-bot` will automate.
+- A clear picture of what `pm-mm-bot` automates.
 
 ## Further Reading
 
@@ -164,6 +171,5 @@ You now have:
 - [Market-Maker Bot (pm-mm-bot)](../user-guide/17-mm-bot.md)
 - [Gateway Commands](../user-guide/08-gateway.md)
 - [ALF Protocol Reference](../user-guide/20-app-alf-protocol.md)
-- MM Bot design proposal: `docs-design/EduMatcher-MM-bots.md`
 
 **Next:** [03 — The First Trade](03-the-first-trade.md)

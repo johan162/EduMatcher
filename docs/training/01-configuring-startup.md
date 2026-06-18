@@ -174,8 +174,7 @@ Try typing `ORDERS` — it should report no resting orders for this gateway.
 ## Exercise 6: Verify the Setup
 
 From the gateway prompt, confirm the three symbols are available by attempting
-a dummy price check — the order won't go through but the rejection should name
-the symbol:
+a tiny limit order:
 
 ```
 TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=0.01|TIF=DAY

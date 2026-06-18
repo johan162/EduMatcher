@@ -7,6 +7,13 @@ demonstrations, classroom sessions, and stress testing.
 
 ---
 
+## Prerequisites
+
+- Chapters 01–13 completed.
+- Baseline liquidity available (manual MM gateways or `pm-mm-bot`).
+
+---
+
 ## Background
 
 EduMatcher ships with AI trader bots that simulate real market participants:
@@ -112,8 +119,8 @@ Your order interacts naturally with both MM quotes and AI trader orders.
 
 ## Exercise 6: Stop the AI Swarm
 
-Ctrl+C on the swarm process, or kill individual traders. The MM bots continue
-providing base liquidity.
+Ctrl+C on the swarm process, or kill individual traders. Your baseline
+liquidity providers (manual MM gateways or `pm-mm-bot`) continue running.
 
 :material-checkbox-blank-outline: **Checkpoint:** clean shutdown; books return to MM-only state.
 
@@ -134,6 +141,7 @@ providing base liquidity.
 - [Market-Maker Bot (pm-mm-bot)](../user-guide/17-mm-bot.md) — sibling automation tool for liquidity provision
 - [Developer AI Bot Traders](../developer/02-ai-bot.md)
 - [Risk Controls](../user-guide/12-risk-controls.md)
+- [Order Book Deep Dive](../concepts/02-concepts-order-book-deep-dive.md)
 
 ---
 

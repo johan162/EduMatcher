@@ -7,6 +7,13 @@ state across restart scenarios.
 
 ---
 
+## Prerequisites
+
+- Chapters 01–15 completed.
+- Consistent `EDUMATCHER_DATA_DIR` configured for all processes.
+
+---
+
 ## Background
 
 EduMatcher stores persistent runtime data under `EDUMATCHER_DATA_DIR`. Common
@@ -134,5 +141,6 @@ You now understand:
 - [Persistence](../user-guide/11-persistence.md)
 - [Statistics and Reporting](../user-guide/16-statistics-and-reporting.md)
 - [Processes](../user-guide/10-processes.md)
+- [A Full Trading Day](../concepts/05-concepts-trading-day.md)
 
 **Next:** [17 — Capstone Scenario](17-capstone-scenario.md)

@@ -7,6 +7,13 @@ Other) linked orders.
 
 ---
 
+## Prerequisites
+
+- Chapters 01–09 completed.
+- Two trader gateways connected so you can stage opposing liquidity.
+
+---
+
 ## Background
 
 A **combo order** bundles two or more legs (different symbols or sides) into a

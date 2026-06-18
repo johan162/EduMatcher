@@ -9,7 +9,8 @@ understand how amendments affect queue priority.
 
 ## Prerequisites
 
-- Exchange running with MM bots from previous chapters.
+- Exchange running with two-sided liquidity from previous chapters
+    (manual MM gateways or `pm-mm-bot`).
 - `TRADER01` connected with at least one resting limit order.
 
 ---

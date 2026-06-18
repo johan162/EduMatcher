@@ -7,6 +7,13 @@ trade history for analysis and reporting.
 
 ---
 
+## Prerequisites
+
+- Chapters 01–14 completed.
+- `pm-stats` running and at least a few trades executed.
+
+---
+
 ## Background
 
 `pm-stats` subscribes to trade and book events and records them in a SQLite
@@ -131,7 +138,7 @@ The CSV can be imported into Excel or a Jupyter notebook for further analysis.
 You can now:
 
 - Configure and start the full exchange stack.
-- Provide liquidity with MM bots.
+- Provide liquidity with manual MM quotes or `pm-mm-bot`.
 - Trade using all order types and TIF values.
 - Manage orders (amend, cancel, status).
 - Run auctions and understand equilibrium pricing.
@@ -148,5 +155,6 @@ You can now:
 - [Statistics and Reporting](../user-guide/16-statistics-and-reporting.md)
 - [Processes](../user-guide/10-processes.md)
 - [Persistence](../user-guide/11-persistence.md)
+- [Market Data Feed](../concepts/06-concepts-market-data-feed.md)
 
 **Next:** [16 — Persistence & Recovery](16-persistence-recovery.md)

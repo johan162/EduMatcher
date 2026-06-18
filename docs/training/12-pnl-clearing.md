@@ -7,6 +7,13 @@ cost, and reports realized and unrealized P&L per trader per symbol.
 
 ---
 
+## Prerequisites
+
+- Chapters 01–11 completed.
+- Live trading activity available (manual trading, AI traders, or both).
+
+---
+
 ## Background
 
 `pm-clearing` subscribes to all `trade.executed` events and maintains:
@@ -131,6 +138,7 @@ tracking in the clearing output.
 - [P&L & Clearing](../user-guide/07-pnl-clearing.md)
 - [Messages](../user-guide/09-messages.md)
 - [Statistics and Reporting](../user-guide/16-statistics-and-reporting.md)
+- [Your First Trade](../concepts/04-concepts-first-trade.md)
 
 ---
 

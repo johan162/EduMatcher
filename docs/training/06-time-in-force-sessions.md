@@ -7,6 +7,13 @@ and how to use the scheduler to drive the exchange through a full trading day.
 
 ---
 
+## Prerequisites
+
+- Chapters 01–05 completed.
+- `pm-engine`, `pm-scheduler`, and at least one trader gateway running.
+
+---
+
 ## Background
 
 Session phases progress as:

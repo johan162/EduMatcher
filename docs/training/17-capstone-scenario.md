@@ -7,6 +7,13 @@ trading, risk controls, clearing, market data, persistence, and reporting.
 
 ---
 
+## Prerequisites
+
+- Chapters 01–16 completed.
+- Ability to run multiple terminals/processes simultaneously.
+
+---
+
 ## Scenario
 
 You are running a classroom exchange with three symbols (`AAPL`, `MSFT`, `TSLA`),
@@ -184,6 +191,7 @@ Answer these without looking at earlier chapters:
 - [Architecture Overview](../architecture/01-architecture.md)
 - [Glossary](../glossary.md)
 - [Exchange Observer Processes](18-exchange-observer-processes.md)
+- [Order Book Deep Dive](../concepts/02-concepts-order-book-deep-dive.md)
 
 You have completed the capstone. Finish with
 [18 — Exchange Observer Processes](18-exchange-observer-processes.md) to compare

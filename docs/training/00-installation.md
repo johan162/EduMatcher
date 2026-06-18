@@ -8,7 +8,7 @@ data directories, and use the `pm-setup` helper to bootstrap your workspace.
 
 ---
 
-## Exercise 0: Read the [How an Exchange Works](../../how-exchange-works)
+## Exercise 0: Read the [How an Exchange Works](../how-exchange-works.md)
 
 This is not strictly required, but it will give you a solid mental model of the core components and data flows in an exchange. It will make the training exercises more intuitive and meaningful. This is especially recommended if you are new to how exchanges operate under the hood or lack a financial background.
 
@@ -156,15 +156,15 @@ pm-scheduler --help
 pm-gateway --help
 pm-setup --help
 pm-config-gen --help
+pm-mm-bot --help
 ```
 
 Each should print usage information without errors.
 
-!!! note "Coming soon: pm-mm-bot"
-    `pm-mm-bot` is planned market-maker automation described in
-    `docs-design/EduMatcher-MM-bots.md`. It is not
-    part of the installed command set yet, so this training uses manual market
-    maker quotes until that feature lands.
+!!! note "pm-mm-bot is available"
+    `pm-mm-bot` is included in the installed command set. Chapter 02 starts
+    with manual market-maker quotes so you understand quote mechanics first,
+    then introduces equivalent bot-based workflow.
 
 :material-checkbox-blank-outline: **Checkpoint:** all commands respond to `--help`.
 

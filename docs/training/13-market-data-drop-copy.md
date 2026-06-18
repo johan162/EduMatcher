@@ -7,6 +7,13 @@ where the engine's drop-copy feed fits into the architecture.
 
 ---
 
+## Prerequisites
+
+- Chapters 01–12 completed.
+- Engine and at least one trader gateway active so events are visible.
+
+---
+
 ## Background
 
 EduMatcher publishes two event streams from `pm-engine`:
@@ -138,6 +145,7 @@ flowchart LR
 - [Drop Copy](../user-guide/13-drop-copy.md)
 - [Processes](../user-guide/10-processes.md)
 - [CALF Protocol Reference](../user-guide/22-app-calf-protocol.md)
+- [Market Data Feed](../concepts/06-concepts-market-data-feed.md)
 
 **Next:** [14 — AI Traders & Swarm](14-ai-traders.md)
 

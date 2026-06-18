@@ -8,6 +8,13 @@ breakers, symbol halts, and the kill switch. You will use both the interactive
 
 ---
 
+## Prerequisites
+
+- Chapters 01–10 completed.
+- `GW_ADMIN` configured with `role: ADMIN` and connected.
+
+---
+
 ## Background
 
 Risk controls prevent erroneous or manipulative orders from distorting the market:
@@ -260,6 +267,7 @@ pm-admin-cli --id GW_ADMIN kill --gw TRADER02 --sym AAPL
 - [Controlling the Exchange](../user-guide/02-commands.md)
 - [Processes](../user-guide/10-processes.md)
 - [Drop Copy](../user-guide/13-drop-copy.md)
+- [A Full Trading Day](../concepts/05-concepts-trading-day.md)
 
 ---
 

@@ -5,7 +5,7 @@ takes you from a cold start to confidently operating every major feature of the
 exchange.
 
 If you are new to finance we strongly recommend you start by 
-reading the [How an Exchange Works](../how-exchange-works) which is 
+reading the [How an Exchange Works](../how-exchange-works.md) which is 
 a non-technical introduction to the core components and data flows in an exchange. 
 It will make the training exercises more intuitive and meaningful.
 
@@ -40,7 +40,7 @@ later chapters build on configuration and positions established in earlier ones.
 |---|---------|--------|
 | 00 | [Installation & Setup](00-installation.md) | PyPI install, pm-setup, environment variables, data directory |
 | 01 | [Configuring & Starting Up](01-configuring-startup.md) | engine_config.yaml, symbols, gateways, starting pm-engine & pm-scheduler |
-| 02 | [Setting Up Market-Maker Liquidity](02-setting-up-MM-bots.md) | Market-maker role, manual quotes, QLEGS, planned pm-mm-bot workflow |
+| 02 | [Setting Up Market-Maker Liquidity](02-setting-up-MM-bots.md) | Market-maker role, manual quotes, QLEGS, and pm-mm-bot workflow |
 | 03 | [The First Trade](03-the-first-trade.md) | BUY/SELL limit orders, fills, order book basics |
 | 04 | [Amending Orders](04-amending-orders.md) | AMEND command, price/qty changes, priority rules |
 | 05 | [Order Types Deep Dive](05-order-types.md) | MARKET, STOP, FOK, IOC, ICEBERG, TRAILING_STOP |
@@ -57,6 +57,9 @@ later chapters build on configuration and positions established in earlier ones.
 | 16 | [Persistence & Recovery](16-persistence-recovery.md) | data directory, GTC persistence, stats.db, audit logs |
 | 17 | [Capstone Scenario](17-capstone-scenario.md) | full exchange session combining all major features |
 | 18 | [Exchange Observer Processes](18-exchange-observer-processes.md) | pm-viewer, pm-board, pm-ticker, pm-orders, pm-audit, pm-stats, pm-clearing |
+| 19 | [Advanced Admin Operations](19-advanced-admin-operations.md) | kick, qcancel, cancel-sym, session overrides, verification patterns |
+| 20 | [Drop-Copy Replay & Recovery Patterns](20-drop-copy-replay-recovery.md) | sequence-gap detection, replay limits, operational recovery workflow |
+| 21 | [Automation with CommandClient & MM Bot Tuning](21-automation-commandclient-mm-bot.md) | Python automation flows, admin orchestration, advanced pm-mm-bot runtime tuning |
 
 ---
 

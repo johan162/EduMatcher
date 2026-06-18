@@ -7,6 +7,13 @@ observe how auction orders are collected and matched in a single uncrossing even
 
 ---
 
+## Prerequisites
+
+- Chapters 01–06 completed.
+- Scheduler control available so you can observe auction phases.
+
+---
+
 ## Background
 
 Auctions concentrate liquidity at a single price. All orders are collected

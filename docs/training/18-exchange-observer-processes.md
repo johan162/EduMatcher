@@ -251,5 +251,6 @@ you need for the lesson or scenario you are running.
 - [Messages](../user-guide/09-messages.md)
 - [Market Data & Drop Copy](13-market-data-drop-copy.md)
 - [Statistics & Reporting](15-statistics-reporting.md)
+- [Market Data Feed](../concepts/06-concepts-market-data-feed.md)
 
-You have completed the observer-process chapter.
+**Next:** [19 - Advanced Admin Operations](19-advanced-admin-operations.md)

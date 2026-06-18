@@ -10,7 +10,8 @@ lifecycle.
 
 ## Prerequisites
 
-- Engine, scheduler, and MM bots running from chapters 01–02.
+- Engine and scheduler running from chapters 01–02.
+- MM liquidity running from chapter 02 (manual MM gateways or `pm-mm-bot`).
 - `TRADER01` gateway connected.
 - One spare terminal for the clearing process.
 
@@ -135,12 +136,10 @@ showing the partial fill.
 **Optional:** If you have `pm-viewer` running on AAPL, you should see the bid size drop from 200 to 150 after the fill.
 
 
-**Exercise 7: Observe the MM Bot Re-quoting** Only applies after the MM Bot has been implemented! 
+## Exercise 7 (Optional): Observe Automatic Re-Quoting with pm-mm-bot
 
-## Exercise 7: Observe the MM Bot Re-quoting
-
-After your market order in Exercise 2 lifted the MM's ask, the MM bot
-automatically re-quoted. Run BOOK again:
+If you are running `pm-mm-bot` for AAPL (instead of manual quoting), your
+market order in Exercise 2 should trigger automatic re-quoting. Run BOOK again:
 
 ```
 TRADER01> BOOK|SYM=AAPL

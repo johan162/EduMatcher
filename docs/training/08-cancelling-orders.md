@@ -7,6 +7,13 @@ state, inspecting resting orders, and managing the order lifecycle.
 
 ---
 
+## Prerequisites
+
+- Chapters 01–07 completed.
+- At least one connected trader gateway with resting orders to manage.
+
+---
+
 ## Exercise 1: Cancel a Resting Order
 
 Place an order and then cancel it:

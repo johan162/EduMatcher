@@ -7,6 +7,13 @@ IOC, ICEBERG, and TRAILING_STOP — through practical exercises.
 
 ---
 
+## Prerequisites
+
+- Chapters 01–04 completed.
+- At least one trader gateway connected with active MM liquidity.
+
+---
+
 ## Exercise 1: Stop Order
 
 A stop order becomes a market order when the trigger price is reached.
