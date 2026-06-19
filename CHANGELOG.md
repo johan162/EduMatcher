@@ -1,3 +1,22 @@
+## [v0.6.1] - 2026-06-19
+
+Release Type: patch
+
+### 📋 Summary
+This patch release adds a dedicated PDF pipeline for the Training Guide and aligns the training LaTeX templates with a single chapter-level TOC and training-specific cover output. It also updates release packaging to include training PDF artifacts.
+
+### ✨ Additions
+- Added a dedicated `training-pdf` Make target that builds all four Training Guide PDF variants into `docs/dist`
+- Added release packaging updates so the Training Guide PDF bundle is included in GitHub release artifacts
+
+### 📚 Documentation
+- Updated and refined training chapters with improved user-guide cross-links and consistency updates
+
+### 🛠 Internal
+- Added a dedicated performance test Make target for easier benchmarking workflows
+- Updated CI workflows to remain Node 24 compatible for artifact handling
+
+
 ## [v0.6.0] - 2026-06-19
 
 Release Type: minor
