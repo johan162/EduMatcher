@@ -135,6 +135,7 @@ nav:
     - "19 — Advanced Admin Operations": training/19-advanced-admin-operations.md
     - "20 — Drop-Copy Replay & Recovery Patterns": training/20-drop-copy-replay-recovery.md
     - "21 — Automation with CommandClient & MM Bot Tuning": training/21-automation-commandclient-mm-bot.md
+    - "22 — RALF Post-Trade Gateway Protocol": training/22-ralf.md
   - Architecture: 
     - Overview: architecture/01-architecture.md
     - Detailed Walkthrough: architecture/02-architecture-guide.md
