@@ -60,6 +60,7 @@ later chapters build on configuration and positions established in earlier ones.
 | 19 | [Advanced Admin Operations](19-advanced-admin-operations.md) | kick, qcancel, cancel-sym, session overrides, verification patterns |
 | 20 | [Drop-Copy Replay & Recovery Patterns](20-drop-copy-replay-recovery.md) | sequence-gap detection, replay limits, operational recovery workflow |
 | 21 | [Automation with CommandClient & MM Bot Tuning](21-automation-commandclient-mm-bot.md) | Python automation flows, admin orchestration, advanced pm-mm-bot runtime tuning |
+| 22 | [RALF Post-Trade Gateway Protocol](22-ralf.md) | pm-ralf-gwy, RALF handshake/subscriptions, role-based consumers, replay and recovery |
 
 ---
 
@@ -92,6 +93,7 @@ training chapter.
 | 19 | [ADMIN console (pm-admin)](../user-guide/02-commands.md#admin-console-pm-admin), [CLI tool (pm-admin-cli)](../user-guide/02-commands.md#cli-tool-pm-admin-cli) |
 | 20 | [Replay](../user-guide/13-drop-copy.md#replay), [Sequence and recovery semantics](../user-guide/22-app-calf-protocol.md#sequence-and-recovery-semantics) |
 | 21 | [ExchangeCommandClient](../user-guide/02-commands.md#exchangecommandclient), [CLI reference (pm-mm-bot)](../user-guide/17-mm-bot.md#cli-reference) |
+| 22 | [Post-Trade Dissemination (RALF)](../user-guide/18-post-trade.md), [Appendix: RALF Protocol Reference](../user-guide/23-app-ralf-protocol.md) |
 
 ---
 
