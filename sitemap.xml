@@ -185,6 +185,10 @@
          <lastmod>2026-06-19</lastmod>
     </url>
     <url>
+         <loc>https://github.com/johan162/EduMatcher/training/22-ralf/</loc>
+         <lastmod>2026-06-19</lastmod>
+    </url>
+    <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/00-getting-started/</loc>
          <lastmod>2026-06-19</lastmod>
     </url>
@@ -257,6 +261,10 @@
          <lastmod>2026-06-19</lastmod>
     </url>
     <url>
+         <loc>https://github.com/johan162/EduMatcher/user-guide/18-post-trade/</loc>
+         <lastmod>2026-06-19</lastmod>
+    </url>
+    <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/20-app-alf-protocol/</loc>
          <lastmod>2026-06-19</lastmod>
     </url>
@@ -266,6 +274,10 @@
     </url>
     <url>
          <loc>https://github.com/johan162/EduMatcher/user-guide/22-app-calf-protocol/</loc>
+         <lastmod>2026-06-19</lastmod>
+    </url>
+    <url>
+         <loc>https://github.com/johan162/EduMatcher/user-guide/23-app-ralf-protocol/</loc>
          <lastmod>2026-06-19</lastmod>
     </url>
 </urlset>

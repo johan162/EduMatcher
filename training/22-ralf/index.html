@@ -12,13 +12,13 @@
         <meta name="author" content="Johan Persson <johan162@gmail.com>">
       
       
-        <link rel="canonical" href="https://github.com/johan162/EduMatcher/training/19-advanced-admin-operations/">
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/training/22-ralf/">
       
       
-        <link rel="prev" href="../18-exchange-observer-processes/">
+        <link rel="prev" href="../21-automation-commandclient-mm-bot/">
       
       
-        <link rel="next" href="../20-drop-copy-replay-recovery/">
+        <link rel="next" href="../../architecture/01-architecture/">
       
       
         
@@ -29,7 +29,7 @@
     
     
       
-        <title>19 — Advanced Admin Operations - EduMatcher — Educational Trading System</title>
+        <title>22 — RALF Post-Trade Gateway Protocol - EduMatcher — Educational Trading System</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#advanced-admin-operations" class="md-skip">
+        <a href="#ralf-post-trade-gateway-protocol-training" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              19 — Advanced Admin Operations
+              22 — RALF Post-Trade Gateway Protocol
             
           </span>
         </div>
@@ -2055,37 +2055,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    19 — Advanced Admin Operations
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../19-advanced-admin-operations/" class="md-nav__link">
         
   
   
@@ -2101,136 +2074,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#objective" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Objective
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#prerequisites" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Prerequisites
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#background" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Background
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-1-disconnect-a-gateway-with-kick" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 1: Disconnect a Gateway with KICK
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-2-cancel-one-mm-quote-with-qcancel" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 2: Cancel One MM Quote with QCANCEL
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-3-clear-one-symbol-book-with-cancel_sym" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 3: Clear One Symbol Book with CANCEL_SYM
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-4-force-session-state-for-controlled-drills" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 4: Force Session State for Controlled Drills
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exercise-5-run-an-incident-micro-runbook" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 5: Run an Incident Micro-Runbook
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#summary" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Summary
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#further-reading" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Further Reading
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -2296,10 +2139,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../22-ralf/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    22 — RALF Post-Trade Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -2315,6 +2185,169 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#objective" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Objective
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#background" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Background
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-1-prepare-a-config-that-enables-ralf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 1: Prepare a Config That Enables RALF
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-2-use-the-python-example-as-a-clearing-consumer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 2: Use the Python Example as a CLEARING Consumer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-3-use-the-c-example-as-a-drop_copy-consumer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 3: Use the C Example as a DROP_COPY Consumer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-4-run-an-audit-session-and-compare-view-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 4: Run an AUDIT Session and Compare View Semantics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-5-protocol-control-messages-ping-unsub-exit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 5: Protocol Control Messages (PING, UNSUB, EXIT)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-6-replay-and-recovery-with-lastseq" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 6: Replay and Recovery with LASTSEQ
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-7-error-conditions-and-operational-interpretation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 7: Error Conditions and Operational Interpretation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#suggested-lab-pattern-for-the-three-external-parties" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Suggested Lab Pattern for the Three External Parties
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#further-reading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Further Reading
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -2691,129 +2724,201 @@
   
 
 
-<h1 id="advanced-admin-operations">Advanced Admin Operations<a class="headerlink" href="#advanced-admin-operations" title="Permanent link">&para;</a></h1>
+<h1 id="ralf-post-trade-gateway-protocol-training">RALF Post-Trade Gateway Protocol Training<a class="headerlink" href="#ralf-post-trade-gateway-protocol-training" title="Permanent link">&para;</a></h1>
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
-<p>Practice advanced exchange-operator controls that are documented but were not
-covered in earlier training chapters: <code>KICK</code>, <code>QCANCEL</code>, <code>CANCEL_SYM</code>, and
-manual session overrides via <code>SESSION|STATE=...</code>.</p>
+<p>Train on end-to-end usage of the RALF protocol through pm-ralf-gwy using the
+example parser/subscriber libraries for the three main external party roles:</p>
+<ul>
+<li>CLEARING</li>
+<li>DROP_COPY</li>
+<li>AUDIT</li>
+</ul>
+<p>You will practice connection, subscription, live event handling, heartbeats,
+replay checkpoints, and recovery/error behavior.</p>
 <hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Chapters 01-18 completed.</li>
-<li><code>GW_ADMIN</code> configured with <code>role: ADMIN</code>.</li>
-<li>Engine and at least one trader and one MM gateway connected.</li>
+<li>Chapters 01-21 completed.</li>
+<li>Engine running and producing trades.</li>
+<li>pm-ralf-gwy running and reachable on TCP (default 5580).</li>
+<li>Example files available in docs-design/examples/ralf.</li>
 </ul>
+<p>Recommended startup terminals:</p>
+<ol>
+<li>Engine: pm-engine --verbose</li>
+<li>RALF gateway: pm-ralf-gwy</li>
+<li>One or more client terminals for subscriber exercises</li>
+</ol>
 <hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
-<p>Earlier risk-control exercises focused on halt/resume and kill switch. In live
-operations, admins also need targeted controls for:</p>
+<p>RALF is a line-oriented protocol over TCP used for post-trade dissemination.
+Clients connect to pm-ralf-gwy, perform HELLO and SUB, then consume events.</p>
+<p>In this chapter, the most important operational ideas are:</p>
 <ul>
-<li>Disconnecting a specific participant (<code>KICK</code>).</li>
-<li>Cancelling one MM quote on one symbol without killing the whole gateway (<code>QCANCEL</code>).</li>
-<li>Clearing one symbol's resting book across all gateways (<code>CANCEL_SYM</code>).</li>
-<li>Forcing session state for controlled drills (<code>SESSION|STATE=...</code>).</li>
-</ul>
-<p>These controls exist in both:</p>
-<ul>
-<li>Interactive admin console (<code>pm-admin</code> / ALF commands).</li>
-<li>One-shot scripting CLI (<code>pm-admin-cli</code>).</li>
+<li>Session establishment with HELLO and WELCOME</li>
+<li>Channel and symbol subscription with SUB and UNSUB</li>
+<li>Liveness with HB and PING/PONG</li>
+<li>Replay with LASTSEQ and REPLAY_MISS handling</li>
+<li>Role/channel design for different external consumers</li>
 </ul>
 <hr />
-<h2 id="exercise-1-disconnect-a-gateway-with-kick">Exercise 1: Disconnect a Gateway with KICK<a class="headerlink" href="#exercise-1-disconnect-a-gateway-with-kick" title="Permanent link">&para;</a></h2>
-<p>From admin console:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[GW_ADMIN|ADMIN]&gt; KICK|GW=TRADER02|REASON=Training_disconnect_check
+<h2 id="exercise-1-prepare-a-config-that-enables-ralf">Exercise 1: Prepare a Config That Enables RALF<a class="headerlink" href="#exercise-1-prepare-a-config-that-enables-ralf" title="Permanent link">&para;</a></h2>
+<p>Generate engine_config.yaml with a post_trade_gateway section:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span>--post-trade-gateway<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span>--post-trade-bind-address<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span>--post-trade-port<span class="w"> </span><span class="m">5580</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">  </span>--post-trade-allowed-roles<span class="w"> </span>CLEARING<span class="w"> </span>DROP_COPY<span class="w"> </span>AUDIT<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
-<p>Or with CLI:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>kick<span class="w"> </span>--gw<span class="w"> </span>TRADER02<span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;Training disconnect check&quot;</span>
+<p>Start or restart processes with that config:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-engine<span class="w"> </span>--verbose<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pm-ralf-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
 </code></pre></div>
-<p>Verification:</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: gateway starts and listens on the configured port.</p>
+<hr />
+<h2 id="exercise-2-use-the-python-example-as-a-clearing-consumer">Exercise 2: Use the Python Example as a CLEARING Consumer<a class="headerlink" href="#exercise-2-use-the-python-example-as-a-clearing-consumer" title="Permanent link">&para;</a></h2>
+<p>From the example directory:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>docs-design/examples/ralf
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>python3<span class="w"> </span>ralf_subscriber.py<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span>--port<span class="w"> </span><span class="m">5580</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span>--role<span class="w"> </span>CLEARING<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">  </span>--channels<span class="w"> </span>CLEARING<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">  </span>--symbols<span class="w"> </span><span class="s1">&#39;*&#39;</span>
+</code></pre></div>
+<p>Observe:</p>
+<ul>
+<li>WELCOME line parsed by the Python library</li>
+<li>subscription acknowledgment flow</li>
+<li>incoming EXEC and EOD messages for CLEARING</li>
+</ul>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: subscriber prints parsed EXEC events with expected symbols and sequence values.</p>
+<hr />
+<h2 id="exercise-3-use-the-c-example-as-a-drop_copy-consumer">Exercise 3: Use the C Example as a DROP_COPY Consumer<a class="headerlink" href="#exercise-3-use-the-c-example-as-a-drop_copy-consumer" title="Permanent link">&para;</a></h2>
+<p>Build and run the C subscriber:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">cd</span><span class="w"> </span>docs-design/examples/ralf
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>make
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>./ralf_subscriber<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5580</span><span class="w"> </span>DROP_COPY
+</code></pre></div>
+<p>Observe in output:</p>
+<ul>
+<li>WELCOME fields</li>
+<li>SUB flow</li>
+<li>MSG lines for live traffic</li>
+</ul>
+<p>Even though the example subscribes broadly for demonstration, run it with a
+DROP_COPY role argument and validate that role is accepted.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: C subscriber connects, parses, and prints live RALF events.</p>
+<hr />
+<h2 id="exercise-4-run-an-audit-session-and-compare-view-semantics">Exercise 4: Run an AUDIT Session and Compare View Semantics<a class="headerlink" href="#exercise-4-run-an-audit-session-and-compare-view-semantics" title="Permanent link">&para;</a></h2>
+<p>Run another Python subscriber in a second client terminal:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>python3<span class="w"> </span>docs-design/examples/ralf/ralf_subscriber.py<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>--port<span class="w"> </span><span class="m">5580</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span>--role<span class="w"> </span>AUDIT<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span>--channels<span class="w"> </span>AUDIT<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span>--symbols<span class="w"> </span><span class="s1">&#39;*&#39;</span>
+</code></pre></div>
+<p>Compare outputs across CLEARING, DROP_COPY, and AUDIT clients while generating
+new trades.</p>
+<p>Discussion points:</p>
+<ul>
+<li>channel identifiers in CH</li>
+<li>sequence progression</li>
+<li>symbol filtering behavior</li>
+</ul>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain why separate external roles may consume different channel sets.</p>
+<hr />
+<h2 id="exercise-5-protocol-control-messages-ping-unsub-exit">Exercise 5: Protocol Control Messages (PING, UNSUB, EXIT)<a class="headerlink" href="#exercise-5-protocol-control-messages-ping-unsub-exit" title="Permanent link">&para;</a></h2>
+<p>Use netcat or telnet for manual control-message testing:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5580</span>
+</code></pre></div>
+<p>Then send lines:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>HELLO|CLIENT=manual01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>SUB|CH=CLEARING|SYM=*
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>PING
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>UNSUB|CH=CLEARING|SYM=AAPL
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>EXIT
+</code></pre></div>
+<p>Expected behavior:</p>
+<ul>
+<li>PING yields PONG</li>
+<li>UNSUB updates delivery set</li>
+<li>EXIT closes session cleanly</li>
+</ul>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can manually drive and verify protocol control flow.</p>
+<hr />
+<h2 id="exercise-6-replay-and-recovery-with-lastseq">Exercise 6: Replay and Recovery with LASTSEQ<a class="headerlink" href="#exercise-6-replay-and-recovery-with-lastseq" title="Permanent link">&para;</a></h2>
 <ol>
-<li>In the <code>TRADER02</code> terminal, confirm disconnect occurred.</li>
-<li>Reconnect:</li>
+<li>Start a subscriber and note the highest SEQ seen.</li>
+<li>Disconnect client.</li>
+<li>Generate additional trades.</li>
+<li>Reconnect with LASTSEQ set to the saved sequence:</li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER02
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>HELLO|CLIENT=replay01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=&lt;saved_seq&gt;
 </code></pre></div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> gateway is disconnected and can reconnect cleanly.</p>
+<p>Observe replay behavior:</p>
+<ul>
+<li>replayed EXEC/EOD events for SEQ greater than LASTSEQ when retained</li>
+<li>REPLAY_MISS plus SNAP baseline when outside retention window</li>
+</ul>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can describe the recovery path for both replay-hit and replay-miss cases.</p>
 <hr />
-<h2 id="exercise-2-cancel-one-mm-quote-with-qcancel">Exercise 2: Cancel One MM Quote with QCANCEL<a class="headerlink" href="#exercise-2-cancel-one-mm-quote-with-qcancel" title="Permanent link">&para;</a></h2>
-<p>First ensure an MM has an active quote on AAPL.</p>
-<p>From admin console:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[GW_ADMIN|ADMIN]&gt; QCANCEL|GW=MM_AAPL_01|SYM=AAPL
+<h2 id="exercise-7-error-conditions-and-operational-interpretation">Exercise 7: Error Conditions and Operational Interpretation<a class="headerlink" href="#exercise-7-error-conditions-and-operational-interpretation" title="Permanent link">&para;</a></h2>
+<p>Test typical protocol errors with malformed lines:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>SUB|CH=CLEARING|SYM=*                (before HELLO)
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>HELLO|CLIENT=x|PROTO=RALF1           (missing ROLE)
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>HELLO|CLIENT=x|PROTO=RALF1|ROLE=BAD
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>SUB|CH=UNKNOWN|SYM=*
 </code></pre></div>
-<p>Or with CLI:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>qcancel<span class="w"> </span>--gw<span class="w"> </span>MM_AAPL_01<span class="w"> </span>--sym<span class="w"> </span>AAPL
-</code></pre></div>
-<p>Verify from MM gateway:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>MM_AAPL_01&gt; QLEGS|SYM=AAPL|SHOW=ALL
-</code></pre></div>
-<p>You should see the prior quote legs no longer active.</p>
-<p>When to use this instead of manual MM-side <code>QUOTE_CANCEL</code>: use <code>QCANCEL</code> when
-the MM process is unresponsive or when operations needs immediate symbol-scoped
-intervention without relying on the MM terminal.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> one-symbol MM quote is cancelled without mass-cancelling all gateway orders.</p>
+<p>Map observed ERR codes to operator action:</p>
+<ul>
+<li>AUTH_REQUIRED: client handshake bug or ordering error</li>
+<li>BAD_MESSAGE: parse or field validation issue</li>
+<li>ENTITLEMENT_DENIED: role not allowed by gateway config</li>
+<li>INVALID_CHANNEL: unsupported CH value</li>
+<li>SLOW_CLIENT: consumer cannot keep up with delivery rate</li>
+</ul>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can convert each ERR code into a practical remediation step.</p>
 <hr />
-<h2 id="exercise-3-clear-one-symbol-book-with-cancel_sym">Exercise 3: Clear One Symbol Book with CANCEL_SYM<a class="headerlink" href="#exercise-3-clear-one-symbol-book-with-cancel_sym" title="Permanent link">&para;</a></h2>
-<p>Create a few resting orders on TSLA from multiple gateways, then run:</p>
-<p>From admin console:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[GW_ADMIN|ADMIN]&gt; CANCEL_SYM|SYM=TSLA
-</code></pre></div>
-<p>Or with CLI:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>cancel-sym<span class="w"> </span>--sym<span class="w"> </span>TSLA
-</code></pre></div>
-<p>Verify:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>book<span class="w"> </span>--sym<span class="w"> </span>TSLA
-</code></pre></div>
-<p>Confirm TSLA resting orders were cleared while other symbols remain unchanged.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> symbol-scoped cancel works across gateways.</p>
-<hr />
-<h2 id="exercise-4-force-session-state-for-controlled-drills">Exercise 4: Force Session State for Controlled Drills<a class="headerlink" href="#exercise-4-force-session-state-for-controlled-drills" title="Permanent link">&para;</a></h2>
-<p>Set session state explicitly:</p>
-<p>From admin console:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CONTINUOUS
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSING_AUCTION
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>[GW_ADMIN|ADMIN]&gt; SESSION|STATE=CLOSED
-</code></pre></div>
-<p>Or with CLI:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CONTINUOUS
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CLOSING_AUCTION
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session<span class="w"> </span>--state<span class="w"> </span>CLOSED
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session-status
-</code></pre></div>
-<p>Use this to reproduce auction and close transitions deterministically in training.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> forced session transitions are visible and verifiable.</p>
-<hr />
-<h2 id="exercise-5-run-an-incident-micro-runbook">Exercise 5: Run an Incident Micro-Runbook<a class="headerlink" href="#exercise-5-run-an-incident-micro-runbook" title="Permanent link">&para;</a></h2>
-<p>Simulate a short incident response sequence:</p>
+<h2 id="suggested-lab-pattern-for-the-three-external-parties">Suggested Lab Pattern for the Three External Parties<a class="headerlink" href="#suggested-lab-pattern-for-the-three-external-parties" title="Permanent link">&para;</a></h2>
+<p>Run three long-lived sessions in parallel:</p>
 <ol>
-<li>Detect suspicious behavior on one gateway.</li>
-<li><code>KICK</code> the gateway.</li>
-<li><code>QCANCEL</code> one affected MM quote.</li>
-<li><code>CANCEL_SYM</code> for one stressed symbol.</li>
-<li><code>SESSION|STATE=CONTINUOUS</code> to restore normal operation if needed.</li>
+<li>CLEARING client for full clearing consumption</li>
+<li>DROP_COPY client for compliance/risk copy workflow</li>
+<li>AUDIT client for forensic/event journaling use</li>
 </ol>
-<p>Example CLI sequence:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>kick<span class="w"> </span>--gw<span class="w"> </span>TRADER02<span class="w"> </span>--reason<span class="w"> </span><span class="s2">&quot;Training incident&quot;</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>qcancel<span class="w"> </span>--gw<span class="w"> </span>MM_AAPL_01<span class="w"> </span>--sym<span class="w"> </span>AAPL
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>cancel-sym<span class="w"> </span>--sym<span class="w"> </span>AAPL
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session-status
-</code></pre></div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can explain when to use each control and why they are not interchangeable.</p>
+<p>For each session, record:</p>
+<ul>
+<li>client id and role</li>
+<li>channel set</li>
+<li>last checkpoint sequence</li>
+<li>reconnect policy</li>
+</ul>
+<p>This produces a realistic external-party operating model for classroom or
+integration testing.</p>
 <hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>You can now operate advanced admin controls beyond halt/resume:</p>
+<p>You have now covered major RALF protocol usage patterns:</p>
 <ul>
-<li><code>KICK</code> for participant disconnection.</li>
-<li><code>QCANCEL</code> for targeted MM quote cancellation.</li>
-<li><code>CANCEL_SYM</code> for symbol-wide book clearing.</li>
-<li><code>SESSION|STATE=...</code> for deterministic phase management.</li>
+<li>provisioning configuration with pm-config-gen</li>
+<li>connecting external clients through example libraries</li>
+<li>handling role/channel subscriptions</li>
+<li>using control messages and liveness probes</li>
+<li>recovering with LASTSEQ replay semantics</li>
+<li>diagnosing protocol errors operationally</li>
 </ul>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
-<li><a href="../../user-guide/02-commands/">Controlling the Exchange</a></li>
-<li><a href="../../user-guide/10-processes/">Processes</a></li>
-<li><a href="../../user-guide/12-risk-controls/">Risk Controls</a></li>
+<li>Post-Trade Dissemination: ../user-guide/18-post-trade.md</li>
+<li>RALF Protocol Appendix: ../user-guide/23-app-ralf-protocol.md</li>
+<li>Processes: ../user-guide/10-processes.md</li>
 </ul>
-<p><strong>Next:</strong> <a href="../20-drop-copy-replay-recovery/">20 - Drop-Copy Replay &amp; Recovery Patterns</a></p>
+<p>This chapter extends the training program with post-trade external protocol operations.</p>
 
 
 

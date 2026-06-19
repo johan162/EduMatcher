@@ -76,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#v061-2026-06-19" class="md-skip">
+        <a href="#v070-2026-06-20" class="md-skip">
           Skip to content
         </a>
       
@@ -1288,6 +1288,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../user-guide/18-post-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-Trade Dissemination (RALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../user-guide/20-app-alf-protocol/" class="md-nav__link">
         
   
@@ -1352,6 +1380,34 @@
     
   
     Appendix - CALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/23-app-ralf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix - RALF Protocol
   
 
     
@@ -2070,6 +2126,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../training/22-ralf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    22 — RALF Post-Trade Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2443,16 +2527,37 @@
 
   <h1>CHANGELOG</h1>
 
+<h2 id="v070-2026-06-20">[v0.7.0] - 2026-06-20<a class="headerlink" href="#v070-2026-06-20" title="Permanent link">&para;</a></h2>
+<p>Release Type: minor</p>
+<h3 id="summary">📋 Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h3>
+<p>This release introduces the new RALF post-trade dissemination flow with the <code>pm-ralf-gwy</code> gateway, protocol appendix, and external client examples for clearing, drop-copy, and audit consumers. It also extends configuration generation and training content so operators and students can provision and run RALF workflows end to end.</p>
+<h3 id="additions">✨ Additions<a class="headerlink" href="#additions" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Added <code>pm-ralf-gwy</code> post-trade dissemination gateway with RALF1 session handling, subscriptions, heartbeats, and replay support</li>
+<li>Added RALF protocol and user-guide material including the dedicated post-trade chapter and protocol appendix</li>
+<li>Added Python and C RALF parser and subscriber example libraries in <code>docs-design/examples/ralf</code></li>
+<li>Added a dedicated training chapter for RALF protocol operations covering handshake, subscriptions, replay, and error-handling drills</li>
+</ul>
+<h3 id="improvements">🚀 Improvements<a class="headerlink" href="#improvements" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Improved <code>pm-config-gen</code> to optionally emit a top-level <code>post_trade_gateway</code> section with configurable RALF listener options</li>
+<li>Improved release packaging to include training bundle artifacts</li>
+</ul>
+<h3 id="documentation">📚 Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Updated the RALF protocol appendix to explicitly state protocol support is provided through TCP connection to <code>pm-ralf-gwy</code></li>
+<li>Expanded training and user-guide cross-references for new RALF and post-trade workflows</li>
+</ul>
 <h2 id="v061-2026-06-19">[v0.6.1] - 2026-06-19<a class="headerlink" href="#v061-2026-06-19" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary">📋 Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h3>
+<h3 id="summary_1">📋 Summary<a class="headerlink" href="#summary_1" title="Permanent link">&para;</a></h3>
 <p>This patch release adds a dedicated PDF pipeline for the Training Guide and aligns the training LaTeX templates with a single chapter-level TOC and training-specific cover output. It also updates release packaging to include training PDF artifacts.</p>
-<h3 id="additions">✨ Additions<a class="headerlink" href="#additions" title="Permanent link">&para;</a></h3>
+<h3 id="additions_1">✨ Additions<a class="headerlink" href="#additions_1" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added a dedicated <code>training-pdf</code> Make target that builds all four Training Guide PDF variants into <code>docs/dist</code></li>
 <li>Added release packaging updates so the Training Guide PDF bundle is included in GitHub release artifacts</li>
 </ul>
-<h3 id="documentation">📚 Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h3>
+<h3 id="documentation_1">📚 Documentation<a class="headerlink" href="#documentation_1" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Updated and refined training chapters with improved user-guide cross-links and consistency updates</li>
 </ul>
@@ -2463,9 +2568,9 @@
 </ul>
 <h2 id="v060-2026-06-19">[v0.6.0] - 2026-06-19<a class="headerlink" href="#v060-2026-06-19" title="Permanent link">&para;</a></h2>
 <p>Release Type: minor</p>
-<h3 id="summary_1">📋 Summary<a class="headerlink" href="#summary_1" title="Permanent link">&para;</a></h3>
+<h3 id="summary_2">📋 Summary<a class="headerlink" href="#summary_2" title="Permanent link">&para;</a></h3>
 <p>This release adds the new <code>pm-mm-bot</code> autonomous market-maker process and expands gateway support for market-maker startup and quote-leg inspection workflows (exposed through the new QBOOT and QLEGS commands). It also adds a self-paced training section which teaches the running and operation of the exchange. The user-guide material was significantly updated and expanded to match the latest release.</p>
-<h3 id="additions_1">✨ Additions<a class="headerlink" href="#additions_1" title="Permanent link">&para;</a></h3>
+<h3 id="additions_2">✨ Additions<a class="headerlink" href="#additions_2" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added <code>pm-mm-bot</code> autonomous market-maker process for maintaining two-sided liquidity with session-aware startup, quote refresh, and repricing logic</li>
 <li>Added <code>QBOOT</code> command and wire message support for discovering existing active quote bootstrap state during market-maker startup and reconnect flows</li>
@@ -2477,7 +2582,7 @@
 <ul>
 <li>Fixed Mermaid rendering failures in MM design documentation caused by unescaped pipe characters in graph labels</li>
 </ul>
-<h3 id="documentation_1">📚 Documentation<a class="headerlink" href="#documentation_1" title="Permanent link">&para;</a></h3>
+<h3 id="documentation_2">📚 Documentation<a class="headerlink" href="#documentation_2" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added a full user-guide page for <code>pm-mm-bot</code> including CLI usage, bootstrap behavior, session handling, and troubleshooting guidance</li>
 <li>Updated gateway and message documentation to describe <code>QBOOT</code>, <code>QLEGS</code>, enriched <code>SYMBOLS</code> metadata, and MM-oriented operator workflows</li>
@@ -2489,19 +2594,19 @@
 </ul>
 <h2 id="v050-2026-06-17">[v0.5.0] - 2026-06-17<a class="headerlink" href="#v050-2026-06-17" title="Permanent link">&para;</a></h2>
 <p>Release Type: minor</p>
-<h3 id="summary_2">📋 Summary<a class="headerlink" href="#summary_2" title="Permanent link">&para;</a></h3>
+<h3 id="summary_3">📋 Summary<a class="headerlink" href="#summary_3" title="Permanent link">&para;</a></h3>
 <p>This release adds a new <code>pm-stats-cli</code> command for querying simulation statistics, refactors the exchange introduction documentation for easier maintenance, and optimizes the PDF build pipeline. It also improves process documentation and updates dependencies.</p>
-<h3 id="additions_2">✨ Additions<a class="headerlink" href="#additions_2" title="Permanent link">&para;</a></h3>
+<h3 id="additions_3">✨ Additions<a class="headerlink" href="#additions_3" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added <code>pm-stats-cli</code> command for querying and reporting on simulation statistics stored in <code>stats.db</code>, replacing the need for direct SQL access</li>
 </ul>
-<h3 id="improvements">🚀 Improvements<a class="headerlink" href="#improvements" title="Permanent link">&para;</a></h3>
+<h3 id="improvements_1">🚀 Improvements<a class="headerlink" href="#improvements_1" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Improved documentation of all <code>pm-</code> CLI commands and processes</li>
 <li>Improved PDF build pipeline to run all builds in full parallel mode for faster build time</li>
 <li>Refactored Exchange Intro documentation into separate chapter files with a Manifest configuration for easier maintenance</li>
 </ul>
-<h3 id="documentation_2">📚 Documentation<a class="headerlink" href="#documentation_2" title="Permanent link">&para;</a></h3>
+<h3 id="documentation_3">📚 Documentation<a class="headerlink" href="#documentation_3" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added comprehensive statistics and reporting chapter to the User Guide documenting <code>pm-stats-cli</code> usage and capabilities</li>
 <li>Fixed broken documentation links in user-guide and related docs</li>
@@ -2514,16 +2619,16 @@
 </ul>
 <h2 id="v040-2026-06-16">[v0.4.0] - 2026-06-16<a class="headerlink" href="#v040-2026-06-16" title="Permanent link">&para;</a></h2>
 <p>Release Type: minor</p>
-<h3 id="summary_3">📋 Summary<a class="headerlink" href="#summary_3" title="Permanent link">&para;</a></h3>
+<h3 id="summary_4">📋 Summary<a class="headerlink" href="#summary_4" title="Permanent link">&para;</a></h3>
 <p>This release focus on improving config documentation and generation. It adds a new <code>pm-config-gen</code> CLI for generating 
 egine config <code>engine_config.yaml</code> file from concise command-line inputs. It also expands the
 configuration documentation and design material so users can bootstrap configs
 faster with fewer manual YAML errors.</p>
-<h3 id="additions_3">✨ Additions<a class="headerlink" href="#additions_3" title="Permanent link">&para;</a></h3>
+<h3 id="additions_4">✨ Additions<a class="headerlink" href="#additions_4" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added <code>pm-config-gen</code> CLI tool for generating <code>engine_config.yaml</code> from high-level flags to make it less error prone to correctly write the engine configuration.</li>
 </ul>
-<h3 id="documentation_3">📚 Documentation<a class="headerlink" href="#documentation_3" title="Permanent link">&para;</a></h3>
+<h3 id="documentation_4">📚 Documentation<a class="headerlink" href="#documentation_4" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Expanded the configuration guide with a full <code>pm-config-gen</code> reference, option tables, formats, and practical recipes</li>
 <li>Updated Getting Started, Running the Engine, docs landing page, and README quick-start paths to include <code>pm-config-gen</code></li>
@@ -2538,13 +2643,13 @@ faster with fewer manual YAML errors.</p>
 </ul>
 <h2 id="v033-2026-06-15">[v0.3.3] - 2026-06-15<a class="headerlink" href="#v033-2026-06-15" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_4">📋 Summary<a class="headerlink" href="#summary_4" title="Permanent link">&para;</a></h3>
+<h3 id="summary_5">📋 Summary<a class="headerlink" href="#summary_5" title="Permanent link">&para;</a></h3>
 <p>This patch release hardens the documentation PDF toolchain and refreshes user-guide and architecture documentation. It focuses on reliable Mermaid and admonition rendering in generated PDFs while cleaning up docs build flow and fixing documentation issues.</p>
-<h3 id="additions_4">✨ Additions<a class="headerlink" href="#additions_4" title="Permanent link">&para;</a></h3>
+<h3 id="additions_5">✨ Additions<a class="headerlink" href="#additions_5" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added Mermaid rendering support for User Guide and Design Docs PDF generation</li>
 </ul>
-<h3 id="improvements_1">🚀 Improvements<a class="headerlink" href="#improvements_1" title="Permanent link">&para;</a></h3>
+<h3 id="improvements_2">🚀 Improvements<a class="headerlink" href="#improvements_2" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Improved docs build flow by moving PDF bundle orchestration into Makefiles instead of <code>mkbld.sh</code></li>
 <li>Improved docs Makefile consistency by reusing the same <code>node_modules</code> build-tools directory across docs pipelines</li>
@@ -2553,7 +2658,7 @@ faster with fewer manual YAML errors.</p>
 <ul>
 <li>Fixed PDF rendering of <code>note</code> admonitions and Lua-filtered admonition boxes which was missing</li>
 </ul>
-<h3 id="documentation_4">📚 Documentation<a class="headerlink" href="#documentation_4" title="Permanent link">&para;</a></h3>
+<h3 id="documentation_5">📚 Documentation<a class="headerlink" href="#documentation_5" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Updated User Guide content and corrected broken-link references</li>
 <li>Updated architecture descriptions to match the current implementation</li>
@@ -2561,14 +2666,14 @@ faster with fewer manual YAML errors.</p>
 </ul>
 <h2 id="v032-2026-06-14">[v0.3.2] - 2026-06-14<a class="headerlink" href="#v032-2026-06-14" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_5">📋 Summary<a class="headerlink" href="#summary_5" title="Permanent link">&para;</a></h3>
+<h3 id="summary_6">📋 Summary<a class="headerlink" href="#summary_6" title="Permanent link">&para;</a></h3>
 <p>This patch release refreshes the documentation with an updated landing page and updated developer guidance and new design proposals for cross-host process distribution and statistics CLI reporting. No code changes.</p>
-<h3 id="additions_5">✨ Additions<a class="headerlink" href="#additions_5" title="Permanent link">&para;</a></h3>
+<h3 id="additions_6">✨ Additions<a class="headerlink" href="#additions_6" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added cross-host load-balancing design proposal for running EduMatcher processes across multiple machines</li>
 <li>Added statistics CLI command design proposal to replace error-prone direct SQL querying of <code>stats.db</code></li>
 </ul>
-<h3 id="documentation_5">📚 Documentation<a class="headerlink" href="#documentation_5" title="Permanent link">&para;</a></h3>
+<h3 id="documentation_6">📚 Documentation<a class="headerlink" href="#documentation_6" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Improved documentation landing page structure and navigation for faster onboarding</li>
 <li>Updated developer practice and release workflow guidance to match current checklist and script behaviour</li>
@@ -2576,9 +2681,9 @@ faster with fewer manual YAML errors.</p>
 </ul>
 <h2 id="v031-2026-06-14">[v0.3.1] - 2026-06-14<a class="headerlink" href="#v031-2026-06-14" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_6">📋 Summary<a class="headerlink" href="#summary_6" title="Permanent link">&para;</a></h3>
+<h3 id="summary_7">📋 Summary<a class="headerlink" href="#summary_7" title="Permanent link">&para;</a></h3>
 <p>This patch release refreshes the FAQ with practical setup and runtime troubleshooting for the new pipx-based installation flow.</p>
-<h3 id="documentation_6">📚 Documentation<a class="headerlink" href="#documentation_6" title="Permanent link">&para;</a></h3>
+<h3 id="documentation_7">📚 Documentation<a class="headerlink" href="#documentation_7" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Expanded FAQ with a new Installation &amp; Setup section covering pipx vs Poetry usage, PATH issues after pipx install, <code>pm-setup</code> usage, config/data file lookup rules, and upgrade guidance</li>
 <li>Added FAQ entries for beginner runtime gotchas: pre-seeded MM liquidity matching the first aggressive order, <code>seed_once</code> behaviour across days, CLOSED startup state with sessions enabled, and practical state reset instructions</li>
@@ -2590,9 +2695,9 @@ faster with fewer manual YAML errors.</p>
 </ul>
 <h2 id="v030-2026-06-14">[v0.3.0] - 2026-06-14<a class="headerlink" href="#v030-2026-06-14" title="Permanent link">&para;</a></h2>
 <p>Release Type: minor</p>
-<h3 id="summary_7">📋 Summary<a class="headerlink" href="#summary_7" title="Permanent link">&para;</a></h3>
+<h3 id="summary_8">📋 Summary<a class="headerlink" href="#summary_8" title="Permanent link">&para;</a></h3>
 <p>This release makes EduMatcher fully installable as a standalone runtime via <code>pipx install edumatcher</code>, with no source checkout or Poetry required for end users. A new <code>pm-setup</code> bootstrap command, two runtime environment variables (<code>EDUMATCHER_DATA_DIR</code>, <code>EDUMATCHER_CONFIG</code>), and an updated launch script give instructors and students a clean, repeatable installation path independent of the development environment.</p>
-<h3 id="additions_6">✨ Additions<a class="headerlink" href="#additions_6" title="Permanent link">&para;</a></h3>
+<h3 id="additions_7">✨ Additions<a class="headerlink" href="#additions_7" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added <code>pm-setup</code> entry point to bootstrap a session directory: creates the data directory, copies the bundled sample <code>engine_config.yaml</code> to the working directory, and prints a shell profile snippet</li>
 <li>Added <code>EDUMATCHER_DATA_DIR</code> environment variable to override the data directory at runtime (default: <code>~/.local/share/edumatcher</code> when installed, <code>src/data/</code> in a source checkout)</li>
@@ -2600,12 +2705,12 @@ faster with fewer manual YAML errors.</p>
 <li>Added <code>scripts/install-runtime.sh</code> one-shot installer: checks Python 3.13+, installs pipx if absent, installs <code>edumatcher</code> from PyPI, and runs <code>pm-setup</code></li>
 <li>Bundled <code>engine_config.sample.yaml</code> as a package resource (extracted by <code>pm-setup</code> via <code>importlib.resources</code>)</li>
 </ul>
-<h3 id="improvements_2">🚀 Improvements<a class="headerlink" href="#improvements_2" title="Permanent link">&para;</a></h3>
+<h3 id="improvements_3">🚀 Improvements<a class="headerlink" href="#improvements_3" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Updated <code>tools/launch_all.sh</code> to detect installed vs source mode automatically: runs bare <code>pm-*</code> commands when on PATH, falls back to <code>poetry run</code> in a source checkout; exports <code>EDUMATCHER_DATA_DIR</code>/<code>EDUMATCHER_CONFIG</code> to each spawned Terminal window</li>
 <li>Improved <code>config.py</code> resolution: source-tree detection (<code>_IN_SOURCE_TREE</code>) keeps the existing developer defaults unchanged while enabling XDG-standard paths for installed users</li>
 </ul>
-<h3 id="documentation_7">📚 Documentation<a class="headerlink" href="#documentation_7" title="Permanent link">&para;</a></h3>
+<h3 id="documentation_8">📚 Documentation<a class="headerlink" href="#documentation_8" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Rewrote Getting Started installation section with separate end-user (pipx) and developer (Poetry) tracks, env var reference table, and <code>pm-setup</code> walkthrough</li>
 <li>Added developer vs installed mode comparison table to Running the Exchange page</li>
@@ -2621,9 +2726,9 @@ faster with fewer manual YAML errors.</p>
 </ul>
 <h2 id="v021-2026-06-14">[v0.2.1] - 2026-06-14<a class="headerlink" href="#v021-2026-06-14" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_8">📋 Summary<a class="headerlink" href="#summary_8" title="Permanent link">&para;</a></h3>
+<h3 id="summary_9">📋 Summary<a class="headerlink" href="#summary_9" title="Permanent link">&para;</a></h3>
 <p>This patch release fixes a bug where MM seed quotes were re-injected on every engine restart, introduces the <code>seed_once</code> configuration field to control that behaviour, and substantially expands the User Guide with three new sections and comprehensive inline documentation for <code>engine_config.yaml</code>.</p>
-<h3 id="additions_7">✨ Additions<a class="headerlink" href="#additions_7" title="Permanent link">&para;</a></h3>
+<h3 id="additions_8">✨ Additions<a class="headerlink" href="#additions_8" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added <code>seed_once</code> field to <code>market_maker_quotes</code> entries in <code>engine_config.yaml</code>: <code>true</code> (default) injects quotes only on the first startup for a symbol; <code>false</code> re-injects on every restart for repeatable demo setups</li>
 <li>Added Getting Started user guide section with architecture overview, minimum session walkthrough, and role-based reading path</li>
@@ -2635,7 +2740,7 @@ faster with fewer manual YAML errors.</p>
 <ul>
 <li>Fixed GTC quote legs being written to <code>gtc_orders.json</code> at shutdown, causing duplicate resting orders in the book on subsequent engine restarts</li>
 </ul>
-<h3 id="documentation_8">📚 Documentation<a class="headerlink" href="#documentation_8" title="Permanent link">&para;</a></h3>
+<h3 id="documentation_9">📚 Documentation<a class="headerlink" href="#documentation_9" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Rewrote <code>engine_config.yaml</code> as a fully annotated reference covering all supported fields, precedence rules, and enum values; added examples of all three gateway roles (TRADER, MARKET_MAKER, ADMIN), per-symbol <code>mm_obligations</code> overrides, circuit-breaker level merging, and <code>seed_once</code> behaviour</li>
 <li>Expanded persistence user guide section with complete schema reference for <code>audit.log</code>, <code>clearing_report.csv</code>, and <code>stats.db</code> (DDL, column descriptions, example SQL queries)</li>
@@ -2650,13 +2755,13 @@ faster with fewer manual YAML errors.</p>
 </ul>
 <h2 id="v020-2026-06-14">[v0.2.0] - 2026-06-14<a class="headerlink" href="#v020-2026-06-14" title="Permanent link">&para;</a></h2>
 <p>Release Type: minor</p>
-<h3 id="summary_9">📋 Summary<a class="headerlink" href="#summary_9" title="Permanent link">&para;</a></h3>
+<h3 id="summary_10">📋 Summary<a class="headerlink" href="#summary_10" title="Permanent link">&para;</a></h3>
 <p>This release completes the protocol design documentation suite by publishing the BALF design proposal at v1.0.0 and integrating both BALF and CALF protocol appendixes into the User Guide. It marks the first minor version increment, establishing a stable baseline for the full protocol documentation set.</p>
-<h3 id="documentation_9">📚 Documentation<a class="headerlink" href="#documentation_9" title="Permanent link">&para;</a></h3>
+<h3 id="documentation_10">📚 Documentation<a class="headerlink" href="#documentation_10" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Update glossary and sync global and Exchange Intro glossary</li>
 </ul>
-<h3 id="additions_8">✨ Additions<a class="headerlink" href="#additions_8" title="Permanent link">&para;</a></h3>
+<h3 id="additions_9">✨ Additions<a class="headerlink" href="#additions_9" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added BALF protocol design proposal v1.0.0 covering allocation, liquidity, and feed mechanics</li>
 <li>Added BALF protocol description appendix to the User Guide</li>
@@ -2664,13 +2769,13 @@ faster with fewer manual YAML errors.</p>
 </ul>
 <h2 id="v019-2026-06-13">[v0.1.9] - 2026-06-13<a class="headerlink" href="#v019-2026-06-13" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_10">📋 Summary<a class="headerlink" href="#summary_10" title="Permanent link">&para;</a></h3>
+<h3 id="summary_11">📋 Summary<a class="headerlink" href="#summary_11" title="Permanent link">&para;</a></h3>
 <p>This patch release expands the concept documentation with a new CALF market-data feed page, improves clarity across existing order-book pages, and reorganises the Glossary. GitHub Actions are also updated to be Node 24 compatible.</p>
 <h2 id="v030-2026-06-14_1">[v0.3.0] - 2026-06-14<a class="headerlink" href="#v030-2026-06-14_1" title="Permanent link">&para;</a></h2>
 <p>Release Type: minor</p>
-<h3 id="summary_11">📋 Summary<a class="headerlink" href="#summary_11" title="Permanent link">&para;</a></h3>
+<h3 id="summary_12">📋 Summary<a class="headerlink" href="#summary_12" title="Permanent link">&para;</a></h3>
 <p>This release makes EduMatcher fully installable as a standalone runtime via <code>pipx install edumatcher</code>, with no source checkout or Poetry required for end users. A new <code>pm-setup</code> bootstrap command, two runtime environment variables (<code>EDUMATCHER_DATA_DIR</code>, <code>EDUMATCHER_CONFIG</code>), and an updated launch script give instructors and students a clean, repeatable installation path independent of the development environment.</p>
-<h3 id="additions_9">✨ Additions<a class="headerlink" href="#additions_9" title="Permanent link">&para;</a></h3>
+<h3 id="additions_10">✨ Additions<a class="headerlink" href="#additions_10" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added <code>pm-setup</code> entry point to bootstrap a session directory: creates the data directory, copies the bundled sample <code>engine_config.yaml</code> to the working directory, and prints a shell profile snippet</li>
 <li>Added <code>EDUMATCHER_DATA_DIR</code> environment variable to override the data directory at runtime (default: <code>~/.local/share/edumatcher</code> when installed, <code>src/data/</code> in a source checkout)</li>
@@ -2678,12 +2783,12 @@ faster with fewer manual YAML errors.</p>
 <li>Added <code>scripts/install-runtime.sh</code> one-shot installer: checks Python 3.13+, installs pipx if absent, installs <code>edumatcher</code> from PyPI, and runs <code>pm-setup</code></li>
 <li>Bundled <code>engine_config.sample.yaml</code> as a package resource (extracted by <code>pm-setup</code> via <code>importlib.resources</code>)</li>
 </ul>
-<h3 id="improvements_3">🚀 Improvements<a class="headerlink" href="#improvements_3" title="Permanent link">&para;</a></h3>
+<h3 id="improvements_4">🚀 Improvements<a class="headerlink" href="#improvements_4" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Updated <code>tools/launch_all.sh</code> to detect installed vs source mode automatically: runs bare <code>pm-*</code> commands when on PATH, falls back to <code>poetry run</code> in a source checkout; exports <code>EDUMATCHER_DATA_DIR</code>/<code>EDUMATCHER_CONFIG</code> to each spawned Terminal window</li>
 <li>Improved <code>config.py</code> resolution: source-tree detection (<code>_IN_SOURCE_TREE</code>) keeps the existing developer defaults unchanged while enabling XDG-standard paths for installed users</li>
 </ul>
-<h3 id="documentation_10">📚 Documentation<a class="headerlink" href="#documentation_10" title="Permanent link">&para;</a></h3>
+<h3 id="documentation_11">📚 Documentation<a class="headerlink" href="#documentation_11" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Rewrote Getting Started installation section with separate end-user (pipx) and developer (Poetry) tracks, env var reference table, and <code>pm-setup</code> walkthrough</li>
 <li>Added developer vs installed mode comparison table to Running the Exchange page</li>
@@ -2699,9 +2804,9 @@ faster with fewer manual YAML errors.</p>
 </ul>
 <h2 id="v021-2026-06-14_1">[v0.2.1] - 2026-06-14<a class="headerlink" href="#v021-2026-06-14_1" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_12">📋 Summary<a class="headerlink" href="#summary_12" title="Permanent link">&para;</a></h3>
+<h3 id="summary_13">📋 Summary<a class="headerlink" href="#summary_13" title="Permanent link">&para;</a></h3>
 <p>This patch release fixes a bug where MM seed quotes were re-injected on every engine restart, introduces the <code>seed_once</code> configuration field to control that behaviour, and substantially expands the User Guide with three new sections and comprehensive inline documentation for <code>engine_config.yaml</code>.</p>
-<h3 id="additions_10">✨ Additions<a class="headerlink" href="#additions_10" title="Permanent link">&para;</a></h3>
+<h3 id="additions_11">✨ Additions<a class="headerlink" href="#additions_11" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added <code>seed_once</code> field to <code>market_maker_quotes</code> entries in <code>engine_config.yaml</code>: <code>true</code> (default) injects quotes only on the first startup for a symbol; <code>false</code> re-injects on every restart for repeatable demo setups</li>
 <li>Added Getting Started user guide section with architecture overview, minimum session walkthrough, and role-based reading path</li>
@@ -2713,7 +2818,7 @@ faster with fewer manual YAML errors.</p>
 <ul>
 <li>Fixed GTC quote legs being written to <code>gtc_orders.json</code> at shutdown, causing duplicate resting orders in the book on subsequent engine restarts</li>
 </ul>
-<h3 id="documentation_11">📚 Documentation<a class="headerlink" href="#documentation_11" title="Permanent link">&para;</a></h3>
+<h3 id="documentation_12">📚 Documentation<a class="headerlink" href="#documentation_12" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Rewrote <code>engine_config.yaml</code> as a fully annotated reference covering all supported fields, precedence rules, and enum values; added examples of all three gateway roles (TRADER, MARKET_MAKER, ADMIN), per-symbol <code>mm_obligations</code> overrides, circuit-breaker level merging, and <code>seed_once</code> behaviour</li>
 <li>Expanded persistence user guide section with complete schema reference for <code>audit.log</code>, <code>clearing_report.csv</code>, and <code>stats.db</code> (DDL, column descriptions, example SQL queries)</li>
@@ -2728,13 +2833,13 @@ faster with fewer manual YAML errors.</p>
 </ul>
 <h2 id="v020-2026-06-14_1">[v0.2.0] - 2026-06-14<a class="headerlink" href="#v020-2026-06-14_1" title="Permanent link">&para;</a></h2>
 <p>Release Type: minor</p>
-<h3 id="summary_13">📋 Summary<a class="headerlink" href="#summary_13" title="Permanent link">&para;</a></h3>
+<h3 id="summary_14">📋 Summary<a class="headerlink" href="#summary_14" title="Permanent link">&para;</a></h3>
 <p>This release completes the protocol design documentation suite by publishing the BALF design proposal at v1.0.0 and integrating both BALF and CALF protocol appendixes into the User Guide. It marks the first minor version increment, establishing a stable baseline for the full protocol documentation set.</p>
-<h3 id="documentation_12">📚 Documentation<a class="headerlink" href="#documentation_12" title="Permanent link">&para;</a></h3>
+<h3 id="documentation_13">📚 Documentation<a class="headerlink" href="#documentation_13" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Update glossary and sync global and Exchange Intro glossary</li>
 </ul>
-<h3 id="additions_11">✨ Additions<a class="headerlink" href="#additions_11" title="Permanent link">&para;</a></h3>
+<h3 id="additions_12">✨ Additions<a class="headerlink" href="#additions_12" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added BALF protocol design proposal v1.0.0 covering allocation, liquidity, and feed mechanics</li>
 <li>Added BALF protocol description appendix to the User Guide</li>
@@ -2742,9 +2847,9 @@ faster with fewer manual YAML errors.</p>
 </ul>
 <h2 id="v019-2026-06-13_1">[v0.1.9] - 2026-06-13<a class="headerlink" href="#v019-2026-06-13_1" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_14">📋 Summary<a class="headerlink" href="#summary_14" title="Permanent link">&para;</a></h3>
+<h3 id="summary_15">📋 Summary<a class="headerlink" href="#summary_15" title="Permanent link">&para;</a></h3>
 <p>This patch release expands the concept documentation with a new CALF market-data feed page, improves clarity across existing order-book pages, and reorganises the Glossary. GitHub Actions are also updated to be Node 24 compatible.</p>
-<h3 id="documentation_13">📚 Documentation<a class="headerlink" href="#documentation_13" title="Permanent link">&para;</a></h3>
+<h3 id="documentation_14">📚 Documentation<a class="headerlink" href="#documentation_14" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added new concept page explaining the CALF market-data protocol: channels, subscription flow, sequence-based gap detection, reconnect behaviour, and index dissemination</li>
 <li>Improved wording and corrected depth examples in the order book introduction</li>
@@ -2756,7 +2861,7 @@ faster with fewer manual YAML errors.</p>
 </ul>
 <h2 id="v018-2026-06-13">[v0.1.8] - 2026-06-13<a class="headerlink" href="#v018-2026-06-13" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_15">📋 Summary<a class="headerlink" href="#summary_15" title="Permanent link">&para;</a></h3>
+<h3 id="summary_16">📋 Summary<a class="headerlink" href="#summary_16" title="Permanent link">&para;</a></h3>
 <p>This patch release fixes chapter numbering in generated User Guide PDFs and cleans up related documentation build templates and Makefile flow.</p>
 <h3 id="bug-fixes_4">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_4" title="Permanent link">&para;</a></h3>
 <ul>
@@ -2769,16 +2874,16 @@ faster with fewer manual YAML errors.</p>
 </ul>
 <h2 id="v017-2026-06-13">[v0.1.7] - 2026-06-13<a class="headerlink" href="#v017-2026-06-13" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_16">📋 Summary<a class="headerlink" href="#summary_16" title="Permanent link">&para;</a></h3>
+<h3 id="summary_17">📋 Summary<a class="headerlink" href="#summary_17" title="Permanent link">&para;</a></h3>
 <p>This patch release improves documentation usability by adding light and dark viewing modes for the doc-site</p>
-<h3 id="documentation_14">📚 Documentation<a class="headerlink" href="#documentation_14" title="Permanent link">&para;</a></h3>
+<h3 id="documentation_15">📚 Documentation<a class="headerlink" href="#documentation_15" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Updated documentation theming to support both light and dark presentation modes</li>
 <li>Added repo link in doc eadings</li>
 </ul>
 <h2 id="v016-2026-06-13">[v0.1.6] - 2026-06-13<a class="headerlink" href="#v016-2026-06-13" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_17">📋 Summary<a class="headerlink" href="#summary_17" title="Permanent link">&para;</a></h3>
+<h3 id="summary_18">📋 Summary<a class="headerlink" href="#summary_18" title="Permanent link">&para;</a></h3>
 <p>This patch release cleans up release artifact layout so Python distributions stay at the top level while documentation PDFs remain in their own build directories.</p>
 <h3 id="internal_11">🛠 Internal<a class="headerlink" href="#internal_11" title="Permanent link">&para;</a></h3>
 <ul>
@@ -2788,9 +2893,9 @@ faster with fewer manual YAML errors.</p>
 </ul>
 <h2 id="v015-2026-06-13">[v0.1.5] - 2026-06-13<a class="headerlink" href="#v015-2026-06-13" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_18">📋 Summary<a class="headerlink" href="#summary_18" title="Permanent link">&para;</a></h3>
+<h3 id="summary_19">📋 Summary<a class="headerlink" href="#summary_19" title="Permanent link">&para;</a></h3>
 <p>This patch release improves the release automation flow by fixing GitHub release script issues and tightening package validation behavior during publication.</p>
-<h3 id="improvements_4">🚀 Improvements<a class="headerlink" href="#improvements_4" title="Permanent link">&para;</a></h3>
+<h3 id="improvements_5">🚀 Improvements<a class="headerlink" href="#improvements_5" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Improved release packaging validation to only verify Python distribution artifacts with Twine</li>
 </ul>
@@ -2800,15 +2905,15 @@ faster with fewer manual YAML errors.</p>
 </ul>
 <h2 id="v014-2026-06-13">[v0.1.4] - 2026-06-13<a class="headerlink" href="#v014-2026-06-13" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_19">📋 Summary<a class="headerlink" href="#summary_19" title="Permanent link">&para;</a></h3>
+<h3 id="summary_20">📋 Summary<a class="headerlink" href="#summary_20" title="Permanent link">&para;</a></h3>
 <p>This patch release improves the documentation build and release workflow while expanding the market data and index design documentation set. It also streamlines artifact generation to reduce duplicate build work.</p>
-<h3 id="improvements_5">🚀 Improvements<a class="headerlink" href="#improvements_5" title="Permanent link">&para;</a></h3>
+<h3 id="improvements_6">🚀 Improvements<a class="headerlink" href="#improvements_6" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Improved build and release scripts to avoid duplicate artifact builds</li>
 <li>Improved documentation PDF pipeline by cleaning Markdown inputs before rendering</li>
 <li>Improved visual documentation by replacing an ASCII graph with a Mermaid diagram</li>
 </ul>
-<h3 id="documentation_15">📚 Documentation<a class="headerlink" href="#documentation_15" title="Permanent link">&para;</a></h3>
+<h3 id="documentation_16">📚 Documentation<a class="headerlink" href="#documentation_16" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added index calculation design documentation</li>
 <li>Updated CALF design proposal content</li>
@@ -2820,7 +2925,7 @@ faster with fewer manual YAML errors.</p>
 </ul>
 <h2 id="v013-2026-06-11">[v0.1.3] - 2026-06-11<a class="headerlink" href="#v013-2026-06-11" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_20">📋 Summary<a class="headerlink" href="#summary_20" title="Permanent link">&para;</a></h3>
+<h3 id="summary_21">📋 Summary<a class="headerlink" href="#summary_21" title="Permanent link">&para;</a></h3>
 <p>This patch release fixes issues in the GitHub release automation flow and stabilizes post-release branch synchronization after v0.1.2.</p>
 <h3 id="bug-fixes_6">🐛 Bug Fixes<a class="headerlink" href="#bug-fixes_6" title="Permanent link">&para;</a></h3>
 <ul>
@@ -2832,9 +2937,9 @@ faster with fewer manual YAML errors.</p>
 </ul>
 <h2 id="v012-2026-06-11">[v0.1.2] - 2026-06-11<a class="headerlink" href="#v012-2026-06-11" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_21">📋 Summary<a class="headerlink" href="#summary_21" title="Permanent link">&para;</a></h3>
+<h3 id="summary_22">📋 Summary<a class="headerlink" href="#summary_22" title="Permanent link">&para;</a></h3>
 <p>This patch release extends the release pipeline to build and bundle the Exchange Introduction document alongside the main package, producing a ZIP archive of all four PDF variants as a release asset.</p>
-<h3 id="improvements_6">🚀 Improvements<a class="headerlink" href="#improvements_6" title="Permanent link">&para;</a></h3>
+<h3 id="improvements_7">🚀 Improvements<a class="headerlink" href="#improvements_7" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Improved release build to include Exchange Intro PDF generation in parallel with the main docs build</li>
 </ul>
@@ -2845,7 +2950,7 @@ faster with fewer manual YAML errors.</p>
 </ul>
 <h2 id="v011-2026-06-11">[v0.1.1] - 2026-06-11<a class="headerlink" href="#v011-2026-06-11" title="Permanent link">&para;</a></h2>
 <p>Release Type: patch</p>
-<h3 id="summary_22">📋 Summary<a class="headerlink" href="#summary_22" title="Permanent link">&para;</a></h3>
+<h3 id="summary_23">📋 Summary<a class="headerlink" href="#summary_23" title="Permanent link">&para;</a></h3>
 <p>This patch release hardens the first-time release workflow after the initial public launch. It focuses on branch initialization and merge-path clarity so releases from develop to main complete predictably.</p>
 <h3 id="internal_15">🛠 Internal<a class="headerlink" href="#internal_15" title="Permanent link">&para;</a></h3>
 <ul>
@@ -2854,9 +2959,9 @@ faster with fewer manual YAML errors.</p>
 </ul>
 <h2 id="v010-2026-06-11">[v0.1.0] - 2026-06-11<a class="headerlink" href="#v010-2026-06-11" title="Permanent link">&para;</a></h2>
 <p>Release Type: minor</p>
-<h3 id="summary_23">📋 Summary<a class="headerlink" href="#summary_23" title="Permanent link">&para;</a></h3>
+<h3 id="summary_24">📋 Summary<a class="headerlink" href="#summary_24" title="Permanent link">&para;</a></h3>
 <p>This is the inaugural public release of EduMatcher, featuring a complete educational matching engine with all essential exchange functionality. Designed for educational purposes, the engine implements realistic order matching, market data, and session management while intentionally omitting authentication and authorization to focus on core exchange principles.</p>
-<h3 id="additions_12">✨ Additions<a class="headerlink" href="#additions_12" title="Permanent link">&para;</a></h3>
+<h3 id="additions_13">✨ Additions<a class="headerlink" href="#additions_13" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added complete order matching engine supporting multiple order types and matching algorithms</li>
 <li>Added market data management and quote generation</li>
@@ -2867,12 +2972,12 @@ faster with fewer manual YAML errors.</p>
 <li>Added comprehensive exchange architecture documentation</li>
 <li>Added Python API for programmatic access to matching engine</li>
 </ul>
-<h3 id="improvements_7">🚀 Improvements<a class="headerlink" href="#improvements_7" title="Permanent link">&para;</a></h3>
+<h3 id="improvements_8">🚀 Improvements<a class="headerlink" href="#improvements_8" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Optimized matching performance for high-volume order streams</li>
 <li>Implemented efficient message handling and session state tracking</li>
 </ul>
-<h3 id="documentation_16">📚 Documentation<a class="headerlink" href="#documentation_16" title="Permanent link">&para;</a></h3>
+<h3 id="documentation_17">📚 Documentation<a class="headerlink" href="#documentation_17" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Added complete user guide and architecture documentation</li>
 <li>Added full introduction to principles of an Exchange</li>

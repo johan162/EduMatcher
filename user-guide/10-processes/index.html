@@ -1426,6 +1426,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pm-ralf-gwy-post-trade-dissemination-gateway" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-ralf-gwy — Post-Trade Dissemination Gateway
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#pm-admin-interactive-admin-console" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1714,6 +1725,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../18-post-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-Trade Dissemination (RALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../20-app-alf-protocol/" class="md-nav__link">
         
   
@@ -1778,6 +1817,34 @@
     
   
     Appendix - CALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../23-app-ralf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix - RALF Protocol
   
 
     
@@ -2496,6 +2563,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/22-ralf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    22 — RALF Post-Trade Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2875,9 +2970,11 @@
 <li>Why EduMatcher is built as a set of independent processes connected by a
   message bus rather than a single monolithic program</li>
 <li>The trade-offs that architecture introduces: scalability and observability
-  vs. deployment complexity and latency</li>
-<li>The role and responsibilities of each of the ten core runtime processes plus
+  vs. deployment complexity and latency<ul>
+<li>The role and responsibilities of each of the core runtime processes plus
   the optional AI trader, market-maker bot, and admin tools</li>
+</ul>
+</li>
 <li>Which processes are mandatory and which are optional observers</li>
 <li>How to read the message-flow tables to trace an order from submission to fill</li>
 </ul>
@@ -3192,6 +3289,12 @@ environment variable and the default.</p>
 <td><strong>pm-audit</strong></td>
 <td><code>pm-audit</code></td>
 <td>Full event log to disk</td>
+<td>No</td>
+</tr>
+<tr>
+<td><strong>pm-ralf-gwy</strong></td>
+<td><code>pm-ralf-gwy</code></td>
+<td>External post-trade dissemination gateway (RALF)</td>
 <td>No</td>
 </tr>
 </tbody>
@@ -5030,10 +5133,120 @@ must be pre-registered in <code>engine_config.yaml</code> with <code>role: MARKE
 </table>
 <p>See <a href="../17-mm-bot/">Market-Maker Bot</a> for usage examples, configuration guide,
 bootstrap details, and troubleshooting.</p>
+<h2 id="pm-ralf-gwy-post-trade-dissemination-gateway">pm-ralf-gwy — Post-Trade Dissemination Gateway<a class="headerlink" href="#pm-ralf-gwy-post-trade-dissemination-gateway" title="Permanent link">&para;</a></h2>
+<p>Runs the external machine-facing post-trade dissemination gateway that publishes
+RALF over TCP for clearing, drop-copy, and audit consumers.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>pm-ralf-gwy<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--bind<span class="w"> </span><span class="m">0</span>.0.0.0<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span><span class="m">5580</span><span class="o">]</span><span class="w"> </span><span class="o">[</span>--engine-pub<span class="w"> </span>tcp://127.0.0.1:5556<span class="o">]</span>
+</code></pre></div>
+<p><strong>Startup options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--config</code> / <code>-c</code></td>
+<td><code>engine_config.yaml</code></td>
+<td>Config file; optional <code>post_trade_gateway</code> section</td>
+</tr>
+<tr>
+<td><code>--bind</code></td>
+<td>from config / <code>0.0.0.0</code></td>
+<td>TCP bind address for external clients</td>
+</tr>
+<tr>
+<td><code>--port</code></td>
+<td>from config / <code>5580</code></td>
+<td>TCP listen port for RALF clients</td>
+</tr>
+<tr>
+<td><code>--engine-pub</code></td>
+<td><code>tcp://127.0.0.1:5556</code></td>
+<td>Engine PUB address consumed by the gateway</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Expected runtime input arguments:</strong></p>
+<p>No terminal input. External parties connect over TCP and send RALF lines:</p>
+<ul>
+<li><code>HELLO|...</code></li>
+<li><code>SUB|...</code></li>
+<li><code>UNSUB|...</code></li>
+<li><code>PING</code></li>
+<li><code>EXIT</code></li>
+</ul>
+<p><strong>Messages subscribed</strong> (SUB from :5556):</p>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>trade.executed</code></td>
+<td>Source for <code>EXEC</code> post-trade events</td>
+</tr>
+<tr>
+<td><code>system.eod</code></td>
+<td>Source for <code>EOD</code> summary markers</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Messages published</strong> (TCP RALF feed):</p>
+<table>
+<thead>
+<tr>
+<th>Message type</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>WELCOME</code></td>
+<td>Session acceptance and capabilities</td>
+</tr>
+<tr>
+<td><code>SNAP</code></td>
+<td>Subscription/recovery baseline</td>
+</tr>
+<tr>
+<td><code>EXEC</code></td>
+<td>Live execution dissemination</td>
+</tr>
+<tr>
+<td><code>EOD</code></td>
+<td>End-of-day summary marker</td>
+</tr>
+<tr>
+<td><code>HB</code></td>
+<td>Heartbeat</td>
+</tr>
+<tr>
+<td><code>PONG</code></td>
+<td>Ping reply</td>
+</tr>
+<tr>
+<td><code>ERR</code></td>
+<td>Protocol/entitlement/replay errors</td>
+</tr>
+<tr>
+<td><code>EXIT</code></td>
+<td>Session termination reason</td>
+</tr>
+</tbody>
+</table>
+<p>For external usage and examples see <a href="../18-post-trade/">Post-Trade Dissemination</a>
+and <a href="../23-app-ralf-protocol/">RALF Protocol Reference</a>.</p>
 <h2 id="pm-admin-interactive-admin-console">pm-admin — Interactive Admin Console<a class="headerlink" href="#pm-admin-interactive-admin-console" title="Permanent link">&para;</a></h2>
 <p>An interactive REPL for sending operational commands to a running engine without
 needing a full gateway session.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>pm-admin<span class="w"> </span>--id<span class="w"> </span>&lt;ADMIN_GW_ID&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>pm-admin<span class="w"> </span>--id<span class="w"> </span>&lt;ADMIN_GW_ID&gt;
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -5115,7 +5328,7 @@ needing a full gateway session.</p>
 <h2 id="pm-admin-cli-cli-admin-commands">pm-admin-cli — CLI Admin Commands<a class="headerlink" href="#pm-admin-cli-cli-admin-commands" title="Permanent link">&para;</a></h2>
 <p>A non-interactive alternative to <code>pm-admin</code> for scripting or single-shot
 operational commands.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>pm-admin-cli<span class="w"> </span>&lt;command&gt;<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>pm-admin-cli<span class="w"> </span>&lt;command&gt;<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p>Each invocation sends one command to the engine, waits for an acknowledgement,
 prints the result, and exits. Suitable for shell scripts and CI automation.</p>
@@ -5263,7 +5476,7 @@ prints the result, and exits. Suitable for shell scripts and CI automation.</p>
 </table>
 <h2 id="pm-setup-session-bootstrap-tool">pm-setup — Session Bootstrap Tool<a class="headerlink" href="#pm-setup-session-bootstrap-tool" title="Permanent link">&para;</a></h2>
 <p>Bootstraps a runnable EduMatcher session directory with sensible defaults.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>pm-setup
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-setup
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -5308,7 +5521,7 @@ runtime message bus.</p>
 <h2 id="pm-config-gen-engine-config-generator">pm-config-gen — Engine Config Generator<a class="headerlink" href="#pm-config-gen-engine-config-generator" title="Permanent link">&para;</a></h2>
 <p>Generates an <code>engine_config.yaml</code> from explicit CLI parameters so environments
 can be recreated without manual YAML editing.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-config-gen<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>--sessions-enabled<span class="w"> </span>--output<span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-config-gen<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>--sessions-enabled<span class="w"> </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -5556,6 +5769,8 @@ future releases. They do not yet exist as runnable scripts.</p>
 <li><a href="../09-messages/">Messages</a> — the full ZeroMQ message catalog all processes share</li>
 <li><a href="../11-persistence/">Persistence</a> — which process writes which data file</li>
 <li><a href="../13-drop-copy/">Drop Copy</a> — the engine's built-in :5557 drop-copy feed</li>
+<li><a href="../18-post-trade/">Post-Trade Dissemination</a> — external RALF gateway usage</li>
+<li><a href="../23-app-ralf-protocol/">RALF Protocol Reference</a> — official protocol appendix</li>
 <li><a href="../17-mm-bot/">Market-Maker Bot</a> — autonomous quoting process for a single symbol</li>
 </ul>
 

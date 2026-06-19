@@ -1604,6 +1604,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../18-post-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Post-Trade Dissemination (RALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../20-app-alf-protocol/" class="md-nav__link">
         
   
@@ -1668,6 +1696,34 @@
     
   
     Appendix - CALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../23-app-ralf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix - RALF Protocol
   
 
     
@@ -2386,6 +2442,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/22-ralf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    22 — RALF Post-Trade Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3019,6 +3103,12 @@ documented. All commands are shown in pipx form; in developer mode prepend
 <td><a href="../10-processes/">Processes</a>, <a href="../11-persistence/">Persistence</a></td>
 </tr>
 <tr>
+<td><code>pm-ralf-gwy</code></td>
+<td>Background</td>
+<td>External post-trade dissemination gateway (RALF)</td>
+<td><a href="../10-processes/">Processes</a>, <a href="../18-post-trade/">Post-Trade Dissemination</a>, <a href="../23-app-ralf-protocol/">RALF Protocol</a></td>
+</tr>
+<tr>
 <td><code>pm-admin</code></td>
 <td>Interactive terminal</td>
 <td>Interactive operational console</td>
@@ -3314,6 +3404,11 @@ just ran a trade on your own exchange.</p>
 <td><a href="../17-mm-bot/">Market-Maker Bot</a></td>
 </tr>
 <tr>
+<td>Feed external clearing/drop-copy consumers over TCP</td>
+<td><code>pm-ralf-gwy</code></td>
+<td><a href="../18-post-trade/">Post-Trade Dissemination</a></td>
+</tr>
+<tr>
 <td>Feed compliance/risk systems</td>
 <td>Subscribe to <code>:5557</code> (drop-copy socket)</td>
 <td><a href="../13-drop-copy/">Drop Copy</a></td>
@@ -3471,6 +3566,8 @@ back to <code>poetry run</code> automatically when running from a source checkou
 <li><a href="../14-market-maker/">Market Making</a> — QUOTE command, obligations, and MMP</li>
 <li><a href="../15-ai-traders/">AI Traders</a> — autonomous order flow with <code>pm-ai-trader</code> and <code>pm-ai-swarm</code></li>
 <li><a href="../17-mm-bot/">Market-Maker Bot</a> — automated quoting with <code>pm-mm-bot</code></li>
+<li><a href="../18-post-trade/">Post-Trade Dissemination</a> — external post-trade gateway with <code>pm-ralf-gwy</code></li>
+<li><a href="../23-app-ralf-protocol/">RALF Protocol</a> — protocol-level wire specification</li>
 </ul>
 
 
