@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#06-time-in-force-sessions" class="md-skip">
+        <a href="#time-in-force-sessions" class="md-skip">
           Skip to content
         </a>
       
@@ -2618,7 +2618,7 @@
   
 
 
-<h1 id="06-time-in-force-sessions">06 — Time-in-Force &amp; Sessions<a class="headerlink" href="#06-time-in-force-sessions" title="Permanent link">&para;</a></h1>
+<h1 id="time-in-force-sessions">Time-in-Force &amp; Sessions<a class="headerlink" href="#time-in-force-sessions" title="Permanent link">&para;</a></h1>
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Understand how Time-in-Force (TIF) controls order lifetime across session phases,
 and how to use the scheduler to drive the exchange through a full trading day.</p>
@@ -2685,6 +2685,8 @@ transitions:</p>
 <p>When the session transitions to CLOSED, the order is automatically cancelled.</p>
 <p>If your scheduler moves through phases quickly, watch for the cancellation
 message.</p>
+<p>Operational note: DAY is best for intraday intent where stale overnight orders
+must not persist.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> DAY order cancelled at session close.</p>
 <hr />
 <h2 id="exercise-3-gtc-order-survives">Exercise 3: GTC Order Survives<a class="headerlink" href="#exercise-3-gtc-order-survives" title="Permanent link">&para;</a></h2>
@@ -2693,6 +2695,8 @@ message.</p>
 </code></pre></div>
 <p>This order survives the CLOSED phase and will still be resting when the next
 session opens.</p>
+<p>Operational note: GTC is used for standing instructions that remain valid until
+explicitly cancelled.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> GTC order remains after session restart.</p>
 <hr />
 <h2 id="exercise-4-ato-order">Exercise 4: ATO Order<a class="headerlink" href="#exercise-4-ato-order" title="Permanent link">&para;</a></h2>

@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#04-amending-orders" class="md-skip">
+        <a href="#amending-orders" class="md-skip">
           Skip to content
         </a>
       
@@ -2607,7 +2607,7 @@
   
 
 
-<h1 id="04-amending-orders">04 — Amending Orders<a class="headerlink" href="#04-amending-orders" title="Permanent link">&para;</a></h1>
+<h1 id="amending-orders">Amending Orders<a class="headerlink" href="#amending-orders" title="Permanent link">&para;</a></h1>
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Learn to modify resting orders — change price, quantity, or both — and
 understand how amendments affect queue priority.</p>
@@ -2634,6 +2634,8 @@ understand how amendments affect queue priority.</p>
 <p class="admonition-title">Priority preserved</p>
 <p>Reducing quantity does <strong>not</strong> lose time priority — your order keeps its
 place in the queue.</p>
+<p>Why: you are not jumping ahead of anyone; you are only reducing your own
+claim at the same price level.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>ORDERS</code> shows qty=200, same price.</p>
 <hr />
@@ -2646,6 +2648,8 @@ place in the queue.</p>
 <p class="admonition-title">Priority lost</p>
 <p>A price change <strong>always</strong> loses time priority — the order moves to the back
 of the queue at the new price level.</p>
+<p>Why: a new price is treated as a new offer, so queue fairness requires
+re-entering at the back.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>ORDERS</code> shows price=419.70.</p>
 <hr />

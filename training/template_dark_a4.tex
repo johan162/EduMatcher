@@ -100,7 +100,7 @@
 
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\textcolor{brandgray}{EduMatcher User Guide}}
+\fancyhead[L]{\textcolor{brandgray}{EduMatcher Training Guide}}
 \fancyhead[R]{\textcolor{brandgray}{\leftmark}}
 \fancyfoot[C]{\thepage}
 \setlength{\headheight}{14pt}
@@ -114,8 +114,8 @@
 
 {%
   \thispagestyle{empty}%
-  \IfFileExists{assets/cover-user-guide.png}{%
-    \AddToShipoutPictureBG*{\AtPageLowerLeft{\includegraphics[width=\paperwidth,height=\paperheight]{assets/cover-user-guide.png}}}%
+  \IfFileExists{assets/cover-training-guide.png}{%
+    \AddToShipoutPictureBG*{\AtPageLowerLeft{\includegraphics[width=\paperwidth,height=\paperheight]{assets/cover-training-guide.png}}}%
     \null
   }{%
     \null\vfill
@@ -129,7 +129,7 @@
   \thispagestyle{empty}%
   \null\vfill
   {\small\color{brandgray}%
-  \textbf{EduMatcher User Guide}\\
+  \textbf{EduMatcher Training Guide}\\
   For EduMatcher Version: 0.6.1 \\
   Copyright \textcopyright\ Johan Persson\\
   Generated on \today\\
@@ -149,7 +149,7 @@
 \begin{titlepage}
   \centering
   \vspace*{2.0cm}
-  {\Huge\bfseries\color{lightorange}User Guide\par}
+  {\Huge\bfseries\color{lightorange}Training Guide\par}
   \vspace{1.2cm}
   {\Large \texttt{edumatcher}, Version: 0.6.1\par}
   \vspace{1.2cm}
@@ -159,21 +159,16 @@
   {\large Generated on \today\par}
 \end{titlepage}
 
-% Ensure exactly one blank page after title before short TOC.
-% Locally downgrade chapter's openright behavior inside shorttoc.
+% Ensure exactly one blank page after title before TOC.
 \clearpage
 \thispagestyle{empty}\null\clearpage
 \begingroup
-\shorttoc{Chapters}{0}
-\endgroup
-\cleardoublepage
-
-\begingroup
-\setcounter{tocdepth}{2}
-\renewcommand{\contentsname}{Contents}
+\setcounter{tocdepth}{0}
+\renewcommand{\contentsname}{Training Chapters}
 \tableofcontents
 \endgroup
 \cleardoublepage
+
 
 \pagenumbering{arabic}
 \setcounter{page}{1}

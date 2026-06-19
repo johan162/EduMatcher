@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#02-setting-up-market-maker-liquidity" class="md-skip">
+        <a href="#setting-up-market-maker-liquidity" class="md-skip">
           Skip to content
         </a>
       
@@ -2618,7 +2618,7 @@
   
 
 
-<h1 id="02-setting-up-market-maker-liquidity">02 — Setting Up Market-Maker Liquidity<a class="headerlink" href="#02-setting-up-market-maker-liquidity" title="Permanent link">&para;</a></h1>
+<h1 id="setting-up-market-maker-liquidity">Setting Up Market-Maker Liquidity<a class="headerlink" href="#setting-up-market-maker-liquidity" title="Permanent link">&para;</a></h1>
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Configure market-maker gateways and use manual <code>QUOTE</code> commands to provide
 two-sided liquidity for all three symbols. You will also compare this manual
@@ -2706,7 +2706,14 @@ the order book is empty and no trader can get an immediate fill.</p>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>MM_TSLA_01&gt; QLEGS|SYM=TSLA|SHOW=ALL
 </code></pre></div>
 <p><code>QLEGS</code> shows the bid and ask leg order IDs, prices, remaining quantities, and
-fill flags. This is the operator view that helps you reconcile fills.</p>
+fill flags. This is the operator view that helps you reconcile fills after
+restart or partial execution.</p>
+<p>Interpretation guide:</p>
+<ul>
+<li><code>remaining</code> is open quantity still resting in the book.</li>
+<li><code>filled_qty</code> is already executed quantity on that leg.</li>
+<li><code>status</code> shows state such as ACTIVE, PARTIAL, or FILLED.</li>
+</ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> QLEGS shows both quote legs for each symbol.</p>
 <hr />
 <h2 id="exercise-6-run-the-equivalent-bot-workflow-optional">Exercise 6: Run the Equivalent Bot Workflow (Optional)<a class="headerlink" href="#exercise-6-run-the-equivalent-bot-workflow-optional" title="Permanent link">&para;</a></h2>
@@ -2718,6 +2725,14 @@ fill flags. This is the operator view that helps you reconcile fills.</p>
 <p>The bot will connect as <code>MM_&lt;SYMBOL&gt;_01</code>, quote around the current mid-price,
 reissue after fills, and use <code>QBOOT</code>/<code>QLEGS</code>-style state to avoid startup
 deadlocks and reconcile quote legs.</p>
+<p>Quick primer:</p>
+<ul>
+<li><code>QBOOT</code> asks the engine whether a gateway+symbol already has an active quote
+  slot (for example after a crash/restart).</li>
+<li><code>QLEGS</code> reconciles leg-level state (order IDs, remaining, fills) so the bot
+  can adopt or replace safely instead of duplicating quotes.</li>
+</ul>
+<p>See the detailed walkthrough in <a href="../09-market-making/">09 — Market Making</a>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> explain what the bot automates compared with your manual <code>QUOTE</code> workflow.</p>
 <hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
@@ -2732,6 +2747,7 @@ deadlocks and reconcile quote legs.</p>
 <ul>
 <li><a href="../../user-guide/14-market-maker/">Market Making</a></li>
 <li><a href="../../user-guide/17-mm-bot/">Market-Maker Bot (pm-mm-bot)</a></li>
+<li><a href="../../user-guide/17-mm-bot/#cli-reference">Market-Maker Bot CLI Reference</a></li>
 <li><a href="../../user-guide/08-gateway/">Gateway Commands</a></li>
 <li><a href="../../user-guide/20-app-alf-protocol/">ALF Protocol Reference</a></li>
 </ul>

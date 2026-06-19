@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#07-auctions" class="md-skip">
+        <a href="#auctions" class="md-skip">
           Skip to content
         </a>
       
@@ -2607,7 +2607,7 @@
   
 
 
-<h1 id="07-auctions">07 — Auctions<a class="headerlink" href="#07-auctions" title="Permanent link">&para;</a></h1>
+<h1 id="auctions">Auctions<a class="headerlink" href="#auctions" title="Permanent link">&para;</a></h1>
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Run opening and closing auctions, understand equilibrium price calculation, and
 observe how auction orders are collected and matched in a single uncrossing event.</p>
@@ -2649,6 +2649,8 @@ orders match at the equilibrium price.</p>
 <p>Expected: fills at a single price that maximises traded volume. In this example
 the equilibrium price should be around 150.20–150.30 (the exact price depends on
 the algorithm; max-volume, then min-surplus rules apply).</p>
+<p>What to observe: identify the one common execution price printed across all fill
+events. That repeated value is the equilibrium price selected by uncrossing.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> all fills report the same execution price.</p>
 <hr />
 <h2 id="exercise-3-unfilled-auction-orders">Exercise 3: Unfilled Auction Orders<a class="headerlink" href="#exercise-3-unfilled-auction-orders" title="Permanent link">&para;</a></h2>
@@ -2687,8 +2689,8 @@ CONTINUOUS trading.</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/06-auctions-scheduling/">Auctions &amp; Scheduling</a></li>
+<li><a href="../../concepts/05-concepts-trading-day/">Auction Equilibrium Concepts</a></li>
 <li><a href="../../user-guide/04-order-types/">Order Types</a></li>
-<li><a href="../../concepts/05-concepts-trading-day/">A Full Trading Day</a></li>
 </ul>
 <hr />
 <p><strong>Next:</strong> <a href="../08-cancelling-orders/">08 — Cancelling &amp; Managing Orders</a></p>

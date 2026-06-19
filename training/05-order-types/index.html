@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#05-order-types-deep-dive" class="md-skip">
+        <a href="#order-types-deep-dive" class="md-skip">
           Skip to content
         </a>
       
@@ -2607,7 +2607,7 @@
   
 
 
-<h1 id="05-order-types-deep-dive">05 — Order Types Deep Dive<a class="headerlink" href="#05-order-types-deep-dive" title="Permanent link">&para;</a></h1>
+<h1 id="order-types-deep-dive">Order Types Deep Dive<a class="headerlink" href="#order-types-deep-dive" title="Permanent link">&para;</a></h1>
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Explore every order type beyond basic LIMIT and MARKET — STOP, STOP_LIMIT, FOK,
 IOC, ICEBERG, and TRAILING_STOP — through practical exercises.</p>
@@ -2625,6 +2625,8 @@ IOC, ICEBERG, and TRAILING_STOP — through practical exercises.</p>
 </code></pre></div>
 <p>The order is dormant until AAPL trades at or below 149.50. Once triggered, it
 executes as a market order.</p>
+<p>Interpretation: 149.50 is the <strong>trigger</strong> level, not a guaranteed execution
+price.</p>
 <p>To test: from TRADER02, sell aggressively to push the price down past the stop.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> stop order triggered and filled after price drop.</p>
 <hr />
@@ -2634,6 +2636,8 @@ executes as a market order.</p>
 </code></pre></div>
 <p>When the stop triggers at 149.50, a limit sell at 149.40 is placed. If the
 market gaps below 149.40, the order may not fill (unlike a plain stop).</p>
+<p>Interpretation: <code>STOP=149.50</code> controls <strong>when</strong> the order is activated, while
+<code>PRICE=149.40</code> controls the <strong>worst acceptable execution price</strong> after trigger.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> stop-limit triggers and rests as a limit order.</p>
 <hr />
 <h2 id="exercise-3-fill-or-kill-fok">Exercise 3: Fill-or-Kill (FOK)<a class="headerlink" href="#exercise-3-fill-or-kill-fok" title="Permanent link">&para;</a></h2>

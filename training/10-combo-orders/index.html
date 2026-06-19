@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#10-combo-orders" class="md-skip">
+        <a href="#combo-orders" class="md-skip">
           Skip to content
         </a>
       
@@ -2607,7 +2607,7 @@
   
 
 
-<h1 id="10-combo-orders">10 — Combo Orders<a class="headerlink" href="#10-combo-orders" title="Permanent link">&para;</a></h1>
+<h1 id="combo-orders">Combo Orders<a class="headerlink" href="#combo-orders" title="Permanent link">&para;</a></h1>
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Create multi-leg orders that execute atomically and understand OCO (One-Cancels-
 Other) linked orders.</p>
@@ -2630,6 +2630,8 @@ the danger of only one side of a spread filling.</p>
 <p>The engine tries to match both legs simultaneously. If both sides have
 sufficient liquidity, you get fills on both. Otherwise the combo rests.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> combo acknowledged; fills or rests as a unit.</p>
+<p>Observation: atomic behavior is what removes leg risk. You should never see one
+leg fill without the other in a valid combo execution.</p>
 <hr />
 <h2 id="exercise-2-verify-atomic-behaviour">Exercise 2: Verify Atomic Behaviour<a class="headerlink" href="#exercise-2-verify-atomic-behaviour" title="Permanent link">&para;</a></h2>
 <p>Check that you cannot get a partial combo (one leg filled, other not):</p>
@@ -2639,6 +2641,8 @@ sufficient liquidity, you get fills on both. Otherwise the combo rests.</p>
 <li>Submit the combo — it should rest (not fill AAPL alone).</li>
 </ol>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> combo does not partially fill.</p>
+<p>Operational rationale: without atomicity, you could end up with accidental
+directional inventory from only one leg filling.</p>
 <hr />
 <h2 id="exercise-3-cancel-a-resting-combo">Exercise 3: Cancel a Resting Combo<a class="headerlink" href="#exercise-3-cancel-a-resting-combo" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>TRADER01&gt; CANCEL|COMBO_ID=PAIR-001

@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#16-persistence-recovery" class="md-skip">
+        <a href="#persistence-recovery" class="md-skip">
           Skip to content
         </a>
       
@@ -2618,7 +2618,7 @@
   
 
 
-<h1 id="16-persistence-recovery">16 — Persistence &amp; Recovery<a class="headerlink" href="#16-persistence-recovery" title="Permanent link">&para;</a></h1>
+<h1 id="persistence-recovery">Persistence &amp; Recovery<a class="headerlink" href="#persistence-recovery" title="Permanent link">&para;</a></h1>
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Learn what EduMatcher persists, where persistent files live, and how to verify
 state across restart scenarios.</p>
@@ -2663,6 +2663,12 @@ and run <code>pm-setup</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>TRADER01&gt; ORDERS
 </code></pre></div>
 <p>The GTC order should be restored if persistence is enabled for your run.</p>
+<p>Compare explicitly after restart:</p>
+<ul>
+<li>GTC orders may restore from persistence.</li>
+<li>DAY orders from prior session should not survive CLOSED.</li>
+<li>Stats remain in <code>stats.db</code> if <code>pm-stats</code> was writing before restart.</li>
+</ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> verify whether the GTC order survives restart.</p>
 <hr />
 <h2 id="exercise-4-compare-day-and-gtc-behaviour">Exercise 4: Compare DAY and GTC Behaviour<a class="headerlink" href="#exercise-4-compare-day-and-gtc-behaviour" title="Permanent link">&para;</a></h2>

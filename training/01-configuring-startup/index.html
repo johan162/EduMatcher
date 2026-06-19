@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#01-configuring-starting-up" class="md-skip">
+        <a href="#configuring-starting-up" class="md-skip">
           Skip to content
         </a>
       
@@ -1668,6 +1668,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#exercise-8-inspect-enriched-symbols-metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 8: Inspect Enriched SYMBOLS Metadata
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#summary" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2629,7 +2640,7 @@
   
 
 
-<h1 id="01-configuring-starting-up">01 — Configuring &amp; Starting Up<a class="headerlink" href="#01-configuring-starting-up" title="Permanent link">&para;</a></h1>
+<h1 id="configuring-starting-up">Configuring &amp; Starting Up<a class="headerlink" href="#configuring-starting-up" title="Permanent link">&para;</a></h1>
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>By the end of this chapter you will have a working exchange with at least one
 gateway and three tradeable symbols, ready to accept orders.</p>
@@ -2770,6 +2781,15 @@ a tiny limit order:</p>
 <p>You should see a book snapshot (possibly with the 1-lot bid from Exercise 5).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> admin gateway works; BOOK command shows data.</p>
 <hr />
+<h2 id="exercise-8-inspect-enriched-symbols-metadata">Exercise 8: Inspect Enriched SYMBOLS Metadata<a class="headerlink" href="#exercise-8-inspect-enriched-symbols-metadata" title="Permanent link">&para;</a></h2>
+<p>From any connected gateway:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>TRADER01&gt; SYMBOLS
+</code></pre></div>
+<p>In addition to symbol IDs, inspect metadata fields exposed by the gateway view,
+including symbol description and matching constraints such as tick size and MM
+obligation settings when configured.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can identify at least <code>description</code> and <code>tick_size</code> for each symbol from <code>SYMBOLS</code> output.</p>
+<hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You now have:</p>
 <ul>
@@ -2782,6 +2802,7 @@ a tiny limit order:</p>
 <li><a href="../../user-guide/01-configuration/">Configuration</a></li>
 <li><a href="../../user-guide/03-running-the-engine/">Running the Engine</a></li>
 <li><a href="../../user-guide/08-gateway/">Gateway Commands</a></li>
+<li><a href="../../user-guide/09-messages/">Message Types (system.symbols)</a></li>
 </ul>
 <p><strong>Next:</strong> <a href="../02-setting-up-MM-bots/">02 — Setting Up Market-Maker Liquidity</a></p>
 

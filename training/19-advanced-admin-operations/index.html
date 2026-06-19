@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#19-advanced-admin-operations" class="md-skip">
+        <a href="#advanced-admin-operations" class="md-skip">
           Skip to content
         </a>
       
@@ -2607,7 +2607,7 @@
   
 
 
-<h1 id="19-advanced-admin-operations">19 - Advanced Admin Operations<a class="headerlink" href="#19-advanced-admin-operations" title="Permanent link">&para;</a></h1>
+<h1 id="advanced-admin-operations">Advanced Admin Operations<a class="headerlink" href="#advanced-admin-operations" title="Permanent link">&para;</a></h1>
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Practice advanced exchange-operator controls that are documented but were not
 covered in earlier training chapters: <code>KICK</code>, <code>QCANCEL</code>, <code>CANCEL_SYM</code>, and
@@ -2663,6 +2663,9 @@ operations, admins also need targeted controls for:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>MM_AAPL_01&gt; QLEGS|SYM=AAPL|SHOW=ALL
 </code></pre></div>
 <p>You should see the prior quote legs no longer active.</p>
+<p>When to use this instead of manual MM-side <code>QUOTE_CANCEL</code>: use <code>QCANCEL</code> when
+the MM process is unresponsive or when operations needs immediate symbol-scoped
+intervention without relying on the MM terminal.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> one-symbol MM quote is cancelled without mass-cancelling all gateway orders.</p>
 <hr />
 <h2 id="exercise-3-clear-one-symbol-book-with-cancel_sym">Exercise 3: Clear One Symbol Book with CANCEL_SYM<a class="headerlink" href="#exercise-3-clear-one-symbol-book-with-cancel_sym" title="Permanent link">&para;</a></h2>

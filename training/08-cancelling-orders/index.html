@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#08-cancelling-managing-orders" class="md-skip">
+        <a href="#cancelling-managing-orders" class="md-skip">
           Skip to content
         </a>
       
@@ -1853,6 +1853,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#exercise-8-inspect-symbols-metadata-from-gateway" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 8: Inspect SYMBOLS Metadata from Gateway
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#order-lifecycle-summary" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2618,7 +2629,7 @@
   
 
 
-<h1 id="08-cancelling-managing-orders">08 — Cancelling &amp; Managing Orders<a class="headerlink" href="#08-cancelling-managing-orders" title="Permanent link">&para;</a></h1>
+<h1 id="cancelling-managing-orders">Cancelling &amp; Managing Orders<a class="headerlink" href="#cancelling-managing-orders" title="Permanent link">&para;</a></h1>
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Master the <code>STATUS</code>, <code>ORDERS</code>, and <code>CANCEL</code> commands for understanding gateway
 state, inspecting resting orders, and managing the order lifecycle.</p>
@@ -2671,6 +2682,8 @@ It is useful for a fast health check, but it is not the detailed order table.</p
 <p><code>ORDERS</code> is the gateway command for detailed order inspection. It displays order
 ID, symbol, side, type, TIF, price, quantity, remaining quantity, and status for
 orders belonging to your gateway.</p>
+<p>Use <code>STATUS</code> when you need a quick health pulse. Use <code>ORDERS</code> when you are
+debugging one specific order lifecycle.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>STATUS</code> shows summary counts; <code>ORDERS</code> shows the full order row and ID.</p>
 <hr />
 <h2 id="exercise-4-inspect-resting-order-details">Exercise 4: Inspect Resting Order Details<a class="headerlink" href="#exercise-4-inspect-resting-order-details" title="Permanent link">&para;</a></h2>
@@ -2708,6 +2721,14 @@ orders belonging to your gateway.</p>
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> admin commands successfully cancel orders.</p>
 <hr />
+<h2 id="exercise-8-inspect-symbols-metadata-from-gateway">Exercise 8: Inspect SYMBOLS Metadata from Gateway<a class="headerlink" href="#exercise-8-inspect-symbols-metadata-from-gateway" title="Permanent link">&para;</a></h2>
+<p>Request the symbol catalog:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>TRADER01&gt; SYMBOLS
+</code></pre></div>
+<p>Look for metadata fields exposed in the gateway output (for example
+<code>description</code>, <code>tick_size</code>, and any MM policy fields configured by the engine).</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can explain how <code>SYMBOLS</code> complements config-file inspection during operations.</p>
+<hr />
 <h2 id="order-lifecycle-summary">Order Lifecycle Summary<a class="headerlink" href="#order-lifecycle-summary" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>stateDiagram-v2
     [*] --&gt; NEW : accepted
@@ -2720,6 +2741,7 @@ orders belonging to your gateway.</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/08-gateway/">Gateway Commands</a></li>
+<li><a href="../../user-guide/09-messages/">Message Types (system.symbols)</a></li>
 <li><a href="../../user-guide/20-app-alf-protocol/">ALF Protocol — Cancellation Semantics</a></li>
 </ul>
 <hr />

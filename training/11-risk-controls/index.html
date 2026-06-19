@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#11-risk-controls" class="md-skip">
+        <a href="#risk-controls" class="md-skip">
           Skip to content
         </a>
       
@@ -2662,7 +2662,7 @@
   
 
 
-<h1 id="11-risk-controls">11 — Risk Controls<a class="headerlink" href="#11-risk-controls" title="Permanent link">&para;</a></h1>
+<h1 id="risk-controls">Risk Controls<a class="headerlink" href="#risk-controls" title="Permanent link">&para;</a></h1>
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Configure and trigger the exchange's safety mechanisms: price collars, circuit
 breakers, symbol halts, and the kill switch. You will use both the interactive
@@ -2730,6 +2730,11 @@ gap or trade in volume). When the threshold is breached:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>[HALT] AAPL — circuit breaker triggered (5.1% move)
 </code></pre></div>
 <p>All resting orders on AAPL are preserved but no new matching occurs.</p>
+<p>Verification drill:</p>
+<ol>
+<li>Run <code>BOOK|SYM=AAPL</code> and confirm resting orders remain visible.</li>
+<li>Submit a fresh AAPL order and confirm rejection while halted.</li>
+</ol>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> AAPL halted by circuit breaker.</p>
 <hr />
 <h2 id="exercise-5-open-the-admin-console">Exercise 5: Open the Admin Console<a class="headerlink" href="#exercise-5-open-the-admin-console" title="Permanent link">&para;</a></h2>

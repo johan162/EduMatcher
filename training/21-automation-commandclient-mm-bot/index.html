@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#21-automation-with-commandclient-mm-bot-tuning" class="md-skip">
+        <a href="#automation-with-commandclient-mm-bot-tuning" class="md-skip">
           Skip to content
         </a>
       
@@ -2618,7 +2618,7 @@
   
 
 
-<h1 id="21-automation-with-commandclient-mm-bot-tuning">21 - Automation with CommandClient &amp; MM Bot Tuning<a class="headerlink" href="#21-automation-with-commandclient-mm-bot-tuning" title="Permanent link">&para;</a></h1>
+<h1 id="automation-with-commandclient-mm-bot-tuning">Automation with CommandClient &amp; MM Bot Tuning<a class="headerlink" href="#automation-with-commandclient-mm-bot-tuning" title="Permanent link">&para;</a></h1>
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Use EduMatcher's programmatic command client for repeatable admin workflows and
 practice advanced <code>pm-mm-bot</code> runtime tuning for startup and reconciliation.</p>
@@ -2717,11 +2717,16 @@ operations often require deterministic automation:</p>
 <li>QLEGS reconciliation status.</li>
 <li>Session readiness before first quote.</li>
 </ul>
+<p>Representative startup sequence:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[INFO] QBOOT reply: active_quote=None bootstrap_prices={...}
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[INFO] QLEGS reconcile: symbol=AAPL state=clean
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>[INFO] Session state CONTINUOUS; issuing initial quote
+</code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can identify and tune the timeout knobs that control startup behavior.</p>
 <hr />
 <h2 id="exercise-5-empty-book-bootstrap-drill">Exercise 5: Empty-Book Bootstrap Drill<a class="headerlink" href="#exercise-5-empty-book-bootstrap-drill" title="Permanent link">&para;</a></h2>
 <p>Simulate sparse startup conditions and run bot with explicit bootstrap range:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--initial_min<span class="w"> </span><span class="m">95</span>.00<span class="w"> </span>--initial_max<span class="w"> </span><span class="m">105</span>.00<span class="w"> </span>-v
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--initial_min<span class="w"> </span><span class="m">95</span>.00<span class="w"> </span>--initial_max<span class="w"> </span><span class="m">105</span>.00<span class="w"> </span>-v
 </code></pre></div>
 <p>Then compare behavior with and without range configured.</p>
 <p>Expected understanding:</p>
@@ -2754,6 +2759,7 @@ operations often require deterministic automation:</p>
 <ul>
 <li><a href="../../user-guide/02-commands/">Controlling the Exchange</a></li>
 <li><a href="../../user-guide/17-mm-bot/">Market-Maker Bot (pm-mm-bot)</a></li>
+<li><a href="../../user-guide/17-mm-bot/#cli-reference">Market-Maker Bot CLI Reference</a></li>
 <li><a href="../../user-guide/10-processes/">Processes</a></li>
 </ul>
 <p>You have completed the full training curriculum, including advanced operations.</p>
