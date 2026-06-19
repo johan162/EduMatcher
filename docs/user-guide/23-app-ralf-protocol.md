@@ -16,6 +16,10 @@
 RALF is EduMatcher's text post-trade dissemination protocol, delivered over TCP
 by `pm-ralf-gwy`.
 
+!!! info "Runtime support"
+    `RALF1` is supported through the running `pm-ralf-gwy` process. External
+    clients use this protocol by opening a TCP connection to `pm-ralf-gwy`.
+
 | Protocol | Purpose |
 |---|---|
 | ALF | Interactive text order entry |
