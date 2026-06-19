@@ -7,7 +7,7 @@
       message bus rather than a single monolithic program
     - The trade-offs that architecture introduces: scalability and observability
       vs. deployment complexity and latency
-    - The role and responsibilities of each of the ten core runtime processes plus
+        - The role and responsibilities of each of the core runtime processes plus
       the optional AI trader, market-maker bot, and admin tools
     - Which processes are mandatory and which are optional observers
     - How to read the message-flow tables to trace an order from submission to fill
@@ -189,6 +189,7 @@ pm-engine --verbose
 | **pm-stats** | `pm-stats` | OHLCV statistics to SQLite | No |
 | **pm-clearing** | `pm-clearing` | P&L and trade settlement | No |
 | **pm-audit** | `pm-audit` | Full event log to disk | No |
+| **pm-ralf-gwy** | `pm-ralf-gwy` | External post-trade dissemination gateway (RALF) | No |
 
 **Admin tools:**
 
@@ -1129,6 +1130,59 @@ bootstrap details, and troubleshooting.
 
 
 
+## pm-ralf-gwy — Post-Trade Dissemination Gateway
+
+Runs the external machine-facing post-trade dissemination gateway that publishes
+RALF over TCP for clearing, drop-copy, and audit consumers.
+
+```bash
+pm-ralf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5580] [--engine-pub tcp://127.0.0.1:5556]
+```
+
+**Startup options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--config` / `-c` | `engine_config.yaml` | Config file; optional `post_trade_gateway` section |
+| `--bind` | from config / `0.0.0.0` | TCP bind address for external clients |
+| `--port` | from config / `5580` | TCP listen port for RALF clients |
+| `--engine-pub` | `tcp://127.0.0.1:5556` | Engine PUB address consumed by the gateway |
+
+**Expected runtime input arguments:**
+
+No terminal input. External parties connect over TCP and send RALF lines:
+
+- `HELLO|...`
+- `SUB|...`
+- `UNSUB|...`
+- `PING`
+- `EXIT`
+
+**Messages subscribed** (SUB from :5556):
+
+| Topic | Purpose |
+|---|---|
+| `trade.executed` | Source for `EXEC` post-trade events |
+| `system.eod` | Source for `EOD` summary markers |
+
+**Messages published** (TCP RALF feed):
+
+| Message type | Purpose |
+|---|---|
+| `WELCOME` | Session acceptance and capabilities |
+| `SNAP` | Subscription/recovery baseline |
+| `EXEC` | Live execution dissemination |
+| `EOD` | End-of-day summary marker |
+| `HB` | Heartbeat |
+| `PONG` | Ping reply |
+| `ERR` | Protocol/entitlement/replay errors |
+| `EXIT` | Session termination reason |
+
+For external usage and examples see [Post-Trade Dissemination](18-post-trade.md)
+and [RALF Protocol Reference](23-app-ralf-protocol.md).
+
+
+
 ## pm-admin — Interactive Admin Console
 
 An interactive REPL for sending operational commands to a running engine without
@@ -1362,4 +1416,6 @@ See the [BALF Protocol Reference](21-app-balf-protocol.md) and [CALF Protocol Re
 - [Messages](09-messages.md) — the full ZeroMQ message catalog all processes share
 - [Persistence](11-persistence.md) — which process writes which data file
 - [Drop Copy](13-drop-copy.md) — the engine's built-in :5557 drop-copy feed
+- [Post-Trade Dissemination](18-post-trade.md) — external RALF gateway usage
+- [RALF Protocol Reference](23-app-ralf-protocol.md) — official protocol appendix
 - [Market-Maker Bot](17-mm-bot.md) — autonomous quoting process for a single symbol

@@ -74,11 +74,12 @@ Status: Design and Research Proposal
     - [11.2 Session State Change](#112-session-state-change)
   - [12. Config Reference](#12-config-reference)
   - [13. Educational Mapping to Existing Concepts](#13-educational-mapping-to-existing-concepts)
-  - [14. Security and Operational Notes](#14-security-and-operational-notes)
-  - [15. Future Evolution (v2+)](#15-future-evolution-v2)
-  - [16. Worked Client Example (Python)](#16-worked-client-example-python)
-  - [17. Open Questions](#17-open-questions)
-  - [18. Summary](#18-summary)
+  - [14. External Trade Dissemination](#14-external-trade-dissemination)
+  - [15. Security and Operational Notes](#15-security-and-operational-notes)
+  - [16. Future Evolution (v2+)](#16-future-evolution-v2)
+  - [17. Worked Client Example (Python)](#17-worked-client-example-python)
+  - [18. Open Questions](#18-open-questions)
+  - [19. Summary](#19-summary)
 
 
 
@@ -1013,13 +1014,93 @@ CALF maps directly to concepts learners already know from the rest of EduMatcher
 
 Teaching sequence:
 1. Connect a terminal client (`nc localhost 5570`), send `HELLO` and `SUB` by hand.
-2. Build a simple Python bot using the example in Section 16.
+2. Build a simple Python bot using the example in Section 17.
 3. Introduce sequence tracking and gap detection.
 4. Discuss the difference between snapshot-based and delta-based feeds.
 
 
 
-## 14. Security and Operational Notes
+## 14. External Trade Dissemination
+
+CALF can absolutely be used as the outward-facing wire format for trade
+dissemination, but only if it is treated as a **separate execution feed** from
+the core market-data channels. The current `TOP`/`TRADE`/`STATE` model is a good
+fit for market data and session state, while clearing and drop-copy consumers
+need stricter delivery semantics, richer execution identifiers, and tighter
+access control.
+
+### Recommendation
+
+The cleaner design is:
+
+1. Keep CALF as the human-readable transport envelope.
+2. Add a dedicated external execution gateway that consumes engine fill events.
+3. Expose two logical CALF subscription families from that gateway:
+   - `CLEARING` for clearing houses and back-office systems
+   - `DROP_COPY` for risk, compliance, and other external parties that need execution copies
+4. Keep the current market-data CALF feed separate so book consumers are not
+   forced to parse settlement-oriented payloads.
+
+This avoids overloading the existing market-data channels with execution
+semantics they do not currently need.
+
+### Why a separate gateway is better
+
+| Concern | Reusing the current CALF market-data gateway | Separate execution gateway |
+|---|---|---|
+| Audience | Mixed market-data and post-trade consumers | Purpose-built for clearing and drop-copy recipients |
+| Reliability | Replay window is currently short and in-memory | Can add durable replay and idempotent re-delivery |
+| Security | One trust model for all subscribers | Different entitlements for clearing vs external observers |
+| Semantics | Market-data messages would be stretched to fit executions | Execution payloads can be explicit and stable |
+| Change scope | Minimal protocol surface changes, but muddier meaning | Cleaner separation of concerns |
+
+### If CALF is extended for this role
+
+If the project wants CALF to carry both clearing and drop-copy information, the
+following changes are needed:
+
+- Add new channels such as `EXEC`, `CLEARING`, or `DROP_COPY` rather than
+  reusing `TOP` or `TRADE` for post-trade delivery.
+- Define a new execution message type with explicit fields for `ORDER_ID`,
+  `EXEC_ID`, `MATCH_ID`, `GATEWAY_ID`, `SYMBOL`, `QTY`, `PX`, `SIDE`,
+  `LIQUIDITY_FLAG`, `TIMESTAMP`, and any clearing-specific identifiers.
+- Add entitlement and routing metadata in `HELLO`/`WELCOME`, so the gateway can
+  distinguish clearing house clients from general drop-copy subscribers.
+- Add durable replay semantics, not just the current time-bounded in-memory
+  buffer, because clearing and compliance consumers need stronger guarantees.
+- Add idempotency rules so a reconnecting consumer can safely process replayed
+  executions without double counting.
+- Add a delivery acknowledgement or checkpoint mechanism if the recipient is
+  expected to prove it has consumed a range of execution events.
+
+### Practical proposal
+
+For EduMatcher, the best overall approach is probably:
+
+- Keep CALF for public market data, session state, and teaching-oriented feed
+  consumption.
+- Add a separate `pm-exec-gwy` process for post-trade dissemination.
+- Have `pm-exec-gwy` subscribe to the engine's internal execution/drop-copy
+  stream and publish a CALF-like external execution feed.
+
+That gives external parties a text protocol without exposing them to ZeroMQ,
+while keeping the semantics of market data and post-trade reporting distinct.
+
+### Minimal external execution feed sketch
+
+```text
+HELLO|CLIENT=clearing01|PROTO=CALF1|ROLE=CLEARING
+WELCOME|PROTO=CALF1|GW=exec-gwy01|ROLE=CLEARING|REPLAY=3600
+SUB|CH=CLEARING|SYM=*
+EXEC|CH=CLEARING|SYM=MSFT|SEQ=814|TS=2026-06-07T10:16:00.141Z|EXEC_ID=E-001|ORDER_ID=ord-001|MATCH_ID=M-991|PX=420.00|QTY=100|SIDE=BUY|GW=TRADER01|LIQUIDITY=TAKER
+```
+
+This is intentionally more specific than the current market-data feed and is
+better suited to clearing and drop-copy workflows than reusing `TRADE` alone.
+
+
+
+## 15. Security and Operational Notes
 
 For v1 education environments:
 - Run on a trusted network (no auth token in v1).
@@ -1035,7 +1116,7 @@ Useful observability metrics to log per minute:
 
 
 
-## 15. Future Evolution (v2+)
+## 16. Future Evolution (v2+)
 
 | Feature | Notes |
 |---|---|
@@ -1049,7 +1130,7 @@ Useful observability metrics to log per minute:
 
 
 
-## 16. Worked Client Example (Python)
+## 17. Worked Client Example (Python)
 
 This example correctly handles TCP streaming (partial reads, multiple messages per
 `recv`) and tracks sequence numbers for gap detection.
@@ -1158,7 +1239,7 @@ if __name__ == "__main__":
 
 
 
-## 17. Open Questions
+## 18. Open Questions
 
 1. Should `SYM=*` be allowed for `TOP` in a restricted lab mode? This would be
    useful in single-symbol classroom setups but risks abuse in multi-user labs.
@@ -1176,7 +1257,7 @@ if __name__ == "__main__":
 
 
 
-## 18. Summary
+## 19. Summary
 
 CALF provides a simple, readable market-data protocol that fits EduMatcher's
 teaching goals while remaining production-shaped in its core ideas:

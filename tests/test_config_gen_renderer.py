@@ -39,6 +39,46 @@ def test_renderer_emits_header_and_yaml_sections() -> None:
     assert parsed["symbols"]["AAPL"]["tick_decimals"] == 2
 
 
+def test_renderer_emits_post_trade_gateway_section() -> None:
+    payload = {
+        "sessions_enabled": False,
+        "enforce_collars": True,
+        "enforce_circuit_breakers": True,
+        "snapshot_interval_sec": 0.5,
+        "gateways": {
+            "alf": [
+                {
+                    "id": "TRADER01",
+                    "role": "TRADER",
+                    "disconnect_behaviour": "CANCEL_ALL",
+                }
+            ]
+        },
+        "post_trade_gateway": {
+            "name": "ralf-gwy01",
+            "bind_address": "0.0.0.0",
+            "port": 5580,
+            "replay_retention_sec": 86400,
+            "heartbeat_interval_sec": 1,
+            "idle_timeout_sec": 5,
+            "max_client_queue": 10000,
+            "allowed_roles": ["CLEARING", "DROP_COPY", "AUDIT"],
+        },
+        "symbols": {"AAPL": {"tick_decimals": 2}},
+    }
+
+    rendered = render_yaml(
+        config=payload,
+        command="pm-config-gen --symbols AAPL --gateways TRADER01 --post-trade-gateway",
+        generated_version="1.1.0",
+        generated_date="2026-06-20",
+    )
+
+    assert "# -- RALF post-trade gateway --" in rendered
+    parsed = yaml.safe_load(rendered)
+    assert parsed["post_trade_gateway"]["port"] == 5580
+
+
 def test_renderer_injects_stub_hint_comments() -> None:
     payload = {
         "sessions_enabled": False,

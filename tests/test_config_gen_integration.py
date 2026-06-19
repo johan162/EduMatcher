@@ -83,3 +83,36 @@ def test_output_refuses_overwrite_without_force(
         )
 
     assert exc_info.value.code == 1
+
+
+def test_post_trade_gateway_output_is_emitted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--post-trade-gateway",
+            "--post-trade-bind-address",
+            "127.0.0.1",
+            "--post-trade-port",
+            "6001",
+            "--post-trade-allowed-roles",
+            "CLEARING",
+            "AUDIT",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    content = out_file.read_text(encoding="utf-8")
+    assert "post_trade_gateway:" in content
+    assert "bind_address: 127.0.0.1" in content
+    assert "port: 6001" in content
+    assert "- CLEARING" in content
+    assert "- AUDIT" in content

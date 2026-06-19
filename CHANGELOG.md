@@ -1,3 +1,26 @@
+## [v0.7.0] - 2026-06-20
+
+Release Type: minor
+
+### 📋 Summary
+This release introduces the new RALF post-trade dissemination flow with the `pm-ralf-gwy` gateway, protocol appendix, and external client examples for clearing, drop-copy, and audit consumers. It also extends configuration generation and training content so operators and students can provision and run RALF workflows end to end.
+
+### ✨ Additions
+- Added `pm-ralf-gwy` post-trade dissemination gateway with RALF1 session handling, subscriptions, heartbeats, and replay support
+- Added RALF protocol and user-guide material including the dedicated post-trade chapter and protocol appendix
+- Added Python and C RALF parser and subscriber example libraries in `docs-design/examples/ralf`
+- Added a dedicated training chapter for RALF protocol operations covering handshake, subscriptions, replay, and error-handling drills
+
+### 🚀 Improvements
+- Improved `pm-config-gen` to optionally emit a top-level `post_trade_gateway` section with configurable RALF listener options
+- Improved release packaging to include training bundle artifacts
+
+
+### 📚 Documentation
+- Updated the RALF protocol appendix to explicitly state protocol support is provided through TCP connection to `pm-ralf-gwy`
+- Expanded training and user-guide cross-references for new RALF and post-trade workflows
+
+
 ## [v0.6.1] - 2026-06-19
 
 Release Type: patch

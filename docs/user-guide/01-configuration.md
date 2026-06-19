@@ -6,6 +6,7 @@
     - Which `engine_config.yaml` sections are required when a config file exists
     - How to generate a starter config with `pm-config-gen`
     - Which fields the current engine and scheduler parsers recognize
+    - How to configure the optional `pm-ralf-gwy` post-trade gateway block
     - How to configure symbols, gateways, risk controls, market-maker seeds, combo seeds, and schedules
     - How to choose between minimal, medium, and fully featured configurations
     - Which checks to perform before using a config in a class, demo, or test
@@ -176,6 +177,43 @@ Output and safety options:
 | `--force` | Flag | off | Overwrite existing output file |
 | `--dry-run` | Flag | off | Print YAML only; do not write file |
 
+Post-trade gateway options:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--post-trade-gateway` | Flag | off | Emit top-level `post_trade_gateway` block for `pm-ralf-gwy` |
+| `--post-trade-name` | string | `ralf-gwy01` | `post_trade_gateway.name` |
+| `--post-trade-bind-address` | string | `0.0.0.0` | `post_trade_gateway.bind_address` |
+| `--post-trade-port` | int (`> 0`) | `5580` | `post_trade_gateway.port` |
+| `--post-trade-replay-retention-sec` | int (`> 0`) | `86400` | `post_trade_gateway.replay_retention_sec` |
+| `--post-trade-heartbeat-interval-sec` | int (`> 0`) | `1` | `post_trade_gateway.heartbeat_interval_sec` |
+| `--post-trade-idle-timeout-sec` | int (`> 0`) | `5` | `post_trade_gateway.idle_timeout_sec` |
+| `--post-trade-max-client-queue` | int (`> 0`) | `10000` | `post_trade_gateway.max_client_queue` |
+| `--post-trade-allowed-roles ROLE [ROLE ...]` | list | `CLEARING DROP_COPY AUDIT` | `post_trade_gateway.allowed_roles` |
+
+Typical CLI example for a local lab with RALF enabled:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT \
+  --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --sessions-enabled \
+  --post-trade-gateway \
+  --post-trade-bind-address 127.0.0.1 \
+  --post-trade-port 5580 \
+  --post-trade-replay-retention-sec 3600 \
+  --post-trade-heartbeat-interval-sec 1 \
+  --post-trade-idle-timeout-sec 10 \
+  --post-trade-max-client-queue 2000 \
+  --post-trade-allowed-roles CLEARING AUDIT \
+  --output engine_config.yaml
+```
+
+This generates a standard engine config plus a top-level `post_trade_gateway`
+block for `pm-ralf-gwy`. Use `127.0.0.1` for a single-host lab; switch to a
+controlled network bind such as `0.0.0.0` only when external clients must
+connect from other machines.
+
 ### `--gateways` format
 
 Each gateway token is:
@@ -278,6 +316,40 @@ poetry run python -c 'from pathlib import Path; from edumatcher.engine.config_lo
 If MM gateways are present, fill all `market_maker_quotes` prices first, then
 run the validation command.
 
+Post-trade gateway config with explicit RALF listener settings:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT \
+  --gateways TRADER01 OPS01:ADMIN \
+  --post-trade-gateway \
+  --post-trade-bind-address 127.0.0.1 \
+  --post-trade-port 5580 \
+  --post-trade-allowed-roles CLEARING AUDIT \
+  --output engine_config.yaml
+```
+
+Expected emitted section:
+
+```yaml
+post_trade_gateway:
+  name: ralf-gwy01
+  bind_address: 127.0.0.1
+  port: 5580
+  replay_retention_sec: 3600
+  heartbeat_interval_sec: 1
+  idle_timeout_sec: 10
+  max_client_queue: 2000
+  allowed_roles:
+    - CLEARING
+    - AUDIT
+```
+
+This is the quickest path when you want one command that prepares both:
+
+- the engine symbol and ALF gateway config used by `pm-engine`
+- the optional RALF listener settings used by `pm-ralf-gwy`
+
 
 ## Current Schema
 
@@ -297,10 +369,48 @@ The current parser recognizes these top-level keys:
 | `circuit_breaker_defaults` | No | Engine | Default circuit-breaker ladder |
 | `market_maker_combos` | No | Engine | Startup multi-symbol combo seeds |
 | `schedule` | No | Scheduler, parsed by engine too | Session transition times |
+| `post_trade_gateway` | No | `pm-ralf-gwy` | External RALF dissemination gateway settings |
 
 The nested sections below document every field currently parsed under these
 top-level keys. Unknown keys in a mapping are generally ignored by the loader,
 but they should not be relied on for runtime behavior.
+
+## Configuring `pm-ralf-gwy`
+
+`pm-ralf-gwy` reads an optional top-level `post_trade_gateway` block from the
+same `engine_config.yaml` file used by the engine. This block is not consumed by
+`pm-engine`; it is consumed by the RALF dissemination gateway process itself.
+
+Minimal example:
+
+```yaml
+post_trade_gateway:
+  name: ralf-gwy01
+  bind_address: 0.0.0.0
+  port: 5580
+  replay_retention_sec: 86400
+  heartbeat_interval_sec: 1
+  idle_timeout_sec: 5
+  max_client_queue: 10000
+  allowed_roles:
+    - CLEARING
+    - DROP_COPY
+    - AUDIT
+```
+
+Use this block to control where the RALF gateway listens and which external
+client roles it will accept. In the current implementation:
+
+- `name` is the gateway id reported in `WELCOME`
+- `bind_address` and `port` define the TCP listener for external subscribers
+- `replay_retention_sec` controls the in-memory replay window
+- `heartbeat_interval_sec` controls `HB` cadence
+- `idle_timeout_sec` controls inactive-session disconnect timing
+- `max_client_queue` caps slow-client buffering before `SLOW_CLIENT`
+- `allowed_roles` limits accepted `HELLO|ROLE=...` values
+
+If you prefer to generate this block instead of writing it by hand, `pm-config-gen`
+can emit it with `--post-trade-gateway` and optional `--post-trade-*` overrides.
 
 
 ## Minimal Example

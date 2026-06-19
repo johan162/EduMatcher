@@ -37,6 +37,7 @@ def render_yaml(
         ("Collar profiles", ["risk_controls"]),
         ("Circuit-breaker ladder", ["circuit_breaker_defaults"]),
         ("ALF gateway allowlist", ["gateways"]),
+        ("RALF post-trade gateway", ["post_trade_gateway"]),
         ("Symbol universe", ["symbols"]),
         ("Startup market-maker combo seeds", ["market_maker_combos"]),
         ("Session schedule", ["schedule"]),

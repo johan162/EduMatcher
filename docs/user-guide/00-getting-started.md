@@ -213,6 +213,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | `pm-stats` | Background | Persist market statistics to SQLite | [Processes](10-processes.md), [Statistics and Reporting](16-statistics-and-reporting.md) |
 | `pm-clearing` | Terminal display | Trade recording and running P&L | [Processes](10-processes.md), [P&L and Clearing](07-pnl-clearing.md) |
 | `pm-audit` | Background | Full event log capture from the bus | [Processes](10-processes.md), [Persistence](11-persistence.md) |
+| `pm-ralf-gwy` | Background | External post-trade dissemination gateway (RALF) | [Processes](10-processes.md), [Post-Trade Dissemination](18-post-trade.md), [RALF Protocol](23-app-ralf-protocol.md) |
 | `pm-admin` | Interactive terminal | Interactive operational console | [Processes](10-processes.md), [Risk Controls](12-risk-controls.md) |
 | `pm-ai-trader` | Background | Single autonomous trading bot gateway | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
 | `pm-ai-swarm` | Background | Multi-agent autonomous trading swarm | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
@@ -453,6 +454,7 @@ The engine is the only mandatory process. Add the others as you need them:
 | Schedule opening/closing auctions | `pm-scheduler` | [Auctions and Scheduling](06-auctions-scheduling.md) |
 | Add autonomous AI order flow | `pm-ai-swarm --count 5 --duration 60` | [AI Traders](15-ai-traders.md) |
 | Add automated market-maker liquidity | `pm-mm-bot --symbol AAPL` | [Market-Maker Bot](17-mm-bot.md) |
+| Feed external clearing/drop-copy consumers over TCP | `pm-ralf-gwy` | [Post-Trade Dissemination](18-post-trade.md) |
 | Feed compliance/risk systems | Subscribe to `:5557` (drop-copy socket) | [Drop Copy](13-drop-copy.md) |
 
 For a full classroom session, use the provided launch script:
@@ -552,3 +554,5 @@ Use the table below to decide what to read based on your goal.
 - [Market Making](14-market-maker.md) — QUOTE command, obligations, and MMP
 - [AI Traders](15-ai-traders.md) — autonomous order flow with `pm-ai-trader` and `pm-ai-swarm`
 - [Market-Maker Bot](17-mm-bot.md) — automated quoting with `pm-mm-bot`
+- [Post-Trade Dissemination](18-post-trade.md) — external post-trade gateway with `pm-ralf-gwy`
+- [RALF Protocol](23-app-ralf-protocol.md) — protocol-level wire specification

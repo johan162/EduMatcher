@@ -12,11 +12,20 @@ from edumatcher.engine.config_loader import load_engine_config
 from edumatcher.models.participant import ParticipantRole
 
 from edumatcher.config_gen.builder import ConfigBuilder, ConfigSpec
+from edumatcher.config_gen.builder import PostTradeGatewaySpec
 from edumatcher.config_gen.cb_spec import CbSpec, parse_cb_spec
 from edumatcher.config_gen.defaults import (
     DEFAULT_CB_WINDOW_NS,
     DEFAULT_MM_MIN_QTY,
     DEFAULT_MM_SPREAD_TICKS,
+    DEFAULT_POST_TRADE_GATEWAY_ALLOWED_ROLES,
+    DEFAULT_POST_TRADE_GATEWAY_BIND_ADDRESS,
+    DEFAULT_POST_TRADE_GATEWAY_HEARTBEAT_INTERVAL_SEC,
+    DEFAULT_POST_TRADE_GATEWAY_IDLE_TIMEOUT_SEC,
+    DEFAULT_POST_TRADE_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_POST_TRADE_GATEWAY_NAME,
+    DEFAULT_POST_TRADE_GATEWAY_PORT,
+    DEFAULT_POST_TRADE_GATEWAY_REPLAY_RETENTION_SEC,
     DEFAULT_SNAPSHOT_INTERVAL_SEC,
     DEFAULT_SCHEDULE,
     DEFAULT_TICK_DECIMALS,
@@ -175,6 +184,66 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Emit last_buy_price/last_sell_price null placeholders.",
     )
 
+    parser.add_argument(
+        "--post-trade-gateway",
+        action="store_true",
+        help="Emit a top-level post_trade_gateway section for pm-ralf-gwy.",
+    )
+    parser.add_argument(
+        "--post-trade-name",
+        default=None,
+        metavar="NAME",
+        help="post_trade_gateway.name override.",
+    )
+    parser.add_argument(
+        "--post-trade-bind-address",
+        default=None,
+        metavar="ADDR",
+        help="post_trade_gateway.bind_address override.",
+    )
+    parser.add_argument(
+        "--post-trade-port",
+        type=int,
+        default=None,
+        metavar="N",
+        help="post_trade_gateway.port override (> 0).",
+    )
+    parser.add_argument(
+        "--post-trade-replay-retention-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="post_trade_gateway.replay_retention_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--post-trade-heartbeat-interval-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="post_trade_gateway.heartbeat_interval_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--post-trade-idle-timeout-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="post_trade_gateway.idle_timeout_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--post-trade-max-client-queue",
+        type=int,
+        default=None,
+        metavar="N",
+        help="post_trade_gateway.max_client_queue override (> 0).",
+    )
+    parser.add_argument(
+        "--post-trade-allowed-roles",
+        nargs="+",
+        default=None,
+        metavar="ROLE",
+        help="post_trade_gateway.allowed_roles override (default: CLEARING DROP_COPY AUDIT).",
+    )
+
     sched_group = parser.add_mutually_exclusive_group()
     sched_group.add_argument(
         "--schedule",
@@ -239,6 +308,28 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         raise ValueError("--mm-min-qty must be > 0")
     if args.cb_window_ns <= 0:
         raise ValueError("--cb-window-ns must be > 0")
+    if args.post_trade_port is not None and args.post_trade_port <= 0:
+        raise ValueError("--post-trade-port must be > 0")
+    if (
+        args.post_trade_replay_retention_sec is not None
+        and args.post_trade_replay_retention_sec <= 0
+    ):
+        raise ValueError("--post-trade-replay-retention-sec must be > 0")
+    if (
+        args.post_trade_heartbeat_interval_sec is not None
+        and args.post_trade_heartbeat_interval_sec <= 0
+    ):
+        raise ValueError("--post-trade-heartbeat-interval-sec must be > 0")
+    if (
+        args.post_trade_idle_timeout_sec is not None
+        and args.post_trade_idle_timeout_sec <= 0
+    ):
+        raise ValueError("--post-trade-idle-timeout-sec must be > 0")
+    if (
+        args.post_trade_max_client_queue is not None
+        and args.post_trade_max_client_queue <= 0
+    ):
+        raise ValueError("--post-trade-max-client-queue must be > 0")
 
     if args.static_band is not None and not (0 < args.static_band < 1):
         raise ValueError("--static-band must be in (0, 1)")
@@ -291,6 +382,59 @@ def _resolve_emit_schedule(args: argparse.Namespace) -> bool:
 def _print_diagnostics(lines: list[str]) -> None:
     for line in lines:
         print(line, file=sys.stderr)
+
+
+def _build_post_trade_gateway_spec(
+    args: argparse.Namespace,
+) -> PostTradeGatewaySpec | None:
+    emit = any(
+        value is not None
+        for value in (
+            args.post_trade_name,
+            args.post_trade_bind_address,
+            args.post_trade_port,
+            args.post_trade_replay_retention_sec,
+            args.post_trade_heartbeat_interval_sec,
+            args.post_trade_idle_timeout_sec,
+            args.post_trade_max_client_queue,
+            args.post_trade_allowed_roles,
+        )
+    ) or bool(args.post_trade_gateway)
+
+    if not emit:
+        return None
+
+    allowed_roles = tuple(
+        role.upper()
+        for role in (
+            args.post_trade_allowed_roles or DEFAULT_POST_TRADE_GATEWAY_ALLOWED_ROLES
+        )
+    )
+
+    return PostTradeGatewaySpec(
+        name=str(args.post_trade_name or DEFAULT_POST_TRADE_GATEWAY_NAME),
+        bind_address=str(
+            args.post_trade_bind_address or DEFAULT_POST_TRADE_GATEWAY_BIND_ADDRESS
+        ),
+        port=int(args.post_trade_port or DEFAULT_POST_TRADE_GATEWAY_PORT),
+        replay_retention_sec=int(
+            args.post_trade_replay_retention_sec
+            or DEFAULT_POST_TRADE_GATEWAY_REPLAY_RETENTION_SEC
+        ),
+        heartbeat_interval_sec=int(
+            args.post_trade_heartbeat_interval_sec
+            or DEFAULT_POST_TRADE_GATEWAY_HEARTBEAT_INTERVAL_SEC
+        ),
+        idle_timeout_sec=int(
+            args.post_trade_idle_timeout_sec
+            or DEFAULT_POST_TRADE_GATEWAY_IDLE_TIMEOUT_SEC
+        ),
+        max_client_queue=int(
+            args.post_trade_max_client_queue
+            or DEFAULT_POST_TRADE_GATEWAY_MAX_CLIENT_QUEUE
+        ),
+        allowed_roles=allowed_roles,
+    )
 
 
 def _write_output(output_path: Path, content: str, force: bool) -> None:
@@ -365,6 +509,7 @@ def main() -> None:
         closing_auction=str(args.closing_auction),
         closing_end=str(args.closing_end),
         symbol_overrides=symbol_overrides,
+        post_trade_gateway=_build_post_trade_gateway_spec(args),
     )
 
     output_path = Path(args.output) if args.output else None
