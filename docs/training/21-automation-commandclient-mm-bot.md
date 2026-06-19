@@ -1,4 +1,4 @@
-# 21 - Automation with CommandClient & MM Bot Tuning
+# Automation with CommandClient & MM Bot Tuning
 
 ## Objective
 
@@ -127,6 +127,14 @@ Observe startup logs for:
 - QLEGS reconciliation status.
 - Session readiness before first quote.
 
+Representative startup sequence:
+
+```
+[INFO] QBOOT reply: active_quote=None bootstrap_prices={...}
+[INFO] QLEGS reconcile: symbol=AAPL state=clean
+[INFO] Session state CONTINUOUS; issuing initial quote
+```
+
 :material-checkbox-blank-outline: **Checkpoint:** you can identify and tune the timeout knobs that control startup behavior.
 
 ---
@@ -178,6 +186,7 @@ You now have advanced operational coverage for:
 
 - [Controlling the Exchange](../user-guide/02-commands.md)
 - [Market-Maker Bot (pm-mm-bot)](../user-guide/17-mm-bot.md)
+- [Market-Maker Bot CLI Reference](../user-guide/17-mm-bot.md#cli-reference)
 - [Processes](../user-guide/10-processes.md)
 
 You have completed the full training curriculum, including advanced operations.

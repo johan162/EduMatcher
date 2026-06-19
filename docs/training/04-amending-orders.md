@@ -1,4 +1,4 @@
-# 04 — Amending Orders
+# Amending Orders
 
 ## Objective
 
@@ -41,6 +41,9 @@ Expected: amendment accepted; new qty=200.
     Reducing quantity does **not** lose time priority — your order keeps its
     place in the queue.
 
+    Why: you are not jumping ahead of anyone; you are only reducing your own
+    claim at the same price level.
+
 :material-checkbox-blank-outline: **Checkpoint:** `ORDERS` shows qty=200, same price.
 
 ---
@@ -58,6 +61,9 @@ Expected: amendment accepted; new price=419.70.
 !!! warning "Priority lost"
     A price change **always** loses time priority — the order moves to the back
     of the queue at the new price level.
+
+    Why: a new price is treated as a new offer, so queue fairness requires
+    re-entering at the back.
 
 :material-checkbox-blank-outline: **Checkpoint:** `ORDERS` shows price=419.70.
 

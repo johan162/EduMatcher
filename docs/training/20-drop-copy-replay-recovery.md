@@ -1,4 +1,4 @@
-# 20 - Drop-Copy Replay & Recovery Patterns
+# Drop-Copy Replay & Recovery Patterns
 
 ## Objective
 

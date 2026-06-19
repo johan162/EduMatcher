@@ -1,4 +1,4 @@
-# 06 — Time-in-Force & Sessions
+# Time-in-Force & Sessions
 
 ## Objective
 
@@ -67,6 +67,9 @@ When the session transitions to CLOSED, the order is automatically cancelled.
 If your scheduler moves through phases quickly, watch for the cancellation
 message.
 
+Operational note: DAY is best for intraday intent where stale overnight orders
+must not persist.
+
 :material-checkbox-blank-outline: **Checkpoint:** DAY order cancelled at session close.
 
 ---
@@ -81,6 +84,9 @@ TRADER01> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=415.00|TIF=GTC
 
 This order survives the CLOSED phase and will still be resting when the next
 session opens.
+
+Operational note: GTC is used for standing instructions that remain valid until
+explicitly cancelled.
 
 :material-checkbox-blank-outline: **Checkpoint:** GTC order remains after session restart.
 

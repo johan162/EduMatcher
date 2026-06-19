@@ -1,4 +1,4 @@
-# 08 — Cancelling & Managing Orders
+# Cancelling & Managing Orders
 
 ## Objective
 
@@ -80,6 +80,9 @@ TRADER01> ORDERS
 ID, symbol, side, type, TIF, price, quantity, remaining quantity, and status for
 orders belonging to your gateway.
 
+Use `STATUS` when you need a quick health pulse. Use `ORDERS` when you are
+debugging one specific order lifecycle.
+
 :material-checkbox-blank-outline: **Checkpoint:** `STATUS` shows summary counts; `ORDERS` shows the full order row and ID.
 
 ---
@@ -147,6 +150,21 @@ GW_ADMIN> CANCEL_SYM|SYM=TSLA
 
 ---
 
+## Exercise 8: Inspect SYMBOLS Metadata from Gateway
+
+Request the symbol catalog:
+
+```
+TRADER01> SYMBOLS
+```
+
+Look for metadata fields exposed in the gateway output (for example
+`description`, `tick_size`, and any MM policy fields configured by the engine).
+
+:material-checkbox-blank-outline: **Checkpoint:** you can explain how `SYMBOLS` complements config-file inspection during operations.
+
+---
+
 ## Order Lifecycle Summary
 
 ```mermaid
@@ -164,6 +182,7 @@ stateDiagram-v2
 ## Further Reading
 
 - [Gateway Commands](../user-guide/08-gateway.md)
+- [Message Types (system.symbols)](../user-guide/09-messages.md)
 - [ALF Protocol — Cancellation Semantics](../user-guide/20-app-alf-protocol.md)
 
 ---

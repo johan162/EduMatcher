@@ -1,4 +1,4 @@
-# 03 — The First Trade
+# The First Trade
 
 ## Objective
 

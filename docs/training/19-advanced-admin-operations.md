@@ -1,4 +1,4 @@
-# 19 - Advanced Admin Operations
+# Advanced Admin Operations
 
 ## Objective
 
@@ -83,6 +83,10 @@ MM_AAPL_01> QLEGS|SYM=AAPL|SHOW=ALL
 ```
 
 You should see the prior quote legs no longer active.
+
+When to use this instead of manual MM-side `QUOTE_CANCEL`: use `QCANCEL` when
+the MM process is unresponsive or when operations needs immediate symbol-scoped
+intervention without relying on the MM terminal.
 
 :material-checkbox-blank-outline: **Checkpoint:** one-symbol MM quote is cancelled without mass-cancelling all gateway orders.
 

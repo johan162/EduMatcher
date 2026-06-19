@@ -203,6 +203,10 @@ run: ## Launch the full system (engine + all processes) via launch_all.sh
 test: $(TEST_STAMP) ## Run test suite (excl. perf), terminal coverage report [stamp-cached]
 	@:
 
+test-perf: ## Run performance tests (marked with @pytest.mark.perf)
+	@echo -e "$(DARKYELLOW)- Running performance tests...$(NC)"
+	@poetry run pytest -o addopts='' tests -v -s -m perf -p no:cov
+
 test-short: ## Run tests quickly with no coverage output
 	@echo -e "$(DARKYELLOW)- Running short test run (no coverage)...$(NC)"
 	@poetry run pytest tests/ -m "not perf" -q --no-cov

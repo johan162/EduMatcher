@@ -1,4 +1,4 @@
-# 01 — Configuring & Starting Up
+# Configuring & Starting Up
 
 ## Objective
 
@@ -208,6 +208,22 @@ You should see a book snapshot (possibly with the 1-lot bid from Exercise 5).
 
 ---
 
+## Exercise 8: Inspect Enriched SYMBOLS Metadata
+
+From any connected gateway:
+
+```
+TRADER01> SYMBOLS
+```
+
+In addition to symbol IDs, inspect metadata fields exposed by the gateway view,
+including symbol description and matching constraints such as tick size and MM
+obligation settings when configured.
+
+:material-checkbox-blank-outline: **Checkpoint:** you can identify at least `description` and `tick_size` for each symbol from `SYMBOLS` output.
+
+---
+
 ## Summary
 
 You now have:
@@ -221,5 +237,6 @@ You now have:
 - [Configuration](../user-guide/01-configuration.md)
 - [Running the Engine](../user-guide/03-running-the-engine.md)
 - [Gateway Commands](../user-guide/08-gateway.md)
+- [Message Types (system.symbols)](../user-guide/09-messages.md)
 
 **Next:** [02 — Setting Up Market-Maker Liquidity](02-setting-up-MM-bots.md)

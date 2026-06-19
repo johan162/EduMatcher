@@ -63,6 +63,38 @@ later chapters build on configuration and positions established in earlier ones.
 
 ---
 
+## User Guide Cross-Reference by Chapter
+
+Use these links when you want the authoritative user-guide section behind each
+training chapter.
+
+| Training Chapter | Relevant User Guide Sections |
+|---|---|
+| 00 | [Installation](../user-guide/00-getting-started.md#installation), [Environment variables](../user-guide/00-getting-started.md#environment-variables) |
+| 01 | [Configuring the Exchange](../user-guide/01-configuration.md#configuring-the-exchange), [Generate Configs with pm-config-gen](../user-guide/01-configuration.md#generate-configs-with-pm-config-gen) |
+| 02 | [The QUOTE command](../user-guide/14-market-maker.md#the-quote-command), [Quick start (pm-mm-bot)](../user-guide/17-mm-bot.md#quick-start) |
+| 03 | [Command Format](../user-guide/08-gateway.md#command-format), [Gateway Responses](../user-guide/08-gateway.md#gateway-responses) |
+| 04 | [Order Amendment (AMEND)](../user-guide/04-order-types.md#order-amendment-amend), [Command Format](../user-guide/08-gateway.md#command-format) |
+| 05 | [STOP (Stop-Market)](../user-guide/04-order-types.md#stop-stop-market), [TRAILING_STOP](../user-guide/04-order-types.md#trailing_stop) |
+| 06 | [Session phases](../user-guide/06-auctions-scheduling.md#session-phases), [The session scheduler (pm-scheduler)](../user-guide/06-auctions-scheduling.md#the-session-scheduler-pm-scheduler) |
+| 07 | [Equilibrium price](../user-guide/06-auctions-scheduling.md#equilibrium-price), [What are auctions?](../user-guide/06-auctions-scheduling.md#what-are-auctions) |
+| 08 | [Command Format](../user-guide/08-gateway.md#command-format), [Gateway Responses](../user-guide/08-gateway.md#gateway-responses) |
+| 09 | [Quote lifecycle](../user-guide/14-market-maker.md#quote-lifecycle), [MM quote identification and quote-leg mapping](../user-guide/14-market-maker.md#mm-quote-identification-and-quote-leg-mapping) |
+| 10 | [What Are Combo Orders?](../user-guide/05-combos.md#what-are-combo-orders), [OCO (One-Cancels-Other)](../user-guide/04-order-types.md#oco-one-cancels-other) |
+| 11 | [Price collars](../user-guide/12-risk-controls.md#price-collars), [Circuit breakers](../user-guide/12-risk-controls.md#circuit-breakers) |
+| 12 | [Position Tracking](../user-guide/07-pnl-clearing.md#position-tracking), [Quick-reference: P&L formulas](../user-guide/07-pnl-clearing.md#quick-reference-pl-formulas) |
+| 13 | [Message format](../user-guide/13-drop-copy.md#message-format), [Sequence and recovery semantics](../user-guide/22-app-calf-protocol.md#sequence-and-recovery-semantics) |
+| 14 | [Personality profiles](../user-guide/15-ai-traders.md#personality-profiles), [Launching a swarm](../user-guide/15-ai-traders.md#launching-a-swarm) |
+| 15 | [Querying with pm-stats-cli](../user-guide/16-statistics-and-reporting.md#querying-with-pm-stats-cli), [Common Analyst Workflows](../user-guide/16-statistics-and-reporting.md#common-analyst-workflows) |
+| 16 | [How It Works](../user-guide/11-persistence.md#how-it-works), [Summary of All Data Files](../user-guide/11-persistence.md#summary-of-all-data-files) |
+| 17 | [Verifying the system is running correctly](../user-guide/03-running-the-engine.md#verifying-the-system-is-running-correctly), [Process Overview](../user-guide/10-processes.md#process-overview) |
+| 18 | [Process Overview](../user-guide/10-processes.md#process-overview), [pm-clearing — Clearing & P&L](../user-guide/10-processes.md#pm-clearing-clearing-pl) |
+| 19 | [ADMIN console (pm-admin)](../user-guide/02-commands.md#admin-console-pm-admin), [CLI tool (pm-admin-cli)](../user-guide/02-commands.md#cli-tool-pm-admin-cli) |
+| 20 | [Replay](../user-guide/13-drop-copy.md#replay), [Sequence and recovery semantics](../user-guide/22-app-calf-protocol.md#sequence-and-recovery-semantics) |
+| 21 | [ExchangeCommandClient](../user-guide/02-commands.md#exchangecommandclient), [CLI reference (pm-mm-bot)](../user-guide/17-mm-bot.md#cli-reference) |
+
+---
+
 ## Quick Reference
 
 After completing the training, use the [User Guide](../user-guide/00-getting-started.md)

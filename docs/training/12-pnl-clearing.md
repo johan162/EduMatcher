@@ -1,4 +1,4 @@
-# 12 — P&L & Clearing
+# P&L & Clearing
 
 ## Objective
 

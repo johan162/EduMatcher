@@ -1,4 +1,4 @@
-# 18 — Exchange Observer Processes
+# Exchange Observer Processes
 
 ## Objective
 

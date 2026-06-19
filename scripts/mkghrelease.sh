@@ -525,6 +525,15 @@ else
     print_success "Found Exchange Intro bundle: $(basename "$EXCHANGE_INTRO_BUNDLE_ZIP")"
 fi
 
+TRAINING_GUIDE_BUNDLE_ZIP="docs/dist/${PROGRAMNAME}_training-guide-bundle-${FILE_VERSION_NUMBER}.zip"
+if [[ ! -f "$TRAINING_GUIDE_BUNDLE_ZIP" ]]; then
+    print_error "Training Guide bundle not found: $TRAINING_GUIDE_BUNDLE_ZIP"
+    exit 1
+else
+    print_success "Found Training Guide bundle: $(basename "$TRAINING_GUIDE_BUNDLE_ZIP")"
+fi
+
+
 # 4.5: Locate expected python artifacts
 print_sub_step "Locating artifacts with version $FILE_VERSION_NUMBER..."
 WHEEL_FILE=$(find "$DIST_DIR" -name "${PROGRAMNAME}-${FILE_VERSION_NUMBER}-*.whl" | head -1)

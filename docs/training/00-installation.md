@@ -1,4 +1,4 @@
-# 00 — Installation & Setup
+# Installation & Setup
 
 ## Objective
 

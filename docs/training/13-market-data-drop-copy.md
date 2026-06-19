@@ -1,4 +1,4 @@
-# 13 — Market Data & Drop Copy
+# Market Data & Drop Copy
 
 ## Objective
 

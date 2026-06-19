@@ -1,4 +1,4 @@
-# 11 — Risk Controls
+# Risk Controls
 
 ## Objective
 
@@ -99,6 +99,11 @@ gap or trade in volume). When the threshold is breached:
 ```
 
 All resting orders on AAPL are preserved but no new matching occurs.
+
+Verification drill:
+
+1. Run `BOOK|SYM=AAPL` and confirm resting orders remain visible.
+2. Submit a fresh AAPL order and confirm rejection while halted.
 
 :material-checkbox-blank-outline: **Checkpoint:** AAPL halted by circuit breaker.
 

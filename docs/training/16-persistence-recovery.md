@@ -1,4 +1,4 @@
-# 16 — Persistence & Recovery
+# Persistence & Recovery
 
 ## Objective
 
@@ -72,6 +72,12 @@ TRADER01> ORDERS
 ```
 
 The GTC order should be restored if persistence is enabled for your run.
+
+Compare explicitly after restart:
+
+- GTC orders may restore from persistence.
+- DAY orders from prior session should not survive CLOSED.
+- Stats remain in `stats.db` if `pm-stats` was writing before restart.
 
 :material-checkbox-blank-outline: **Checkpoint:** verify whether the GTC order survives restart.
 
