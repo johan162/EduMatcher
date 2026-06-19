@@ -631,7 +631,8 @@ GH_RELEASE_CMD="gh release create \"$LATEST_TAG\" \
     \"$WHEEL_FILE\" \
     \"$SDIST_FILE\" \
     \"$USER_GUIDE_BUNDLE_ZIP\" \
-    \"$EXCHANGE_INTRO_BUNDLE_ZIP\""
+    \"$EXCHANGE_INTRO_BUNDLE_ZIP\" \
+    \"$TRAINING_GUIDE_BUNDLE_ZIP\""
 
 if [[ "$IS_PRE_RELEASE" == "true" ]]; then
     GH_RELEASE_CMD="$GH_RELEASE_CMD --prerelease"
