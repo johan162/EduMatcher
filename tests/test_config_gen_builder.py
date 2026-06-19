@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from edumatcher.config_gen.builder import ConfigBuilder, ConfigSpec
+from edumatcher.config_gen.builder import (
+    ConfigBuilder,
+    ConfigSpec,
+    PostTradeGatewaySpec,
+)
 from edumatcher.config_gen.cb_spec import parse_cb_spec
 from edumatcher.config_gen.gateway_spec import parse_gateway_spec
 from edumatcher.config_gen.symbol_spec import SymbolOverride
@@ -80,3 +84,22 @@ def test_builder_with_cb_defaults_and_symbol_override() -> None:
     sym_l1 = payload["symbols"]["TSLA"]["circuit_breaker"]["levels"]["L1"]
     assert sym_l1["price_shift_pct"] == 0.10
     assert sym_l1["halt_duration_ns"] == 600000000000
+
+
+def test_builder_with_post_trade_gateway_section() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01")],
+        post_trade_gateway=PostTradeGatewaySpec(
+            name="ralf-lab",
+            bind_address="127.0.0.1",
+            port=6001,
+            allowed_roles=("CLEARING", "AUDIT"),
+        ),
+    )
+    payload = ConfigBuilder(spec).build()
+
+    assert payload["post_trade_gateway"]["name"] == "ralf-lab"
+    assert payload["post_trade_gateway"]["bind_address"] == "127.0.0.1"
+    assert payload["post_trade_gateway"]["port"] == 6001
+    assert payload["post_trade_gateway"]["allowed_roles"] == ["CLEARING", "AUDIT"]

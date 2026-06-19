@@ -106,9 +106,11 @@ nav:
     - AI Traders: user-guide/15-ai-traders.md
     - Statistics and Reporting: user-guide/16-statistics-and-reporting.md
     - Market-Maker Bot: user-guide/17-mm-bot.md
+    - Post-Trade Dissemination (RALF): user-guide/18-post-trade.md
     - Appendix - ALF Protocol: user-guide/20-app-alf-protocol.md
     - Appendix - BALF Protocol: user-guide/21-app-balf-protocol.md
     - Appendix - CALF Protocol: user-guide/22-app-calf-protocol.md
+    - Appendix - RALF Protocol: user-guide/23-app-ralf-protocol.md
   - Training:
     - Overview: training/index.md
     - "00 — Installation & Setup": training/00-installation.md

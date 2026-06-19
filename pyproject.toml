@@ -65,6 +65,7 @@ pm-admin     = "edumatcher.commands.console:main"
 pm-admin-cli = "edumatcher.commands.cli:main"
 pm-ai-swarm = "edumatcher.ai_trader.swarm:main"
 pm-mm-bot   = "edumatcher.mm_bot.main:main"
+pm-ralf-gwy = "edumatcher.ralf_gateway.main:main"
 pm-setup    = "edumatcher.setup_cmd:main"
 pm-config-gen = "edumatcher.commands.config_gen:main"
 

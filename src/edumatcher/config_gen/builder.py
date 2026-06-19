@@ -14,6 +14,14 @@ from .defaults import (
     DEFAULT_MM_MIN_QTY,
     DEFAULT_MM_SPREAD_TICKS,
     DEFAULT_MM_STUB_QTY,
+    DEFAULT_POST_TRADE_GATEWAY_ALLOWED_ROLES,
+    DEFAULT_POST_TRADE_GATEWAY_BIND_ADDRESS,
+    DEFAULT_POST_TRADE_GATEWAY_HEARTBEAT_INTERVAL_SEC,
+    DEFAULT_POST_TRADE_GATEWAY_IDLE_TIMEOUT_SEC,
+    DEFAULT_POST_TRADE_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_POST_TRADE_GATEWAY_NAME,
+    DEFAULT_POST_TRADE_GATEWAY_PORT,
+    DEFAULT_POST_TRADE_GATEWAY_REPLAY_RETENTION_SEC,
     DEFAULT_SNAPSHOT_INTERVAL_SEC,
     DEFAULT_STATIC_BAND_PCT,
     DEFAULT_TICK_DECIMALS,
@@ -48,6 +56,19 @@ class ConfigSpec:
     closing_auction: str = "16:00"
     closing_end: str = "16:05"
     symbol_overrides: dict[str, SymbolOverride] = field(default_factory=dict)
+    post_trade_gateway: PostTradeGatewaySpec | None = None
+
+
+@dataclass(frozen=True)
+class PostTradeGatewaySpec:
+    name: str = DEFAULT_POST_TRADE_GATEWAY_NAME
+    bind_address: str = DEFAULT_POST_TRADE_GATEWAY_BIND_ADDRESS
+    port: int = DEFAULT_POST_TRADE_GATEWAY_PORT
+    replay_retention_sec: int = DEFAULT_POST_TRADE_GATEWAY_REPLAY_RETENTION_SEC
+    heartbeat_interval_sec: int = DEFAULT_POST_TRADE_GATEWAY_HEARTBEAT_INTERVAL_SEC
+    idle_timeout_sec: int = DEFAULT_POST_TRADE_GATEWAY_IDLE_TIMEOUT_SEC
+    max_client_queue: int = DEFAULT_POST_TRADE_GATEWAY_MAX_CLIENT_QUEUE
+    allowed_roles: tuple[str, ...] = DEFAULT_POST_TRADE_GATEWAY_ALLOWED_ROLES
 
 
 class ConfigBuilder:
@@ -73,6 +94,8 @@ class ConfigBuilder:
             cfg["circuit_breaker_defaults"] = self._build_cb_defaults()
 
         cfg["gateways"] = {"alf": self._build_gateways()}
+        if self.spec.post_trade_gateway is not None:
+            cfg["post_trade_gateway"] = self._build_post_trade_gateway()
         cfg["symbols"] = self._build_symbols()
 
         if self.spec.sessions_enabled and self.spec.emit_schedule:
@@ -85,6 +108,22 @@ class ConfigBuilder:
             }
 
         return cfg
+
+    def _build_post_trade_gateway(self) -> dict[str, Any]:
+        spec = self.spec.post_trade_gateway
+        if spec is None:
+            return {}
+
+        return {
+            "name": spec.name,
+            "bind_address": spec.bind_address,
+            "port": spec.port,
+            "replay_retention_sec": spec.replay_retention_sec,
+            "heartbeat_interval_sec": spec.heartbeat_interval_sec,
+            "idle_timeout_sec": spec.idle_timeout_sec,
+            "max_client_queue": spec.max_client_queue,
+            "allowed_roles": list(spec.allowed_roles),
+        }
 
     def _should_emit_mm_defaults(self) -> bool:
         if self.spec.emit_mm_defaults:

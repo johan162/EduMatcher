@@ -14,6 +14,7 @@ This directory is a lightweight workspace for design ideas across **EduMatcher**
 - `EduMatcher-Index.md`
 - `EduMatcher-Stat-commands.md`
 - `EduMatcher-Cross-host-connection.md`
+- `EduMatcher-Post-Trade-Dissemination-Gateway.md`
 
 ### Build PDF Documents
 
