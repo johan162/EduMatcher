@@ -35,6 +35,9 @@ sufficient liquidity, you get fills on both. Otherwise the combo rests.
 
 :material-checkbox-blank-outline: **Checkpoint:** combo acknowledged; fills or rests as a unit.
 
+Observation: atomic behavior is what removes leg risk. You should never see one
+leg fill without the other in a valid combo execution.
+
 ---
 
 ## Exercise 2: Verify Atomic Behaviour
@@ -46,6 +49,9 @@ Check that you cannot get a partial combo (one leg filled, other not):
 2. Submit the combo — it should rest (not fill AAPL alone).
 
 :material-checkbox-blank-outline: **Checkpoint:** combo does not partially fill.
+
+Operational rationale: without atomicity, you could end up with accidental
+directional inventory from only one leg filling.
 
 ---
 

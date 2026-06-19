@@ -132,7 +132,14 @@ MM_TSLA_01> QLEGS|SYM=TSLA|SHOW=ALL
 ```
 
 `QLEGS` shows the bid and ask leg order IDs, prices, remaining quantities, and
-fill flags. This is the operator view that helps you reconcile fills.
+fill flags. This is the operator view that helps you reconcile fills after
+restart or partial execution.
+
+Interpretation guide:
+
+- `remaining` is open quantity still resting in the book.
+- `filled_qty` is already executed quantity on that leg.
+- `status` shows state such as ACTIVE, PARTIAL, or FILLED.
 
 :material-checkbox-blank-outline: **Checkpoint:** QLEGS shows both quote legs for each symbol.
 
@@ -152,6 +159,15 @@ The bot will connect as `MM_<SYMBOL>_01`, quote around the current mid-price,
 reissue after fills, and use `QBOOT`/`QLEGS`-style state to avoid startup
 deadlocks and reconcile quote legs.
 
+Quick primer:
+
+- `QBOOT` asks the engine whether a gateway+symbol already has an active quote
+  slot (for example after a crash/restart).
+- `QLEGS` reconciles leg-level state (order IDs, remaining, fills) so the bot
+  can adopt or replace safely instead of duplicating quotes.
+
+See the detailed walkthrough in [09 — Market Making](09-market-making.md).
+
 :material-checkbox-blank-outline: **Checkpoint:** explain what the bot automates compared with your manual `QUOTE` workflow.
 
 ---
@@ -169,6 +185,7 @@ You now have:
 
 - [Market Making](../user-guide/14-market-maker.md)
 - [Market-Maker Bot (pm-mm-bot)](../user-guide/17-mm-bot.md)
+- [Market-Maker Bot CLI Reference](../user-guide/17-mm-bot.md#cli-reference)
 - [Gateway Commands](../user-guide/08-gateway.md)
 - [ALF Protocol Reference](../user-guide/20-app-alf-protocol.md)
 

@@ -60,6 +60,9 @@ Expected: fills at a single price that maximises traded volume. In this example
 the equilibrium price should be around 150.20–150.30 (the exact price depends on
 the algorithm; max-volume, then min-surplus rules apply).
 
+What to observe: identify the one common execution price printed across all fill
+events. That repeated value is the equilibrium price selected by uncrossing.
+
 :material-checkbox-blank-outline: **Checkpoint:** all fills report the same execution price.
 
 ---
@@ -124,8 +127,8 @@ The auction algorithm selects the price that:
 ## Further Reading
 
 - [Auctions & Scheduling](../user-guide/06-auctions-scheduling.md)
+- [Auction Equilibrium Concepts](../concepts/05-concepts-trading-day.md)
 - [Order Types](../user-guide/04-order-types.md)
-- [A Full Trading Day](../concepts/05-concepts-trading-day.md)
 
 ---
 

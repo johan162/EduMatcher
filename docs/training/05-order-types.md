@@ -27,6 +27,9 @@ TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP|QTY=100|STOP=149.50|TIF=DAY
 The order is dormant until AAPL trades at or below 149.50. Once triggered, it
 executes as a market order.
 
+Interpretation: 149.50 is the **trigger** level, not a guaranteed execution
+price.
+
 To test: from TRADER02, sell aggressively to push the price down past the stop.
 
 :material-checkbox-blank-outline: **Checkpoint:** stop order triggered and filled after price drop.
@@ -43,6 +46,9 @@ TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP_LIMIT|QTY=100|STOP=149.50|PRICE=149.4
 
 When the stop triggers at 149.50, a limit sell at 149.40 is placed. If the
 market gaps below 149.40, the order may not fill (unlike a plain stop).
+
+Interpretation: `STOP=149.50` controls **when** the order is activated, while
+`PRICE=149.40` controls the **worst acceptable execution price** after trigger.
 
 :material-checkbox-blank-outline: **Checkpoint:** stop-limit triggers and rests as a limit order.
 

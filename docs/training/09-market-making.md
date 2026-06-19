@@ -54,6 +54,20 @@ MM_MANUAL_01> QLEGS|SYM=AAPL|SHOW=ALL
 
 Expected: a table showing both legs with prices, quantities, and fill status.
 
+Representative shape:
+
+```
+leg_id             side  price   qty  remaining  filled_qty  status
+ord_abc_bid_001    BUY   149.90  500  500        0           ACTIVE
+ord_abc_ask_001    SELL  150.10  500  400        100         PARTIAL
+```
+
+How to read it:
+
+- `remaining` tells you what is still resting.
+- `filled_qty` tells you what already executed.
+- `status` helps classify lifecycle (`ACTIVE`, `PARTIAL`, `FILLED`, etc.).
+
 :material-checkbox-blank-outline: **Checkpoint:** QLEGS shows both bid and ask legs.
 
 ---
@@ -144,6 +158,25 @@ MM_MANUAL_01> QBOOT|SYM=AAPL
 This shows the current active quote slot for your gateway+symbol — useful for
 verifying what the engine thinks your active quote is.
 
+Why this matters operationally: on bot restart, a previous instance might have
+left an active quote in the book. `QBOOT` prevents blind re-quoting by showing
+whether a slot is already active so the new process can adopt or replace safely
+instead of creating duplicates.
+
+Typical outcomes:
+
+```
+MM_MANUAL_01> QBOOT|SYM=AAPL
+QBOOT SYM=AAPL active=true quote_id=Q003 bid_id=<bid_id> ask_id=<ask_id>
+```
+
+or
+
+```
+MM_MANUAL_01> QBOOT|SYM=AAPL
+QBOOT SYM=AAPL active=false
+```
+
 :material-checkbox-blank-outline: **Checkpoint:** QBOOT shows active quote or empty slot.
 
 ---
@@ -163,6 +196,7 @@ verifying what the engine thinks your active quote is.
 - The QUOTE command creates two linked limit orders (bid + ask).
 - `quote_id` identifies the logical quote; legs are separate order IDs.
 - QLEGS inspects current leg state; QBOOT inspects the active slot.
+- Use QBOOT first during startup, then QLEGS for leg-level reconciliation.
 - Replacement quotes don't require explicit cancel first.
 - `order.fill` does **not** include `quote_id` — correlate via leg order IDs.
 
@@ -172,6 +206,7 @@ verifying what the engine thinks your active quote is.
 
 - [Market Making](../user-guide/14-market-maker.md)
 - [Market-Maker Bot (pm-mm-bot)](../user-guide/17-mm-bot.md)
+- [Market-Maker Bot CLI Reference](../user-guide/17-mm-bot.md#cli-reference)
 - [Gateway Commands](../user-guide/08-gateway.md)
 - [MM Quotes Concept](../concepts/03-concepts-mm-quotes.md)
 - [ALF Protocol Reference](../user-guide/20-app-alf-protocol.md)

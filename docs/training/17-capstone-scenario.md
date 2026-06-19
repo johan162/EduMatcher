@@ -182,6 +182,16 @@ Answer these without looking at earlier chapters:
 
 :material-checkbox-blank-outline: **Checkpoint:** you can answer every question from memory or by using the user guide.
 
+Review map:
+
+- Q1: [Architecture Overview](../architecture/01-architecture.md)
+- Q2: [Gateway Commands](../user-guide/08-gateway.md)
+- Q3: [MM Quotes Concept](../concepts/03-concepts-mm-quotes.md)
+- Q4: [Drop Copy](../user-guide/13-drop-copy.md)
+- Q5: [Order Types](../user-guide/04-order-types.md)
+- Q6: [Time-in-Force & Session Lifecycle](../user-guide/06-auctions-scheduling.md)
+- Q7: [Controlling the Exchange](../user-guide/02-commands.md)
+
 ---
 
 ## Further Reading
