@@ -608,18 +608,27 @@ SYMBOLS
 ```
 
 Requests the list of all symbols that currently have an active order book in the engine.
-The gateway sends the request and the engine replies with the current instrument list,
-which is printed as a rich table:
+The gateway sends the request and the engine replies with the current instrument list
+plus any available `symbol_meta` fields, which are printed as a rich table:
 
 ```
-┌─────────────────────┐
-│  Active Instruments │
-├────┬────────────────┤
-│  1 │ AAPL           │
-│  2 │ MSFT           │
-│  3 │ TSLA           │
-└────┴────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                    Active Instruments                   │
+├────┬────────┬──────┬─────────────┬────────────┬─────────┤
+│  # │ Symbol │ Tick │ MM Enforced │ Max Spread │ Min Qty │
+├────┼────────┼──────┼─────────────┼────────────┼─────────┤
+│  1 │ AAPL   │ 0.01 │ YES         │         10 │     100 │
+│  2 │ MSFT   │ 0.01 │ NO          │         10 │     100 │
+│  3 │ TSLA   │ 0.01 │ —           │          — │       — │
+└────┴────────┴──────┴─────────────┴────────────┴─────────┘
 ```
+
+When metadata is available, the columns mean:
+
+- `Tick`: symbol tick size derived from engine config
+- `MM Enforced`: whether MM obligation rules are currently enforced for this gateway/symbol
+- `Max Spread`: effective `mm_max_spread_ticks`
+- `Min Qty`: effective `mm_min_qty`
 
 !!! note
     `SYMBOLS` returns symbols that have at least one active order book (created

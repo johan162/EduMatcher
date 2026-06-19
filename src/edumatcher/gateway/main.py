@@ -401,6 +401,7 @@ class Gateway:
         )  # order_id → quote leg state
         self._quote_id_by_order_id: dict[str, str] = {}  # order_id → quote_id
         self._known_symbols: list[str] = []
+        self._known_symbol_meta: dict[str, dict[str, Any]] = {}
         self._positions: dict[str, dict[str, Any]] = (
             {}
         )  # symbol → {net_qty, avg_cost, realized_pnl}
@@ -626,6 +627,45 @@ class Gateway:
 
         console.print(t)
 
+    def _print_symbols_table(
+        self, symbols: list[str], symbol_meta: dict[str, dict[str, Any]]
+    ) -> None:
+        t = Table(
+            title="Active Instruments",
+            show_header=True,
+            header_style="bold magenta",
+        )
+        t.add_column("#", style="dim", width=4)
+        t.add_column("Symbol", style="bold", min_width=10)
+        t.add_column("Tick", justify="right")
+        t.add_column("MM Enforced", justify="center")
+        t.add_column("Max Spread", justify="right")
+        t.add_column("Min Qty", justify="right")
+
+        for i, sym in enumerate(symbols, 1):
+            meta = symbol_meta.get(sym, {})
+            tick_size = meta.get("tick_size")
+            enforce_mm = meta.get("enforce_mm_obligation")
+            mm_max_spread_ticks = meta.get("mm_max_spread_ticks")
+            mm_min_qty = meta.get("mm_min_qty")
+
+            tick_text = str(tick_size) if tick_size is not None else "—"
+            if isinstance(enforce_mm, bool):
+                enforced_text = "YES" if enforce_mm else "NO"
+            else:
+                enforced_text = "—"
+
+            t.add_row(
+                str(i),
+                sym,
+                tick_text,
+                enforced_text,
+                str(mm_max_spread_ticks) if mm_max_spread_ticks is not None else "—",
+                str(mm_min_qty) if mm_min_qty is not None else "—",
+            )
+
+        console.print(t)
+
     def _authenticate(self, timeout_sec: float = 3.0) -> bool:
         # Give sockets time to connect and SUB filters to propagate.
         time.sleep(0.1)
@@ -756,22 +796,15 @@ class Gateway:
 
         elif "system.symbols" in topic:
             symbols = payload.get("symbols", [])
+            symbol_meta = payload.get("symbol_meta", {})
             # Update completer's known symbols list
             self._known_symbols.clear()
             self._known_symbols.extend(symbols)
+            self._known_symbol_meta = (
+                symbol_meta if isinstance(symbol_meta, dict) else {}
+            )
             if symbols:
-                from rich.table import Table
-
-                t = Table(
-                    title="Active Instruments",
-                    show_header=True,
-                    header_style="bold magenta",
-                )
-                t.add_column("#", style="dim", width=4)
-                t.add_column("Symbol", style="bold", min_width=10)
-                for i, sym in enumerate(symbols, 1):
-                    t.add_row(str(i), sym)
-                console.print(t)
+                self._print_symbols_table(symbols, self._known_symbol_meta)
             else:
                 console.print(
                     "[dim]No active instruments yet — submit an order to create a book.[/dim]"

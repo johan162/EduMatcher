@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from rich.table import Table
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -207,6 +208,46 @@ class TestGatewayHelpers:
         gw = _make_gateway()
         gw._handle_event("system.symbols.GW01", {"symbols": ["AAPL", "MSFT"]})
         assert "AAPL" in gw._known_symbols
+
+    def test_handle_event_symbols_with_meta(self) -> None:
+        gw = _make_gateway()
+        payload = {
+            "symbols": ["AAPL", "MSFT"],
+            "symbol_meta": {
+                "AAPL": {
+                    "tick_size": 0.01,
+                    "enforce_mm_obligation": True,
+                    "mm_max_spread_ticks": 10,
+                    "mm_min_qty": 100,
+                },
+                "MSFT": {
+                    "tick_size": 0.05,
+                    "enforce_mm_obligation": False,
+                    "mm_max_spread_ticks": 12,
+                    "mm_min_qty": 50,
+                },
+            },
+        }
+
+        with patch("edumatcher.gateway.main.console.print") as mock_print:
+            gw._handle_event("system.symbols.GW01", payload)
+
+        assert gw._known_symbol_meta["AAPL"]["tick_size"] == 0.01
+        table = mock_print.call_args[0][0]
+        assert isinstance(table, Table)
+        assert [column.header for column in table.columns] == [
+            "#",
+            "Symbol",
+            "Tick",
+            "MM Enforced",
+            "Max Spread",
+            "Min Qty",
+        ]
+        assert table.columns[1]._cells == ["AAPL", "MSFT"]
+        assert table.columns[2]._cells == ["0.01", "0.05"]
+        assert table.columns[3]._cells == ["YES", "NO"]
+        assert table.columns[4]._cells == ["10", "12"]
+        assert table.columns[5]._cells == ["100", "50"]
 
     def test_handle_event_symbols_empty(self) -> None:
         gw = _make_gateway()
