@@ -1,4 +1,4 @@
-# 11 — Risk Controls
+# Risk Controls
 
 ## Objective
 

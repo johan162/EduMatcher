@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>EduMatcher — Training Material</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+
+@page { size: 210mm 297mm; margin: 0; }
+@media print {
+  * { -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important; }
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 210mm; height: 297mm;
+  background: #ffffff;
+}
+
+.cover {
+  position: relative;
+  width: 210mm; height: 297mm;
+  background: #fcfbf9;
+  font-family: 'Inter', sans-serif;
+  color: #1c1c1a;
+  overflow: hidden;
+}
+
+/* ── Margins guide: consistent 22mm side margin throughout ── */
+
+/* ── Top label row ── */
+.top-row {
+  position: absolute;
+  top: 22mm; left: 22mm; right: 22mm;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.top-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 3mm;
+  letter-spacing: 0.6mm;
+  text-transform: uppercase;
+  color: #6b6a64;
+}
+
+/* ── Thin rule under header ── */
+.top-rule {
+  position: absolute;
+  top: 30mm; left: 22mm; right: 22mm;
+  height: 0.25mm;
+  background: #c9c6bc;
+}
+
+/* ── Title block, vertically centred in upper-middle ── */
+.title-block {
+  position: absolute;
+  top: 108mm; left: 22mm; right: 22mm;
+}
+
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 3.2mm;
+  letter-spacing: 0.5mm;
+  text-transform: uppercase;
+  color: #9a3324;
+  margin-bottom: 6mm;
+}
+
+.title-main {
+  font-family: 'Source Serif 4', serif;
+  font-weight: 600;
+  font-size: 19mm;
+  line-height: 1.05;
+  color: #1c1c1a;
+  letter-spacing: -0.2mm;
+  margin-bottom: 8mm;
+}
+
+.title-rule {
+  width: 24mm;
+  height: 0.6mm;
+  background: #9a3324;
+  margin-bottom: 8mm;
+}
+
+.subtitle {
+  font-family: 'Source Serif 4', serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 6mm;
+  line-height: 1.5;
+  color: #4a4946;
+  max-width: 140mm;
+}
+
+/* ── Edition / metadata block, lower third ── */
+.meta-block {
+  position: absolute;
+  top: 196mm; left: 22mm; right: 22mm;
+}
+
+.meta-row {
+  display: flex;
+  gap: 14mm;
+}
+
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5mm;
+}
+
+.meta-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 2.6mm;
+  letter-spacing: 0.4mm;
+  text-transform: uppercase;
+  color: #9a9890;
+}
+
+.meta-value {
+  font-family: 'Inter', sans-serif;
+  font-weight: 500;
+  font-size: 3.6mm;
+  color: #1c1c1a;
+}
+
+/* ── Bottom rule and footer ── */
+.bottom-rule {
+  position: absolute;
+  bottom: 28mm; left: 22mm; right: 22mm;
+  height: 0.25mm;
+  background: #c9c6bc;
+}
+
+.footer {
+  position: absolute;
+  bottom: 22mm; left: 22mm; right: 22mm;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.footer-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 2.8mm;
+  letter-spacing: 0.3mm;
+  color: #9a9890;
+}
+
+</style>
+</head>
+<body>
+<div class="cover">
+
+  <div class="top-row">
+    <div class="top-label">EduMatcher</div>
+    <div class="top-label">Training Material</div>
+  </div>
+  <div class="top-rule"></div>
+
+  <div class="title-block">
+    <div class="eyebrow">Internal Training Guide</div>
+    <div class="title-main">How a Financial<br>Exchange Works</div>
+    <div class="title-rule"></div>
+    <div class="subtitle">A practical introduction to exchange architecture, order matching, and market structure for the EduMatcher platform team.</div>
+  </div>
+
+  <div class="bottom-rule"></div>
+  <div class="footer">
+    <div class="footer-text">EduMatcher</div>
+  </div>
+
+</div>
+</body>
+</html>

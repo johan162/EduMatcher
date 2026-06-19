@@ -1,4 +1,4 @@
-# 06 — Time-in-Force & Sessions
+# Time-in-Force & Sessions
 
 ## Objective
 

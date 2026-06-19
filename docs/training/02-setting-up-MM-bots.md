@@ -1,4 +1,4 @@
-# 02 — Setting Up Market-Maker Liquidity
+# Setting Up Market-Maker Liquidity
 
 ## Objective
 

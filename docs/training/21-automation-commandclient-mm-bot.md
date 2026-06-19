@@ -1,4 +1,4 @@
-# 21 - Automation with CommandClient & MM Bot Tuning
+# Automation with CommandClient & MM Bot Tuning
 
 ## Objective
 

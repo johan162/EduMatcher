@@ -1,4 +1,4 @@
-# 05 — Order Types Deep Dive
+# Order Types Deep Dive
 
 ## Objective
 

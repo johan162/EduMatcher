@@ -1,4 +1,4 @@
-# 19 - Advanced Admin Operations
+# Advanced Admin Operations
 
 ## Objective
 

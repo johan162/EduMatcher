@@ -1,4 +1,4 @@
-# 16 — Persistence & Recovery
+# Persistence & Recovery
 
 ## Objective
 

@@ -1,4 +1,4 @@
-# 01 — Configuring & Starting Up
+# Configuring & Starting Up
 
 ## Objective
 

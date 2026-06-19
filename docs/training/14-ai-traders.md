@@ -1,4 +1,4 @@
-# 14 — AI Traders & Swarm
+# AI Traders & Swarm
 
 ## Objective
 

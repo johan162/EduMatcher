@@ -1,0 +1,180 @@
+\documentclass[10pt,a4paper]{book}
+\raggedbottom
+
+\usepackage{fontspec}
+%% \setmainfont{DejaVu Serif}
+\setsansfont{DejaVu Sans}
+\setmonofont{DejaVu Sans Mono}[Scale=MatchLowercase]
+\usepackage[a4paper,top=2cm,left=0.8cm,right=1cm,bottom=1.8cm]{geometry}
+\usepackage{graphicx}
+\usepackage{calc}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{amssymb}
+\usepackage{fancyhdr}
+
+
+\PassOptionsToPackage{hyphens}{url}
+\usepackage{xurl}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{hyperref}
+\urlstyle{same}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=RoyalBlue,   % internal links (TOC, refs)
+  urlcolor=BrickRed,     % external URLs
+  citecolor=ForestGreen, % citations
+  hypertexnames=false,
+  pdfborder={0 0 0}
+}
+\usepackage{eso-pic}
+\usepackage{setspace}
+\usepackage{parskip}
+\usepackage{fancyvrb}
+\usepackage{shorttoc}
+\usepackage{etoolbox}
+\usepackage[explicit]{titlesec}
+\usepackage[skins,breakable]{tcolorbox}
+\definecolor{codebg}{HTML}{404040}
+\definecolor{codeborder}{HTML}{C0C0C0}
+\fvset{fontsize=\small}
+
+
+% Shaded background for verbatim: manual minipage with colorbox
+\newenvironment{shadedverbatim}{%
+  \VerbatimEnvironment
+  \begin{minipage}{\dimexpr\linewidth-4mm}%
+  \columncolor{codebg}%
+  \begin{Verbatim}%
+}{%
+  \end{Verbatim}%
+  \end{minipage}%
+}
+
+% Override verbatim to use a snugshade-style background via save-box approach
+\newsavebox{\verbbox}
+\renewenvironment{verbatim}{%
+  \VerbatimEnvironment
+  \begin{lrbox}{\verbbox}%
+  \begin{minipage}{\dimexpr\linewidth-8mm}%
+  \begin{Verbatim}%
+}{%
+  \end{Verbatim}%
+  \end{minipage}%
+  \end{lrbox}%
+  \noindent\colorbox{codebg}{\usebox{\verbbox}}%
+}
+
+\setstretch{1.08}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.6em}
+
+% Pandoc may emit \tightlist in list environments.
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+% Pandoc 3.x may wrap images with \pandocbounded{...}.
+\providecommand{\pandocbounded}[1]{#1}
+
+\definecolor{brandblue}{HTML}{129ADD}
+\definecolor{brandgray}{HTML}{6B7583}
+\definecolor{lightorange}{HTML}{FFA500}
+\definecolor{darkorange}{HTML}{FF8C00}
+
+% Modern chapter heading: accent rule + title + full-width rule
+\makeatletter
+\pretocmd{\section}{\phantomsection}{}{}
+\makeatother
+
+\titleformat{\chapter}[display]
+  {\normalfont\sffamily}
+  {%
+    \color{brandblue}\rule{1.5cm}{3pt}\hspace{6pt}%
+    {\large\bfseries CHAPTER\ \thechapter}%
+  }
+  {8pt}
+  {\LARGE\bfseries\color{brandblue}\raggedright\parbox[t]{\linewidth}{#1}}
+  [\vspace{4pt}{\color{brandblue}\noindent\rule{\linewidth}{1.5pt}}\vspace{2pt}]
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textcolor{brandgray}{EduMatcher Training Guide}}
+\fancyhead[R]{\textcolor{brandgray}{\leftmark}}
+\fancyfoot[C]{\thepage}
+\setlength{\headheight}{14pt}
+
+% Set background to dark gray and text to light gray
+% HTML: 2b2522
+\pagecolor[rgb]{0.17,0.15,0.14}
+\color[rgb]{0.80,0.80,0.80}
+
+\begin{document}
+
+{%
+  \thispagestyle{empty}%
+  \IfFileExists{assets/cover-training-guide.png}{%
+    \AddToShipoutPictureBG*{\AtPageLowerLeft{\includegraphics[width=\paperwidth,height=\paperheight]{assets/cover-training-guide.png}}}%
+    \null
+  }{%
+    \null\vfill
+  }%
+  \clearpage
+}
+
+% Cover verso / imprint page.
+% A bare \newpage does not ship out an empty page; TeX needs actual content.
+{%
+  \thispagestyle{empty}%
+  \null\vfill
+  {\small\color{brandgray}%
+  \textbf{EduMatcher Training Guide}\\
+  For EduMatcher Version: 0.6.0 \\
+  Copyright \textcopyright\ Johan Persson\\
+  Generated on \today\\
+   Prepared with \LaTeX\ from Markdown sources for duplex printing. 
+  Sources for documentation available at\\ 
+  \url{https://github.com/johan162/EduMatcher}. 
+  \par}%
+  % \vfill\null
+  \clearpage
+}
+
+\frontmatter
+
+\pagenumbering{roman}
+\setcounter{page}{1}
+
+\begin{titlepage}
+  \centering
+  \vspace*{2.0cm}
+  {\Huge\bfseries\color{lightorange}Training Guide\par}
+  \vspace{1.2cm}
+  {\Large \texttt{edumatcher}, Version: 0.6.0\par}
+  \vspace{1.2cm}
+  {\Large An Educational Exchange Platform\par}
+  \vfill
+  {\large Johan Persson \texttt{<johan162@gmail.com>}\par}
+  {\large Generated on \today\par}
+\end{titlepage}
+
+% Ensure exactly one blank page after title before TOC.
+\clearpage
+\thispagestyle{empty}\null\clearpage
+\begingroup
+\setcounter{tocdepth}{0}
+\renewcommand{\contentsname}{Training Chapters}
+\tableofcontents
+\endgroup
+\cleardoublepage
+
+
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+\mainmatter
+
+%%__USER_GUIDE_CONTENT__%%
+
+\end{document}

@@ -1,4 +1,4 @@
-# 07 — Auctions
+# Auctions
 
 ## Objective
 

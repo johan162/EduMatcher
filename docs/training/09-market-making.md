@@ -1,4 +1,4 @@
-# 09 — Market Making
+# Market Making
 
 ## Objective
 

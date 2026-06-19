@@ -1,4 +1,4 @@
-# 17 — Capstone Scenario
+# Capstone Scenario
 
 ## Objective
 

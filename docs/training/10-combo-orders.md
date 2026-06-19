@@ -1,4 +1,4 @@
-# 10 — Combo Orders
+# Combo Orders
 
 ## Objective
 
