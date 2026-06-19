@@ -200,7 +200,7 @@ ticks. If so, it cancels and reissues at the new mid.
 | Trigger | Action |
 |---|---|
 | Quote inactivated (one side filled) | Reissue after `--reissue-delay-ms` |
-| Mid-price drift exceeds threshold | Cancel and reissue at new mid |
+| Mid-price drift exceeds threshold | Cancel active quote, then reissue at new mid |
 | Quote rejected | Retry after delay |
 | Periodic heartbeat (no active quote) | Reissue |
 
@@ -209,6 +209,13 @@ ticks. If so, it cancels and reissues at the new mid.
 After a fill, the bot waits `--reissue-delay-ms` (default: 200 ms) before
 reissuing. If multiple fills arrive in quick succession, the timer resets on
 each fill — resulting in exactly one reissue after the burst settles.
+
+### Cancel timeout guard
+
+When the bot is replacing an active quote, it first sends `quote.cancel` and
+waits up to `--cancel-timeout-sec` for lifecycle confirmation. If no
+confirmation arrives within that window, it forces a safe replacement by
+clearing local quote IDs and sending a fresh `quote.new`.
 
 ---
 
@@ -265,7 +272,7 @@ pm-mm-bot --symbol AAPL --initial_min 95.00 --initial_max 105.00
 | `--heartbeat-interval-sec F` | `5.0` | Periodic live-quote check interval |
 | `--startup-session-timeout-sec F` | `5.0` | Max wait for first `session.state` |
 | `--bootstrap-timeout-sec F` | `1.0` | Max wait for QBOOT reply |
-| `--cancel-timeout-sec F` | `1.0` | Max wait for cancel confirmation |
+| `--cancel-timeout-sec F` | `1.0` | Max wait for cancel confirmation before forced replacement reissue |
 | `--shutdown-timeout-sec F` | `2.0` | Max wait for cancel on SIGINT/SIGTERM |
 | `--qlegs-reconcile-interval-sec F` | `15.0` | Periodic QLEGS reconciliation interval |
 | `--initial_min PRICE` | *unset* | Lower bound for random bootstrap price |
@@ -310,9 +317,18 @@ gateways:
 
 ### Gap validation
 
-If `mm_max_spread_ticks` is set for the symbol, the bot validates at startup
-that `--gap ≤ mm_max_spread_ticks × tick_size`. If the gap is too wide, the
-bot exits with a clear error message.
+The bot enforces pricing validity at startup:
+
+- `gap >= 2 * tick_size` (via pricer validation)
+- if `mm_max_spread_ticks` is available in symbol metadata, the bot validates
+  `gap <= mm_max_spread_ticks * tick_size`
+
+Defaulting rules:
+
+- If `--gap` is not provided and `mm_max_spread_ticks` is available, the bot
+  defaults to half the max spread: `(mm_max_spread_ticks / 2) * tick_size`.
+- If no MM spread metadata is available, the bot uses the standard `0.10`
+  default.
 
 ---
 
@@ -388,7 +404,7 @@ With `--verbose` (`-v`), additional debug lines appear:
 | `auth rejected` | Gateway ID not in `engine_config.yaml` | Add the `MM_<SYM>_<nn>` entry with `role: MARKET_MAKER` |
 | `startup failed: no reference price` | Empty book + no `--initial_min`/`--initial_max` | Add bootstrap range flags |
 | `startup failed: no session.state` | Engine not running or scheduler not started | Start the engine and scheduler |
-| `quote REJECTED` | Gap violates `mm_max_spread_ticks` obligation | Reduce `--gap` value |
+| `quote REJECTED` | Gap or qty violates MM obligation policy | Reduce `--gap` / increase `--qty` or adjust gateway MM settings |
 | Bot quotes but prices look wrong | Tick size mismatch | Check symbol `tick_size` in engine config |
 
 ---

@@ -128,6 +128,8 @@ class TestHandleSymbolsRequest:
         assert topic == "system.symbols.GW01"
         assert "AAPL" in msg["symbols"]
         assert "MSFT" in msg["symbols"]
+        assert "symbol_meta" in msg
+        assert msg["symbol_meta"]["AAPL"]["tick_size"] == 0.01
 
 
 # ---------------------------------------------------------------------------

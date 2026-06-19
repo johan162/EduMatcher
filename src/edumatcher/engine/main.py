@@ -897,7 +897,52 @@ class Engine:
     def _handle_symbols_request(self, payload: dict[str, Any]) -> None:
         gateway_id = payload.get("gateway_id", "")
         symbols = sorted(self.books.keys())
-        self.pub_sock.send_multipart(make_symbols_msg(gateway_id, symbols))
+        engine_cfg = self._engine_config
+        symbol_meta: dict[str, dict[str, Any]] = {}
+        for symbol in symbols:
+            meta: dict[str, Any] = {}
+            sym_cfg = engine_cfg.symbols.get(symbol) if engine_cfg else None
+            if sym_cfg is not None:
+                meta["tick_size"] = 10 ** (-int(sym_cfg.tick_decimals))
+
+                mm_max_spread_ticks: int | None = None
+                mm_min_qty: int | None = None
+                enforce_mm_obligation: bool | None = None
+
+                gw_cfg = engine_cfg.fix_gateways.get(gateway_id) if engine_cfg else None
+                if gw_cfg is not None:
+                    enforce_mm_obligation = gw_cfg.enforce_mm_obligation
+                    mm_max_spread_ticks = gw_cfg.mm_max_spread_ticks
+                    mm_min_qty = gw_cfg.mm_min_qty
+
+                    global_sym_policy = (
+                        engine_cfg.global_symbol_mm_obligation_policies.get(symbol)
+                        if engine_cfg
+                        else None
+                    )
+                    if global_sym_policy is not None:
+                        enforce_mm_obligation = global_sym_policy.enforce_mm_obligation
+                        mm_max_spread_ticks = global_sym_policy.mm_max_spread_ticks
+                        mm_min_qty = global_sym_policy.mm_min_qty
+
+                    gw_sym_policy = gw_cfg.mm_obligation_policies.get(symbol)
+                    if gw_sym_policy is not None:
+                        enforce_mm_obligation = gw_sym_policy.enforce_mm_obligation
+                        mm_max_spread_ticks = gw_sym_policy.mm_max_spread_ticks
+                        mm_min_qty = gw_sym_policy.mm_min_qty
+
+                if enforce_mm_obligation is not None:
+                    meta["enforce_mm_obligation"] = enforce_mm_obligation
+                if mm_max_spread_ticks is not None:
+                    meta["mm_max_spread_ticks"] = mm_max_spread_ticks
+                if mm_min_qty is not None:
+                    meta["mm_min_qty"] = mm_min_qty
+
+            symbol_meta[symbol] = meta
+
+        self.pub_sock.send_multipart(
+            make_symbols_msg(gateway_id, symbols, symbol_meta=symbol_meta)
+        )
 
     def _handle_session_state_request(self, payload: dict[str, Any]) -> None:
         """Return the current session state without advancing it."""

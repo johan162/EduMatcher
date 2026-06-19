@@ -884,6 +884,14 @@ which symbols to pull opening book snapshots for.
 | Field | Type | Description |
 |---|---|---|
 | `symbols` | array of strings | All symbols configured in `engine_config.yaml` |
+| `symbol_meta` | object | Per-symbol metadata map keyed by symbol (e.g. `{"AAPL": {...}}`) |
+
+When present, each `symbol_meta.{SYMBOL}` entry may include:
+
+- `tick_size` (float): symbol tick size derived from `tick_decimals`
+- `enforce_mm_obligation` (bool): effective MM obligation enforcement for this gateway/symbol
+- `mm_max_spread_ticks` (int): effective max MM spread in ticks
+- `mm_min_qty` (int): effective minimum MM quote quantity
 
 
 

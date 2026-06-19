@@ -111,6 +111,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> None:
     """Main entry point for pm-mm-bot."""
+    cli_args = argv if argv is not None else sys.argv[1:]
+    gap_was_explicit = "--gap" in cli_args
     args = _parse_args(argv)
 
     from edumatcher.mm_bot.pricer import QuotePricer
@@ -138,6 +140,7 @@ def main(argv: list[str] | None = None) -> None:
         gateway_id=gateway_id,
         symbol=symbol,
         gap=args.gap,
+        gap_was_explicit=gap_was_explicit,
         qty=args.qty,
         drift_ticks=args.drift_ticks,
         reissue_delay_ms=args.reissue_delay_ms,

@@ -46,6 +46,7 @@ class MMBot:
         gateway_id: str,
         symbol: str,
         gap: float,
+        gap_was_explicit: bool,
         qty: int,
         drift_ticks: int,
         reissue_delay_ms: int,
@@ -65,6 +66,7 @@ class MMBot:
         self.gateway_id = gateway_id
         self.symbol = symbol
         self.gap = gap
+        self._gap_was_explicit = gap_was_explicit
         self.qty = qty
         self.drift_ticks = drift_ticks
         self.tif = tif
@@ -88,6 +90,7 @@ class MMBot:
         self._session_state: str | None = None
         self._tick_size = 0.01  # default; updated from symbol metadata
         self._pricer: QuotePricer | None = None
+        self._mm_max_spread_ticks: int | None = None
 
         # Quote tracking
         self._quote_id: str | None = None
@@ -97,6 +100,7 @@ class MMBot:
         self._reissue_at: float | None = None
         self._last_heartbeat: float = 0.0
         self._last_qlegs_reconcile: float = 0.0
+        self._awaiting_cancel_for_reissue = False
 
         # Pre-ack fill buffer
         self._pending_fills: list[dict[str, Any]] = []
@@ -201,6 +205,11 @@ class MMBot:
                     meta = sym_meta[self.symbol]
                     if "tick_size" in meta:
                         self._tick_size = float(meta["tick_size"])
+                    if "mm_max_spread_ticks" in meta:
+                        try:
+                            self._mm_max_spread_ticks = int(meta["mm_max_spread_ticks"])
+                        except (TypeError, ValueError):
+                            self._mm_max_spread_ticks = None
                 return symbols
             if topic == "session.state":
                 self._session_state = str(payload.get("state", "")).upper()
@@ -378,6 +387,14 @@ class MMBot:
 
     def _cancel_and_reissue(self) -> None:
         """Replace active quote with a fresh one at current mid."""
+        if self._quote_id is not None:
+            if self._awaiting_cancel_for_reissue:
+                return
+            self._cancel_quote()
+            self._awaiting_cancel_for_reissue = True
+            self._reissue_at = time.monotonic() + self._cancel_timeout_sec
+            self._state = BotState.REPRICING
+            return
         self._send_quote()
 
     # ------------------------------------------------------------------
@@ -432,10 +449,12 @@ class MMBot:
         if status in ("INACTIVE_BID_FILLED", "INACTIVE_ASK_FILLED", "CANCELLED"):
             # Schedule reissue
             if self._state not in (BotState.PAUSED, BotState.WAITING_FOR_SESSION):
-                self._reissue_at = time.monotonic() + self._reissue_delay_sec
+                delay = self._reissue_delay_sec if status != "CANCELLED" else 0.0
+                self._reissue_at = time.monotonic() + delay
                 self._quote_id = None
                 self._bid_order_id = None
                 self._ask_order_id = None
+                self._awaiting_cancel_for_reissue = False
 
     def _handle_order_fill(self, payload: dict[str, Any]) -> None:
         """Handle order.fill — check if it belongs to our quote."""
@@ -560,6 +579,14 @@ class MMBot:
                     and self._pricer
                     and self._pricer.mid_price is not None
                 ):
+                    if self._state == BotState.REPRICING and self._quote_id is not None:
+                        self._log(
+                            "cancel confirmation timeout — forcing quote replacement"
+                        )
+                        self._quote_id = None
+                        self._bid_order_id = None
+                        self._ask_order_id = None
+                        self._awaiting_cancel_for_reissue = False
                     self._cancel_and_reissue()
                 elif self._state == BotState.WAITING_FOR_SESSION:
                     pass  # wait for session
@@ -602,8 +629,10 @@ class MMBot:
             return
 
         # Check if our IDs match
+        seen_order_ids: set[str] = set()
         for leg in legs:
             leg_qid = str(leg.get("quote_id", ""))
+            leg_order_id = str(leg.get("order_id", ""))
             if leg_qid and self._quote_id and leg_qid != self._quote_id:
                 self._log("QLEGS mismatch: quote_id divergence — reissuing")
                 self._quote_id = None
@@ -611,6 +640,23 @@ class MMBot:
                 self._ask_order_id = None
                 self._reissue_at = time.monotonic()
                 return
+            if leg_order_id:
+                seen_order_ids.add(leg_order_id)
+
+        expected_order_ids = {
+            oid for oid in (self._bid_order_id, self._ask_order_id) if oid
+        }
+        if (
+            expected_order_ids
+            and seen_order_ids
+            and expected_order_ids != seen_order_ids
+        ):
+            self._log("QLEGS mismatch: leg order_id divergence — reissuing")
+            self._quote_id = None
+            self._bid_order_id = None
+            self._ask_order_id = None
+            self._reissue_at = time.monotonic()
+            return
 
     def run(self) -> int:
         """Run the bot event loop. Returns exit code."""
@@ -641,6 +687,21 @@ class MMBot:
         if symbols and self.symbol not in symbols:
             self._log(f"startup failed: {self.symbol} not in symbol list")
             return 1
+
+        # Derive or validate gap against symbol MM spread obligation when available.
+        if self._mm_max_spread_ticks is not None:
+            if not self._gap_was_explicit:
+                self.gap = (self._mm_max_spread_ticks / 2.0) * self._tick_size
+                self._log(
+                    f"gap defaulted from MM obligation: {self.gap:.6f} "
+                    f"(max_spread_ticks={self._mm_max_spread_ticks})"
+                )
+            if self.gap > self._mm_max_spread_ticks * self._tick_size:
+                self._log(
+                    "startup failed: --gap exceeds mm_max_spread_ticks obligation "
+                    f"({self.gap:.6f} > {self._mm_max_spread_ticks} * {self._tick_size:.6f})"
+                )
+                return 1
 
         # Step 3: Initialize pricer
         self._pricer = QuotePricer(

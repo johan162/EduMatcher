@@ -495,13 +495,17 @@ def _tick(self) -> None:
 
 ### 6.3 Cancel Before Reissue
 
-The engine active quote slot is keyed by `(gateway_id, symbol)`. A new
-`quote.new` on the same symbol is therefore a valid replace operation and can be
-used as the default reprice/reissue path.
+The engine active quote slot is keyed by `(gateway_id, symbol)`. The bot uses a
+cancel-then-reissue replacement path by default when an active quote exists:
+
+1. Send `quote.cancel` for `(gateway_id, symbol)`.
+2. Wait up to `cancel_timeout_sec` for cancellation lifecycle confirmation.
+3. If timeout elapses, force safe replacement by clearing local mapping and
+  sending a fresh `quote.new`.
 
 Explicit `quote.cancel` remains necessary for PAUSED/shutdown transitions and
-may also be used defensively before reissue when desired. This defensive path
-handles edge cases where:
+the same timeout-guarded cancel path is used for active reissue. This handles
+edge cases where:
 
 - A partial fill left one leg partially alive.
 - The engine inactivated one leg but the other is still resting.
@@ -1021,7 +1025,7 @@ The bot is instantiated with a mock engine; events are injected directly.
 | `test_bootstrap_from_random_range` | Empty book/trade and no engine initial quote, with initial range configured → bot samples and quotes |
 | `test_startup_fails_without_bootstrap_source` | Empty book/trade and no engine initial quote/range → clean startup failure (no hang) |
 | `test_startup_fails_without_session_snapshot` | No `session.state` snapshot/event before timeout → clean startup failure (no hang) |
-| `test_reissue_after_fill` | `order.fill` → timer fires → `quote.new` replace sent (no mandatory pre-cancel) |
+| `test_reissue_after_fill` | `order.fill` → timer fires → `quote.cancel` then timeout-guarded `quote.new` replace |
 | `test_reissue_batches_rapid_fills` | Three fills in 50 ms produce exactly one reissue |
 | `test_fill_before_ack_buffering` | `order.fill` received before `quote.ack` is buffered and reconciled correctly once ack arrives |
 | `test_qlegs_mismatch_triggers_safe_reconcile` | Divergence between local mapping and `QLEGS` snapshot triggers cancel/reissue convergence |
@@ -1179,7 +1183,7 @@ Use this checklist before opening a PR:
 ### Phase 4: Reissue, Drift, and Shutdown Safety
 
 - Implement delayed reissue timer and replace-first quote refresh.
-- Add optional defensive cancel-before-reissue branch guarded by timeout.
+- Keep timeout-guarded cancel-before-reissue path as standard replace flow.
 - Implement graceful shutdown (`SIGINT`/`SIGTERM`) with cancel timeout handling.
 
 ### Phase 5: Integration Tests and Hardening

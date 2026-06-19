@@ -388,6 +388,7 @@ def _make_bot(
     *,
     initial_min: float | None = None,
     initial_max: float | None = None,
+    gap_was_explicit: bool = True,
     verbose: bool = False,
     startup_session_timeout_sec: float = 0.1,
     bootstrap_timeout_sec: float = 0.1,
@@ -413,6 +414,7 @@ def _make_bot(
         gateway_id="MM_AAPL_01",
         symbol="AAPL",
         gap=0.10,
+        gap_was_explicit=gap_was_explicit,
         qty=500,
         drift_ticks=3,
         reissue_delay_ms=200,
@@ -665,6 +667,73 @@ class TestMMBotStartup:
         rc = bot.run()
         assert rc == 1
 
+    def test_gap_defaulted_from_mm_obligation_when_not_explicit(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Without explicit --gap, bot defaults to half mm_max_spread_ticks*tick_size."""
+        bot, push, sub = _make_bot(
+            monkeypatch,
+            initial_min=95.0,
+            initial_max=105.0,
+            gap_was_explicit=False,
+        )
+        sub.recv_queue.extend(
+            [
+                _auth_msg(),
+                encode(
+                    "system.symbols.MM_AAPL_01",
+                    {
+                        "symbols": ["AAPL", "MSFT"],
+                        "symbol_meta": {
+                            "AAPL": {"tick_size": 0.01, "mm_max_spread_ticks": 8}
+                        },
+                    },
+                ),
+                _boot_msg(),
+                _qlegs_msg(),
+                _session_msg("CONTINUOUS"),
+            ]
+        )
+
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        bot.run()
+
+        assert bot.gap == pytest.approx(0.04)
+
+    def test_startup_fails_when_explicit_gap_exceeds_obligation(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Explicit gap wider than mm_max_spread_ticks*tick_size fails fast."""
+        bot, push, sub = _make_bot(
+            monkeypatch,
+            initial_min=95.0,
+            initial_max=105.0,
+            gap_was_explicit=True,
+        )
+        bot.gap = 0.20
+        sub.recv_queue.extend(
+            [
+                _auth_msg(),
+                encode(
+                    "system.symbols.MM_AAPL_01",
+                    {
+                        "symbols": ["AAPL", "MSFT"],
+                        "symbol_meta": {
+                            "AAPL": {"tick_size": 0.01, "mm_max_spread_ticks": 10}
+                        },
+                    },
+                ),
+            ]
+        )
+
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        rc = bot.run()
+        assert rc == 1
+
 
 class TestMMBotQuoting:
     """Integration tests for quoting lifecycle."""
@@ -738,7 +807,7 @@ class TestMMBotQuoting:
         assert "quote.new" in topics_sent
 
     def test_reissue_after_fill(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """order.fill → timer fires → quote.new replace sent."""
+        """order.fill → timer fires → cancel then quote.new replace sent."""
         bot, push, sub = self._start_bot(monkeypatch)
         bot._quote_id = "q-001"
         bot._bid_order_id = "bid-001"
@@ -763,8 +832,13 @@ class TestMMBotQuoting:
         bot._tick()
 
         assert len(push.sent) >= 1
-        topic, _ = msg_decode(push.sent[-1])
-        assert topic == "quote.new"
+        topic0, _ = msg_decode(push.sent[-1])
+        assert topic0 == "quote.cancel"
+
+        bot._reissue_at = 0  # force cancel-timeout path
+        bot._tick()
+        topic1, _ = msg_decode(push.sent[-1])
+        assert topic1 == "quote.new"
 
     def test_reissue_batches_rapid_fills(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Three fills in rapid succession produce exactly one reissue."""
@@ -790,9 +864,16 @@ class TestMMBotQuoting:
         # Only one reissue_at should be set (the last one)
         assert bot._reissue_at is not None
 
-        # Fire tick once
+        # Fire first tick -> cancel
         bot._reissue_at = 0
         push.sent.clear()
+        bot._tick()
+
+        cancel_sends = [m for m in push.sent if msg_decode(m)[0] == "quote.cancel"]
+        assert len(cancel_sends) == 1
+
+        # Fire second tick -> forced replacement
+        bot._reissue_at = 0
         bot._tick()
 
         quote_sends = [m for m in push.sent if msg_decode(m)[0] == "quote.new"]
@@ -851,7 +932,13 @@ class TestMMBotQuoting:
         }
         bot._dispatch("book.AAPL", book_payload)
 
-        # Should have sent a new quote (reprice)
+        # Reprice path now sends cancel first.
+        cancel_sends = [m for m in push.sent if msg_decode(m)[0] == "quote.cancel"]
+        assert len(cancel_sends) == 1
+
+        # Simulate cancel-timeout fallback and replacement quote.
+        bot._reissue_at = 0
+        bot._tick()
         quote_sends = [m for m in push.sent if msg_decode(m)[0] == "quote.new"]
         assert len(quote_sends) == 1
         assert bot._state in (BotState.REISSUING, BotState.REPRICING)
@@ -974,6 +1061,38 @@ class TestMMBotQlegsReconciliation:
         bot._reconcile_qlegs()
 
         # Should have cleared local state and scheduled reissue
+        assert bot._quote_id is None
+        assert bot._reissue_at is not None
+
+    def test_qlegs_order_id_divergence_triggers_reconcile(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """QLEGS legs with same quote_id but different leg IDs must reissue."""
+        bot, push, sub = _make_bot(monkeypatch, initial_min=95.0, initial_max=105.0)
+
+        bot._push_sock = push
+        bot._sub_sock = sub
+        bot._running = True
+        bot._state = BotState.QUOTING
+        bot._quote_id = "q-001"
+        bot._bid_order_id = "bid-001"
+        bot._ask_order_id = "ask-001"
+
+        bot._pricer = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+        assert bot._pricer is not None
+        bot._pricer.set_mid(100.0)
+
+        sub.recv_queue.append(
+            _qlegs_msg(
+                [
+                    {"quote_id": "q-001", "order_id": "bid-OTHER", "side": "BUY"},
+                    {"quote_id": "q-001", "order_id": "ask-OTHER", "side": "SELL"},
+                ]
+            )
+        )
+
+        bot._reconcile_qlegs()
+
         assert bot._quote_id is None
         assert bot._reissue_at is not None
 
