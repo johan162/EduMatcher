@@ -13,6 +13,7 @@ import threading
 import time
 from collections.abc import Callable, Generator
 from types import ModuleType
+from typing import Protocol, cast
 
 import pytest
 import zmq
@@ -22,6 +23,19 @@ from edumatcher.ralf_gateway.config import RalfGatewayConfig
 from edumatcher.ralf_gateway.gateway import RalfGateway
 
 EXAMPLE_DIR = Path("docs-design/examples/ralf")
+
+
+class _LineReader(Protocol):
+    def recv_line(self) -> str: ...
+
+
+class _RalfMessage(Protocol):
+    msg_type: str
+    fields: dict[str, str]
+
+
+class _ParserModule(Protocol):
+    def parse_ralf_line(self, line: str) -> _RalfMessage: ...
 
 
 def _free_port() -> int:
@@ -56,8 +70,10 @@ def _read_pty_output(fd: int, predicate: Callable[[str], bool], timeout: float) 
 
 
 def _recv_exec(
-    reader: object, parser_module: ModuleType, timeout: float = 2.0
-) -> object:
+    reader: _LineReader,
+    parser_module: _ParserModule,
+    timeout: float = 2.0,
+) -> _RalfMessage:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         msg = parser_module.parse_ralf_line(reader.recv_line())
@@ -121,7 +137,9 @@ def test_python_example_subscribes_and_parses_gateway_exec(
     running_gateway: tuple[zmq.Socket[bytes], int],
 ) -> None:
     pub, gateway_port = running_gateway
-    parser_module = _load_module("ralf_parser", EXAMPLE_DIR / "ralf_parser.py")
+    parser_module = cast(
+        _ParserModule, _load_module("ralf_parser", EXAMPLE_DIR / "ralf_parser.py")
+    )
     subscriber_module = _load_module(
         "ralf_subscriber_example", EXAMPLE_DIR / "ralf_subscriber.py"
     )
