@@ -309,6 +309,26 @@
     
     
       <li class="md-tabs__item">
+        <a href="../../training/" class="md-tabs__link">
+          
+  
+  
+  Training
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
         <a href="../../architecture/01-architecture/" class="md-tabs__link">
           
   
@@ -1474,6 +1494,1066 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#mm-quote-identification-and-quote-leg-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MM quote identification and quote-leg mapping
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MM quote identification and quote-leg mapping">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#executive-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Executive summary
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Executive summary">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#identity-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identity model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mapping-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mapping model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-the-mm-identifies-a-fill-as-belonging-to-the-active-quote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the MM identifies a fill as belonging to the active quote
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#when-cancellation-is-automatic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When cancellation is automatic
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-mm-needs-in-order-to-re-issue-a-quote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the MM needs in order to re-issue a quote
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exact-implementation-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exact implementation model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quote-identity-quote_id-vs-gateway_id-symbol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quote identity: quote_id vs (gateway_id, symbol)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quote identity: quote_id vs (gateway_id, symbol)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#gateway_id-symbol-is-the-engines-active-slot-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        (gateway_id, symbol) is the engine's active-slot key
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quote_id-is-the-mms-logical-correlation-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        quote_id is the MM's logical correlation key
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quote-to-leg-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quote-to-leg mapping
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quote-to-leg mapping">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#engine-side-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Engine-side mapping
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#order-side-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order-side mapping
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-mm-actually-receives" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the MM actually receives
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quote-lifecycle-messages-and-what-they-mean" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quote lifecycle messages and what they mean
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quote lifecycle messages and what they mean">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#quoteackgateway_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        quote.ack.&lt;gateway_id&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quotestatusgateway_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        quote.status.&lt;gateway_id&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#orderfillgateway_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        order.fill.&lt;gateway_id&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ordercancelledgateway_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        order.cancelled.&lt;gateway_id&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#real-message-ordering-in-the-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Real message ordering in the engine
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Real message ordering in the engine">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#normal-resting-quote-case" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Normal resting-quote case
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#immediate-match-on-insert-edge-case" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Immediate-match-on-insert edge case
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#explicit-cancel-case" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Explicit cancel case
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#replace-by-new-quote-case" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Replace-by-new-quote case
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alf-interaction-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ALF interaction examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-1-normal-quote-later-bid-leg-fill-automatic-sibling-cancel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 1: normal quote, later bid-leg fill, automatic sibling cancel
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Example 1: normal quote, later bid-leg fill, automatic sibling cancel">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mm-submits-quote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MM submits quote
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#engine-accepts-and-returns-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Engine accepts and returns mapping
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#later-the-bid-leg-is-hit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Later the bid leg is hit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-the-mm-identifies-the-fill-as-belonging-to-the-active-quote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the MM identifies the fill as belonging to the active quote
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#does-the-mm-need-to-cancel-the-sibling-leg" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Does the MM need to cancel the sibling leg?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-2-full-fill-only-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 2: full-fill-only policy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-3-never_inactivate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 3: NEVER_INACTIVATE
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Example 3: NEVER_INACTIVATE">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#option-a-explicit-cancel-then-new-quote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option A: explicit cancel then new quote
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#option-b-direct-replacement-quote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option B: direct replacement quote
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-4-immediate-fill-before-quoteack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 4: immediate fill before quote.ack
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Example 4: immediate fill before quote.ack">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-mm-must-do-in-this-case" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the MM must do in this case
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mm-operator-workflow-via-pm-gateway" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MM operator workflow via pm-gateway
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-operator-sees-on-screen" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the operator sees on screen
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#typical-manual-quoting-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Typical manual quoting session
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Typical manual quoting session">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-1-submit-a-quote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1: submit a quote
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-operator-must-remember-immediately" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the operator must remember immediately
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-identify-which-leg-filled" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2: identify which leg filled
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-interpret-what-happens-next" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3: interpret what happens next
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Step 3: interpret what happens next">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#case-a-inactivate_on_any_fill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Case A: INACTIVATE_ON_ANY_FILL
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#case-b-inactivate_on_full_fill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Case B: INACTIVATE_ON_FULL_FILL
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#case-c-never_inactivate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Case C: NEVER_INACTIVATE
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#explicit-cancel-workflow-from-the-terminal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Explicit cancel workflow from the terminal
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#direct-replacement-workflow-from-the-terminal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Direct replacement workflow from the terminal
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-operator-must-remember-after-every-quote-ack" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the operator must remember after every QUOTE ACK
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operator-fill-handling-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operator fill-handling checklist
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-is-needed-by-the-mm-to-re-issue-a-quote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is needed by the MM to re-issue a quote
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recommended-operator-habit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommended operator habit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recommended-mm-side-local-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommended MM-side local state
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Recommended MM-side local state">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#active-quote-record-per-symbol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Active quote record per symbol
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reverse-index-by-order-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reverse index by order ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pending-submit-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pending submit state
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-mm-must-know-to-re-issue-a-quote" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the MM must know to re-issue a quote
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What the MM must know to re-issue a quote">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-mm-should-normally-do-before-re-issuing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the MM should normally do before re-issuing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What the MM should normally do before re-issuing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#if-policy-auto-inactivates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        If policy auto-inactivates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#if-policy-does-not-auto-inactivate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        If policy does not auto-inactivate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-mm-must-not-assume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the MM must not assume
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recommended-local-state-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommended local state machine
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sequence-graph-normal-auto-inactivate-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sequence graph: normal auto-inactivate flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#practical-conclusions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Practical conclusions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operational-checklist-for-the-mm-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operational checklist for the MM implementation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-3-never_inactivate_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 3: NEVER_INACTIVATE
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Example 3: NEVER_INACTIVATE">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#option-a-explicit-cancel-then-new-quote_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option A: explicit cancel then new quote
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#option-b-direct-replacement-quote_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option B: direct replacement quote
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-4-immediate-fill-before-quoteack_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 4: immediate fill before quote.ack
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Example 4: immediate fill before quote.ack">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-mm-must-do-in-this-case_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the MM must do in this case
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recommended-mm-side-local-state_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommended MM-side local state
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Recommended MM-side local state">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#active-quote-record-per-symbol_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Active quote record per symbol
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reverse-index-by-order-id_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reverse index by order ID
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pending-submit-state_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pending submit state
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-mm-must-know-to-re-issue-a-quote_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the MM must know to re-issue a quote
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What the MM must know to re-issue a quote">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-mm-should-normally-do-before-re-issuing_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the MM should normally do before re-issuing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What the MM should normally do before re-issuing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#if-policy-auto-inactivates_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        If policy auto-inactivates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#if-policy-does-not-auto-inactivate_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        If policy does not auto-inactivate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-mm-must-not-assume_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the MM must not assume
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recommended-local-state-machine_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommended local state machine
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sequence-graph-normal-auto-inactivate-flow_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sequence graph: normal auto-inactivate flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#practical-conclusions_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Practical conclusions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operational-checklist-for-the-mm-implementation_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operational checklist for the MM implementation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1536,6 +2616,34 @@
     
   
     Statistics and Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../17-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market-Maker Bot
   
 
     
@@ -1672,7 +2780,7 @@
   <span class="md-ellipsis">
     
   
-    Architecture
+    Training
   
 
     
@@ -1685,6 +2793,711 @@
         
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Training
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/00-installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    00 — Installation & Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/01-configuring-startup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    01 — Configuring & Starting Up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/02-setting-up-MM-bots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    02 — Setting Up Market-Maker Liquidity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/03-the-first-trade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    03 — The First Trade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/04-amending-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    04 — Amending Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/05-order-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    05 — Order Types Deep Dive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/06-time-in-force-sessions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    06 — Time-in-Force & Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/07-auctions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    07 — Auctions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/08-cancelling-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    08 — Cancelling & Managing Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/09-market-making/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    09 — Market Making
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/10-combo-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    10 — Combo Orders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/11-risk-controls/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    11 — Risk Controls
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/12-pnl-clearing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    12 — P&L & Clearing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/13-market-data-drop-copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    13 — Market Data & Drop Copy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/14-ai-traders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    14 — AI Traders & Swarm
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/15-statistics-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    15 — Statistics & Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/16-persistence-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    16 — Persistence & Recovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/17-capstone-scenario/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    17 — Capstone Scenario
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/18-exchange-observer-processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    18 — Exchange Observer Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/19-advanced-admin-operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    19 — Advanced Admin Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/20-drop-copy-replay-recovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    20 — Drop-Copy Replay & Recovery Patterns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/21-automation-commandclient-mm-bot/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    21 — Automation with CommandClient & MM Bot Tuning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1779,10 +3592,10 @@
         
           
         
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
         
           
-          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
             
   
   
@@ -1800,8 +3613,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_6">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -2275,9 +4088,20 @@ fill activity exceeds a threshold.</p>
     note over E: MMP activates and requote deadline is set
     MM-&gt;&gt;E: QUOTE\|SYM=AAPL\|... (re-quote within deadline)
     note over E: MMP reset</code></pre>
+<p>What the MM operator sees in the terminal when MMP fires:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[09:30:01.002] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>[09:30:01.003] FILL      7c4a91e2  qty=100 @209.8  remaining=300  [PARTIAL]
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>[09:30:01.004] FILL      7c4a91e2  qty=100 @209.8  remaining=200  [PARTIAL]
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>[09:30:01.005] FILL      7c4a91e2  qty=100 @209.8  remaining=100  [PARTIAL]
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>[09:30:01.006] FILL      7c4a91e2  qty=100 @209.8  remaining=0    [FILLED]
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>[09:30:01.006] CANCELLED be2170fd
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>[09:30:01.006] QUOTE INACTIVE_BID_FILLED  Q1
+</code></pre></div>
+<p>The bot (or operator) must re-quote within <code>max_requote_delay_ns</code> to avoid
+an obligation breach flag.</p>
 <hr />
 <h2 id="cancelling-a-quote">Cancelling a quote<a class="headerlink" href="#cancelling-a-quote" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>QUOTE_CANCEL|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>QUOTE_CANCEL|SYM=AAPL
 </code></pre></div>
 <p>This cancels both legs atomically. The gateway receives a <code>quote.status</code>
 event with state <code>CANCELLED</code>.</p>
@@ -2289,18 +4113,18 @@ classroom or demo environment it is useful to have quotes already in the book
 price discovery can begin from a known starting point.</p>
 <p>This is done with the <code>market_maker_quotes</code> key under each symbol in
 <code>engine_config.yaml</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">symbols</span><span class="p">:</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span><span class="nt">tick_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="nt">market_maker_quotes</span><span class="p">:</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM01</span><span class="w">      </span><span class="c1"># must be a configured MARKET_MAKER gateway</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">        </span><span class="nt">quote_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SEED-MM01-AAPL</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">        </span><span class="nt">bid_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">149.95</span>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">        </span><span class="nt">ask_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">150.05</span>
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">        </span><span class="nt">bid_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">        </span><span class="nt">ask_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">        </span><span class="nt">tif</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DAY</span><span class="w">              </span><span class="c1"># or GTC — see below</span>
-<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">        </span><span class="nt">seed_once</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">       </span><span class="c1"># default — inject only on the very first startup</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">symbols</span><span class="p">:</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">    </span><span class="nt">tick_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">    </span><span class="nt">market_maker_quotes</span><span class="p">:</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM01</span><span class="w">      </span><span class="c1"># must be a configured MARKET_MAKER gateway</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">        </span><span class="nt">quote_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SEED-MM01-AAPL</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">        </span><span class="nt">bid_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">149.95</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">        </span><span class="nt">ask_price</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">150.05</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">        </span><span class="nt">bid_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">        </span><span class="nt">ask_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">        </span><span class="nt">tif</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DAY</span><span class="w">              </span><span class="c1"># or GTC — see below</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">        </span><span class="nt">seed_once</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">       </span><span class="c1"># default — inject only on the very first startup</span>
 </code></pre></div>
 <p>The engine injects these quotes during <code>_load_config()</code>, which runs at every
 startup after GTC orders are restored. Each entry creates a linked bid/ask pair
@@ -2494,50 +4318,1034 @@ the MM disconnects.</p>
 <h2 id="full-worked-example">Full worked example<a class="headerlink" href="#full-worked-example" title="Permanent link">&para;</a></h2>
 <p><strong>Scenario</strong>: <code>MM01</code> provides a continuous two-sided market in <code>AAPL</code>.
 <code>GW02</code> is a customer who buys 200 shares.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a># Configure engine_config.yaml:
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>#   gateways.MM01.role = MARKET_MAKER
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>#   gateways.MM01.enforce_mm_obligation = true
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>#   gateways.MM01.mm_max_spread_ticks = 10
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>#   gateways.MM01.mm_min_qty = 100
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>#   gateways.MM01.quote_refresh_policy = INACTIVATE_ON_ANY_FILL
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a># 1. MM01 posts a quote
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>MM01&gt; QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|QUOTE_ID=q1
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>[14:30:00] QUOTE ACK  q1  bid=ord-001 ask=ord-002
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>
-<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a># 2. GW02 buys 200 at market — hits the ASK leg
-<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>GW02&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=200
-<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>[14:30:01] FILL  ord-003  AAPL BUY  200@150.05
-<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>
-<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a># MM01 sees:
-<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a>[14:30:01] FILL  ord-002  AAPL SELL  200@150.05  (partial fill on ask)
-<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a>[14:30:01] QUOTE INACTIVE_ASK_FILLED  q1          (bid leg auto-cancelled)
-<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>
-<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a># 3. MM01 re-quotes
-<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a>MM01&gt; QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=300|QUOTE_ID=q2
-<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a>[14:30:01] QUOTE ACK  q2  bid=ord-004 ask=ord-005
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a># Configure engine_config.yaml:
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>#   gateways.MM01.role = MARKET_MAKER
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>#   gateways.MM01.enforce_mm_obligation = true
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>#   gateways.MM01.mm_max_spread_ticks = 10
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>#   gateways.MM01.mm_min_qty = 100
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>#   gateways.MM01.quote_refresh_policy = INACTIVATE_ON_ANY_FILL
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a># 1. MM01 posts a quote
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>MM01&gt; QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|QUOTE_ID=q1
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>[14:30:00] QUOTE ACK  q1  bid=ord-001 ask=ord-002
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a># 2. GW02 buys 200 at market — hits the ASK leg
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>GW02&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=200
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a>[14:30:01] FILL  ord-003  AAPL BUY  200@150.05
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a># MM01 sees:
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a>[14:30:01] FILL  ord-002  AAPL SELL  200@150.05  (partial fill on ask)
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a>[14:30:01] QUOTE INACTIVE_ASK_FILLED  q1          (bid leg auto-cancelled)
+<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a>
+<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a># 3. MM01 re-quotes
+<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a>MM01&gt; QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=300|QUOTE_ID=q2
+<a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a>[14:30:01] QUOTE ACK  q2  bid=ord-004 ask=ord-005
 </code></pre></div>
 <p>After the customer fill, <code>MM01</code>'s bid leg (<code>ord-001</code>) was cancelled by the
 engine automatically. The market maker posted a new quote <code>q2</code> with 300 on the
 ask to reflect the inventory consumed.</p>
 <hr />
 <h2 id="config-reference-summary">Config reference summary<a class="headerlink" href="#config-reference-summary" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">gateways</span><span class="p">:</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">MM01</span><span class="p">:</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">    </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span><span class="w">   </span><span class="c1"># or INACTIVATE_ON_FULL_FILL / NEVER_INACTIVATE</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">    </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span><span class="w">        </span><span class="c1"># or CANCEL_ALL / LEAVE_ALL</span>
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">    </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">    </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">    </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">    </span><span class="nt">mm_obligations</span><span class="p">:</span><span class="w">              </span><span class="c1"># per-symbol overrides (optional)</span>
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">      </span><span class="nt">TSLA</span><span class="p">:</span>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">        </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
-<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">        </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">gateways</span><span class="p">:</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">MM01</span><span class="p">:</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MARKET_MAKER</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">    </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span><span class="w">   </span><span class="c1"># or INACTIVATE_ON_FULL_FILL / NEVER_INACTIVATE</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">    </span><span class="nt">disconnect_behaviour</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CANCEL_QUOTES_ONLY</span><span class="w">        </span><span class="c1"># or CANCEL_ALL / LEAVE_ALL</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">    </span><span class="nt">enforce_mm_obligation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">    </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">    </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">    </span><span class="nt">mm_obligations</span><span class="p">:</span><span class="w">              </span><span class="c1"># per-symbol overrides (optional)</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">      </span><span class="nt">TSLA</span><span class="p">:</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="w">        </span><span class="nt">mm_max_spread_ticks</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="w">        </span><span class="nt">mm_min_qty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
 </code></pre></div>
+<h2 id="mm-quote-identification-and-quote-leg-mapping">MM quote identification and quote-leg mapping<a class="headerlink" href="#mm-quote-identification-and-quote-leg-mapping" title="Permanent link">&para;</a></h2>
+<h3 id="scope">Scope<a class="headerlink" href="#scope" title="Permanent link">&para;</a></h3>
+<p>The rest of this chapter explains exactly how EduMatcher represents a market-maker quote,
+how a quote is mapped to its two child orders, how the MM can identify that a
+fill belongs to the currently active quote, and what the MM must do to cancel
+or re-issue a quote.</p>
+<p>It answers these questions:</p>
+<ol>
+<li>Is a quote identified by <code>quote_id</code>, or by <code>(gateway_id, symbol)</code>?</li>
+<li>How is a quote mapped to the resting order(s)?</li>
+<li>How does the MM learn that one quote leg was taken?</li>
+<li>When is sibling cancellation automatic, and when must the MM do it?</li>
+<li>What state and data must the MM keep in order to re-quote safely?</li>
+</ol>
+<p>The chapter describes the engine behavior in full details</p>
+<h3 id="executive-summary">Executive summary<a class="headerlink" href="#executive-summary" title="Permanent link">&para;</a></h3>
+<h4 id="identity-model">Identity model<a class="headerlink" href="#identity-model" title="Permanent link">&para;</a></h4>
+<p>EduMatcher uses two identifiers for a quote, and they serve different roles:</p>
+<ul>
+<li>Active quote slot in the engine: <code>(gateway_id, symbol)</code></li>
+<li>External correlation identifier: <code>quote_id</code></li>
+</ul>
+<p>Practical meaning:</p>
+<ul>
+<li>The engine allows at most one active quote slot per <code>(gateway_id, symbol)</code>.</li>
+<li>A new <code>QUOTE</code> on the same gateway and symbol replaces the previous active slot.</li>
+<li><code>quote_id</code> identifies the specific logical quote instance occupying that slot.</li>
+</ul>
+<p>So the answer is:</p>
+<ul>
+<li>The engine routes and replaces quotes by <code>(gateway_id, symbol)</code>.</li>
+<li>The MM should correlate business events by <code>quote_id</code>.</li>
+</ul>
+<h4 id="mapping-model">Mapping model<a class="headerlink" href="#mapping-model" title="Permanent link">&para;</a></h4>
+<p>Each quote becomes two ordinary limit orders:</p>
+<ul>
+<li>bid leg: <code>side=BUY</code></li>
+<li>ask leg: <code>side=SELL</code></li>
+</ul>
+<p>The mapping is explicit in both directions:</p>
+<ul>
+<li><code>QuoteIndex[(gateway_id, symbol)] -&gt; QuoteEntry(quote_id, bid_order_id, ask_order_id)</code></li>
+<li>each leg order stores <code>origin=QUOTE</code> and <code>quote_id=&lt;same quote_id&gt;</code></li>
+</ul>
+<h4 id="how-the-mm-identifies-a-fill-as-belonging-to-the-active-quote">How the MM identifies a fill as belonging to the active quote<a class="headerlink" href="#how-the-mm-identifies-a-fill-as-belonging-to-the-active-quote" title="Permanent link">&para;</a></h4>
+<p>The fill arrives as a normal <code>order.fill.&lt;gateway_id&gt;</code> event for a leg <code>order_id</code>.</p>
+<p>Important implementation detail:</p>
+<ul>
+<li><code>order.fill</code> does <strong>not</strong> include <code>quote_id</code> in its published payload.</li>
+</ul>
+<p>Therefore the MM must identify quote-leg fills by keeping the mapping returned
+by <code>quote.ack</code>:</p>
+<ul>
+<li><code>quote_id -&gt; {symbol, bid_order_id, ask_order_id}</code></li>
+<li><code>order_id -&gt; {quote_id, leg_side, symbol}</code></li>
+</ul>
+<p>Then the rule is simple:</p>
+<ul>
+<li>if <code>fill.order_id == bid_order_id</code>, the fill belongs to the bid leg of that quote</li>
+<li>if <code>fill.order_id == ask_order_id</code>, the fill belongs to the ask leg of that quote</li>
+</ul>
+<h4 id="when-cancellation-is-automatic">When cancellation is automatic<a class="headerlink" href="#when-cancellation-is-automatic" title="Permanent link">&para;</a></h4>
+<p>Automatic sibling cancellation depends on <code>quote_refresh_policy</code>:</p>
+<ul>
+<li><code>INACTIVATE_ON_ANY_FILL</code>: sibling leg is auto-cancelled on any fill</li>
+<li><code>INACTIVATE_ON_FULL_FILL</code>: sibling leg is auto-cancelled only when the filled leg reaches <code>remaining_qty=0</code></li>
+<li><code>NEVER_INACTIVATE</code>: no automatic sibling cancellation due to fills</li>
+</ul>
+<p>The <code>quote_refresh_policy</code> is set per gateway in <code>engine_config.yaml</code> under <code>gateways.alf[].quote_refresh_policy</code>.</p>
+<h4 id="what-the-mm-needs-in-order-to-re-issue-a-quote">What the MM needs in order to re-issue a quote<a class="headerlink" href="#what-the-mm-needs-in-order-to-re-issue-a-quote" title="Permanent link">&para;</a></h4>
+<p>To re-issue a quote, the MM needs:</p>
+<ul>
+<li>the symbol</li>
+<li>the new bid price and ask price</li>
+<li>the new bid quantity and ask quantity</li>
+<li>the desired <code>TIF</code></li>
+<li>a new or reused client-side quote label strategy for <code>QUOTE_ID</code></li>
+<li>the current quote mapping so fills and cancels can be correlated correctly</li>
+</ul>
+<p>In practice the MM should keep:</p>
+<ul>
+<li>current active quote per symbol</li>
+<li>reverse map from child <code>order_id</code> to <code>quote_id</code></li>
+<li>local state showing whether the quote is active, cancelled, or inactivated</li>
+<li>local pending-submission state for edge cases where a fill arrives before <code>quote.ack</code></li>
+</ul>
+<h3 id="exact-implementation-model">Exact implementation model<a class="headerlink" href="#exact-implementation-model" title="Permanent link">&para;</a></h3>
+<h3 id="quote-identity-quote_id-vs-gateway_id-symbol">Quote identity: <code>quote_id</code> vs <code>(gateway_id, symbol)</code><a class="headerlink" href="#quote-identity-quote_id-vs-gateway_id-symbol" title="Permanent link">&para;</a></h3>
+<p>Both are used, but they are not interchangeable.</p>
+<h4 id="gateway_id-symbol-is-the-engines-active-slot-key"><code>(gateway_id, symbol)</code> is the engine's active-slot key<a class="headerlink" href="#gateway_id-symbol-is-the-engines-active-slot-key" title="Permanent link">&para;</a></h4>
+<p>Internally the engine stores active quotes in <code>QuoteIndex</code>, keyed by:</p>
+<ul>
+<li><code>gateway_id</code></li>
+<li><code>symbol</code></li>
+</ul>
+<p>Consequences:</p>
+<ul>
+<li>there can be only one active quote slot per gateway and symbol</li>
+<li><code>QUOTE_CANCEL</code> targets the active slot by symbol, not by <code>quote_id</code></li>
+<li>a new <code>QUOTE</code> on the same symbol replaces the currently indexed slot</li>
+</ul>
+<h4 id="quote_id-is-the-mms-logical-correlation-key"><code>quote_id</code> is the MM's logical correlation key<a class="headerlink" href="#quote_id-is-the-mms-logical-correlation-key" title="Permanent link">&para;</a></h4>
+<p><code>quote_id</code> is:</p>
+<ul>
+<li>optional on submission</li>
+<li>auto-generated by the engine if omitted</li>
+<li>returned in <code>quote.ack</code></li>
+<li>carried in <code>quote.status</code></li>
+<li>copied into both child orders internally</li>
+</ul>
+<p>The engine therefore treats <code>quote_id</code> as the identifier for the specific quote
+generation, but not as the routing key for cancel/replace.</p>
+<h3 id="quote-to-leg-mapping">Quote-to-leg mapping<a class="headerlink" href="#quote-to-leg-mapping" title="Permanent link">&para;</a></h3>
+<h4 id="engine-side-mapping">Engine-side mapping<a class="headerlink" href="#engine-side-mapping" title="Permanent link">&para;</a></h4>
+<p>The engine stores one <code>QuoteEntry</code> per active quote slot:</p>
+<ul>
+<li><code>quote_id</code></li>
+<li><code>gateway_id</code></li>
+<li><code>symbol</code></li>
+<li><code>bid_order_id</code></li>
+<li><code>ask_order_id</code></li>
+</ul>
+<p>That gives deterministic lookup from quote slot to its two child orders.</p>
+<h4 id="order-side-mapping">Order-side mapping<a class="headerlink" href="#order-side-mapping" title="Permanent link">&para;</a></h4>
+<p>Each child order stores:</p>
+<ul>
+<li><code>origin=QUOTE</code></li>
+<li><code>quote_id=&lt;quote_id&gt;</code></li>
+</ul>
+<p>That gives deterministic lookup from child order back to the originating quote.</p>
+<h4 id="what-the-mm-actually-receives">What the MM actually receives<a class="headerlink" href="#what-the-mm-actually-receives" title="Permanent link">&para;</a></h4>
+<p>The MM does <strong>not</strong> receive the full internal <code>Order</code> object on <code>order.fill</code>.
+The fill payload includes fields such as:</p>
+<ul>
+<li><code>order_id</code></li>
+<li><code>fill_qty</code></li>
+<li><code>fill_price</code></li>
+<li><code>remaining_qty</code></li>
+<li><code>status</code></li>
+<li><code>symbol</code></li>
+<li><code>side</code></li>
+<li><code>order_type</code></li>
+<li><code>tif</code></li>
+<li><code>qty</code></li>
+<li><code>price</code></li>
+</ul>
+<p>It does <strong>not</strong> include <code>quote_id</code>.</p>
+<p>So the MM must not assume that <code>order.fill</code> alone is enough to identify the
+logical quote instance unless the MM already persisted the order-id mapping from
+<code>quote.ack</code>.</p>
+<h3 id="quote-lifecycle-messages-and-what-they-mean">Quote lifecycle messages and what they mean<a class="headerlink" href="#quote-lifecycle-messages-and-what-they-mean" title="Permanent link">&para;</a></h3>
+<h4 id="quoteackgateway_id"><code>quote.ack.&lt;gateway_id&gt;</code><a class="headerlink" href="#quoteackgateway_id" title="Permanent link">&para;</a></h4>
+<p>Purpose: acceptance or rejection of a quote request.</p>
+<p>Fields:</p>
+<ul>
+<li><code>quote_id</code></li>
+<li><code>accepted</code></li>
+<li><code>reason</code></li>
+<li><code>bid_order_id</code></li>
+<li><code>ask_order_id</code></li>
+</ul>
+<p>Important details:</p>
+<ul>
+<li>on rejection, <code>accepted=false</code> and no leg IDs are usable</li>
+<li>on acceptance, <code>bid_order_id</code> and <code>ask_order_id</code> are the critical correlation keys</li>
+<li>on explicit <code>QUOTE_CANCEL</code>, the engine currently sends an acceptance ack with the <code>quote_id</code>, but no leg IDs</li>
+</ul>
+<h4 id="quotestatusgateway_id"><code>quote.status.&lt;gateway_id&gt;</code><a class="headerlink" href="#quotestatusgateway_id" title="Permanent link">&para;</a></h4>
+<p>Purpose: quote lifecycle transition.</p>
+<p>Current status values emitted by the engine:</p>
+<ul>
+<li><code>ACTIVE</code></li>
+<li><code>INACTIVE_BID_FILLED</code></li>
+<li><code>INACTIVE_ASK_FILLED</code></li>
+<li><code>CANCELLED</code></li>
+</ul>
+<p>Important detail:</p>
+<ul>
+<li><code>REJECTED</code> is <strong>not</strong> a <code>quote.status</code> value in the engine</li>
+<li>rejection is reported only through <code>quote.ack accepted=false</code></li>
+</ul>
+<h4 id="orderfillgateway_id"><code>order.fill.&lt;gateway_id&gt;</code><a class="headerlink" href="#orderfillgateway_id" title="Permanent link">&para;</a></h4>
+<p>Purpose: execution detail for one child order.</p>
+<p>This is the message that tells the MM that one quote leg traded.</p>
+<h4 id="ordercancelledgateway_id"><code>order.cancelled.&lt;gateway_id&gt;</code><a class="headerlink" href="#ordercancelledgateway_id" title="Permanent link">&para;</a></h4>
+<p>Purpose: cancellation detail for one child order.</p>
+<p>This is how the MM learns that the sibling leg was actually cancelled as an
+order-book event.</p>
+<h3 id="real-message-ordering-in-the-engine">Real message ordering in the engine<a class="headerlink" href="#real-message-ordering-in-the-engine" title="Permanent link">&para;</a></h3>
+<p>This is the most important correctness section in the note.</p>
+<p>The engine does <strong>not</strong> always emit messages in the intuitive order
+<code>quote.ack -&gt; quote.status ACTIVE -&gt; later fill -&gt; later inactive/cancel</code>.</p>
+<h4 id="normal-resting-quote-case">Normal resting-quote case<a class="headerlink" href="#normal-resting-quote-case" title="Permanent link">&para;</a></h4>
+<p>If neither leg matches immediately on insert, the MM will typically see:</p>
+<ol>
+<li><code>quote.ack accepted=true</code></li>
+<li><code>quote.status ACTIVE</code></li>
+<li>later, if a leg trades, one or more <code>order.fill</code></li>
+<li>if policy inactivates the quote, <code>order.cancelled</code> for the sibling leg</li>
+<li><code>quote.status INACTIVE_*</code></li>
+</ol>
+<h4 id="immediate-match-on-insert-edge-case">Immediate-match-on-insert edge case<a class="headerlink" href="#immediate-match-on-insert-edge-case" title="Permanent link">&para;</a></h4>
+<p>The engine inserts the two quote legs into the books <strong>before</strong> it emits
+<code>quote.ack</code> and <code>quote.status ACTIVE</code>.</p>
+<p>Therefore, if one leg matches immediately on entry, the MM may observe:</p>
+<ol>
+<li><code>order.fill</code> for the filled leg</li>
+<li>possibly <code>order.cancelled</code> for the sibling leg</li>
+<li><code>quote.status INACTIVE_*</code></li>
+<li>only then <code>quote.ack accepted=true</code></li>
+<li>and then <code>quote.status ACTIVE</code></li>
+</ol>
+<p>That ordering is counter-intuitive, but it is what the current engine code does.</p>
+<p>Practical consequence for the MM:</p>
+<ul>
+<li>the MM must tolerate fills arriving before <code>quote.ack</code></li>
+<li>the MM must be able to reconcile those early fills once <code>quote.ack</code> provides <code>bid_order_id</code> and <code>ask_order_id</code></li>
+</ul>
+<h4 id="explicit-cancel-case">Explicit cancel case<a class="headerlink" href="#explicit-cancel-case" title="Permanent link">&para;</a></h4>
+<p>On <code>QUOTE_CANCEL|SYM=&lt;symbol&gt;</code>, the engine currently does:</p>
+<ol>
+<li>cancel any still-resting bid/ask child orders, emitting <code>order.cancelled</code> per resting child</li>
+<li>emit <code>quote.status CANCELLED</code></li>
+<li>emit <code>quote.ack accepted=true</code></li>
+</ol>
+<p>So in this path, <code>quote.status CANCELLED</code> comes <strong>before</strong> the final successful
+<code>quote.ack</code>.</p>
+<h4 id="replace-by-new-quote-case">Replace-by-new-quote case<a class="headerlink" href="#replace-by-new-quote-case" title="Permanent link">&para;</a></h4>
+<p>On a new <code>QUOTE</code> for the same <code>(gateway_id, symbol)</code>:</p>
+<ol>
+<li>the engine removes the previous <code>QuoteIndex</code> entry</li>
+<li>cancels any still-resting old quote legs</li>
+<li>emits old-quote <code>quote.status CANCELLED</code></li>
+<li>creates new legs</li>
+<li>eventually emits new-quote <code>quote.ack accepted=true</code></li>
+<li>emits new-quote <code>quote.status ACTIVE</code></li>
+</ol>
+<p>Again, the lifecycle is not simply “ack first, status second” across all paths.</p>
+<h3 id="alf-interaction-examples">ALF interaction examples<a class="headerlink" href="#alf-interaction-examples" title="Permanent link">&para;</a></h3>
+<h3 id="example-1-normal-quote-later-bid-leg-fill-automatic-sibling-cancel">Example 1: normal quote, later bid-leg fill, automatic sibling cancel<a class="headerlink" href="#example-1-normal-quote-later-bid-leg-fill-automatic-sibling-cancel" title="Permanent link">&para;</a></h3>
+<p>Assume:</p>
+<ul>
+<li>gateway: <code>MM01</code></li>
+<li>symbol: <code>AAPL</code></li>
+<li>policy: <code>INACTIVATE_ON_ANY_FILL</code></li>
+<li>MM chooses <code>QUOTE_ID=Q123</code></li>
+</ul>
+<h4 id="mm-submits-quote">MM submits quote<a class="headerlink" href="#mm-submits-quote" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>MM01&gt; QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q123
+</code></pre></div>
+<h4 id="engine-accepts-and-returns-mapping">Engine accepts and returns mapping<a class="headerlink" href="#engine-accepts-and-returns-mapping" title="Permanent link">&para;</a></h4>
+<p>Gateway output will look like:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[09:30:00] QUOTE ACK   Q123  bid=B1A8C2D4 ask=S9F3E1AA
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>[09:30:00] QUOTE ACTIVE  Q123
+</code></pre></div>
+<p>At this point the MM must persist:</p>
+<ul>
+<li><code>Q123 -&gt; {symbol=AAPL, bid_order_id=B1A8C2D4, ask_order_id=S9F3E1AA, tif=DAY}</code></li>
+<li><code>B1A8C2D4 -&gt; {quote_id=Q123, leg=BID, symbol=AAPL}</code></li>
+<li><code>S9F3E1AA -&gt; {quote_id=Q123, leg=ASK, symbol=AAPL}</code></li>
+</ul>
+<h4 id="later-the-bid-leg-is-hit">Later the bid leg is hit<a class="headerlink" href="#later-the-bid-leg-is-hit" title="Permanent link">&para;</a></h4>
+<p>Suppose another participant sells into the MM bid. The MM may see:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[09:31:02] FILL  B1A8C2D4  AAPL BUY 100@209.80
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>[09:31:02] CANCELLED  S9F3E1AA
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>[09:31:02] QUOTE INACTIVE_BID_FILLED  Q123
+</code></pre></div>
+<h4 id="how-the-mm-identifies-the-fill-as-belonging-to-the-active-quote">How the MM identifies the fill as belonging to the active quote<a class="headerlink" href="#how-the-mm-identifies-the-fill-as-belonging-to-the-active-quote" title="Permanent link">&para;</a></h4>
+<p>The fill correlation logic is:</p>
+<ol>
+<li>read <code>order.fill.order_id</code></li>
+<li>look it up in <code>order_id -&gt; quote_id</code></li>
+<li>conclude that <code>B1A8C2D4</code> belongs to <code>Q123</code></li>
+<li>because it is the stored <code>bid_order_id</code>, conclude that the bid leg of <code>Q123</code> was taken</li>
+</ol>
+<h4 id="does-the-mm-need-to-cancel-the-sibling-leg">Does the MM need to cancel the sibling leg?<a class="headerlink" href="#does-the-mm-need-to-cancel-the-sibling-leg" title="Permanent link">&para;</a></h4>
+<p>No, not in this policy.</p>
+<p>Under <code>INACTIVATE_ON_ANY_FILL</code>, the engine already did both of these things:</p>
+<ul>
+<li>removed the quote from the active quote index</li>
+<li>cancelled the sibling ask leg automatically</li>
+</ul>
+<p>The <code>order.cancelled</code> and <code>quote.status INACTIVE_BID_FILLED</code> messages are the
+observable confirmation of that automatic cleanup.</p>
+<h3 id="example-2-full-fill-only-policy">Example 2: full-fill-only policy<a class="headerlink" href="#example-2-full-fill-only-policy" title="Permanent link">&para;</a></h3>
+<p>Assume policy <code>INACTIVATE_ON_FULL_FILL</code>.</p>
+<p>If the bid leg is only partially filled, the MM may see:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[09:31:02] FILL  B1A8C2D4  AAPL BUY 100@209.80  remaining=400  status=PARTIAL
+</code></pre></div>
+<p>And that may be all.</p>
+<p>In that case:</p>
+<ul>
+<li>no sibling auto-cancel occurs yet</li>
+<li>no <code>quote.status INACTIVE_*</code> is emitted yet</li>
+<li>the quote remains active in the engine</li>
+</ul>
+<p>The MM therefore continues to treat the quote as active until either:</p>
+<ul>
+<li>the filled leg becomes fully filled, causing inactivation, or</li>
+<li>the MM explicitly cancels or replaces the quote</li>
+</ul>
+<h3 id="example-3-never_inactivate">Example 3: <code>NEVER_INACTIVATE</code><a class="headerlink" href="#example-3-never_inactivate" title="Permanent link">&para;</a></h3>
+<p>Assume policy <code>NEVER_INACTIVATE</code>.</p>
+<p>The MM may see:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[09:31:02] FILL  B1A8C2D4  AAPL BUY 100@209.80
+</code></pre></div>
+<p>And no automatic sibling cancel, and no <code>INACTIVE_*</code> status.</p>
+<p>Meaning:</p>
+<ul>
+<li>the quote slot remains active in the engine</li>
+<li>the sibling ask leg remains resting unless something else removes it</li>
+<li>the MM must decide whether to keep quoting, cancel, or replace</li>
+</ul>
+<p>If the MM wants a fresh two-sided quote immediately, it has two valid options:</p>
+<h4 id="option-a-explicit-cancel-then-new-quote">Option A: explicit cancel then new quote<a class="headerlink" href="#option-a-explicit-cancel-then-new-quote" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>MM01&gt; QUOTE_CANCEL|SYM=AAPL
+</code></pre></div>
+<p>Typical resulting events:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>[09:31:02] CANCELLED  S9F3E1AA
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>[09:31:02] QUOTE CANCELLED  Q123  Cancelled by participant
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>[09:31:02] QUOTE ACK  Q123
+</code></pre></div>
+<p>Then the MM submits a new quote.</p>
+<h4 id="option-b-direct-replacement-quote">Option B: direct replacement quote<a class="headerlink" href="#option-b-direct-replacement-quote" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>MM01&gt; QUOTE|SYM=AAPL|BID=209.70|ASK=210.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q124
+</code></pre></div>
+<p>The engine will:</p>
+<ul>
+<li>remove the current active quote slot for <code>(MM01, AAPL)</code></li>
+<li>cancel any surviving old child orders</li>
+<li>emit <code>quote.status CANCELLED</code> for the old quote</li>
+<li>install the new quote</li>
+</ul>
+<p>This means the MM does <strong>not</strong> have to send <code>QUOTE_CANCEL</code> first if it is
+immediately replacing the quote with another quote on the same symbol.</p>
+<h3 id="example-4-immediate-fill-before-quoteack">Example 4: immediate fill before <code>quote.ack</code><a class="headerlink" href="#example-4-immediate-fill-before-quoteack" title="Permanent link">&para;</a></h3>
+<p>This is the tricky case that every robust MM must handle.</p>
+<p>Suppose the quote is marketable as soon as it is inserted. The MM may see:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>[09:30:00] FILL  B1A8C2D4  AAPL BUY 500@209.80
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>[09:30:00] CANCELLED  S9F3E1AA
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>[09:30:00] QUOTE INACTIVE_BID_FILLED  Q123
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>[09:30:00] QUOTE ACK  Q123  bid=B1A8C2D4 ask=S9F3E1AA
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a>[09:30:00] QUOTE ACTIVE  Q123
+</code></pre></div>
+<p>Yes, that ordering is possible in the current engine.</p>
+<h4 id="what-the-mm-must-do-in-this-case">What the MM must do in this case<a class="headerlink" href="#what-the-mm-must-do-in-this-case" title="Permanent link">&para;</a></h4>
+<p>The MM needs one more local concept:</p>
+<ul>
+<li><code>pending_quote_by_symbol</code></li>
+</ul>
+<p>When it sends:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>QUOTE|SYM=AAPL|...|QUOTE_ID=Q123
+</code></pre></div>
+<p>it should locally remember that there is a pending quote submission for AAPL.</p>
+<p>Then if an early fill arrives before <code>quote.ack</code>, the MM can:</p>
+<ol>
+<li>temporarily buffer the fill by <code>(gateway_id, symbol)</code></li>
+<li>wait for <code>quote.ack</code></li>
+<li>use <code>bid_order_id</code> and <code>ask_order_id</code> from the ack to retroactively resolve that buffered fill</li>
+<li>then continue normal state handling</li>
+</ol>
+<p>Without this pending-submit buffer, the MM cannot deterministically map an
+early fill to the quote until the ack arrives.</p>
+<h3 id="mm-operator-workflow-via-pm-gateway">MM operator workflow via <code>pm-gateway</code><a class="headerlink" href="#mm-operator-workflow-via-pm-gateway" title="Permanent link">&para;</a></h3>
+<p>This section is intentionally operator-oriented. It shows what a market maker
+using the interactive ALF gateway will actually type, what the gateway will
+print back, and what the operator must remember while managing live quotes.</p>
+<h3 id="what-the-operator-sees-on-screen">What the operator sees on screen<a class="headerlink" href="#what-the-operator-sees-on-screen" title="Permanent link">&para;</a></h3>
+<p>The gateway displays quote and order lifecycle events in a compact terminal
+format.</p>
+<p>Important display behavior:</p>
+<ul>
+<li><code>QUOTE ACK</code> shows the <code>quote_id</code> and the first 8 characters of each child order ID</li>
+<li><code>FILL</code> shows the first 8 characters of the filled child order ID</li>
+<li><code>CANCELLED</code> shows the first 8 characters of the cancelled child order ID</li>
+<li><code>QUOTE INACTIVE_*</code> and <code>QUOTE CANCELLED</code> show the <code>quote_id</code></li>
+</ul>
+<p>So a human operator correlates events using:</p>
+<ul>
+<li><code>quote_id</code> for the logical quote instance</li>
+<li>the displayed 8-character order-id prefixes for the bid and ask legs</li>
+</ul>
+<p>To reduce manual correlation load in fast markets, the gateway supports:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>QLEGS[|SYM=&lt;symbol&gt;][|SHOW=ACTIVE|RECENT|ALL]
+</code></pre></div>
+<p><code>QLEGS</code> shows per-gateway quote legs with explicit <code>Filled</code> and <code>Filled?</code>
+columns, so the operator can identify the traded leg without mentally joining
+multiple event lines.</p>
+<p>A programmatic MM should keep the full IDs from the message payload. A human
+operator using the terminal will usually work from the 8-character prefixes
+printed by the gateway.</p>
+<h3 id="typical-manual-quoting-session">Typical manual quoting session<a class="headerlink" href="#typical-manual-quoting-session" title="Permanent link">&para;</a></h3>
+<p>Assume the MM operator is connected as <code>MM01</code> and wants to quote <code>AAPL</code>.</p>
+<h4 id="step-1-submit-a-quote">Step 1: submit a quote<a class="headerlink" href="#step-1-submit-a-quote" title="Permanent link">&para;</a></h4>
+<p>Operator input:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>MM01&gt; QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q123
+</code></pre></div>
+<p>Typical gateway output when the quote rests normally:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>[09:30:00.101] QUOTE ACK   Q123  bid=7c4a91e2 ask=be2170fd
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>[09:30:00.102] QUOTE ACTIVE  Q123
+</code></pre></div>
+<h4 id="what-the-operator-must-remember-immediately">What the operator must remember immediately<a class="headerlink" href="#what-the-operator-must-remember-immediately" title="Permanent link">&para;</a></h4>
+<p>At this moment the operator should record or mentally associate:</p>
+<ul>
+<li>symbol: <code>AAPL</code></li>
+<li>quote id: <code>Q123</code></li>
+<li>bid leg prefix: <code>7c4a91e2</code></li>
+<li>ask leg prefix: <code>be2170fd</code></li>
+<li>intended prices: <code>209.80 / 210.20</code></li>
+<li>intended sizes: <code>500 / 500</code></li>
+<li>current refresh policy for that gateway</li>
+</ul>
+<p>The minimum safe correlation set for a human operator is:</p>
+<ul>
+<li><code>Q123</code></li>
+<li>bid leg short ID</li>
+<li>ask leg short ID</li>
+</ul>
+<h3 id="step-2-identify-which-leg-filled">Step 2: identify which leg filled<a class="headerlink" href="#step-2-identify-which-leg-filled" title="Permanent link">&para;</a></h3>
+<p>Later the operator may see:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>[09:31:02.417] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
+</code></pre></div>
+<p>The operator identifies this as the quote bid leg because:</p>
+<ul>
+<li>the filled order-id prefix <code>7c4a91e2</code> matches the bid ID shown in <code>QUOTE ACK</code></li>
+<li>therefore the bid side of <code>Q123</code> traded</li>
+</ul>
+<p>If instead the operator saw:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>[09:31:02.417] FILL      be2170fd  qty=100 @210.2  remaining=400  [PARTIAL]
+</code></pre></div>
+<p>that would mean the ask side of <code>Q123</code> traded.</p>
+<p>With <code>QLEGS</code>, this becomes a direct read:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>MM01&gt; QLEGS|SYM=AAPL|SHOW=ALL
+</code></pre></div>
+<p>Interpretation pattern:</p>
+<ul>
+<li><code>Filled?=YES</code> with <code>Leg=BUY</code> means the bid leg traded</li>
+<li><code>Filled?=YES</code> with <code>Leg=SELL</code> means the ask leg traded</li>
+<li><code>Rem&gt;0</code> with leg status <code>NEW</code> or <code>PARTIAL</code> identifies still-active exposure</li>
+</ul>
+<h3 id="step-3-interpret-what-happens-next">Step 3: interpret what happens next<a class="headerlink" href="#step-3-interpret-what-happens-next" title="Permanent link">&para;</a></h3>
+<p>What the operator should do next depends on the configured refresh policy.</p>
+<h4 id="case-a-inactivate_on_any_fill">Case A: <code>INACTIVATE_ON_ANY_FILL</code><a class="headerlink" href="#case-a-inactivate_on_any_fill" title="Permanent link">&para;</a></h4>
+<p>Typical terminal output:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>[09:31:02.417] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>[09:31:02.418] CANCELLED be2170fd
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>[09:31:02.418] QUOTE INACTIVE_BID_FILLED  Q123
+</code></pre></div>
+<p>Operator interpretation:</p>
+<ul>
+<li>the bid leg traded</li>
+<li>the engine automatically cancelled the sibling ask leg</li>
+<li>the quote is no longer active</li>
+<li>the operator may now prepare and submit a replacement quote</li>
+</ul>
+<p>Operator action:</p>
+<ul>
+<li>no manual <code>QUOTE_CANCEL</code> is needed</li>
+<li>compute the new bid/ask and send a fresh <code>QUOTE</code></li>
+<li>optionally run <code>QLEGS|SYM=AAPL|SHOW=ALL</code> before re-quoting to confirm final leg state</li>
+</ul>
+<h4 id="case-b-inactivate_on_full_fill">Case B: <code>INACTIVATE_ON_FULL_FILL</code><a class="headerlink" href="#case-b-inactivate_on_full_fill" title="Permanent link">&para;</a></h4>
+<p>Typical terminal output after a partial fill:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>[09:31:02.417] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
+</code></pre></div>
+<p>Operator interpretation:</p>
+<ul>
+<li>one quote leg traded</li>
+<li>the quote may still be active</li>
+<li>no sibling cancellation has happened yet</li>
+<li>the quote stays live until full fill or explicit operator action</li>
+</ul>
+<p>Operator action choices:</p>
+<ul>
+<li>leave the quote working if that is desired</li>
+<li>send <code>QUOTE_CANCEL|SYM=AAPL</code> if the quote should be withdrawn now</li>
+<li>send a replacement <code>QUOTE</code> if the operator wants to replace the current quote immediately</li>
+</ul>
+<h4 id="case-c-never_inactivate">Case C: <code>NEVER_INACTIVATE</code><a class="headerlink" href="#case-c-never_inactivate" title="Permanent link">&para;</a></h4>
+<p>Typical terminal output:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>[09:31:02.417] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
+</code></pre></div>
+<p>Operator interpretation:</p>
+<ul>
+<li>the bid leg traded</li>
+<li>the quote remains active unless manually changed or removed by another engine event</li>
+<li>the sibling ask leg is still live</li>
+</ul>
+<p>Operator action choices:</p>
+<ul>
+<li>do nothing and keep the surviving structure live</li>
+<li>cancel explicitly with <code>QUOTE_CANCEL|SYM=AAPL</code></li>
+<li>replace directly by sending a new <code>QUOTE</code> on <code>AAPL</code></li>
+</ul>
+<h3 id="explicit-cancel-workflow-from-the-terminal">Explicit cancel workflow from the terminal<a class="headerlink" href="#explicit-cancel-workflow-from-the-terminal" title="Permanent link">&para;</a></h3>
+<p>If the operator wants to cancel the current active quote for <code>AAPL</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>MM01&gt; QUOTE_CANCEL|SYM=AAPL
+</code></pre></div>
+<p>Typical output:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>[09:31:20.010] CANCELLED 7c4a91e2
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>[09:31:20.011] CANCELLED be2170fd
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>[09:31:20.011] QUOTE CANCELLED  Q123  Cancelled by participant
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>[09:31:20.012] QUOTE ACK  Q123
+</code></pre></div>
+<p>Important operator note:</p>
+<ul>
+<li><code>QUOTE_CANCEL</code> is symbol-based, not <code>quote_id</code>-based</li>
+<li>it targets whatever quote is currently active in the <code>(gateway_id, symbol)</code> slot</li>
+</ul>
+<p>So before typing <code>QUOTE_CANCEL|SYM=AAPL</code>, the operator should be sure that the
+currently active AAPL quote is the one they intend to remove.</p>
+<h3 id="direct-replacement-workflow-from-the-terminal">Direct replacement workflow from the terminal<a class="headerlink" href="#direct-replacement-workflow-from-the-terminal" title="Permanent link">&para;</a></h3>
+<p>In many cases the operator does not need a separate cancel command. The engine
+already supports replace-by-new-quote semantics.</p>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>MM01&gt; QUOTE|SYM=AAPL|BID=209.70|ASK=210.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q124
+</code></pre></div>
+<p>Typical interpretation:</p>
+<ul>
+<li>if <code>Q123</code> was still the active AAPL quote, the engine will remove it first</li>
+<li>any still-resting old legs are cancelled</li>
+<li>old quote lifecycle ends with <code>QUOTE CANCELLED  Q123</code></li>
+<li>new leg IDs are allocated for <code>Q124</code></li>
+<li>the operator then receives a new <code>QUOTE ACK</code> for <code>Q124</code></li>
+</ul>
+<p>This is often the cleanest manual workflow for active MM operation.</p>
+<h3 id="what-the-operator-must-remember-after-every-quote-ack">What the operator must remember after every <code>QUOTE ACK</code><a class="headerlink" href="#what-the-operator-must-remember-after-every-quote-ack" title="Permanent link">&para;</a></h3>
+<p>After every accepted quote, the operator should refresh their working state.</p>
+<p>The operator should remember:</p>
+<ul>
+<li>current symbol being quoted</li>
+<li>current <code>quote_id</code></li>
+<li>bid leg short ID</li>
+<li>ask leg short ID</li>
+<li>whether the current policy auto-inactivates on any fill, only full fill, or never</li>
+<li>whether a fill already happened and whether the quote is still active</li>
+</ul>
+<p>If the operator loses track of which leg IDs belong to which quote, then later
+<code>FILL</code> and <code>CANCELLED</code> lines become ambiguous.</p>
+<h3 id="operator-fill-handling-checklist">Operator fill-handling checklist<a class="headerlink" href="#operator-fill-handling-checklist" title="Permanent link">&para;</a></h3>
+<p>When a <code>FILL</code> line appears, the operator should follow this sequence:</p>
+<ol>
+<li>Match the displayed order-id prefix against the latest <code>QUOTE ACK</code> for that symbol.</li>
+<li>Determine whether the bid leg or ask leg traded.</li>
+<li>Check <code>remaining=</code> and <code>[status]</code> on the fill line.</li>
+<li>Watch immediately for either:</li>
+<li><code>CANCELLED</code> on the sibling leg</li>
+<li><code>QUOTE INACTIVE_BID_FILLED</code></li>
+<li><code>QUOTE INACTIVE_ASK_FILLED</code></li>
+<li>Decide whether the quote is now inactive or still live.</li>
+<li>If inactive, compute and submit the next quote.</li>
+<li>If still live, decide whether to leave it working, cancel it, or replace it.</li>
+</ol>
+<h3 id="what-is-needed-by-the-mm-to-re-issue-a-quote">What is needed by the MM to re-issue a quote<a class="headerlink" href="#what-is-needed-by-the-mm-to-re-issue-a-quote" title="Permanent link">&para;</a></h3>
+<p>To re-issue a usable two-sided quote, the operator or MM logic must know:</p>
+<ul>
+<li><code>SYM</code></li>
+<li>new <code>BID</code></li>
+<li>new <code>ASK</code></li>
+<li>new <code>BID_QTY</code></li>
+<li>new <code>ASK_QTY</code></li>
+<li><code>TIF</code></li>
+<li>new <code>QUOTE_ID</code> if the MM uses explicit client-side quote labels</li>
+</ul>
+<p>Typical re-quote command:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>MM01&gt; QUOTE|SYM=AAPL|BID=209.75|ASK=210.15|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q124
+</code></pre></div>
+<p>Operationally, the MM also needs to know whether the old quote is actually gone.</p>
+<p>Safe trigger points for re-quoting are:</p>
+<ul>
+<li>after <code>QUOTE INACTIVE_*</code></li>
+<li>after <code>QUOTE CANCELLED</code></li>
+<li>after a deliberate replace-by-new-quote decision</li>
+</ul>
+<h3 id="recommended-operator-habit">Recommended operator habit<a class="headerlink" href="#recommended-operator-habit" title="Permanent link">&para;</a></h3>
+<p>For manual terminal operation, the safest habit is:</p>
+<ol>
+<li>always supply your own <code>QUOTE_ID</code></li>
+<li>after each <code>QUOTE ACK</code>, note the bid and ask short IDs</li>
+<li>after each <code>FILL</code>, identify which leg traded by matching the short ID</li>
+<li>wait for <code>QUOTE INACTIVE_*</code> if the gateway auto-inactivates</li>
+<li>submit the next <code>QUOTE</code> only once you know whether the old quote is still active</li>
+</ol>
+<p>This reduces confusion during fast markets and makes post-trade reconciliation much easier.</p>
+<pre class="mermaid"><code>flowchart TD
+  A[Operator sends QUOTE] --&gt; B[Gateway prints QUOTE ACK with quote_id bid_id ask_id]
+  B --&gt; C[Operator records quote_id and both leg IDs]
+  C --&gt; D[Gateway prints FILL for one leg]
+  D --&gt; E[Operator matches fill order_id to bid or ask leg]
+  E --&gt; F{Did engine auto-inactivate?}
+  F --&gt;|Yes| G[See sibling CANCELLED and QUOTE INACTIVE_*]
+  F --&gt;|No| H[Quote may still be active]
+  G --&gt; I[Compute replacement quote]
+  H --&gt; J{Leave live, cancel, or replace?}
+  J --&gt;|Cancel| K[Send QUOTE_CANCEL&amp;#124;SYM=...]
+  J --&gt;|Replace| L[Send new QUOTE on same symbol]
+  J --&gt;|Leave live| M[Continue monitoring fills]
+  I --&gt; L
+  K --&gt; L</code></pre>
+<h3 id="recommended-mm-side-local-state">Recommended MM-side local state<a class="headerlink" href="#recommended-mm-side-local-state" title="Permanent link">&para;</a></h3>
+<p>The MM should maintain these structures.</p>
+<h4 id="active-quote-record-per-symbol">Active quote record per symbol<a class="headerlink" href="#active-quote-record-per-symbol" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>active_quote[symbol] = {
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>  quote_id,
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>  bid_order_id,
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a>  ask_order_id,
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>  bid_price,
+<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a>  ask_price,
+<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a>  bid_qty,
+<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a>  ask_qty,
+<a id="__codelineno-34-9" name="__codelineno-34-9" href="#__codelineno-34-9"></a>  tif,
+<a id="__codelineno-34-10" name="__codelineno-34-10" href="#__codelineno-34-10"></a>  state,
+<a id="__codelineno-34-11" name="__codelineno-34-11" href="#__codelineno-34-11"></a>}
+</code></pre></div>
+<h4 id="reverse-index-by-order-id">Reverse index by order ID<a class="headerlink" href="#reverse-index-by-order-id" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>order_to_quote[order_id] = {
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a>  quote_id,
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a>  symbol,
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a>  leg_side,   ## BID or ASK
+<a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a>}
+</code></pre></div>
+<h4 id="pending-submit-state">Pending submit state<a class="headerlink" href="#pending-submit-state" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pending_quote[symbol] = {
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a>  client_quote_id,
+<a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a>  bid_price,
+<a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a>  ask_price,
+<a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a>  bid_qty,
+<a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a>  ask_qty,
+<a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a>  tif,
+<a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a>  sent_at,
+<a id="__codelineno-36-9" name="__codelineno-36-9" href="#__codelineno-36-9"></a>}
+</code></pre></div>
+<p>This exists specifically to survive the immediate-fill-before-ack edge case.</p>
+<h3 id="what-the-mm-must-know-to-re-issue-a-quote">What the MM must know to re-issue a quote<a class="headerlink" href="#what-the-mm-must-know-to-re-issue-a-quote" title="Permanent link">&para;</a></h3>
+<p>To issue a new quote, the MM must compute and send:</p>
+<ul>
+<li><code>SYM</code></li>
+<li><code>BID</code></li>
+<li><code>ASK</code></li>
+<li><code>BID_QTY</code></li>
+<li><code>ASK_QTY</code></li>
+<li>optional <code>TIF</code></li>
+<li>optional <code>QUOTE_ID</code></li>
+</ul>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>MM01&gt; QUOTE|SYM=AAPL|BID=209.70|ASK=210.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q124
+</code></pre></div>
+<h4 id="what-the-mm-should-normally-do-before-re-issuing">What the MM should normally do before re-issuing<a class="headerlink" href="#what-the-mm-should-normally-do-before-re-issuing" title="Permanent link">&para;</a></h4>
+<h5 id="if-policy-auto-inactivates">If policy auto-inactivates<a class="headerlink" href="#if-policy-auto-inactivates" title="Permanent link">&para;</a></h5>
+<p>Recommended sequence:</p>
+<ol>
+<li>receive <code>order.fill</code> for the quote leg</li>
+<li>receive <code>quote.status INACTIVE_*</code> or otherwise confirm old quote is no longer active</li>
+<li>compute the new two-sided quote</li>
+<li>send the new <code>QUOTE</code></li>
+</ol>
+<p>Manual <code>QUOTE_CANCEL</code> is usually unnecessary here.</p>
+<h5 id="if-policy-does-not-auto-inactivate">If policy does not auto-inactivate<a class="headerlink" href="#if-policy-does-not-auto-inactivate" title="Permanent link">&para;</a></h5>
+<p>The MM must choose one of:</p>
+<ol>
+<li>send <code>QUOTE_CANCEL|SYM=&lt;symbol&gt;</code>, wait for cancellation lifecycle, then send a new <code>QUOTE</code></li>
+<li>send a replacement <code>QUOTE</code> directly on the same symbol, relying on the engine's replace semantics</li>
+</ol>
+<h4 id="what-the-mm-must-not-assume">What the MM must not assume<a class="headerlink" href="#what-the-mm-must-not-assume" title="Permanent link">&para;</a></h4>
+<p>The MM must not assume:</p>
+<ul>
+<li>that <code>order.fill</code> contains <code>quote_id</code></li>
+<li>that <code>quote.ack</code> always arrives before every other quote-related message</li>
+<li>that <code>quote.status ACTIVE</code> always means the quote is still active at the moment it is received</li>
+<li>that <code>QUOTE_CANCEL</code> is keyed by <code>quote_id</code> rather than by symbol</li>
+</ul>
+<h3 id="recommended-local-state-machine">Recommended local state machine<a class="headerlink" href="#recommended-local-state-machine" title="Permanent link">&para;</a></h3>
+<p>The engine publishes only a few quote lifecycle statuses. The MM usually needs a
+slightly richer local state machine.</p>
+<p>Recommended local states:</p>
+<ul>
+<li><code>PENDING_SUBMIT</code></li>
+<li><code>ACTIVE</code></li>
+<li><code>PARTIALLY_FILLED_STILL_ACTIVE</code></li>
+<li><code>INACTIVE_BID_FILLED</code></li>
+<li><code>INACTIVE_ASK_FILLED</code></li>
+<li><code>CANCELLED</code></li>
+<li><code>REJECTED</code></li>
+</ul>
+<p>Notes:</p>
+<ul>
+<li><code>PARTIALLY_FILLED_STILL_ACTIVE</code> is an MM-local state, not an engine <code>quote.status</code></li>
+<li><code>REJECTED</code> is also MM-local; the engine reports rejection only through <code>quote.ack accepted=false</code></li>
+</ul>
+<pre class="mermaid"><code>stateDiagram-v2
+    [*] --&gt; PENDING_SUBMIT
+    PENDING_SUBMIT --&gt; ACTIVE: quote.ack accepted=true
+    PENDING_SUBMIT --&gt; REJECTED: quote.ack accepted=false
+
+    ACTIVE --&gt; PARTIALLY_FILLED_STILL_ACTIVE: order.fill and policy does not inactivate yet
+    ACTIVE --&gt; INACTIVE_BID_FILLED: quote.status INACTIVE_BID_FILLED
+    ACTIVE --&gt; INACTIVE_ASK_FILLED: quote.status INACTIVE_ASK_FILLED
+    ACTIVE --&gt; CANCELLED: quote.status CANCELLED
+
+    PARTIALLY_FILLED_STILL_ACTIVE --&gt; INACTIVE_BID_FILLED: later quote.status INACTIVE_BID_FILLED
+    PARTIALLY_FILLED_STILL_ACTIVE --&gt; INACTIVE_ASK_FILLED: later quote.status INACTIVE_ASK_FILLED
+    PARTIALLY_FILLED_STILL_ACTIVE --&gt; CANCELLED: quote.status CANCELLED
+
+    INACTIVE_BID_FILLED --&gt; PENDING_SUBMIT: strategy decides to re-quote
+    INACTIVE_ASK_FILLED --&gt; PENDING_SUBMIT: strategy decides to re-quote
+    CANCELLED --&gt; PENDING_SUBMIT: strategy decides to re-quote</code></pre>
+<h3 id="sequence-graph-normal-auto-inactivate-flow">Sequence graph: normal auto-inactivate flow<a class="headerlink" href="#sequence-graph-normal-auto-inactivate-flow" title="Permanent link">&para;</a></h3>
+<p>This is the cleanest sequence to reason about and the best default example for
+docs or code comments.</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant MM as MM Gateway
+    participant ENG as Engine
+    participant TK as Taker
+
+    MM-&gt;&gt;ENG: QUOTE|SYM=AAPL|...|QUOTE_ID=Q123
+    ENG--&gt;&gt;MM: quote.ack.MM01 {quote_id=Q123, bid_order_id=B1, ask_order_id=S1}
+    ENG--&gt;&gt;MM: quote.status.MM01 {quote_id=Q123, status=ACTIVE}
+
+    TK-&gt;&gt;ENG: aggressive order hits B1
+    ENG--&gt;&gt;MM: order.fill.MM01 {order_id=B1, ...}
+    ENG--&gt;&gt;MM: order.cancelled.MM01 {order_id=S1}
+    ENG--&gt;&gt;MM: quote.status.MM01 {quote_id=Q123, status=INACTIVE_BID_FILLED}
+
+    MM-&gt;&gt;MM: map B1 -&gt; Q123 using quote.ack state
+    MM-&gt;&gt;MM: compute replacement quote
+    MM-&gt;&gt;ENG: QUOTE|SYM=AAPL|...|QUOTE_ID=Q124</code></pre>
+<h3 id="practical-conclusions">Practical conclusions<a class="headerlink" href="#practical-conclusions" title="Permanent link">&para;</a></h3>
+<ul>
+<li>The engine's unique active quote slot is <code>(gateway_id, symbol)</code>.</li>
+<li><code>quote_id</code> identifies the logical quote instance occupying that slot.</li>
+<li>The MM identifies quote-leg fills by <code>order_id</code>, not by <code>quote_id</code> in the fill payload.</li>
+<li><code>quote.ack</code> is the critical mapping message because it provides <code>bid_order_id</code> and <code>ask_order_id</code>.</li>
+<li>Under <code>INACTIVATE_ON_ANY_FILL</code>, sibling cancellation is automatic.</li>
+<li>Under <code>INACTIVATE_ON_FULL_FILL</code>, sibling cancellation happens only after full fill.</li>
+<li>Under <code>NEVER_INACTIVATE</code>, the MM must decide when to cancel or replace.</li>
+<li>Re-quoting can be done either by explicit <code>QUOTE_CANCEL</code> followed by new <code>QUOTE</code>, or by sending a replacement <code>QUOTE</code> directly on the same symbol.</li>
+<li>The MM must tolerate edge cases where <code>order.fill</code> and even <code>quote.status INACTIVE_*</code> arrive before <code>quote.ack</code>.</li>
+</ul>
+<h3 id="operational-checklist-for-the-mm-implementation">Operational checklist for the MM implementation<a class="headerlink" href="#operational-checklist-for-the-mm-implementation" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Always send your own <code>QUOTE_ID</code> for clean reconciliation.</li>
+<li>Persist <code>quote.ack</code> mappings immediately.</li>
+<li>Maintain <code>order_id -&gt; quote_id</code> reverse lookup.</li>
+<li>Correlate fills by <code>order_id</code>, never by assumed <code>quote_id</code> in the fill payload.</li>
+<li>Subscribe to all of:</li>
+<li><code>order.fill.&lt;gateway_id&gt;</code></li>
+<li><code>order.cancelled.&lt;gateway_id&gt;</code></li>
+<li><code>quote.ack.&lt;gateway_id&gt;</code></li>
+<li><code>quote.status.&lt;gateway_id&gt;</code></li>
+<li>Add pending-submit buffering for the immediate-fill-before-ack edge case.</li>
+<li>Treat <code>quote.status INACTIVE_*</code> or <code>quote.status CANCELLED</code> as the authoritative signal that the previous quote slot is no longer active.</li>
+<li>Use direct replacement <code>QUOTE</code> when you want the engine to perform atomic replace semantics on the same symbol.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>[09:31:02] FILL  B1A8C2D4  AAPL BUY 100@209.80  remaining=400  status=PARTIAL
+</code></pre></div>
+<p>And that may be all.</p>
+<p>In that case:</p>
+<ul>
+<li>no sibling auto-cancel occurs yet</li>
+<li>no <code>quote.status INACTIVE_*</code> is emitted yet</li>
+<li>the quote remains active in the engine</li>
+</ul>
+<p>The MM therefore continues to treat the quote as active until either:</p>
+<ul>
+<li>the filled leg becomes fully filled, causing inactivation, or</li>
+<li>the MM explicitly cancels or replaces the quote</li>
+</ul>
+<h3 id="example-3-never_inactivate_1">Example 3: <code>NEVER_INACTIVATE</code><a class="headerlink" href="#example-3-never_inactivate_1" title="Permanent link">&para;</a></h3>
+<p>Assume policy <code>NEVER_INACTIVATE</code>.</p>
+<p>The MM may see:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>[09:31:02] FILL  B1A8C2D4  AAPL BUY 100@209.80
+</code></pre></div>
+<p>And no automatic sibling cancel, and no <code>INACTIVE_*</code> status.</p>
+<p>Meaning:</p>
+<ul>
+<li>the quote slot remains active in the engine</li>
+<li>the sibling ask leg remains resting unless something else removes it</li>
+<li>the MM must decide whether to keep quoting, cancel, or replace</li>
+</ul>
+<p>If the MM wants a fresh two-sided quote immediately, it has two valid options:</p>
+<h4 id="option-a-explicit-cancel-then-new-quote_1">Option A: explicit cancel then new quote<a class="headerlink" href="#option-a-explicit-cancel-then-new-quote_1" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>MM01&gt; QUOTE_CANCEL|SYM=AAPL
+</code></pre></div>
+<p>Typical resulting events:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>[09:31:02] CANCELLED  S9F3E1AA
+<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>[09:31:02] QUOTE CANCELLED  Q123  Cancelled by participant
+<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>[09:31:02] QUOTE ACK  Q123
+</code></pre></div>
+<p>Then the MM submits a new quote.</p>
+<h4 id="option-b-direct-replacement-quote_1">Option B: direct replacement quote<a class="headerlink" href="#option-b-direct-replacement-quote_1" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a>MM01&gt; QUOTE|SYM=AAPL|BID=209.70|ASK=210.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q124
+</code></pre></div>
+<p>The engine will:</p>
+<ul>
+<li>remove the current active quote slot for <code>(MM01, AAPL)</code></li>
+<li>cancel any surviving old child orders</li>
+<li>emit <code>quote.status CANCELLED</code> for the old quote</li>
+<li>install the new quote</li>
+</ul>
+<p>This means the MM does not have to send <code>QUOTE_CANCEL</code> first if it is
+immediately replacing the quote with another quote on the same symbol.</p>
+<h3 id="example-4-immediate-fill-before-quoteack_1">Example 4: immediate fill before <code>quote.ack</code><a class="headerlink" href="#example-4-immediate-fill-before-quoteack_1" title="Permanent link">&para;</a></h3>
+<p>This is the tricky case that every robust MM must handle.</p>
+<p>Suppose the quote is marketable as soon as it is inserted. The MM may see:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>[09:30:00] FILL  B1A8C2D4  AAPL BUY 500@209.80
+<a id="__codelineno-43-2" name="__codelineno-43-2" href="#__codelineno-43-2"></a>[09:30:00] CANCELLED  S9F3E1AA
+<a id="__codelineno-43-3" name="__codelineno-43-3" href="#__codelineno-43-3"></a>[09:30:00] QUOTE INACTIVE_BID_FILLED  Q123
+<a id="__codelineno-43-4" name="__codelineno-43-4" href="#__codelineno-43-4"></a>[09:30:00] QUOTE ACK  Q123  bid=B1A8C2D4 ask=S9F3E1AA
+<a id="__codelineno-43-5" name="__codelineno-43-5" href="#__codelineno-43-5"></a>[09:30:00] QUOTE ACTIVE  Q123
+</code></pre></div>
+<p>Yes, that ordering is possible in the current engine.</p>
+<h4 id="what-the-mm-must-do-in-this-case_1">What the MM must do in this case<a class="headerlink" href="#what-the-mm-must-do-in-this-case_1" title="Permanent link">&para;</a></h4>
+<p>The MM needs one more local concept:</p>
+<ul>
+<li><code>pending_quote_by_symbol</code></li>
+</ul>
+<p>When it sends:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>QUOTE|SYM=AAPL|...|QUOTE_ID=Q123
+</code></pre></div>
+<p>it should locally remember that there is a pending quote submission for AAPL.</p>
+<p>Then if an early fill arrives before <code>quote.ack</code>, the MM can:</p>
+<ol>
+<li>temporarily buffer the fill by <code>(gateway_id, symbol)</code></li>
+<li>wait for <code>quote.ack</code></li>
+<li>use <code>bid_order_id</code> and <code>ask_order_id</code> from the ack to retroactively resolve that buffered fill</li>
+<li>then continue normal state handling</li>
+</ol>
+<p>Without this pending-submit buffer, the MM cannot deterministically map an
+early fill to the quote until the ack arrives.</p>
+<h3 id="recommended-mm-side-local-state_1">Recommended MM-side local state<a class="headerlink" href="#recommended-mm-side-local-state_1" title="Permanent link">&para;</a></h3>
+<p>The MM should maintain these structures.</p>
+<h4 id="active-quote-record-per-symbol_1">Active quote record per symbol<a class="headerlink" href="#active-quote-record-per-symbol_1" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>active_quote[symbol] = {
+<a id="__codelineno-45-2" name="__codelineno-45-2" href="#__codelineno-45-2"></a>  quote_id,
+<a id="__codelineno-45-3" name="__codelineno-45-3" href="#__codelineno-45-3"></a>  bid_order_id,
+<a id="__codelineno-45-4" name="__codelineno-45-4" href="#__codelineno-45-4"></a>  ask_order_id,
+<a id="__codelineno-45-5" name="__codelineno-45-5" href="#__codelineno-45-5"></a>  bid_price,
+<a id="__codelineno-45-6" name="__codelineno-45-6" href="#__codelineno-45-6"></a>  ask_price,
+<a id="__codelineno-45-7" name="__codelineno-45-7" href="#__codelineno-45-7"></a>  bid_qty,
+<a id="__codelineno-45-8" name="__codelineno-45-8" href="#__codelineno-45-8"></a>  ask_qty,
+<a id="__codelineno-45-9" name="__codelineno-45-9" href="#__codelineno-45-9"></a>  tif,
+<a id="__codelineno-45-10" name="__codelineno-45-10" href="#__codelineno-45-10"></a>  state,
+<a id="__codelineno-45-11" name="__codelineno-45-11" href="#__codelineno-45-11"></a>}
+</code></pre></div>
+<h4 id="reverse-index-by-order-id_1">Reverse index by order ID<a class="headerlink" href="#reverse-index-by-order-id_1" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a>order_to_quote[order_id] = {
+<a id="__codelineno-46-2" name="__codelineno-46-2" href="#__codelineno-46-2"></a>  quote_id,
+<a id="__codelineno-46-3" name="__codelineno-46-3" href="#__codelineno-46-3"></a>  symbol,
+<a id="__codelineno-46-4" name="__codelineno-46-4" href="#__codelineno-46-4"></a>  leg_side,   ## BID or ASK
+<a id="__codelineno-46-5" name="__codelineno-46-5" href="#__codelineno-46-5"></a>}
+</code></pre></div>
+<h4 id="pending-submit-state_1">Pending submit state<a class="headerlink" href="#pending-submit-state_1" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>pending_quote[symbol] = {
+<a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a>  client_quote_id,
+<a id="__codelineno-47-3" name="__codelineno-47-3" href="#__codelineno-47-3"></a>  bid_price,
+<a id="__codelineno-47-4" name="__codelineno-47-4" href="#__codelineno-47-4"></a>  ask_price,
+<a id="__codelineno-47-5" name="__codelineno-47-5" href="#__codelineno-47-5"></a>  bid_qty,
+<a id="__codelineno-47-6" name="__codelineno-47-6" href="#__codelineno-47-6"></a>  ask_qty,
+<a id="__codelineno-47-7" name="__codelineno-47-7" href="#__codelineno-47-7"></a>  tif,
+<a id="__codelineno-47-8" name="__codelineno-47-8" href="#__codelineno-47-8"></a>  sent_at,
+<a id="__codelineno-47-9" name="__codelineno-47-9" href="#__codelineno-47-9"></a>}
+</code></pre></div>
+<p>This exists specifically to survive the immediate-fill-before-ack edge case.</p>
+<h3 id="what-the-mm-must-know-to-re-issue-a-quote_1">What the MM must know to re-issue a quote<a class="headerlink" href="#what-the-mm-must-know-to-re-issue-a-quote_1" title="Permanent link">&para;</a></h3>
+<p>To issue a new quote, the MM must compute and send:</p>
+<ul>
+<li><code>SYM</code></li>
+<li><code>BID</code></li>
+<li><code>ASK</code></li>
+<li><code>BID_QTY</code></li>
+<li><code>ASK_QTY</code></li>
+<li>optional <code>TIF</code></li>
+<li>optional <code>QUOTE_ID</code></li>
+</ul>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>MM01&gt; QUOTE|SYM=AAPL|BID=209.70|ASK=210.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q124
+</code></pre></div>
+<h4 id="what-the-mm-should-normally-do-before-re-issuing_1">What the MM should normally do before re-issuing<a class="headerlink" href="#what-the-mm-should-normally-do-before-re-issuing_1" title="Permanent link">&para;</a></h4>
+<h5 id="if-policy-auto-inactivates_1">If policy auto-inactivates<a class="headerlink" href="#if-policy-auto-inactivates_1" title="Permanent link">&para;</a></h5>
+<p>Recommended sequence:</p>
+<ol>
+<li>receive <code>order.fill</code> for the quote leg</li>
+<li>receive <code>quote.status INACTIVE_*</code> or otherwise confirm old quote is no longer active</li>
+<li>compute the new two-sided quote</li>
+<li>send the new <code>QUOTE</code></li>
+</ol>
+<p>Manual <code>QUOTE_CANCEL</code> is usually unnecessary here.</p>
+<h5 id="if-policy-does-not-auto-inactivate_1">If policy does not auto-inactivate<a class="headerlink" href="#if-policy-does-not-auto-inactivate_1" title="Permanent link">&para;</a></h5>
+<p>The MM must choose one of:</p>
+<ol>
+<li>send <code>QUOTE_CANCEL|SYM=&lt;symbol&gt;</code>, wait for cancellation lifecycle, then send a new <code>QUOTE</code></li>
+<li>send a replacement <code>QUOTE</code> directly on the same symbol, relying on the engine's replace semantics</li>
+</ol>
+<h4 id="what-the-mm-must-not-assume_1">What the MM must not assume<a class="headerlink" href="#what-the-mm-must-not-assume_1" title="Permanent link">&para;</a></h4>
+<p>The MM must not assume:</p>
+<ul>
+<li>that <code>order.fill</code> contains <code>quote_id</code></li>
+<li>that <code>quote.ack</code> always arrives before every other quote-related message</li>
+<li>that <code>quote.status ACTIVE</code> always means the quote is still active at the moment it is received</li>
+<li>that <code>QUOTE_CANCEL</code> is keyed by <code>quote_id</code> rather than by symbol</li>
+</ul>
+<h3 id="recommended-local-state-machine_1">Recommended local state machine<a class="headerlink" href="#recommended-local-state-machine_1" title="Permanent link">&para;</a></h3>
+<p>The engine publishes only a few quote lifecycle statuses. The MM usually needs a
+slightly richer local state machine.</p>
+<p>Recommended local states:</p>
+<ul>
+<li><code>PENDING_SUBMIT</code></li>
+<li><code>ACTIVE</code></li>
+<li><code>PARTIALLY_FILLED_STILL_ACTIVE</code></li>
+<li><code>INACTIVE_BID_FILLED</code></li>
+<li><code>INACTIVE_ASK_FILLED</code></li>
+<li><code>CANCELLED</code></li>
+<li><code>REJECTED</code></li>
+</ul>
+<p>Notes:</p>
+<ul>
+<li><code>PARTIALLY_FILLED_STILL_ACTIVE</code> is an MM-local state, not an engine <code>quote.status</code></li>
+<li><code>REJECTED</code> is also MM-local; the engine reports rejection only through <code>quote.ack accepted=false</code></li>
+</ul>
+<pre class="mermaid"><code>stateDiagram-v2
+    [*] --&gt; PENDING_SUBMIT
+    PENDING_SUBMIT --&gt; ACTIVE: quote.ack accepted=true
+    PENDING_SUBMIT --&gt; REJECTED: quote.ack accepted=false
+
+    ACTIVE --&gt; PARTIALLY_FILLED_STILL_ACTIVE: order.fill and policy does not inactivate yet
+    ACTIVE --&gt; INACTIVE_BID_FILLED: quote.status INACTIVE_BID_FILLED
+    ACTIVE --&gt; INACTIVE_ASK_FILLED: quote.status INACTIVE_ASK_FILLED
+    ACTIVE --&gt; CANCELLED: quote.status CANCELLED
+
+    PARTIALLY_FILLED_STILL_ACTIVE --&gt; INACTIVE_BID_FILLED: later quote.status INACTIVE_BID_FILLED
+    PARTIALLY_FILLED_STILL_ACTIVE --&gt; INACTIVE_ASK_FILLED: later quote.status INACTIVE_ASK_FILLED
+    PARTIALLY_FILLED_STILL_ACTIVE --&gt; CANCELLED: quote.status CANCELLED
+
+    INACTIVE_BID_FILLED --&gt; PENDING_SUBMIT: strategy decides to re-quote
+    INACTIVE_ASK_FILLED --&gt; PENDING_SUBMIT: strategy decides to re-quote
+    CANCELLED --&gt; PENDING_SUBMIT: strategy decides to re-quote</code></pre>
+<h3 id="sequence-graph-normal-auto-inactivate-flow_1">Sequence graph: normal auto-inactivate flow<a class="headerlink" href="#sequence-graph-normal-auto-inactivate-flow_1" title="Permanent link">&para;</a></h3>
+<p>This is the cleanest sequence to reason about and the best default example for
+docs or code comments.</p>
+<pre class="mermaid"><code>sequenceDiagram
+    participant MM as MM Gateway
+    participant ENG as Engine
+    participant TK as Taker
+
+    MM-&gt;&gt;ENG: QUOTE|SYM=AAPL|...|QUOTE_ID=Q123
+    ENG--&gt;&gt;MM: quote.ack.MM01 {quote_id=Q123, bid_order_id=B1, ask_order_id=S1}
+    ENG--&gt;&gt;MM: quote.status.MM01 {quote_id=Q123, status=ACTIVE}
+
+    TK-&gt;&gt;ENG: aggressive order hits B1
+    ENG--&gt;&gt;MM: order.fill.MM01 {order_id=B1, ...}
+    ENG--&gt;&gt;MM: order.cancelled.MM01 {order_id=S1}
+    ENG--&gt;&gt;MM: quote.status.MM01 {quote_id=Q123, status=INACTIVE_BID_FILLED}
+
+    MM-&gt;&gt;MM: map B1 -&gt; Q123 using quote.ack state
+    MM-&gt;&gt;MM: compute replacement quote
+    MM-&gt;&gt;ENG: QUOTE|SYM=AAPL|...|QUOTE_ID=Q124</code></pre>
+<h3 id="practical-conclusions_1">Practical conclusions<a class="headerlink" href="#practical-conclusions_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>The engine's unique active quote slot is <code>(gateway_id, symbol)</code>.</li>
+<li><code>quote_id</code> identifies the logical quote instance occupying that slot.</li>
+<li>The MM identifies quote-leg fills by <code>order_id</code>, not by <code>quote_id</code> in the fill payload.</li>
+<li><code>quote.ack</code> is the critical mapping message because it provides <code>bid_order_id</code> and <code>ask_order_id</code>.</li>
+<li>Under <code>INACTIVATE_ON_ANY_FILL</code>, sibling cancellation is automatic.</li>
+<li>Under <code>INACTIVATE_ON_FULL_FILL</code>, sibling cancellation happens only after full fill.</li>
+<li>Under <code>NEVER_INACTIVATE</code>, the MM must decide when to cancel or replace.</li>
+<li>Re-quoting can be done either by explicit <code>QUOTE_CANCEL</code> followed by new <code>QUOTE</code>, or by sending a replacement <code>QUOTE</code> directly on the same symbol.</li>
+<li>The MM must tolerate edge cases where <code>order.fill</code> and even <code>quote.status INACTIVE_*</code> arrive before <code>quote.ack</code>.</li>
+</ul>
+<h3 id="operational-checklist-for-the-mm-implementation_1">Operational checklist for the MM implementation<a class="headerlink" href="#operational-checklist-for-the-mm-implementation_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Always send your own <code>QUOTE_ID</code> for clean reconciliation.</li>
+<li>Persist <code>quote.ack</code> mappings immediately.</li>
+<li>Maintain <code>order_id -&gt; quote_id</code> reverse lookup.</li>
+<li>Correlate fills by <code>order_id</code>, never by assumed <code>quote_id</code> in the fill payload.</li>
+<li>Subscribe to all of:</li>
+<li><code>order.fill.&lt;gateway_id&gt;</code></li>
+<li><code>order.cancelled.&lt;gateway_id&gt;</code></li>
+<li><code>quote.ack.&lt;gateway_id&gt;</code></li>
+<li><code>quote.status.&lt;gateway_id&gt;</code></li>
+<li>Add pending-submit buffering for the immediate-fill-before-ack edge case.</li>
+<li>Treat <code>quote.status INACTIVE_*</code> or <code>quote.status CANCELLED</code> as the authoritative signal that the previous quote slot is no longer active.</li>
+<li>Use direct replacement <code>QUOTE</code> when you want the engine to perform atomic replace semantics on the same symbol.</li>
+</ul>
 <hr />
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
+<li><a href="../17-mm-bot/">Market-Maker Bot (pm-mm-bot)</a> — autonomous quoting process that implements the strategies described on this page</li>
 <li><a href="../01-configuration/">Configuration</a> — full gateway and <code>mm_obligation_defaults</code> config schema</li>
 <li><a href="../04-order-types/">Order Types</a> — the LIMIT orders that quote legs create under the hood</li>
 <li><a href="../12-risk-controls/">Risk Controls</a> — how circuit breakers cancel quotes during a halt</li>
