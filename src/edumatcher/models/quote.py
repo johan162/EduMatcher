@@ -108,3 +108,8 @@ class QuoteIndex:
 
     def active_count(self) -> int:
         return len(self._index)
+
+    def entries_for_gateway(self, gateway_id: str) -> list[QuoteEntry]:
+        """Return active quote entries for one gateway."""
+        keys = self._keys_by_gateway.get(gateway_id, set())
+        return [self._index[key] for key in keys if key in self._index]

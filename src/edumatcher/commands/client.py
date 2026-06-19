@@ -39,6 +39,7 @@ from edumatcher.models.message import (
     make_gateways_request_msg,
     make_kill_switch_msg,
     make_orders_request_msg,
+    make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
     make_session_state_request_msg,
     make_session_schedule_request_msg,
@@ -64,6 +65,7 @@ _ACK_SUB_PREFIXES: tuple[str, ...] = (
     "session.state",
     "system.symbols.",
     "order.orders.",
+    "system.quote_bootstrap.",
     "system.session_status.",
     "system.session_schedule.",
     "system.gateways.",
@@ -328,6 +330,16 @@ class ExchangeCommandClient:
         self._send(make_symbols_request_msg(self._gw_id))
         result = self._recv(f"system.symbols.{self._gw_id}")
         return list(result.get("symbols", []))
+
+    def quote_bootstrap(self, target_gw: str, symbol: str = "") -> list[dict[str, Any]]:
+        """
+        Return active quote bootstrap state for *target_gw*.
+
+        Optional *symbol* narrows the result to one instrument.
+        """
+        self._send(make_quote_bootstrap_request_msg(target_gw.upper(), symbol.upper()))
+        result = self._recv(f"system.quote_bootstrap.{target_gw.upper()}")
+        return list(result.get("quotes", []))
 
     # ------------------------------------------------------------------
     # Session control

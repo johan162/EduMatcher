@@ -259,6 +259,7 @@ pm-admin --id GW_ADMIN
 # AI trading bots (optional)
 pm-ai-trader               # single bot
 pm-ai-swarm                # coordinated multi-bot swarm
+pm-mm-bot --symbol AAPL    # autonomous market-maker bot
 ```
 
 

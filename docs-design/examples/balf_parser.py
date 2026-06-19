@@ -7,7 +7,7 @@ It is suitable as a customer reference implementation for BALF v1.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Tuple
+from typing import Any, Dict, Tuple
 
 BALF_MAGIC = 0xBA
 BALF_VERSION = 0x01
@@ -100,7 +100,7 @@ def split_frame(frame: bytes) -> Tuple[Header, bytes]:
     return hdr, frame[8:]
 
 
-def parse_logon_ack(body: bytes) -> dict:
+def parse_logon_ack(body: bytes) -> dict[str, Any]:
     if len(body) != 84:
         raise ValueError("LOGON_ACK body must be 84 bytes")
     gateway_id = _read_ascii_zp(body[0:16])
@@ -116,7 +116,7 @@ def parse_logon_ack(body: bytes) -> dict:
     }
 
 
-def parse_order_ack(body: bytes) -> dict:
+def parse_order_ack(body: bytes) -> dict[str, Any]:
     if len(body) != 60:
         raise ValueError("ORDER_ACK body must be 60 bytes")
     client_order_id = _read_u64_le(body, 0)
@@ -136,7 +136,7 @@ def parse_order_ack(body: bytes) -> dict:
     }
 
 
-def parse_execution_report(body: bytes) -> dict:
+def parse_execution_report(body: bytes) -> dict[str, Any]:
     if len(body) != 64:
         raise ValueError("EXECUTION_REPORT body must be 64 bytes")
     client_order_id = _read_u64_le(body, 0)

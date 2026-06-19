@@ -216,6 +216,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | `pm-admin` | Interactive terminal | Interactive operational console | [Processes](10-processes.md), [Risk Controls](12-risk-controls.md) |
 | `pm-ai-trader` | Background | Single autonomous trading bot gateway | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
 | `pm-ai-swarm` | Background | Multi-agent autonomous trading swarm | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
+| `pm-mm-bot` | Background | Autonomous market-maker quoting bot | [Processes](10-processes.md), [Market-Maker Bot](17-mm-bot.md) |
 
 ### CLI utilities (runnable)
 
@@ -236,6 +237,31 @@ documented. All commands are shown in pipx form; in developer mode prepend
 
 For startup order and a practical first-run sequence, see
 [Processes](10-processes.md#process-overview).
+
+
+## Market-Maker Quick Reference
+
+If your gateway role is `MARKET_MAKER`, this is the fastest practical command
+set for quote operation and fill recognition:
+
+| Goal | Command |
+|---|---|
+| Submit/replace quote | `QUOTE\|SYM=AAPL\|BID=209.80\|ASK=210.20\|BID_QTY=500\|ASK_QTY=500\|QUOTE_ID=Q123` |
+| Cancel active quote | `QUOTE_CANCEL\|SYM=AAPL` |
+| Show active quote legs | `QLEGS` |
+| Show one-symbol quote legs | `QLEGS\|SYM=AAPL` |
+| Show recent completed legs | `QLEGS\|SHOW=RECENT` |
+| Show active + recent legs | `QLEGS\|SYM=AAPL\|SHOW=ALL` |
+
+Recommended manual loop:
+
+1. Send `QUOTE` with an explicit `QUOTE_ID`.
+2. After any `FILL`, run `QLEGS|SYM=<symbol>|SHOW=ALL`.
+3. Read `Filled?`, `Rem`, and `Leg status` to decide whether to re-quote.
+
+See [Gateway](08-gateway.md#qlegs-inspect-mm-quote-legs-and-fill-flags) for
+full `QLEGS` behavior and [Market Making](14-market-maker.md) for operator
+workflows and policy-specific behavior.
 
 
 
@@ -426,6 +452,7 @@ The engine is the only mandatory process. Add the others as you need them:
 | Use `pm-admin` operator commands | `pm-admin` (interactive REPL) | [Risk Controls](12-risk-controls.md) |
 | Schedule opening/closing auctions | `pm-scheduler` | [Auctions and Scheduling](06-auctions-scheduling.md) |
 | Add autonomous AI order flow | `pm-ai-swarm --count 5 --duration 60` | [AI Traders](15-ai-traders.md) |
+| Add automated market-maker liquidity | `pm-mm-bot --symbol AAPL` | [Market-Maker Bot](17-mm-bot.md) |
 | Feed compliance/risk systems | Subscribe to `:5557` (drop-copy socket) | [Drop Copy](13-drop-copy.md) |
 
 For a full classroom session, use the provided launch script:
@@ -524,3 +551,4 @@ Use the table below to decide what to read based on your goal.
 - [Order Types](04-order-types.md) — LIMIT, MARKET, STOP, ICEBERG, TRAILING_STOP, OCO, COMBO
 - [Market Making](14-market-maker.md) — QUOTE command, obligations, and MMP
 - [AI Traders](15-ai-traders.md) — autonomous order flow with `pm-ai-trader` and `pm-ai-swarm`
+- [Market-Maker Bot](17-mm-bot.md) — automated quoting with `pm-mm-bot`

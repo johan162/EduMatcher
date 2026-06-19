@@ -28,6 +28,16 @@ It subscribes to every `trade.executed` event and maintains a running
 **P&L ledger per user (gateway) per symbol**. Each gateway represents one
 trader; the clearing process tracks their positions independently.
 
+### Starting the clearing process
+
+```bash
+pm-clearing
+```
+
+No arguments are required. The process connects to the engine's PUB socket
+(port 5556) and begins tracking P&L immediately. Start it before or after
+trading begins — it will pick up all trades from the moment it subscribes.
+
 
 
 ## Position Tracking

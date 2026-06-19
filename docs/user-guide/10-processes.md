@@ -7,8 +7,8 @@
       message bus rather than a single monolithic program
     - The trade-offs that architecture introduces: scalability and observability
       vs. deployment complexity and latency
-    - The role and responsibilities of each of the twelve core runtime processes plus
-      the optional AI trader and admin tools
+    - The role and responsibilities of each of the ten core runtime processes plus
+      the optional AI trader, market-maker bot, and admin tools
     - Which processes are mandatory and which are optional observers
     - How to read the message-flow tables to trace an order from submission to fill
 
@@ -41,6 +41,7 @@ flowchart LR
         SCH["pm-scheduler\n(session transitions)"]
         ADM["pm-admin / pm-admin-cli\n(admin commands)"]
         AI["pm-ai-trader / pm-ai-swarm\n(AI bots)"]
+        MMB["pm-mm-bot\n(MM bot)"]
     end
 
     subgraph engine["pm-engine"]
@@ -63,6 +64,7 @@ flowchart LR
     SCH -->|PUSH| PULL
     ADM -->|PUSH| PULL
     AI -->|PUSH| PULL
+    MMB -->|PUSH| PULL
     PUB -->|SUB| GW
     PUB -->|SUB| VW
     PUB -->|SUB| ORD
@@ -72,6 +74,7 @@ flowchart LR
     PUB -->|SUB| TKR
     PUB -->|SUB| BRD
     PUB -->|SUB| AI
+    PUB -->|SUB| MMB
     DC -.->|drop-copy SUB| EXT["External risk /\ncompliance systems"]
 ```
 
@@ -208,6 +211,7 @@ pm-engine --verbose
 |---------|---------|------|-----------|
 | **pm-ai-trader** | `pm-ai-trader` | Single AI trading bot gateway | No |
 | **pm-ai-swarm** | `pm-ai-swarm` | Coordinated multi-agent AI trading swarm | No |
+| **pm-mm-bot** | `pm-mm-bot --symbol SYM` | Autonomous [market-maker bot](17-mm-bot.md) for a single symbol | No |
 
 !!! warning "Start the engine first"
     The engine binds the ZeroMQ sockets.  All other processes connect to those
@@ -271,8 +275,8 @@ None. `pm-engine` is a long-running background process after startup.
 See [Configuration](01-configuration.md) for full details on the config file.
 
 **Shutdown (Ctrl-C)**:
-1. Serializes all resting GTC orders to `data/gtc_orders.json`
-2. Publishes `order.expired` for all resting DAY orders
+1. Publishes `order.expired` for all resting DAY orders
+2. Serializes all resting GTC orders to `data/gtc_orders.json`
 3. Publishes `system.eod` with the final book snapshot for every active symbol
 4. Closes sockets
 
@@ -345,6 +349,7 @@ pm-gateway --id <GW_ID>
 - `NEW|...` order-entry commands (including `LIMIT`, `MARKET`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP`)
 - `AMEND|...`, `CANCEL|...`
 - `QUOTE|...`, `QUOTE_CANCEL|...`
+- `QLEGS|...` (market-maker quote-leg monitor with fill flags)
 - `ORDERS`, `SYMBOLS`, `HELP`, `EXIT`, `QUIT`
 - `KILL|...` for gateway-scoped kill-switch actions
 
@@ -1007,6 +1012,123 @@ See [AI Bot Traders](../developer/02-ai-bot.md) for strategy and orchestration d
 
 
 
+## pm-mm-bot — Autonomous Market-Maker Bot
+
+Runs one autonomous market-maker gateway for a single symbol. Connects as a
+`MARKET_MAKER` participant, posts a two-sided quote, and automatically reprices
+on fills, mid-price drift, and session transitions.
+
+Each instance handles one symbol. Run multiple instances (with different
+`--id-suffix` values) to cover several symbols or to compete on the same symbol.
+
+```bash
+pm-mm-bot --symbol AAPL [options]
+```
+
+**Startup options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--symbol` | required | Instrument to make a market in (e.g. `AAPL`) |
+| `--gap` | `0.10` | Total spread in price units (bid at mid−gap/2, ask at mid+gap/2) |
+| `--qty` | `500` | Quote size on each leg |
+| `--id-suffix` | `01` | Running number for gateway ID (`MM_AAPL_01`) |
+| `--drift-ticks` | `3` | Reprice when mid moves by this many ticks |
+| `--reissue-delay-ms` | `200` | Milliseconds to wait after fill before re-issuing |
+| `--tif` | `DAY` | Time-in-force for quote legs (`DAY` or `GTC`) |
+| `--heartbeat-interval-sec` | `5.0` | Periodic live-quote check interval |
+| `--startup-session-timeout-sec` | `5.0` | Max wait for first `session.state` event |
+| `--bootstrap-timeout-sec` | `1.0` | Max wait for QBOOT reply |
+| `--cancel-timeout-sec` | `1.0` | Max wait for cancel confirmation |
+| `--shutdown-timeout-sec` | `2.0` | Max wait for cancel on SIGINT/SIGTERM |
+| `--qlegs-reconcile-interval-sec` | `15.0` | Periodic QLEGS reconciliation interval |
+| `--initial_min` | unset | Lower bound for random bootstrap price |
+| `--initial_max` | unset | Upper bound for random bootstrap price |
+| `--engine-pull` | `tcp://127.0.0.1:5555` | Engine PUSH/PULL address |
+| `--engine-pub` | `tcp://127.0.0.1:5556` | Engine PUB address |
+| `-v` / `--verbose` | off | Print debug-level events |
+
+**Expected runtime input arguments:**
+
+None. The bot is fully autonomous after startup.
+
+**Gateway ID convention:**
+
+The gateway ID is constructed as `MM_<SYMBOL>_<suffix>` — for example,
+`pm-mm-bot --symbol AAPL --id-suffix 02` connects as `MM_AAPL_02`. This ID
+must be pre-registered in `engine_config.yaml` with `role: MARKET_MAKER`.
+
+**Startup behaviour:**
+
+1. Opens ZMQ PUSH and SUB sockets
+2. Sends `system.gateway_connect` and waits for `system.gateway_auth` ACK
+3. Requests the symbol list and verifies the assigned symbol exists
+4. Sends `QBOOT` (quote bootstrap) request — if an active quote already exists
+   for `(gateway_id, symbol)`, adopts it instead of creating a duplicate
+5. Sends `QLEGS` request to reconcile quote-leg mapping
+6. Waits for `session.state` (exits if not received within timeout)
+7. Resolves initial reference price and enters the quoting loop
+
+**Reference price resolution** (in priority order):
+
+1. Active quote from `QBOOT` (restart recovery)
+2. Book mid-price (if other participants are already quoting)
+3. Last trade price from `trade.executed` events
+4. Bootstrap quote prices from `QBOOT` snapshot (inactive)
+5. Random price from `[--initial_min, --initial_max]` range
+
+**State machine:**
+
+| State | Meaning |
+|---|---|
+| `CONNECTING` | Opening ZMQ sockets |
+| `AUTHENTICATING` | Waiting for gateway auth reply |
+| `WAITING_FOR_SESSION` | Waiting for session to enter CONTINUOUS |
+| `QUOTING` | Active two-sided quote is resting in the book |
+| `REPRICING` | Mid-price drift detected; preparing new quote |
+| `REISSUING` | Sending replacement quote after fill or drift |
+| `PAUSED` | Session is not CONTINUOUS (auction, halt, closed) |
+
+**Shutdown (Ctrl-C or SIGTERM):**
+
+1. Sends `quote.cancel` to remove the resting quote
+2. Waits up to `--shutdown-timeout-sec` for cancel confirmation
+3. Closes ZMQ sockets and exits
+
+**Messages sent** (PUSH → :5555):
+
+| Topic | Purpose |
+|---|---|
+| `system.gateway_connect` | Authentication request |
+| `system.symbols_request` | Request symbol list |
+| `system.quote_bootstrap_request` | Request active quote state for adopt-or-create (QBOOT) |
+| `system.quote_legs_request` | Request quote-leg mapping for reconciliation (QLEGS) |
+| `quote.new` | Submit or replace a two-sided quote |
+| `quote.cancel` | Cancel the active quote (shutdown or session change) |
+
+**Messages subscribed** (SUB from :5556):
+
+| Topic | Purpose |
+|---|---|
+| `system.gateway_auth.{GW_ID}` | Authentication reply |
+| `system.symbols.{GW_ID}` | Symbol list reply |
+| `system.quote_bootstrap.{GW_ID}` | Bootstrap snapshot with active quote state |
+| `system.quote_legs.{GW_ID}` | Quote-leg reconciliation reply |
+| `book.{SYMBOL}` | Book updates — drives mid-price tracking and drift detection |
+| `trade.executed` | Trade events — fallback reference price source |
+| `order.fill.{GW_ID}` | Fill notifications on quote legs |
+| `order.cancelled.{GW_ID}` | Cancel confirmations for quote legs |
+| `quote.ack.{GW_ID}` | Quote accepted/rejected acknowledgements |
+| `quote.status.{GW_ID}` | Quote lifecycle changes (inactivated, cancelled) |
+| `session.state` | Session phase transitions (pause/resume quoting) |
+| `circuit_breaker.halt.{SYMBOL}` | Circuit breaker halt for the assigned symbol |
+| `circuit_breaker.resume.{SYMBOL}` | Circuit breaker resume for the assigned symbol |
+
+See [Market-Maker Bot](17-mm-bot.md) for usage examples, configuration guide,
+bootstrap details, and troubleshooting.
+
+
+
 ## pm-admin — Interactive Admin Console
 
 An interactive REPL for sending operational commands to a running engine without
@@ -1240,3 +1362,4 @@ See the [BALF Protocol Reference](21-app-balf-protocol.md) and [CALF Protocol Re
 - [Messages](09-messages.md) — the full ZeroMQ message catalog all processes share
 - [Persistence](11-persistence.md) — which process writes which data file
 - [Drop Copy](13-drop-copy.md) — the engine's built-in :5557 drop-copy feed
+- [Market-Maker Bot](17-mm-bot.md) — autonomous quoting process for a single symbol

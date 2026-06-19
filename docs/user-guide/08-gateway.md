@@ -156,7 +156,7 @@ On startup, the gateway:
 
 1. Connects PUSH socket to the engine PULL port (5555)
 2. Connects SUB socket to the engine PUB port (5556)
-3. Subscribes to: `order.ack.{ID}`, `order.fill.{ID}`, `order.amended.{ID}`, `order.cancelled.{ID}`, `order.expired.{ID}`, `order.orders.{ID}`, `combo.ack.{ID}`, `combo.status.{ID}`, `oco.ack.{ID}`, `oco.cancelled.{ID}`, `quote.ack.{ID}`, `quote.status.{ID}`, `risk.kill_switch_ack.{ID}`, `system.symbols.{ID}`, `system.gateway_auth.{ID}`, `trade.executed`
+3. Subscribes to: `order.ack.{ID}`, `order.fill.{ID}`, `order.amended.{ID}`, `order.cancelled.{ID}`, `order.expired.{ID}`, `order.orders.{ID}`, `combo.ack.{ID}`, `combo.status.{ID}`, `oco.ack.{ID}`, `oco.cancelled.{ID}`, `quote.ack.{ID}`, `quote.status.{ID}`, `risk.kill_switch_ack.{ID}`, `system.symbols.{ID}`, `system.quote_bootstrap.{ID}`, `system.gateway_auth.{ID}`, `trade.executed`
 4. Sends `system.gateway_connect` and waits up to **3 seconds** for the auth response
 5. If accepted: enters the interactive prompt loop
 6. If rejected: prints the reason and exits immediately
@@ -211,8 +211,19 @@ All commands use the ALF pipe-separated key=value format.
 
 ### QUOTE — Submit/Replace A Two-Sided MM Quote
 
+!!! tip
+    For automated quoting, see [Market-Maker Bot (pm-mm-bot)](17-mm-bot.md).
+
 ```
 QUOTE|SYM=<symbol>|BID=<price>|ASK=<price>|BID_QTY=<n>|ASK_QTY=<n>[|TIF=<DAY|GTC>][|QUOTE_ID=<label>]
+```
+
+Example:
+
+```text
+MM01> QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|QUOTE_ID=Q1
+[09:30:00.101] QUOTE ACK   Q1  bid=7c4a91e2 ask=be2170fd
+[09:30:00.102] QUOTE ACTIVE  Q1
 ```
 
 Rules:
@@ -226,6 +237,116 @@ Rules:
 ```
 QUOTE_CANCEL|SYM=<symbol>
 ```
+
+### QLEGS — Inspect MM Quote Legs and Fill Flags
+
+`QLEGS` prints a local quote-leg projection for the current gateway session.
+It is intended for `MARKET_MAKER` ALF sessions where operators need a compact,
+low-cognitive-load view of which quote legs are still active and which have
+already traded.
+
+```
+QLEGS[|SYM=<symbol>][|SHOW=ACTIVE|RECENT|ALL]
+```
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `SYM` | No | all symbols | Restrict output to one symbol |
+| `SHOW` | No | `ACTIVE` | `ACTIVE` = currently live legs, `RECENT` = completed legs, `ALL` = both |
+
+Output columns:
+
+- `Symbol`, `Quote`, `Leg` (`BUY`/`SELL`), `Order`
+- `Qty`, `Rem`, `Filled`, `Filled?`
+- `Leg status`, `Quote status`, `Time`
+
+#### Operator examples
+
+1. Show only currently active quote legs across all symbols:
+
+```text
+MM01> QLEGS
+```
+
+2. Show active legs for one symbol while managing a live quote:
+
+```text
+MM01> QLEGS|SYM=AAPL
+```
+
+3. Show recent completed/cancelled legs to understand what just happened:
+
+```text
+MM01> QLEGS|SHOW=RECENT
+```
+
+4. Full audit-style view (active + recent) for one symbol:
+
+```text
+MM01> QLEGS|SYM=AAPL|SHOW=ALL
+```
+
+#### Example workflow (manual MM session)
+
+```text
+MM01> QUOTE|SYM=AAPL|BID=209.80|ASK=210.20|BID_QTY=500|ASK_QTY=500|QUOTE_ID=Q123
+[09:30:00.101] QUOTE ACK   Q123  bid=7c4a91e2 ask=be2170fd
+[09:30:00.102] QUOTE ACTIVE  Q123
+
+MM01> QLEGS|SYM=AAPL
+# shows BUY leg 7c4a91e2 and SELL leg be2170fd as active, Filled?=NO
+
+[09:31:02.417] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
+
+MM01> QLEGS|SYM=AAPL|SHOW=ALL
+# BUY leg now shows Filled=100, Filled?=YES, status=PARTIAL
+# SELL leg state reflects remaining quote lifecycle events
+```
+
+`QLEGS` is read-only. It does not send modify/cancel actions to the engine.
+Use `QUOTE`, `QUOTE_CANCEL`, or `KILL` for control actions.
+
+### QBOOT — Request Quote Bootstrap State
+
+`QBOOT` asks the engine for the current active quote slot state for this
+gateway. It is intended for MM startup/reconnect workflows where quote legs may
+have been seeded by config before the gateway connected.
+
+```
+QBOOT[|SYM=<symbol>]
+```
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `SYM` | No | all symbols | Restrict bootstrap response to one symbol |
+
+Examples:
+
+```text
+MM_AAPL_01> QBOOT
+# prints all active quote bootstrap entries owned by MM_AAPL_01
+
+MM_AAPL_01> QBOOT|SYM=AAPL
+# prints only AAPL bootstrap quote state for MM_AAPL_01
+```
+
+Sample output:
+
+```text
+       Quote bootstrap - MM_AAPL_01
+┏━━━━━━━━┳━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━┓
+┃ Symbol ┃ Quote ┃ State  ┃ Bid    ┃ Ask    ┃BidRem ┃AskRem ┃
+┡━━━━━━━━╇━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━┩
+│ AAPL   │ Q123  │ ACTIVE │ 209.80 │ 210.20 │  500  │  500  │
+└────────┴───────┴────────┴────────┴────────┴───────┴───────┘
+```
+
+Typical startup use:
+
+1. Connect gateway / bot as `MM_<SYMBOL>_01` (or matching seed owner).
+2. Run `QBOOT|SYM=<symbol>`.
+3. If exactly one healthy two-leg quote is returned, adopt it.
+4. If state is missing/partial, cancel and re-issue.
 
 ### KILL — Trigger Kill-Switch
 
@@ -411,14 +532,32 @@ Cancelling a combo or OCO is atomic: all resting child legs are cancelled, but f
 
 
 
-### ORDERS — View This Session's Orders
+### STATUS — View Gateway Summary
+
+`STATUS` prints a quick local summary for the current gateway session.
+
+```
+STATUS
+```
+
+Use it when you want to confirm the gateway identity, known symbols, cached
+order counts by lifecycle state, cached quote legs, and position symbols without
+opening the full order table.
+
+!!! note "Order inspection is via ORDERS"
+    `STATUS` is a summary command. For detailed order inspection — full order
+    IDs, quantities, remaining quantity, price, TIF, and current status — use
+    `ORDERS`.
+
+### ORDERS — Inspect This Gateway's Orders
 
 ```
 ORDERS
 ```
 
 Prints a rich table of all **single-leg** orders submitted in this gateway session with
-current status, remaining quantity, and last update time.
+full order ID, current status, remaining quantity, and last update time. This is
+the primary command for order inspection inside `pm-gateway`.
 
 !!! note
     Combo orders are not shown in the `ORDERS` table. Their lifecycle is tracked
@@ -469,18 +608,27 @@ SYMBOLS
 ```
 
 Requests the list of all symbols that currently have an active order book in the engine.
-The gateway sends the request and the engine replies with the current instrument list,
-which is printed as a rich table:
+The gateway sends the request and the engine replies with the current instrument list
+plus any available `symbol_meta` fields, which are printed as a rich table:
 
 ```
-┌─────────────────────┐
-│  Active Instruments │
-├────┬────────────────┤
-│  1 │ AAPL           │
-│  2 │ MSFT           │
-│  3 │ TSLA           │
-└────┴────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                    Active Instruments                   │
+├────┬────────┬──────┬─────────────┬────────────┬─────────┤
+│  # │ Symbol │ Tick │ MM Enforced │ Max Spread │ Min Qty │
+├────┼────────┼──────┼─────────────┼────────────┼─────────┤
+│  1 │ AAPL   │ 0.01 │ YES         │         10 │     100 │
+│  2 │ MSFT   │ 0.01 │ NO          │         10 │     100 │
+│  3 │ TSLA   │ 0.01 │ —           │          — │       — │
+└────┴────────┴──────┴─────────────┴────────────┴─────────┘
 ```
+
+When metadata is available, the columns mean:
+
+- `Tick`: symbol tick size derived from engine config
+- `MM Enforced`: whether MM obligation rules are currently enforced for this gateway/symbol
+- `Max Spread`: effective `mm_max_spread_ticks`
+- `Min Qty`: effective `mm_min_qty`
 
 !!! note
     `SYMBOLS` returns symbols that have at least one active order book (created
@@ -603,7 +751,7 @@ The gateway provides **context-aware tab completion**:
 
 | Position | Completions |
 |----------|-------------|
-| First word | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `KILL`, `ORDERS`, `POS`, `SYMBOLS`, `HELP`, `EXIT`, `QUIT` |
+| First word | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `QBOOT`, `KILL`, `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `HELP`, `EXIT`, `QUIT` |
 | After `NEW\|` | `SYM=`, `SIDE=`, `TYPE=`, `QTY=`, `PRICE=`, `STOP=`, `TRAIL=`, `TIF=`, `VISIBLE=`, `SMP=` |
 | After `NEW\|TYPE=COMBO\|` | `COMBO_ID=`, `COMBO_TYPE=`, `TIF=`, `LEG_COUNT=`, plus `LEG0.SYM=`, `LEG0.SIDE=`, etc. |
 | After `NEW\|TYPE=OCO\|` | `OCO_ID=`, `SYM=`, `QTY=`, `TIF=`, `LEG1_SIDE=`, `LEG1_TYPE=`, etc. |

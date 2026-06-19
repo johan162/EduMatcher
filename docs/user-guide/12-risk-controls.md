@@ -18,7 +18,7 @@
 ## Overview
 
 Real exchanges operate several layers of protection against runaway prices and
-disorderly markets.  EduMatcher implements three complementary mechanisms:
+disorderly markets.  EduMatcher implements four complementary mechanisms:
 
 | Mechanism | Who sets it | What it checks | How it resolves |
 |---|---|---|---|
@@ -27,7 +27,7 @@ disorderly markets.  EduMatcher implements three complementary mechanisms:
 | **Circuit breaker** | Config per symbol | Last trade price vs. rolling reference | Automatic halt + scheduled resume |
 | **Kill switch** | Any authenticated gateway | — | Cancels all resting orders for that gateway |
 
-All three operate at the engine level — *before* any order enters the book.
+All four operate at the engine level — *before* any order enters the book.
 
 The following diagram shows the order admission path through all three controls:
 
@@ -426,6 +426,13 @@ A limit buy at 12200 ticks trades. Reference = 10100.
   → next order at this symbol: if MARKET → rejected; if LIMIT → accepted, no match
 ```
 
+What the gateway operator sees when a collar rejects an order:
+
+```text
+TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=75.00
+[14:02:00.301] ORDER REJECTED  reason="STATIC_COLLAR_BREACH"
+```
+
 
 
 ##  ZeroMQ messages
@@ -706,6 +713,11 @@ payload: {
 | New orders accepted | Yes | LIMIT/ICEBERG only |
 | Requires ADMIN role | No | No (per-symbol); Yes (exchange-wide) |
 | Auto-resume | Not applicable | Yes (CB) / Manual (operator) |
+
+!!! note "No cross-gateway kill switch"
+    A kill switch always targets a single gateway.  There is no command to
+    cancel all orders across *all* gateways at once — use an exchange-wide
+    `HALT` (requires ADMIN role) for that scenario.
 
 
 

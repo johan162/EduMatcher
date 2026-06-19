@@ -19,6 +19,7 @@ Commands
   AMEND|ID=ORD-xxxx|QTY=200
   AMEND|ID=ORD-xxxx|PRICE=151.00|QTY=200
   CANCEL|ID=ORD-xxxx
+    STATUS                 — print gateway/session summary
   ORDERS                 — print table of this session's orders
   HELP                   — show command reference
   EXIT / QUIT            — disconnect
@@ -91,6 +92,7 @@ from edumatcher.models.message import (  # noqa: E402
     make_order_cancel_msg,
     make_order_new_msg,
     make_orders_request_msg,
+    make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
     make_quote_new_msg,
     make_symbols_request_msg,
@@ -118,9 +120,12 @@ _TOP_LEVEL_CMDS = [
     "NEW",
     "QUOTE",
     "QUOTE_CANCEL",
+    "QBOOT",
+    "QLEGS",
     "KILL",
     "AMEND",
     "CANCEL",
+    "STATUS",
     "ORDERS",
     "POS",
     "SYMBOLS",
@@ -220,6 +225,8 @@ class GatewayCompleter(Completer):
                 candidates = ["DAY", "GTC", "ATO", "ATC"]
             elif key == "COMBO_TYPE":
                 candidates = ["AON"]
+            elif cmd == "QLEGS" and key == "SHOW":
+                candidates = ["ACTIVE", "RECENT", "ALL"]
             elif field == "SMP" or key == "SMP":
                 candidates = [
                     "NONE",
@@ -244,6 +251,12 @@ class GatewayCompleter(Completer):
                 for f in ["ID=", "COMBO_ID=", "OCO_ID="]
                 if f.rstrip("=") not in already_keys
             ]
+        elif cmd == "QLEGS":
+            candidates = [
+                f for f in ["SYM=", "SHOW="] if f.rstrip("=") not in already_keys
+            ]
+        elif cmd == "QBOOT":
+            candidates = [f for f in ["SYM="] if f.rstrip("=") not in already_keys]
         elif cmd == "AMEND":
             candidates = [
                 f
@@ -367,8 +380,11 @@ _HELP_TEXT = """
   CANCEL|COMBO_ID=<combo-label>   — cancel a combo and all its legs
     QUOTE|SYM=<sym>|BID=<p>|ASK=<p>|BID_QTY=<n>|ASK_QTY=<n>[|TIF=DAY|GTC][|QUOTE_ID=<label>]
     QUOTE_CANCEL|SYM=<sym>          — cancel active quote for a symbol
+    QBOOT[|SYM=<sym>]               — request active quote bootstrap state from engine
+        QLEGS[|SYM=<sym>][|SHOW=ACTIVE|RECENT|ALL]  — show MM quote legs and fill flags
     KILL[|SYM=<sym>]                — kill-switch cancel for this gateway
-  ORDERS      — show all outstanding orders for this gateway
+    STATUS      — show gateway/session summary (identity, symbols, order counts)
+    ORDERS      — inspect this gateway's order table with IDs, quantities, and status
   POS         — show current positions with P&L
   SYMBOLS     — list all active instruments in the engine
   HELP        — this message
@@ -380,7 +396,12 @@ class Gateway:
     def __init__(self, gateway_id: str) -> None:
         self.gateway_id = gateway_id.upper()
         self.order_cache: dict[str, dict[str, Any]] = {}  # order_id → state dict
+        self.quote_leg_cache: dict[str, dict[str, Any]] = (
+            {}
+        )  # order_id → quote leg state
+        self._quote_id_by_order_id: dict[str, str] = {}  # order_id → quote_id
         self._known_symbols: list[str] = []
+        self._known_symbol_meta: dict[str, dict[str, Any]] = {}
         self._positions: dict[str, dict[str, Any]] = (
             {}
         )  # symbol → {net_qty, avg_cost, realized_pnl}
@@ -405,11 +426,245 @@ class Gateway:
             f"quote.status.{self.gateway_id}",
             f"risk.kill_switch_ack.{self.gateway_id}",
             f"system.symbols.{self.gateway_id}",
+            f"system.quote_bootstrap.{self.gateway_id}",
             f"system.gateway_auth.{self.gateway_id}",
             "trade.executed",
         )
         self._auth_reason: str = ""
         self._auth_description: str = ""
+
+    # ------------------------------------------------------------------
+    # Quote-leg tracking
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _is_active_leg_status(status: str) -> bool:
+        return status in {"NEW", "PARTIAL", "PENDING"}
+
+    def _upsert_quote_leg(
+        self,
+        *,
+        order_id: str,
+        quote_id: str,
+        symbol: str,
+        leg_side: str,
+        quantity: int,
+        remaining_qty: int,
+        status: str,
+        event_time: str,
+        quote_status: str = "",
+    ) -> None:
+        existing = self.quote_leg_cache.get(order_id, {})
+        filled_qty = max(0, quantity - remaining_qty)
+        self.quote_leg_cache[order_id] = {
+            "order_id": order_id,
+            "quote_id": quote_id,
+            "symbol": symbol,
+            "leg_side": leg_side,
+            "qty": quantity,
+            "remaining": remaining_qty,
+            "filled": filled_qty,
+            "status": status,
+            "quote_status": quote_status or str(existing.get("quote_status", "")),
+            "last_event_time": event_time,
+        }
+        self._quote_id_by_order_id[order_id] = quote_id
+
+    def _mark_quote_status(
+        self, quote_id: str, quote_status: str, event_time: str
+    ) -> None:
+        for row in self.quote_leg_cache.values():
+            if row.get("quote_id") != quote_id:
+                continue
+            row["quote_status"] = quote_status
+            row["last_event_time"] = event_time
+            if quote_status == "CANCELLED" and self._is_active_leg_status(
+                str(row.get("status", ""))
+            ):
+                row["status"] = "CANCELLED"
+                row["remaining"] = 0
+
+    def _record_fill_for_quote_leg(
+        self,
+        *,
+        order_id: str,
+        fill_qty: int,
+        remaining_qty: int,
+        status: str,
+        symbol: str,
+        side: str,
+        qty: int | None,
+        event_time: str,
+    ) -> None:
+        if order_id in self.quote_leg_cache:
+            row = self.quote_leg_cache[order_id]
+            row["remaining"] = remaining_qty
+            row["status"] = status
+            row["filled"] = int(row.get("filled", 0)) + fill_qty
+            if qty is not None and int(row.get("qty", 0)) <= 0:
+                row["qty"] = qty
+            row["last_event_time"] = event_time
+            return
+
+        quote_id = self._quote_id_by_order_id.get(order_id, "?")
+        base_qty = qty if qty is not None else fill_qty + max(0, remaining_qty)
+        self._upsert_quote_leg(
+            order_id=order_id,
+            quote_id=quote_id,
+            symbol=symbol,
+            leg_side=side,
+            quantity=base_qty,
+            remaining_qty=remaining_qty,
+            status=status,
+            event_time=event_time,
+        )
+        self.quote_leg_cache[order_id]["filled"] = fill_qty
+
+    def _print_quote_legs(self, symbol: str | None, show: str) -> None:
+        rows = list(self.quote_leg_cache.values())
+        if symbol:
+            rows = [r for r in rows if str(r.get("symbol", "")).upper() == symbol]
+
+        if show == "ACTIVE":
+            rows = [
+                r
+                for r in rows
+                if self._is_active_leg_status(str(r.get("status", "")))
+                or int(r.get("remaining", 0)) > 0
+            ]
+        elif show == "RECENT":
+            rows = [
+                r
+                for r in rows
+                if not self._is_active_leg_status(str(r.get("status", "")))
+                and int(r.get("remaining", 0)) <= 0
+            ]
+
+        if not rows:
+            console.print("[dim]No quote legs match this filter.[/dim]")
+            return
+
+        rows.sort(key=lambda r: str(r.get("last_event_time", "")), reverse=True)
+
+        title = f"Quote legs — {self.gateway_id}  (show={show}"
+        if symbol:
+            title += f", sym={symbol}"
+        title += ")"
+        t = Table(title=title, show_lines=True)
+        t.add_column("Symbol", style="bold")
+        t.add_column("Quote", style="cyan")
+        t.add_column("Leg", style="magenta")
+        t.add_column("Order", style="dim", width=10)
+        t.add_column("Qty", justify="right")
+        t.add_column("Rem", justify="right")
+        t.add_column("Filled", justify="right")
+        t.add_column("Filled?", justify="center")
+        t.add_column("Leg status", style="bold")
+        t.add_column("Quote status", style="dim")
+        t.add_column("Time", style="dim")
+
+        status_colour = {
+            "NEW": "green",
+            "PARTIAL": "yellow",
+            "FILLED": "bright_green",
+            "CANCELLED": "red",
+            "EXPIRED": "dim",
+            "PENDING": "dim",
+        }
+
+        for row in rows:
+            leg_status = str(row.get("status", "?"))
+            colour = status_colour.get(leg_status, "white")
+            filled_qty = int(row.get("filled", 0))
+            fill_flag = "YES" if filled_qty > 0 else "NO"
+            t.add_row(
+                str(row.get("symbol", "?")),
+                str(row.get("quote_id", "?")),
+                str(row.get("leg_side", "?")),
+                str(row.get("order_id", "?"))[:8],
+                str(row.get("qty", "?")),
+                str(row.get("remaining", "?")),
+                str(filled_qty),
+                fill_flag,
+                f"[{colour}]{leg_status}[/{colour}]",
+                str(row.get("quote_status", "")) or "—",
+                str(row.get("last_event_time", "")),
+            )
+        console.print(t)
+
+    def _print_quote_bootstrap(self, quotes: list[dict[str, Any]]) -> None:
+        if not quotes:
+            console.print("[dim]No active quote bootstrap entries returned.[/dim]")
+            return
+
+        t = Table(
+            title=f"Quote bootstrap - {self.gateway_id}",
+            show_header=True,
+            header_style="bold magenta",
+        )
+        t.add_column("Symbol", style="bold")
+        t.add_column("Quote", style="cyan")
+        t.add_column("State", style="white")
+        t.add_column("Bid", style="green")
+        t.add_column("Ask", style="red")
+        t.add_column("BidRem", justify="right")
+        t.add_column("AskRem", justify="right")
+
+        for q in quotes:
+            bid_px = q.get("bid_price")
+            ask_px = q.get("ask_price")
+            bid_txt = f"{bid_px:.2f}" if isinstance(bid_px, (int, float)) else "-"
+            ask_txt = f"{ask_px:.2f}" if isinstance(ask_px, (int, float)) else "-"
+            t.add_row(
+                str(q.get("symbol", "?")),
+                str(q.get("quote_id", "?")),
+                str(q.get("state", "?")),
+                bid_txt,
+                ask_txt,
+                str(q.get("bid_remaining_qty", 0)),
+                str(q.get("ask_remaining_qty", 0)),
+            )
+
+        console.print(t)
+
+    def _print_symbols_table(
+        self, symbols: list[str], symbol_meta: dict[str, dict[str, Any]]
+    ) -> None:
+        t = Table(
+            title="Active Instruments",
+            show_header=True,
+            header_style="bold magenta",
+        )
+        t.add_column("#", style="dim", width=4)
+        t.add_column("Symbol", style="bold", min_width=10)
+        t.add_column("Tick", justify="right")
+        t.add_column("MM Enforced", justify="center")
+        t.add_column("Max Spread", justify="right")
+        t.add_column("Min Qty", justify="right")
+
+        for i, sym in enumerate(symbols, 1):
+            meta = symbol_meta.get(sym, {})
+            tick_size = meta.get("tick_size")
+            enforce_mm = meta.get("enforce_mm_obligation")
+            mm_max_spread_ticks = meta.get("mm_max_spread_ticks")
+            mm_min_qty = meta.get("mm_min_qty")
+
+            tick_text = str(tick_size) if tick_size is not None else "—"
+            if isinstance(enforce_mm, bool):
+                enforced_text = "YES" if enforce_mm else "NO"
+            else:
+                enforced_text = "—"
+
+            t.add_row(
+                str(i),
+                sym,
+                tick_text,
+                enforced_text,
+                str(mm_max_spread_ticks) if mm_max_spread_ticks is not None else "—",
+                str(mm_min_qty) if mm_min_qty is not None else "—",
+            )
+
+        console.print(t)
 
     def _authenticate(self, timeout_sec: float = 3.0) -> bool:
         # Give sockets time to connect and SUB filters to propagate.
@@ -485,11 +740,34 @@ class Gateway:
             if symbol and side and qty and price:
                 self._update_position(symbol, side, qty, price)
 
+            if (
+                isinstance(qty, int)
+                and isinstance(rem, int)
+                and isinstance(status, str)
+                and isinstance(symbol, str)
+                and isinstance(side, str)
+            ):
+                qty_total = payload.get("qty")
+                self._record_fill_for_quote_leg(
+                    order_id=payload.get("order_id", "?"),
+                    fill_qty=qty,
+                    remaining_qty=rem,
+                    status=status,
+                    symbol=symbol,
+                    side=side,
+                    qty=qty_total if isinstance(qty_total, int) else None,
+                    event_time=ts,
+                )
+
         elif "order.cancelled" in topic:
             console.print(f"[{ts}] [yellow]CANCELLED[/yellow] {oid}")
             full_id = payload.get("order_id", "?")
             if full_id in self.order_cache:
                 self.order_cache[full_id]["status"] = "CANCELLED"
+            if full_id in self.quote_leg_cache:
+                self.quote_leg_cache[full_id]["status"] = "CANCELLED"
+                self.quote_leg_cache[full_id]["remaining"] = 0
+                self.quote_leg_cache[full_id]["last_event_time"] = ts
 
         elif "order.amended" in topic:
             new_price = payload.get("price")
@@ -518,26 +796,26 @@ class Gateway:
 
         elif "system.symbols" in topic:
             symbols = payload.get("symbols", [])
+            symbol_meta = payload.get("symbol_meta", {})
             # Update completer's known symbols list
             self._known_symbols.clear()
             self._known_symbols.extend(symbols)
+            self._known_symbol_meta = (
+                symbol_meta if isinstance(symbol_meta, dict) else {}
+            )
             if symbols:
-                from rich.table import Table
-
-                t = Table(
-                    title="Active Instruments",
-                    show_header=True,
-                    header_style="bold magenta",
-                )
-                t.add_column("#", style="dim", width=4)
-                t.add_column("Symbol", style="bold", min_width=10)
-                for i, sym in enumerate(symbols, 1):
-                    t.add_row(str(i), sym)
-                console.print(t)
+                self._print_symbols_table(symbols, self._known_symbol_meta)
             else:
                 console.print(
                     "[dim]No active instruments yet — submit an order to create a book.[/dim]"
                 )
+
+        elif "system.quote_bootstrap" in topic:
+            quotes = payload.get("quotes", [])
+            if isinstance(quotes, list):
+                self._print_quote_bootstrap(quotes)
+            else:
+                console.print("[red]Malformed quote bootstrap response.[/red]")
 
         elif "order.orders" in topic:
             orders = payload.get("orders", [])
@@ -557,6 +835,24 @@ class Gateway:
                         "status": od["status"],
                         "time": ts,
                     }
+
+                if od.get("origin") == "QUOTE":
+                    quote_id = str(od.get("quote_id") or "?")
+                    symbol = str(od.get("symbol") or "?")
+                    leg_side = str(od.get("side") or "?")
+                    quantity = int(od.get("quantity") or 0)
+                    remaining = int(od.get("remaining_qty") or 0)
+                    status = str(od.get("status") or "NEW")
+                    self._upsert_quote_leg(
+                        order_id=oid,
+                        quote_id=quote_id,
+                        symbol=symbol,
+                        leg_side=leg_side,
+                        quantity=quantity,
+                        remaining_qty=remaining,
+                        status=status,
+                        event_time=ts,
+                    )
 
         elif "combo.ack" in topic:
             cid = payload.get("combo_id", "?")
@@ -611,6 +907,42 @@ class Gateway:
                 console.print(
                     f"[{ts}] [green]QUOTE ACK[/green]  {quote_id}  bid={bid_id} ask={ask_id}"
                 )
+
+                full_bid = payload.get("bid_order_id", "")
+                full_ask = payload.get("ask_order_id", "")
+                if isinstance(full_bid, str) and full_bid:
+                    self._quote_id_by_order_id[full_bid] = str(quote_id)
+                    if full_bid in self.quote_leg_cache:
+                        self.quote_leg_cache[full_bid]["quote_id"] = str(quote_id)
+                        self.quote_leg_cache[full_bid]["leg_side"] = "BUY"
+                    else:
+                        self._upsert_quote_leg(
+                            order_id=full_bid,
+                            quote_id=str(quote_id),
+                            symbol="?",
+                            leg_side="BUY",
+                            quantity=0,
+                            remaining_qty=0,
+                            status="PENDING",
+                            event_time=ts,
+                        )
+
+                if isinstance(full_ask, str) and full_ask:
+                    self._quote_id_by_order_id[full_ask] = str(quote_id)
+                    if full_ask in self.quote_leg_cache:
+                        self.quote_leg_cache[full_ask]["quote_id"] = str(quote_id)
+                        self.quote_leg_cache[full_ask]["leg_side"] = "SELL"
+                    else:
+                        self._upsert_quote_leg(
+                            order_id=full_ask,
+                            quote_id=str(quote_id),
+                            symbol="?",
+                            leg_side="SELL",
+                            quantity=0,
+                            remaining_qty=0,
+                            status="PENDING",
+                            event_time=ts,
+                        )
             else:
                 console.print(
                     f"[{ts}] [red]QUOTE REJ[/red]  {quote_id}  {payload.get('reason', '')}"
@@ -624,6 +956,7 @@ class Gateway:
             if reason:
                 msg += f"  {reason}"
             console.print(msg)
+            self._mark_quote_status(str(quote_id), str(status), ts)
 
         elif "risk.kill_switch_ack" in topic:
             if payload.get("accepted"):
@@ -758,8 +1091,30 @@ class Gateway:
             self._running = False
             return
 
+        if cmd == "STATUS":
+            self._print_status()
+            return
+
         if cmd == "ORDERS":
             self._print_orders()
+            return
+
+        if cmd == "QLEGS":
+            kv = self._kv(parts[1:])
+            symbol = kv.get("SYM")
+            show = kv.get("SHOW", "ACTIVE").upper()
+            if show not in {"ACTIVE", "RECENT", "ALL"}:
+                console.print("[red]QLEGS SHOW must be ACTIVE, RECENT, or ALL[/red]")
+                return
+            self._print_quote_legs(symbol=symbol, show=show)
+            return
+
+        if cmd == "QBOOT":
+            kv = self._kv(parts[1:])
+            symbol = kv.get("SYM", "")
+            self.push_sock.send_multipart(
+                make_quote_bootstrap_request_msg(self.gateway_id, symbol)
+            )
             return
 
         if cmd == "POS":
@@ -1096,6 +1451,56 @@ class Gateway:
         )
 
         self.push_sock.send_multipart(make_combo_order_msg(combo.to_dict()))
+
+    # ------------------------------------------------------------------
+    # Gateway status summary
+    # ------------------------------------------------------------------
+
+    def _print_status(self) -> None:
+        status_counts: dict[str, int] = {}
+        for order in self.order_cache.values():
+            status = str(order.get("status", "UNKNOWN"))
+            status_counts[status] = status_counts.get(status, 0) + 1
+
+        active_orders = sum(
+            count
+            for status, count in status_counts.items()
+            if status in {"NEW", "PARTIAL", "PENDING"}
+        )
+        active_quote_legs = sum(
+            1
+            for leg in self.quote_leg_cache.values()
+            if self._is_active_leg_status(str(leg.get("status", "")))
+        )
+
+        table = Table(title=f"Gateway status — {self.gateway_id}", show_lines=True)
+        table.add_column("Field", style="bold")
+        table.add_column("Value")
+        table.add_row("Gateway ID", self.gateway_id)
+        table.add_row("Authenticated", "yes" if self._running else "no")
+        table.add_row(
+            "Known symbols",
+            ", ".join(self._known_symbols) if self._known_symbols else "—",
+        )
+        table.add_row("Cached orders", str(len(self.order_cache)))
+        table.add_row("Active/resting orders", str(active_orders))
+        table.add_row("Cached quote legs", str(len(self.quote_leg_cache)))
+        table.add_row("Active quote legs", str(active_quote_legs))
+        table.add_row(
+            "Position symbols",
+            ", ".join(sorted(self._positions)) if self._positions else "—",
+        )
+        if status_counts:
+            counts = ", ".join(
+                f"{status}={count}" for status, count in sorted(status_counts.items())
+            )
+        else:
+            counts = "—"
+        table.add_row("Order status counts", counts)
+        console.print(table)
+        console.print(
+            "[dim]Use ORDERS for detailed order inspection and POS for P&L.[/dim]"
+        )
 
     # ------------------------------------------------------------------
     # ORDERS table

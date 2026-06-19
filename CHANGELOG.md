@@ -1,3 +1,29 @@
+## [v0.6.0] - 2026-06-19
+
+Release Type: minor
+
+### 📋 Summary
+This release adds the new `pm-mm-bot` autonomous market-maker process and expands gateway support for market-maker startup and quote-leg inspection workflows (exposed through the new QBOOT and QLEGS commands). It also adds a self-paced training section which teaches the running and operation of the exchange. The user-guide material was significantly updated and expanded to match the latest release.
+
+### ✨ Additions
+- Added `pm-mm-bot` autonomous market-maker process for maintaining two-sided liquidity with session-aware startup, quote refresh, and repricing logic
+- Added `QBOOT` command and wire message support for discovering existing active quote bootstrap state during market-maker startup and reconnect flows
+- Added `QLEGS` operator command in `pm-gateway` for inspecting active and recently completed quote legs with fill-state visibility
+- Added symbol metadata to `system.symbols.{GW}` replies and extended the gateway `SYMBOLS` command to display tick size and MM obligation metadata
+- Added new training chapters covering advanced admin operations, drop-copy replay/recovery, and automation with `ExchangeCommandClient` and `pm-mm-bot`
+
+### 🐛 Bug Fixes
+- Fixed Mermaid rendering failures in MM design documentation caused by unescaped pipe characters in graph labels
+
+### 📚 Documentation
+- Added a full user-guide page for `pm-mm-bot` including CLI usage, bootstrap behavior, session handling, and troubleshooting guidance
+- Updated gateway and message documentation to describe `QBOOT`, `QLEGS`, enriched `SYMBOLS` metadata, and MM-oriented operator workflows
+- Added self-paced training material across installation, startup, market making, trade lifecycle, observer processes, and advanced operational topics
+
+### 🛠 Internal
+- Added latency performance test coverage 
+
+
 ## [v0.5.0] - 2026-06-17
 
 Release Type: minor

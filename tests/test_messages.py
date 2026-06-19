@@ -185,6 +185,18 @@ class TestSystemMessages:
         assert topic == "system.symbols.GW01"
         assert payload["symbols"] == ["AAPL", "MSFT"]
 
+    def test_make_symbols_msg_with_symbol_meta(self) -> None:
+        topic, payload = _rt(
+            make_symbols_msg(
+                "GW01",
+                ["AAPL"],
+                symbol_meta={"AAPL": {"tick_size": 0.01, "mm_max_spread_ticks": 10}},
+            )
+        )
+        assert topic == "system.symbols.GW01"
+        assert payload["symbols"] == ["AAPL"]
+        assert payload["symbol_meta"]["AAPL"]["tick_size"] == 0.01
+
     def test_make_orders_request_msg(self) -> None:
         topic, payload = _rt(make_orders_request_msg("GW01"))
         assert topic == "order.orders_request"

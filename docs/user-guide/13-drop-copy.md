@@ -151,6 +151,13 @@ the buffer is full, the oldest event is discarded automatically.
 A downstream system that loses its connection and reconnects can request a
 replay of events it missed.
 
+!!! warning "In-process only — no external replay protocol"
+    Replay is implemented as a publisher method
+    (`DropCopyPublisher.replay(recipient_id, from_seq)`).  There is currently
+    **no** ZMQ message handler that accepts replay requests from external
+    consumers.  It is useful for tests and embedded consumers but not yet a
+    full reconnect protocol.
+
 ### Replay request (programmatic)
 
 Call `DropCopyPublisher.replay(recipient_id, from_seq)` from within the
@@ -220,6 +227,47 @@ which releases the ZMQ socket cleanly.
 ```
 
 To change the drop copy port, edit `DROP_COPY_PUB_ADDR` in `config.py`.
+
+
+
+## Subscribing to the drop copy feed
+
+A minimal Python subscriber that prints every fill event:
+
+```python
+import json
+import zmq
+
+ctx = zmq.Context()
+sock = ctx.socket(zmq.SUB)
+sock.connect("tcp://127.0.0.1:5557")
+
+# Subscribe to all drop copy events (or filter by gateway ID)
+sock.subscribe(b"drop_copy.event.")
+
+print("Listening for drop-copy events on :5557 ...")
+while True:
+    frames = sock.recv_multipart()
+    topic = frames[0].decode()
+    payload = json.loads(frames[1])
+    print(f"[{topic}] seq={payload['seq']}  {payload['symbol']}  "
+          f"{payload['fill_qty']}@{payload['fill_price']}  "
+          f"gateway={payload['gateway_id']}")
+```
+
+Example output:
+
+```
+Listening for drop-copy events on :5557 ...
+[drop_copy.event.TRADER01] seq=1  AAPL  100@150.05  gateway=TRADER01
+[drop_copy.event.TRADER02] seq=2  AAPL  100@150.05  gateway=TRADER02
+[drop_copy.event.TRADER01] seq=3  MSFT  50@415.20   gateway=TRADER01
+```
+
+!!! tip
+    For production use, subscribe to a specific gateway prefix
+    (e.g., `b"drop_copy.event.TRADER01"`) to limit traffic to only
+    fills relevant to your risk system.
 
 
 

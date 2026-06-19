@@ -37,6 +37,7 @@ from edumatcher.models.message import (
     make_kill_switch_ack_msg,
     make_orders_msg,
     make_quote_ack_msg,
+    make_quote_bootstrap_msg,
     make_session_schedule_msg,
     make_session_status_msg,
     make_symbol_halt_ack_msg,
@@ -341,6 +342,39 @@ class TestDataQueries:
         assert payload["gateway_id"] == "GW_ADMIN"
 
         assert result == ["AAPL", "MSFT", "TSLA"]
+
+    def test_quote_bootstrap_returns_quotes(self) -> None:
+        quotes = [
+            {
+                "quote_id": "SEED-MM_AAPL_01-AAPL-1",
+                "gateway_id": "MM_AAPL_01",
+                "symbol": "AAPL",
+                "state": "ACTIVE",
+                "bid_order_id": "bid-1",
+                "ask_order_id": "ask-1",
+                "bid_price": 100.0,
+                "ask_price": 101.0,
+                "bid_qty": 500,
+                "ask_qty": 500,
+                "bid_remaining_qty": 500,
+                "ask_remaining_qty": 500,
+                "bid_status": "NEW",
+                "ask_status": "NEW",
+            }
+        ]
+        client, push = _client(
+            recv_queue=_q(make_quote_bootstrap_msg("MM_AAPL_01", quotes))
+        )
+        result = client.quote_bootstrap("mm_aapl_01", symbol="aapl")
+
+        topic, payload = _last_sent(push)
+        assert topic == "system.quote_bootstrap_request"
+        assert payload["gateway_id"] == "MM_AAPL_01"
+        assert payload["symbol"] == "AAPL"
+
+        assert len(result) == 1
+        assert result[0]["symbol"] == "AAPL"
+        assert result[0]["quote_id"] == "SEED-MM_AAPL_01-AAPL-1"
 
 
 # ---------------------------------------------------------------------------
