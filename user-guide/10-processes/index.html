@@ -1753,6 +1753,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../19-protocol-overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External Protocols Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../20-app-alf-protocol/" class="md-nav__link">
         
   
@@ -3166,6 +3194,14 @@ an initial book snapshot on startup: late-joining viewers can request the
 current state rather than waiting for the next change.</p>
 <h2 id="process-overview">Process Overview<a class="headerlink" href="#process-overview" title="Permanent link">&para;</a></h2>
 <p>A complete EduMatcher session uses <strong>ten core runtime processes</strong> across three categories, plus optional AI trader, admin, and setup/config entrypoints.</p>
+<div class="admonition info">
+<p class="admonition-title">Protocol landscape</p>
+<p>EduMatcher supports multiple external protocol families with different roles:
+ALF for order entry, BALF for planned binary order entry, CALF for planned
+market-data dissemination, and RALF for post-trade dissemination. For a
+single map of purpose, runtime status, and links to detailed chapters and
+formal specs, see <a href="../19-protocol-overview/">External Protocols Overview</a>.</p>
+</div>
 <div class="admonition info">
 <p class="admonition-title">Why <code>pm-</code>?</p>
 <p>All CLI commands share the <code>pm-</code> prefix, short for <strong>Process for Matching</strong>.
