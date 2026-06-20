@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import errno
 import os
 from pathlib import Path
 import pty
@@ -62,7 +63,16 @@ def _read_pty_output(fd: int, predicate: Callable[[str], bool], timeout: float) 
         ready, _, _ = select.select([fd], [], [], min(0.2, remaining))
         if not ready:
             continue
-        chunk = os.read(fd, 4096).decode("utf-8", errors="replace")
+        try:
+            raw = os.read(fd, 4096)
+        except OSError as exc:
+            # On Linux PTYs, reading after child exit can raise EIO instead of EOF.
+            if exc.errno == errno.EIO:
+                break
+            raise
+        if not raw:
+            break
+        chunk = raw.decode("utf-8", errors="replace")
         output += chunk
         if predicate(output):
             return output
