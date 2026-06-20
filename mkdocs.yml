@@ -107,6 +107,7 @@ nav:
     - Statistics and Reporting: user-guide/16-statistics-and-reporting.md
     - Market-Maker Bot: user-guide/17-mm-bot.md
     - Post-Trade Dissemination (RALF): user-guide/18-post-trade.md
+    - External Protocols Overview: user-guide/19-protocol-overview.md
     - Appendix - ALF Protocol: user-guide/20-app-alf-protocol.md
     - Appendix - BALF Protocol: user-guide/21-app-balf-protocol.md
     - Appendix - CALF Protocol: user-guide/22-app-calf-protocol.md
