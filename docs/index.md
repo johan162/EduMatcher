@@ -5,6 +5,10 @@ EduMatcher is a multi-process Python trading simulator designed to teach the fun
 fully runnable system.
 
 
+![Order book illustration](assets/exchange-and-books-illustration.png)
+**Figure 1: The Exchange with Order Books and the Central Matching Engine (CME).**
+
+For more details on the core concept of the **Order Book** see [Concept Overview: Order Book](concepts/01-concepts-order-book.md)
 
 ## Start Here
 
