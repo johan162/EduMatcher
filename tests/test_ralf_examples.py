@@ -114,6 +114,28 @@ def _recv_exec(
     raise AssertionError("did not receive EXEC event")
 
 
+def _send_trade_executed(pub: zmq.Socket[bytes], exec_id: str) -> None:
+    pub.send_multipart(
+        [
+            b"trade.executed",
+            dumps(
+                {
+                    "id": exec_id,
+                    "symbol": "AAPL",
+                    "buy_order_id": "B1",
+                    "sell_order_id": "S1",
+                    "buy_gateway_id": "GW1",
+                    "sell_gateway_id": "GW2",
+                    "price": 150.25,
+                    "quantity": 100,
+                    "aggressor_side": "BUY",
+                    "timestamp": time.time(),
+                }
+            ),
+        ]
+    )
+
+
 @pytest.fixture()
 def running_gateway() -> Generator[tuple[zmq.Socket[bytes], int], None, None]:
     engine_port = _free_port()
@@ -203,25 +225,7 @@ def test_python_example_subscribes_and_parses_gateway_exec(
         ]
         assert snap_types == ["SNAP", "SNAP", "SNAP"]
 
-        pub.send_multipart(
-            [
-                b"trade.executed",
-                dumps(
-                    {
-                        "id": "EX-PY-1",
-                        "symbol": "AAPL",
-                        "buy_order_id": "B1",
-                        "sell_order_id": "S1",
-                        "buy_gateway_id": "GW1",
-                        "sell_gateway_id": "GW2",
-                        "price": 150.25,
-                        "quantity": 100,
-                        "aggressor_side": "BUY",
-                        "timestamp": time.time(),
-                    }
-                ),
-            ]
-        )
+        _send_trade_executed(pub, "EX-PY-1")
 
         exec_msg = _recv_exec(reader, parser_module)
         assert exec_msg.fields["EXEC_ID"] == "EX-PY-1"
@@ -269,25 +273,7 @@ def test_c_example_builds_and_receives_gateway_exec(
 
         event_output = ""
         for _ in range(20):
-            pub.send_multipart(
-                [
-                    b"trade.executed",
-                    dumps(
-                        {
-                            "id": "EX-C-1",
-                            "symbol": "AAPL",
-                            "buy_order_id": "B1",
-                            "sell_order_id": "S1",
-                            "buy_gateway_id": "GW1",
-                            "sell_gateway_id": "GW2",
-                            "price": 150.25,
-                            "quantity": 100,
-                            "aggressor_side": "BUY",
-                            "timestamp": time.time(),
-                        }
-                    ),
-                ]
-            )
+            _send_trade_executed(pub, "EX-C-1")
             try:
                 event_output += _read_pty_output(
                     master_fd,
