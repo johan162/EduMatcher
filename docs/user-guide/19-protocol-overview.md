@@ -95,6 +95,7 @@ Use CALF when you need:
 - external market-data subscription channels
 - deterministic sequence/reconnect semantics for data consumers
 - a text-based market-data feed for educational and integration scenarios
+- to subscribe to the index for the exchange
 
 Where to read more:
 

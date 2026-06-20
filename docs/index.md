@@ -5,6 +5,10 @@ EduMatcher is a multi-process Python trading simulator designed to teach the fun
 fully runnable system.
 
 
+![Order book illustration](assets/exchange-and-books-illustration.png)
+**Figure 1: The Exchange with Order Books and the Central Matching Engine (CME).**
+
+For more details on the core concept of the **Order Book** see [Concept Overview: Order Book](concepts/01-concepts-order-book.md)
 
 ## Start Here
 
@@ -143,6 +147,20 @@ This quick start points to the full walkthrough in
   - Poetry (for developers)
 
 ### Install (choose one)
+
+**VM bootstrap mode (curl + Multipass)**
+
+Prefer this mode if you want a ready-to-run Linux VM without installing Python
+or cloning this repository on your host machine.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.7.1 --snapshot
+```
+
+More information:
+- [Getting Started - VM bootstrap mode](user-guide/00-getting-started.md)
+- [Developer guide - VM runtime image](developer/05-vm-runtime-image.md)
+
 
 **Installed mode (pipx)**
 

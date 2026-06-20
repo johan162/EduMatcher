@@ -145,5 +145,6 @@ nav:
     - AI Bot Traders: developer/02-ai-bot.md
     - Experiments: developer/03-experiments.md
     - Verification: developer/04-verification.md
+    - VM Runtime Image: developer/05-vm-runtime-image.md
   - Glossary: glossary.md
   - FAQ: faq.md
