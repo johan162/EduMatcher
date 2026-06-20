@@ -12,13 +12,13 @@
         <meta name="author" content="Johan Persson <johan162@gmail.com>">
       
       
-        <link rel="canonical" href="https://github.com/johan162/EduMatcher/concepts/04-concepts-first-trade/">
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/developer/05-vm-runtime-image/">
       
       
-        <link rel="prev" href="../03-concepts-mm-quotes/">
+        <link rel="prev" href="../04-verification/">
       
       
-        <link rel="next" href="../05-concepts-trading-day/">
+        <link rel="next" href="../../glossary/">
       
       
         
@@ -29,7 +29,7 @@
     
     
       
-        <title>Your First Trade - EduMatcher — Educational Trading System</title>
+        <title>VM Runtime Image - EduMatcher — Educational Trading System</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#your-first-trade" class="md-skip">
+        <a href="#vm-runtime-image-with-pinned-pypi-release" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Your First Trade
+              VM Runtime Image
             
           </span>
         </div>
@@ -263,13 +263,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../01-concepts-order-book/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../concepts/01-concepts-order-book/" class="md-tabs__link">
           
   
   
@@ -345,11 +343,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../developer/01-dev-practice/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../01-dev-practice/" class="md-tabs__link">
           
   
   
@@ -504,31 +504,28 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
             
   
   
@@ -546,7 +543,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -564,7 +561,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../01-concepts-order-book/" class="md-nav__link">
+      <a href="../../concepts/01-concepts-order-book/" class="md-nav__link">
         
   
   
@@ -592,7 +589,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../02-concepts-order-book-deep-dive/" class="md-nav__link">
+      <a href="../../concepts/02-concepts-order-book-deep-dive/" class="md-nav__link">
         
   
   
@@ -620,7 +617,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../03-concepts-mm-quotes/" class="md-nav__link">
+      <a href="../../concepts/03-concepts-mm-quotes/" class="md-nav__link">
         
   
   
@@ -645,37 +642,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Your First Trade
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../concepts/04-concepts-first-trade/" class="md-nav__link">
         
   
   
@@ -691,169 +661,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#prerequisites" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Prerequisites
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#step-1-start-the-system" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Step 1 — Start the system
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#step-2-check-what-symbols-are-available" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Step 2 — Check what symbols are available
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#step-3-submit-a-passive-limit-buy-make-liquidity" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Step 3 — Submit a passive LIMIT BUY (make liquidity)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#step-4-submit-a-matching-limit-sell-take-liquidity" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Step 4 — Submit a matching LIMIT SELL (take liquidity)
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#step-5-read-the-fill-confirmation" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Step 5 — Read the fill confirmation
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#step-6-check-pl-in-the-clearing-window" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Step 6 — Check P&amp;L in the clearing window
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#step-7-submit-a-resting-sell-and-watch-unrealized-pl-move" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Step 7 — Submit a resting sell and watch unrealized P&amp;L move
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#step-8-submit-and-cancel-a-resting-order" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Step 8 — Submit and cancel a resting order
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#step-9-amend-an-existing-order" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Step 9 — Amend an existing order
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#step-10-try-a-market-order" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Step 10 — Try a MARKET order
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#summary" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Summary
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-next" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What next?
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -866,7 +673,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../05-concepts-trading-day/" class="md-nav__link">
+      <a href="../../concepts/05-concepts-trading-day/" class="md-nav__link">
         
   
   
@@ -894,7 +701,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../06-concepts-market-data-feed/" class="md-nav__link">
+      <a href="../../concepts/06-concepts-market-data-feed/" class="md-nav__link">
         
   
   
@@ -2509,28 +2316,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
-        
-          
-          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
             
   
   
@@ -2548,7 +2358,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_7">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2566,7 +2376,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../developer/01-dev-practice/" class="md-nav__link">
+      <a href="../01-dev-practice/" class="md-nav__link">
         
   
   
@@ -2594,7 +2404,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../developer/02-ai-bot/" class="md-nav__link">
+      <a href="../02-ai-bot/" class="md-nav__link">
         
   
   
@@ -2622,7 +2432,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../developer/03-experiments/" class="md-nav__link">
+      <a href="../03-experiments/" class="md-nav__link">
         
   
   
@@ -2650,7 +2460,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../developer/04-verification/" class="md-nav__link">
+      <a href="../04-verification/" class="md-nav__link">
         
   
   
@@ -2675,10 +2485,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../developer/05-vm-runtime-image/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM Runtime Image
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -2694,6 +2531,103 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-pip-in-venv-instead-of-pipx-for-this-vm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why pip in venv instead of pipx for this VM
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#build-the-vm-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build the VM image
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-provisioning-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What provisioning does
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verify-command-links" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify command links
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#launch-and-run-edumatcher-in-the-vm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Launch and run EduMatcher in the VM
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#upgrading-the-pinned-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading the pinned version
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -2780,292 +2714,133 @@
   
 
 
-<h1 id="your-first-trade">Your First Trade<a class="headerlink" href="#your-first-trade" title="Permanent link">&para;</a></h1>
+<h1 id="vm-runtime-image-with-pinned-pypi-release">VM Runtime Image with Pinned PyPI Release<a class="headerlink" href="#vm-runtime-image-with-pinned-pypi-release" title="Permanent link">&para;</a></h1>
 <div class="admonition note">
 <p class="admonition-title">Learning objectives</p>
-<p>After completing this walkthrough you will have:</p>
+<p>After reading this page you will understand:</p>
 <ul>
-<li>Started EduMatcher and verified all processes are connected</li>
-<li>Submitted a limit order and watched it rest on the book</li>
-<li>Executed a trade between two gateways</li>
-<li>Read your fill confirmation and P&amp;L update</li>
-<li>Cancelled a resting order</li>
+<li>How to build a VM image preinstalled with a selected EduMatcher version</li>
+<li>Why the VM image uses pip in a dedicated venv instead of pipx</li>
+<li>How all pm-* commands are linked into /usr/local/bin</li>
+<li>How to launch and operate EduMatcher from the provisioned VM</li>
 </ul>
 </div>
-<p>This is a step-by-step guided walkthrough. You need about 10 minutes and five
-terminal windows. No prior trading knowledge is assumed — every term is
-explained as it appears.</p>
-<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
-<p>Install EduMatcher if you haven't yet:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">cd</span><span class="w"> </span>EduMatcher
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>poetry<span class="w"> </span>install
-</code></pre></div>
-<h2 id="step-1-start-the-system">Step 1 — Start the system<a class="headerlink" href="#step-1-start-the-system" title="Permanent link">&para;</a></h2>
-<p>Open five terminal windows. Run one command per window, <strong>in this order</strong>
-(the engine must start before the gateways):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Window 1 — Matching engine</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
-</code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Window 2 — Order book viewer (watch AAPL)</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL
-</code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Window 3 — Clearing / P&amp;L tracker</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-clearing
-</code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Window 4 — First trader</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW01
-</code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Window 5 — Second trader</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW02
-</code></pre></div>
-<p>When the gateways start, you should see:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[GW01] Connected and authenticated.
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>[GW01] Session: CONTINUOUS
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>GW01&gt;
-</code></pre></div>
-<p>The <code>GW01&gt;</code> prompt means you are ready to enter orders.</p>
-<h2 id="step-2-check-what-symbols-are-available">Step 2 — Check what symbols are available<a class="headerlink" href="#step-2-check-what-symbols-are-available" title="Permanent link">&para;</a></h2>
-<p>At the <code>GW01&gt;</code> prompt, type:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>SYMBOLS
-</code></pre></div>
-<p>You should see the list of configured symbols (e.g. <code>AAPL</code>, <code>MSFT</code>). All
-examples in this walkthrough use <code>AAPL</code>.</p>
-<h2 id="step-3-submit-a-passive-limit-buy-make-liquidity">Step 3 — Submit a passive LIMIT BUY (make liquidity)<a class="headerlink" href="#step-3-submit-a-passive-limit-buy-make-liquidity" title="Permanent link">&para;</a></h2>
-<p>A <strong>LIMIT BUY</strong> order says: <em>"I want to buy X shares, but only at this price
-or lower."</em> If no one is selling at that price right now, the order will
-<strong>rest on the book</strong> — it waits until someone is willing to sell at your price.</p>
-<p>At the <code>GW01&gt;</code> prompt:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
-</code></pre></div>
-<p><strong>What each field means:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Value</th>
-<th>Meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>SYM</code></td>
-<td><code>AAPL</code></td>
-<td>The symbol (instrument) you want to trade</td>
-</tr>
-<tr>
-<td><code>SIDE</code></td>
-<td><code>BUY</code></td>
-<td>You want to buy</td>
-</tr>
-<tr>
-<td><code>TYPE</code></td>
-<td><code>LIMIT</code></td>
-<td>Price-limited order — won't fill above $150.00</td>
-</tr>
-<tr>
-<td><code>QTY</code></td>
-<td><code>100</code></td>
-<td>100 shares</td>
-</tr>
-<tr>
-<td><code>PRICE</code></td>
-<td><code>150.00</code></td>
-<td>Maximum price you'll pay</td>
-</tr>
-</tbody>
-</table>
-<p>You should see the acknowledgement:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[GW01] order.ack: order_id=abc123 accepted=true
-</code></pre></div>
-<p>Now look at the <strong>book viewer</strong> (Window 2). You should see:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>AAPL  CONTINUOUS
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>BID                ASK
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>─────────────────────
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>100 @ 150.00
-</code></pre></div>
-<p>Your buy order is sitting on the bid side, waiting for a seller.</p>
-<h2 id="step-4-submit-a-matching-limit-sell-take-liquidity">Step 4 — Submit a matching LIMIT SELL (take liquidity)<a class="headerlink" href="#step-4-submit-a-matching-limit-sell-take-liquidity" title="Permanent link">&para;</a></h2>
-<p>Now switch to the <code>GW02&gt;</code> prompt in Window 5 and submit a sell order at the
-same price:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.00
-</code></pre></div>
-<p>Because GW01 has a resting bid at $150.00 and GW02 is now willing to sell at
-$150.00, the prices <strong>cross</strong> — a trade happens immediately.</p>
-<h2 id="step-5-read-the-fill-confirmation">Step 5 — Read the fill confirmation<a class="headerlink" href="#step-5-read-the-fill-confirmation" title="Permanent link">&para;</a></h2>
-<p>Both gateways receive fill events. In Window 4 (GW01):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[GW01] order.fill: order_id=abc123 qty=100 price=150.00 status=FILLED
-</code></pre></div>
-<p>In Window 5 (GW02):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>[GW02] order.fill: order_id=xyz456 qty=100 price=150.00 status=FILLED
-</code></pre></div>
-<p>In Window 2 (book viewer), the order book is now empty at that level — both
-orders were consumed by the trade.</p>
-<p>In Window 1 (engine <code>--verbose</code>), you'll see the trade logged:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>TRADE AAPL buyer=GW01 seller=GW02 qty=100 price=150.00
-</code></pre></div>
-<h2 id="step-6-check-pl-in-the-clearing-window">Step 6 — Check P&amp;L in the clearing window<a class="headerlink" href="#step-6-check-pl-in-the-clearing-window" title="Permanent link">&para;</a></h2>
-<p>In Window 3 (clearing), you'll see a P&amp;L update for both traders:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[CLEARING] GW01 AAPL: position=+100 avg_cost=150.00 realized=0.00 unrealized=0.00
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>[CLEARING] GW02 AAPL: position=-100 avg_cost=150.00 realized=0.00 unrealized=0.00
-</code></pre></div>
-<p><strong>Reading the P&amp;L:</strong></p>
-<ul>
-<li><strong>GW01</strong> bought 100 shares at $150.00. They now have a <strong>long position</strong> of
-  +100 shares. Their unrealized P&amp;L is $0 because the market price is still
-  $150.00 (no profit or loss yet).</li>
-<li><strong>GW02</strong> sold 100 shares they presumably don't own — they are now <strong>short</strong>
-  100 shares. Their P&amp;L is also $0 at the moment of the trade.</li>
-</ul>
-<h2 id="step-7-submit-a-resting-sell-and-watch-unrealized-pl-move">Step 7 — Submit a resting sell and watch unrealized P&amp;L move<a class="headerlink" href="#step-7-submit-a-resting-sell-and-watch-unrealized-pl-move" title="Permanent link">&para;</a></h2>
-<p>From <code>GW01&gt;</code>, post another order to close the long position at a profit:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=152.00|TIF=GTC
-</code></pre></div>
-<p>The <code>TIF=GTC</code> (Good-Till-Cancelled) means this order will survive if the
-trading session ends. It rests on the ask side of the book waiting for a buyer
-at $152.00.</p>
-<p>From <code>GW02&gt;</code>, imagine GW02 wants to buy back their short position. If GW02
-submits a buy at $152.00:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=152.00
-</code></pre></div>
-<p>Another trade executes. Now in the clearing window:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[CLEARING] GW01 AAPL: position=0 avg_cost=0.00 realized=+200.00 unrealized=0.00
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>[CLEARING] GW02 AAPL: position=0 avg_cost=0.00 realized=-200.00 unrealized=0.00
-</code></pre></div>
-<p>GW01 bought at $150, sold at <span class="arithmatex">\(152 — **\)</span>2 × 100 shares = $200 realized profit<strong>.
-GW02 sold at $150, bought back at <span class="arithmatex">\(152 — **\)</span>200 realized loss</strong>. Both are now
-flat (position = 0).</p>
-<h2 id="step-8-submit-and-cancel-a-resting-order">Step 8 — Submit and cancel a resting order<a class="headerlink" href="#step-8-submit-and-cancel-a-resting-order" title="Permanent link">&para;</a></h2>
-<p>Submit a new bid that won't fill immediately:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a># From GW01&gt;
-<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=148.00
-</code></pre></div>
-<p>You'll get an order ID in the acknowledgement (e.g. <code>order_id=def789</code>). To
-cancel it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>CANCEL|ID=def789
-</code></pre></div>
-<p>The engine confirms:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>[GW01] order.cancelled: order_id=def789
-</code></pre></div>
-<p>The order disappears from the book viewer.</p>
-<h2 id="step-9-amend-an-existing-order">Step 9 — Amend an existing order<a class="headerlink" href="#step-9-amend-an-existing-order" title="Permanent link">&para;</a></h2>
-<p>Sometimes you want to change your mind without withdrawing completely — maybe
-you'd take a slightly higher price, or you only want to buy 30 shares instead
-of 50. The <code>AMEND</code> command updates a <strong>resting</strong> LIMIT order in-place, without
-cancelling it and losing your queue position.</p>
-<p>From <code>GW01&gt;</code>, post a new resting bid:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=148.00
-</code></pre></div>
-<p>Note the order ID from the acknowledgement (e.g. <code>order_id=def789</code>). Now
-change the price to $149.00 and reduce the quantity to 30 shares:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>AMEND|ID=def789|PRICE=149.00|QTY=30
-</code></pre></div>
-<p>The engine confirms the change:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>[GW01] order.amended: order_id=def789 price=149.00 qty=30
-</code></pre></div>
-<p>In the book viewer the old level at $148.00 disappears and a new line appears
-at $149.00 for 30 shares — the order was updated atomically. You can amend
-the price, the quantity, or both in a single command. You cannot amend a
-fully filled or cancelled order.</p>
-<div class="admonition warning">
-<p class="admonition-title">Queue priority</p>
-<p>Amending an order can cost you your <strong>time priority</strong> in the queue,
-mirroring the behaviour of real exchanges:</p>
-<ul>
-<li><strong>Price change</strong> — always loses priority. The order moves to the back
-  of the new price level's queue, because you are effectively competing
-  for a different set of contra orders.</li>
-<li><strong>Quantity increase</strong> — loses priority. A larger order consumes more
-  liquidity, so the engine treats it as a new aggressor and re-timestamps
-  it.</li>
-<li><strong>Quantity decrease</strong> — priority is <strong>preserved</strong>. Reducing your size
-  is a concession to the market; exchanges reward this by keeping your
-  place in the queue.</li>
-</ul>
-<p>In the example above, both the price change ($148 → $149) <em>and</em> the
-quantity reduction (50 → 30) happen in one command. The price change
-dominates — the order goes to the back of the $149.00 queue.</p>
-</div>
-<h2 id="step-10-try-a-market-order">Step 10 — Try a MARKET order<a class="headerlink" href="#step-10-try-a-market-order" title="Permanent link">&para;</a></h2>
-<p>A MARKET order doesn't specify a price — it just says "buy/sell at whatever
-is available right now." First, make sure there's something to trade against.</p>
-<p>From <code>GW02&gt;</code>, post a resting sell:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=151.00
-</code></pre></div>
-<p>Now from <code>GW01&gt;</code>, sweep it with a market buy:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
-</code></pre></div>
-<p>The market order fills immediately at $151.00 — it takes whatever price the
-resting sell requires. You didn't choose the price; you prioritised speed.</p>
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
-<p>You have completed a full basic trading session:</p>
+<p>EduMatcher can be distributed as a pre-provisioned VM where runtime commands are available globally.</p>
+<p>This repository includes a scripted pipeline in <code>vm/README.md</code>:</p>
+<ul>
+<li><code>vm/build_multipass_vm.sh</code></li>
+<li><code>vm/install_edumatcher_runtime.sh</code></li>
+</ul>
+<p>The provisioning flow installs a pinned package version from PyPI and creates symlinks for every detected pm-* command in /usr/local/bin.</p>
+<h2 id="why-pip-in-venv-instead-of-pipx-for-this-vm">Why pip in venv instead of pipx for this VM<a class="headerlink" href="#why-pip-in-venv-instead-of-pipx-for-this-vm" title="Permanent link">&para;</a></h2>
+<p>For a shared VM runtime image, pip in a dedicated virtual environment is the better fit:</p>
+<ol>
+<li>Deterministic system pathing: all pm-* commands resolve from /usr/local/bin.</li>
+<li>Operational clarity: one controlled runtime location under /opt/edumatcher/.venv.</li>
+<li>Easier service wiring: unit files and scripts can always reference stable absolute paths.</li>
+</ol>
+<p>pipx remains a strong choice for per-user workstation installs, but this VM image has a system-wide command-link requirement.</p>
+<h2 id="build-the-vm-image">Build the VM image<a class="headerlink" href="#build-the-vm-image" title="Permanent link">&para;</a></h2>
+<p>Without cloning the repository:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.7.1<span class="w"> </span>--snapshot
+</code></pre></div>
+<p>With a local repository checkout:</p>
+<p>From repository root:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>./vm/build_multipass_vm.sh --version 0.7.1
+</code></pre></div>
+<p>Useful options:</p>
 <table>
 <thead>
 <tr>
-<th>Step</th>
-<th>What you did</th>
-<th>Concept learned</th>
+<th>Name</th>
+<th>Default</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>1</td>
-<td>Started all processes</td>
-<td>System topology</td>
+<td><code>--name</code></td>
+<td><code>edumatcher-vm</code></td>
+<td>Name of the Multipass VM instance</td>
 </tr>
 <tr>
-<td>2</td>
-<td>Queried symbols</td>
-<td>System state</td>
+<td><code>--image</code></td>
+<td><code>lts</code></td>
+<td>Base Multipass image to launch</td>
 </tr>
 <tr>
-<td>3</td>
-<td>Posted a LIMIT BUY</td>
-<td>Passive / maker order, resting on book</td>
+<td><code>--cpus</code></td>
+<td><code>2</code></td>
+<td>Number of virtual CPUs assigned to the VM</td>
 </tr>
 <tr>
-<td>4</td>
-<td>Posted a matching LIMIT SELL</td>
-<td>Aggressive / taker order, price crossing</td>
+<td><code>--memory</code></td>
+<td><code>3G</code></td>
+<td>RAM allocated to the VM</td>
 </tr>
 <tr>
-<td>5</td>
-<td>Read fill confirmation</td>
-<td>Order lifecycle</td>
+<td><code>--disk</code></td>
+<td><code>10G</code></td>
+<td>Maximum virtual disk size for the VM</td>
 </tr>
 <tr>
-<td>6</td>
-<td>Checked P&amp;L</td>
-<td>Long position, unrealized P&amp;L</td>
+<td><code>--snapshot-name</code></td>
+<td><code>clean-runtime</code></td>
+<td>Snapshot name used when <code>--snapshot</code> is enabled</td>
 </tr>
 <tr>
-<td>7</td>
-<td>Closed position for profit</td>
-<td>Realized P&amp;L</td>
-</tr>
-<tr>
-<td>8</td>
-<td>Cancelled a resting order</td>
-<td>Order cancellation</td>
-</tr>
-<tr>
-<td>9</td>
-<td>Amended a resting order</td>
-<td>In-place price/qty update, queue priority</td>
-</tr>
-<tr>
-<td>10</td>
-<td>Submitted a MARKET order</td>
-<td>Immediacy vs. price certainty</td>
+<td><code>--version</code></td>
+<td><code>0.7.1</code></td>
+<td>EduMatcher PyPI version to install in the VM</td>
 </tr>
 </tbody>
 </table>
-<h2 id="what-next">What next?<a class="headerlink" href="#what-next" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="../../user-guide/04-order-types/">Order Types</a> — all ten order types with detailed mechanics</li>
-<li><a href="../05-concepts-trading-day/">A Full Trading Day</a> — auctions, session phases, and daily lifecycle</li>
-<li><a href="../../user-guide/07-pnl-clearing/">P&amp;L &amp; Clearing</a> — full explanation of VWAP cost basis and realized vs. unrealized</li>
-</ul>
-<p><a href="../../glossary/">Glossary →</a></p>
+<h2 id="what-provisioning-does">What provisioning does<a class="headerlink" href="#what-provisioning-does" title="Permanent link">&para;</a></h2>
+<p>Inside the VM, provisioning performs the following steps:</p>
+<ol>
+<li>Installs Python 3.13 and runtime prerequisites.</li>
+<li>Creates /opt/edumatcher/.venv.</li>
+<li>Installs edumatcher==<selected version> from PyPI.</li>
+<li>Discovers all installed pm-* console entry points.</li>
+<li>Symlinks each command to /usr/local/bin/pm-*</li>
+<li>Persists installed version to /opt/edumatcher/EDUMATCHER_VERSION.</li>
+</ol>
+<h2 id="verify-command-links">Verify command links<a class="headerlink" href="#verify-command-links" title="Permanent link">&para;</a></h2>
+<p>Inside the VM:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>ls -1 /usr/local/bin/pm-*
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>cat /opt/edumatcher/EDUMATCHER_VERSION
+</code></pre></div>
+<p>You can also inspect the source directory for symlink targets:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>ls -1 /opt/edumatcher/.venv/bin/pm-*
+</code></pre></div>
+<h2 id="launch-and-run-edumatcher-in-the-vm">Launch and run EduMatcher in the VM<a class="headerlink" href="#launch-and-run-edumatcher-in-the-vm" title="Permanent link">&para;</a></h2>
+<p>Open a shell:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>multipass shell edumatcher-vm
+</code></pre></div>
+<p>A bootstrap config have already been created in <code>/home/ubuntu/session/</code> using <code>pm-setup</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>cd ~/session
+</code></pre></div>
+<p>Open five terminals and connect them to a VM shell with <code>multipass shell edumatcher-vm</code> . The start the EduMatcher key processes in separate terminals:</p>
+<p>Terminal 1:
+<code>pm-engine --verbose</code></p>
+<p>Terminal 2:
+<code>pm-audit --terminal</code></p>
+<p>Terminal 3:
+<code>pm-clearing</code></p>
+<p>Terminal 4:
+<code>pm-viewer --symbol AAPL</code></p>
+<p>Terminal 5:
+<code>pm-gateway --id TRADER01</code> </p>
+<h2 id="upgrading-the-pinned-version">Upgrading the pinned version<a class="headerlink" href="#upgrading-the-pinned-version" title="Permanent link">&para;</a></h2>
+<p>Preferred approach is immutable rebuild with a new VM name:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./vm/build_multipass_vm.sh --name edumatcher-072 --version 0.7.2 --snapshot
+</code></pre></div>
+<p>If you need in-place reprovisioning:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>multipass transfer vm/install_edumatcher_runtime.sh edumatcher-071:/tmp/install_edumatcher_runtime.sh
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>multipass exec edumatcher-071 -- sudo chmod +x /tmp/install_edumatcher_runtime.sh
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>multipass exec edumatcher-071 -- sudo /tmp/install_edumatcher_runtime.sh --version 0.7.2
+</code></pre></div>
 
 
 
