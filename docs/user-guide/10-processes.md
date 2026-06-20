@@ -131,6 +131,13 @@ current state rather than waiting for the next change.
 
 A complete EduMatcher session uses **ten core runtime processes** across three categories, plus optional AI trader, admin, and setup/config entrypoints.
 
+!!! info "Protocol landscape"
+    EduMatcher supports multiple external protocol families with different roles:
+    ALF for order entry, BALF for planned binary order entry, CALF for planned
+    market-data dissemination, and RALF for post-trade dissemination. For a
+    single map of purpose, runtime status, and links to detailed chapters and
+    formal specs, see [External Protocols Overview](19-protocol-overview.md).
+
 !!! info "Why `pm-`?"
     All CLI commands share the `pm-` prefix, short for **Process for Matching**.
     The prefix avoids name collisions with system utilities and makes it easy to

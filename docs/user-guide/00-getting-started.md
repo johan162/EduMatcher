@@ -555,4 +555,5 @@ Use the table below to decide what to read based on your goal.
 - [AI Traders](15-ai-traders.md) — autonomous order flow with `pm-ai-trader` and `pm-ai-swarm`
 - [Market-Maker Bot](17-mm-bot.md) — automated quoting with `pm-mm-bot`
 - [Post-Trade Dissemination](18-post-trade.md) — external post-trade gateway with `pm-ralf-gwy`
+- [External Protocols Overview](19-protocol-overview.md) — where ALF, BALF, CALF, and RALF fit and how to choose between them
 - [RALF Protocol](23-app-ralf-protocol.md) — protocol-level wire specification
