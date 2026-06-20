@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include "ralf_parser.h"
 
 #include <arpa/inet.h>

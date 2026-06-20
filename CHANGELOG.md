@@ -1,3 +1,23 @@
+## [v0.7.1] - 2026-06-20
+
+Release Type: patch
+
+### 📋 Summary
+This patch release hardens cross-platform reliability for the RALF example integration tests, especially on Linux CI runners. It also improves protocol discoverability in the User Guide by adding a dedicated overview page that maps ALF, BALF, CALF, and RALF usage and references.
+
+
+### 🐛 Bug Fixes
+- Fixed Linux PTY read handling in RALF C example tests where EOF can surface as `EIO`
+- Fixed Linux portability issues in RALF C example sources and build flags to avoid platform-specific crashes
+
+### 📚 Documentation
+- Added an External Protocols Overview chapter describing ALF, BALF, CALF, and RALF purpose, status, and where to find detailed protocol references
+- Updated User Guide cross-links so protocol selection and process-level protocol context are easier to discover
+
+### 🛠 Internal
+- Cleaned up and refactored RALF example test code to reduce duplication while preserving behavior
+
+
 ## [v0.7.0] - 2026-06-20
 
 Release Type: minor

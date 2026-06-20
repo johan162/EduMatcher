@@ -1,0 +1,144 @@
+# External Protocols Overview
+
+!!! note "Learning objectives"
+    After reading this page you will understand:
+
+    - which external protocols EduMatcher defines and why each exists
+    - which protocols are implemented today vs. documented for planned gateways
+    - where to find each protocol's formal specification appendix
+    - where to find the operational chapters that explain how each protocol is used
+
+
+## Why this page exists
+
+EduMatcher exposes and documents four external protocol families:
+
+1. ALF
+2. BALF
+3. CALF
+4. RALF
+
+They serve different connectivity purposes. This page is the quick map that
+connects each protocol to:
+
+- its purpose
+- runtime status
+- gateway/process context
+- detailed chapters
+- formal protocol reference appendix
+
+
+## Protocol map
+
+| Protocol | Primary purpose | Transport/format | Runtime status | Typical gateway/process |
+|---|---|---|---|---|
+| **ALF** | Human-readable order entry and gateway control | Text line protocol (`FIELD=VALUE|...`) | Implemented and active | `pm-gateway` |
+| **BALF** | Low-latency binary order entry for programmatic clients | Binary framed protocol | Documented; planned gateway process | `pm-balf-gateway` (planned) |
+| **CALF** | External market-data dissemination (top/book/trade/state style channels) | Text line protocol over TCP | Documented; planned gateway process | `pm-md-gwy` (planned) |
+| **RALF** | External post-trade dissemination for clearing, drop-copy, and audit consumers | Text line protocol over TCP (`RALF1`) | Implemented and active | `pm-ralf-gwy` |
+
+
+## ALF (Almost FIX)
+
+ALF is EduMatcher's active, user-facing order-entry protocol. It is used by
+interactive participant gateways and is the primary way traders submit and
+manage orders in current deployments.
+
+Use ALF when you need:
+
+- interactive/manual order entry
+- educational readability of commands
+- direct access to the full command set in `pm-gateway`
+
+Where to read more:
+
+- Gateway behavior and operator workflow: [Gateway Commands](08-gateway.md)
+- Process-level role of the ALF gateway: [Processes](10-processes.md#pm-gateway-user-gateway)
+- Engine configuration of allowed ALF IDs/roles: [Configuration](01-configuration.md#alf-gateway-allowlist)
+- Formal wire syntax and semantics: [Appendix - ALF Protocol](20-app-alf-protocol.md)
+
+
+## BALF (Binary ALF)
+
+BALF is the binary order-entry protocol family. It targets programmatic clients
+that need compact framing and lower parsing overhead than text order-entry
+formats.
+
+In the current User Guide state, BALF is documented as a protocol specification
+and process concept, but the runtime gateway is listed under planned processes.
+
+Use BALF when you need:
+
+- binary order-entry framing
+- explicit low-latency protocol design
+- a programmatic session model with binary message layouts
+
+Where to read more:
+
+- Planned runtime process and position in architecture: [Processes](10-processes.md#planned-processes)
+- Protocol design details and message/frame definitions: [Appendix - BALF Protocol](21-app-balf-protocol.md)
+- Configuration context and protocol family notes: [Configuration](01-configuration.md)
+
+
+## CALF (Channel ALF)
+
+CALF is the external market-data protocol family. It is designed for
+subscription-based market-data delivery (channelized streams, snapshot +
+incremental patterns, and sequence-aware recovery semantics).
+
+In the current User Guide state, CALF is documented as a protocol specification
+and process concept, with the market-data gateway listed under planned
+processes.
+
+Use CALF when you need:
+
+- external market-data subscription channels
+- deterministic sequence/reconnect semantics for data consumers
+- a text-based market-data feed for educational and integration scenarios
+
+Where to read more:
+
+- Market-data concepts and channel model: [Market Data Feed (CALF)](../concepts/06-concepts-market-data-feed.md)
+- Planned runtime process and architecture placement: [Processes](10-processes.md#planned-processes)
+- Formal wire protocol reference: [Appendix - CALF Protocol](22-app-calf-protocol.md)
+
+
+## RALF (Reconciliation ALF)
+
+RALF is EduMatcher's active post-trade dissemination protocol. It is used by
+`pm-ralf-gwy` to stream post-trade events to external systems such as clearing,
+drop-copy, and audit consumers.
+
+Use RALF when you need:
+
+- external post-trade event distribution
+- role-based consumption (`CLEARING`, `DROP_COPY`, `AUDIT`)
+- replay-aware reconnect behavior for downstream systems
+
+Where to read more:
+
+- Operational deployment and runbook: [Post-Trade Dissemination (RALF)](18-post-trade.md)
+- Process-level role in runtime topology: [Processes](10-processes.md#pm-ralf-gwy-post-trade-dissemination-gateway)
+- RALF gateway configuration details: [Configuration](01-configuration.md#configuring-pm-ralf-gwy)
+- Formal wire protocol reference: [Appendix - RALF Protocol](23-app-ralf-protocol.md)
+
+
+## Quick selection guide
+
+| If you need to... | Protocol to start with |
+|---|---|
+| Enter and manage orders from participant terminals | **ALF** |
+| Plan binary low-latency order-entry integrations | **BALF** |
+| Consume market-data channels externally | **CALF** |
+| Consume post-trade/clearing/audit streams externally | **RALF** |
+
+
+## See also
+
+- [Getting Started](00-getting-started.md)
+- [Processes](10-processes.md)
+- [Post-Trade Dissemination (RALF)](18-post-trade.md)
+- [Appendix - ALF Protocol](20-app-alf-protocol.md)
+- [Appendix - BALF Protocol](21-app-balf-protocol.md)
+- [Appendix - CALF Protocol](22-app-calf-protocol.md)
+- [Appendix - RALF Protocol](23-app-ralf-protocol.md)
