@@ -1,3 +1,20 @@
+## [v0.8.0] - 2026-06-20
+
+Release Type: minor
+
+### 📋 Summary
+This release adds a turnkey Multipass VM runtime flow so users can bootstrap EduMatcher with a single curl command and run the EuMatcher platform directly in a fresh VM. It also improves onboarding documentation with VM-specific setup and launch guidance.
+
+### ✨ Additions
+- Added a Multipass VM provisioning pipeline in `vm/` with automated runtime installation and setup
+- Added a curl bootstrap script to download and run the VM build and provisioning scripts without cloning the full repository
+
+### 📚 Documentation
+- Updated the docs landing page quick-start section with curl-based VM setup and links to detailed setup guides
+- Illustration of Exchange and Order books created and added
+
+
+
 ## [v0.7.1] - 2026-06-20
 
 Release Type: patch
