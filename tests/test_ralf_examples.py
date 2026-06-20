@@ -204,7 +204,18 @@ def test_c_example_builds_and_receives_gateway_exec(
 
     pub, gateway_port = running_gateway
     subprocess.run(
-        ["make"], cwd=EXAMPLE_DIR, check=True, capture_output=True, text=True
+        ["make", "clean"],
+        cwd=EXAMPLE_DIR,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["make"],
+        cwd=EXAMPLE_DIR,
+        check=True,
+        capture_output=True,
+        text=True,
     )
 
     master_fd, slave_fd = pty.openpty()
