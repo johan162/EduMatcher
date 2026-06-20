@@ -148,6 +148,20 @@ This quick start points to the full walkthrough in
 
 ### Install (choose one)
 
+**VM bootstrap mode (curl + Multipass)**
+
+Prefer this mode if you want a ready-to-run Linux VM without installing Python
+or cloning this repository on your host machine.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.7.1 --snapshot
+```
+
+More information:
+- [Getting Started - VM bootstrap mode](user-guide/00-getting-started.md)
+- [Developer guide - VM runtime image](developer/05-vm-runtime-image.md)
+
+
 **Installed mode (pipx)**
 
 ```bash

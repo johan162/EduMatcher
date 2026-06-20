@@ -61,6 +61,69 @@ flowchart LR
 EduMatcher supports two installation modes. Choose the one that matches your role.
 
 
+### VM bootstrap mode — `curl` + Multipass (no repo clone)
+
+Use this mode when you want a ready-to-run EduMatcher VM without installing
+Python or cloning this repository on your host.
+
+**What is Multipass?**
+
+Multipass is a lightweight VM manager from Canonical. It launches Ubuntu VMs
+with simple CLI commands so you can run isolated Linux environments locally on
+macOS, Linux, or Windows.
+
+**Requirements**
+
+| Requirement | Notes |
+|---|---|
+| Multipass | Install from [multipass.run](https://multipass.run/install) |
+| curl | Used to download the VM bootstrap script |
+| Internet access | Required for downloading scripts and PyPI packages |
+| Host resources | Recommended minimum: 2 vCPU, 3 GB RAM, 10 GB disk |
+
+**Bootstrap with one command**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.7.1 --snapshot
+```
+
+This command downloads the VM setup scripts, launches a Multipass VM,
+installs EduMatcher in the VM, links all `pm-*` commands into
+`/usr/local/bin`, prepares `/home/ubuntu/session`, and optionally takes
+an initial snapshot.
+
+**Start using the VM**
+
+```bash
+multipass shell edumatcher-vm
+cd /home/ubuntu/session
+pm-engine --verbose
+```
+
+Open additional host terminals and run `multipass shell edumatcher-vm` in each
+terminal to start `pm-gateway`, `pm-viewer`, `pm-clearing`, and `pm-audit`.
+
+**Useful bootstrap options**
+
+```bash
+# Different VM name and version
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
+    bash -s -- --name edumatcher-071 --version 0.7.1 --snapshot
+
+# Tune resources
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
+    bash -s -- --cpus 2 --memory 3G --disk 10G
+```
+
+**Optional: inspect script before execution**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh -o curl_setup_vm.sh
+less curl_setup_vm.sh
+bash curl_setup_vm.sh --version 0.7.1 --snapshot
+```
+
+
 
 ### End-user / student mode — `pipx install` (recommended)
 
