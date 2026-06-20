@@ -267,32 +267,40 @@ def test_c_example_builds_and_receives_gateway_exec(
         assert "WELCOME type=WELCOME" in startup_output
         assert "Subscribed as CLEARING" in startup_output
 
-        pub.send_multipart(
-            [
-                b"trade.executed",
-                dumps(
-                    {
-                        "id": "EX-C-1",
-                        "symbol": "AAPL",
-                        "buy_order_id": "B1",
-                        "sell_order_id": "S1",
-                        "buy_gateway_id": "GW1",
-                        "sell_gateway_id": "GW2",
-                        "price": 150.25,
-                        "quantity": 100,
-                        "aggressor_side": "BUY",
-                        "timestamp": time.time(),
-                    }
-                ),
-            ]
-        )
+        event_output = ""
+        for _ in range(20):
+            pub.send_multipart(
+                [
+                    b"trade.executed",
+                    dumps(
+                        {
+                            "id": "EX-C-1",
+                            "symbol": "AAPL",
+                            "buy_order_id": "B1",
+                            "sell_order_id": "S1",
+                            "buy_gateway_id": "GW1",
+                            "sell_gateway_id": "GW2",
+                            "price": 150.25,
+                            "quantity": 100,
+                            "aggressor_side": "BUY",
+                            "timestamp": time.time(),
+                        }
+                    ),
+                ]
+            )
+            try:
+                event_output += _read_pty_output(
+                    master_fd,
+                    lambda text: "MSG type=EXEC CH=CLEARING" in text
+                    and "SYM=AAPL" in text,
+                    timeout=0.6,
+                    proc=proc,
+                )
+                break
+            except AssertionError as exc:
+                event_output += str(exc)
+                time.sleep(0.05)
 
-        event_output = _read_pty_output(
-            master_fd,
-            lambda text: "MSG type=EXEC CH=CLEARING" in text and "SYM=AAPL" in text,
-            timeout=10.0,
-            proc=proc,
-        )
         assert "MSG type=EXEC CH=CLEARING" in event_output
         assert "SYM=AAPL" in event_output
     finally:
