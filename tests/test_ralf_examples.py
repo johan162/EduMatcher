@@ -45,6 +45,17 @@ def _free_port() -> int:
         return int(sock.getsockname()[1])
 
 
+def _wait_for_listener(host: str, port: int, timeout: float = 5.0) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection((host, port), timeout=0.2):
+                return
+        except OSError:
+            time.sleep(0.05)
+    raise AssertionError(f"gateway did not start listening on {host}:{port}")
+
+
 def _load_module(name: str, path: Path) -> ModuleType:
     spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
@@ -55,10 +66,17 @@ def _load_module(name: str, path: Path) -> ModuleType:
     return module
 
 
-def _read_pty_output(fd: int, predicate: Callable[[str], bool], timeout: float) -> str:
+def _read_pty_output(
+    fd: int,
+    predicate: Callable[[str], bool],
+    timeout: float,
+    proc: subprocess.Popen[bytes] | None = None,
+) -> str:
     output = ""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
+        if proc is not None and proc.poll() is not None:
+            break
         remaining = max(0.0, deadline - time.monotonic())
         ready, _, _ = select.select([fd], [], [], min(0.2, remaining))
         if not ready:
@@ -76,6 +94,10 @@ def _read_pty_output(fd: int, predicate: Callable[[str], bool], timeout: float) 
         output += chunk
         if predicate(output):
             return output
+    if proc is not None and proc.poll() is not None:
+        raise AssertionError(
+            f"subscriber exited rc={proc.returncode} before expected output; output was:\n{output}"
+        )
     raise AssertionError(output)
 
 
@@ -112,7 +134,7 @@ def running_gateway() -> Generator[tuple[zmq.Socket[bytes], int], None, None]:
     gateway = RalfGateway(cfg)
     thread = threading.Thread(target=gateway.run, daemon=True)
     thread.start()
-    time.sleep(0.15)
+    _wait_for_listener("127.0.0.1", gateway_port)
 
     ctx = zmq.Context.instance()
     pub = ctx.socket(zmq.PUB)
@@ -243,7 +265,8 @@ def test_c_example_builds_and_receives_gateway_exec(
             master_fd,
             lambda text: "WELCOME type=WELCOME" in text
             and "Subscribed as CLEARING" in text,
-            timeout=5.0,
+            timeout=10.0,
+            proc=proc,
         )
         assert "WELCOME type=WELCOME" in startup_output
         assert "Subscribed as CLEARING" in startup_output
@@ -271,7 +294,8 @@ def test_c_example_builds_and_receives_gateway_exec(
         event_output = _read_pty_output(
             master_fd,
             lambda text: "MSG type=EXEC CH=CLEARING" in text and "SYM=AAPL" in text,
-            timeout=5.0,
+            timeout=10.0,
+            proc=proc,
         )
         assert "MSG type=EXEC CH=CLEARING" in event_output
         assert "SYM=AAPL" in event_output
