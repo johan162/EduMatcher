@@ -1406,6 +1406,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/81-example-configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Engine Configs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/90-app-alf-protocol/" class="md-nav__link">
         
   
@@ -1699,6 +1727,89 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-1-alternative-multipass-vm-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 1 (Alternative): Multipass VM Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exercise 1 (Alternative): Multipass VM Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-1-install-multipass-on-your-host" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 1: Install Multipass on your host
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-bootstrap-the-vm-with-one-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 2: Bootstrap the VM with one command
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-enter-the-vm-and-verify-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 3: Enter the VM and verify commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-4-run-a-first-end-to-end-session-inside-the-vm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 4: Run a first end-to-end session inside the VM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-5-stop-restart-and-clean-up-the-vm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step 5: Stop, restart, and clean up the VM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#relevant-user-guide-chapters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relevant User Guide chapters
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2861,9 +2972,70 @@ All commands must be prefixed with <code>poetry run</code> (e.g. <code>poetry ru
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-engine --version</code> prints a version number.</p>
 <hr />
+<h2 id="exercise-1-alternative-multipass-vm-setup">Exercise 1 (Alternative): Multipass VM Setup<a class="headerlink" href="#exercise-1-alternative-multipass-vm-setup" title="Permanent link">&para;</a></h2>
+<p>If you want a ready-to-run Linux environment without installing Python tooling
+on your host, use the Multipass bootstrap flow. This creates an Ubuntu VM,
+installs EduMatcher inside it, and leaves you with a clean runtime sandbox.</p>
+<h3 id="step-1-install-multipass-on-your-host">Step 1: Install Multipass on your host<a class="headerlink" href="#step-1-install-multipass-on-your-host" title="Permanent link">&para;</a></h3>
+<p>Install Multipass from <a href="https://multipass.run/install">multipass.run</a>, then
+verify it is available:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>multipass<span class="w"> </span>version
+</code></pre></div>
+<h3 id="step-2-bootstrap-the-vm-with-one-command">Step 2: Bootstrap the VM with one command<a class="headerlink" href="#step-2-bootstrap-the-vm-with-one-command" title="Permanent link">&para;</a></h3>
+<p>Run the curl bootstrap script (pinned to this release):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.9.0<span class="w"> </span>--snapshot
+</code></pre></div>
+<p>This command will:</p>
+<ol>
+<li>Download the VM setup scripts from the EduMatcher repository.</li>
+<li>Launch a Multipass VM (default name: <code>edumatcher-vm</code>).</li>
+<li>Install the EduMatcher runtime and required dependencies in the VM.</li>
+<li>Print a short summary showing how to enter the VM and start processes.</li>
+</ol>
+<div class="admonition tip">
+<p class="admonition-title">Security-first variant</p>
+<p>If you prefer to inspect scripts before running them:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span>-o<span class="w"> </span>curl_setup_vm.sh
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>less<span class="w"> </span>curl_setup_vm.sh
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.9.0<span class="w"> </span>--snapshot
+</code></pre></div></p>
+</div>
+<h3 id="step-3-enter-the-vm-and-verify-commands">Step 3: Enter the VM and verify commands<a class="headerlink" href="#step-3-enter-the-vm-and-verify-commands" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>multipass<span class="w"> </span>shell<span class="w"> </span>edumatcher-vm
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>pm-engine<span class="w"> </span>--version
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>pm-scheduler<span class="w"> </span>--help
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>pm-gateway<span class="w"> </span>--help
+</code></pre></div>
+<h3 id="step-4-run-a-first-end-to-end-session-inside-the-vm">Step 4: Run a first end-to-end session inside the VM<a class="headerlink" href="#step-4-run-a-first-end-to-end-session-inside-the-vm" title="Permanent link">&para;</a></h3>
+<p>Open several host terminals and attach each to the same VM:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>multipass<span class="w"> </span>shell<span class="w"> </span>edumatcher-vm
+</code></pre></div>
+<p>Then start core processes in separate VM shells (engine, scheduler, gateways,
+and clients) following the run order from the User Guide. </p>
+<h3 id="step-5-stop-restart-and-clean-up-the-vm">Step 5: Stop, restart, and clean up the VM<a class="headerlink" href="#step-5-stop-restart-and-clean-up-the-vm" title="Permanent link">&para;</a></h3>
+<p>From your host machine:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>multipass<span class="w"> </span>list
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>multipass<span class="w"> </span>stop<span class="w"> </span>edumatcher-vm
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>multipass<span class="w"> </span>start<span class="w"> </span>edumatcher-vm
+</code></pre></div>
+<p>When you no longer need it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>multipass<span class="w"> </span>delete<span class="w"> </span>edumatcher-vm
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>multipass<span class="w"> </span>purge
+</code></pre></div>
+<h3 id="relevant-user-guide-chapters">Relevant User Guide chapters<a class="headerlink" href="#relevant-user-guide-chapters" title="Permanent link">&para;</a></h3>
+<ul>
+<li><a href="../../user-guide/00-getting-started/">Getting Started</a> (see VM bootstrap mode)</li>
+<li><a href="../../user-guide/03-running-the-engine/">Running the Engine</a></li>
+<li><a href="../../user-guide/10-processes/">Processes</a></li>
+<li><a href="../../user-guide/80-examples/">Examples</a></li>
+</ul>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> You can enter
+<code>edumatcher-vm</code> and <code>pm-engine --version</code> succeeds inside the VM.</p>
+<hr />
 <h2 id="exercise-2-run-pm-setup">Exercise 2: Run pm-setup<a class="headerlink" href="#exercise-2-run-pm-setup" title="Permanent link">&para;</a></h2>
+<p><strong><em>If you have used the VM (Multipass) this step can be skipped as it has already been done as part of the VM setup.</em></strong></p>
 <p>The <code>pm-setup</code> helper bootstraps your local environment in one command:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-setup
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-setup
 </code></pre></div>
 <p>What it does:</p>
 <ol>
@@ -2872,13 +3044,13 @@ All commands must be prefixed with <code>poetry run</code> (e.g. <code>poetry ru
 <li>Prints a shell snippet with the environment variable exports you need.</li>
 </ol>
 <p>Expected output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>✓ Created data directory: /Users/you/.local/share/edumatcher
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>✓ Copied sample engine_config.yaml to ./engine_config.yaml
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>Add the following to your shell profile (~/.zshrc or ~/.bashrc):
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>  export EDUMATCHER_DATA_DIR=&quot;$HOME/.local/share/edumatcher&quot;
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>  export EDUMATCHER_CONFIG=&quot;./engine_config.yaml&quot;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>✓ Created data directory: /Users/you/.local/share/edumatcher
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>✓ Copied sample engine_config.yaml to ./engine_config.yaml
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>Add the following to your shell profile (~/.zshrc or ~/.bashrc):
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>  export EDUMATCHER_DATA_DIR=&quot;$HOME/.local/share/edumatcher&quot;
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>  export EDUMATCHER_CONFIG=&quot;./engine_config.yaml&quot;
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Re-running pm-setup</p>
@@ -2888,13 +3060,14 @@ latest version from the package.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> data directory exists; sample config in place.</p>
 <hr />
 <h2 id="exercise-3-set-environment-variables">Exercise 3: Set Environment Variables<a class="headerlink" href="#exercise-3-set-environment-variables" title="Permanent link">&para;</a></h2>
+<p><strong><em>If you have used the VM (Multipass) this step can be skipped as it has already been done as part of the VM setup.</em></strong></p>
 <p>Add the exports to your shell profile:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Add to ~/.zshrc (macOS) or ~/.bashrc (Linux)</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/.local/share/edumatcher&quot;</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_CONFIG</span><span class="o">=</span><span class="s2">&quot;./engine_config.yaml&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Add to ~/.zshrc (macOS) or ~/.bashrc (Linux)</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/.local/share/edumatcher&quot;</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_CONFIG</span><span class="o">=</span><span class="s2">&quot;./engine_config.yaml&quot;</span>
 </code></pre></div>
 <p>Then reload:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">source</span><span class="w"> </span>~/.zshrc<span class="w">   </span><span class="c1"># or source ~/.bashrc</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nb">source</span><span class="w"> </span>~/.zshrc<span class="w">   </span><span class="c1"># or source ~/.bashrc</span>
 </code></pre></div>
 <table>
 <thead>
@@ -2920,7 +3093,7 @@ latest version from the package.</p>
 <div class="admonition tip">
 <p class="admonition-title">Override per-session</p>
 <p>You can point to a different config for different scenarios:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nv">EDUMATCHER_CONFIG</span><span class="o">=</span>~/configs/classroom.yaml<span class="w"> </span>pm-engine
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nv">EDUMATCHER_CONFIG</span><span class="o">=</span>~/configs/classroom.yaml<span class="w"> </span>pm-engine
 </code></pre></div>
 The <code>--config</code> flag on <code>pm-engine</code> and <code>pm-scheduler</code> takes precedence
 over the environment variable.</p>
@@ -2929,7 +3102,7 @@ over the environment variable.</p>
 <hr />
 <h2 id="exercise-4-verify-the-data-directory">Exercise 4: Verify the Data Directory<a class="headerlink" href="#exercise-4-verify-the-data-directory" title="Permanent link">&para;</a></h2>
 <p>Check that the data directory was created and is writable:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>ls<span class="w"> </span>-la<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>ls<span class="w"> </span>-la<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>
 </code></pre></div>
 <p>This directory will hold:</p>
 <ul>
@@ -2941,7 +3114,7 @@ over the environment variable.</p>
 <hr />
 <h2 id="exercise-5-inspect-the-sample-configuration">Exercise 5: Inspect the Sample Configuration<a class="headerlink" href="#exercise-5-inspect-the-sample-configuration" title="Permanent link">&para;</a></h2>
 <p>Open the generated config:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>cat<span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>cat<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>You should see a <code>symbols:</code> section and a <code>gateways:</code> section. This is the file
 you will customise in the next chapter.</p>
@@ -2949,12 +3122,12 @@ you will customise in the next chapter.</p>
 <hr />
 <h2 id="exercise-6-confirm-all-entry-points">Exercise 6: Confirm All Entry Points<a class="headerlink" href="#exercise-6-confirm-all-entry-points" title="Permanent link">&para;</a></h2>
 <p>Verify that the key commands are available:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-engine<span class="w"> </span>--help
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>pm-scheduler<span class="w"> </span>--help
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>pm-gateway<span class="w"> </span>--help
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>pm-setup<span class="w"> </span>--help
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>pm-config-gen<span class="w"> </span>--help
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>pm-mm-bot<span class="w"> </span>--help
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>pm-engine<span class="w"> </span>--help
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>pm-scheduler<span class="w"> </span>--help
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>pm-gateway<span class="w"> </span>--help
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>pm-setup<span class="w"> </span>--help
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>pm-config-gen<span class="w"> </span>--help
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>pm-mm-bot<span class="w"> </span>--help
 </code></pre></div>
 <p>Each should print usage information without errors.</p>
 <div class="admonition note">

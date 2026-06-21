@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+SEED=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --seed)
+      if [[ $# -lt 2 ]]; then
+        echo "Error: --seed requires an integer argument" >&2
+        exit 1
+      fi
+      SEED="$2"
+      shift 2
+      ;;
+    --seed=*)
+      SEED="${1#*=}"
+      shift
+      ;;
+    -h|--help)
+      echo "Usage: $0 [--seed <integer>]"
+      exit 0
+      ;;
+    *)
+      echo "Error: unknown argument: $1" >&2
+      echo "Usage: $0 [--seed <integer>]" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -n "$SEED" && ! "$SEED" =~ ^-?[0-9]+$ ]]; then
+  echo "Error: --seed must be an integer" >&2
+  exit 1
+fi
+
+SEED_ARGS=()
+if [[ -n "$SEED" ]]; then
+  SEED_ARGS=(--seed "$SEED")
+fi
+
+if command -v pm-config-gen >/dev/null 2>&1; then
+  CONFIG_GEN=(pm-config-gen)
+elif command -v poetry >/dev/null 2>&1; then
+  CONFIG_GEN=(poetry run pm-config-gen)
+else
+  echo "Error: neither pm-config-gen nor poetry is available in PATH" >&2
+  exit 1
+fi
+
+SYMBOLS=(AAPL MSFT TSLA AMZN GOOGL META NVDA NFLX INTC ORCL IBM ADBE CRM QCOM AMD AVGO TXN NOW SHOP UBER PYPL SQ BABA SONY SAP ASML CSCO MU BKNG TSM)
+GATEWAYS=(TRADER01 TRADER02 OPS01:ADMIN MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY)
+
+OUTSTANDING_ARGS=(
+  --outstanding-shares AAPL:15400000000
+  --outstanding-shares MSFT:7430000000
+  --outstanding-shares TSLA:3200000000
+  --outstanding-shares AMZN:10600000000
+  --outstanding-shares GOOGL:12200000000
+  --outstanding-shares META:2560000000
+  --outstanding-shares NVDA:24600000000
+  --outstanding-shares NFLX:430000000
+  --outstanding-shares INTC:4300000000
+  --outstanding-shares ORCL:2800000000
+  --outstanding-shares IBM:910000000
+  --outstanding-shares ADBE:460000000
+  --outstanding-shares CRM:970000000
+  --outstanding-shares QCOM:1690000000
+  --outstanding-shares AMD:1620000000
+  --outstanding-shares AVGO:4700000000
+  --outstanding-shares TXN:910000000
+  --outstanding-shares NOW:205000000
+  --outstanding-shares SHOP:1320000000
+  --outstanding-shares UBER:2130000000
+  --outstanding-shares PYPL:1080000000
+  --outstanding-shares SQ:600000000
+  --outstanding-shares BABA:2200000000
+  --outstanding-shares SONY:1240000000
+  --outstanding-shares SAP:1150000000
+  --outstanding-shares ASML:415000000
+  --outstanding-shares CSCO:4060000000
+  --outstanding-shares MU:1100000000
+  --outstanding-shares BKNG:44000000
+  --outstanding-shares TSM:5180000000
+)
+
+COMMON_ARGS=(
+  --symbols "${SYMBOLS[@]}"
+  --gateways "${GATEWAYS[@]}"
+  --seed-mm-mid-range 20:300
+  --seed-last-prices-from-mm
+  --no-collars
+  --no-circuit-breakers
+  --output engine_config.yaml
+  --force
+  --comment-default-config-fields
+  "${SEED_ARGS[@]}"
+  "${OUTSTANDING_ARGS[@]}"
+)
+"${CONFIG_GEN[@]}" "${COMMON_ARGS[@]}"
+
+echo "Generated $(pwd)/engine_config.yaml"

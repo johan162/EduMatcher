@@ -1406,6 +1406,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/81-example-configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Engine Configs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/90-app-alf-protocol/" class="md-nav__link">
         
   
@@ -2891,9 +2919,9 @@
 <p>Train on end-to-end usage of the RALF protocol through pm-ralf-gwy using the
 example parser/subscriber libraries for the three main external party roles:</p>
 <ul>
-<li>CLEARING</li>
-<li>DROP_COPY</li>
-<li>AUDIT</li>
+<li><code>CLEARING</code></li>
+<li><code>DROP_COPY</code></li>
+<li><code>AUDIT</code></li>
 </ul>
 <p>You will practice connection, subscription, live event handling, heartbeats,
 replay checkpoints, and recovery/error behavior.</p>
@@ -2902,15 +2930,15 @@ replay checkpoints, and recovery/error behavior.</p>
 <ul>
 <li>Chapters 01-21 completed.</li>
 <li>Engine running and producing trades.</li>
-<li>pm-ralf-gwy running and reachable on TCP (default 5580).</li>
-<li>Support libraries and clients available in docs/examples/ralf:</li>
+<li><code>pm-ralf-gwy</code> running and reachable on TCP (default 5580).</li>
+<li>Support libraries and clients available in <code>docs/examples/ralf</code>:</li>
 <li>ralf_parser.py, ralf_subscriber.py</li>
 <li>ralf_parser.h, ralf_parser.c, ralf_subscriber.c</li>
 </ul>
 <p>Recommended startup terminals:</p>
 <ol>
-<li>Engine: pm-engine --verbose</li>
-<li>RALF gateway: pm-ralf-gwy</li>
+<li>Engine: <code>pm-engine --verbose</code></li>
+<li>RALF gateway: <code>pm-ralf-gwy</code></li>
 <li>One or more client terminals for subscriber exercises</li>
 </ol>
 <hr />
@@ -2927,7 +2955,7 @@ Clients connect to pm-ralf-gwy, perform HELLO and SUB, then consume events.</p>
 </ul>
 <hr />
 <h2 id="exercise-1-prepare-a-config-that-enables-ralf">Exercise 1: Prepare a Config That Enables RALF<a class="headerlink" href="#exercise-1-prepare-a-config-that-enables-ralf" title="Permanent link">&para;</a></h2>
-<p>Generate engine_config.yaml with a post_trade_gateway section:</p>
+<p>Generate <code>engine_config.yaml</code> with a post_trade_gateway section:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
@@ -3105,12 +3133,11 @@ integration testing.</p>
 </ul>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Post-Trade Dissemination: ../user-guide/18-post-trade.md</li>
-<li>RALF Protocol Appendix: ../user-guide/93-app-ralf-protocol.md</li>
-<li>Protocol Support Library Examples: ../user-guide/80-examples.md</li>
-<li>Processes: ../user-guide/10-processes.md</li>
+<li><a href="../../user-guide/18-post-trade/">Post-Trade Dissemination</a></li>
+<li><a href="../../user-guide/93-app-ralf-protocol/">RALF Protocol Appendix</a></li>
+<li><a href="../../user-guide/80-examples/">Protocol Support Library Examples</a></li>
+<li><a href="../../user-guide/10-processes/">Processes</a></li>
 </ul>
-<p>This chapter extends the training program with post-trade external protocol operations.</p>
 
 
 

@@ -1406,6 +1406,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/81-example-configs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example Engine Configs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/90-app-alf-protocol/" class="md-nav__link">
         
   
@@ -2886,15 +2914,15 @@ consumption, heartbeats, replay checkpoints, and recovery/error behavior.</p>
 <ul>
 <li>Chapters 01-22 completed.</li>
 <li>Engine running and producing market activity.</li>
-<li>pm-md-gwy running and reachable on TCP (default 5570).</li>
-<li>Support libraries and clients available in docs/examples/calf:</li>
+<li><code>pm-md-gwy</code> running and reachable on TCP (default 5570).</li>
+<li>Support libraries and clients available in <code>docs/examples/calf</code>:</li>
 <li>calf_parser.py, calf_subscriber.py</li>
 <li>calf_parser.h, calf_parser.c, calf_subscriber.c</li>
 </ul>
 <p>Recommended startup terminals:</p>
 <ol>
-<li>Engine: pm-engine --verbose</li>
-<li>CALF gateway: pm-md-gwy</li>
+<li>Engine: <code>pm-engine --verbose</code></li>
+<li>CALF gateway: <code>pm-md-gwy</code></li>
 <li>One or more client terminals for subscriber exercises</li>
 </ol>
 <hr />
@@ -2912,7 +2940,7 @@ Clients connect to pm-md-gwy, perform HELLO and SUB, then consume stream data.</
 </ul>
 <hr />
 <h2 id="exercise-1-prepare-a-config-that-enables-calf">Exercise 1: Prepare a Config That Enables CALF<a class="headerlink" href="#exercise-1-prepare-a-config-that-enables-calf" title="Permanent link">&para;</a></h2>
-<p>Generate engine_config.yaml with a market_data_gateway section:</p>
+<p>Generate <code>engine_config.yaml</code> with a market_data_gateway section:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
@@ -3069,12 +3097,11 @@ Clients connect to pm-md-gwy, perform HELLO and SUB, then consume stream data.</
 </ul>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Market Data Feed (CALF): ../user-guide/20-market-data-feed.md</li>
-<li>CALF Protocol Appendix: ../user-guide/92-app-calf-protocol.md</li>
-<li>Protocol Support Library Examples: ../user-guide/80-examples.md</li>
-<li>Processes: ../user-guide/10-processes.md</li>
+<li><a href="../../user-guide/20-market-data-feed/">Market Data Feed (CALF)</a></li>
+<li><a href="../../user-guide/92-app-calf-protocol/">CALF Protocol Appendix</a></li>
+<li><a href="../../user-guide/80-examples/">Protocol Support Library Examples</a></li>
+<li><a href="../../user-guide/10-processes/">Processes</a></li>
 </ul>
-<p>This chapter extends the training program with external market-data protocol operations.</p>
 
 
 
