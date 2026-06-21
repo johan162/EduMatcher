@@ -187,6 +187,6 @@ You now have:
 - [Market-Maker Bot (pm-mm-bot)](../user-guide/17-mm-bot.md)
 - [Market-Maker Bot CLI Reference](../user-guide/17-mm-bot.md#cli-reference)
 - [Gateway Commands](../user-guide/08-gateway.md)
-- [ALF Protocol Reference](../user-guide/20-app-alf-protocol.md)
+- [ALF Protocol Reference](../user-guide/90-app-alf-protocol.md)
 
 **Next:** [03 — The First Trade](03-the-first-trade.md)

@@ -84,16 +84,16 @@ training chapter.
 | 10 | [What Are Combo Orders?](../user-guide/05-combos.md#what-are-combo-orders), [OCO (One-Cancels-Other)](../user-guide/04-order-types.md#oco-one-cancels-other) |
 | 11 | [Price collars](../user-guide/12-risk-controls.md#price-collars), [Circuit breakers](../user-guide/12-risk-controls.md#circuit-breakers) |
 | 12 | [Position Tracking](../user-guide/07-pnl-clearing.md#position-tracking), [Quick-reference: P&L formulas](../user-guide/07-pnl-clearing.md#quick-reference-pl-formulas) |
-| 13 | [Message format](../user-guide/13-drop-copy.md#message-format), [Sequence and recovery semantics](../user-guide/22-app-calf-protocol.md#sequence-and-recovery-semantics) |
+| 13 | [Message format](../user-guide/13-drop-copy.md#message-format), [Sequence and recovery semantics](../user-guide/92-app-calf-protocol.md#sequence-and-recovery-semantics) |
 | 14 | [Personality profiles](../user-guide/15-ai-traders.md#personality-profiles), [Launching a swarm](../user-guide/15-ai-traders.md#launching-a-swarm) |
 | 15 | [Querying with pm-stats-cli](../user-guide/16-statistics-and-reporting.md#querying-with-pm-stats-cli), [Common Analyst Workflows](../user-guide/16-statistics-and-reporting.md#common-analyst-workflows) |
 | 16 | [How It Works](../user-guide/11-persistence.md#how-it-works), [Summary of All Data Files](../user-guide/11-persistence.md#summary-of-all-data-files) |
 | 17 | [Verifying the system is running correctly](../user-guide/03-running-the-engine.md#verifying-the-system-is-running-correctly), [Process Overview](../user-guide/10-processes.md#process-overview) |
 | 18 | [Process Overview](../user-guide/10-processes.md#process-overview), [pm-clearing — Clearing & P&L](../user-guide/10-processes.md#pm-clearing-clearing-pl) |
 | 19 | [ADMIN console (pm-admin)](../user-guide/02-commands.md#admin-console-pm-admin), [CLI tool (pm-admin-cli)](../user-guide/02-commands.md#cli-tool-pm-admin-cli) |
-| 20 | [Replay](../user-guide/13-drop-copy.md#replay), [Sequence and recovery semantics](../user-guide/22-app-calf-protocol.md#sequence-and-recovery-semantics) |
+| 20 | [Replay](../user-guide/13-drop-copy.md#replay), [Sequence and recovery semantics](../user-guide/92-app-calf-protocol.md#sequence-and-recovery-semantics) |
 | 21 | [ExchangeCommandClient](../user-guide/02-commands.md#exchangecommandclient), [CLI reference (pm-mm-bot)](../user-guide/17-mm-bot.md#cli-reference) |
-| 22 | [Post-Trade Dissemination (RALF)](../user-guide/18-post-trade.md), [Appendix: RALF Protocol Reference](../user-guide/23-app-ralf-protocol.md) |
+| 22 | [Post-Trade Dissemination (RALF)](../user-guide/18-post-trade.md), [Appendix: RALF Protocol Reference](../user-guide/93-app-ralf-protocol.md) |
 
 ---
 

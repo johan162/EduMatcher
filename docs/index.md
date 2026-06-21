@@ -112,9 +112,9 @@ the same price, the earliest one fills first.
 1. **[Architecture Overview](architecture/01-architecture.md)**
 2. **[Architecture Walkthrough](architecture/02-architecture-guide.md)**
 3. **[Messages](user-guide/09-messages.md)**
-4. **[ALF Protocol Appendix](user-guide/20-app-alf-protocol.md)**
-5. **[BALF Protocol Appendix](user-guide/21-app-balf-protocol.md)**
-6. **[CALF Protocol Appendix](user-guide/22-app-calf-protocol.md)**
+4. **[ALF Protocol Appendix](user-guide/90-app-alf-protocol.md)**
+5. **[BALF Protocol Appendix](user-guide/91-app-balf-protocol.md)**
+6. **[CALF Protocol Appendix](user-guide/92-app-calf-protocol.md)**
 7. **[Developer Info](developer/01-dev-practice.md)**
 
 ### When to read the Concepts section
@@ -271,7 +271,7 @@ poetry run mkdocs serve
 | Command | Description |
 |---------|-------------|
 | `pm-engine`   | Matching engine — the core process that must start first |
-| `pm-gateway`  | User gateway (one per user) — accepts ALF commands on stdin ([ALF Protocol Reference](user-guide/20-app-alf-protocol.md)) |
+| `pm-gateway`  | User gateway (one per user) — accepts ALF commands on stdin ([ALF Protocol Reference](user-guide/90-app-alf-protocol.md)) |
 | `pm-viewer`   | Live order book display for a single symbol |
 | `pm-orders`   | Global order status monitor (all gateways, all symbols) |
 | `pm-audit`    | Event logger — records every message to a rotating log file |

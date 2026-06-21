@@ -1157,5 +1157,5 @@ If you are writing another ALF producer, the most important exact behaviors are:
 - [Gateway](08-gateway.md) — the gateway terminal that implements this protocol
 - [Order Types](04-order-types.md) — semantic descriptions of every order type referenced here
 - [Messages](09-messages.md) — the ZeroMQ messages that the gateway emits after parsing ALF commands
-- [BALF Protocol Reference](21-app-balf-protocol.md) — binary encoding of the same order model
-- [CALF Protocol Reference](22-app-calf-protocol.md) — market-data feed protocol
+- [BALF Protocol Reference](91-app-balf-protocol.md) — binary encoding of the same order model
+- [CALF Protocol Reference](92-app-calf-protocol.md) — market-data feed protocol

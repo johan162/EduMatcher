@@ -101,7 +101,7 @@ Additional references:
 - [How an Exchange Works](https://johan162.github.io/how-exchange-works/). This is a generic
 document meant for SW developers with no previous financial experience. Reading this document
 will give the necessary background both in finance and the core workings of an exchange.
-- [ALF Protocol Appendix](https://johan162.github.io/user-guide/20-app-alf-protocol.md). `ALF` 
+- [ALF Protocol Appendix](https://johan162.github.io/user-guide/90-app-alf-protocol.md). `ALF` 
 is the Gatewauy human protocol used to send in orders vi the `ALF` gateway. It is a drastically
 simplified `FIX` inspired protocol (`ALF` = `ALmost Fix`)
 - [Glossary](https://johan162.github.io/glossary/). An extensiv glossary with all commonly used

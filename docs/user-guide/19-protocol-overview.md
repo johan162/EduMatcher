@@ -55,7 +55,7 @@ Where to read more:
 - Gateway behavior and operator workflow: [Gateway Commands](08-gateway.md)
 - Process-level role of the ALF gateway: [Processes](10-processes.md#pm-gateway-user-gateway)
 - Engine configuration of allowed ALF IDs/roles: [Configuration](01-configuration.md#alf-gateway-allowlist)
-- Formal wire syntax and semantics: [Appendix - ALF Protocol](20-app-alf-protocol.md)
+- Formal wire syntax and semantics: [Appendix - ALF Protocol](90-app-alf-protocol.md)
 
 
 ## BALF (Binary ALF)
@@ -76,7 +76,7 @@ Use BALF when you need:
 Where to read more:
 
 - Planned runtime process and position in architecture: [Processes](10-processes.md#planned-processes)
-- Protocol design details and message/frame definitions: [Appendix - BALF Protocol](21-app-balf-protocol.md)
+- Protocol design details and message/frame definitions: [Appendix - BALF Protocol](91-app-balf-protocol.md)
 - Configuration context and protocol family notes: [Configuration](01-configuration.md)
 
 
@@ -101,7 +101,7 @@ Where to read more:
 
 - Market-data concepts and channel model: [Market Data Feed (CALF)](../concepts/06-concepts-market-data-feed.md)
 - Planned runtime process and architecture placement: [Processes](10-processes.md#planned-processes)
-- Formal wire protocol reference: [Appendix - CALF Protocol](22-app-calf-protocol.md)
+- Formal wire protocol reference: [Appendix - CALF Protocol](92-app-calf-protocol.md)
 
 
 ## RALF (Reconciliation ALF)
@@ -121,7 +121,7 @@ Where to read more:
 - Operational deployment and runbook: [Post-Trade Dissemination (RALF)](18-post-trade.md)
 - Process-level role in runtime topology: [Processes](10-processes.md#pm-ralf-gwy-post-trade-dissemination-gateway)
 - RALF gateway configuration details: [Configuration](01-configuration.md#configuring-pm-ralf-gwy)
-- Formal wire protocol reference: [Appendix - RALF Protocol](23-app-ralf-protocol.md)
+- Formal wire protocol reference: [Appendix - RALF Protocol](93-app-ralf-protocol.md)
 
 
 ## Quick selection guide
@@ -139,7 +139,7 @@ Where to read more:
 - [Getting Started](00-getting-started.md)
 - [Processes](10-processes.md)
 - [Post-Trade Dissemination (RALF)](18-post-trade.md)
-- [Appendix - ALF Protocol](20-app-alf-protocol.md)
-- [Appendix - BALF Protocol](21-app-balf-protocol.md)
-- [Appendix - CALF Protocol](22-app-calf-protocol.md)
-- [Appendix - RALF Protocol](23-app-ralf-protocol.md)
+- [Appendix - ALF Protocol](90-app-alf-protocol.md)
+- [Appendix - BALF Protocol](91-app-balf-protocol.md)
+- [Appendix - CALF Protocol](92-app-calf-protocol.md)
+- [Appendix - RALF Protocol](93-app-ralf-protocol.md)

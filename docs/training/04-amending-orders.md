@@ -136,7 +136,7 @@ Expected: rejection — order not found.
 ## Further Reading
 
 - [Gateway Commands](../user-guide/08-gateway.md)
-- [ALF Protocol — AMEND](../user-guide/20-app-alf-protocol.md)
+- [ALF Protocol — AMEND](../user-guide/90-app-alf-protocol.md)
 
 ---
 

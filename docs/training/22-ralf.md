@@ -249,7 +249,7 @@ You have now covered major RALF protocol usage patterns:
 ## Further Reading
 
 - Post-Trade Dissemination: ../user-guide/18-post-trade.md
-- RALF Protocol Appendix: ../user-guide/23-app-ralf-protocol.md
+- RALF Protocol Appendix: ../user-guide/93-app-ralf-protocol.md
 - Processes: ../user-guide/10-processes.md
 
 This chapter extends the training program with post-trade external protocol operations.
