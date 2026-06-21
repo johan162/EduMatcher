@@ -354,11 +354,15 @@ def test_comment_default_config_fields_emits_engine_field_defaults(
     )
     # Check for circuit_breaker_defaults documentation in "Field Notes and Accepted Values" section
     assert (
-        "#   reference_window_ns:\n#     Integer nanoseconds. Default: 300000000000 (5 minutes)."
+        "#   reference_window_ns: 300000000000\n#     Lookback window used to compute the rolling reference price for halt triggers."
         in captured.out
     )
     # Check for symbols documentation
-    assert "#   last_buy_price / last_sell_price:" in captured.out
+    assert "#   last_buy_price: null" in captured.out
     # Check for post_trade_gateway documentation
-    assert "#   port:" in captured.out
+    assert "#   bind_address: 0.0.0.0" in captured.out
+    assert (
+        "#     Network interface/address the post-trade server listens on for incoming clients."
+        in captured.out
+    )
     assert "#   --snapshot-interval" not in captured.out
