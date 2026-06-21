@@ -286,8 +286,13 @@ def test_seed_mm_mid_range_requires_mm_gateway(
         )
 
         captured = capsys.readouterr()
+        assert "# Defaultable engine_config fields and default values:" in captured.out
         assert (
-            "# Defaultable engine_config fields currently using runtime defaults:"
+            "sessions_enabled: false  # true lets pm-scheduler drive session transitions; false keeps the engine in continuous mode"
+            in captured.out
+        )
+        assert (
+            "snapshot_interval_sec: 0.5  # seconds between book snapshot publications for dirty books"
             in captured.out
         )
         assert "#   symbols.<SYM>.last_buy_price = null" in captured.out

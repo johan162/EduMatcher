@@ -63,6 +63,8 @@ COMMON_ARGS=(
   --gateways "${GATEWAYS[@]}"
   --seed-mm-mid-range 20:300
   --seed-last-prices-from-mm
+  --no-collars
+  --no-circuit-breakers
   --output engine_config.yaml
   --force
   --comment-default-config-fields

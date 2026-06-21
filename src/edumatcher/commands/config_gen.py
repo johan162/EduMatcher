@@ -412,8 +412,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "--comment-default-config-fields",
         action="store_true",
         help=(
-            "Add a header comment block listing engine_config fields that support "
-            "runtime defaults and are currently omitted from the generated YAML."
+            "Add a header comment block listing defaultable engine_config fields "
+            "and their default values."
         ),
     )
 
@@ -421,7 +421,18 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _build_default_engine_field_comment_lines(config: dict[str, object]) -> list[str]:
-    lines: list[str] = []
+    lines: list[str] = [
+        _format_default_comment(
+            "sessions_enabled",
+            config.get("sessions_enabled", False),
+            "Disabled keeps the engine in continuous mode; enabled lets pm-scheduler drive session transitions",
+        ),
+        _format_default_comment(
+            "snapshot_interval_sec",
+            config.get("snapshot_interval_sec", DEFAULT_SNAPSHOT_INTERVAL_SEC),
+            "Seconds between book snapshot publications for dirty books",
+        ),
+    ]
 
     symbols_raw = config.get("symbols")
     if isinstance(symbols_raw, dict) and symbols_raw:
@@ -441,61 +452,73 @@ def _build_default_engine_field_comment_lines(config: dict[str, object]) -> list
     if symbol_payloads and any(
         "last_buy_price" not in payload for payload in symbol_payloads
     ):
-        lines.append("symbols.<SYM>.last_buy_price = null")
+        lines.append(
+            "symbols.<SYM>.last_buy_price = null - Initial last-buy reference is omitted until set explicitly or restored from persisted stats"
+        )
     if symbol_payloads and any(
         "last_sell_price" not in payload for payload in symbol_payloads
     ):
-        lines.append("symbols.<SYM>.last_sell_price = null")
+        lines.append(
+            "symbols.<SYM>.last_sell_price = null - Initial last-sell reference is omitted until set explicitly or restored from persisted stats"
+        )
     if symbol_payloads and any(
         "outstanding_shares" not in payload for payload in symbol_payloads
     ):
-        lines.append("symbols.<SYM>.outstanding_shares = null")
+        lines.append(
+            "symbols.<SYM>.outstanding_shares = null - Outstanding share counts are optional in config but useful for statistics and index-style consumers"
+        )
 
     if gateways_alf_raw and any("description" not in row for row in gateways_alf_raw):
-        lines.append("gateways.alf[].description = ''")
+        lines.append(
+            "gateways.alf[].description = '' - Optional human-readable label for the gateway"
+        )
 
     schedule_raw = config.get("schedule")
     if not isinstance(schedule_raw, dict):
         lines.extend(
             [
-                "schedule.pre_open = '09:00'",
-                "schedule.opening_auction_start = '09:25'",
-                "schedule.continuous_start = '09:30'",
-                "schedule.closing_auction_start = '16:00'",
-                "schedule.closing_auction_end = '16:05'",
+                "schedule.pre_open = '09:00' - Default pre-open session time when no schedule block is provided",
+                "schedule.opening_auction_start = '09:25' - Default opening auction start time",
+                "schedule.continuous_start = '09:30' - Default continuous-trading start time",
+                "schedule.closing_auction_start = '16:00' - Default closing auction start time",
+                "schedule.closing_auction_end = '16:05' - Default closing auction end time",
             ]
         )
 
     if "post_trade_gateway" not in config:
         lines.extend(
             [
-                "post_trade_gateway.name = 'ralf-gwy01'",
-                "post_trade_gateway.bind_address = '0.0.0.0'",
-                "post_trade_gateway.port = 5580",
-                "post_trade_gateway.replay_retention_sec = 86400",
-                "post_trade_gateway.heartbeat_interval_sec = 1",
-                "post_trade_gateway.idle_timeout_sec = 5",
-                "post_trade_gateway.max_client_queue = 10000",
-                "post_trade_gateway.allowed_roles = [CLEARING, DROP_COPY, AUDIT]",
+                "post_trade_gateway.name = 'ralf-gwy01' - Default RALF gateway id",
+                "post_trade_gateway.bind_address = '0.0.0.0' - Default listener bind address",
+                "post_trade_gateway.port = 5580 - Default TCP port for the RALF gateway",
+                "post_trade_gateway.replay_retention_sec = 86400 - Default replay history retention in seconds",
+                "post_trade_gateway.heartbeat_interval_sec = 1 - Default heartbeat interval in seconds",
+                "post_trade_gateway.idle_timeout_sec = 5 - Default idle timeout in seconds",
+                "post_trade_gateway.max_client_queue = 10000 - Default slow-client queue depth",
+                "post_trade_gateway.allowed_roles = [CLEARING, DROP_COPY, AUDIT] - Default external roles allowed to subscribe",
             ]
         )
 
     if "market_data_gateway" not in config:
         lines.extend(
             [
-                "market_data_gateway.enabled = true",
-                "market_data_gateway.name = 'md-gwy01'",
-                "market_data_gateway.bind_address = '0.0.0.0'",
-                "market_data_gateway.port = 5570",
-                "market_data_gateway.heartbeat_interval_sec = 1",
-                "market_data_gateway.idle_timeout_sec = 5",
-                "market_data_gateway.replay_window_sec = 30",
-                "market_data_gateway.max_symbols_per_client = 200",
-                "market_data_gateway.max_client_queue = 10000",
+                "market_data_gateway.enabled = true - Enables the CALF gateway when true",
+                "market_data_gateway.name = 'md-gwy01' - Default CALF gateway id",
+                "market_data_gateway.bind_address = '0.0.0.0' - Default listener bind address",
+                "market_data_gateway.port = 5570 - Default TCP port for the CALF gateway",
+                "market_data_gateway.heartbeat_interval_sec = 1 - Default heartbeat interval in seconds",
+                "market_data_gateway.idle_timeout_sec = 5 - Default idle timeout in seconds",
+                "market_data_gateway.replay_window_sec = 30 - Default replay history window in seconds",
+                "market_data_gateway.max_symbols_per_client = 200 - Default per-client symbol subscription cap",
+                "market_data_gateway.max_client_queue = 10000 - Default slow-client queue depth",
             ]
         )
 
     return lines
+
+
+def _format_default_comment(field: str, value: object, description: str) -> str:
+    return f"{field} = {value!r} - {description}"
 
 
 def _validate_basic_args(args: argparse.Namespace) -> None:

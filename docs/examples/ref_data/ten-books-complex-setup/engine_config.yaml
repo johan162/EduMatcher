@@ -6,19 +6,21 @@
 #     from edumatcher.engine.config_loader import load_engine_config; \
 #     print(load_engine_config(Path("engine_config.yaml")))'
 
-# Defaultable engine_config fields currently using runtime defaults:
-#   gateways.alf[].description = ''
+# Defaultable engine_config fields and default values:
+#   sessions_enabled = True - Disabled keeps the engine in continuous mode; enabled lets pm-scheduler drive session transitions
+#   snapshot_interval_sec = 0.25 - Seconds between book snapshot publications for dirty books
+#   gateways.alf[].description = '' - Optional human-readable label for the gateway
 
 # -- Session control --
-sessions_enabled: true
+sessions_enabled: true  # true lets pm-scheduler drive session transitions; false keeps the engine in continuous mode
 
 # -- Engine behavior --
-enforce_collars: true
-enforce_circuit_breakers: true
-snapshot_interval_sec: 0.25
+enforce_collars: true  # enables per-symbol collar checks on incoming orders
+enforce_circuit_breakers: true  # enables per-symbol circuit-breaker enforcement
+snapshot_interval_sec: 0.25  # seconds between book snapshot publications for dirty books
 
 # -- Market-maker obligation defaults --
-mm_obligation_defaults:
+mm_obligation_defaults:  # default market-maker obligation settings
   enforce_mm_obligation: true
   mm_max_spread_ticks: 12
   mm_min_qty: 200
@@ -29,7 +31,7 @@ mm_obligation_defaults:
       mm_min_qty: 300
 
 # -- Collar profiles --
-risk_controls:
+risk_controls:  # collar profiles by risk level
   levels:
     DEFAULT:
       collar:
@@ -46,7 +48,7 @@ risk_controls:
   default_level: DEFAULT
 
 # -- Circuit-breaker ladder --
-circuit_breaker_defaults:
+circuit_breaker_defaults:  # circuit-breaker ladder definitions
   reference_window_ns: 300000000000
   levels:
     L1:
@@ -63,7 +65,7 @@ circuit_breaker_defaults:
       resumption_mode: AUCTION
 
 # -- ALF gateway allowlist --
-gateways:
+gateways:  # ALF gateway allowlist
   alf:
   - id: TRADER01
     role: TRADER
@@ -93,7 +95,7 @@ gateways:
     quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 
 # -- RALF post-trade gateway --
-post_trade_gateway:
+post_trade_gateway:  # RALF post-trade gateway settings
   name: ralf-gwy01
   bind_address: 127.0.0.1
   port: 5580
@@ -107,7 +109,7 @@ post_trade_gateway:
   - AUDIT
 
 # -- Symbol universe --
-symbols:
+symbols:  # symbol universe
   AAPL:
     tick_decimals: 2
     level: CORE
@@ -318,7 +320,7 @@ symbols:
     outstanding_shares: 2800000000
 
 # -- Session schedule --
-schedule:
+schedule:  # session schedule
   pre_open: 08:45
   opening_auction_start: 08:55
   continuous_start: 09:00
@@ -326,7 +328,7 @@ schedule:
   closing_auction_end: '16:10'
 
 # -- Additional fields --
-market_data_gateway:
+market_data_gateway:  # CALF market-data gateway settings
   enabled: true
   name: md-gwy01
   bind_address: 127.0.0.1
@@ -346,13 +348,13 @@ market_maker_combos:
         side: BUY
         order_type: LIMIT
         quantity: 100
-        price: 19186
+        price: 
         stop_price:
         smp_action: NONE
       - symbol: MSFT
         side: SELL
         order_type: LIMIT
         quantity: 100
-        price: 20410
+        price: 
         stop_price:
         smp_action: NONE
