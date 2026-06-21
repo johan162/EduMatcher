@@ -3,6 +3,7 @@ from __future__ import annotations
 from edumatcher.config_gen.builder import (
     ConfigBuilder,
     ConfigSpec,
+    MarketDataGatewaySpec,
     PostTradeGatewaySpec,
 )
 from edumatcher.config_gen.cb_spec import parse_cb_spec
@@ -103,3 +104,28 @@ def test_builder_with_post_trade_gateway_section() -> None:
     assert payload["post_trade_gateway"]["bind_address"] == "127.0.0.1"
     assert payload["post_trade_gateway"]["port"] == 6001
     assert payload["post_trade_gateway"]["allowed_roles"] == ["CLEARING", "AUDIT"]
+
+
+def test_builder_with_market_data_gateway_section() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01")],
+        market_data_gateway=MarketDataGatewaySpec(
+            enabled=True,
+            name="md-lab",
+            bind_address="127.0.0.1",
+            port=7001,
+            heartbeat_interval_sec=2,
+            idle_timeout_sec=7,
+            replay_window_sec=120,
+            max_symbols_per_client=50,
+            max_client_queue=2000,
+        ),
+    )
+    payload = ConfigBuilder(spec).build()
+
+    assert payload["market_data_gateway"]["enabled"] is True
+    assert payload["market_data_gateway"]["name"] == "md-lab"
+    assert payload["market_data_gateway"]["bind_address"] == "127.0.0.1"
+    assert payload["market_data_gateway"]["port"] == 7001
+    assert payload["market_data_gateway"]["max_symbols_per_client"] == 50

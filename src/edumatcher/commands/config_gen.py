@@ -12,10 +12,19 @@ from edumatcher.engine.config_loader import load_engine_config
 from edumatcher.models.participant import ParticipantRole
 
 from edumatcher.config_gen.builder import ConfigBuilder, ConfigSpec
+from edumatcher.config_gen.builder import MarketDataGatewaySpec
 from edumatcher.config_gen.builder import PostTradeGatewaySpec
 from edumatcher.config_gen.cb_spec import CbSpec, parse_cb_spec
 from edumatcher.config_gen.defaults import (
     DEFAULT_CB_WINDOW_NS,
+    DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS,
+    DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC,
+    DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC,
+    DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_MARKET_DATA_GATEWAY_MAX_SYMBOLS_PER_CLIENT,
+    DEFAULT_MARKET_DATA_GATEWAY_NAME,
+    DEFAULT_MARKET_DATA_GATEWAY_PORT,
+    DEFAULT_MARKET_DATA_GATEWAY_REPLAY_WINDOW_SEC,
     DEFAULT_MM_MIN_QTY,
     DEFAULT_MM_SPREAD_TICKS,
     DEFAULT_POST_TRADE_GATEWAY_ALLOWED_ROLES,
@@ -244,6 +253,80 @@ def _build_parser() -> argparse.ArgumentParser:
         help="post_trade_gateway.allowed_roles override (default: CLEARING DROP_COPY AUDIT).",
     )
 
+    parser.add_argument(
+        "--market-data-gateway",
+        action="store_true",
+        help="Emit a top-level market_data_gateway section for pm-md-gwy.",
+    )
+    parser.add_argument(
+        "--market-data-enabled",
+        dest="market_data_enabled",
+        action="store_true",
+        default=None,
+        help="Set market_data_gateway.enabled: true.",
+    )
+    parser.add_argument(
+        "--market-data-disabled",
+        dest="market_data_enabled",
+        action="store_false",
+        default=None,
+        help="Set market_data_gateway.enabled: false.",
+    )
+    parser.add_argument(
+        "--market-data-name",
+        default=None,
+        metavar="NAME",
+        help="market_data_gateway.name override.",
+    )
+    parser.add_argument(
+        "--market-data-bind-address",
+        default=None,
+        metavar="ADDR",
+        help="market_data_gateway.bind_address override.",
+    )
+    parser.add_argument(
+        "--market-data-port",
+        type=int,
+        default=None,
+        metavar="N",
+        help="market_data_gateway.port override (> 0).",
+    )
+    parser.add_argument(
+        "--market-data-heartbeat-interval-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="market_data_gateway.heartbeat_interval_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--market-data-idle-timeout-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="market_data_gateway.idle_timeout_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--market-data-replay-window-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="market_data_gateway.replay_window_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--market-data-max-symbols-per-client",
+        type=int,
+        default=None,
+        metavar="N",
+        help="market_data_gateway.max_symbols_per_client override (> 0).",
+    )
+    parser.add_argument(
+        "--market-data-max-client-queue",
+        type=int,
+        default=None,
+        metavar="N",
+        help="market_data_gateway.max_client_queue override (> 0).",
+    )
+
     sched_group = parser.add_mutually_exclusive_group()
     sched_group.add_argument(
         "--schedule",
@@ -310,6 +393,8 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         raise ValueError("--cb-window-ns must be > 0")
     if args.post_trade_port is not None and args.post_trade_port <= 0:
         raise ValueError("--post-trade-port must be > 0")
+    if args.market_data_port is not None and args.market_data_port <= 0:
+        raise ValueError("--market-data-port must be > 0")
     if (
         args.post_trade_replay_retention_sec is not None
         and args.post_trade_replay_retention_sec <= 0
@@ -330,6 +415,31 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         and args.post_trade_max_client_queue <= 0
     ):
         raise ValueError("--post-trade-max-client-queue must be > 0")
+    if (
+        args.market_data_heartbeat_interval_sec is not None
+        and args.market_data_heartbeat_interval_sec <= 0
+    ):
+        raise ValueError("--market-data-heartbeat-interval-sec must be > 0")
+    if (
+        args.market_data_idle_timeout_sec is not None
+        and args.market_data_idle_timeout_sec <= 0
+    ):
+        raise ValueError("--market-data-idle-timeout-sec must be > 0")
+    if (
+        args.market_data_replay_window_sec is not None
+        and args.market_data_replay_window_sec <= 0
+    ):
+        raise ValueError("--market-data-replay-window-sec must be > 0")
+    if (
+        args.market_data_max_symbols_per_client is not None
+        and args.market_data_max_symbols_per_client <= 0
+    ):
+        raise ValueError("--market-data-max-symbols-per-client must be > 0")
+    if (
+        args.market_data_max_client_queue is not None
+        and args.market_data_max_client_queue <= 0
+    ):
+        raise ValueError("--market-data-max-client-queue must be > 0")
 
     if args.static_band is not None and not (0 < args.static_band < 1):
         raise ValueError("--static-band must be in (0, 1)")
@@ -437,6 +547,61 @@ def _build_post_trade_gateway_spec(
     )
 
 
+def _build_market_data_gateway_spec(
+    args: argparse.Namespace,
+) -> MarketDataGatewaySpec | None:
+    emit = any(
+        value is not None
+        for value in (
+            args.market_data_enabled,
+            args.market_data_name,
+            args.market_data_bind_address,
+            args.market_data_port,
+            args.market_data_heartbeat_interval_sec,
+            args.market_data_idle_timeout_sec,
+            args.market_data_replay_window_sec,
+            args.market_data_max_symbols_per_client,
+            args.market_data_max_client_queue,
+        )
+    ) or bool(args.market_data_gateway)
+
+    if not emit:
+        return None
+
+    enabled = (
+        bool(args.market_data_enabled) if args.market_data_enabled is not None else True
+    )
+
+    return MarketDataGatewaySpec(
+        enabled=enabled,
+        name=str(args.market_data_name or DEFAULT_MARKET_DATA_GATEWAY_NAME),
+        bind_address=str(
+            args.market_data_bind_address or DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS
+        ),
+        port=int(args.market_data_port or DEFAULT_MARKET_DATA_GATEWAY_PORT),
+        heartbeat_interval_sec=int(
+            args.market_data_heartbeat_interval_sec
+            or DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC
+        ),
+        idle_timeout_sec=int(
+            args.market_data_idle_timeout_sec
+            or DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC
+        ),
+        replay_window_sec=int(
+            args.market_data_replay_window_sec
+            or DEFAULT_MARKET_DATA_GATEWAY_REPLAY_WINDOW_SEC
+        ),
+        max_symbols_per_client=int(
+            args.market_data_max_symbols_per_client
+            or DEFAULT_MARKET_DATA_GATEWAY_MAX_SYMBOLS_PER_CLIENT
+        ),
+        max_client_queue=int(
+            args.market_data_max_client_queue
+            or DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE
+        ),
+    )
+
+
 def _write_output(output_path: Path, content: str, force: bool) -> None:
     if output_path.exists() and not force:
         raise FileExistsError("Output file already exists")
@@ -510,6 +675,7 @@ def main() -> None:
         closing_end=str(args.closing_end),
         symbol_overrides=symbol_overrides,
         post_trade_gateway=_build_post_trade_gateway_spec(args),
+        market_data_gateway=_build_market_data_gateway_spec(args),
     )
 
     output_path = Path(args.output) if args.output else None

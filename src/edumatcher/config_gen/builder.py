@@ -9,6 +9,14 @@ from edumatcher.models.participant import ParticipantRole
 
 from .cb_spec import CbSpec
 from .defaults import (
+    DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS,
+    DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC,
+    DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC,
+    DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_MARKET_DATA_GATEWAY_MAX_SYMBOLS_PER_CLIENT,
+    DEFAULT_MARKET_DATA_GATEWAY_NAME,
+    DEFAULT_MARKET_DATA_GATEWAY_PORT,
+    DEFAULT_MARKET_DATA_GATEWAY_REPLAY_WINDOW_SEC,
     DEFAULT_CB_WINDOW_NS,
     DEFAULT_DYNAMIC_BAND_PCT,
     DEFAULT_MM_MIN_QTY,
@@ -57,6 +65,7 @@ class ConfigSpec:
     closing_end: str = "16:05"
     symbol_overrides: dict[str, SymbolOverride] = field(default_factory=dict)
     post_trade_gateway: PostTradeGatewaySpec | None = None
+    market_data_gateway: MarketDataGatewaySpec | None = None
 
 
 @dataclass(frozen=True)
@@ -69,6 +78,19 @@ class PostTradeGatewaySpec:
     idle_timeout_sec: int = DEFAULT_POST_TRADE_GATEWAY_IDLE_TIMEOUT_SEC
     max_client_queue: int = DEFAULT_POST_TRADE_GATEWAY_MAX_CLIENT_QUEUE
     allowed_roles: tuple[str, ...] = DEFAULT_POST_TRADE_GATEWAY_ALLOWED_ROLES
+
+
+@dataclass(frozen=True)
+class MarketDataGatewaySpec:
+    enabled: bool = True
+    name: str = DEFAULT_MARKET_DATA_GATEWAY_NAME
+    bind_address: str = DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS
+    port: int = DEFAULT_MARKET_DATA_GATEWAY_PORT
+    heartbeat_interval_sec: int = DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC
+    idle_timeout_sec: int = DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC
+    replay_window_sec: int = DEFAULT_MARKET_DATA_GATEWAY_REPLAY_WINDOW_SEC
+    max_symbols_per_client: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_SYMBOLS_PER_CLIENT
+    max_client_queue: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE
 
 
 class ConfigBuilder:
@@ -96,6 +118,8 @@ class ConfigBuilder:
         cfg["gateways"] = {"alf": self._build_gateways()}
         if self.spec.post_trade_gateway is not None:
             cfg["post_trade_gateway"] = self._build_post_trade_gateway()
+        if self.spec.market_data_gateway is not None:
+            cfg["market_data_gateway"] = self._build_market_data_gateway()
         cfg["symbols"] = self._build_symbols()
 
         if self.spec.sessions_enabled and self.spec.emit_schedule:
@@ -123,6 +147,23 @@ class ConfigBuilder:
             "idle_timeout_sec": spec.idle_timeout_sec,
             "max_client_queue": spec.max_client_queue,
             "allowed_roles": list(spec.allowed_roles),
+        }
+
+    def _build_market_data_gateway(self) -> dict[str, Any]:
+        spec = self.spec.market_data_gateway
+        if spec is None:
+            return {}
+
+        return {
+            "enabled": spec.enabled,
+            "name": spec.name,
+            "bind_address": spec.bind_address,
+            "port": spec.port,
+            "heartbeat_interval_sec": spec.heartbeat_interval_sec,
+            "idle_timeout_sec": spec.idle_timeout_sec,
+            "replay_window_sec": spec.replay_window_sec,
+            "max_symbols_per_client": spec.max_symbols_per_client,
+            "max_client_queue": spec.max_client_queue,
         }
 
     def _should_emit_mm_defaults(self) -> bool:

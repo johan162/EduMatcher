@@ -116,3 +116,34 @@ def test_post_trade_gateway_output_is_emitted(
     assert "port: 6001" in content
     assert "- CLEARING" in content
     assert "- AUDIT" in content
+
+
+def test_market_data_gateway_output_is_emitted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--market-data-gateway",
+            "--market-data-bind-address",
+            "127.0.0.1",
+            "--market-data-port",
+            "7001",
+            "--market-data-replay-window-sec",
+            "120",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    content = out_file.read_text(encoding="utf-8")
+    assert "market_data_gateway:" in content
+    assert "bind_address: 127.0.0.1" in content
+    assert "port: 7001" in content
+    assert "replay_window_sec: 120" in content
