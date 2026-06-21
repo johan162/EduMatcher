@@ -388,21 +388,28 @@
 #
 
 # -- Session control --
-sessions_enabled: false  # true lets pm-scheduler drive session transitions; false keeps the engine in continuous mode
+# true lets pm-scheduler drive session transitions;
+# false keeps the engine in continuous mode
+sessions_enabled: false
 
 # -- Engine behavior --
-enforce_collars: false  # enables per-symbol collar checks on incoming orders
-enforce_circuit_breakers: false  # enables per-symbol circuit-breaker enforcement
-snapshot_interval_sec: 0.5  # seconds between book snapshot publications for dirty books
+# enables per-symbol collar checks on incoming orders
+enforce_collars: false
+# enables per-symbol circuit-breaker enforcement
+enforce_circuit_breakers: false
+# seconds between book snapshot publications for dirty books
+snapshot_interval_sec: 0.5
 
 # -- Market-maker obligation defaults --
-mm_obligation_defaults:  # default market-maker obligation settings
+# default market-maker obligation settings
+mm_obligation_defaults:
   enforce_mm_obligation: false
   mm_max_spread_ticks: 20
   mm_min_qty: 100
 
 # -- ALF gateway allowlist --
-gateways:  # ALF gateway allowlist
+# ALF gateway allowlist
+gateways:
   alf:
   - id: TRADER01
     role: TRADER
@@ -419,7 +426,8 @@ gateways:  # ALF gateway allowlist
     quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 
 # -- Symbol universe --
-symbols:  # symbol universe
+# symbol universe
+symbols:
   AAPL:
     tick_decimals: 2
     last_buy_price: 191.86

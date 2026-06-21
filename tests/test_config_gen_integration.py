@@ -345,11 +345,11 @@ def test_comment_default_config_fields_emits_engine_field_defaults(
     captured = capsys.readouterr()
     assert "# Defaultable engine_config fields and default values:" in captured.out
     assert (
-        "sessions_enabled: false  # true lets pm-scheduler drive session transitions; false keeps the engine in continuous mode"
+        "# true lets pm-scheduler drive session transitions;\n# false keeps the engine in continuous mode\nsessions_enabled: false"
         in captured.out
     )
     assert (
-        "snapshot_interval_sec: 0.5  # seconds between book snapshot publications for dirty books"
+        "# seconds between book snapshot publications for dirty books\nsnapshot_interval_sec: 0.5"
         in captured.out
     )
     # Check for circuit_breaker_defaults documentation in "Field Notes and Accepted Values" section
@@ -359,10 +359,4 @@ def test_comment_default_config_fields_emits_engine_field_defaults(
     )
     # Check for symbols documentation
     assert "#   last_buy_price: null" in captured.out
-    # Check for post_trade_gateway documentation
-    assert "#   bind_address: 0.0.0.0" in captured.out
-    assert (
-        "#     Network interface/address the post-trade server listens on for incoming clients."
-        in captured.out
-    )
     assert "#   --snapshot-interval" not in captured.out

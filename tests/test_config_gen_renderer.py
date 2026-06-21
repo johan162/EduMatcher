@@ -122,10 +122,17 @@ def test_renderer_injects_stub_hint_comments() -> None:
     )
 
     assert "# WARNING: pm-config-gen cannot set prices" in rendered
-    assert "bid_price: null    # REQUIRED: set display bid price" in rendered
-    assert "ask_price: null    # REQUIRED: set display ask price" in rendered
     assert (
-        "last_buy_price: null    # REQUIRED: set last buy reference price" in rendered
+        "      # REQUIRED: set display bid price (e.g. 209.00)\n      bid_price: null"
+        in rendered
+    )
+    assert (
+        "      # REQUIRED: set display ask price (e.g. 211.00)\n      ask_price: null"
+        in rendered
+    )
+    assert (
+        "    # REQUIRED: set last buy reference price\n    last_buy_price: null"
+        in rendered
     )
 
     # Comments must not break YAML parsing.

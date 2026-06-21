@@ -94,7 +94,8 @@ def _annotate(dumped: str) -> list[str]:
         if indent == 0:
             top_level_comment = _TOP_LEVEL_HINTS.get(stripped.split(":", 1)[0])
             if top_level_comment is not None:
-                out.append(f"{line}  # {top_level_comment}")
+                out.extend(_comment_lines(indent, top_level_comment))
+                out.append(line)
                 idx += 1
                 continue
 
@@ -129,7 +130,8 @@ def _annotate(dumped: str) -> list[str]:
 
         suffix = _INLINE_HINTS.get(stripped)
         if suffix is not None:
-            out.append(f"{line}    {suffix}")
+            out.extend(_comment_lines(indent, suffix))
+            out.append(line)
             idx += 1
             continue
 
@@ -138,27 +140,37 @@ def _annotate(dumped: str) -> list[str]:
     return out
 
 
-_INLINE_HINTS: dict[str, str] = {
-    "bid_price: null": "# REQUIRED: set display bid price (e.g. 209.00)",
-    "ask_price: null": "# REQUIRED: set display ask price (e.g. 211.00)",
-    "last_buy_price: null": "# REQUIRED: set last buy reference price",
-    "last_sell_price: null": "# REQUIRED: set last sell reference price",
-    "halt_duration_ns: null": "# null = rest-of-day halt",
+def _comment_lines(indent: int, hints: list[str]) -> list[str]:
+    prefix = " " * indent + "# "
+    return [f"{prefix}{hint}" for hint in hints]
+
+
+_INLINE_HINTS: dict[str, list[str]] = {
+    "bid_price: null": ["REQUIRED: set display bid price (e.g. 209.00)"],
+    "ask_price: null": ["REQUIRED: set display ask price (e.g. 211.00)"],
+    "last_buy_price: null": ["REQUIRED: set last buy reference price"],
+    "last_sell_price: null": ["REQUIRED: set last sell reference price"],
+    "halt_duration_ns: null": ["null = rest-of-day halt"],
 }
 
 
-_TOP_LEVEL_HINTS: dict[str, str] = {
-    "sessions_enabled": "true lets pm-scheduler drive session transitions; false keeps the engine in continuous mode",
-    "enforce_collars": "enables per-symbol collar checks on incoming orders",
-    "enforce_circuit_breakers": "enables per-symbol circuit-breaker enforcement",
-    "snapshot_interval_sec": "seconds between book snapshot publications for dirty books",
-    "mm_obligation_defaults": "default market-maker obligation settings",
-    "risk_controls": "collar profiles by risk level",
-    "circuit_breaker_defaults": "circuit-breaker ladder definitions",
-    "gateways": "ALF gateway allowlist",
-    "post_trade_gateway": "RALF post-trade gateway settings",
-    "market_data_gateway": "CALF market-data gateway settings",
-    "symbols": "symbol universe",
-    "market_maker_combos": "startup market-maker combo seeds",
-    "schedule": "session schedule",
+_TOP_LEVEL_HINTS: dict[str, list[str]] = {
+    "sessions_enabled": [
+        "true lets pm-scheduler drive session transitions;",
+        "false keeps the engine in continuous mode",
+    ],
+    "enforce_collars": ["enables per-symbol collar checks on incoming orders"],
+    "enforce_circuit_breakers": ["enables per-symbol circuit-breaker enforcement"],
+    "snapshot_interval_sec": [
+        "seconds between book snapshot publications for dirty books"
+    ],
+    "mm_obligation_defaults": ["default market-maker obligation settings"],
+    "risk_controls": ["collar profiles by risk level"],
+    "circuit_breaker_defaults": ["circuit-breaker ladder definitions"],
+    "gateways": ["ALF gateway allowlist"],
+    "post_trade_gateway": ["RALF post-trade gateway settings"],
+    "market_data_gateway": ["CALF market-data gateway settings"],
+    "symbols": ["symbol universe"],
+    "market_maker_combos": ["startup market-maker combo seeds"],
+    "schedule": ["session schedule"],
 }
