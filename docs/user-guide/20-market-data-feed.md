@@ -155,6 +155,96 @@ For multi-stream recovery, reconnect with normal `HELLO` and resubscribe.
 6. Track per-stream `SEQ` and trigger recovery on gaps
 
 
+## Dedicated Gateway Runbook (pm-md-gwy)
+
+Use this section as a focused operator runbook for the running CALF gateway.
+
+### Start commands
+
+Installed mode:
+
+```bash
+pm-engine --verbose
+pm-md-gwy --config engine_config.yaml
+```
+
+Developer mode:
+
+```bash
+poetry run pm-engine --verbose
+poetry run pm-md-gwy --config engine_config.yaml
+```
+
+### Minimal client probe
+
+Manual probe using `nc`:
+
+```bash
+nc 127.0.0.1 5570
+```
+
+Then send:
+
+```text
+HELLO|CLIENT=ops01|PROTO=CALF1
+SUB|CH=TOP,TRADE|SYM=AAPL
+```
+
+Expected sequence:
+
+1. `WELCOME|...`
+2. `SNAP|CH=TOP|SYM=AAPL|...`
+3. live `MD|...` and `TRADE|...`
+4. periodic `HB|...` while the stream is quiet
+
+### Optional state-channel probe
+
+To verify session and symbol-state routing, use wildcard state subscription:
+
+```text
+SUB|CH=STATE|SYM=*
+```
+
+Expected:
+
+1. immediate `SNAP|CH=STATE|SYM=*|...`
+2. live `STATE|...` transitions on session/halt/resume events
+
+### Reconnect replay behavior
+
+Single-stream resume probe:
+
+```text
+HELLO|CLIENT=ops01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
+```
+
+Outcomes:
+
+- replay hit: events with `SEQ > LASTSEQ`, then live continuation
+- replay miss: `ERR|CODE=REPLAY_MISS`, followed by recovery `SNAP`
+
+### Fast error triage
+
+| Error code | Typical cause | Action |
+|---|---|---|
+| `AUTH_REQUIRED` | `SUB` before successful `HELLO` | Authenticate first |
+| `PROTO_MISMATCH` | Wrong or missing protocol value | Use `PROTO=CALF1` |
+| `INVALID_CHANNEL` | Unsupported `CH` value | Use `TOP`, `TRADE`, `STATE` |
+| `INVALID_SYMBOL` | Unknown symbol or invalid wildcard usage | Use configured symbols; `SYM=*` only for `STATE` |
+| `REPLAY_MISS` | Replay point outside retention | Accept `SNAP` and reset local baseline |
+| `SLOW_CLIENT` | Client too slow to drain stream | Reconnect and increase consume throughput |
+| `BAD_MESSAGE` | Malformed line syntax | Fix message format |
+
+### Operator checklist
+
+1. Confirm engine is publishing `book.*`, `trade.executed`, and session/circuit-breaker events
+2. Confirm `pm-md-gwy` is running
+3. Confirm TCP reachability (`nc 127.0.0.1 5570`)
+4. Confirm `HELLO` receives `WELCOME`
+5. Confirm `SUB` receives expected `SNAP` and live flow
+6. Track `SEQ`; on reconnect use `RESUME=1` with `LASTSEQ`
+
+
 ## See also
 
 - [External Protocols Overview](19-protocol-overview.md)
