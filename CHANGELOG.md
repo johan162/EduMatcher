@@ -1,3 +1,27 @@
+## [v0.9.1] - 2026-06-21
+
+Release Type: patch
+
+### 📋 Summary
+This patch release improves configuration-generation workflows and refreshes the ref-data example set so generated files better expose available defaults to end users. It also includes targeted documentation and training refinements for CALF, RALF, and VM onboarding.
+
+### ✨ Additions
+- Added `pm-config-gen` support for emitting comment blocks that list defaultable `engine_config.yaml` fields when values are omitted
+- Added expanded ref-data example profiles covering one, three, ten, and thirty-book setups across basic, nominal, and complex variants
+
+### 🚀 Improvements
+- Improved market-maker seed generation so configs can emit deterministic midpoint-based startup quotes instead of manual post-processing
+- Improved `pm-config-gen` coverage for CALF-oriented configuration generation paths used by example datasets
+- Improved generated example configs by regenerating all ref-data outputs with default-field comment visibility enabled
+
+### 📚 Documentation
+- Updated User Guide and training material for CALF and RALF workflows with additional operational guidance
+- Updated VM installation guidance for a clearer setup path in training flows
+
+### 🛠 Internal
+- Updated release assets and example snapshots to align with regenerated config outputs
+
+
 ## [v0.9.0] - 2026-06-21
 
 Release Type: minor

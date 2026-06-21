@@ -110,6 +110,7 @@ nav:
     - External Protocols Overview: user-guide/19-protocol-overview.md
     - Market Data Feed (CALF): user-guide/20-market-data-feed.md
     - Protocol Support Library Examples: user-guide/80-examples.md
+    - Example Engine Configs: user-guide/81-example-configs.md
     - Appendix - ALF Protocol: user-guide/90-app-alf-protocol.md
     - Appendix - BALF Protocol: user-guide/91-app-balf-protocol.md
     - Appendix - CALF Protocol: user-guide/92-app-calf-protocol.md

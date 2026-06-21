@@ -6,7 +6,7 @@
     - Which `engine_config.yaml` sections are required when a config file exists
     - How to generate a starter config with `pm-config-gen`
     - Which fields the current engine and scheduler parsers recognize
-    - How to configure the optional `pm-ralf-gwy` post-trade gateway block
+    - How to configure the optional `pm-ralf-gwy` post-trade and `pm-md-gwy` market-data gateway blocks
     - How to configure symbols, gateways, risk controls, market-maker seeds, combo seeds, and schedules
     - How to choose between minimal, medium, and fully featured configurations
     - Which checks to perform before using a config in a class, demo, or test
@@ -16,14 +16,17 @@
 
 The matching engine and session scheduler both read `engine_config.yaml`. The
 engine uses it to define the symbol universe, authenticated ALF gateway IDs,
-session mode, risk controls, market-maker policy, and startup seeds. The
-scheduler uses only the optional `schedule` section.
+session mode, risk controls, market-maker policy, per-symbol outstanding shares,
+and startup seeds. The scheduler uses only the optional `schedule` section.
+The optional `post_trade_gateway` and `market_data_gateway` sections are read by
+`pm-ralf-gwy` and `pm-md-gwy` respectively.
 
 If the config file is absent, `pm-engine` starts in unrestricted mode: any symbol
 and gateway can be used, and no startup seeds are loaded. If the config file is
 present, the parser requires two sections:
 
-- `symbols` - a mapping of accepted symbols
+- `symbols` - a mapping of accepted symbols; generated examples include a
+  positive integer `outstanding_shares` field for each symbol
 - `gateways.alf` - a list with at least one accepted ALF gateway
 
 The sample `engine_config.yaml` intentionally keeps the
@@ -72,7 +75,8 @@ The engine and scheduler handle missing config differently:
 
 Unrestricted engine mode means there is no symbol allowlist, no gateway
 allowlist, no configured risk levels, no seeded last prices, no seeded
-market-maker quotes, and no configured startup combos.
+market-maker quotes, no configured startup combos, and no outstanding share
+metadata.
 
 
 ## Generate Configs with `pm-config-gen`
@@ -95,6 +99,8 @@ Installed mode:
 pm-config-gen \
   --symbols AAPL MSFT \
   --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --outstanding-shares AAPL:15400000000 \
+  --outstanding-shares MSFT:7430000000 \
   --sessions-enabled \
   --output engine_config.yaml
 ```
@@ -105,6 +111,8 @@ Poetry/source mode:
 poetry run pm-config-gen \
   --symbols AAPL MSFT \
   --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --outstanding-shares AAPL:15400000000 \
+  --outstanding-shares MSFT:7430000000 \
   --sessions-enabled \
   --output engine_config.yaml
 ```
@@ -112,18 +120,36 @@ poetry run pm-config-gen \
 Print to stdout only (no file write):
 
 ```bash
-pm-config-gen --symbols AAPL --gateways TRADER01 --dry-run
+pm-config-gen \
+  --symbols AAPL \
+  --gateways TRADER01 \
+  --outstanding-shares AAPL:15400000000 \
+  --dry-run
 ```
 
 ### Important behavior
 
 - If `--output` is omitted, YAML is printed to stdout.
 - If `--output` exists, generation fails unless `--force` is set.
-- If any gateway is `MARKET_MAKER`, MM quote stubs are emitted with
-  `bid_price: null` and `ask_price: null`. Fill these values before starting
-  `pm-engine`.
-- Loader validation is automatically run only when no MM gateways are present
-  (MM stubs are intentionally null and would fail strict quote checks).
+- If any gateway is `MARKET_MAKER` and you do not pass `--seed-mm-mid-range`,
+  MM quote stubs are emitted with `bid_price: null` and `ask_price: null`.
+  Fill these values before starting `pm-engine`.
+- If you pass `--seed-mm-mid-range`, MM quotes are emitted with concrete prices
+  on the configured tick grid.
+- Loader validation is skipped only in the MM-stub case above. It runs
+  automatically for non-MM configs and MM configs with seeded midpoints.
+
+MM quote generation decision matrix:
+
+| Gateway/flags state | Generated `market_maker_quotes` | Generated `last_buy_price` / `last_sell_price` |
+|---|---|---|
+| No `MARKET_MAKER` gateway configured | No MM quote section emitted | Only emitted if `--seed-last-prices` is set (as `null` placeholders) |
+| `MARKET_MAKER` present, no `--seed-mm-mid-range` | Stub quotes with `bid_price: null`, `ask_price: null` | `null` placeholders only if `--seed-last-prices` is set |
+| `MARKET_MAKER` present, with `--seed-mm-mid-range MIN:MAX` | Concrete bid/ask quote prices generated on tick grid | If `--seed-last-prices-from-mm` is set, both are set to the same midpoint used for seeded quotes |
+
+In this guide, "MM stub" means a quote row exists but prices are `null` and must
+be filled manually. "Full MM setup" means concrete bid/ask prices are generated
+for each MM quote seed at generation time.
 
 ### Option reference
 
@@ -167,7 +193,11 @@ Market-maker and symbol defaults:
 | `--mm-min-qty N` | int (`> 0`) | `100` | Global MM min quantity |
 | `--enforce-mm-obligations` / `--no-enforce-mm-obligations` | Flag pair | `false` | Global MM obligation toggle |
 | `--tick-decimals N` | int `0..8` | `2` | Default `tick_decimals` for symbols |
+| `--outstanding-shares SYM:N` | Repeatable | none | Per-symbol outstanding shares in the generated config |
 | `--seed-last-prices` | Flag | off | Emit `last_buy_price`/`last_sell_price` placeholders |
+| `--seed N` | int | random source default | Deterministic RNG seed for generated training values |
+| `--seed-mm-mid-range MIN:MAX` | string | none | Seed MM quotes from a random midpoint in the inclusive price range |
+| `--seed-last-prices-from-mm` | Flag | off | Set `last_buy_price`/`last_sell_price` to the same midpoint used for seeded MM quotes |
 
 Output and safety options:
 
@@ -176,6 +206,7 @@ Output and safety options:
 | `--output FILE` | Path | none | Write YAML to file |
 | `--force` | Flag | off | Overwrite existing output file |
 | `--dry-run` | Flag | off | Print YAML only; do not write file |
+| `--comment-default-config-fields` | Flag | off | Add a header comment block listing defaultable `engine_config.yaml` fields currently omitted from the generated file |
 
 Post-trade gateway options:
 
@@ -190,6 +221,21 @@ Post-trade gateway options:
 | `--post-trade-idle-timeout-sec` | int (`> 0`) | `5` | `post_trade_gateway.idle_timeout_sec` |
 | `--post-trade-max-client-queue` | int (`> 0`) | `10000` | `post_trade_gateway.max_client_queue` |
 | `--post-trade-allowed-roles ROLE [ROLE ...]` | list | `CLEARING DROP_COPY AUDIT` | `post_trade_gateway.allowed_roles` |
+
+Market-data gateway options:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--market-data-gateway` | Flag | off | Emit top-level `market_data_gateway` block for `pm-md-gwy` |
+| `--market-data-enabled` / `--market-data-disabled` | Flag pair | unset (`true` when emitted) | Set `market_data_gateway.enabled` |
+| `--market-data-name` | string | `md-gwy01` | `market_data_gateway.name` |
+| `--market-data-bind-address` | string | `0.0.0.0` | `market_data_gateway.bind_address` |
+| `--market-data-port` | int (`> 0`) | `5570` | `market_data_gateway.port` |
+| `--market-data-heartbeat-interval-sec` | int (`> 0`) | `1` | `market_data_gateway.heartbeat_interval_sec` |
+| `--market-data-idle-timeout-sec` | int (`> 0`) | `5` | `market_data_gateway.idle_timeout_sec` |
+| `--market-data-replay-window-sec` | int (`> 0`) | `30` | `market_data_gateway.replay_window_sec` |
+| `--market-data-max-symbols-per-client` | int (`> 0`) | `200` | `market_data_gateway.max_symbols_per_client` |
+| `--market-data-max-client-queue` | int (`> 0`) | `10000` | `market_data_gateway.max_client_queue` |
 
 Typical CLI example for a local lab with RALF enabled:
 
@@ -206,6 +252,8 @@ pm-config-gen \
   --post-trade-idle-timeout-sec 10 \
   --post-trade-max-client-queue 2000 \
   --post-trade-allowed-roles CLEARING AUDIT \
+  --outstanding-shares AAPL:15400000000 \
+  --outstanding-shares MSFT:7430000000 \
   --output engine_config.yaml
 ```
 
@@ -270,6 +318,11 @@ Supported `KEY` values:
 Unknown symbols/keys or invalid values in `--symbol-opts` are reported as
 warnings and ignored.
 
+The generated `symbols:` section also includes an `outstanding_shares` field
+for every symbol. Use that as the slow-changing input for statistics and future
+index-style consumers; market capitalization can then be derived from it and
+the latest price instead of being stored as a separate static field.
+
 ### Practical recipes
 
 Minimal classroom config:
@@ -278,6 +331,7 @@ Minimal classroom config:
 pm-config-gen \
   --symbols AAPL \
   --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --outstanding-shares AAPL:15400000000 \
   --no-sessions-enabled \
   --output engine_config.yaml
 ```
@@ -288,6 +342,9 @@ Session-driven day with risk levels and CB ladder:
 pm-config-gen \
   --symbols AAPL MSFT TSLA \
   --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --outstanding-shares AAPL:15400000000 \
+  --outstanding-shares MSFT:7430000000 \
+  --outstanding-shares TSLA:3200000000 \
   --sessions-enabled \
   --risk-level L1:0.30:0.05 \
   --risk-level L2:0.20:0.02 \
@@ -295,15 +352,19 @@ pm-config-gen \
   --output engine_config.yaml
 ```
 
-Market-maker session (requires manual quote prices after generation):
+Market-maker session with seeded startup quotes:
 
 ```bash
 pm-config-gen \
   --symbols AAPL MSFT \
   --gateways TRADER01 MM01:MARKET_MAKER OPS01:ADMIN \
+  --outstanding-shares AAPL:15400000000 \
+  --outstanding-shares MSFT:7430000000 \
   --sessions-enabled \
   --enforce-mm-obligations \
-  --seed-last-prices \
+  --seed 20260621 \
+  --seed-mm-mid-range 20:300 \
+  --seed-last-prices-from-mm \
   --output engine_config.yaml
 ```
 
@@ -313,7 +374,7 @@ After generation, validate manually:
 poetry run python -c 'from pathlib import Path; from edumatcher.engine.config_loader import load_engine_config; print(load_engine_config(Path("engine_config.yaml")))'
 ```
 
-If MM gateways are present, fill all `market_maker_quotes` prices first, then
+If MM gateways are present and you do not use `--seed-mm-mid-range`, fill all `market_maker_quotes` prices first, then
 run the validation command.
 
 Post-trade gateway config with explicit RALF listener settings:
@@ -322,6 +383,8 @@ Post-trade gateway config with explicit RALF listener settings:
 pm-config-gen \
   --symbols AAPL MSFT \
   --gateways TRADER01 OPS01:ADMIN \
+  --outstanding-shares AAPL:15400000000 \
+  --outstanding-shares MSFT:7430000000 \
   --post-trade-gateway \
   --post-trade-bind-address 127.0.0.1 \
   --post-trade-port 5580 \
@@ -370,6 +433,7 @@ The current parser recognizes these top-level keys:
 | `market_maker_combos` | No | Engine | Startup multi-symbol combo seeds |
 | `schedule` | No | Scheduler, parsed by engine too | Session transition times |
 | `post_trade_gateway` | No | `pm-ralf-gwy` | External RALF dissemination gateway settings |
+| `market_data_gateway` | No | `pm-md-gwy` | External CALF dissemination gateway settings |
 
 The nested sections below document every field currently parsed under these
 top-level keys. Unknown keys in a mapping are generally ignored by the loader,
@@ -411,6 +475,44 @@ client roles it will accept. In the current implementation:
 
 If you prefer to generate this block instead of writing it by hand, `pm-config-gen`
 can emit it with `--post-trade-gateway` and optional `--post-trade-*` overrides.
+
+
+## Configuring `pm-md-gwy`
+
+`pm-md-gwy` reads an optional top-level `market_data_gateway` block from the
+same `engine_config.yaml` file. This block is not consumed by `pm-engine`; it
+is consumed by the CALF market-data gateway process itself.
+
+Minimal example:
+
+```yaml
+market_data_gateway:
+  enabled: true
+  name: md-gwy01
+  bind_address: 0.0.0.0
+  port: 5570
+  heartbeat_interval_sec: 1
+  idle_timeout_sec: 5
+  replay_window_sec: 30
+  max_symbols_per_client: 200
+  max_client_queue: 10000
+```
+
+Use this block to control whether the CALF gateway starts and how it serves
+subscribers. In the current implementation:
+
+- `enabled` controls whether `pm-md-gwy` starts serving clients
+- `name` is the gateway id reported in welcome/session payloads
+- `bind_address` and `port` define the TCP listener for CALF subscribers
+- `heartbeat_interval_sec` controls heartbeat cadence
+- `idle_timeout_sec` controls inactive-session disconnect timing
+- `replay_window_sec` controls the in-memory replay history window
+- `max_symbols_per_client` caps per-client subscription fanout
+- `max_client_queue` caps slow-client buffering
+
+If you prefer to generate this block instead of writing it by hand,
+`pm-config-gen` can emit it with `--market-data-gateway` and optional
+`--market-data-*` overrides.
 
 
 ## Minimal Example

@@ -8,6 +8,7 @@ Returned structure:
 
     SymbolConfig
         .name:              str
+        .outstanding_shares: int | None
         .last_buy_price:    float | None
         .last_sell_price:   float | None
         .market_maker_quotes: list[MMQuoteSeed]
@@ -53,6 +54,7 @@ class SymbolConfig:
     name: str
     level: str | None = None
     tick_decimals: int = 2
+    outstanding_shares: int | None = None
     last_buy_price: Optional[float] = None
     last_sell_price: Optional[float] = None
     market_maker_quotes: list["MMQuoteSeed"] = field(default_factory=list)
@@ -343,6 +345,7 @@ def load_engine_config(path: Path) -> EngineConfig:
         lbp = cfg.get("last_buy_price")
         lsp = cfg.get("last_sell_price")
         tick_decimals = cfg.get("tick_decimals", 2)
+        outstanding_shares_raw = cfg.get("outstanding_shares")
         mm_quotes_raw = cfg.get("market_maker_quotes") or []
 
         try:
@@ -362,6 +365,17 @@ def load_engine_config(path: Path) -> EngineConfig:
                 lsp = float(lsp)
             except (TypeError, ValueError):
                 raise ValueError(f"Symbol '{sym}': last_sell_price must be a number")
+        outstanding_shares: int | None = None
+        if outstanding_shares_raw is not None:
+            try:
+                outstanding_shares = int(outstanding_shares_raw)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"Symbol '{sym}': outstanding_shares must be a positive integer"
+                )
+            if outstanding_shares <= 0:
+                raise ValueError(f"Symbol '{sym}': outstanding_shares must be > 0")
+
         if not isinstance(mm_quotes_raw, list):
             raise ValueError(f"Symbol '{sym}': market_maker_quotes must be a list")
 
@@ -601,6 +615,7 @@ def load_engine_config(path: Path) -> EngineConfig:
             name=sym,
             level=level,
             tick_decimals=tick_decimals,
+            outstanding_shares=outstanding_shares,
             last_buy_price=lbp,
             last_sell_price=lsp,
             market_maker_quotes=mm_quotes,

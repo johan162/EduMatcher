@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from datetime import date
 from pathlib import Path
@@ -12,10 +13,19 @@ from edumatcher.engine.config_loader import load_engine_config
 from edumatcher.models.participant import ParticipantRole
 
 from edumatcher.config_gen.builder import ConfigBuilder, ConfigSpec
+from edumatcher.config_gen.builder import MarketDataGatewaySpec
 from edumatcher.config_gen.builder import PostTradeGatewaySpec
 from edumatcher.config_gen.cb_spec import CbSpec, parse_cb_spec
 from edumatcher.config_gen.defaults import (
     DEFAULT_CB_WINDOW_NS,
+    DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS,
+    DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC,
+    DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC,
+    DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_MARKET_DATA_GATEWAY_MAX_SYMBOLS_PER_CLIENT,
+    DEFAULT_MARKET_DATA_GATEWAY_NAME,
+    DEFAULT_MARKET_DATA_GATEWAY_PORT,
+    DEFAULT_MARKET_DATA_GATEWAY_REPLAY_WINDOW_SEC,
     DEFAULT_MM_MIN_QTY,
     DEFAULT_MM_SPREAD_TICKS,
     DEFAULT_POST_TRADE_GATEWAY_ALLOWED_ROLES,
@@ -67,6 +77,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default=[],
         metavar="SYMBOL:KEY=VALUE[,KEY=VALUE]",
         help="Per-symbol overrides. Can be repeated.",
+    )
+    parser.add_argument(
+        "--outstanding-shares",
+        action="append",
+        default=[],
+        metavar="SYM:N",
+        help="Per-symbol outstanding shares (positive integer). Can be repeated.",
     )
 
     sess_group = parser.add_mutually_exclusive_group()
@@ -183,6 +200,30 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit last_buy_price/last_sell_price null placeholders.",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Deterministic RNG seed for generated training values.",
+    )
+    parser.add_argument(
+        "--seed-mm-mid-range",
+        default=None,
+        metavar="MIN:MAX",
+        help=(
+            "Seed MM quotes from a random midpoint in the inclusive MIN:MAX range, "
+            "rounded to the symbol tick grid."
+        ),
+    )
+    parser.add_argument(
+        "--seed-last-prices-from-mm",
+        action="store_true",
+        help=(
+            "When seeding MM quotes, set last_buy_price/last_sell_price to the same "
+            "midpoint used for the generated quote."
+        ),
+    )
 
     parser.add_argument(
         "--post-trade-gateway",
@@ -244,6 +285,80 @@ def _build_parser() -> argparse.ArgumentParser:
         help="post_trade_gateway.allowed_roles override (default: CLEARING DROP_COPY AUDIT).",
     )
 
+    parser.add_argument(
+        "--market-data-gateway",
+        action="store_true",
+        help="Emit a top-level market_data_gateway section for pm-md-gwy.",
+    )
+    parser.add_argument(
+        "--market-data-enabled",
+        dest="market_data_enabled",
+        action="store_true",
+        default=None,
+        help="Set market_data_gateway.enabled: true.",
+    )
+    parser.add_argument(
+        "--market-data-disabled",
+        dest="market_data_enabled",
+        action="store_false",
+        default=None,
+        help="Set market_data_gateway.enabled: false.",
+    )
+    parser.add_argument(
+        "--market-data-name",
+        default=None,
+        metavar="NAME",
+        help="market_data_gateway.name override.",
+    )
+    parser.add_argument(
+        "--market-data-bind-address",
+        default=None,
+        metavar="ADDR",
+        help="market_data_gateway.bind_address override.",
+    )
+    parser.add_argument(
+        "--market-data-port",
+        type=int,
+        default=None,
+        metavar="N",
+        help="market_data_gateway.port override (> 0).",
+    )
+    parser.add_argument(
+        "--market-data-heartbeat-interval-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="market_data_gateway.heartbeat_interval_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--market-data-idle-timeout-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="market_data_gateway.idle_timeout_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--market-data-replay-window-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="market_data_gateway.replay_window_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--market-data-max-symbols-per-client",
+        type=int,
+        default=None,
+        metavar="N",
+        help="market_data_gateway.max_symbols_per_client override (> 0).",
+    )
+    parser.add_argument(
+        "--market-data-max-client-queue",
+        type=int,
+        default=None,
+        metavar="N",
+        help="market_data_gateway.max_client_queue override (> 0).",
+    )
+
     sched_group = parser.add_mutually_exclusive_group()
     sched_group.add_argument(
         "--schedule",
@@ -293,8 +408,117 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dry-run", action="store_true", help="Print only, do not write."
     )
+    parser.add_argument(
+        "--comment-default-config-fields",
+        action="store_true",
+        help=(
+            "Add a header comment block listing defaultable engine_config fields "
+            "and their default values."
+        ),
+    )
 
     return parser
+
+
+def _build_default_engine_field_comment_lines(config: dict[str, object]) -> list[str]:
+    lines: list[str] = [
+        _format_default_comment(
+            "sessions_enabled",
+            config.get("sessions_enabled", False),
+            "Disabled keeps the engine in continuous mode; enabled lets pm-scheduler drive session transitions",
+        ),
+        _format_default_comment(
+            "snapshot_interval_sec",
+            config.get("snapshot_interval_sec", DEFAULT_SNAPSHOT_INTERVAL_SEC),
+            "Seconds between book snapshot publications for dirty books",
+        ),
+    ]
+
+    symbols_raw = config.get("symbols")
+    if isinstance(symbols_raw, dict) and symbols_raw:
+        symbol_payloads = [
+            payload for payload in symbols_raw.values() if isinstance(payload, dict)
+        ]
+    else:
+        symbol_payloads = []
+
+    gateways_raw = config.get("gateways")
+    gateways_alf_raw: list[dict[str, object]] = []
+    if isinstance(gateways_raw, dict):
+        alf_raw = gateways_raw.get("alf")
+        if isinstance(alf_raw, list):
+            gateways_alf_raw = [row for row in alf_raw if isinstance(row, dict)]
+
+    if symbol_payloads and any(
+        "last_buy_price" not in payload for payload in symbol_payloads
+    ):
+        lines.append(
+            "symbols.<SYM>.last_buy_price = null - Initial last-buy reference is omitted until set explicitly or restored from persisted stats"
+        )
+    if symbol_payloads and any(
+        "last_sell_price" not in payload for payload in symbol_payloads
+    ):
+        lines.append(
+            "symbols.<SYM>.last_sell_price = null - Initial last-sell reference is omitted until set explicitly or restored from persisted stats"
+        )
+    if symbol_payloads and any(
+        "outstanding_shares" not in payload for payload in symbol_payloads
+    ):
+        lines.append(
+            "symbols.<SYM>.outstanding_shares = null - Outstanding share counts are optional in config but useful for statistics and index-style consumers"
+        )
+
+    if gateways_alf_raw and any("description" not in row for row in gateways_alf_raw):
+        lines.append(
+            "gateways.alf[].description = '' - Optional human-readable label for the gateway"
+        )
+
+    schedule_raw = config.get("schedule")
+    if not isinstance(schedule_raw, dict):
+        lines.extend(
+            [
+                "schedule.pre_open = '09:00' - Default pre-open session time when no schedule block is provided",
+                "schedule.opening_auction_start = '09:25' - Default opening auction start time",
+                "schedule.continuous_start = '09:30' - Default continuous-trading start time",
+                "schedule.closing_auction_start = '16:00' - Default closing auction start time",
+                "schedule.closing_auction_end = '16:05' - Default closing auction end time",
+            ]
+        )
+
+    if "post_trade_gateway" not in config:
+        lines.extend(
+            [
+                "post_trade_gateway.name = 'ralf-gwy01' - Default RALF gateway id",
+                "post_trade_gateway.bind_address = '0.0.0.0' - Default listener bind address",
+                "post_trade_gateway.port = 5580 - Default TCP port for the RALF gateway",
+                "post_trade_gateway.replay_retention_sec = 86400 - Default replay history retention in seconds",
+                "post_trade_gateway.heartbeat_interval_sec = 1 - Default heartbeat interval in seconds",
+                "post_trade_gateway.idle_timeout_sec = 5 - Default idle timeout in seconds",
+                "post_trade_gateway.max_client_queue = 10000 - Default slow-client queue depth",
+                "post_trade_gateway.allowed_roles = [CLEARING, DROP_COPY, AUDIT] - Default external roles allowed to subscribe",
+            ]
+        )
+
+    if "market_data_gateway" not in config:
+        lines.extend(
+            [
+                "market_data_gateway.enabled = true - Enables the CALF gateway when true",
+                "market_data_gateway.name = 'md-gwy01' - Default CALF gateway id",
+                "market_data_gateway.bind_address = '0.0.0.0' - Default listener bind address",
+                "market_data_gateway.port = 5570 - Default TCP port for the CALF gateway",
+                "market_data_gateway.heartbeat_interval_sec = 1 - Default heartbeat interval in seconds",
+                "market_data_gateway.idle_timeout_sec = 5 - Default idle timeout in seconds",
+                "market_data_gateway.replay_window_sec = 30 - Default replay history window in seconds",
+                "market_data_gateway.max_symbols_per_client = 200 - Default per-client symbol subscription cap",
+                "market_data_gateway.max_client_queue = 10000 - Default slow-client queue depth",
+            ]
+        )
+
+    return lines
+
+
+def _format_default_comment(field: str, value: object, description: str) -> str:
+    return f"{field} = {value!r} - {description}"
 
 
 def _validate_basic_args(args: argparse.Namespace) -> None:
@@ -310,6 +534,8 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         raise ValueError("--cb-window-ns must be > 0")
     if args.post_trade_port is not None and args.post_trade_port <= 0:
         raise ValueError("--post-trade-port must be > 0")
+    if args.market_data_port is not None and args.market_data_port <= 0:
+        raise ValueError("--market-data-port must be > 0")
     if (
         args.post_trade_replay_retention_sec is not None
         and args.post_trade_replay_retention_sec <= 0
@@ -330,11 +556,102 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         and args.post_trade_max_client_queue <= 0
     ):
         raise ValueError("--post-trade-max-client-queue must be > 0")
+    if (
+        args.market_data_heartbeat_interval_sec is not None
+        and args.market_data_heartbeat_interval_sec <= 0
+    ):
+        raise ValueError("--market-data-heartbeat-interval-sec must be > 0")
+    if (
+        args.market_data_idle_timeout_sec is not None
+        and args.market_data_idle_timeout_sec <= 0
+    ):
+        raise ValueError("--market-data-idle-timeout-sec must be > 0")
+    if (
+        args.market_data_replay_window_sec is not None
+        and args.market_data_replay_window_sec <= 0
+    ):
+        raise ValueError("--market-data-replay-window-sec must be > 0")
+    if (
+        args.market_data_max_symbols_per_client is not None
+        and args.market_data_max_symbols_per_client <= 0
+    ):
+        raise ValueError("--market-data-max-symbols-per-client must be > 0")
+    if (
+        args.market_data_max_client_queue is not None
+        and args.market_data_max_client_queue <= 0
+    ):
+        raise ValueError("--market-data-max-client-queue must be > 0")
 
     if args.static_band is not None and not (0 < args.static_band < 1):
         raise ValueError("--static-band must be in (0, 1)")
     if args.dynamic_band is not None and not (0 < args.dynamic_band < 1):
         raise ValueError("--dynamic-band must be in (0, 1)")
+
+    if args.seed_mm_mid_range is not None:
+        min_price, max_price = _parse_seed_mm_mid_range(args.seed_mm_mid_range)
+        tick_size = 10 ** (-int(args.tick_decimals))
+        min_steps = math.ceil(min_price / tick_size)
+        max_steps = math.floor(max_price / tick_size)
+        if min_steps > max_steps:
+            raise ValueError(
+                "--seed-mm-mid-range does not contain any prices on the configured tick grid"
+            )
+        if min_steps <= 1:
+            raise ValueError(
+                "--seed-mm-mid-range minimum must allow a positive bid after applying a one-tick spread"
+            )
+
+    if args.seed_last_prices_from_mm and args.seed_mm_mid_range is None:
+        raise ValueError("--seed-last-prices-from-mm requires --seed-mm-mid-range")
+
+
+def _parse_seed_mm_mid_range(raw: str) -> tuple[float, float]:
+    if ":" not in raw:
+        raise ValueError(f"Invalid --seed-mm-mid-range '{raw}': expected MIN:MAX")
+
+    min_raw, max_raw = raw.split(":", 1)
+    try:
+        min_price = float(min_raw.strip())
+        max_price = float(max_raw.strip())
+    except ValueError as exc:
+        raise ValueError(
+            f"Invalid --seed-mm-mid-range '{raw}': MIN and MAX must be numbers"
+        ) from exc
+
+    if min_price <= 0 or max_price <= 0:
+        raise ValueError("--seed-mm-mid-range values must be > 0")
+    if min_price >= max_price:
+        raise ValueError("--seed-mm-mid-range requires MIN < MAX")
+
+    return (min_price, max_price)
+
+
+def _parse_outstanding_shares(
+    specs: list[str],
+    allowed_symbols: set[str],
+) -> dict[str, int]:
+    result: dict[str, int] = {}
+    for raw in specs:
+        if ":" not in raw:
+            raise ValueError(f"Invalid --outstanding-shares '{raw}': expected SYM:N")
+        sym_raw, val_raw = raw.split(":", 1)
+        sym = sym_raw.strip().upper()
+        if not sym:
+            raise ValueError(
+                f"Invalid --outstanding-shares '{raw}': symbol cannot be empty"
+            )
+        if sym not in allowed_symbols:
+            raise ValueError(f"--outstanding-shares references unknown symbol '{sym}'")
+        try:
+            value = int(val_raw.strip())
+        except ValueError:
+            raise ValueError(
+                f"--outstanding-shares '{raw}': value must be a positive integer"
+            )
+        if value <= 0:
+            raise ValueError(f"--outstanding-shares '{raw}': value must be > 0")
+        result[sym] = value
+    return result
 
 
 def _parse_specs(args: argparse.Namespace) -> tuple[
@@ -344,6 +661,8 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
     list[CbSpec],
     dict[str, SymbolOverride],
     list[str],
+    dict[str, int],
+    tuple[float, float] | None,
 ]:
     symbols = [s.upper() for s in args.symbols]
 
@@ -363,6 +682,17 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
         allowed_symbols=set(symbols),
     )
 
+    outstanding_shares = _parse_outstanding_shares(
+        specs=args.outstanding_shares,
+        allowed_symbols=set(symbols),
+    )
+
+    seed_mm_mid_range = (
+        _parse_seed_mm_mid_range(args.seed_mm_mid_range)
+        if args.seed_mm_mid_range is not None
+        else None
+    )
+
     return (
         symbols,
         gateways,
@@ -370,6 +700,8 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
         cb_levels,
         symbol_overrides,
         symbol_opt_warnings,
+        outstanding_shares,
+        seed_mm_mid_range,
     )
 
 
@@ -437,6 +769,61 @@ def _build_post_trade_gateway_spec(
     )
 
 
+def _build_market_data_gateway_spec(
+    args: argparse.Namespace,
+) -> MarketDataGatewaySpec | None:
+    emit = any(
+        value is not None
+        for value in (
+            args.market_data_enabled,
+            args.market_data_name,
+            args.market_data_bind_address,
+            args.market_data_port,
+            args.market_data_heartbeat_interval_sec,
+            args.market_data_idle_timeout_sec,
+            args.market_data_replay_window_sec,
+            args.market_data_max_symbols_per_client,
+            args.market_data_max_client_queue,
+        )
+    ) or bool(args.market_data_gateway)
+
+    if not emit:
+        return None
+
+    enabled = (
+        bool(args.market_data_enabled) if args.market_data_enabled is not None else True
+    )
+
+    return MarketDataGatewaySpec(
+        enabled=enabled,
+        name=str(args.market_data_name or DEFAULT_MARKET_DATA_GATEWAY_NAME),
+        bind_address=str(
+            args.market_data_bind_address or DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS
+        ),
+        port=int(args.market_data_port or DEFAULT_MARKET_DATA_GATEWAY_PORT),
+        heartbeat_interval_sec=int(
+            args.market_data_heartbeat_interval_sec
+            or DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC
+        ),
+        idle_timeout_sec=int(
+            args.market_data_idle_timeout_sec
+            or DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC
+        ),
+        replay_window_sec=int(
+            args.market_data_replay_window_sec
+            or DEFAULT_MARKET_DATA_GATEWAY_REPLAY_WINDOW_SEC
+        ),
+        max_symbols_per_client=int(
+            args.market_data_max_symbols_per_client
+            or DEFAULT_MARKET_DATA_GATEWAY_MAX_SYMBOLS_PER_CLIENT
+        ),
+        max_client_queue=int(
+            args.market_data_max_client_queue
+            or DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE
+        ),
+    )
+
+
 def _write_output(output_path: Path, content: str, force: bool) -> None:
     if output_path.exists() and not force:
         raise FileExistsError("Output file already exists")
@@ -444,9 +831,11 @@ def _write_output(output_path: Path, content: str, force: bool) -> None:
     output_path.write_text(content, encoding="utf-8")
 
 
-def _validate_generated_when_possible(content: str, has_mm_gateway: bool) -> str | None:
+def _validate_generated_when_possible(
+    content: str, skip_validation: bool
+) -> str | None:
     # With MM stubs bid/ask are null by design, so parser validation is expected to fail.
-    if has_mm_gateway:
+    if skip_validation:
         return None
 
     with NamedTemporaryFile("w", suffix=".yaml", delete=False, encoding="utf-8") as fh:
@@ -479,10 +868,20 @@ def main() -> None:
             cb_levels,
             symbol_overrides,
             symbol_opt_warnings,
+            outstanding_shares,
+            seed_mm_mid_range,
         ) = _parse_specs(args)
     except ValueError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
+
+    has_mm_gateway = any(g.role == ParticipantRole.MARKET_MAKER for g in gateways)
+    if seed_mm_mid_range is not None and not has_mm_gateway:
+        print(
+            "[ERROR] --seed-mm-mid-range requires at least one MARKET_MAKER gateway",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
 
     spec = ConfigSpec(
         symbols=symbols,
@@ -499,9 +898,12 @@ def main() -> None:
         mm_spread_ticks=int(args.mm_spread_ticks),
         mm_min_qty=int(args.mm_min_qty),
         enforce_mm_obligations=bool(args.enforce_mm_obligations),
-        emit_mm_defaults=any(g.role == ParticipantRole.MARKET_MAKER for g in gateways),
+        emit_mm_defaults=has_mm_gateway,
         tick_decimals=int(args.tick_decimals),
         seed_last_prices=bool(args.seed_last_prices),
+        random_seed=args.seed,
+        seed_mm_mid_range=seed_mm_mid_range,
+        seed_last_prices_from_mm=bool(args.seed_last_prices_from_mm),
         emit_schedule=_resolve_emit_schedule(args),
         pre_open=str(args.pre_open),
         opening_auction=str(args.opening_auction),
@@ -509,7 +911,9 @@ def main() -> None:
         closing_auction=str(args.closing_auction),
         closing_end=str(args.closing_end),
         symbol_overrides=symbol_overrides,
+        outstanding_shares=outstanding_shares,
         post_trade_gateway=_build_post_trade_gateway_spec(args),
+        market_data_gateway=_build_market_data_gateway_spec(args),
     )
 
     output_path = Path(args.output) if args.output else None
@@ -530,18 +934,24 @@ def main() -> None:
 
     config = ConfigBuilder(spec).build()
     cmd_line = "pm-config-gen " + " ".join(sys.argv[1:])
+    default_config_field_comment_lines = (
+        _build_default_engine_field_comment_lines(config)
+        if args.comment_default_config_fields
+        else None
+    )
     rendered = render_yaml(
         config=config,
         command=cmd_line,
         generated_version="1.1.0",
         generated_date=str(date.today()),
+        default_engine_field_comments=default_config_field_comment_lines,
     )
 
     _print_diagnostics(diagnostics)
 
     validation_line = _validate_generated_when_possible(
         content=rendered,
-        has_mm_gateway=any(g.role == ParticipantRole.MARKET_MAKER for g in gateways),
+        skip_validation=has_mm_gateway and seed_mm_mid_range is None,
     )
     if validation_line:
         print(validation_line, file=sys.stderr)
@@ -558,7 +968,7 @@ def main() -> None:
     _write_output(output_path=output_path, content=rendered, force=bool(args.force))
     print(f"[INFO] Wrote generated config to {output_path}", file=sys.stderr)
 
-    if any(g.role == ParticipantRole.MARKET_MAKER for g in gateways):
+    if has_mm_gateway and seed_mm_mid_range is None:
         print(
             "[HINT] Fill all market_maker_quotes bid_price/ask_price values before "
             "starting pm-engine.",

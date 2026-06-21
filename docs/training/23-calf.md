@@ -14,15 +14,15 @@ consumption, heartbeats, replay checkpoints, and recovery/error behavior.
 
 - Chapters 01-22 completed.
 - Engine running and producing market activity.
-- pm-md-gwy running and reachable on TCP (default 5570).
-- Support libraries and clients available in docs/examples/calf:
+- `pm-md-gwy` running and reachable on TCP (default 5570).
+- Support libraries and clients available in `docs/examples/calf`:
   - calf_parser.py, calf_subscriber.py
   - calf_parser.h, calf_parser.c, calf_subscriber.c
 
 Recommended startup terminals:
 
-1. Engine: pm-engine --verbose
-2. CALF gateway: pm-md-gwy
+1. Engine: `pm-engine --verbose`
+2. CALF gateway: `pm-md-gwy`
 3. One or more client terminals for subscriber exercises
 
 ---
@@ -45,7 +45,7 @@ In this chapter, the most important operational ideas are:
 
 ## Exercise 1: Prepare a Config That Enables CALF
 
-Generate engine_config.yaml with a market_data_gateway section:
+Generate `engine_config.yaml` with a market_data_gateway section:
 
 ```bash
 pm-config-gen \
@@ -260,9 +260,8 @@ You have now covered major CALF protocol usage patterns:
 
 ## Further Reading
 
-- Market Data Feed (CALF): ../user-guide/20-market-data-feed.md
-- CALF Protocol Appendix: ../user-guide/92-app-calf-protocol.md
-- Protocol Support Library Examples: ../user-guide/80-examples.md
-- Processes: ../user-guide/10-processes.md
+- [Market Data Feed (CALF)](../user-guide/20-market-data-feed.md)
+- [CALF Protocol Appendix](../user-guide/92-app-calf-protocol.md)
+- [Protocol Support Library Examples](../user-guide/80-examples.md)
+- [Processes](../user-guide/10-processes.md)
 
-This chapter extends the training program with external market-data protocol operations.

@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
+import random
 from typing import Any
 
 from edumatcher.models.participant import ParticipantRole
 
 from .cb_spec import CbSpec
 from .defaults import (
+    DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS,
+    DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC,
+    DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC,
+    DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_MARKET_DATA_GATEWAY_MAX_SYMBOLS_PER_CLIENT,
+    DEFAULT_MARKET_DATA_GATEWAY_NAME,
+    DEFAULT_MARKET_DATA_GATEWAY_PORT,
+    DEFAULT_MARKET_DATA_GATEWAY_REPLAY_WINDOW_SEC,
     DEFAULT_CB_WINDOW_NS,
     DEFAULT_DYNAMIC_BAND_PCT,
     DEFAULT_MM_MIN_QTY,
@@ -49,6 +59,9 @@ class ConfigSpec:
     emit_mm_defaults: bool = False
     tick_decimals: int = DEFAULT_TICK_DECIMALS
     seed_last_prices: bool = False
+    random_seed: int | None = None
+    seed_mm_mid_range: tuple[float, float] | None = None
+    seed_last_prices_from_mm: bool = False
     emit_schedule: bool = True
     pre_open: str = "09:00"
     opening_auction: str = "09:25"
@@ -56,7 +69,9 @@ class ConfigSpec:
     closing_auction: str = "16:00"
     closing_end: str = "16:05"
     symbol_overrides: dict[str, SymbolOverride] = field(default_factory=dict)
+    outstanding_shares: dict[str, int] = field(default_factory=dict)
     post_trade_gateway: PostTradeGatewaySpec | None = None
+    market_data_gateway: MarketDataGatewaySpec | None = None
 
 
 @dataclass(frozen=True)
@@ -71,9 +86,23 @@ class PostTradeGatewaySpec:
     allowed_roles: tuple[str, ...] = DEFAULT_POST_TRADE_GATEWAY_ALLOWED_ROLES
 
 
+@dataclass(frozen=True)
+class MarketDataGatewaySpec:
+    enabled: bool = True
+    name: str = DEFAULT_MARKET_DATA_GATEWAY_NAME
+    bind_address: str = DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS
+    port: int = DEFAULT_MARKET_DATA_GATEWAY_PORT
+    heartbeat_interval_sec: int = DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC
+    idle_timeout_sec: int = DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC
+    replay_window_sec: int = DEFAULT_MARKET_DATA_GATEWAY_REPLAY_WINDOW_SEC
+    max_symbols_per_client: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_SYMBOLS_PER_CLIENT
+    max_client_queue: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE
+
+
 class ConfigBuilder:
     def __init__(self, spec: ConfigSpec):
         self.spec = spec
+        self._rng = random.Random(spec.random_seed)
 
     def build(self) -> dict[str, Any]:
         cfg: dict[str, Any] = {
@@ -96,6 +125,8 @@ class ConfigBuilder:
         cfg["gateways"] = {"alf": self._build_gateways()}
         if self.spec.post_trade_gateway is not None:
             cfg["post_trade_gateway"] = self._build_post_trade_gateway()
+        if self.spec.market_data_gateway is not None:
+            cfg["market_data_gateway"] = self._build_market_data_gateway()
         cfg["symbols"] = self._build_symbols()
 
         if self.spec.sessions_enabled and self.spec.emit_schedule:
@@ -123,6 +154,23 @@ class ConfigBuilder:
             "idle_timeout_sec": spec.idle_timeout_sec,
             "max_client_queue": spec.max_client_queue,
             "allowed_roles": list(spec.allowed_roles),
+        }
+
+    def _build_market_data_gateway(self) -> dict[str, Any]:
+        spec = self.spec.market_data_gateway
+        if spec is None:
+            return {}
+
+        return {
+            "enabled": spec.enabled,
+            "name": spec.name,
+            "bind_address": spec.bind_address,
+            "port": spec.port,
+            "heartbeat_interval_sec": spec.heartbeat_interval_sec,
+            "idle_timeout_sec": spec.idle_timeout_sec,
+            "replay_window_sec": spec.replay_window_sec,
+            "max_symbols_per_client": spec.max_symbols_per_client,
+            "max_client_queue": spec.max_client_queue,
         }
 
     def _should_emit_mm_defaults(self) -> bool:
@@ -258,7 +306,13 @@ class ConfigBuilder:
             if override.level is not None:
                 payload["level"] = override.level
 
-            if self.spec.seed_last_prices:
+            seeded_midpoint = self._seeded_midpoint(self.spec.tick_decimals)
+
+            if self.spec.seed_last_prices_from_mm and seeded_midpoint is not None:
+                midpoint = float(seeded_midpoint)
+                payload["last_buy_price"] = midpoint
+                payload["last_sell_price"] = midpoint
+            elif self.spec.seed_last_prices:
                 payload["last_buy_price"] = None
                 payload["last_sell_price"] = None
 
@@ -294,18 +348,61 @@ class ConfigBuilder:
 
             if mm_gateways:
                 payload["market_maker_quotes"] = [
-                    {
-                        "gateway_id": gateway_id,
-                        "bid_price": None,
-                        "ask_price": None,
-                        "bid_qty": DEFAULT_MM_STUB_QTY,
-                        "ask_qty": DEFAULT_MM_STUB_QTY,
-                        "tif": "DAY",
-                        "seed_once": True,
-                    }
+                    self._build_mm_quote_seed(
+                        gateway_id=gateway_id,
+                        tick_decimals=self.spec.tick_decimals,
+                        seeded_midpoint=seeded_midpoint,
+                    )
                     for gateway_id in mm_gateways
                 ]
+
+            outstanding = self.spec.outstanding_shares.get(symbol)
+            if outstanding is not None:
+                payload["outstanding_shares"] = outstanding
 
             symbols[symbol] = payload
 
         return symbols
+
+    def _seeded_midpoint(self, tick_decimals: int) -> Decimal | None:
+        if self.spec.seed_mm_mid_range is None:
+            return None
+
+        min_price, max_price = self.spec.seed_mm_mid_range
+        tick_size = Decimal(1).scaleb(-tick_decimals)
+        min_steps = int(
+            (Decimal(str(min_price)) / tick_size).to_integral_value(
+                rounding=ROUND_CEILING
+            )
+        )
+        max_steps = int(
+            (Decimal(str(max_price)) / tick_size).to_integral_value(
+                rounding=ROUND_FLOOR
+            )
+        )
+        midpoint_steps = self._rng.randint(min_steps, max_steps)
+        return Decimal(midpoint_steps) * tick_size
+
+    def _build_mm_quote_seed(
+        self,
+        gateway_id: str,
+        tick_decimals: int,
+        seeded_midpoint: Decimal | None,
+    ) -> dict[str, Any]:
+        if seeded_midpoint is None:
+            bid_price: float | None = None
+            ask_price: float | None = None
+        else:
+            tick_size = Decimal(1).scaleb(-tick_decimals)
+            bid_price = float(seeded_midpoint - tick_size)
+            ask_price = float(seeded_midpoint + tick_size)
+
+        return {
+            "gateway_id": gateway_id,
+            "bid_price": bid_price,
+            "ask_price": ask_price,
+            "bid_qty": DEFAULT_MM_STUB_QTY,
+            "ask_qty": DEFAULT_MM_STUB_QTY,
+            "tif": "DAY",
+            "seed_once": True,
+        }
