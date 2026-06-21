@@ -18,7 +18,7 @@
         <link rel="prev" href="../18-post-trade/">
       
       
-        <link rel="next" href="../20-app-alf-protocol/">
+        <link rel="next" href="../20-market-data-feed/">
       
       
         
@@ -1488,7 +1488,63 @@
   
   
     <li class="md-nav__item">
-      <a href="../20-app-alf-protocol/" class="md-nav__link">
+      <a href="../20-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../80-examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocol Support Library Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../90-app-alf-protocol/" class="md-nav__link">
         
   
   
@@ -1516,7 +1572,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../21-app-balf-protocol/" class="md-nav__link">
+      <a href="../91-app-balf-protocol/" class="md-nav__link">
         
   
   
@@ -1544,7 +1600,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../22-app-calf-protocol/" class="md-nav__link">
+      <a href="../92-app-calf-protocol/" class="md-nav__link">
         
   
   
@@ -1572,7 +1628,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../23-app-ralf-protocol/" class="md-nav__link">
+      <a href="../93-app-ralf-protocol/" class="md-nav__link">
         
   
   
@@ -2326,6 +2382,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/23-calf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23 — CALF Market-Data Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2783,8 +2867,8 @@ connects each protocol to:</p>
 <td><strong>CALF</strong></td>
 <td>External market-data dissemination (top/book/trade/state style channels)</td>
 <td>Text line protocol over TCP</td>
-<td>Documented; planned gateway process</td>
-<td><code>pm-md-gwy</code> (planned)</td>
+<td>Implemented and active</td>
+<td><code>pm-md-gwy</code></td>
 </tr>
 <tr>
 <td><strong>RALF</strong></td>
@@ -2810,7 +2894,7 @@ manage orders in current deployments.</p>
 <li>Gateway behavior and operator workflow: <a href="../08-gateway/">Gateway Commands</a></li>
 <li>Process-level role of the ALF gateway: <a href="../10-processes/#pm-gateway-user-gateway">Processes</a></li>
 <li>Engine configuration of allowed ALF IDs/roles: <a href="../01-configuration/#alf-gateway-allowlist">Configuration</a></li>
-<li>Formal wire syntax and semantics: <a href="../20-app-alf-protocol/">Appendix - ALF Protocol</a></li>
+<li>Formal wire syntax and semantics: <a href="../90-app-alf-protocol/">Appendix - ALF Protocol</a></li>
 </ul>
 <h2 id="balf-binary-alf">BALF (Binary ALF)<a class="headerlink" href="#balf-binary-alf" title="Permanent link">&para;</a></h2>
 <p>BALF is the binary order-entry protocol family. It targets programmatic clients
@@ -2827,16 +2911,15 @@ and process concept, but the runtime gateway is listed under planned processes.<
 <p>Where to read more:</p>
 <ul>
 <li>Planned runtime process and position in architecture: <a href="../10-processes/#planned-processes">Processes</a></li>
-<li>Protocol design details and message/frame definitions: <a href="../21-app-balf-protocol/">Appendix - BALF Protocol</a></li>
+<li>Protocol design details and message/frame definitions: <a href="../91-app-balf-protocol/">Appendix - BALF Protocol</a></li>
 <li>Configuration context and protocol family notes: <a href="../01-configuration/">Configuration</a></li>
 </ul>
 <h2 id="calf-channel-alf">CALF (Channel ALF)<a class="headerlink" href="#calf-channel-alf" title="Permanent link">&para;</a></h2>
 <p>CALF is the external market-data protocol family. It is designed for
 subscription-based market-data delivery (channelized streams, snapshot +
 incremental patterns, and sequence-aware recovery semantics).</p>
-<p>In the current User Guide state, CALF is documented as a protocol specification
-and process concept, with the market-data gateway listed under planned
-processes.</p>
+<p>CALF is implemented via <code>pm-md-gwy</code> and is used for external market-data
+distribution with snapshot, incremental, and replay-aware reconnect semantics.</p>
 <p>Use CALF when you need:</p>
 <ul>
 <li>external market-data subscription channels</li>
@@ -2847,8 +2930,9 @@ processes.</p>
 <p>Where to read more:</p>
 <ul>
 <li>Market-data concepts and channel model: <a href="../../concepts/06-concepts-market-data-feed/">Market Data Feed (CALF)</a></li>
-<li>Planned runtime process and architecture placement: <a href="../10-processes/#planned-processes">Processes</a></li>
-<li>Formal wire protocol reference: <a href="../22-app-calf-protocol/">Appendix - CALF Protocol</a></li>
+<li>Runtime process and architecture placement: <a href="../10-processes/#pm-md-gwy-calf-market-data-gateway">Processes</a></li>
+<li>Operational client onboarding and examples: <a href="../20-market-data-feed/">Market Data Feed (CALF)</a></li>
+<li>Formal wire protocol reference: <a href="../92-app-calf-protocol/">Appendix - CALF Protocol</a></li>
 </ul>
 <h2 id="ralf-reconciliation-alf">RALF (Reconciliation ALF)<a class="headerlink" href="#ralf-reconciliation-alf" title="Permanent link">&para;</a></h2>
 <p>RALF is EduMatcher's active post-trade dissemination protocol. It is used by
@@ -2865,7 +2949,7 @@ drop-copy, and audit consumers.</p>
 <li>Operational deployment and runbook: <a href="../18-post-trade/">Post-Trade Dissemination (RALF)</a></li>
 <li>Process-level role in runtime topology: <a href="../10-processes/#pm-ralf-gwy-post-trade-dissemination-gateway">Processes</a></li>
 <li>RALF gateway configuration details: <a href="../01-configuration/#configuring-pm-ralf-gwy">Configuration</a></li>
-<li>Formal wire protocol reference: <a href="../23-app-ralf-protocol/">Appendix - RALF Protocol</a></li>
+<li>Formal wire protocol reference: <a href="../93-app-ralf-protocol/">Appendix - RALF Protocol</a></li>
 </ul>
 <h2 id="quick-selection-guide">Quick selection guide<a class="headerlink" href="#quick-selection-guide" title="Permanent link">&para;</a></h2>
 <table>
@@ -2899,10 +2983,10 @@ drop-copy, and audit consumers.</p>
 <li><a href="../00-getting-started/">Getting Started</a></li>
 <li><a href="../10-processes/">Processes</a></li>
 <li><a href="../18-post-trade/">Post-Trade Dissemination (RALF)</a></li>
-<li><a href="../20-app-alf-protocol/">Appendix - ALF Protocol</a></li>
-<li><a href="../21-app-balf-protocol/">Appendix - BALF Protocol</a></li>
-<li><a href="../22-app-calf-protocol/">Appendix - CALF Protocol</a></li>
-<li><a href="../23-app-ralf-protocol/">Appendix - RALF Protocol</a></li>
+<li><a href="../90-app-alf-protocol/">Appendix - ALF Protocol</a></li>
+<li><a href="../91-app-balf-protocol/">Appendix - BALF Protocol</a></li>
+<li><a href="../92-app-calf-protocol/">Appendix - CALF Protocol</a></li>
+<li><a href="../93-app-ralf-protocol/">Appendix - RALF Protocol</a></li>
 </ul>
 
 

@@ -1495,6 +1495,78 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#dedicated-gateway-runbook-pm-ralf-gwy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dedicated Gateway Runbook (pm-ralf-gwy)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dedicated Gateway Runbook (pm-ralf-gwy)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#start-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Start commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#minimal-client-probe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Minimal client probe
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reconnect-replay-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reconnect replay behavior
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fast-error-triage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fast error triage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#operator-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operator checklist
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1549,7 +1621,63 @@
   
   
     <li class="md-nav__item">
-      <a href="../20-app-alf-protocol/" class="md-nav__link">
+      <a href="../20-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../80-examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocol Support Library Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../90-app-alf-protocol/" class="md-nav__link">
         
   
   
@@ -1577,7 +1705,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../21-app-balf-protocol/" class="md-nav__link">
+      <a href="../91-app-balf-protocol/" class="md-nav__link">
         
   
   
@@ -1605,7 +1733,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../22-app-calf-protocol/" class="md-nav__link">
+      <a href="../92-app-calf-protocol/" class="md-nav__link">
         
   
   
@@ -1633,7 +1761,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../23-app-ralf-protocol/" class="md-nav__link">
+      <a href="../93-app-ralf-protocol/" class="md-nav__link">
         
   
   
@@ -2387,6 +2515,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/23-calf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23 — CALF Market-Data Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2934,8 +3090,8 @@ such as <code>0.0.0.0</code> and restrict access at the network boundary.</p>
 <h2 id="client-examples">Client examples<a class="headerlink" href="#client-examples" title="Permanent link">&para;</a></h2>
 <p>Two full working client/library examples are provided in:</p>
 <ul>
-<li><code>docs-design/examples/ralf/ralf_subscriber.py</code></li>
-<li><code>docs-design/examples/ralf/ralf_subscriber.c</code></li>
+<li><code>docs/examples/ralf/ralf_subscriber.py</code></li>
+<li><code>docs/examples/ralf/ralf_subscriber.c</code></li>
 </ul>
 <p>They use reusable parser libraries in the same directory and demonstrate:</p>
 <ul>
@@ -2951,11 +3107,102 @@ such as <code>0.0.0.0</code> and restrict access at the network boundary.</p>
 <li>For local labs, bind to <code>127.0.0.1</code>; for multi-host demos use a controlled
   network and perimeter security controls.</li>
 </ul>
+<h2 id="dedicated-gateway-runbook-pm-ralf-gwy">Dedicated Gateway Runbook (pm-ralf-gwy)<a class="headerlink" href="#dedicated-gateway-runbook-pm-ralf-gwy" title="Permanent link">&para;</a></h2>
+<p>Use this section as a focused operator runbook for the running gateway process.</p>
+<h3 id="start-commands">Start commands<a class="headerlink" href="#start-commands" title="Permanent link">&para;</a></h3>
+<p>Installed mode:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-engine<span class="w"> </span>--verbose
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>pm-ralf-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
+</code></pre></div>
+<p>Developer mode:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-ralf-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
+</code></pre></div>
+<h3 id="minimal-client-probe">Minimal client probe<a class="headerlink" href="#minimal-client-probe" title="Permanent link">&para;</a></h3>
+<p>Manual probe using <code>nc</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5580</span>
+</code></pre></div>
+<p>Then send:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>HELLO|CLIENT=clear01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>SUB|CH=CLEARING|SYM=*
+</code></pre></div>
+<p>Expected sequence:</p>
+<ol>
+<li><code>WELCOME|...</code></li>
+<li><code>SNAP|...</code></li>
+<li>live <code>EXEC|...</code> / <code>EOD|...</code></li>
+<li>periodic <code>HB|...</code> while idle</li>
+</ol>
+<h3 id="reconnect-replay-behavior">Reconnect replay behavior<a class="headerlink" href="#reconnect-replay-behavior" title="Permanent link">&para;</a></h3>
+<p>Resume from checkpoint:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>HELLO|CLIENT=clear01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=1200
+</code></pre></div>
+<p>Outcomes:</p>
+<ul>
+<li>replay hit: retained events with <code>SEQ &gt; LASTSEQ</code>, then live continuation</li>
+<li>replay miss: <code>ERR|CODE=REPLAY_MISS</code>, followed by recovery <code>SNAP</code></li>
+</ul>
+<h3 id="fast-error-triage">Fast error triage<a class="headerlink" href="#fast-error-triage" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Error code</th>
+<th>Typical cause</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AUTH_REQUIRED</code></td>
+<td><code>SUB</code> before successful <code>HELLO</code></td>
+<td>Authenticate first</td>
+</tr>
+<tr>
+<td><code>PROTO_MISMATCH</code></td>
+<td>Wrong/missing protocol value</td>
+<td>Use <code>PROTO=RALF1</code></td>
+</tr>
+<tr>
+<td><code>ENTITLEMENT_DENIED</code></td>
+<td>Role blocked by policy</td>
+<td>Use an allowed role or update config</td>
+</tr>
+<tr>
+<td><code>INVALID_CHANNEL</code></td>
+<td>Unsupported <code>CH</code> value</td>
+<td>Use <code>CLEARING</code>, <code>DROP_COPY</code>, <code>AUDIT</code></td>
+</tr>
+<tr>
+<td><code>REPLAY_MISS</code></td>
+<td>Replay point outside retention</td>
+<td>Accept <code>SNAP</code> and reset local baseline</td>
+</tr>
+<tr>
+<td><code>SLOW_CLIENT</code></td>
+<td>Client too slow to drain stream</td>
+<td>Reconnect and increase consume throughput</td>
+</tr>
+<tr>
+<td><code>BAD_MESSAGE</code></td>
+<td>Malformed line syntax</td>
+<td>Fix message format</td>
+</tr>
+</tbody>
+</table>
+<h3 id="operator-checklist">Operator checklist<a class="headerlink" href="#operator-checklist" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Confirm engine is publishing post-trade events</li>
+<li>Confirm <code>pm-ralf-gwy</code> is running</li>
+<li>Confirm TCP reachability (<code>nc 127.0.0.1 5580</code>)</li>
+<li>Confirm <code>HELLO</code> receives <code>WELCOME</code></li>
+<li>Confirm <code>SUB</code> receives <code>SNAP</code> and live flow</li>
+<li>Track <code>SEQ</code>; on reconnect use <code>LASTSEQ</code></li>
+</ol>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../10-processes/#pm-ralf-gwy-post-trade-dissemination-gateway">Processes</a></li>
 <li><a href="../13-drop-copy/">Drop Copy</a></li>
-<li><a href="../23-app-ralf-protocol/">Appendix - RALF Protocol</a></li>
+<li><a href="../93-app-ralf-protocol/">Appendix - RALF Protocol</a></li>
 </ul>
 
 

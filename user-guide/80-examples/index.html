@@ -12,13 +12,13 @@
         <meta name="author" content="Johan Persson <johan162@gmail.com>">
       
       
-        <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/23-app-ralf-protocol/">
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/user-guide/80-examples/">
       
       
-        <link rel="prev" href="../22-app-calf-protocol/">
+        <link rel="prev" href="../20-market-data-feed/">
       
       
-        <link rel="next" href="../../training/">
+        <link rel="next" href="../90-app-alf-protocol/">
       
       
         
@@ -29,7 +29,7 @@
     
     
       
-        <title>Appendix - RALF Protocol - EduMatcher — Educational Trading System</title>
+        <title>Protocol Support Library Examples - EduMatcher — Educational Trading System</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#appendix-ralf-protocol-reference" class="md-skip">
+        <a href="#protocol-support-library-examples" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Appendix - RALF Protocol
+              Protocol Support Library Examples
             
           </span>
         </div>
@@ -1353,70 +1353,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../20-app-alf-protocol/" class="md-nav__link">
+      <a href="../20-market-data-feed/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Appendix - ALF Protocol
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../21-app-balf-protocol/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Appendix - BALF Protocol
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../22-app-calf-protocol/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Appendix - CALF Protocol
+    Market Data Feed (CALF)
   
 
     
@@ -1453,7 +1397,7 @@
   <span class="md-ellipsis">
     
   
-    Appendix - RALF Protocol
+    Protocol Support Library Examples
   
 
     
@@ -1471,7 +1415,7 @@
   <span class="md-ellipsis">
     
   
-    Appendix - RALF Protocol
+    Protocol Support Library Examples
   
 
     
@@ -1497,10 +1441,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-ralf-is" class="md-nav__link">
+  <a href="#scope" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What RALF is
+        Scope
       
     </span>
   </a>
@@ -1508,10 +1452,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#transport-and-session-model" class="md-nav__link">
+  <a href="#directory-structure" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Transport and session model
+        Directory structure
       
     </span>
   </a>
@@ -1519,44 +1463,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#wire-grammar" class="md-nav__link">
+  <a href="#ralf-support-library-and-examples" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Wire grammar
+        RALF support library and examples
       
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#roles-and-channels" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Roles and channels
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#handshake-messages" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Handshake messages
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Handshake messages">
+    <nav class="md-nav" aria-label="RALF support library and examples">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#hello-client-gateway" class="md-nav__link">
+  <a href="#source-files" class="md-nav__link">
     <span class="md-ellipsis">
       
-        HELLO (client -&gt; gateway)
+        Source files
       
     </span>
   </a>
@@ -1564,10 +1486,43 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#welcome-gateway-client" class="md-nav__link">
+  <a href="#python-usage-pattern" class="md-nav__link">
     <span class="md-ellipsis">
       
-        WELCOME (gateway -&gt; client)
+        Python usage pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-python-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run Python example
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#build-and-run-c-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build and run C example
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#manual-gateway-sanity-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual gateway sanity check
       
     </span>
   </a>
@@ -1580,22 +1535,22 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#subscription-messages" class="md-nav__link">
+  <a href="#calf-support-library-and-examples" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Subscription messages
+        CALF support library and examples
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Subscription messages">
+    <nav class="md-nav" aria-label="CALF support library and examples">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#sub" class="md-nav__link">
+  <a href="#source-files_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        SUB
+        Source files
       
     </span>
   </a>
@@ -1603,10 +1558,43 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#unsub" class="md-nav__link">
+  <a href="#python-usage-pattern_1" class="md-nav__link">
     <span class="md-ellipsis">
       
-        UNSUB
+        Python usage pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-python-example_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run Python example
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#build-and-run-c-example_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Build and run C example
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#manual-gateway-sanity-check_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual gateway sanity check
       
     </span>
   </a>
@@ -1619,143 +1607,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#event-messages" class="md-nav__link">
+  <a href="#integration-guidance" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Event messages
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Event messages">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#exec" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        EXEC
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#eod" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        EOD
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#session-control-messages" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Session control messages
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Session control messages">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#ping-pong" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        PING / PONG
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#hb" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        HB
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#exit" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        EXIT
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#snap" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        SNAP
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#error-handling" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Error handling
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#replay-semantics" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Replay semantics
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#implementation-notes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Implementation notes
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#see-also" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        See also
+        Integration guidance
       
     </span>
   </a>
@@ -1766,6 +1621,118 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../90-app-alf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix - ALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../91-app-balf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix - BALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../92-app-calf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix - CALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../93-app-ralf-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Appendix - RALF Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -2504,6 +2471,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/23-calf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23 — CALF Market-Data Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -2903,452 +2898,125 @@
   
 
 
-<h1 id="appendix-ralf-protocol-reference">Appendix: RALF Protocol Reference<a class="headerlink" href="#appendix-ralf-protocol-reference" title="Permanent link">&para;</a></h1>
+<h1 id="protocol-support-library-examples">Protocol Support Library Examples<a class="headerlink" href="#protocol-support-library-examples" title="Permanent link">&para;</a></h1>
 <div class="admonition note">
 <p class="admonition-title">Learning objectives</p>
-<p>After reading this appendix you will understand:</p>
+<p>After reading this chapter you will understand:</p>
 <ul>
-<li>the exact <code>RALF1</code> wire format and message grammar</li>
-<li>handshake and subscription flow for external post-trade consumers</li>
-<li>required fields for core lifecycle messages (<code>EXEC</code>, <code>EOD</code>)</li>
-<li>replay and error semantics for reconnect behavior</li>
+<li>where protocol support-library source code lives</li>
+<li>how to run Python and C example clients for implemented protocols</li>
+<li>how to validate gateway connectivity quickly using reusable example code</li>
+<li>how to navigate parser-library source files when integrating external clients</li>
 </ul>
 </div>
-<h2 id="what-ralf-is">What RALF is<a class="headerlink" href="#what-ralf-is" title="Permanent link">&para;</a></h2>
-<p><strong>RALF</strong> stands for <strong>Reconciliation ALF</strong>.</p>
-<p>RALF is EduMatcher's text post-trade dissemination protocol, delivered over TCP
-by <code>pm-ralf-gwy</code>.</p>
-<div class="admonition info">
-<p class="admonition-title">Runtime support</p>
-<p><code>RALF1</code> is supported through the running <code>pm-ralf-gwy</code> process. External
-clients use this protocol by opening a TCP connection to <code>pm-ralf-gwy</code>.</p>
-</div>
-<table>
-<thead>
-<tr>
-<th>Protocol</th>
-<th>Purpose</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>ALF</td>
-<td>Interactive text order entry</td>
-</tr>
-<tr>
-<td>BALF</td>
-<td>Binary order entry</td>
-</tr>
-<tr>
-<td>CALF</td>
-<td>Market-data dissemination</td>
-</tr>
-<tr>
-<td>RALF</td>
-<td>Post-trade dissemination</td>
-</tr>
-</tbody>
-</table>
-<p>This appendix defines the client-visible behavior for <code>RALF1</code>.</p>
-<h2 id="transport-and-session-model">Transport and session model<a class="headerlink" href="#transport-and-session-model" title="Permanent link">&para;</a></h2>
-<table>
-<thead>
-<tr>
-<th>Property</th>
-<th>Value</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Transport</td>
-<td>TCP</td>
-</tr>
-<tr>
-<td>Default port</td>
-<td><code>5580</code></td>
-</tr>
-<tr>
-<td>Encoding</td>
-<td>UTF-8 text lines</td>
-</tr>
-<tr>
-<td>Delimiter</td>
-<td><code>\n</code></td>
-</tr>
-<tr>
-<td>Connection model</td>
-<td>Long-lived per-client session</td>
-</tr>
-</tbody>
-</table>
-<p>Session sequence:</p>
+<h2 id="scope">Scope<a class="headerlink" href="#scope" title="Permanent link">&para;</a></h2>
+<p>This chapter documents source-code examples for currently implemented external
+protocol gateways:</p>
+<ul>
+<li>RALF (<code>pm-ralf-gwy</code>)</li>
+<li>CALF (<code>pm-md-gwy</code>)</li>
+</ul>
+<p>BALF support-library examples exist as source code only and are intentionally
+not covered here because BALF runtime gateway support is not yet implemented.</p>
+<h2 id="directory-structure">Directory structure<a class="headerlink" href="#directory-structure" title="Permanent link">&para;</a></h2>
+<p>Protocol support libraries and example clients are stored under:</p>
+<ul>
+<li><code>docs/examples/ralf</code></li>
+<li><code>docs/examples/calf</code></li>
+<li><code>docs/examples/balf</code> (not covered in this chapter)</li>
+</ul>
+<h2 id="ralf-support-library-and-examples">RALF support library and examples<a class="headerlink" href="#ralf-support-library-and-examples" title="Permanent link">&para;</a></h2>
+<h3 id="source-files">Source files<a class="headerlink" href="#source-files" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Python parser library: <a href="../../examples/ralf/ralf_parser.py">ralf_parser.py</a></li>
+<li>Python subscriber example: <a href="../../examples/ralf/ralf_subscriber.py">ralf_subscriber.py</a></li>
+<li>C parser library header: <a href="../../examples/ralf/ralf_parser.h">ralf_parser.h</a></li>
+<li>C parser library implementation: <a href="../../examples/ralf/ralf_parser.c">ralf_parser.c</a></li>
+<li>C subscriber example: <a href="../../examples/ralf/ralf_subscriber.c">ralf_subscriber.c</a></li>
+<li>Build helper: <a href="../../examples/ralf/Makefile">Makefile</a></li>
+</ul>
+<h3 id="python-usage-pattern">Python usage pattern<a class="headerlink" href="#python-usage-pattern" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">ralf_parser</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_ralf_line</span><span class="p">,</span> <span class="n">parse_ralf_line</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="n">line</span> <span class="o">=</span> <span class="n">build_ralf_line</span><span class="p">(</span><span class="s2">&quot;HELLO&quot;</span><span class="p">,</span> <span class="p">{</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="s2">&quot;CLIENT&quot;</span><span class="p">:</span> <span class="s2">&quot;demo01&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="s2">&quot;PROTO&quot;</span><span class="p">:</span> <span class="s2">&quot;RALF1&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="s2">&quot;ROLE&quot;</span><span class="p">:</span> <span class="s2">&quot;CLEARING&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="s2">&quot;LASTSEQ&quot;</span><span class="p">:</span> <span class="s2">&quot;0&quot;</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">})</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="n">msg</span> <span class="o">=</span> <span class="n">parse_ralf_line</span><span class="p">(</span><span class="s2">&quot;WELCOME|PROTO=RALF1|GW=ralf-gwy01|ROLE=CLEARING&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span><span class="p">,</span> <span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="run-python-example">Run Python example<a class="headerlink" href="#run-python-example" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/ralf
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>python3<span class="w"> </span>ralf_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5580</span><span class="w"> </span>--role<span class="w"> </span>CLEARING<span class="w"> </span>--channels<span class="w"> </span>CLEARING<span class="w"> </span>--symbols<span class="w"> </span><span class="s1">&#39;*&#39;</span>
+</code></pre></div>
+<h3 id="build-and-run-c-example">Build and run C example<a class="headerlink" href="#build-and-run-c-example" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/ralf
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>make
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>./ralf_subscriber<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5580</span><span class="w"> </span>CLEARING
+</code></pre></div>
+<h3 id="manual-gateway-sanity-check">Manual gateway sanity check<a class="headerlink" href="#manual-gateway-sanity-check" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5580</span>
+</code></pre></div>
+<p>Then send:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>HELLO|CLIENT=manual01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>SUB|CH=CLEARING|SYM=*
+</code></pre></div>
+<p>See also:</p>
+<ul>
+<li><a href="../18-post-trade/">Post-Trade Dissemination (RALF)</a></li>
+<li><a href="../93-app-ralf-protocol/">Appendix - RALF Protocol</a></li>
+</ul>
+<h2 id="calf-support-library-and-examples">CALF support library and examples<a class="headerlink" href="#calf-support-library-and-examples" title="Permanent link">&para;</a></h2>
+<h3 id="source-files_1">Source files<a class="headerlink" href="#source-files_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Python parser library: <a href="../../examples/calf/calf_parser.py">calf_parser.py</a></li>
+<li>Python subscriber example: <a href="../../examples/calf/calf_subscriber.py">calf_subscriber.py</a></li>
+<li>C parser library header: <a href="../../examples/calf/calf_parser.h">calf_parser.h</a></li>
+<li>C parser library implementation: <a href="../../examples/calf/calf_parser.c">calf_parser.c</a></li>
+<li>C subscriber example: <a href="../../examples/calf/calf_subscriber.c">calf_subscriber.c</a></li>
+<li>Build helper: <a href="../../examples/calf/Makefile">Makefile</a></li>
+</ul>
+<h3 id="python-usage-pattern_1">Python usage pattern<a class="headerlink" href="#python-usage-pattern_1" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">calf_parser</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_calf_line</span><span class="p">,</span> <span class="n">parse_calf_line</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">line</span> <span class="o">=</span> <span class="n">build_calf_line</span><span class="p">(</span><span class="s2">&quot;HELLO&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;CLIENT&quot;</span><span class="p">:</span> <span class="s2">&quot;demo01&quot;</span><span class="p">,</span> <span class="s2">&quot;PROTO&quot;</span><span class="p">:</span> <span class="s2">&quot;CALF1&quot;</span><span class="p">})</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">msg</span> <span class="o">=</span> <span class="n">parse_calf_line</span><span class="p">(</span><span class="s2">&quot;WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">msg_type</span><span class="p">,</span> <span class="n">msg</span><span class="o">.</span><span class="n">fields</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="run-python-example_1">Run Python example<a class="headerlink" href="#run-python-example_1" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/calf
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>python3<span class="w"> </span>calf_subscriber.py<span class="w"> </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span>--port<span class="w"> </span><span class="m">5570</span><span class="w"> </span>--channels<span class="w"> </span>TOP,TRADE<span class="w"> </span>--symbols<span class="w"> </span>AAPL
+</code></pre></div>
+<h3 id="build-and-run-c-example_1">Build and run C example<a class="headerlink" href="#build-and-run-c-example_1" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/calf
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>make
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>./calf_subscriber<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5570</span>
+</code></pre></div>
+<h3 id="manual-gateway-sanity-check_1">Manual gateway sanity check<a class="headerlink" href="#manual-gateway-sanity-check_1" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5570</span>
+</code></pre></div>
+<p>Then send:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>HELLO|CLIENT=manual01|PROTO=CALF1
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>SUB|CH=TOP,TRADE|SYM=AAPL
+</code></pre></div>
+<p>See also:</p>
+<ul>
+<li><a href="../20-market-data-feed/">Market Data Feed (CALF)</a></li>
+<li><a href="../92-app-calf-protocol/">Appendix - CALF Protocol</a></li>
+</ul>
+<h2 id="integration-guidance">Integration guidance<a class="headerlink" href="#integration-guidance" title="Permanent link">&para;</a></h2>
+<p>Use the parser libraries as the protocol boundary in your client code:</p>
 <ol>
-<li>Client connects</li>
-<li>Client sends <code>HELLO</code></li>
-<li>Gateway sends <code>WELCOME</code></li>
-<li>Client sends one or more <code>SUB</code>/<code>UNSUB</code></li>
-<li>Gateway streams events and heartbeats</li>
+<li>Read bytes from TCP.</li>
+<li>Split by newline into protocol lines.</li>
+<li>Parse lines using the protocol parser library.</li>
+<li>Route by <code>msg_type</code> and fields.</li>
+<li>Track <code>SEQ</code> checkpoints per protocol rules.</li>
 </ol>
-<h2 id="wire-grammar">Wire grammar<a class="headerlink" href="#wire-grammar" title="Permanent link">&para;</a></h2>
-<p>Each message is a single line:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>&lt;MSGTYPE&gt;|KEY=VALUE|KEY=VALUE|...\n
-</code></pre></div>
-<p>Rules:</p>
-<ul>
-<li><code>MSGTYPE</code> is uppercase ASCII (<code>A-Z</code>, <code>0-9</code>, <code>_</code>)</li>
-<li>fields are pipe-delimited</li>
-<li>key-value pairs are split on first <code>=</code></li>
-<li>unknown fields are ignored unless required for validation</li>
-</ul>
-<p>Reserved cross-message keys:</p>
-<table>
-<thead>
-<tr>
-<th>Key</th>
-<th>Meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>CH</code></td>
-<td>Channel (<code>CLEARING</code>, <code>DROP_COPY</code>, <code>AUDIT</code>)</td>
-</tr>
-<tr>
-<td><code>SYM</code></td>
-<td>Symbol filter or event symbol</td>
-</tr>
-<tr>
-<td><code>SEQ</code></td>
-<td>Monotonic message sequence</td>
-</tr>
-<tr>
-<td><code>TS</code></td>
-<td>UTC ISO-8601 timestamp</td>
-</tr>
-</tbody>
-</table>
-<h2 id="roles-and-channels">Roles and channels<a class="headerlink" href="#roles-and-channels" title="Permanent link">&para;</a></h2>
-<p>Supported roles:</p>
-<ul>
-<li><code>CLEARING</code></li>
-<li><code>DROP_COPY</code></li>
-<li><code>AUDIT</code></li>
-</ul>
-<p>Supported channels:</p>
-<ul>
-<li><code>CLEARING</code></li>
-<li><code>DROP_COPY</code></li>
-<li><code>AUDIT</code></li>
-</ul>
-<p>A client subscribes by channel and symbol scope.</p>
-<h2 id="handshake-messages">Handshake messages<a class="headerlink" href="#handshake-messages" title="Permanent link">&para;</a></h2>
-<h3 id="hello-client-gateway"><code>HELLO</code> (client -&gt; gateway)<a class="headerlink" href="#hello-client-gateway" title="Permanent link">&para;</a></h3>
-<p>Required fields:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Type</th>
-<th>Notes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>CLIENT</code></td>
-<td>string</td>
-<td>External client identifier</td>
-</tr>
-<tr>
-<td><code>PROTO</code></td>
-<td>string</td>
-<td>Must be <code>RALF1</code></td>
-</tr>
-<tr>
-<td><code>ROLE</code></td>
-<td>string</td>
-<td>One of allowed roles</td>
-</tr>
-</tbody>
-</table>
-<p>Optional fields:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Type</th>
-<th>Notes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>LASTSEQ</code></td>
-<td>int</td>
-<td>Replay checkpoint</td>
-</tr>
-</tbody>
-</table>
-<p>Example:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>HELLO|CLIENT=ccp01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=1200
-</code></pre></div>
-<h3 id="welcome-gateway-client"><code>WELCOME</code> (gateway -&gt; client)<a class="headerlink" href="#welcome-gateway-client" title="Permanent link">&para;</a></h3>
-<p>Fields:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>PROTO</code></td>
-<td>Negotiated protocol version (<code>RALF1</code>)</td>
-</tr>
-<tr>
-<td><code>GW</code></td>
-<td>Gateway identifier</td>
-</tr>
-<tr>
-<td><code>ROLE</code></td>
-<td>Accepted role</td>
-</tr>
-<tr>
-<td><code>REPLAY</code></td>
-<td>Replay retention (seconds)</td>
-</tr>
-<tr>
-<td><code>HBINT</code></td>
-<td>Heartbeat interval (seconds)</td>
-</tr>
-</tbody>
-</table>
-<h2 id="subscription-messages">Subscription messages<a class="headerlink" href="#subscription-messages" title="Permanent link">&para;</a></h2>
-<h3 id="sub"><code>SUB</code><a class="headerlink" href="#sub" title="Permanent link">&para;</a></h3>
-<p>Required fields:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Type</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>CH</code></td>
-<td>Comma-separated channels</td>
-</tr>
-</tbody>
-</table>
-<p>Optional fields:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Type</th>
-<th>Default</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>SYM</code></td>
-<td>Comma-separated symbols or <code>*</code></td>
-<td><code>*</code></td>
-</tr>
-</tbody>
-</table>
-<p>Examples:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>SUB|CH=CLEARING|SYM=*
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>SUB|CH=DROP_COPY|SYM=AAPL,MSFT
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>SUB|CH=AUDIT|SYM=*
-</code></pre></div>
-<p>After <code>SUB</code>, gateway emits a <code>SNAP</code> confirmation line.</p>
-<h3 id="unsub"><code>UNSUB</code><a class="headerlink" href="#unsub" title="Permanent link">&para;</a></h3>
-<p>Removes previously registered subscriptions.</p>
-<p>Example:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>UNSUB|CH=DROP_COPY|SYM=AAPL
-</code></pre></div>
-<h2 id="event-messages">Event messages<a class="headerlink" href="#event-messages" title="Permanent link">&para;</a></h2>
-<h3 id="exec"><code>EXEC</code><a class="headerlink" href="#exec" title="Permanent link">&para;</a></h3>
-<p>Live execution dissemination message.</p>
-<p>Required fields in <code>RALF1</code> implementation:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>CH</code></td>
-<td>Channel</td>
-</tr>
-<tr>
-<td><code>SYM</code></td>
-<td>Symbol</td>
-</tr>
-<tr>
-<td><code>SEQ</code></td>
-<td>Sequence number</td>
-</tr>
-<tr>
-<td><code>TS</code></td>
-<td>Timestamp</td>
-</tr>
-<tr>
-<td><code>EXEC_ID</code></td>
-<td>Execution id</td>
-</tr>
-<tr>
-<td><code>MATCH_ID</code></td>
-<td>Match id</td>
-</tr>
-<tr>
-<td><code>BUY_ORDER_ID</code></td>
-<td>Buy order id</td>
-</tr>
-<tr>
-<td><code>SELL_ORDER_ID</code></td>
-<td>Sell order id</td>
-</tr>
-<tr>
-<td><code>BUY_GW</code></td>
-<td>Buy gateway id</td>
-</tr>
-<tr>
-<td><code>SELL_GW</code></td>
-<td>Sell gateway id</td>
-</tr>
-<tr>
-<td><code>SIDE</code></td>
-<td>Aggressor side</td>
-</tr>
-<tr>
-<td><code>QTY</code></td>
-<td>Quantity</td>
-</tr>
-<tr>
-<td><code>PX</code></td>
-<td>Price</td>
-</tr>
-</tbody>
-</table>
-<p>Example:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>EXEC|CH=CLEARING|SYM=AAPL|SEQ=42|TS=2026-06-19T09:30:01.234Z|EXEC_ID=123|MATCH_ID=123|BUY_ORDER_ID=b1|SELL_ORDER_ID=s1|BUY_GW=GW01|SELL_GW=GW02|SIDE=BUY|QTY=100|PX=150.25
-</code></pre></div>
-<h3 id="eod"><code>EOD</code><a class="headerlink" href="#eod" title="Permanent link">&para;</a></h3>
-<p>End-of-day summary marker.</p>
-<p>Fields:</p>
-<table>
-<thead>
-<tr>
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>CH</code></td>
-<td>Channel</td>
-</tr>
-<tr>
-<td><code>SYM</code></td>
-<td>Symbol</td>
-</tr>
-<tr>
-<td><code>SEQ</code></td>
-<td>Sequence number</td>
-</tr>
-<tr>
-<td><code>TS</code></td>
-<td>Timestamp</td>
-</tr>
-<tr>
-<td><code>TRADE_COUNT</code></td>
-<td>Summary count</td>
-</tr>
-<tr>
-<td><code>EXEC_COUNT</code></td>
-<td>Summary count</td>
-</tr>
-</tbody>
-</table>
-<h2 id="session-control-messages">Session control messages<a class="headerlink" href="#session-control-messages" title="Permanent link">&para;</a></h2>
-<h3 id="ping-pong"><code>PING</code> / <code>PONG</code><a class="headerlink" href="#ping-pong" title="Permanent link">&para;</a></h3>
-<p>Liveness probe pair.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>PING|TS=2026-06-19T09:30:01.000Z
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>PONG|TS=2026-06-19T09:30:01.001Z
-</code></pre></div>
-<h3 id="hb"><code>HB</code><a class="headerlink" href="#hb" title="Permanent link">&para;</a></h3>
-<p>Heartbeat from gateway to authenticated clients.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>HB|TS=2026-06-19T09:30:02.000Z
-</code></pre></div>
-<h3 id="exit"><code>EXIT</code><a class="headerlink" href="#exit" title="Permanent link">&para;</a></h3>
-<p>Session shutdown / timeout signal.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>EXIT|REASON=idle_timeout|TS=2026-06-19T09:45:00.000Z
-</code></pre></div>
-<h3 id="snap"><code>SNAP</code><a class="headerlink" href="#snap" title="Permanent link">&para;</a></h3>
-<p>Subscription/recovery baseline message.</p>
-<h2 id="error-handling">Error handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
-<p>Gateway emits <code>ERR</code> for protocol and entitlement failures.</p>
-<table>
-<thead>
-<tr>
-<th>Code</th>
-<th>Meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>AUTH_REQUIRED</code></td>
-<td>Missing or invalid handshake sequence</td>
-</tr>
-<tr>
-<td><code>BAD_MESSAGE</code></td>
-<td>Parse/validation failure</td>
-</tr>
-<tr>
-<td><code>INVALID_CHANNEL</code></td>
-<td>Unsupported channel requested</td>
-</tr>
-<tr>
-<td><code>ENTITLEMENT_DENIED</code></td>
-<td>Role not permitted</td>
-</tr>
-<tr>
-<td><code>REPLAY_MISS</code></td>
-<td>Requested replay point is outside retention</td>
-</tr>
-<tr>
-<td><code>SLOW_CLIENT</code></td>
-<td>Outbound queue exceeded configured threshold</td>
-</tr>
-</tbody>
-</table>
-<p>Example:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>ERR|CODE=REPLAY_MISS|DETAIL=requested seq outside retention
-</code></pre></div>
-<h2 id="replay-semantics">Replay semantics<a class="headerlink" href="#replay-semantics" title="Permanent link">&para;</a></h2>
-<p>If <code>HELLO</code> includes <code>LASTSEQ</code>, gateway attempts replay for events where
-<code>SEQ &gt; LASTSEQ</code> from its in-memory journal window.</p>
-<p>If replay is not possible due retention limits:</p>
-<ol>
-<li>gateway emits <code>ERR|CODE=REPLAY_MISS</code></li>
-<li>gateway emits <code>SNAP</code> baseline hint</li>
-</ol>
-<h2 id="implementation-notes">Implementation notes<a class="headerlink" href="#implementation-notes" title="Permanent link">&para;</a></h2>
-<p>Current <code>RALF1</code> in EduMatcher is sourced from engine messages:</p>
-<ul>
-<li><code>trade.executed</code> -&gt; <code>EXEC</code></li>
-<li><code>system.eod</code> -&gt; <code>EOD</code></li>
-</ul>
-<p>Future protocol revisions may add dedicated <code>CORRECT</code>, <code>BUST</code>, <code>ALLOC</code>, and
-<code>SETTLE</code> event families as those internal events become available.</p>
-<h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
-<ul>
-<li><a href="../18-post-trade/">Post-Trade Dissemination</a></li>
-<li><a href="../10-processes/#pm-ralf-gwy-post-trade-dissemination-gateway">Processes</a></li>
-</ul>
+<p>This keeps socket handling separate from protocol semantics and makes testing
+much easier.</p>
 
 
 

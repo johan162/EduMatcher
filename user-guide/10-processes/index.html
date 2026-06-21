@@ -1503,6 +1503,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pm-md-gwy-calf-market-data-gateway" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-md-gwy (CALF Market-Data Gateway)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1781,7 +1792,63 @@
   
   
     <li class="md-nav__item">
-      <a href="../20-app-alf-protocol/" class="md-nav__link">
+      <a href="../20-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../80-examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocol Support Library Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../90-app-alf-protocol/" class="md-nav__link">
         
   
   
@@ -1809,7 +1876,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../21-app-balf-protocol/" class="md-nav__link">
+      <a href="../91-app-balf-protocol/" class="md-nav__link">
         
   
   
@@ -1837,7 +1904,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../22-app-calf-protocol/" class="md-nav__link">
+      <a href="../92-app-calf-protocol/" class="md-nav__link">
         
   
   
@@ -1865,7 +1932,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../23-app-ralf-protocol/" class="md-nav__link">
+      <a href="../93-app-ralf-protocol/" class="md-nav__link">
         
   
   
@@ -2606,6 +2673,34 @@
     
   
     22 — RALF Post-Trade Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/23-calf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23 — CALF Market-Data Gateway Protocol
   
 
     
@@ -3665,7 +3760,7 @@ immediately or silently lose its first messages.</p>
 </div>
 <h2 id="pm-gateway-user-gateway">pm-gateway — User Gateway<a class="headerlink" href="#pm-gateway-user-gateway" title="Permanent link">&para;</a></h2>
 <p>One instance per user. Accepts ALF commands on stdin.
-See <a href="../20-app-alf-protocol/">ALF Protocol Reference</a>.</p>
+See <a href="../90-app-alf-protocol/">ALF Protocol Reference</a>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>&lt;GW_ID&gt;
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
@@ -5306,7 +5401,7 @@ RALF over TCP for clearing, drop-copy, and audit consumers.</p>
 </tbody>
 </table>
 <p>For external usage and examples see <a href="../18-post-trade/">Post-Trade Dissemination</a>
-and <a href="../23-app-ralf-protocol/">RALF Protocol Reference</a>.</p>
+and <a href="../93-app-ralf-protocol/">RALF Protocol Reference</a>.</p>
 <h2 id="pm-admin-interactive-admin-console">pm-admin — Interactive Admin Console<a class="headerlink" href="#pm-admin-interactive-admin-console" title="Permanent link">&para;</a></h2>
 <p>An interactive REPL for sending operational commands to a running engine without
 needing a full gateway session.</p>
@@ -5793,8 +5888,8 @@ showing which process sends each message and on which socket:</p>
 etc.) receive the same <code>trade.executed</code> and <code>book.{SYMBOL}</code> events concurrently
 from the single PUB socket — none of them coordinate with each other.</p>
 <h2 id="planned-processes">Planned Processes<a class="headerlink" href="#planned-processes" title="Permanent link">&para;</a></h2>
-<p>The following processes are documented as design proposals and will be added in
-future releases. They do not yet exist as runnable scripts.</p>
+<p>The following processes are documented as design proposals and are not yet
+available as runnable scripts.</p>
 <table>
 <thead>
 <tr>
@@ -5812,12 +5907,6 @@ future releases. They do not yet exist as runnable scripts.</p>
 <td>Design proposal</td>
 </tr>
 <tr>
-<td><strong>pm-md-gwy</strong></td>
-<td>CALF</td>
-<td>Market-data distribution gateway delivering order-book snapshots, trade prints, and session-state changes over TCP</td>
-<td>Design proposal</td>
-</tr>
-<tr>
 <td><strong>pm-index</strong></td>
 <td>—</td>
 <td>Real-time index calculation service publishing index values on port 5558</td>
@@ -5825,7 +5914,17 @@ future releases. They do not yet exist as runnable scripts.</p>
 </tr>
 </tbody>
 </table>
-<p>See the <a href="../21-app-balf-protocol/">BALF Protocol Reference</a> and <a href="../22-app-calf-protocol/">CALF Protocol Reference</a> for the message specifications these processes will implement.</p>
+<p>See the <a href="../91-app-balf-protocol/">BALF Protocol Reference</a> for message specifications planned for future gateway implementations.</p>
+<h2 id="pm-md-gwy-calf-market-data-gateway">pm-md-gwy (CALF Market-Data Gateway)<a class="headerlink" href="#pm-md-gwy-calf-market-data-gateway" title="Permanent link">&para;</a></h2>
+<p><code>pm-md-gwy</code> is implemented and provides external market-data distribution over
+CALF/TCP. It consumes engine PUB topics and exposes sequence-aware streams for:</p>
+<ul>
+<li><code>TOP</code> (top-of-book style updates)</li>
+<li><code>TRADE</code> (executed trades)</li>
+<li><code>STATE</code> (session and halt/resume state)</li>
+</ul>
+<p>See <a href="../20-market-data-feed/">Market Data Feed (CALF)</a> for operational usage and
+<a href="../92-app-calf-protocol/">CALF Protocol Reference</a> for the wire-level contract.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../03-running-the-engine/">Running the Engine</a> — startup order, launch scripts, and verification</li>
@@ -5834,7 +5933,7 @@ future releases. They do not yet exist as runnable scripts.</p>
 <li><a href="../11-persistence/">Persistence</a> — which process writes which data file</li>
 <li><a href="../13-drop-copy/">Drop Copy</a> — the engine's built-in :5557 drop-copy feed</li>
 <li><a href="../18-post-trade/">Post-Trade Dissemination</a> — external RALF gateway usage</li>
-<li><a href="../23-app-ralf-protocol/">RALF Protocol Reference</a> — official protocol appendix</li>
+<li><a href="../93-app-ralf-protocol/">RALF Protocol Reference</a> — official protocol appendix</li>
 <li><a href="../17-mm-bot/">Market-Maker Bot</a> — autonomous quoting process for a single symbol</li>
 </ul>
 

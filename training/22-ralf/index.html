@@ -18,7 +18,7 @@
         <link rel="prev" href="../21-automation-commandclient-mm-bot/">
       
       
-        <link rel="next" href="../../architecture/01-architecture/">
+        <link rel="next" href="../23-calf/">
       
       
         
@@ -1350,7 +1350,63 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/20-app-alf-protocol/" class="md-nav__link">
+      <a href="../../user-guide/20-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/80-examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocol Support Library Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/90-app-alf-protocol/" class="md-nav__link">
         
   
   
@@ -1378,7 +1434,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/21-app-balf-protocol/" class="md-nav__link">
+      <a href="../../user-guide/91-app-balf-protocol/" class="md-nav__link">
         
   
   
@@ -1406,7 +1462,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/22-app-calf-protocol/" class="md-nav__link">
+      <a href="../../user-guide/92-app-calf-protocol/" class="md-nav__link">
         
   
   
@@ -1434,7 +1490,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../user-guide/23-app-ralf-protocol/" class="md-nav__link">
+      <a href="../../user-guide/93-app-ralf-protocol/" class="md-nav__link">
         
   
   
@@ -2285,6 +2341,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#exercise-2b-manual-handshake-probe-with-nc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 2B: Manual Handshake Probe with nc
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#exercise-3-use-the-c-example-as-a-drop_copy-consumer" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2311,6 +2378,17 @@
     <span class="md-ellipsis">
       
         Exercise 5: Protocol Control Messages (PING, UNSUB, EXIT)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#support-libraries-and-example-clients" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Support Libraries and Example Clients
       
     </span>
   </a>
@@ -2376,6 +2454,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../23-calf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23 — CALF Market-Data Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -2797,7 +2903,9 @@ replay checkpoints, and recovery/error behavior.</p>
 <li>Chapters 01-21 completed.</li>
 <li>Engine running and producing trades.</li>
 <li>pm-ralf-gwy running and reachable on TCP (default 5580).</li>
-<li>Example files available in docs-design/examples/ralf.</li>
+<li>Support libraries and clients available in docs/examples/ralf:</li>
+<li>ralf_parser.py, ralf_subscriber.py</li>
+<li>ralf_parser.h, ralf_parser.c, ralf_subscriber.c</li>
 </ul>
 <p>Recommended startup terminals:</p>
 <ol>
@@ -2838,7 +2946,7 @@ Clients connect to pm-ralf-gwy, perform HELLO and SUB, then consume events.</p>
 <hr />
 <h2 id="exercise-2-use-the-python-example-as-a-clearing-consumer">Exercise 2: Use the Python Example as a CLEARING Consumer<a class="headerlink" href="#exercise-2-use-the-python-example-as-a-clearing-consumer" title="Permanent link">&para;</a></h2>
 <p>From the example directory:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>docs-design/examples/ralf
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/ralf
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>python3<span class="w"> </span>ralf_subscriber.py<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span>--port<span class="w"> </span><span class="m">5580</span><span class="w"> </span><span class="se">\</span>
@@ -2854,11 +2962,27 @@ Clients connect to pm-ralf-gwy, perform HELLO and SUB, then consume events.</p>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: subscriber prints parsed EXEC events with expected symbols and sequence values.</p>
 <hr />
+<h2 id="exercise-2b-manual-handshake-probe-with-nc">Exercise 2B: Manual Handshake Probe with nc<a class="headerlink" href="#exercise-2b-manual-handshake-probe-with-nc" title="Permanent link">&para;</a></h2>
+<p>Before continuing with richer clients, validate a minimal manual protocol flow:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5580</span>
+</code></pre></div>
+<p>Then send:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>HELLO|CLIENT=manual01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>SUB|CH=CLEARING|SYM=*
+</code></pre></div>
+<p>Expected behavior:</p>
+<ul>
+<li><code>WELCOME|...</code> after <code>HELLO</code></li>
+<li><code>SNAP|...</code> after <code>SUB</code></li>
+<li>live <code>EXEC|...</code> / <code>EOD|...</code> once trades are produced</li>
+</ul>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: manual nc session can establish, subscribe, and receive at least one post-trade message.</p>
+<hr />
 <h2 id="exercise-3-use-the-c-example-as-a-drop_copy-consumer">Exercise 3: Use the C Example as a DROP_COPY Consumer<a class="headerlink" href="#exercise-3-use-the-c-example-as-a-drop_copy-consumer" title="Permanent link">&para;</a></h2>
 <p>Build and run the C subscriber:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">cd</span><span class="w"> </span>docs-design/examples/ralf
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>make
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>./ralf_subscriber<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5580</span><span class="w"> </span>DROP_COPY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/ralf
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>make
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>./ralf_subscriber<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5580</span><span class="w"> </span>DROP_COPY
 </code></pre></div>
 <p>Observe in output:</p>
 <ul>
@@ -2872,12 +2996,12 @@ DROP_COPY role argument and validate that role is accepted.</p>
 <hr />
 <h2 id="exercise-4-run-an-audit-session-and-compare-view-semantics">Exercise 4: Run an AUDIT Session and Compare View Semantics<a class="headerlink" href="#exercise-4-run-an-audit-session-and-compare-view-semantics" title="Permanent link">&para;</a></h2>
 <p>Run another Python subscriber in a second client terminal:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>python3<span class="w"> </span>docs-design/examples/ralf/ralf_subscriber.py<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>--port<span class="w"> </span><span class="m">5580</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span>--role<span class="w"> </span>AUDIT<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span>--channels<span class="w"> </span>AUDIT<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span>--symbols<span class="w"> </span><span class="s1">&#39;*&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python3<span class="w"> </span>docs/examples/ralf/ralf_subscriber.py<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span>--host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>--port<span class="w"> </span><span class="m">5580</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span>--role<span class="w"> </span>AUDIT<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span>--channels<span class="w"> </span>AUDIT<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">  </span>--symbols<span class="w"> </span><span class="s1">&#39;*&#39;</span>
 </code></pre></div>
 <p>Compare outputs across CLEARING, DROP_COPY, and AUDIT clients while generating
 new trades.</p>
@@ -2891,14 +3015,14 @@ new trades.</p>
 <hr />
 <h2 id="exercise-5-protocol-control-messages-ping-unsub-exit">Exercise 5: Protocol Control Messages (PING, UNSUB, EXIT)<a class="headerlink" href="#exercise-5-protocol-control-messages-ping-unsub-exit" title="Permanent link">&para;</a></h2>
 <p>Use netcat or telnet for manual control-message testing:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5580</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5580</span>
 </code></pre></div>
 <p>Then send lines:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>HELLO|CLIENT=manual01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>SUB|CH=CLEARING|SYM=*
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>PING
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>UNSUB|CH=CLEARING|SYM=AAPL
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>EXIT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>HELLO|CLIENT=manual01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>SUB|CH=CLEARING|SYM=*
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>PING
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>UNSUB|CH=CLEARING|SYM=AAPL
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>EXIT
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
@@ -2908,6 +3032,17 @@ new trades.</p>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can manually drive and verify protocol control flow.</p>
 <hr />
+<h2 id="support-libraries-and-example-clients">Support Libraries and Example Clients<a class="headerlink" href="#support-libraries-and-example-clients" title="Permanent link">&para;</a></h2>
+<p>Reference implementations used in this training chapter:</p>
+<ul>
+<li>docs/examples/ralf/ralf_parser.py</li>
+<li>docs/examples/ralf/ralf_subscriber.py</li>
+<li>docs/examples/ralf/ralf_parser.h</li>
+<li>docs/examples/ralf/ralf_parser.c</li>
+<li>docs/examples/ralf/ralf_subscriber.c</li>
+</ul>
+<p>Use these to bootstrap both quick lab subscribers and production-like integration test harnesses.</p>
+<hr />
 <h2 id="exercise-6-replay-and-recovery-with-lastseq">Exercise 6: Replay and Recovery with LASTSEQ<a class="headerlink" href="#exercise-6-replay-and-recovery-with-lastseq" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Start a subscriber and note the highest SEQ seen.</li>
@@ -2915,7 +3050,7 @@ new trades.</p>
 <li>Generate additional trades.</li>
 <li>Reconnect with LASTSEQ set to the saved sequence:</li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>HELLO|CLIENT=replay01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=&lt;saved_seq&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>HELLO|CLIENT=replay01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=&lt;saved_seq&gt;
 </code></pre></div>
 <p>Observe replay behavior:</p>
 <ul>
@@ -2926,10 +3061,10 @@ new trades.</p>
 <hr />
 <h2 id="exercise-7-error-conditions-and-operational-interpretation">Exercise 7: Error Conditions and Operational Interpretation<a class="headerlink" href="#exercise-7-error-conditions-and-operational-interpretation" title="Permanent link">&para;</a></h2>
 <p>Test typical protocol errors with malformed lines:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>SUB|CH=CLEARING|SYM=*                (before HELLO)
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>HELLO|CLIENT=x|PROTO=RALF1           (missing ROLE)
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>HELLO|CLIENT=x|PROTO=RALF1|ROLE=BAD
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>SUB|CH=UNKNOWN|SYM=*
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>SUB|CH=CLEARING|SYM=*                (before HELLO)
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>HELLO|CLIENT=x|PROTO=RALF1           (missing ROLE)
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>HELLO|CLIENT=x|PROTO=RALF1|ROLE=BAD
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>SUB|CH=UNKNOWN|SYM=*
 </code></pre></div>
 <p>Map observed ERR codes to operator action:</p>
 <ul>
@@ -2971,7 +3106,8 @@ integration testing.</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Post-Trade Dissemination: ../user-guide/18-post-trade.md</li>
-<li>RALF Protocol Appendix: ../user-guide/23-app-ralf-protocol.md</li>
+<li>RALF Protocol Appendix: ../user-guide/93-app-ralf-protocol.md</li>
+<li>Protocol Support Library Examples: ../user-guide/80-examples.md</li>
 <li>Processes: ../user-guide/10-processes.md</li>
 </ul>
 <p>This chapter extends the training program with post-trade external protocol operations.</p>

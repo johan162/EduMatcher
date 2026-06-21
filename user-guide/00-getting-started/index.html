@@ -1671,7 +1671,63 @@
   
   
     <li class="md-nav__item">
-      <a href="../20-app-alf-protocol/" class="md-nav__link">
+      <a href="../20-market-data-feed/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Data Feed (CALF)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../80-examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocol Support Library Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../90-app-alf-protocol/" class="md-nav__link">
         
   
   
@@ -1699,7 +1755,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../21-app-balf-protocol/" class="md-nav__link">
+      <a href="../91-app-balf-protocol/" class="md-nav__link">
         
   
   
@@ -1727,7 +1783,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../22-app-calf-protocol/" class="md-nav__link">
+      <a href="../92-app-calf-protocol/" class="md-nav__link">
         
   
   
@@ -1755,7 +1811,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../23-app-ralf-protocol/" class="md-nav__link">
+      <a href="../93-app-ralf-protocol/" class="md-nav__link">
         
   
   
@@ -2509,6 +2565,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/23-calf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    23 — CALF Market-Data Gateway Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3181,7 +3265,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 <td><code>pm-gateway</code></td>
 <td>Interactive terminal</td>
 <td>ALF participant terminal and order entry</td>
-<td><a href="../10-processes/">Processes</a>, <a href="../08-gateway/">Gateway</a>, <a href="../20-app-alf-protocol/">ALF Protocol</a></td>
+<td><a href="../10-processes/">Processes</a>, <a href="../08-gateway/">Gateway</a>, <a href="../90-app-alf-protocol/">ALF Protocol</a></td>
 </tr>
 <tr>
 <td><code>pm-scheduler</code></td>
@@ -3235,7 +3319,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 <td><code>pm-ralf-gwy</code></td>
 <td>Background</td>
 <td>External post-trade dissemination gateway (RALF)</td>
-<td><a href="../10-processes/">Processes</a>, <a href="../18-post-trade/">Post-Trade Dissemination</a>, <a href="../23-app-ralf-protocol/">RALF Protocol</a></td>
+<td><a href="../10-processes/">Processes</a>, <a href="../18-post-trade/">Post-Trade Dissemination</a>, <a href="../93-app-ralf-protocol/">RALF Protocol</a></td>
 </tr>
 <tr>
 <td><code>pm-admin</code></td>
@@ -3260,6 +3344,12 @@ documented. All commands are shown in pipx form; in developer mode prepend
 <td>Background</td>
 <td>Autonomous market-maker quoting bot</td>
 <td><a href="../10-processes/">Processes</a>, <a href="../17-mm-bot/">Market-Maker Bot</a></td>
+</tr>
+<tr>
+<td><code>pm-md-gwy</code></td>
+<td>Background</td>
+<td>Market-data distribution gateway (CALF)</td>
+<td><a href="../10-processes/#pm-md-gwy-calf-market-data-gateway">Processes</a>, <a href="../20-market-data-feed/">Market Data Feed</a>, <a href="../92-app-calf-protocol/">CALF Protocol</a></td>
 </tr>
 </tbody>
 </table>
@@ -3310,13 +3400,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 <td><code>pm-balf-gateway</code></td>
 <td>Background</td>
 <td>Binary order-entry gateway (BALF)</td>
-<td><a href="../10-processes/#planned-processes">Processes planned section</a>, <a href="../21-app-balf-protocol/">BALF Protocol</a></td>
-</tr>
-<tr>
-<td><code>pm-md-gwy</code></td>
-<td>Background</td>
-<td>Market-data distribution gateway (CALF)</td>
-<td><a href="../10-processes/#planned-processes">Processes planned section</a>, <a href="../22-app-calf-protocol/">CALF Protocol</a></td>
+<td><a href="../10-processes/#planned-processes">Processes planned section</a>, <a href="../91-app-balf-protocol/">BALF Protocol</a></td>
 </tr>
 <tr>
 <td><code>pm-index</code></td>
@@ -3697,7 +3781,7 @@ back to <code>poetry run</code> automatically when running from a source checkou
 <li><a href="../17-mm-bot/">Market-Maker Bot</a> — automated quoting with <code>pm-mm-bot</code></li>
 <li><a href="../18-post-trade/">Post-Trade Dissemination</a> — external post-trade gateway with <code>pm-ralf-gwy</code></li>
 <li><a href="../19-protocol-overview/">External Protocols Overview</a> — where ALF, BALF, CALF, and RALF fit and how to choose between them</li>
-<li><a href="../23-app-ralf-protocol/">RALF Protocol</a> — protocol-level wire specification</li>
+<li><a href="../93-app-ralf-protocol/">RALF Protocol</a> — protocol-level wire specification</li>
 </ul>
 
 
