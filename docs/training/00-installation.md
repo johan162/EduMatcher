@@ -46,7 +46,98 @@ pm-engine --version
 
 ---
 
+## Exercise 1 (Alternative): Multipass VM Setup
+
+If you want a ready-to-run Linux environment without installing Python tooling
+on your host, use the Multipass bootstrap flow. This creates an Ubuntu VM,
+installs EduMatcher inside it, and leaves you with a clean runtime sandbox.
+
+### Step 1: Install Multipass on your host
+
+Install Multipass from [multipass.run](https://multipass.run/install), then
+verify it is available:
+
+```bash
+multipass version
+```
+
+### Step 2: Bootstrap the VM with one command
+
+Run the curl bootstrap script (pinned to this release):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.9.0 --snapshot
+```
+
+This command will:
+
+1. Download the VM setup scripts from the EduMatcher repository.
+2. Launch a Multipass VM (default name: `edumatcher-vm`).
+3. Install the EduMatcher runtime and required dependencies in the VM.
+4. Print a short summary showing how to enter the VM and start processes.
+
+!!! tip "Security-first variant"
+    If you prefer to inspect scripts before running them:
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh -o curl_setup_vm.sh
+    less curl_setup_vm.sh
+    bash curl_setup_vm.sh --version 0.9.0 --snapshot
+    ```
+
+### Step 3: Enter the VM and verify commands
+
+```bash
+multipass shell edumatcher-vm
+pm-engine --version
+pm-scheduler --help
+pm-gateway --help
+```
+
+### Step 4: Run a first end-to-end session inside the VM
+
+Open several host terminals and attach each to the same VM:
+
+```bash
+multipass shell edumatcher-vm
+```
+
+Then start core processes in separate VM shells (engine, scheduler, gateways,
+and clients) following the run order from the User Guide. 
+
+### Step 5: Stop, restart, and clean up the VM
+
+From your host machine:
+
+```bash
+multipass list
+multipass stop edumatcher-vm
+multipass start edumatcher-vm
+```
+
+When you no longer need it:
+
+```bash
+multipass delete edumatcher-vm
+multipass purge
+```
+
+### Relevant User Guide chapters
+
+- [Getting Started](../user-guide/00-getting-started.md) (see VM bootstrap mode)
+- [Running the Engine](../user-guide/03-running-the-engine.md)
+- [Processes](../user-guide/10-processes.md)
+- [Examples](../user-guide/80-examples.md)
+
+:material-checkbox-blank-outline: **Checkpoint:** You can enter
+`edumatcher-vm` and `pm-engine --version` succeeds inside the VM.
+
+---
+
+
+
 ## Exercise 2: Run pm-setup
+
+***If you have used the VM (Multipass) this step can be skipped as it has already been done as part of the VM setup.***
 
 The `pm-setup` helper bootstraps your local environment in one command:
 
@@ -81,6 +172,8 @@ Add the following to your shell profile (~/.zshrc or ~/.bashrc):
 ---
 
 ## Exercise 3: Set Environment Variables
+
+***If you have used the VM (Multipass) this step can be skipped as it has already been done as part of the VM setup.***
 
 Add the exports to your shell profile:
 

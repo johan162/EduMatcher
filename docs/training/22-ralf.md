@@ -5,9 +5,9 @@
 Train on end-to-end usage of the RALF protocol through pm-ralf-gwy using the
 example parser/subscriber libraries for the three main external party roles:
 
-- CLEARING
-- DROP_COPY
-- AUDIT
+- `CLEARING`
+- `DROP_COPY`
+- `AUDIT`
 
 You will practice connection, subscription, live event handling, heartbeats,
 replay checkpoints, and recovery/error behavior.
@@ -18,15 +18,15 @@ replay checkpoints, and recovery/error behavior.
 
 - Chapters 01-21 completed.
 - Engine running and producing trades.
-- pm-ralf-gwy running and reachable on TCP (default 5580).
-- Support libraries and clients available in docs/examples/ralf:
+- `pm-ralf-gwy` running and reachable on TCP (default 5580).
+- Support libraries and clients available in `docs/examples/ralf`:
   - ralf_parser.py, ralf_subscriber.py
   - ralf_parser.h, ralf_parser.c, ralf_subscriber.c
 
 Recommended startup terminals:
 
-1. Engine: pm-engine --verbose
-2. RALF gateway: pm-ralf-gwy
+1. Engine: `pm-engine --verbose`
+2. RALF gateway: `pm-ralf-gwy`
 3. One or more client terminals for subscriber exercises
 
 ---
@@ -48,7 +48,7 @@ In this chapter, the most important operational ideas are:
 
 ## Exercise 1: Prepare a Config That Enables RALF
 
-Generate engine_config.yaml with a post_trade_gateway section:
+Generate `engine_config.yaml` with a post_trade_gateway section:
 
 ```bash
 pm-config-gen \
@@ -289,9 +289,7 @@ You have now covered major RALF protocol usage patterns:
 
 ## Further Reading
 
-- Post-Trade Dissemination: ../user-guide/18-post-trade.md
-- RALF Protocol Appendix: ../user-guide/93-app-ralf-protocol.md
-- Protocol Support Library Examples: ../user-guide/80-examples.md
-- Processes: ../user-guide/10-processes.md
-
-This chapter extends the training program with post-trade external protocol operations.
+- [Post-Trade Dissemination](../user-guide/18-post-trade.md)
+- [RALF Protocol Appendix](../user-guide/93-app-ralf-protocol.md)
+- [Protocol Support Library Examples](../user-guide/80-examples.md)
+- [Processes](../user-guide/10-processes.md)
