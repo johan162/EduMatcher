@@ -442,115 +442,520 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _build_default_engine_field_comment_lines(config: dict[str, object]) -> list[str]:
-    lines: list[str] = [
-        _format_default_comment(
-            "sessions_enabled",
-            config.get("sessions_enabled", False),
-            "Disabled keeps the engine in continuous mode; enabled lets pm-scheduler drive session transitions",
-        ),
-        _format_default_comment(
-            "snapshot_interval_sec",
-            config.get("snapshot_interval_sec", DEFAULT_SNAPSHOT_INTERVAL_SEC),
-            "Seconds between book snapshot publications for dirty books",
-        ),
-    ]
+    """Build comprehensive comment block for optional engine configuration fields.
 
-    symbols_raw = config.get("symbols")
-    if isinstance(symbols_raw, dict) and symbols_raw:
-        symbol_payloads = [
-            payload for payload in symbols_raw.values() if isinstance(payload, dict)
+    Mimics the sample YAML format with three sections:
+    - Overview & top-level settings
+    - Complete recognized configuration shape (all optional fields with examples)
+    - Field notes and accepted values (detailed field documentation)
+    """
+    lines: list[str] = []
+
+    # =========================================================================
+    # Section 1: Header and overview
+    # =========================================================================
+    lines.extend(
+        [
+            "=============================================================================",
+            "Complete Recognized Configuration Shape",
+            "=============================================================================",
+            "",
+            "The following commented example lists optional top-level entries and nested",
+            "fields recognized by the current engine and scheduler parsers. Leave entries",
+            "commented unless you need them.",
+            "",
         ]
-    else:
-        symbol_payloads = []
+    )
 
-    gateways_raw = config.get("gateways")
-    gateways_alf_raw: list[dict[str, object]] = []
-    if isinstance(gateways_raw, dict):
-        alf_raw = gateways_raw.get("alf")
-        if isinstance(alf_raw, list):
-            gateways_alf_raw = [row for row in alf_raw if isinstance(row, dict)]
+    # sessions_enabled
+    lines.extend(
+        [
+            "sessions_enabled: true",
+            "  Boolean. Default: true.",
+            "  true  = engine starts CLOSED and pm-scheduler drives session transitions.",
+            "  false = engine starts in CONTINUOUS and scheduler transitions are ignored.",
+            "",
+        ]
+    )
 
-    if symbol_payloads and any(
-        "last_buy_price" not in payload for payload in symbol_payloads
-    ):
-        lines.append(
-            "symbols.<SYM>.last_buy_price = null - Initial last-buy reference is omitted until set explicitly or restored from persisted stats"
-        )
-    if symbol_payloads and any(
-        "last_sell_price" not in payload for payload in symbol_payloads
-    ):
-        lines.append(
-            "symbols.<SYM>.last_sell_price = null - Initial last-sell reference is omitted until set explicitly or restored from persisted stats"
-        )
-    if symbol_payloads and any(
-        "outstanding_shares" not in payload for payload in symbol_payloads
-    ):
-        lines.append(
-            "symbols.<SYM>.outstanding_shares = null - Outstanding share counts are optional in config but useful for statistics and index-style consumers"
-        )
+    # enforce_collars
+    lines.extend(
+        [
+            "enforce_collars: true",
+            "  Boolean. Default: true. Set false to disable price-collar checks globally.",
+            "",
+        ]
+    )
 
-    if gateways_alf_raw and any("description" not in row for row in gateways_alf_raw):
-        lines.append(
-            "gateways.alf[].description = '' - Optional human-readable label for the gateway"
-        )
+    # enforce_circuit_breakers
+    lines.extend(
+        [
+            "enforce_circuit_breakers: true",
+            "  Boolean. Default: true. Set false to disable circuit-breaker halts globally.",
+            "",
+        ]
+    )
 
-    schedule_raw = config.get("schedule")
-    if not isinstance(schedule_raw, dict):
-        lines.extend(
-            [
-                "schedule.pre_open = '09:00' - Default pre-open session time when no schedule block is provided",
-                "schedule.opening_auction_start = '09:25' - Default opening auction start time",
-                "schedule.continuous_start = '09:30' - Default continuous-trading start time",
-                "schedule.closing_auction_start = '16:00' - Default closing auction start time",
-                "schedule.closing_auction_end = '16:05' - Default closing auction end time",
-            ]
-        )
+    # snapshot_interval_sec
+    lines.extend(
+        [
+            "snapshot_interval_sec: 0.5",
+            "  Numeric seconds. Default: 0.5. Must be > 0.",
+            "  Throttles book.<SYMBOL> snapshot publications per symbol.",
+            "",
+        ]
+    )
 
-    if "post_trade_gateway" not in config:
-        lines.extend(
-            [
-                "post_trade_gateway.name = 'ralf-gwy01' - Default RALF gateway id",
-                "post_trade_gateway.bind_address = '0.0.0.0' - Default listener bind address",
-                "post_trade_gateway.port = 5580 - Default TCP port for the RALF gateway",
-                "post_trade_gateway.replay_retention_sec = 86400 - Default replay history retention in seconds",
-                "post_trade_gateway.heartbeat_interval_sec = 1 - Default heartbeat interval in seconds",
-                "post_trade_gateway.idle_timeout_sec = 5 - Default idle timeout in seconds",
-                "post_trade_gateway.max_client_queue = 10000 - Default slow-client queue depth",
-                "post_trade_gateway.allowed_roles = [CLEARING, DROP_COPY, AUDIT] - Default external roles allowed to subscribe",
-            ]
-        )
+    # mm_obligation_defaults
+    lines.extend(
+        [
+            "mm_obligation_defaults:",
+            "  enforce_mm_obligation: false",
+            "  mm_max_spread_ticks: 10",
+            "  mm_min_qty: 100",
+            "  symbols:",
+            "    AAPL:",
+            "      enforce_mm_obligation: true",
+            "      mm_max_spread_ticks: 8",
+            "      mm_min_qty: 200",
+            "",
+        ]
+    )
 
-    if "market_data_gateway" not in config:
-        lines.extend(
-            [
-                "market_data_gateway.enabled = true - Enables the CALF gateway when true",
-                "market_data_gateway.name = 'md-gwy01' - Default CALF gateway id",
-                "market_data_gateway.bind_address = '0.0.0.0' - Default listener bind address",
-                "market_data_gateway.port = 5570 - Default TCP port for the CALF gateway",
-                "market_data_gateway.heartbeat_interval_sec = 1 - Default heartbeat interval in seconds",
-                "market_data_gateway.idle_timeout_sec = 5 - Default idle timeout in seconds",
-                "market_data_gateway.replay_window_sec = 30 - Default replay history window in seconds",
-                "market_data_gateway.max_symbols_per_client = 200 - Default per-client symbol subscription cap",
-                "market_data_gateway.max_client_queue = 10000 - Default slow-client queue depth",
-            ]
-        )
+    # risk_controls
+    lines.extend(
+        [
+            "risk_controls:",
+            "  default_level: L2",
+            "  levels:",
+            "    L1:",
+            "      collar:",
+            "        static_band_pct: 0.30",
+            "        dynamic_band_pct: 0.05",
+            "    L2:",
+            "      collar:",
+            "        static_band_pct: 0.20",
+            "        dynamic_band_pct: 0.02",
+            "",
+        ]
+    )
 
-    if "circuit_breaker_defaults" not in config:
-        lines.extend(
-            [
-                "circuit_breaker_defaults.reference_window_ns = 300000000000 - Rolling nanosecond window used to evaluate circuit-breaker price moves",
-                "circuit_breaker_defaults.levels.L1 = {price_shift_pct: 0.07, halt_duration_ns: 300000000000, resumption_mode: AUCTION} - Level 1: 7% move, 5 minute halt",
-                "circuit_breaker_defaults.levels.L2 = {price_shift_pct: 0.13, halt_duration_ns: 900000000000, resumption_mode: AUCTION} - Level 2: 13% move, 15 minute halt",
-                "circuit_breaker_defaults.levels.L3 = {price_shift_pct: 0.20, halt_duration_ns: null, resumption_mode: AUCTION} - Level 3: 20% move, rest-of-day halt",
-                "symbols.<SYM>.circuit_breaker.levels.<LEVEL>.<FIELD> = override - Optional per-symbol per-level override merged over circuit_breaker_defaults",
-            ]
-        )
+    # circuit_breaker_defaults
+    lines.extend(
+        [
+            "circuit_breaker_defaults:",
+            "  reference_window_ns: 300000000000",
+            "  levels:",
+            "    L1:",
+            "      price_shift_pct: 0.07",
+            "      halt_duration_ns: 300000000000",
+            "      resumption_mode: AUCTION",
+            "    L2:",
+            "      price_shift_pct: 0.13",
+            "      halt_duration_ns: 900000000000",
+            "      resumption_mode: AUCTION",
+            "    L3:",
+            "      price_shift_pct: 0.20",
+            "      halt_duration_ns:",
+            "      resumption_mode: AUCTION",
+            "",
+        ]
+    )
+
+    # gateways
+    lines.extend(
+        [
+            "gateways:",
+            "  alf:",
+            "    - id: TRADER01",
+            "      description: Student workstation 1",
+            "      role: TRADER",
+            "      disconnect_behaviour: CANCEL_ALL",
+            "      quote_refresh_policy: INACTIVATE_ON_ANY_FILL",
+            "      enforce_mm_obligation: false",
+            "      mm_max_spread_ticks: 10",
+            "      mm_min_qty: 100",
+            "      mm_obligations:",
+            "        AAPL:",
+            "          enforce_mm_obligation: true",
+            "          max_spread_ticks: 6",
+            "          min_qty: 300",
+            "",
+        ]
+    )
+
+    # symbols section
+    lines.extend(
+        [
+            "symbols:",
+            "  AAPL:",
+            "    tick_decimals: 2",
+            "    level: L2",
+            "    last_buy_price: 209.50",
+            "    last_sell_price: 210.50",
+            "    outstanding_shares: 2600000000",
+            "    collar:",
+            "      static_band_pct: 0.20",
+            "      dynamic_band_pct: 0.02",
+            "    circuit_breaker:",
+            "      reference_window_ns: 300000000000",
+            "      levels:",
+            "        L1:",
+            "          price_shift_pct: 0.07",
+            "          halt_duration_ns: 300000000000",
+            "          resumption_mode: AUCTION",
+            "        L2:",
+            "          price_shift_pct: 0.13",
+            "          halt_duration_ns: 900000000000",
+            "          resumption_mode: CONTINUOUS",
+            "        L3:",
+            "          price_shift_pct: 0.20",
+            "          halt_duration_ns:",
+            "          resumption_mode: AUCTION",
+            "    market_maker_quotes:",
+            "      - gateway_id: MM01",
+            "        quote_id: SEED-MM01-AAPL",
+            "        bid_price: 209.00",
+            "        ask_price: 211.00",
+            "        bid_qty: 1000",
+            "        ask_qty: 1000",
+            "        tif: DAY",
+            "        seed_once: true",
+            "",
+        ]
+    )
+
+    # market_maker_combos
+    lines.extend(
+        [
+            "market_maker_combos:",
+            "  - combo_id: SEED-PAIR-AAPL-MSFT",
+            "    combo_type: AON",
+            "    tif: DAY",
+            "    legs:",
+            "      - symbol: AAPL",
+            "        side: BUY",
+            "        order_type: LIMIT",
+            "        quantity: 100",
+            "        price: 20950",
+            "        stop_price:",
+            "        smp_action: NONE",
+            "      - symbol: MSFT",
+            "        side: SELL",
+            "        order_type: LIMIT",
+            "        quantity: 50",
+            "        price: 41550",
+            "        stop_price:",
+            "        smp_action: NONE",
+            "",
+        ]
+    )
+
+    # post_trade_gateway
+    lines.extend(
+        [
+            "post_trade_gateway:",
+            "  name: ralf-gwy01",
+            "  bind_address: 0.0.0.0",
+            "  port: 5580",
+            "  replay_retention_sec: 86400",
+            "  heartbeat_interval_sec: 1",
+            "  idle_timeout_sec: 5",
+            "  max_client_queue: 10000",
+            "  allowed_roles: [CLEARING, DROP_COPY, AUDIT]",
+            "",
+        ]
+    )
+
+    # market_data_gateway
+    lines.extend(
+        [
+            "market_data_gateway:",
+            "  enabled: true",
+            "  name: md-gwy01",
+            "  bind_address: 0.0.0.0",
+            "  port: 5570",
+            "  heartbeat_interval_sec: 1",
+            "  idle_timeout_sec: 5",
+            "  replay_window_sec: 30",
+            "  max_symbols_per_client: 200",
+            "  max_client_queue: 10000",
+            "",
+        ]
+    )
+
+    # schedule
+    lines.extend(
+        [
+            "schedule:",
+            'pre_open: "09:00"',
+            'opening_auction_start: "09:25"',
+            'continuous_start: "09:30"',
+            'closing_auction_start: "16:00"',
+            'closing_auction_end: "16:05"',
+            "",
+        ]
+    )
+
+    # =========================================================================
+    # Section 2: Field notes and accepted values
+    # =========================================================================
+    lines.extend(
+        [
+            "=============================================================================",
+            "Field Notes and Accepted Values",
+            "=============================================================================",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "mm_obligation_defaults entries",
+            "" + "-" * 30,
+            "enforce_mm_obligation:",
+            "  Boolean. Default: false.",
+            "mm_max_spread_ticks:",
+            "  Positive integer. Default: 10.",
+            "mm_min_qty:",
+            "  Positive integer. Default: 100.",
+            "symbols:",
+            "  Optional per-symbol override mapping. Each entry supports the same three",
+            "  fields: enforce_mm_obligation, mm_max_spread_ticks, mm_min_qty.",
+            "  Symbol keys are uppercased. Each symbol must be present in symbols:.",
+            "  Effective policy resolves most-specific-first: gateway mm_obligations >",
+            "  mm_obligation_defaults.symbols > gateway flat fields >",
+            "  mm_obligation_defaults flat fields > built-in defaults.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "risk_controls entries",
+            "" + "-" * 21,
+            "default_level:",
+            "  Optional string. Must reference a key in risk_controls.levels.",
+            "levels:",
+            "  Mapping of named level configs. Level names are uppercased.",
+            "levels.<NAME>.collar:",
+            "  Optional mapping with static_band_pct and dynamic_band_pct in (0, 1).",
+            "  Defaults when a collar is active: static_band_pct=0.20, dynamic_band_pct=0.02.",
+            "  Collar precedence: symbols.<SYM>.collar > symbols.<SYM>.level >",
+            "  risk_controls.default_level > built-in defaults.",
+            "  Note: levels.<NAME>.circuit_breaker is not supported; use",
+            "  circuit_breaker_defaults at the top level instead.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "circuit_breaker_defaults entries",
+            "" + "-" * 33,
+            "reference_window_ns:",
+            "  Integer nanoseconds. Default: 300000000000 (5 minutes).",
+            "levels:",
+            "  Non-empty mapping of named threshold levels. Applies to every symbol that",
+            "  does not define its own circuit_breaker section. Symbol-level",
+            "  circuit_breaker.levels entries merge over these defaults field by field.",
+            "levels.<NAME>.price_shift_pct:",
+            "  Required float in (0, 1). Halt triggers when a fill moves this far from",
+            "  the rolling reference price.",
+            "levels.<NAME>.halt_duration_ns:",
+            "  Positive integer nanoseconds, or null for a rest-of-day halt.",
+            "  Default: null. Built-in defaults: L1=300000000000 (5m), L2=900000000000",
+            "  (15m), L3=null.",
+            "levels.<NAME>.resumption_mode:",
+            "  AUCTION | CONTINUOUS. Default: AUCTION.",
+            "  AUCTION runs an uncross before returning to continuous matching.",
+            "  CONTINUOUS resumes matching immediately.",
+            "  Built-in default ladder: L1=7%/5m, L2=13%/15m, L3=20%/rest-of-day.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "gateways.alf entries",
+            "" + "-" * 20,
+            "id:",
+            "  Required string. Gateway ids are uppercased by the parser.",
+            "description:",
+            "  Optional string. Null is accepted and treated as an empty string.",
+            "role:",
+            "  TRADER | MARKET_MAKER | ADMIN. Default: TRADER.",
+            "disconnect_behaviour:",
+            "  CANCEL_QUOTES_ONLY | CANCEL_ALL | LEAVE_ALL. Default: CANCEL_QUOTES_ONLY.",
+            "quote_refresh_policy:",
+            "  INACTIVATE_ON_ANY_FILL | INACTIVATE_ON_FULL_FILL | NEVER_INACTIVATE.",
+            "  Default: INACTIVATE_ON_ANY_FILL.",
+            "enforce_mm_obligation:",
+            "  Boolean. Defaults from mm_obligation_defaults.enforce_mm_obligation.",
+            "mm_max_spread_ticks:",
+            "  Positive integer. Defaults from mm_obligation_defaults.mm_max_spread_ticks.",
+            "mm_min_qty:",
+            "  Positive integer. Defaults from mm_obligation_defaults.mm_min_qty.",
+            "mm_obligations:",
+            "  Optional per-symbol mapping. Inside this mapping use max_spread_ticks and",
+            "  min_qty, not mm_max_spread_ticks and mm_min_qty.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "symbols entries",
+            "" + "-" * 15,
+            "tick_decimals:",
+            "  Integer 0..8. Default: 2.",
+            "level:",
+            "  Optional named risk level from risk_controls.levels. If omitted, inherits",
+            "  risk_controls.default_level when that default is configured.",
+            "last_buy_price / last_sell_price:",
+            "  Optional numbers used to seed last buy/sell references before any trades or",
+            "  persisted book_stats.json values exist.",
+            "outstanding_shares:",
+            "  Optional integer. Useful for statistics and external index-style consumers.",
+            "  When omitted, defaults to null.",
+            "collar:",
+            "  Optional mapping. Values override inherited risk_controls level fields.",
+            "  static_band_pct and dynamic_band_pct must both be in (0, 1).",
+            "circuit_breaker:",
+            "  Optional mapping. Level keys are arbitrary names. Symbol-level levels merge",
+            "  field by field over circuit_breaker_defaults, so a level may override only",
+            "  halt_duration_ns or resumption_mode and inherit price_shift_pct from the",
+            "  defaults. After merging, every level must have price_shift_pct in (0, 1).",
+            "  halt_duration_ns may be null, meaning halt for the rest of the trading day.",
+            "  reference_window_ns may also be set here to override the default window.",
+            "market_maker_quotes:",
+            "  Optional list unless any gateway has role MARKET_MAKER. If MARKET_MAKER",
+            "  gateways exist, every configured symbol must define at least one quote seed.",
+            "  gateway_id must reference a configured MARKET_MAKER gateway.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "market_maker_quotes entries (under symbols.<SYM>.market_maker_quotes)",
+            "" + "-" * 68,
+            "gateway_id:",
+            "  Required string. Uppercased. Must reference a MARKET_MAKER gateway.",
+            "quote_id:",
+            "  Optional string. Empty string is treated as absent; engine auto-generates.",
+            "bid_price / ask_price:",
+            "  Required numbers (display price). bid_price must be less than ask_price.",
+            "  Converted to integer ticks by the engine using tick_decimals.",
+            "bid_qty / ask_qty:",
+            "  Required positive integers.",
+            "tif:",
+            "  DAY | GTC | ATO | ATC. Default: DAY.",
+            "  Prefer DAY for seeds — GTC seeds can duplicate on restart if",
+            "  gtc_orders.json still contains the previous session's orders.",
+            "seed_once:",
+            "  Boolean. Default: true. When true, injection is skipped if",
+            "  book_stats.json already has history for this symbol.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "market_maker_combos entries",
+            "" + "-" * 27,
+            "combo_id:",
+            "  Required non-empty string.",
+            "combo_type:",
+            "  AON. Default: AON.",
+            "tif:",
+            "  DAY | GTC | ATO | ATC. Default: DAY.",
+            "legs:",
+            "  Required list with 2..10 entries. Symbols must be configured and unique",
+            "  within the combo.",
+            "leg.symbol:",
+            "  Required string. Must reference a configured symbol. Uppercased. Must be",
+            "  unique within the combo.",
+            "leg.side:",
+            "  BUY | SELL.",
+            "leg.order_type:",
+            "  MARKET | LIMIT | STOP | STOP_LIMIT | FOK | ICEBERG | IOC | TRAILING_STOP.",
+            "leg.quantity:",
+            "  Required integer quantity.",
+            "leg.price:",
+            "  Optional integer tick price used by priced order types (LIMIT, STOP_LIMIT,",
+            "  FOK, ICEBERG, IOC). With tick_decimals: 2, display 209.50 = tick 20950.",
+            "leg.stop_price:",
+            "  Optional integer tick stop price used by stop order types (STOP, STOP_LIMIT,",
+            "  TRAILING_STOP).",
+            "leg.smp_action:",
+            "  NONE | CANCEL_AGGRESSOR | CANCEL_RESTING | CANCEL_BOTH. Default: NONE.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "post_trade_gateway entries",
+            "" + "-" * 27,
+            "name:",
+            "  Optional string. Default: 'ralf-gwy01'.",
+            "bind_address:",
+            "  Optional string. Default: '0.0.0.0'.",
+            "port:",
+            "  Optional integer. Default: 5580. Must be > 0.",
+            "replay_retention_sec:",
+            "  Optional integer seconds. Default: 86400. Must be > 0.",
+            "heartbeat_interval_sec:",
+            "  Optional integer seconds. Default: 1. Must be > 0.",
+            "idle_timeout_sec:",
+            "  Optional integer seconds. Default: 5. Must be > 0.",
+            "max_client_queue:",
+            "  Optional integer. Default: 10000. Must be > 0.",
+            "allowed_roles:",
+            "  Optional list of strings. Default: [CLEARING, DROP_COPY, AUDIT].",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "market_data_gateway entries",
+            "" + "-" * 28,
+            "enabled:",
+            "  Optional boolean. Default: true.",
+            "name:",
+            "  Optional string. Default: 'md-gwy01'.",
+            "bind_address:",
+            "  Optional string. Default: '0.0.0.0'.",
+            "port:",
+            "  Optional integer. Default: 5570. Must be > 0.",
+            "heartbeat_interval_sec:",
+            "  Optional integer seconds. Default: 1. Must be > 0.",
+            "idle_timeout_sec:",
+            "  Optional integer seconds. Default: 5. Must be > 0.",
+            "replay_window_sec:",
+            "  Optional integer seconds. Default: 30. Must be > 0.",
+            "max_symbols_per_client:",
+            "  Optional integer. Default: 200. Must be > 0.",
+            "max_client_queue:",
+            "  Optional integer. Default: 10000. Must be > 0.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "schedule entries",
+            "" + "-" * 16,
+            "Times are strings in HH:MM local server time. The scheduler uses any provided",
+            "subset in trading-day order and falls back to built-in defaults if no usable",
+            "schedule is present.",
+            "",
+        ]
+    )
 
     return lines
-
-
-def _format_default_comment(field: str, value: object, description: str) -> str:
-    return f"{field} = {value!r} - {description}"
 
 
 def _validate_basic_args(args: argparse.Namespace) -> None:

@@ -352,7 +352,13 @@ def test_comment_default_config_fields_emits_engine_field_defaults(
         "snapshot_interval_sec: 0.5  # seconds between book snapshot publications for dirty books"
         in captured.out
     )
-    assert "#   circuit_breaker_defaults.reference_window_ns = 300000000000" in captured.out
-    assert "#   symbols.<SYM>.last_buy_price = null" in captured.out
-    assert "#   post_trade_gateway.port = 5580" in captured.out
+    # Check for circuit_breaker_defaults documentation in "Field Notes and Accepted Values" section
+    assert (
+        "#   reference_window_ns:\n#     Integer nanoseconds. Default: 300000000000 (5 minutes)."
+        in captured.out
+    )
+    # Check for symbols documentation
+    assert "#   last_buy_price / last_sell_price:" in captured.out
+    # Check for post_trade_gateway documentation
+    assert "#   port:" in captured.out
     assert "#   --snapshot-interval" not in captured.out

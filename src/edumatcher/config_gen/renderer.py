@@ -28,7 +28,10 @@ def render_yaml(
     if default_engine_field_comments:
         lines.append("# Defaultable engine_config fields and default values:")
         for entry in default_engine_field_comments:
-            lines.append(f"#   {entry}")
+            if entry == "#" or entry == "":
+                lines.append("#")
+            else:
+                lines.append(f"#   {entry}")
         lines.append("")
 
     section_order = [
