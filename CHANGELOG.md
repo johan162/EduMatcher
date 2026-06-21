@@ -1,3 +1,24 @@
+## [v0.9.0] - 2026-06-21
+
+Release Type: minor
+
+### 📋 Summary
+This release fully implements the CALF protocol for market-data dissemination and extends the user-guide with practical examples and operator guidance. It also improves training coverage for CALF and RALF workflows.
+
+### ✨ Additions
+- Added CALF protocol implementation with companion documentation and third-party connection examples
+
+### 🚀 Improvements
+- Improved gateway operator readiness with a dedicated CALF and RALF runbook
+
+### 📚 Documentation
+- Added a new examples section in the User Guide for protocol-oriented workflows
+- Updated training and User Guide content with expanded CALF and RALF coverage
+
+### 🛠 Internal
+- Improved user-guide structure by renaming appendixes to make room for additional chapters
+
+
 ## [v0.8.0] - 2026-06-20
 
 Release Type: minor
