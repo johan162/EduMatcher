@@ -65,7 +65,7 @@
 #         resumption_mode: AUCTION
 #       L3:
 #         price_shift_pct: 0.20
-#         halt_duration_ns:
+#         halt_duration_ns: null
 #         resumption_mode: AUCTION
 #
 #   gateways:
@@ -129,14 +129,14 @@
 #           order_type: LIMIT
 #           quantity: 100
 #           price: 20950
-#           stop_price:
+#           stop_price: null
 #           smp_action: NONE
 #         - symbol: MSFT
 #           side: SELL
 #           order_type: LIMIT
 #           quantity: 50
 #           price: 41550
-#           stop_price:
+#           stop_price: null
 #           smp_action: NONE
 #
 #   post_trade_gateway:
@@ -161,11 +161,11 @@
 #     max_client_queue: 10000
 #
 #   schedule:
-#   pre_open: "09:00"
-#   opening_auction_start: "09:25"
-#   continuous_start: "09:30"
-#   closing_auction_start: "16:00"
-#   closing_auction_end: "16:05"
+#     pre_open: "09:00"
+#     opening_auction_start: "09:25"
+#     continuous_start: "09:30"
+#     closing_auction_start: "16:00"
+#     closing_auction_end: "16:05"
 #
 #   =============================================================================
 #   Field Notes and Accepted Values
@@ -195,7 +195,10 @@
 #   levels.<NAME>.collar:
 #     Price-band configuration for order acceptance checks:
 #     static_band_pct anchors to a session reference, dynamic_band_pct tracks live prices.
-#     Typical inherited values are static_band_pct=0.20 and dynamic_band_pct=0.02.
+#   levels.<NAME>.collar.static_band_pct: 0.20
+#     Wider static guardrail around the reference price.
+#   levels.<NAME>.collar.dynamic_band_pct: 0.02
+#     Tighter dynamic guardrail around near-live trading levels.
 #     Precedence: symbols.<SYM>.collar > symbols.<SYM>.level >
 #     risk_controls.default_level > built-in defaults.
 #     Note: levels.<NAME>.circuit_breaker is not supported; use
@@ -240,7 +243,13 @@
 #     Gateway-level minimum quote size used by obligation checks.
 #   mm_obligations:
 #     Per-symbol overrides for this gateway when obligations differ by instrument.
-#     Use max_spread_ticks and min_qty inside this map.
+#     Use enforce_mm_obligation, max_spread_ticks, and min_qty inside this map.
+#   mm_obligations.<SYM>.enforce_mm_obligation: false
+#     Per-symbol switch enabling/disabling obligation checks for this gateway.
+#   mm_obligations.<SYM>.max_spread_ticks: 10
+#     Per-symbol spread cap in ticks.
+#   mm_obligations.<SYM>.min_qty: 100
+#     Per-symbol minimum quote size.
 #
 #   symbols entries
 #   ---------------
@@ -256,10 +265,21 @@
 #     Issued share count used by analytics, reporting, and index-style consumers.
 #   collar:
 #     Symbol-specific collar override when this instrument needs tighter/looser bands.
-#     static_band_pct and dynamic_band_pct must both be in (0, 1).
+#   collar.static_band_pct: 0.20
+#     Symbol-level static guardrail around reference price.
+#   collar.dynamic_band_pct: 0.02
+#     Symbol-level dynamic guardrail around near-live prices.
 #   circuit_breaker:
 #     Symbol-specific halt policy override layered on top of circuit_breaker_defaults.
 #     Levels merge field-by-field, so each symbol can override only needed fields.
+#   circuit_breaker.reference_window_ns: 300000000000
+#     Symbol-specific rolling reference window for halt detection.
+#   circuit_breaker.levels.<NAME>.price_shift_pct: 0.07
+#     Percent move threshold that triggers halt level <NAME>.
+#   circuit_breaker.levels.<NAME>.halt_duration_ns: null
+#     Halt duration for level <NAME>; null means rest-of-day.
+#   circuit_breaker.levels.<NAME>.resumption_mode: AUCTION
+#     Trading resumption behavior for level <NAME>.
 #     halt_duration_ns may be null for rest-of-day halts.
 #     reference_window_ns can override the global rolling reference window.
 #   market_maker_quotes:
