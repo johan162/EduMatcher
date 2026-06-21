@@ -202,4 +202,5 @@ docs-design/examples/balf_parser
 
 build-tools
 ralf_subscriber
+calf_subscriber
 

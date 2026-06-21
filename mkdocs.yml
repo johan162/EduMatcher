@@ -108,6 +108,7 @@ nav:
     - Market-Maker Bot: user-guide/17-mm-bot.md
     - Post-Trade Dissemination (RALF): user-guide/18-post-trade.md
     - External Protocols Overview: user-guide/19-protocol-overview.md
+    - Market Data Feed (CALF): user-guide/20-market-data-feed.md
     - Appendix - ALF Protocol: user-guide/90-app-alf-protocol.md
     - Appendix - BALF Protocol: user-guide/91-app-balf-protocol.md
     - Appendix - CALF Protocol: user-guide/92-app-calf-protocol.md

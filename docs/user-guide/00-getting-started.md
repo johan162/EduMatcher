@@ -281,6 +281,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | `pm-ai-trader` | Background | Single autonomous trading bot gateway | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
 | `pm-ai-swarm` | Background | Multi-agent autonomous trading swarm | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
 | `pm-mm-bot` | Background | Autonomous market-maker quoting bot | [Processes](10-processes.md), [Market-Maker Bot](17-mm-bot.md) |
+| `pm-md-gwy` | Background | Market-data distribution gateway (CALF) | [Processes](10-processes.md#pm-md-gwy-calf-market-data-gateway), [Market Data Feed](20-market-data-feed.md), [CALF Protocol](92-app-calf-protocol.md) |
 
 ### CLI utilities (runnable)
 
@@ -296,7 +297,6 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | Command | Interactivity | Purpose | More information |
 |---|---|---|---|
 | `pm-balf-gateway` | Background | Binary order-entry gateway (BALF) | [Processes planned section](10-processes.md#planned-processes), [BALF Protocol](91-app-balf-protocol.md) |
-| `pm-md-gwy` | Background | Market-data distribution gateway (CALF) | [Processes planned section](10-processes.md#planned-processes), [CALF Protocol](92-app-calf-protocol.md) |
 | `pm-index` | Background | Real-time index calculation service | [Processes planned section](10-processes.md#planned-processes) |
 
 For startup order and a practical first-run sequence, see

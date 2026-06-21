@@ -1405,16 +1405,27 @@ from the single PUB socket — none of them coordinate with each other.
 
 ## Planned Processes
 
-The following processes are documented as design proposals and will be added in
-future releases. They do not yet exist as runnable scripts.
+The following processes are documented as design proposals and are not yet
+available as runnable scripts.
 
 | Process | Protocol | Purpose | Status |
 |---------|----------|---------|--------|
 | **pm-balf-gateway** | BALF | Binary order entry gateway for low-latency programmatic clients | Design proposal |
-| **pm-md-gwy** | CALF | Market-data distribution gateway delivering order-book snapshots, trade prints, and session-state changes over TCP | Design proposal |
 | **pm-index** | — | Real-time index calculation service publishing index values on port 5558 | Design proposal |
 
-See the [BALF Protocol Reference](91-app-balf-protocol.md) and [CALF Protocol Reference](92-app-calf-protocol.md) for the message specifications these processes will implement.
+See the [BALF Protocol Reference](91-app-balf-protocol.md) for message specifications planned for future gateway implementations.
+
+## pm-md-gwy (CALF Market-Data Gateway)
+
+`pm-md-gwy` is implemented and provides external market-data distribution over
+CALF/TCP. It consumes engine PUB topics and exposes sequence-aware streams for:
+
+- `TOP` (top-of-book style updates)
+- `TRADE` (executed trades)
+- `STATE` (session and halt/resume state)
+
+See [Market Data Feed (CALF)](20-market-data-feed.md) for operational usage and
+[CALF Protocol Reference](92-app-calf-protocol.md) for the wire-level contract.
 
 ## See also
 

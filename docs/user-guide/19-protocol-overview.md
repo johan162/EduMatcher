@@ -34,7 +34,7 @@ connects each protocol to:
 |---|---|---|---|---|
 | **ALF** | Human-readable order entry and gateway control | Text line protocol (`FIELD=VALUE|...`) | Implemented and active | `pm-gateway` |
 | **BALF** | Low-latency binary order entry for programmatic clients | Binary framed protocol | Documented; planned gateway process | `pm-balf-gateway` (planned) |
-| **CALF** | External market-data dissemination (top/book/trade/state style channels) | Text line protocol over TCP | Documented; planned gateway process | `pm-md-gwy` (planned) |
+| **CALF** | External market-data dissemination (top/book/trade/state style channels) | Text line protocol over TCP | Implemented and active | `pm-md-gwy` |
 | **RALF** | External post-trade dissemination for clearing, drop-copy, and audit consumers | Text line protocol over TCP (`RALF1`) | Implemented and active | `pm-ralf-gwy` |
 
 
@@ -86,9 +86,8 @@ CALF is the external market-data protocol family. It is designed for
 subscription-based market-data delivery (channelized streams, snapshot +
 incremental patterns, and sequence-aware recovery semantics).
 
-In the current User Guide state, CALF is documented as a protocol specification
-and process concept, with the market-data gateway listed under planned
-processes.
+CALF is implemented via `pm-md-gwy` and is used for external market-data
+distribution with snapshot, incremental, and replay-aware reconnect semantics.
 
 Use CALF when you need:
 
@@ -100,7 +99,8 @@ Use CALF when you need:
 Where to read more:
 
 - Market-data concepts and channel model: [Market Data Feed (CALF)](../concepts/06-concepts-market-data-feed.md)
-- Planned runtime process and architecture placement: [Processes](10-processes.md#planned-processes)
+- Runtime process and architecture placement: [Processes](10-processes.md#pm-md-gwy-calf-market-data-gateway)
+- Operational client onboarding and examples: [Market Data Feed (CALF)](20-market-data-feed.md)
 - Formal wire protocol reference: [Appendix - CALF Protocol](92-app-calf-protocol.md)
 
 
