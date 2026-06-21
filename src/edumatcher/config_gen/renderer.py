@@ -73,25 +73,51 @@ def _annotate(dumped: str) -> list[str]:
     The engine rejects null bid/ask prices, so these comments turn the emitted
     stubs into an explicit fill-in checklist (design sections 6.3 and 8).
     """
+    source_lines = dumped.splitlines()
     out: list[str] = []
-    for line in dumped.splitlines():
+    idx = 0
+    while idx < len(source_lines):
+        line = source_lines[idx]
         stripped = line.strip()
         indent = len(line) - len(line.lstrip(" "))
 
         if stripped == "market_maker_quotes:":
             out.append(line)
-            out.append(
-                " " * (indent + 2) + "# WARNING: pm-config-gen cannot set prices. "
-                "Fill these in before starting."
-            )
+            block_end = idx + 1
+            while block_end < len(source_lines):
+                candidate = source_lines[block_end]
+                candidate_indent = len(candidate) - len(candidate.lstrip(" "))
+                if candidate.strip() and (
+                    candidate_indent < indent
+                    or (
+                        candidate_indent == indent
+                        and not candidate.lstrip().startswith("-")
+                    )
+                ):
+                    break
+                block_end += 1
+
+            if any(
+                source_lines[look_ahead].strip()
+                in ("bid_price: null", "ask_price: null")
+                for look_ahead in range(idx + 1, block_end)
+            ):
+                out.append(
+                    " " * (indent + 2)
+                    + "# WARNING: pm-config-gen cannot set prices. Fill these in before starting."
+                )
+
+            idx += 1
             continue
 
         suffix = _INLINE_HINTS.get(stripped)
         if suffix is not None:
             out.append(f"{line}    {suffix}")
+            idx += 1
             continue
 
         out.append(line)
+        idx += 1
     return out
 
 

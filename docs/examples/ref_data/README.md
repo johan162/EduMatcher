@@ -11,4 +11,5 @@ Each `*-setup/` directory contains:
 ## Notes
 
 - `pm-config-gen` supports emitting both RALF (`post_trade_gateway`) and CALF (`market_data_gateway`) sections via native flags.
+- Generated symbol entries now include mandatory `outstanding_shares` values so the configs are ready for statistics and future index-style consumers.
 - `one-book-setup` is a legacy single-file sample kept for backward compatibility.

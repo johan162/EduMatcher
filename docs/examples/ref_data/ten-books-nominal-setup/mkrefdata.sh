@@ -35,6 +35,11 @@ if [[ -n "$SEED" && ! "$SEED" =~ ^-?[0-9]+$ ]]; then
   exit 1
 fi
 
+SEED_ARGS=()
+if [[ -n "$SEED" ]]; then
+  SEED_ARGS=(--seed "$SEED")
+fi
+
 if command -v pm-config-gen >/dev/null 2>&1; then
   CONFIG_GEN=(pm-config-gen)
 elif command -v poetry >/dev/null 2>&1; then
@@ -49,11 +54,28 @@ GATEWAYS=(TRADER01:TRADER:CANCEL_ALL TRADER02:TRADER:CANCEL_ALL OPS01:ADMIN:LEAV
 MM_GATEWAYS=(MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY)
 GATEWAYS+=("${MM_GATEWAYS[@]}")
 
+OUTSTANDING_ARGS=(
+  --outstanding-shares AAPL:15400000000
+  --outstanding-shares MSFT:7430000000
+  --outstanding-shares TSLA:3200000000
+  --outstanding-shares AMZN:10600000000
+  --outstanding-shares GOOGL:12200000000
+  --outstanding-shares META:2560000000
+  --outstanding-shares NVDA:24600000000
+  --outstanding-shares NFLX:430000000
+  --outstanding-shares INTC:4300000000
+  --outstanding-shares ORCL:2800000000
+)
+
 COMMON_ARGS=(
   --symbols "${SYMBOLS[@]}"
   --gateways "${GATEWAYS[@]}"
+  --seed-mm-mid-range 20:300
+  --seed-last-prices-from-mm
   --output engine_config.yaml
   --force
+  "${SEED_ARGS[@]}"
+  "${OUTSTANDING_ARGS[@]}"
 )
 "${CONFIG_GEN[@]}" "${COMMON_ARGS[@]}" \
   --sessions-enabled \
@@ -75,61 +97,5 @@ COMMON_ARGS=(
   --market-data-replay-window-sec 30 \
   --market-data-max-symbols-per-client 200 \
   --market-data-max-client-queue 10000
-
-# Assign a varied bootstrap mid-price per symbol (20-300), then derive
-# last buy/sell and MM bid/ask around that symbol-specific midpoint.
-if [[ -n "$SEED" ]]; then
-  RANDOM="$SEED"
-fi
-
-SYMBOL_MIDS=()
-MID_VALUES=()
-for sym in "${SYMBOLS[@]}"; do
-  mid=$((20 + RANDOM % 281))
-  SYMBOL_MIDS+=("${sym}:${mid}")
-  MID_VALUES+=("${mid}")
-done
-SYMBOL_MIDS_CSV="$(IFS=,; echo "${SYMBOL_MIDS[*]}")"
-
-awk -v mids_csv="$SYMBOL_MIDS_CSV" '
-BEGIN {
-  n = split(mids_csv, pairs, ",")
-  for (i = 1; i <= n; i++) {
-    split(pairs[i], kv, ":")
-    mid[kv[1]] = kv[2] + 0
-  }
-}
-function fmt(v) { return sprintf("%.2f", v) }
-$0 == "symbols:" { in_symbols = 1; print; next }
-in_symbols && $0 ~ /^  [A-Z0-9_.-]+:$/ {
-  current_symbol = $0
-  sub(/^  /, "", current_symbol)
-  sub(/:$/, "", current_symbol)
-  print
-  next
-}
-in_symbols && current_symbol != "" && $0 ~ /^    last_buy_price:/ {
-  $0 = "    last_buy_price: " fmt(mid[current_symbol] - 0.50) "    # REQUIRED: set last buy reference price"
-  print
-  next
-}
-in_symbols && current_symbol != "" && $0 ~ /^    last_sell_price:/ {
-  $0 = "    last_sell_price: " fmt(mid[current_symbol] + 0.50) "    # REQUIRED: set last sell reference price"
-  print
-  next
-}
-in_symbols && current_symbol != "" && $0 ~ /^      bid_price:/ {
-  $0 = "      bid_price: " fmt(mid[current_symbol] - 0.50) "    # REQUIRED: set display bid price (e.g. 209.00)"
-  print
-  next
-}
-in_symbols && current_symbol != "" && $0 ~ /^      ask_price:/ {
-  $0 = "      ask_price: " fmt(mid[current_symbol] + 0.50) "    # REQUIRED: set display ask price (e.g. 211.00)"
-  print
-  next
-}
-{ print }
-' engine_config.yaml > engine_config.yaml.tmp
-mv engine_config.yaml.tmp engine_config.yaml
 
 echo "Generated $(pwd)/engine_config.yaml"

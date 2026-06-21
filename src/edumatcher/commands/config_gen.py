@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from datetime import date
 from pathlib import Path
@@ -76,6 +77,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default=[],
         metavar="SYMBOL:KEY=VALUE[,KEY=VALUE]",
         help="Per-symbol overrides. Can be repeated.",
+    )
+    parser.add_argument(
+        "--outstanding-shares",
+        action="append",
+        default=[],
+        metavar="SYM:N",
+        help="Per-symbol outstanding shares (positive integer). Can be repeated.",
     )
 
     sess_group = parser.add_mutually_exclusive_group()
@@ -191,6 +199,30 @@ def _build_parser() -> argparse.ArgumentParser:
         "--seed-last-prices",
         action="store_true",
         help="Emit last_buy_price/last_sell_price null placeholders.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Deterministic RNG seed for generated training values.",
+    )
+    parser.add_argument(
+        "--seed-mm-mid-range",
+        default=None,
+        metavar="MIN:MAX",
+        help=(
+            "Seed MM quotes from a random midpoint in the inclusive MIN:MAX range, "
+            "rounded to the symbol tick grid."
+        ),
+    )
+    parser.add_argument(
+        "--seed-last-prices-from-mm",
+        action="store_true",
+        help=(
+            "When seeding MM quotes, set last_buy_price/last_sell_price to the same "
+            "midpoint used for the generated quote."
+        ),
     )
 
     parser.add_argument(
@@ -446,6 +478,72 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
     if args.dynamic_band is not None and not (0 < args.dynamic_band < 1):
         raise ValueError("--dynamic-band must be in (0, 1)")
 
+    if args.seed_mm_mid_range is not None:
+        min_price, max_price = _parse_seed_mm_mid_range(args.seed_mm_mid_range)
+        tick_size = 10 ** (-int(args.tick_decimals))
+        min_steps = math.ceil(min_price / tick_size)
+        max_steps = math.floor(max_price / tick_size)
+        if min_steps > max_steps:
+            raise ValueError(
+                "--seed-mm-mid-range does not contain any prices on the configured tick grid"
+            )
+        if min_steps <= 1:
+            raise ValueError(
+                "--seed-mm-mid-range minimum must allow a positive bid after applying a one-tick spread"
+            )
+
+    if args.seed_last_prices_from_mm and args.seed_mm_mid_range is None:
+        raise ValueError("--seed-last-prices-from-mm requires --seed-mm-mid-range")
+
+
+def _parse_seed_mm_mid_range(raw: str) -> tuple[float, float]:
+    if ":" not in raw:
+        raise ValueError(f"Invalid --seed-mm-mid-range '{raw}': expected MIN:MAX")
+
+    min_raw, max_raw = raw.split(":", 1)
+    try:
+        min_price = float(min_raw.strip())
+        max_price = float(max_raw.strip())
+    except ValueError as exc:
+        raise ValueError(
+            f"Invalid --seed-mm-mid-range '{raw}': MIN and MAX must be numbers"
+        ) from exc
+
+    if min_price <= 0 or max_price <= 0:
+        raise ValueError("--seed-mm-mid-range values must be > 0")
+    if min_price >= max_price:
+        raise ValueError("--seed-mm-mid-range requires MIN < MAX")
+
+    return (min_price, max_price)
+
+
+def _parse_outstanding_shares(
+    specs: list[str],
+    allowed_symbols: set[str],
+) -> dict[str, int]:
+    result: dict[str, int] = {}
+    for raw in specs:
+        if ":" not in raw:
+            raise ValueError(f"Invalid --outstanding-shares '{raw}': expected SYM:N")
+        sym_raw, val_raw = raw.split(":", 1)
+        sym = sym_raw.strip().upper()
+        if not sym:
+            raise ValueError(
+                f"Invalid --outstanding-shares '{raw}': symbol cannot be empty"
+            )
+        if sym not in allowed_symbols:
+            raise ValueError(f"--outstanding-shares references unknown symbol '{sym}'")
+        try:
+            value = int(val_raw.strip())
+        except ValueError:
+            raise ValueError(
+                f"--outstanding-shares '{raw}': value must be a positive integer"
+            )
+        if value <= 0:
+            raise ValueError(f"--outstanding-shares '{raw}': value must be > 0")
+        result[sym] = value
+    return result
+
 
 def _parse_specs(args: argparse.Namespace) -> tuple[
     list[str],
@@ -454,6 +552,8 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
     list[CbSpec],
     dict[str, SymbolOverride],
     list[str],
+    dict[str, int],
+    tuple[float, float] | None,
 ]:
     symbols = [s.upper() for s in args.symbols]
 
@@ -473,6 +573,17 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
         allowed_symbols=set(symbols),
     )
 
+    outstanding_shares = _parse_outstanding_shares(
+        specs=args.outstanding_shares,
+        allowed_symbols=set(symbols),
+    )
+
+    seed_mm_mid_range = (
+        _parse_seed_mm_mid_range(args.seed_mm_mid_range)
+        if args.seed_mm_mid_range is not None
+        else None
+    )
+
     return (
         symbols,
         gateways,
@@ -480,6 +591,8 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
         cb_levels,
         symbol_overrides,
         symbol_opt_warnings,
+        outstanding_shares,
+        seed_mm_mid_range,
     )
 
 
@@ -609,9 +722,11 @@ def _write_output(output_path: Path, content: str, force: bool) -> None:
     output_path.write_text(content, encoding="utf-8")
 
 
-def _validate_generated_when_possible(content: str, has_mm_gateway: bool) -> str | None:
+def _validate_generated_when_possible(
+    content: str, skip_validation: bool
+) -> str | None:
     # With MM stubs bid/ask are null by design, so parser validation is expected to fail.
-    if has_mm_gateway:
+    if skip_validation:
         return None
 
     with NamedTemporaryFile("w", suffix=".yaml", delete=False, encoding="utf-8") as fh:
@@ -644,10 +759,20 @@ def main() -> None:
             cb_levels,
             symbol_overrides,
             symbol_opt_warnings,
+            outstanding_shares,
+            seed_mm_mid_range,
         ) = _parse_specs(args)
     except ValueError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
+
+    has_mm_gateway = any(g.role == ParticipantRole.MARKET_MAKER for g in gateways)
+    if seed_mm_mid_range is not None and not has_mm_gateway:
+        print(
+            "[ERROR] --seed-mm-mid-range requires at least one MARKET_MAKER gateway",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
 
     spec = ConfigSpec(
         symbols=symbols,
@@ -664,9 +789,12 @@ def main() -> None:
         mm_spread_ticks=int(args.mm_spread_ticks),
         mm_min_qty=int(args.mm_min_qty),
         enforce_mm_obligations=bool(args.enforce_mm_obligations),
-        emit_mm_defaults=any(g.role == ParticipantRole.MARKET_MAKER for g in gateways),
+        emit_mm_defaults=has_mm_gateway,
         tick_decimals=int(args.tick_decimals),
         seed_last_prices=bool(args.seed_last_prices),
+        random_seed=args.seed,
+        seed_mm_mid_range=seed_mm_mid_range,
+        seed_last_prices_from_mm=bool(args.seed_last_prices_from_mm),
         emit_schedule=_resolve_emit_schedule(args),
         pre_open=str(args.pre_open),
         opening_auction=str(args.opening_auction),
@@ -674,6 +802,7 @@ def main() -> None:
         closing_auction=str(args.closing_auction),
         closing_end=str(args.closing_end),
         symbol_overrides=symbol_overrides,
+        outstanding_shares=outstanding_shares,
         post_trade_gateway=_build_post_trade_gateway_spec(args),
         market_data_gateway=_build_market_data_gateway_spec(args),
     )
@@ -707,7 +836,7 @@ def main() -> None:
 
     validation_line = _validate_generated_when_possible(
         content=rendered,
-        has_mm_gateway=any(g.role == ParticipantRole.MARKET_MAKER for g in gateways),
+        skip_validation=has_mm_gateway and seed_mm_mid_range is None,
     )
     if validation_line:
         print(validation_line, file=sys.stderr)
@@ -724,7 +853,7 @@ def main() -> None:
     _write_output(output_path=output_path, content=rendered, force=bool(args.force))
     print(f"[INFO] Wrote generated config to {output_path}", file=sys.stderr)
 
-    if any(g.role == ParticipantRole.MARKET_MAKER for g in gateways):
+    if has_mm_gateway and seed_mm_mid_range is None:
         print(
             "[HINT] Fill all market_maker_quotes bid_price/ask_price values before "
             "starting pm-engine.",

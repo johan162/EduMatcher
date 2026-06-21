@@ -13,3 +13,5 @@ def test_pm_config_gen_help_runs() -> None:
     assert result.returncode == 0
     assert "pm-config-gen" in result.stdout
     assert "--symbols" in result.stdout
+    assert "--seed-mm-mid-range" in result.stdout
+    assert "--seed-last-prices-from-mm" in result.stdout

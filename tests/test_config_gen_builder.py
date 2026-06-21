@@ -66,6 +66,46 @@ def test_builder_with_mm_gateway_emits_stubs() -> None:
     assert quote["seed_once"] is True
 
 
+def test_builder_with_seeded_mm_quotes_emits_prices() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[
+            parse_gateway_spec("TRADER01"),
+            parse_gateway_spec("MM01:MARKET_MAKER"),
+        ],
+        emit_mm_defaults=True,
+        random_seed=7,
+        seed_mm_mid_range=(20.0, 30.0),
+    )
+    payload = ConfigBuilder(spec).build()
+
+    quote = payload["symbols"]["AAPL"]["market_maker_quotes"][0]
+    assert quote["gateway_id"] == "MM01"
+    assert quote["bid_price"] is not None
+    assert quote["ask_price"] is not None
+    assert quote["bid_price"] < quote["ask_price"]
+
+
+def test_builder_seed_last_prices_from_mm_uses_midpoint() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[
+            parse_gateway_spec("TRADER01"),
+            parse_gateway_spec("MM01:MARKET_MAKER"),
+        ],
+        emit_mm_defaults=True,
+        random_seed=11,
+        seed_mm_mid_range=(20.0, 20.03),
+        seed_last_prices_from_mm=True,
+    )
+    payload = ConfigBuilder(spec).build()
+
+    quote = payload["symbols"]["AAPL"]["market_maker_quotes"][0]
+    midpoint = (quote["bid_price"] + quote["ask_price"]) / 2
+    assert payload["symbols"]["AAPL"]["last_buy_price"] == midpoint
+    assert payload["symbols"]["AAPL"]["last_sell_price"] == midpoint
+
+
 def test_builder_with_cb_defaults_and_symbol_override() -> None:
     ov = SymbolOverride()
     ov.cb_shift["L1"] = 0.10
@@ -129,3 +169,25 @@ def test_builder_with_market_data_gateway_section() -> None:
     assert payload["market_data_gateway"]["bind_address"] == "127.0.0.1"
     assert payload["market_data_gateway"]["port"] == 7001
     assert payload["market_data_gateway"]["max_symbols_per_client"] == 50
+
+
+def test_builder_outstanding_shares_emitted() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL", "MSFT"],
+        gateways=[parse_gateway_spec("TRADER01")],
+        outstanding_shares={"AAPL": 15_400_000_000, "MSFT": 7_430_000_000},
+    )
+    payload = ConfigBuilder(spec).build()
+
+    assert payload["symbols"]["AAPL"]["outstanding_shares"] == 15_400_000_000
+    assert payload["symbols"]["MSFT"]["outstanding_shares"] == 7_430_000_000
+
+
+def test_builder_outstanding_shares_omitted_when_not_set() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01")],
+    )
+    payload = ConfigBuilder(spec).build()
+
+    assert "outstanding_shares" not in payload["symbols"]["AAPL"]

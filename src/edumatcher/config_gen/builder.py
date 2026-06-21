@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
+import random
 from typing import Any
 
 from edumatcher.models.participant import ParticipantRole
@@ -57,6 +59,9 @@ class ConfigSpec:
     emit_mm_defaults: bool = False
     tick_decimals: int = DEFAULT_TICK_DECIMALS
     seed_last_prices: bool = False
+    random_seed: int | None = None
+    seed_mm_mid_range: tuple[float, float] | None = None
+    seed_last_prices_from_mm: bool = False
     emit_schedule: bool = True
     pre_open: str = "09:00"
     opening_auction: str = "09:25"
@@ -64,6 +69,7 @@ class ConfigSpec:
     closing_auction: str = "16:00"
     closing_end: str = "16:05"
     symbol_overrides: dict[str, SymbolOverride] = field(default_factory=dict)
+    outstanding_shares: dict[str, int] = field(default_factory=dict)
     post_trade_gateway: PostTradeGatewaySpec | None = None
     market_data_gateway: MarketDataGatewaySpec | None = None
 
@@ -96,6 +102,7 @@ class MarketDataGatewaySpec:
 class ConfigBuilder:
     def __init__(self, spec: ConfigSpec):
         self.spec = spec
+        self._rng = random.Random(spec.random_seed)
 
     def build(self) -> dict[str, Any]:
         cfg: dict[str, Any] = {
@@ -299,7 +306,13 @@ class ConfigBuilder:
             if override.level is not None:
                 payload["level"] = override.level
 
-            if self.spec.seed_last_prices:
+            seeded_midpoint = self._seeded_midpoint(self.spec.tick_decimals)
+
+            if self.spec.seed_last_prices_from_mm and seeded_midpoint is not None:
+                midpoint = float(seeded_midpoint)
+                payload["last_buy_price"] = midpoint
+                payload["last_sell_price"] = midpoint
+            elif self.spec.seed_last_prices:
                 payload["last_buy_price"] = None
                 payload["last_sell_price"] = None
 
@@ -335,18 +348,61 @@ class ConfigBuilder:
 
             if mm_gateways:
                 payload["market_maker_quotes"] = [
-                    {
-                        "gateway_id": gateway_id,
-                        "bid_price": None,
-                        "ask_price": None,
-                        "bid_qty": DEFAULT_MM_STUB_QTY,
-                        "ask_qty": DEFAULT_MM_STUB_QTY,
-                        "tif": "DAY",
-                        "seed_once": True,
-                    }
+                    self._build_mm_quote_seed(
+                        gateway_id=gateway_id,
+                        tick_decimals=self.spec.tick_decimals,
+                        seeded_midpoint=seeded_midpoint,
+                    )
                     for gateway_id in mm_gateways
                 ]
+
+            outstanding = self.spec.outstanding_shares.get(symbol)
+            if outstanding is not None:
+                payload["outstanding_shares"] = outstanding
 
             symbols[symbol] = payload
 
         return symbols
+
+    def _seeded_midpoint(self, tick_decimals: int) -> Decimal | None:
+        if self.spec.seed_mm_mid_range is None:
+            return None
+
+        min_price, max_price = self.spec.seed_mm_mid_range
+        tick_size = Decimal(1).scaleb(-tick_decimals)
+        min_steps = int(
+            (Decimal(str(min_price)) / tick_size).to_integral_value(
+                rounding=ROUND_CEILING
+            )
+        )
+        max_steps = int(
+            (Decimal(str(max_price)) / tick_size).to_integral_value(
+                rounding=ROUND_FLOOR
+            )
+        )
+        midpoint_steps = self._rng.randint(min_steps, max_steps)
+        return Decimal(midpoint_steps) * tick_size
+
+    def _build_mm_quote_seed(
+        self,
+        gateway_id: str,
+        tick_decimals: int,
+        seeded_midpoint: Decimal | None,
+    ) -> dict[str, Any]:
+        if seeded_midpoint is None:
+            bid_price: float | None = None
+            ask_price: float | None = None
+        else:
+            tick_size = Decimal(1).scaleb(-tick_decimals)
+            bid_price = float(seeded_midpoint - tick_size)
+            ask_price = float(seeded_midpoint + tick_size)
+
+        return {
+            "gateway_id": gateway_id,
+            "bid_price": bid_price,
+            "ask_price": ask_price,
+            "bid_qty": DEFAULT_MM_STUB_QTY,
+            "ask_qty": DEFAULT_MM_STUB_QTY,
+            "tif": "DAY",
+            "seed_once": True,
+        }

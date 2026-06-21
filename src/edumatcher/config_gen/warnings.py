@@ -29,12 +29,21 @@ def evaluate_diagnostics(
 
     mm_gateways = [g for g in spec.gateways if g.role == ParticipantRole.MARKET_MAKER]
     if mm_gateways:
-        for gw in mm_gateways:
+        if spec.seed_mm_mid_range is None:
+            for gw in mm_gateways:
+                messages.append(
+                    Diagnostic(
+                        "WARN",
+                        f"MARKET_MAKER gateway {gw.gateway_id} requires quote seeds for every "
+                        "symbol. Stubs emitted - fill in prices before starting the engine.",
+                    ).format()
+                )
+        elif not spec.seed_last_prices_from_mm:
             messages.append(
                 Diagnostic(
-                    "WARN",
-                    f"MARKET_MAKER gateway {gw.gateway_id} requires quote seeds for every "
-                    "symbol. Stubs emitted - fill in prices before starting the engine.",
+                    "INFO",
+                    "MM quotes will be seeded from the configured midpoint range. Consider "
+                    "--seed-last-prices-from-mm to emit consistent last price references.",
                 ).format()
             )
 
@@ -123,7 +132,12 @@ def evaluate_diagnostics(
                 ).format()
             )
 
-    if mm_gateways and not spec.seed_last_prices:
+    if (
+        mm_gateways
+        and spec.seed_mm_mid_range is None
+        and not spec.seed_last_prices
+        and not spec.seed_last_prices_from_mm
+    ):
         messages.append(
             Diagnostic(
                 "INFO",

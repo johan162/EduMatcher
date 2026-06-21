@@ -35,6 +35,11 @@ if [[ -n "$SEED" && ! "$SEED" =~ ^-?[0-9]+$ ]]; then
   exit 1
 fi
 
+SEED_ARGS=()
+if [[ -n "$SEED" ]]; then
+  SEED_ARGS=(--seed "$SEED")
+fi
+
 if command -v pm-config-gen >/dev/null 2>&1; then
   CONFIG_GEN=(pm-config-gen)
 elif command -v poetry >/dev/null 2>&1; then
@@ -49,11 +54,48 @@ GATEWAYS=(TRADER01:TRADER:CANCEL_ALL TRADER02:TRADER:CANCEL_ALL TRADER03:TRADER:
 MM_GATEWAYS=(MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY MM02:MARKET_MAKER:CANCEL_QUOTES_ONLY)
 GATEWAYS+=("${MM_GATEWAYS[@]}")
 
+OUTSTANDING_ARGS=(
+  --outstanding-shares AAPL:15400000000
+  --outstanding-shares MSFT:7430000000
+  --outstanding-shares TSLA:3200000000
+  --outstanding-shares AMZN:10600000000
+  --outstanding-shares GOOGL:12200000000
+  --outstanding-shares META:2560000000
+  --outstanding-shares NVDA:24600000000
+  --outstanding-shares NFLX:430000000
+  --outstanding-shares INTC:4300000000
+  --outstanding-shares ORCL:2800000000
+  --outstanding-shares IBM:910000000
+  --outstanding-shares ADBE:460000000
+  --outstanding-shares CRM:970000000
+  --outstanding-shares QCOM:1690000000
+  --outstanding-shares AMD:1620000000
+  --outstanding-shares AVGO:4700000000
+  --outstanding-shares TXN:910000000
+  --outstanding-shares NOW:205000000
+  --outstanding-shares SHOP:1320000000
+  --outstanding-shares UBER:2130000000
+  --outstanding-shares PYPL:1080000000
+  --outstanding-shares SQ:600000000
+  --outstanding-shares BABA:2200000000
+  --outstanding-shares SONY:1240000000
+  --outstanding-shares SAP:1150000000
+  --outstanding-shares ASML:415000000
+  --outstanding-shares CSCO:4060000000
+  --outstanding-shares MU:1100000000
+  --outstanding-shares BKNG:44000000
+  --outstanding-shares TSM:5180000000
+)
+
 COMMON_ARGS=(
   --symbols "${SYMBOLS[@]}"
   --gateways "${GATEWAYS[@]}"
+  --seed-mm-mid-range 20:300
+  --seed-last-prices-from-mm
   --output engine_config.yaml
   --force
+  "${SEED_ARGS[@]}"
+  "${OUTSTANDING_ARGS[@]}"
 )
 "${CONFIG_GEN[@]}" "${COMMON_ARGS[@]}" \
   --sessions-enabled \
@@ -74,7 +116,6 @@ COMMON_ARGS=(
   --mm-min-qty 200 \
   --enforce-mm-obligations \
   --tick-decimals 2 \
-  --seed-last-prices \
   --symbol-opts AAPL:level=CORE,mm_spread_ticks=8,mm_min_qty=300 \
   --symbol-opts TSLA:level=HIGH_BETA,dynamic_band=0.04,cb_halt_l1=10 \
   --post-trade-gateway \
@@ -97,67 +138,33 @@ COMMON_ARGS=(
   --market-data-max-symbols-per-client 500 \
   --market-data-max-client-queue 20000
 
-# Assign a varied bootstrap mid-price per symbol (20-300), then derive
-# last buy/sell and MM bid/ask around that symbol-specific midpoint.
-if [[ -n "$SEED" ]]; then
-  RANDOM="$SEED"
-fi
-
-SYMBOL_MIDS=()
-MID_VALUES=()
-for sym in "${SYMBOLS[@]}"; do
-  mid=$((20 + RANDOM % 281))
-  SYMBOL_MIDS+=("${sym}:${mid}")
-  MID_VALUES+=("${mid}")
-done
-SYMBOL_MIDS_CSV="$(IFS=,; echo "${SYMBOL_MIDS[*]}")"
-
-awk -v mids_csv="$SYMBOL_MIDS_CSV" '
-BEGIN {
-  n = split(mids_csv, pairs, ",")
-  for (i = 1; i <= n; i++) {
-    split(pairs[i], kv, ":")
-    mid[kv[1]] = kv[2] + 0
-  }
-}
-function fmt(v) { return sprintf("%.2f", v) }
-$0 == "symbols:" { in_symbols = 1; print; next }
-in_symbols && $0 ~ /^  [A-Z0-9_.-]+:$/ {
-  current_symbol = $0
-  sub(/^  /, "", current_symbol)
-  sub(/:$/, "", current_symbol)
-  print
-  next
-}
-in_symbols && current_symbol != "" && $0 ~ /^    last_buy_price:/ {
-  $0 = "    last_buy_price: " fmt(mid[current_symbol] - 0.50) "    # REQUIRED: set last buy reference price"
-  print
-  next
-}
-in_symbols && current_symbol != "" && $0 ~ /^    last_sell_price:/ {
-  $0 = "    last_sell_price: " fmt(mid[current_symbol] + 0.50) "    # REQUIRED: set last sell reference price"
-  print
-  next
-}
-in_symbols && current_symbol != "" && $0 ~ /^      bid_price:/ {
-  $0 = "      bid_price: " fmt(mid[current_symbol] - 0.50) "    # REQUIRED: set display bid price (e.g. 209.00)"
-  print
-  next
-}
-in_symbols && current_symbol != "" && $0 ~ /^      ask_price:/ {
-  $0 = "      ask_price: " fmt(mid[current_symbol] + 0.50) "    # REQUIRED: set display ask price (e.g. 211.00)"
-  print
-  next
-}
-{ print }
-' engine_config.yaml > engine_config.yaml.tmp
-mv engine_config.yaml.tmp engine_config.yaml
-
 # Add one explicit seeded MM combo for complex profile bootstrap.
 combo_a="${SYMBOLS[0]}"
 combo_b="${SYMBOLS[1]}"
-combo_price_a=$((MID_VALUES[0] * 100))
-combo_price_b=$((MID_VALUES[1] * 100))
+combo_price_a="$(awk -v symbol="$combo_a" '
+$0 == "symbols:" { in_symbols = 1; next }
+in_symbols && $0 ~ /^  [A-Z0-9_.-]+:$/ {
+  current = $1
+  sub(/:$/, "", current)
+  next
+}
+in_symbols && current == symbol && $1 == "last_buy_price:" {
+  printf "%d\n", (($2 + 0) * 100) + 0.5
+  exit
+}
+' engine_config.yaml)"
+combo_price_b="$(awk -v symbol="$combo_b" '
+$0 == "symbols:" { in_symbols = 1; next }
+in_symbols && $0 ~ /^  [A-Z0-9_.-]+:$/ {
+  current = $1
+  sub(/:$/, "", current)
+  next
+}
+in_symbols && current == symbol && $1 == "last_buy_price:" {
+  printf "%d\n", (($2 + 0) * 100) + 0.5
+  exit
+}
+' engine_config.yaml)"
 cat >> engine_config.yaml <<YAML
 
 market_maker_combos:
