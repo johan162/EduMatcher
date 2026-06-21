@@ -253,6 +253,12 @@ Real-world examples: the US market-wide circuit breakers (Level 1/2/3), the
 London Stock Exchange's Automated Auction Call mechanism, and per-stock
 volatility interruptions on Euronext.
 
+In many production exchanges, the primary circuit-breaker trigger is linked to
+an index (market-wide reference) with per-symbol volatility controls layered on
+top. EduMatcher does not yet implement index-level circuit-breaker triggers, so
+its current circuit-breaker logic is symbol-linked: each symbol evaluates its
+own rolling trade reference and can halt independently.
+
 ### How it works — step by step
 
 1. **Every trade is recorded.**  When the engine publishes a fill, it calls
@@ -377,6 +383,41 @@ present, per-symbol values override global defaults by level key.
 Circuit-breaker levels are **trigger outcomes**, not configuration profiles to
 pick one from. A symbol defines a ladder of levels; the observed price shift
 determines which level is activated at runtime.
+
+
+
+##  Price collars vs circuit breakers
+
+Both controls are configured on symbols, but they protect the market at
+different points in the flow and for different failure modes.
+
+- A **price collar** is a pre-trade admission guardrail on priced orders.
+- A **circuit breaker** is a post-trade volatility interrupt that can halt the
+  full symbol after an extreme move is observed.
+
+### Side-by-side comparison
+
+| Dimension | Price collar (symbol) | Circuit breaker (symbol) |
+|---|---|---|
+| Trigger moment | Before matching (order admission) | After a trade is executed |
+| Data checked | Incoming order price vs static/dynamic bands | Trade price shift vs rolling reference |
+| Scope of effect | Single incoming order | Entire symbol |
+| Typical action | Reject offending order (`STATIC_COLLAR_BREACH` or `DYNAMIC_COLLAR_BREACH`) | Halt symbol, cancel MM quotes, schedule/manual resume |
+| Market state after trigger | Symbol keeps trading for other valid orders | Symbol is halted until resume condition is met |
+| Configuration anchor | `symbols.<SYM>.collar` (or inherited level defaults) | `circuit_breaker_defaults` + `symbols.<SYM>.circuit_breaker` overrides |
+| Primary objective | Prevent fat-finger / outlier order entry | Pause disorderly market after extreme realized move |
+| Dependence on trade history | Dynamic band needs last trade, static band does not | Uses rolling trade history/reference window |
+
+### Practical interpretation
+
+Use collars to stop clearly invalid prices from entering the book. Use circuit
+breakers to pause trading when validly admitted orders still produce an
+abnormally large executed move. In practice, collars reduce bad inputs and
+circuit breakers contain fast market dislocations.
+
+For field-level schema and merge precedence details, see
+[Configuration - Circuit Breakers](01-configuration.md#circuit-breakers) and
+[Configuration - Risk Controls and Collars](01-configuration.md#risk-controls-and-collars).
 
 
 

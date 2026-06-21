@@ -1214,6 +1214,9 @@ set; they never create a collar on their own.
 `circuit_breaker_defaults` defines the default threshold ladder. Symbol-level
 `circuit_breaker` sections merge over it field by field.
 
+For an operational comparison of symbol-level circuit breakers versus symbol
+price collars, see [Risk Controls - Price collars vs circuit breakers](12-risk-controls.md#price-collars-vs-circuit-breakers).
+
 ```yaml
 circuit_breaker_defaults:
   reference_window_ns: 300000000000
