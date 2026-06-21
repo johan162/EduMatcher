@@ -65,6 +65,7 @@ COMMON_ARGS=(
   --seed-last-prices-from-mm
   --output engine_config.yaml
   --force
+  --comment-default-config-fields
   "${SEED_ARGS[@]}"
   "${OUTSTANDING_ARGS[@]}"
 )
