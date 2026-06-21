@@ -79,6 +79,27 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Per-symbol overrides. Can be repeated.",
     )
     parser.add_argument(
+        "--symbol-static-band",
+        action="append",
+        default=[],
+        metavar="SYM:PCT",
+        help="Per-symbol collar static band pct in (0,1). Can be repeated.",
+    )
+    parser.add_argument(
+        "--symbol-dynamic-band",
+        action="append",
+        default=[],
+        metavar="SYM:PCT",
+        help="Per-symbol collar dynamic band pct in (0,1). Can be repeated.",
+    )
+    parser.add_argument(
+        "--symbol-risk-level",
+        action="append",
+        default=[],
+        metavar="SYM:LEVEL",
+        help="Per-symbol risk level key override. Can be repeated.",
+    )
+    parser.add_argument(
         "--outstanding-shares",
         action="append",
         default=[],
@@ -514,6 +535,17 @@ def _build_default_engine_field_comment_lines(config: dict[str, object]) -> list
             ]
         )
 
+    if "circuit_breaker_defaults" not in config:
+        lines.extend(
+            [
+                "circuit_breaker_defaults.reference_window_ns = 300000000000 - Rolling nanosecond window used to evaluate circuit-breaker price moves",
+                "circuit_breaker_defaults.levels.L1 = {price_shift_pct: 0.07, halt_duration_ns: 300000000000, resumption_mode: AUCTION} - Level 1: 7% move, 5 minute halt",
+                "circuit_breaker_defaults.levels.L2 = {price_shift_pct: 0.13, halt_duration_ns: 900000000000, resumption_mode: AUCTION} - Level 2: 13% move, 15 minute halt",
+                "circuit_breaker_defaults.levels.L3 = {price_shift_pct: 0.20, halt_duration_ns: null, resumption_mode: AUCTION} - Level 3: 20% move, rest-of-day halt",
+                "symbols.<SYM>.circuit_breaker.levels.<LEVEL>.<FIELD> = override - Optional per-symbol per-level override merged over circuit_breaker_defaults",
+            ]
+        )
+
     return lines
 
 
@@ -654,6 +686,56 @@ def _parse_outstanding_shares(
     return result
 
 
+def _parse_symbol_band_specs(
+    specs: list[str],
+    allowed_symbols: set[str],
+    flag_name: str,
+) -> dict[str, float]:
+    result: dict[str, float] = {}
+    for raw in specs:
+        if ":" not in raw:
+            raise ValueError(f"Invalid {flag_name} '{raw}': expected SYM:PCT")
+        sym_raw, val_raw = raw.split(":", 1)
+        sym = sym_raw.strip().upper()
+        if not sym:
+            raise ValueError(f"Invalid {flag_name} '{raw}': symbol cannot be empty")
+        if sym not in allowed_symbols:
+            raise ValueError(f"{flag_name} references unknown symbol '{sym}'")
+        try:
+            value = float(val_raw.strip())
+        except ValueError:
+            raise ValueError(f"{flag_name} '{raw}': value must be numeric")
+        if not (0 < value < 1):
+            raise ValueError(f"{flag_name} '{raw}': value must be in (0, 1)")
+        result[sym] = value
+    return result
+
+
+def _parse_symbol_level_specs(
+    specs: list[str],
+    allowed_symbols: set[str],
+) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for raw in specs:
+        if ":" not in raw:
+            raise ValueError(f"Invalid --symbol-risk-level '{raw}': expected SYM:LEVEL")
+        sym_raw, level_raw = raw.split(":", 1)
+        sym = sym_raw.strip().upper()
+        if not sym:
+            raise ValueError(
+                f"Invalid --symbol-risk-level '{raw}': symbol cannot be empty"
+            )
+        if sym not in allowed_symbols:
+            raise ValueError(f"--symbol-risk-level references unknown symbol '{sym}'")
+        level = level_raw.strip().upper()
+        if not level:
+            raise ValueError(
+                f"Invalid --symbol-risk-level '{raw}': level cannot be empty"
+            )
+        result[sym] = level
+    return result
+
+
 def _parse_specs(args: argparse.Namespace) -> tuple[
     list[str],
     list[GatewaySpec],
@@ -681,6 +763,31 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
         specs=args.symbol_opts,
         allowed_symbols=set(symbols),
     )
+
+    symbol_static_bands = _parse_symbol_band_specs(
+        specs=args.symbol_static_band,
+        allowed_symbols=set(symbols),
+        flag_name="--symbol-static-band",
+    )
+    for sym, static_band in symbol_static_bands.items():
+        symbol_overrides.setdefault(sym, SymbolOverride()).static_band_pct = static_band
+
+    symbol_dynamic_bands = _parse_symbol_band_specs(
+        specs=args.symbol_dynamic_band,
+        allowed_symbols=set(symbols),
+        flag_name="--symbol-dynamic-band",
+    )
+    for sym, dynamic_band in symbol_dynamic_bands.items():
+        symbol_overrides.setdefault(sym, SymbolOverride()).dynamic_band_pct = (
+            dynamic_band
+        )
+
+    symbol_risk_levels = _parse_symbol_level_specs(
+        specs=args.symbol_risk_level,
+        allowed_symbols=set(symbols),
+    )
+    for sym, risk_level in symbol_risk_levels.items():
+        symbol_overrides.setdefault(sym, SymbolOverride()).level = risk_level
 
     outstanding_shares = _parse_outstanding_shares(
         specs=args.outstanding_shares,

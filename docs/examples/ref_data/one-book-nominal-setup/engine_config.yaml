@@ -10,6 +10,11 @@
 #   sessions_enabled = True - Disabled keeps the engine in continuous mode; enabled lets pm-scheduler drive session transitions
 #   snapshot_interval_sec = 0.5 - Seconds between book snapshot publications for dirty books
 #   gateways.alf[].description = '' - Optional human-readable label for the gateway
+#   circuit_breaker_defaults.reference_window_ns = 300000000000 - Rolling nanosecond window used to evaluate circuit-breaker price moves
+#   circuit_breaker_defaults.levels.L1 = {price_shift_pct: 0.07, halt_duration_ns: 300000000000, resumption_mode: AUCTION} - Level 1: 7% move, 5 minute halt
+#   circuit_breaker_defaults.levels.L2 = {price_shift_pct: 0.13, halt_duration_ns: 900000000000, resumption_mode: AUCTION} - Level 2: 13% move, 15 minute halt
+#   circuit_breaker_defaults.levels.L3 = {price_shift_pct: 0.20, halt_duration_ns: null, resumption_mode: AUCTION} - Level 3: 20% move, rest-of-day halt
+#   symbols.<SYM>.circuit_breaker.levels.<LEVEL>.<FIELD> = override - Optional per-symbol per-level override merged over circuit_breaker_defaults
 
 # -- Session control --
 sessions_enabled: true  # true lets pm-scheduler drive session transitions; false keeps the engine in continuous mode

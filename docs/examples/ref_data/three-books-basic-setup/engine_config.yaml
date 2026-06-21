@@ -32,6 +32,11 @@
 #   market_data_gateway.replay_window_sec = 30 - Default replay history window in seconds
 #   market_data_gateway.max_symbols_per_client = 200 - Default per-client symbol subscription cap
 #   market_data_gateway.max_client_queue = 10000 - Default slow-client queue depth
+#   circuit_breaker_defaults.reference_window_ns = 300000000000 - Rolling nanosecond window used to evaluate circuit-breaker price moves
+#   circuit_breaker_defaults.levels.L1 = {price_shift_pct: 0.07, halt_duration_ns: 300000000000, resumption_mode: AUCTION} - Level 1: 7% move, 5 minute halt
+#   circuit_breaker_defaults.levels.L2 = {price_shift_pct: 0.13, halt_duration_ns: 900000000000, resumption_mode: AUCTION} - Level 2: 13% move, 15 minute halt
+#   circuit_breaker_defaults.levels.L3 = {price_shift_pct: 0.20, halt_duration_ns: null, resumption_mode: AUCTION} - Level 3: 20% move, rest-of-day halt
+#   symbols.<SYM>.circuit_breaker.levels.<LEVEL>.<FIELD> = override - Optional per-symbol per-level override merged over circuit_breaker_defaults
 
 # -- Session control --
 sessions_enabled: false  # true lets pm-scheduler drive session transitions; false keeps the engine in continuous mode

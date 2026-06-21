@@ -181,6 +181,9 @@ Core engine and risk options:
 | `--no-circuit-breakers` | Flag | off | Emit `enforce_circuit_breakers: false` |
 | `--static-band PCT` | float in `(0,1)` | unset | Default risk-control static band (`DEFAULT` level) |
 | `--dynamic-band PCT` | float in `(0,1)` | unset | Default risk-control dynamic band (`DEFAULT` level) |
+| `--symbol-static-band SYM:PCT` | Repeatable | none | Per-symbol `collar.static_band_pct` override |
+| `--symbol-dynamic-band SYM:PCT` | Repeatable | none | Per-symbol `collar.dynamic_band_pct` override |
+| `--symbol-risk-level SYM:LEVEL` | Repeatable | none | Per-symbol `symbols.<SYM>.level` override |
 | `--risk-level NAME:STATIC[:DYNAMIC]` | Repeatable | none | Add named risk levels under `risk_controls.levels` |
 | `--cb-levels NAME:SHIFT[:HALT_MINS] ...` | List | built-in ladder | Circuit-breaker level specs |
 | `--cb-window-ns NS` | int (`> 0`) | `300000000000` | Circuit-breaker reference window |
@@ -314,6 +317,31 @@ Supported `KEY` values:
 | `level` | string | Symbol risk level key |
 | `mm_spread_ticks` | int `> 0` | Symbol MM spread threshold |
 | `mm_min_qty` | int `> 0` | Symbol MM minimum quantity |
+
+For the two most common collar overrides, you can also use explicit flags:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT \
+  --gateways TRADER01 \
+  --symbol-static-band AAPL:0.18 \
+  --symbol-dynamic-band AAPL:0.03
+```
+
+Per-symbol risk-level assignment can also use an explicit flag:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT TSLA \
+  --gateways TRADER01 \
+  --risk-level CORE:0.18:0.02 \
+  --risk-level HIGH_BETA:0.12:0.04 \
+  --symbol-risk-level AAPL:CORE \
+  --symbol-risk-level TSLA:HIGH_BETA
+```
+
+`--symbol-risk-level` is a convenience alias for `--symbol-opts SYM:level=...`.
+It writes `symbols.<SYM>.level` and uses the same runtime validation rules.
 
 Unknown symbols/keys or invalid values in `--symbol-opts` are reported as
 warnings and ignored.
@@ -1073,6 +1101,60 @@ risk_controls:
         dynamic_band_pct: 0.02
 ```
 
+### Per-symbol risk-level assignment
+
+Use per-symbol risk levels when different symbols should inherit different
+named collar profiles from `risk_controls.levels`.
+
+You can assign the symbol level directly in YAML:
+
+```yaml
+risk_controls:
+  default_level: DEFAULT
+  levels:
+    DEFAULT:
+      collar:
+        static_band_pct: 0.20
+        dynamic_band_pct: 0.02
+    CORE:
+      collar:
+        static_band_pct: 0.18
+        dynamic_band_pct: 0.02
+    HIGH_BETA:
+      collar:
+        static_band_pct: 0.12
+        dynamic_band_pct: 0.04
+
+symbols:
+  AAPL:
+    level: CORE
+  TSLA:
+    level: HIGH_BETA
+```
+
+Or generate the same structure from CLI:
+
+```bash
+pm-config-gen \
+  --symbols AAPL TSLA \
+  --gateways TRADER01 \
+  --risk-level CORE:0.18:0.02 \
+  --risk-level HIGH_BETA:0.12:0.04 \
+  --symbol-risk-level AAPL:CORE \
+  --symbol-risk-level TSLA:HIGH_BETA
+```
+
+Semantics:
+
+- `symbols.<SYMBOL>.level` selects one named profile from
+  `risk_controls.levels`.
+- If `level` is omitted, the symbol uses `risk_controls.default_level` when
+  present.
+- If neither a symbol level nor `default_level` applies, the symbol has no
+  collar unless `symbols.<SYMBOL>.collar` is defined directly.
+- `symbols.<SYMBOL>.collar` remains the highest-priority per-field override
+  over any selected level.
+
 ### Risk-control Fields
 
 | Field | Required | Accepted values / type | Default |
@@ -1091,6 +1173,17 @@ Collars may appear under `risk_controls.levels.<LEVEL>.collar` or under
 |---|---:|---|---|
 | `static_band_pct` | No | Number in `(0, 1)` | `0.20` |
 | `dynamic_band_pct` | No | Number in `(0, 1)` | `0.02` |
+
+Meaning of collar values:
+
+- `static_band_pct` is an absolute guard around the symbol reference price
+  (for example prior close or seeded last price). A value of `0.20` means
+  allow prices within ±20% of that reference.
+- `dynamic_band_pct` is an incremental guard around the latest trade price.
+  A value of `0.02` means allow prices within ±2% of the latest fill.
+
+This is the same behavior described in [Risk Controls](12-risk-controls.md)
+and implemented in `src/edumatcher/engine/collar.py`.
 
 Validation rules:
 
