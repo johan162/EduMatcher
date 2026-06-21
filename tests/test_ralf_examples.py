@@ -23,7 +23,7 @@ from edumatcher.models.message import dumps
 from edumatcher.ralf_gateway.config import RalfGatewayConfig
 from edumatcher.ralf_gateway.gateway import RalfGateway
 
-EXAMPLE_DIR = Path("docs-design/examples/ralf")
+EXAMPLE_DIR = Path("docs/examples/ralf")
 
 
 class _LineReader(Protocol):

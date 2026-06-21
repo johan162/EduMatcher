@@ -19,7 +19,9 @@ replay checkpoints, and recovery/error behavior.
 - Chapters 01-21 completed.
 - Engine running and producing trades.
 - pm-ralf-gwy running and reachable on TCP (default 5580).
-- Example files available in docs-design/examples/ralf.
+- Support libraries and clients available in docs/examples/ralf:
+  - ralf_parser.py, ralf_subscriber.py
+  - ralf_parser.h, ralf_parser.c, ralf_subscriber.c
 
 Recommended startup terminals:
 
@@ -76,7 +78,7 @@ pm-ralf-gwy --config engine_config.yaml
 From the example directory:
 
 ```bash
-cd docs-design/examples/ralf
+cd docs/examples/ralf
 python3 ralf_subscriber.py \
   --host 127.0.0.1 \
   --port 5580 \
@@ -95,12 +97,37 @@ Observe:
 
 ---
 
+## Exercise 2B: Manual Handshake Probe with nc
+
+Before continuing with richer clients, validate a minimal manual protocol flow:
+
+```bash
+nc 127.0.0.1 5580
+```
+
+Then send:
+
+```text
+HELLO|CLIENT=manual01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
+SUB|CH=CLEARING|SYM=*
+```
+
+Expected behavior:
+
+- `WELCOME|...` after `HELLO`
+- `SNAP|...` after `SUB`
+- live `EXEC|...` / `EOD|...` once trades are produced
+
+:material-checkbox-blank-outline: Checkpoint: manual nc session can establish, subscribe, and receive at least one post-trade message.
+
+---
+
 ## Exercise 3: Use the C Example as a DROP_COPY Consumer
 
 Build and run the C subscriber:
 
 ```bash
-cd docs-design/examples/ralf
+cd docs/examples/ralf
 make
 ./ralf_subscriber 127.0.0.1 5580 DROP_COPY
 ```
@@ -123,7 +150,7 @@ DROP_COPY role argument and validate that role is accepted.
 Run another Python subscriber in a second client terminal:
 
 ```bash
-python3 docs-design/examples/ralf/ralf_subscriber.py \
+python3 docs/examples/ralf/ralf_subscriber.py \
   --host 127.0.0.1 \
   --port 5580 \
   --role AUDIT \
@@ -169,6 +196,20 @@ Expected behavior:
 - EXIT closes session cleanly
 
 :material-checkbox-blank-outline: Checkpoint: you can manually drive and verify protocol control flow.
+
+---
+
+## Support Libraries and Example Clients
+
+Reference implementations used in this training chapter:
+
+- docs/examples/ralf/ralf_parser.py
+- docs/examples/ralf/ralf_subscriber.py
+- docs/examples/ralf/ralf_parser.h
+- docs/examples/ralf/ralf_parser.c
+- docs/examples/ralf/ralf_subscriber.c
+
+Use these to bootstrap both quick lab subscribers and production-like integration test harnesses.
 
 ---
 
@@ -249,7 +290,8 @@ You have now covered major RALF protocol usage patterns:
 ## Further Reading
 
 - Post-Trade Dissemination: ../user-guide/18-post-trade.md
-- RALF Protocol Appendix: ../user-guide/23-app-ralf-protocol.md
+- RALF Protocol Appendix: ../user-guide/93-app-ralf-protocol.md
+- Protocol Support Library Examples: ../user-guide/80-examples.md
 - Processes: ../user-guide/10-processes.md
 
 This chapter extends the training program with post-trade external protocol operations.

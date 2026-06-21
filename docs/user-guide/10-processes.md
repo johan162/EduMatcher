@@ -340,7 +340,7 @@ The drop-copy socket is lazily bound on startup. See [Drop-Copy Feed](13-drop-co
 ## pm-gateway — User Gateway
 
 One instance per user. Accepts ALF commands on stdin.
-See [ALF Protocol Reference](20-app-alf-protocol.md).
+See [ALF Protocol Reference](90-app-alf-protocol.md).
 
 ```bash
 pm-gateway --id <GW_ID>
@@ -1186,7 +1186,7 @@ No terminal input. External parties connect over TCP and send RALF lines:
 | `EXIT` | Session termination reason |
 
 For external usage and examples see [Post-Trade Dissemination](18-post-trade.md)
-and [RALF Protocol Reference](23-app-ralf-protocol.md).
+and [RALF Protocol Reference](93-app-ralf-protocol.md).
 
 
 
@@ -1405,16 +1405,27 @@ from the single PUB socket — none of them coordinate with each other.
 
 ## Planned Processes
 
-The following processes are documented as design proposals and will be added in
-future releases. They do not yet exist as runnable scripts.
+The following processes are documented as design proposals and are not yet
+available as runnable scripts.
 
 | Process | Protocol | Purpose | Status |
 |---------|----------|---------|--------|
 | **pm-balf-gateway** | BALF | Binary order entry gateway for low-latency programmatic clients | Design proposal |
-| **pm-md-gwy** | CALF | Market-data distribution gateway delivering order-book snapshots, trade prints, and session-state changes over TCP | Design proposal |
 | **pm-index** | — | Real-time index calculation service publishing index values on port 5558 | Design proposal |
 
-See the [BALF Protocol Reference](21-app-balf-protocol.md) and [CALF Protocol Reference](22-app-calf-protocol.md) for the message specifications these processes will implement.
+See the [BALF Protocol Reference](91-app-balf-protocol.md) for message specifications planned for future gateway implementations.
+
+## pm-md-gwy (CALF Market-Data Gateway)
+
+`pm-md-gwy` is implemented and provides external market-data distribution over
+CALF/TCP. It consumes engine PUB topics and exposes sequence-aware streams for:
+
+- `TOP` (top-of-book style updates)
+- `TRADE` (executed trades)
+- `STATE` (session and halt/resume state)
+
+See [Market Data Feed (CALF)](20-market-data-feed.md) for operational usage and
+[CALF Protocol Reference](92-app-calf-protocol.md) for the wire-level contract.
 
 ## See also
 
@@ -1424,5 +1435,5 @@ See the [BALF Protocol Reference](21-app-balf-protocol.md) and [CALF Protocol Re
 - [Persistence](11-persistence.md) — which process writes which data file
 - [Drop Copy](13-drop-copy.md) — the engine's built-in :5557 drop-copy feed
 - [Post-Trade Dissemination](18-post-trade.md) — external RALF gateway usage
-- [RALF Protocol Reference](23-app-ralf-protocol.md) — official protocol appendix
+- [RALF Protocol Reference](93-app-ralf-protocol.md) — official protocol appendix
 - [Market-Maker Bot](17-mm-bot.md) — autonomous quoting process for a single symbol

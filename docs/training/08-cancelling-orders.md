@@ -183,7 +183,7 @@ stateDiagram-v2
 
 - [Gateway Commands](../user-guide/08-gateway.md)
 - [Message Types (system.symbols)](../user-guide/09-messages.md)
-- [ALF Protocol — Cancellation Semantics](../user-guide/20-app-alf-protocol.md)
+- [ALF Protocol — Cancellation Semantics](../user-guide/90-app-alf-protocol.md)
 
 ---
 

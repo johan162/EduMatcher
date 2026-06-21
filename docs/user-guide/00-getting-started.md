@@ -267,7 +267,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | Command | Interactivity | Purpose | More information |
 |---|---|---|---|
 | `pm-engine` | Background | Matching engine; central order-book writer | [Processes](10-processes.md), [Running the Engine](03-running-the-engine.md), [Configuration](01-configuration.md) |
-| `pm-gateway` | Interactive terminal | ALF participant terminal and order entry | [Processes](10-processes.md), [Gateway](08-gateway.md), [ALF Protocol](20-app-alf-protocol.md) |
+| `pm-gateway` | Interactive terminal | ALF participant terminal and order entry | [Processes](10-processes.md), [Gateway](08-gateway.md), [ALF Protocol](90-app-alf-protocol.md) |
 | `pm-scheduler` | Background | Session phase transitions by schedule | [Processes](10-processes.md), [Auctions and Scheduling](06-auctions-scheduling.md) |
 | `pm-viewer` | Terminal display | Single-symbol live order book view | [Processes](10-processes.md), [Order Types](04-order-types.md) |
 | `pm-orders` | Terminal display | Live cross-gateway order status monitor | [Processes](10-processes.md), [Messages](09-messages.md) |
@@ -276,11 +276,12 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | `pm-stats` | Background | Persist market statistics to SQLite | [Processes](10-processes.md), [Statistics and Reporting](16-statistics-and-reporting.md) |
 | `pm-clearing` | Terminal display | Trade recording and running P&L | [Processes](10-processes.md), [P&L and Clearing](07-pnl-clearing.md) |
 | `pm-audit` | Background | Full event log capture from the bus | [Processes](10-processes.md), [Persistence](11-persistence.md) |
-| `pm-ralf-gwy` | Background | External post-trade dissemination gateway (RALF) | [Processes](10-processes.md), [Post-Trade Dissemination](18-post-trade.md), [RALF Protocol](23-app-ralf-protocol.md) |
+| `pm-ralf-gwy` | Background | External post-trade dissemination gateway (RALF) | [Processes](10-processes.md), [Post-Trade Dissemination](18-post-trade.md), [RALF Protocol](93-app-ralf-protocol.md) |
 | `pm-admin` | Interactive terminal | Interactive operational console | [Processes](10-processes.md), [Risk Controls](12-risk-controls.md) |
 | `pm-ai-trader` | Background | Single autonomous trading bot gateway | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
 | `pm-ai-swarm` | Background | Multi-agent autonomous trading swarm | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
 | `pm-mm-bot` | Background | Autonomous market-maker quoting bot | [Processes](10-processes.md), [Market-Maker Bot](17-mm-bot.md) |
+| `pm-md-gwy` | Background | Market-data distribution gateway (CALF) | [Processes](10-processes.md#pm-md-gwy-calf-market-data-gateway), [Market Data Feed](20-market-data-feed.md), [CALF Protocol](92-app-calf-protocol.md) |
 
 ### CLI utilities (runnable)
 
@@ -295,8 +296,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 
 | Command | Interactivity | Purpose | More information |
 |---|---|---|---|
-| `pm-balf-gateway` | Background | Binary order-entry gateway (BALF) | [Processes planned section](10-processes.md#planned-processes), [BALF Protocol](21-app-balf-protocol.md) |
-| `pm-md-gwy` | Background | Market-data distribution gateway (CALF) | [Processes planned section](10-processes.md#planned-processes), [CALF Protocol](22-app-calf-protocol.md) |
+| `pm-balf-gateway` | Background | Binary order-entry gateway (BALF) | [Processes planned section](10-processes.md#planned-processes), [BALF Protocol](91-app-balf-protocol.md) |
 | `pm-index` | Background | Real-time index calculation service | [Processes planned section](10-processes.md#planned-processes) |
 
 For startup order and a practical first-run sequence, see
@@ -619,4 +619,4 @@ Use the table below to decide what to read based on your goal.
 - [Market-Maker Bot](17-mm-bot.md) — automated quoting with `pm-mm-bot`
 - [Post-Trade Dissemination](18-post-trade.md) — external post-trade gateway with `pm-ralf-gwy`
 - [External Protocols Overview](19-protocol-overview.md) — where ALF, BALF, CALF, and RALF fit and how to choose between them
-- [RALF Protocol](23-app-ralf-protocol.md) — protocol-level wire specification
+- [RALF Protocol](93-app-ralf-protocol.md) — protocol-level wire specification

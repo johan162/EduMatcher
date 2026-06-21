@@ -34,7 +34,7 @@ connects each protocol to:
 |---|---|---|---|---|
 | **ALF** | Human-readable order entry and gateway control | Text line protocol (`FIELD=VALUE|...`) | Implemented and active | `pm-gateway` |
 | **BALF** | Low-latency binary order entry for programmatic clients | Binary framed protocol | Documented; planned gateway process | `pm-balf-gateway` (planned) |
-| **CALF** | External market-data dissemination (top/book/trade/state style channels) | Text line protocol over TCP | Documented; planned gateway process | `pm-md-gwy` (planned) |
+| **CALF** | External market-data dissemination (top/book/trade/state style channels) | Text line protocol over TCP | Implemented and active | `pm-md-gwy` |
 | **RALF** | External post-trade dissemination for clearing, drop-copy, and audit consumers | Text line protocol over TCP (`RALF1`) | Implemented and active | `pm-ralf-gwy` |
 
 
@@ -55,7 +55,7 @@ Where to read more:
 - Gateway behavior and operator workflow: [Gateway Commands](08-gateway.md)
 - Process-level role of the ALF gateway: [Processes](10-processes.md#pm-gateway-user-gateway)
 - Engine configuration of allowed ALF IDs/roles: [Configuration](01-configuration.md#alf-gateway-allowlist)
-- Formal wire syntax and semantics: [Appendix - ALF Protocol](20-app-alf-protocol.md)
+- Formal wire syntax and semantics: [Appendix - ALF Protocol](90-app-alf-protocol.md)
 
 
 ## BALF (Binary ALF)
@@ -76,7 +76,7 @@ Use BALF when you need:
 Where to read more:
 
 - Planned runtime process and position in architecture: [Processes](10-processes.md#planned-processes)
-- Protocol design details and message/frame definitions: [Appendix - BALF Protocol](21-app-balf-protocol.md)
+- Protocol design details and message/frame definitions: [Appendix - BALF Protocol](91-app-balf-protocol.md)
 - Configuration context and protocol family notes: [Configuration](01-configuration.md)
 
 
@@ -86,9 +86,8 @@ CALF is the external market-data protocol family. It is designed for
 subscription-based market-data delivery (channelized streams, snapshot +
 incremental patterns, and sequence-aware recovery semantics).
 
-In the current User Guide state, CALF is documented as a protocol specification
-and process concept, with the market-data gateway listed under planned
-processes.
+CALF is implemented via `pm-md-gwy` and is used for external market-data
+distribution with snapshot, incremental, and replay-aware reconnect semantics.
 
 Use CALF when you need:
 
@@ -100,8 +99,9 @@ Use CALF when you need:
 Where to read more:
 
 - Market-data concepts and channel model: [Market Data Feed (CALF)](../concepts/06-concepts-market-data-feed.md)
-- Planned runtime process and architecture placement: [Processes](10-processes.md#planned-processes)
-- Formal wire protocol reference: [Appendix - CALF Protocol](22-app-calf-protocol.md)
+- Runtime process and architecture placement: [Processes](10-processes.md#pm-md-gwy-calf-market-data-gateway)
+- Operational client onboarding and examples: [Market Data Feed (CALF)](20-market-data-feed.md)
+- Formal wire protocol reference: [Appendix - CALF Protocol](92-app-calf-protocol.md)
 
 
 ## RALF (Reconciliation ALF)
@@ -121,7 +121,7 @@ Where to read more:
 - Operational deployment and runbook: [Post-Trade Dissemination (RALF)](18-post-trade.md)
 - Process-level role in runtime topology: [Processes](10-processes.md#pm-ralf-gwy-post-trade-dissemination-gateway)
 - RALF gateway configuration details: [Configuration](01-configuration.md#configuring-pm-ralf-gwy)
-- Formal wire protocol reference: [Appendix - RALF Protocol](23-app-ralf-protocol.md)
+- Formal wire protocol reference: [Appendix - RALF Protocol](93-app-ralf-protocol.md)
 
 
 ## Quick selection guide
@@ -139,7 +139,7 @@ Where to read more:
 - [Getting Started](00-getting-started.md)
 - [Processes](10-processes.md)
 - [Post-Trade Dissemination (RALF)](18-post-trade.md)
-- [Appendix - ALF Protocol](20-app-alf-protocol.md)
-- [Appendix - BALF Protocol](21-app-balf-protocol.md)
-- [Appendix - CALF Protocol](22-app-calf-protocol.md)
-- [Appendix - RALF Protocol](23-app-ralf-protocol.md)
+- [Appendix - ALF Protocol](90-app-alf-protocol.md)
+- [Appendix - BALF Protocol](91-app-balf-protocol.md)
+- [Appendix - CALF Protocol](92-app-calf-protocol.md)
+- [Appendix - RALF Protocol](93-app-ralf-protocol.md)

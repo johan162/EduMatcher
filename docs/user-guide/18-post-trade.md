@@ -185,8 +185,8 @@ Behavior:
 
 Two full working client/library examples are provided in:
 
-- `docs-design/examples/ralf/ralf_subscriber.py`
-- `docs-design/examples/ralf/ralf_subscriber.c`
+- `docs/examples/ralf/ralf_subscriber.py`
+- `docs/examples/ralf/ralf_subscriber.c`
 
 They use reusable parser libraries in the same directory and demonstrate:
 
@@ -204,8 +204,85 @@ They use reusable parser libraries in the same directory and demonstrate:
   network and perimeter security controls.
 
 
+## Dedicated Gateway Runbook (pm-ralf-gwy)
+
+Use this section as a focused operator runbook for the running gateway process.
+
+### Start commands
+
+Installed mode:
+
+```bash
+pm-engine --verbose
+pm-ralf-gwy --config engine_config.yaml
+```
+
+Developer mode:
+
+```bash
+poetry run pm-engine --verbose
+poetry run pm-ralf-gwy --config engine_config.yaml
+```
+
+### Minimal client probe
+
+Manual probe using `nc`:
+
+```bash
+nc 127.0.0.1 5580
+```
+
+Then send:
+
+```text
+HELLO|CLIENT=clear01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=0
+SUB|CH=CLEARING|SYM=*
+```
+
+Expected sequence:
+
+1. `WELCOME|...`
+2. `SNAP|...`
+3. live `EXEC|...` / `EOD|...`
+4. periodic `HB|...` while idle
+
+### Reconnect replay behavior
+
+Resume from checkpoint:
+
+```text
+HELLO|CLIENT=clear01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=1200
+```
+
+Outcomes:
+
+- replay hit: retained events with `SEQ > LASTSEQ`, then live continuation
+- replay miss: `ERR|CODE=REPLAY_MISS`, followed by recovery `SNAP`
+
+### Fast error triage
+
+| Error code | Typical cause | Action |
+|---|---|---|
+| `AUTH_REQUIRED` | `SUB` before successful `HELLO` | Authenticate first |
+| `PROTO_MISMATCH` | Wrong/missing protocol value | Use `PROTO=RALF1` |
+| `ENTITLEMENT_DENIED` | Role blocked by policy | Use an allowed role or update config |
+| `INVALID_CHANNEL` | Unsupported `CH` value | Use `CLEARING`, `DROP_COPY`, `AUDIT` |
+| `REPLAY_MISS` | Replay point outside retention | Accept `SNAP` and reset local baseline |
+| `SLOW_CLIENT` | Client too slow to drain stream | Reconnect and increase consume throughput |
+| `BAD_MESSAGE` | Malformed line syntax | Fix message format |
+
+### Operator checklist
+
+1. Confirm engine is publishing post-trade events
+2. Confirm `pm-ralf-gwy` is running
+3. Confirm TCP reachability (`nc 127.0.0.1 5580`)
+4. Confirm `HELLO` receives `WELCOME`
+5. Confirm `SUB` receives `SNAP` and live flow
+6. Track `SEQ`; on reconnect use `LASTSEQ`
+
+
 ## See also
 
 - [Processes](10-processes.md#pm-ralf-gwy-post-trade-dissemination-gateway)
 - [Drop Copy](13-drop-copy.md)
-- [Appendix - RALF Protocol](23-app-ralf-protocol.md)
+- [Appendix - RALF Protocol](93-app-ralf-protocol.md)

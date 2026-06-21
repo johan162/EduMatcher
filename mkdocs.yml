@@ -108,10 +108,12 @@ nav:
     - Market-Maker Bot: user-guide/17-mm-bot.md
     - Post-Trade Dissemination (RALF): user-guide/18-post-trade.md
     - External Protocols Overview: user-guide/19-protocol-overview.md
-    - Appendix - ALF Protocol: user-guide/20-app-alf-protocol.md
-    - Appendix - BALF Protocol: user-guide/21-app-balf-protocol.md
-    - Appendix - CALF Protocol: user-guide/22-app-calf-protocol.md
-    - Appendix - RALF Protocol: user-guide/23-app-ralf-protocol.md
+    - Market Data Feed (CALF): user-guide/20-market-data-feed.md
+    - Protocol Support Library Examples: user-guide/80-examples.md
+    - Appendix - ALF Protocol: user-guide/90-app-alf-protocol.md
+    - Appendix - BALF Protocol: user-guide/91-app-balf-protocol.md
+    - Appendix - CALF Protocol: user-guide/92-app-calf-protocol.md
+    - Appendix - RALF Protocol: user-guide/93-app-ralf-protocol.md
   - Training:
     - Overview: training/index.md
     - "00 — Installation & Setup": training/00-installation.md
@@ -137,6 +139,7 @@ nav:
     - "20 — Drop-Copy Replay & Recovery Patterns": training/20-drop-copy-replay-recovery.md
     - "21 — Automation with CommandClient & MM Bot Tuning": training/21-automation-commandclient-mm-bot.md
     - "22 — RALF Post-Trade Gateway Protocol": training/22-ralf.md
+    - "23 — CALF Market-Data Gateway Protocol": training/23-calf.md
   - Architecture: 
     - Overview: architecture/01-architecture.md
     - Detailed Walkthrough: architecture/02-architecture-guide.md

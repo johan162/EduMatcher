@@ -112,7 +112,7 @@ If price drops to 149.00 (stop triggers and fills), the limit sell is cancelled.
 ## Further Reading
 
 - [Combo Orders](../user-guide/05-combos.md)
-- [ALF Protocol — OCO and Combo Orders](../user-guide/20-app-alf-protocol.md)
+- [ALF Protocol — OCO and Combo Orders](../user-guide/90-app-alf-protocol.md)
 
 ---
 

@@ -269,7 +269,7 @@ pm-mm-bot --symbol AAPL    # autonomous market-maker bot
 | Process | Mandatory? | Ports | Purpose |
 |---------|-----------|-------|---------|
 | `pm-engine` | **Yes** | PULL :5555, PUB :5556, PUB :5557 | Matching engine — the single writer of the order book. All orders flow in through :5555; all events flow out through :5556. Also publishes per-participant drop-copy fills on :5557. |
-| `pm-gateway` | At least one | PUSH :5555, SUB :5556 | Interactive ALF order entry terminal. One per trader, market maker, or operator. Handles authentication, order submission, amend, cancel, and displays acks/fills in real time. See [ALF Protocol Reference](20-app-alf-protocol.md). |
+| `pm-gateway` | At least one | PUSH :5555, SUB :5556 | Interactive ALF order entry terminal. One per trader, market maker, or operator. Handles authentication, order submission, amend, cancel, and displays acks/fills in real time. See [ALF Protocol Reference](90-app-alf-protocol.md). |
 | `pm-scheduler` | No (manual mode) | PUSH :5555 | Drives automatic session-phase transitions (`PRE_OPEN → OPENING_AUCTION → CONTINUOUS → CLOSING_AUCTION → CLOSED`) at the wall-clock times defined in `engine_config.yaml`. Omit this process if you want to advance phases manually with `SESSION\|STATE=...` in `pm-admin`. |
 | `pm-viewer` | No | SUB :5556, PUSH :5555 | Live L1/L2 order-book display for one symbol. Uses a push request to fetch the initial snapshot on connect; then updates on every `book.<SYMBOL>` event. |
 | `pm-orders` | No | SUB :5556 | Cross-gateway resting-order monitor. Subscribes to all `order.*` events and displays a live table of every active order regardless of which gateway submitted it. |

@@ -62,7 +62,7 @@ A production FIX gateway would add all of these.
 !!! note "Formal protocol reference"
     This page explains ALF from the gateway user's point of view.
     The formal syntax and semantics of the ALF protocol are defined in
-    [Appendix: ALF Protocol Reference](20-app-alf-protocol.md).
+    [Appendix: ALF Protocol Reference](90-app-alf-protocol.md).
 
 ### One user per gateway — a learning simplification
 
@@ -207,7 +207,7 @@ All commands use the ALF pipe-separated key=value format.
 
 !!! note
     For the precise ALF grammar, parser rules, field semantics, and full command
-    catalog, see [Appendix: ALF Protocol Reference](20-app-alf-protocol.md).
+    catalog, see [Appendix: ALF Protocol Reference](90-app-alf-protocol.md).
 
 ### QUOTE — Submit/Replace A Two-Sided MM Quote
 
@@ -794,7 +794,7 @@ New users frequently encounter these issues when first using the gateway:
 
 - [Configuration](01-configuration.md#alf-gateway-allowlist) — gateway roles, allowlists, disconnect behaviour, and MM obligations
 - [Order Types](04-order-types.md) — full semantics for every order type accepted by the gateway
-- [ALF Protocol Reference](20-app-alf-protocol.md) — formal ABNF grammar and field rules for the pipe-delimited syntax
+- [ALF Protocol Reference](90-app-alf-protocol.md) — formal ABNF grammar and field rules for the pipe-delimited syntax
 - [Messages](09-messages.md) — the ZeroMQ messages the gateway publishes and subscribes to
 - [Risk Controls](12-risk-controls.md) — how the engine enforces collars, halts, and kill switches on gateway flow
 - [Running the Engine](03-running-the-engine.md) — how to start `pm-gateway` and verify the connection

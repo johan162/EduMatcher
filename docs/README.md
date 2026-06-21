@@ -50,7 +50,7 @@ docs/
     ├── 11-persistence.md
     ├── 12-risk-controls.md
     ├── 13-drop-copy.md
-    ├── 20-app-alf-protocol.md
+    ├── 90-app-alf-protocol.md
     ├── pagebreaks.lua                             - LUA filter for adding custom page-breaks
     ├── template_a4.tex                            - Light A4 LaTeX template
     ├── template_b5.tex                            - Light B5 LaTeX template

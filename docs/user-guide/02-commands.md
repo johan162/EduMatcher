@@ -83,7 +83,7 @@ Tab completion and arrow-key history work exactly as in `pm-gateway`.
 ### Console command syntax
 
 Commands follow the same `CMD|KEY=VALUE|KEY=VALUE` pipe syntax as the ALF
-gateway command language (see [ALF Protocol Reference](20-app-alf-protocol.md)).
+gateway command language (see [ALF Protocol Reference](90-app-alf-protocol.md)).
 Single-word commands (no arguments) need no pipes.
 
 | Command | Syntax | Notes |
