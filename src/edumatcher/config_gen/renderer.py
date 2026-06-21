@@ -26,7 +26,9 @@ def render_yaml(
     ]
 
     if default_engine_field_comments:
-        lines.append("# Defaultable engine_config fields currently using runtime defaults:")
+        lines.append(
+            "# Defaultable engine_config fields currently using runtime defaults:"
+        )
         for entry in default_engine_field_comments:
             lines.append(f"#   {entry}")
         lines.append("")

@@ -425,7 +425,9 @@ def _build_default_engine_field_comment_lines(config: dict[str, object]) -> list
 
     symbols_raw = config.get("symbols")
     if isinstance(symbols_raw, dict) and symbols_raw:
-        symbol_payloads = [payload for payload in symbols_raw.values() if isinstance(payload, dict)]
+        symbol_payloads = [
+            payload for payload in symbols_raw.values() if isinstance(payload, dict)
+        ]
     else:
         symbol_payloads = []
 
@@ -436,11 +438,17 @@ def _build_default_engine_field_comment_lines(config: dict[str, object]) -> list
         if isinstance(alf_raw, list):
             gateways_alf_raw = [row for row in alf_raw if isinstance(row, dict)]
 
-    if symbol_payloads and any("last_buy_price" not in payload for payload in symbol_payloads):
+    if symbol_payloads and any(
+        "last_buy_price" not in payload for payload in symbol_payloads
+    ):
         lines.append("symbols.<SYM>.last_buy_price = null")
-    if symbol_payloads and any("last_sell_price" not in payload for payload in symbol_payloads):
+    if symbol_payloads and any(
+        "last_sell_price" not in payload for payload in symbol_payloads
+    ):
         lines.append("symbols.<SYM>.last_sell_price = null")
-    if symbol_payloads and any("outstanding_shares" not in payload for payload in symbol_payloads):
+    if symbol_payloads and any(
+        "outstanding_shares" not in payload for payload in symbol_payloads
+    ):
         lines.append("symbols.<SYM>.outstanding_shares = null")
 
     if gateways_alf_raw and any("description" not in row for row in gateways_alf_raw):
