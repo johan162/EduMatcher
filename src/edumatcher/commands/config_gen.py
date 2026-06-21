@@ -408,8 +408,86 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dry-run", action="store_true", help="Print only, do not write."
     )
+    parser.add_argument(
+        "--comment-default-config-fields",
+        action="store_true",
+        help=(
+            "Add a header comment block listing engine_config fields that support "
+            "runtime defaults and are currently omitted from the generated YAML."
+        ),
+    )
 
     return parser
+
+
+def _build_default_engine_field_comment_lines(config: dict[str, object]) -> list[str]:
+    lines: list[str] = []
+
+    symbols_raw = config.get("symbols")
+    if isinstance(symbols_raw, dict) and symbols_raw:
+        symbol_payloads = [payload for payload in symbols_raw.values() if isinstance(payload, dict)]
+    else:
+        symbol_payloads = []
+
+    gateways_raw = config.get("gateways")
+    gateways_alf_raw: list[dict[str, object]] = []
+    if isinstance(gateways_raw, dict):
+        alf_raw = gateways_raw.get("alf")
+        if isinstance(alf_raw, list):
+            gateways_alf_raw = [row for row in alf_raw if isinstance(row, dict)]
+
+    if symbol_payloads and any("last_buy_price" not in payload for payload in symbol_payloads):
+        lines.append("symbols.<SYM>.last_buy_price = null")
+    if symbol_payloads and any("last_sell_price" not in payload for payload in symbol_payloads):
+        lines.append("symbols.<SYM>.last_sell_price = null")
+    if symbol_payloads and any("outstanding_shares" not in payload for payload in symbol_payloads):
+        lines.append("symbols.<SYM>.outstanding_shares = null")
+
+    if gateways_alf_raw and any("description" not in row for row in gateways_alf_raw):
+        lines.append("gateways.alf[].description = ''")
+
+    schedule_raw = config.get("schedule")
+    if not isinstance(schedule_raw, dict):
+        lines.extend(
+            [
+                "schedule.pre_open = '09:00'",
+                "schedule.opening_auction_start = '09:25'",
+                "schedule.continuous_start = '09:30'",
+                "schedule.closing_auction_start = '16:00'",
+                "schedule.closing_auction_end = '16:05'",
+            ]
+        )
+
+    if "post_trade_gateway" not in config:
+        lines.extend(
+            [
+                "post_trade_gateway.name = 'ralf-gwy01'",
+                "post_trade_gateway.bind_address = '0.0.0.0'",
+                "post_trade_gateway.port = 5580",
+                "post_trade_gateway.replay_retention_sec = 86400",
+                "post_trade_gateway.heartbeat_interval_sec = 1",
+                "post_trade_gateway.idle_timeout_sec = 5",
+                "post_trade_gateway.max_client_queue = 10000",
+                "post_trade_gateway.allowed_roles = [CLEARING, DROP_COPY, AUDIT]",
+            ]
+        )
+
+    if "market_data_gateway" not in config:
+        lines.extend(
+            [
+                "market_data_gateway.enabled = true",
+                "market_data_gateway.name = 'md-gwy01'",
+                "market_data_gateway.bind_address = '0.0.0.0'",
+                "market_data_gateway.port = 5570",
+                "market_data_gateway.heartbeat_interval_sec = 1",
+                "market_data_gateway.idle_timeout_sec = 5",
+                "market_data_gateway.replay_window_sec = 30",
+                "market_data_gateway.max_symbols_per_client = 200",
+                "market_data_gateway.max_client_queue = 10000",
+            ]
+        )
+
+    return lines
 
 
 def _validate_basic_args(args: argparse.Namespace) -> None:
@@ -825,11 +903,17 @@ def main() -> None:
 
     config = ConfigBuilder(spec).build()
     cmd_line = "pm-config-gen " + " ".join(sys.argv[1:])
+    default_config_field_comment_lines = (
+        _build_default_engine_field_comment_lines(config)
+        if args.comment_default_config_fields
+        else None
+    )
     rendered = render_yaml(
         config=config,
         command=cmd_line,
         generated_version="1.1.0",
         generated_date=str(date.today()),
+        default_engine_field_comments=default_config_field_comment_lines,
     )
 
     _print_diagnostics(diagnostics)

@@ -15,3 +15,4 @@ def test_pm_config_gen_help_runs() -> None:
     assert "--symbols" in result.stdout
     assert "--seed-mm-mid-range" in result.stdout
     assert "--seed-last-prices-from-mm" in result.stdout
+    assert "--comment-default-config-fields" in result.stdout

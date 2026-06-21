@@ -268,3 +268,29 @@ def test_seed_mm_mid_range_requires_mm_gateway(
             ],
         )
     assert exc_info.value.code == 2
+
+
+    def test_comment_default_config_fields_emits_engine_field_defaults(
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                "--comment-default-config-fields",
+                "--dry-run",
+            ],
+        )
+
+        captured = capsys.readouterr()
+        assert (
+            "# Defaultable engine_config fields currently using runtime defaults:"
+            in captured.out
+        )
+        assert "#   symbols.<SYM>.last_buy_price = null" in captured.out
+        assert "#   post_trade_gateway.port = 5580" in captured.out
+        assert "#   --snapshot-interval" not in captured.out

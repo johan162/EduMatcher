@@ -206,6 +206,7 @@ Output and safety options:
 | `--output FILE` | Path | none | Write YAML to file |
 | `--force` | Flag | off | Overwrite existing output file |
 | `--dry-run` | Flag | off | Print YAML only; do not write file |
+| `--comment-default-config-fields` | Flag | off | Add a header comment block listing defaultable `engine_config.yaml` fields currently omitted from the generated file |
 
 Post-trade gateway options:
 
