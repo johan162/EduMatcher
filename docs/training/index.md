@@ -61,6 +61,7 @@ later chapters build on configuration and positions established in earlier ones.
 | 20 | [Drop-Copy Replay & Recovery Patterns](20-drop-copy-replay-recovery.md) | sequence-gap detection, replay limits, operational recovery workflow |
 | 21 | [Automation with CommandClient & MM Bot Tuning](21-automation-commandclient-mm-bot.md) | Python automation flows, admin orchestration, advanced pm-mm-bot runtime tuning |
 | 22 | [RALF Post-Trade Gateway Protocol](22-ralf.md) | pm-ralf-gwy, RALF handshake/subscriptions, role-based consumers, replay and recovery |
+| 23 | [CALF Market-Data Gateway Protocol](23-calf.md) | pm-md-gwy, CALF handshake/subscriptions, snapshots, replay and recovery |
 
 ---
 
@@ -94,6 +95,7 @@ training chapter.
 | 20 | [Replay](../user-guide/13-drop-copy.md#replay), [Sequence and recovery semantics](../user-guide/92-app-calf-protocol.md#sequence-and-recovery-semantics) |
 | 21 | [ExchangeCommandClient](../user-guide/02-commands.md#exchangecommandclient), [CLI reference (pm-mm-bot)](../user-guide/17-mm-bot.md#cli-reference) |
 | 22 | [Post-Trade Dissemination (RALF)](../user-guide/18-post-trade.md), [Appendix: RALF Protocol Reference](../user-guide/93-app-ralf-protocol.md) |
+| 23 | [Market Data Feed (CALF)](../user-guide/20-market-data-feed.md), [Appendix: CALF Protocol Reference](../user-guide/92-app-calf-protocol.md) |
 
 ---
 

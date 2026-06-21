@@ -185,8 +185,8 @@ Behavior:
 
 Two full working client/library examples are provided in:
 
-- `docs-design/examples/ralf/ralf_subscriber.py`
-- `docs-design/examples/ralf/ralf_subscriber.c`
+- `docs/examples/ralf/ralf_subscriber.py`
+- `docs/examples/ralf/ralf_subscriber.c`
 
 They use reusable parser libraries in the same directory and demonstrate:
 
