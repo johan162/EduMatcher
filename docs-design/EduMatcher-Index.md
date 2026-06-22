@@ -1,6 +1,6 @@
-Version: 1.1.0
+Version: 1.2.0
 
-Date: 2026-06-14
+Date: 2026-06-22
 
 Status: Design and Research Proposal
 
@@ -42,14 +42,16 @@ principles as real-world indices such as the S&P 500, DAX, or FTSE 100.
 
 This proposal adds:
 
-- A configurable, market-capitalisation-weighted index calculated in a dedicated
-  `pm-index` process.
+- Up to five configurable, market-capitalisation-weighted indexes calculated in
+    a dedicated `pm-index` process.
 - Real-time index updates published on the existing ZMQ PUB bus and via the CALF
   market-data protocol for external subscribers.
-- Historical index values stored on disk so that past index levels can be queried.
+- Historical index values stored on disk so that past index levels can be
+    queried per index.
 - Handling for corporate actions (splits, dividends) and symbol delisting via a
   divisor adjustment mechanism — the same technique used by S&P 500.
-- An `INDEX` command in the ALF gateway so traders can query the index interactively.
+- An `INDEX` command in the ALF gateway so traders can query any configured
+    index interactively.
 
 ### Simplifications for educational use
 
@@ -57,11 +59,12 @@ Full production index methodologies (S&P 500, Russell, etc.) involve committees,
 eligibility rules, public float calculations, and quarterly reconstitutions.
 This design simplifies those to:
 
-- Constituent selection is manual and done via `engine_config.yaml`.
-- Weighting is based on configured initial market cap (price × shares), not a
-  free-float adjusted market cap from an external data source.
+- Index selection is manual and done via `engine_config.yaml`.
+- Up to five indexes may be configured per exchange.
+- Weighting uses the existing mandatory `symbols.<SYM>.outstanding_shares`
+    value from the exchange config, combined with the symbol's latest known price.
 - Rebalancing happens on demand (operator command or config reload), not on a
-  fixed schedule.
+    fixed schedule.
 - Corporate actions are applied manually through a new operator command.
 
 These simplifications are explicitly called out so students understand the gap
@@ -73,12 +76,13 @@ between this educational implementation and the real world.
 
 Make sure you understand these concepts before writing any code.
 
-**Index** — A single number computed from the prices of a basket of stocks.
-It tells you the aggregate direction of those stocks. An index of 1000 that rises
-to 1050 means the basket appreciated by 5% on average (weighted).
+**Index** — A number computed from the prices of a basket of stocks. This
+proposal supports up to five indexes per exchange, each identified by an
+alphanumeric ID and a human-readable description. An index of 1000 that rises to
+1050 means the basket appreciated by 5% on average (weighted).
 
 **Market capitalisation ("market cap")** — The total value of all outstanding
-shares of a company. Calculated as: `share_price × shares_outstanding`. A company
+shares of a company. Calculated as: `share_price × outstanding_shares`. A company
 trading at $200 with 1 billion shares has a market cap of $200 billion.
 
 **Cap-weighted index** — Each constituent contributes to the index in proportion
@@ -87,14 +91,18 @@ companies influence the index more than small companies. This is how the S&P 500
 works. A stock with a market cap of $400B in an index with $4 trillion total cap
 contributes 10% of the index's movement.
 
+**Normalization value** — The symbol-level market-cap basis used by this design.
+It is computed from the mandatory `outstanding_shares` setting in the exchange
+symbol config and the symbol's latest known price.
+
 **Index divisor** — A scaling factor used to maintain continuity of the index
 value across corporate actions and constituent changes. When a constituent splits
 its stock or is replaced, the divisor is adjusted so the index level does not jump
 artificially. The divisor starts at 1.0 and evolves over time as adjustments occur.
 This is the same mechanism used by the S&P 500.
 
-**Base value** — The starting level of the index, conventionally set to 1000 at
-launch. The index is always expressed relative to this base.
+**Base value** — The starting level of an index, conventionally set to 1000 at
+launch. Each configured index has its own base value.
 
 **Corporate action** — An event by a company that changes its share structure.
 Examples: a stock split (10 shares become 20 shares, halving the price), a stock
@@ -106,8 +114,9 @@ the price divides by N. After a 2-for-1 split, a $200 stock becomes a $100 stock
 with twice as many shares. Market cap is unchanged, but if the index naively uses
 the new lower price without adjusting, the index will drop — which is wrong.
 
-**Delisting** — A symbol is removed from trading. The index must remove it from
-the basket and adjust the divisor so the remaining constituents continue smoothly.
+**Delisting** — A symbol is removed from trading. Any index that includes the
+symbol must remove it from the basket and adjust the divisor so the remaining
+constituents continue smoothly.
 
 **Divisor adjustment formula** — When a corporate action or constituent change
 would otherwise shift the aggregate market cap, the divisor is adjusted to
@@ -127,8 +136,8 @@ future price movements will change it.
 ```mermaid
 flowchart TD
     engine["Matching Engine<br/>PUB :${ENGINE_PUB_PORT:-5556}<br/>trade.executed<br/>session.state"]
-    index["pm-index<br/>Subscribes to trade.executed<br/>Subscribes to session.state<br/>Subscribes to system.eod<br/>Recalculates index on each trade<br/>Persists snapshots to disk<br/>Publishes index.update"]
-    gwy["CALF Gateway (pm-md-gwy)<br/>Subscribes to index.update on INDEX_PUB_ADDR<br/>Exposes INDEX channel to external clients"]
+    index["pm-index<br/>Manages up to 5 index definitions<br/>Subscribes to trade.executed<br/>Subscribes to session.state<br/>Subscribes to system.eod<br/>Publishes index.update"]
+    gwy["Market data gateway<br/>Subscribes to index.update on INDEX_PUB_ADDR<br/>Exposes INDEX channel to external clients"]
     ext["External subscribers<br/>(bots, viewers)"]
 
     engine -->|"ZMQ SUB (ENGINE_PUB_ADDR)"| index
@@ -138,11 +147,11 @@ flowchart TD
 
 `pm-index` is a new standalone process. It does **not** connect to the engine's
 PULL socket — it never sends commands to the engine. It is a pure subscriber that
-reads `trade.executed` events and recomputes the index in real time.
+reads `trade.executed` events and recomputes all configured indexes in real time.
 
 It also binds its own PUB socket on `INDEX_PUB_ADDR` (default port `5558`) for
-downstream consumers. The existing `pm-md-gwy` (CALF gateway) subscribes to this
-socket and forwards index data to external clients via the CALF `INDEX` channel.
+downstream consumers. The market data gateway subscribes to this socket and
+forwards index data to external clients via the CALF `INDEX` channel.
 
 ### Why a separate process and not inside the engine?
 
@@ -163,66 +172,72 @@ design assumption and make it impossible to reason about message ordering.
 ## 4. Index Configuration
 
 All index configuration lives in `engine_config.yaml` under a new top-level key
-`index`. This keeps it alongside the symbol and gateway configuration it depends on.
+`indices`. This keeps it alongside the symbol and gateway configuration it
+depends on.
 
 ### 4.1 YAML Structure
 
 ```yaml
-index:
-  enabled: true
-  name: "EDU-100"                  # displayed name of the index
-  base_value: 1000.0               # index level at launch date
-  publish_interval_sec: 1.0        # minimum seconds between published updates
-  history_file: "data/index_history.jsonl"  # where snapshots are written
-    state_file: "data/index_state.json"       # divisor, prices, and constituent state
+indices:
+    - id: EDU100
+        description: "Broad technology benchmark"
+        base_value: 1000.0
+        publish_interval_sec: 1.0
+        history_file: "data/indexes/EDU100_history.jsonl"
+        state_file: "data/indexes/EDU100_state.json"
+        constituents: [AAPL, MSFT, TSLA]
 
-  constituents:
-    AAPL:
-      shares_outstanding: 15_000_000_000   # used to compute initial market cap weight
-      initial_price: 209.50                # reference price at index launch
-    MSFT:
-      shares_outstanding: 7_400_000_000
-      initial_price: 415.00
-    TSLA:
-      shares_outstanding: 3_200_000_000
-      initial_price: 248.00
+    - id: EDUFIN
+        description: "Financial sector basket"
+        base_value: 1000.0
+        publish_interval_sec: 1.0
+        history_file: "data/indexes/EDUFIN_history.jsonl"
+        state_file: "data/indexes/EDUFIN_state.json"
+        constituents: [JPM, BAC, GS]
 ```
 
 ### 4.2 Field Reference
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `enabled` | bool | `false` | Whether the index process should run |
-| `name` | string | `"EDU-INDEX"` | Short name broadcast in index messages |
-| `base_value` | float | `1000.0` | Index level set at launch; does not change after launch |
-| `publish_interval_sec` | float | `1.0` | Throttle — minimum seconds between `index.update` publishes |
-| `history_file` | string | `"data/index_history.jsonl"` | JSONL file for snapshot persistence |
-| `state_file` | string | `"data/index_state.json"` | State file for divisor, last prices, and intraday OHLC recovery |
-| `constituents` | dict | — | Map of `symbol → ConstituentConfig` |
-| `constituents.<SYM>.shares_outstanding` | int | — | Total shares; used to compute initial weight |
-| `constituents.<SYM>.initial_price` | float | — | Price at index launch; used to compute base aggregate cap |
+| `indices` | list | — | Up to five index definitions per exchange |
+| `indices[].id` | string | — | Alphanumeric index ID; used in messages and filenames |
+| `indices[].description` | string | — | Human-readable label for operators and clients |
+| `indices[].base_value` | float | `1000.0` | Starting level for that index |
+| `indices[].publish_interval_sec` | float | `1.0` | Throttle for `index.update` publishing |
+| `indices[].history_file` | string | derived from `id` | JSONL file for snapshot persistence |
+| `indices[].state_file` | string | derived from `id` | State file for divisor, last prices, and OHLC recovery |
+| `indices[].constituents` | list[str] | — | Symbols included in the index; must exist in `symbols` |
+
+The `symbols` section remains the source of truth for market-cap inputs. Each
+symbol must have a mandatory `outstanding_shares` setting in the existing symbol
+config. The index does not duplicate share counts; it reads them from the symbol
+universe when calculating weights and normalization values.
 
 ### 4.3 Constituent Weights Explained
 
-The initial weight for each constituent is:
+The initial weight for each constituent is derived from the existing symbol
+configuration:
 
 ```
-initial_cap(sym)      = initial_price(sym) × shares_outstanding(sym)
-total_initial_cap     = sum of initial_cap for all constituents
+initial_cap(sym)      = reference_price(sym) × outstanding_shares(sym)
+total_initial_cap     = sum of initial_cap for all constituents in one index
 initial_weight(sym)   = initial_cap(sym) / total_initial_cap
 ```
 
 Weights change as prices move — this is the defining feature of a cap-weighted index.
-The `shares_outstanding` value stays fixed (it only changes via corporate action).
+The `outstanding_shares` value comes from the exchange symbol config and only
+changes when the underlying symbol configuration changes or a corporate action is
+applied to that index's internal state.
 
 ### 4.4 Divisor Initialisation at Launch
 
-On first startup (no persisted state), the divisor is computed so that the
-initial index value equals `base_value`:
+On first startup (no persisted state), each index's divisor is computed so that
+the initial index value equals that index's `base_value`:
 
 ```
-initial_aggregate_cap = sum(initial_price(sym) × shares_outstanding(sym))
-                        for all constituents
+initial_aggregate_cap = sum(reference_price(sym) × outstanding_shares(sym))
+                        for all constituents in one index
 initial_divisor       = initial_aggregate_cap / base_value
 ```
 
@@ -237,8 +252,8 @@ initial_divisor   = 7,007,100,000,000 / 1000.0 = 7,007,100,000
 ```
 
 The divisor is a large number but the ratio (aggregate_cap / divisor) always
-yields the index level near 1000. The divisor is saved to disk as part of the
-persisted state and loaded on restart.
+yields the index level near the configured base value. The divisor is saved to
+disk as part of the persisted state and loaded on restart for each index.
 
 
 
@@ -252,13 +267,15 @@ The index level at any moment is:
 index_level = aggregate_cap / divisor
 
 where:
-  aggregate_cap = sum(last_trade_price(sym) × shares_outstanding(sym))
-                  for all active constituents
+    aggregate_cap = sum(last_trade_price(sym) × outstanding_shares(sym))
+                                    for all active constituents in this index
   divisor       = current divisor (adjusted for corporate actions and changes)
 ```
 
 When no trade has occurred yet for a constituent since startup, the
-`initial_price` from the config is used as `last_trade_price`.
+symbol's configured reference price is used as `last_trade_price`. In the
+current code base that means the seeded symbol price data already stored under
+`symbols.<SYM>`.
 
 ### 5.2 Update Trigger
 
@@ -282,9 +299,9 @@ def _recalculate(self) -> float:
     """
     aggregate_cap: float = 0.0
     for symbol, constituent in self._constituents.items():
-        # Use last known trade price, falling back to initial_price if no trade yet
-        price = self._last_prices.get(symbol, constituent.initial_price)
-        aggregate_cap += price * constituent.shares_outstanding
+        # Use last known trade price, falling back to the symbol's seeded reference price.
+        price = self._last_prices.get(symbol, self._reference_prices[symbol])
+        aggregate_cap += price * self._outstanding_shares[symbol]
 
     if self._divisor == 0.0:
         raise ValueError("Divisor is zero — index is not initialised")
@@ -377,11 +394,12 @@ After:  index_level = new_cap / new_divisor
 
 A split ratio of `N:1` means each share becomes N shares. The price divides by N.
 
-Effect: `shares_outstanding` increases by factor N; `last_price` drops by factor N.
+Effect: `outstanding_shares` increases by factor N; `last_price` drops by factor N.
 With exact arithmetic the market cap is unchanged.
 
-However, the `shares_outstanding` value in the constituent config must be updated.
-For educational simplicity, shares remain integers after splits. Use integer
+However, the symbol-level `outstanding_shares` value in the exchange config is
+the source of truth. For educational simplicity, shares remain integers after
+splits. Use integer
 half-up rounding with integer arithmetic:
 
 ```
@@ -407,14 +425,14 @@ def apply_split(self, symbol: str, ratio_numerator: int, ratio_denominator: int)
     if ratio_numerator <= 0 or ratio_denominator <= 0:
         raise ValueError("Split ratio must be positive")
     old_cap = self._aggregate_cap()
-    # Update shares outstanding with integer rounding policy
-    old_shares = constituent.shares_outstanding
-    constituent.shares_outstanding = (
+    # Update the per-index share view with integer rounding policy.
+    old_shares = self._outstanding_shares[symbol]
+    self._outstanding_shares[symbol] = (
         old_shares * ratio_numerator + ratio_denominator // 2
     ) // ratio_denominator
 
     # The current last_price must also be adjusted so aggregate cap stays the same
-    old_price = self._last_prices.get(symbol, constituent.initial_price)
+    old_price = self._last_prices.get(symbol, self._reference_prices[symbol])
     new_price = old_price * ratio_denominator / ratio_numerator
     self._last_prices[symbol] = new_price
 
@@ -429,7 +447,7 @@ def apply_split(self, symbol: str, ratio_numerator: int, ratio_denominator: int)
     self._record_corporate_action_event(
         symbol, "SPLIT",
         f"{ratio_numerator}:{ratio_denominator}",
-        old_shares, constituent.shares_outstanding,
+        old_shares, self._outstanding_shares[symbol],
         old_price, new_price,
     )
 ```
@@ -452,7 +470,7 @@ def apply_cash_dividend(self, symbol: str, dividend_per_share: float) -> None:
     old_cap = self._aggregate_cap()  # current total cap before adjustment
 
     # Apply price reduction
-    old_price = self._last_prices.get(symbol, constituent.initial_price)
+    old_price = self._last_prices.get(symbol, self._reference_prices[symbol])
     new_price = old_price - dividend_per_share
     if new_price <= 0:
         raise ValueError(
@@ -495,7 +513,7 @@ def apply_shares_issuance(self, symbol: str, new_shares_outstanding: int) -> Non
     old_cap = self._aggregate_cap()
     if old_cap <= 0.0:
         raise ValueError("Cannot apply shares issuance when aggregate cap is non-positive")
-    constituent.shares_outstanding = new_shares_outstanding
+    self._outstanding_shares[symbol] = new_shares_outstanding
     new_cap = self._aggregate_cap()
 
     self._divisor = self._divisor * (new_cap / old_cap)
@@ -577,8 +595,7 @@ a divisor adjustment that keeps the current index level unchanged.
 def add_constituent(
     self,
     symbol: str,
-    shares_outstanding: int,
-    initial_price: float,
+    reference_price: float,
 ) -> None:
     """
     Add a new constituent to the index.
@@ -588,18 +605,13 @@ def add_constituent(
     """
     if symbol in self._constituents:
         raise KeyError(f"Symbol {symbol!r} is already a constituent")
-    if shares_outstanding <= 0:
-        raise ValueError("shares_outstanding must be positive")
-    if initial_price <= 0.0:
-        raise ValueError("initial_price must be positive")
+    if reference_price <= 0.0:
+        raise ValueError("reference_price must be positive")
 
     old_cap = self._aggregate_cap()
-    self._constituents[symbol] = ConstituentConfig(
-        symbol=symbol,
-        shares_outstanding=shares_outstanding,
-        initial_price=initial_price,
-    )
-    self._last_prices[symbol] = initial_price
+    self._constituents[symbol] = symbol
+    self._reference_prices[symbol] = reference_price
+    self._last_prices[symbol] = reference_price
     new_cap = self._aggregate_cap()
 
     if old_cap <= 0.0:
@@ -650,7 +662,7 @@ is a self-contained JSON object:
 | `EOD` | When session transitions to `CLOSED` | All `LEVEL` fields plus `open`, `high`, `low`, `close` for the day |
 | `CORP_ACTION` | On every corporate action command | `symbol`, `action`, `detail`, `old_divisor`, `new_divisor`, `level` |
 | `DELIST` | On delisting | `symbol`, `old_divisor`, `new_divisor`, `level` |
-| `ADD_CONSTITUENT` | On adding a constituent | `symbol`, `shares_outstanding`, `initial_price`, `old_divisor`, `new_divisor`, `level` |
+| `ADD_CONSTITUENT` | On adding a constituent | `symbol`, `reference_price`, `old_divisor`, `new_divisor`, `level` |
 | `INIT` | On first startup (no prior state) | `base_value`, `divisor`, `constituents` (list of symbols), `level` |
 
 ### 8.2 State Persistence
@@ -663,11 +675,9 @@ divisor and last-known prices across restarts:
 ```json
 {
   "divisor": 7007100000.0,
-    "constituents": {
-        "AAPL": {"shares_outstanding": 15000000000, "initial_price": 209.50, "active": true},
-        "MSFT": {"shares_outstanding": 7400000000,  "initial_price": 415.00, "active": true},
-        "TSLA": {"shares_outstanding": 3200000000,  "initial_price": 248.00, "active": true}
-    },
+    "index_id": "EDU100",
+    "description": "Broad technology benchmark",
+    "constituents": ["AAPL", "MSFT", "TSLA"],
   "last_prices": {
     "AAPL": 211.30,
     "MSFT": 418.50,
@@ -683,16 +693,17 @@ divisor and last-known prices across restarts:
 
 This file is rewritten on every `EOD` record and on every corporate action. On
 startup, if this file exists, divisor, last prices, and constituent state are
-loaded from it rather than re-initialising from config. If the loaded
-constituent set conflicts with config, startup must fail fast unless `--reset`
-is explicitly requested.
+loaded from it rather than re-initialising from config. If the loaded index id
+or constituent set conflicts with config, startup must fail fast unless
+`--reset` is explicitly requested.
 
 ### 8.3 History Query
 
 The `pm-index` process serves history queries over ZMQ. The gateway/operator sends
 `index.history_request` via PUSH to `INDEX_PULL_ADDR` (`5559`); `pm-index` scans
 the JSONL file and replies on its PUB socket (`5558`) with topic
-`index.history.{gateway_id}`.
+`index.history.{gateway_id}`. The request payload includes `index_id` so the
+reply can be scoped to a specific configured index.
 
 This is an acceptable implementation for educational use. A production system
 would use a time-series database.
@@ -780,7 +791,7 @@ CALF already provides:
 - A human-readable text format compatible with simple terminal clients.
 
 The index is treated as a "symbol" within the CALF framework — clients subscribe
-to `CH=INDEX|SYM=EDU-100` (or whatever the index name is). The existing CALF
+to `CH=INDEX|SYM=<index_id>` (for example `CH=INDEX|SYM=EDU100`). The existing CALF
 `SNAP`, `MD`, and `STATE` message types are extended with index-specific fields,
 and a new `IDX` message type handles the index-specific level data.
 
@@ -803,19 +814,19 @@ Add `INDEX` to the list of valid CALF channels in the CALF specification and in
 **Subscription example:**
 
 ```
-SUB|CH=INDEX|SYM=EDU-100
+SUB|CH=INDEX|SYM=EDU100
 ```
 
 ### 9.3 New CALF Message Type: `IDX`
 
 ```
-IDX|CH=INDEX|SYM=EDU-100|SEQ=42|TS=2026-06-12T10:15:23.411Z|LEVEL=1048.73|CHG=+6.63|PCTCHG=+0.64|OPEN=1042.10|HIGH=1056.30|LOW=1040.05|AGGCAP=7350000000000|SESSION=CONTINUOUS
+IDX|CH=INDEX|SYM=EDU100|SEQ=42|TS=2026-06-12T10:15:23.411Z|LEVEL=1048.73|CHG=+6.63|PCTCHG=+0.64|OPEN=1042.10|HIGH=1056.30|LOW=1040.05|AGGCAP=7350000000000|SESSION=CONTINUOUS
 ```
 
 | Field | Req | Type | Description |
 |---|---|---|---|
 | `CH` | ✓ | string | Always `INDEX` |
-| `SYM` | ✓ | string | Index name (e.g. `EDU-100`) |
+| `SYM` | ✓ | string | Index ID (e.g. `EDU100`) |
 | `SEQ` | ✓ | int | Monotonic sequence for this `(INDEX, SYM)` stream |
 | `TS` | ✓ | string | UTC ISO-8601 timestamp |
 | `LEVEL` | ✓ | decimal | Current index level |
@@ -832,7 +843,7 @@ IDX|CH=INDEX|SYM=EDU-100|SEQ=42|TS=2026-06-12T10:15:23.411Z|LEVEL=1048.73|CHG=+6
 When a client subscribes to `CH=INDEX`, the gateway sends an initial `SNAP`:
 
 ```
-SNAP|CH=INDEX|SYM=EDU-100|SEQ=42|TS=2026-06-12T10:15:23.000Z|LEVEL=1048.73|OPEN=1042.10|HIGH=1056.30|LOW=1040.05|SESSION=CONTINUOUS
+SNAP|CH=INDEX|SYM=EDU100|SEQ=42|TS=2026-06-12T10:15:23.000Z|LEVEL=1048.73|OPEN=1042.10|HIGH=1056.30|LOW=1040.05|SESSION=CONTINUOUS
 ```
 
 This is identical in structure to the `IDX` message and uses the same field names.
@@ -883,7 +894,7 @@ s = socket.create_connection(("md-gateway-host.example", 5570))
 s.sendall(b"HELLO|CLIENT=student01|PROTO=CALF1\n")
 print(s.recv(4096).decode())
 
-s.sendall(b"SUB|CH=INDEX|SYM=EDU-100\n")
+    s.sendall(b"SUB|CH=INDEX|SYM=EDU100\n")
 
 while True:
     line = s.recv(4096).decode().strip()
@@ -977,7 +988,7 @@ class IndexHistory:
 ```
 
 **`src/edumatcher/index/config_loader.py`** — `load_index_config(path)` function
-that reads `index:` section from `engine_config.yaml`.
+that reads `indices:` section from `engine_config.yaml`.
 
 ### 10.5 Main Loop
 
@@ -1028,7 +1039,7 @@ changes, and history requests) are handled in one poll loop.
 | `src/edumatcher/index/main.py` | `pm-index` entry point and run loop |
 | `src/edumatcher/index/calculator.py` | `IndexCalculator` class (pure maths, no I/O) |
 | `src/edumatcher/index/history.py` | `IndexHistory` JSONL file manager |
-| `src/edumatcher/index/config_loader.py` | Load `index:` section from YAML |
+| `src/edumatcher/index/config_loader.py` | Load `indices:` section from YAML |
 | `tests/test_index_calculator.py` | Unit tests for `IndexCalculator` |
 | `tests/test_index_history.py` | Unit tests for `IndexHistory` |
 
@@ -1068,7 +1079,7 @@ Add the following new message builders. Follow the existing `make_*` naming and
 # -----------------------------------------------------------------------
 
 def make_index_update_msg(
-    index_name: str,
+    index_id: str,
     level: float,
     aggregate_cap: float,
     divisor: float,
@@ -1079,7 +1090,7 @@ def make_index_update_msg(
 ) -> list[bytes]:
     """pm-index → pm-md-gwy and all: current index level broadcast."""
     payload: dict[str, Any] = {
-        "index_name": index_name,
+        "index_id": index_id,
         "level": level,
         "aggregate_cap": aggregate_cap,
         "divisor": divisor,
@@ -1095,6 +1106,7 @@ def make_index_update_msg(
 
 def make_index_history_request_msg(
     gateway_id: str,
+    index_id: str,
     from_ts: float,
     to_ts: float,
     types: list[str] | None = None,
@@ -1104,6 +1116,7 @@ def make_index_history_request_msg(
         "index.history_request",
         {
             "gateway_id": gateway_id,
+            "index_id": index_id,
             "from_ts": from_ts,
             "to_ts": to_ts,
             "types": types or ["LEVEL", "EOD"],
@@ -1113,17 +1126,19 @@ def make_index_history_request_msg(
 
 def make_index_history_msg(
     gateway_id: str,
+    index_id: str,
     records: list[dict[str, Any]],
 ) -> list[bytes]:
     """pm-index → requestor: history query response."""
     return encode(
         f"index.history.{gateway_id}",
-        {"records": records},
+        {"index_id": index_id, "records": records},
     )
 
 
 def make_index_corp_action_msg(
     action: str,      # "SPLIT", "CASH_DIVIDEND", "SHARES_ISSUANCE"
+    index_id: str,
     symbol: str,
     gateway_id: str,
     params: dict[str, Any],
@@ -1133,6 +1148,7 @@ def make_index_corp_action_msg(
         "index.corp_action",
         {
             "action": action,
+            "index_id": index_id,
             "symbol": symbol,
             "gateway_id": gateway_id,
             **params,
@@ -1142,6 +1158,7 @@ def make_index_corp_action_msg(
 
 def make_index_constituent_change_msg(
     change_type: str,   # "ADD" or "DELIST"
+    index_id: str,
     symbol: str,
     gateway_id: str,
     shares_outstanding: int | None = None,
@@ -1150,6 +1167,7 @@ def make_index_constituent_change_msg(
     """Operator → pm-index: add or remove a constituent."""
     payload: dict[str, Any] = {
         "change_type": change_type,
+        "index_id": index_id,
         "symbol": symbol,
         "gateway_id": gateway_id,
     }
@@ -1162,7 +1180,7 @@ def make_index_constituent_change_msg(
 
 #### `engine_config.yaml`
 
-Add the `index:` section (see Section 4.1 for the full structure).
+Add the `indices:` section (see Section 4.1 for the full structure).
 
 #### `src/edumatcher/commands/client.py`
 
@@ -1262,7 +1280,7 @@ pm-index = "edumatcher.index.main:main"
 
 ```json
 {
-  "index_name": "EDU-100",
+    "index_id": "EDU100",
     "level": 1048.73,
   "aggregate_cap": 7350000000000.0,
   "divisor": 7007100000.0,
@@ -1282,9 +1300,10 @@ pm-index = "edumatcher.index.main:main"
 ```json
 {
   "gateway_id": "GW01",
+    "index_id": "EDU100",
   "from_ts": 1749700000.0,
-  "to_ts":   1749800000.0,
-    "types":   ["LEVEL", "EOD"],
+    "to_ts": 1749800000.0,
+    "types": ["LEVEL", "EOD"],
     "max_records": 10000
 }
 ```
@@ -1295,7 +1314,7 @@ pm-index = "edumatcher.index.main:main"
 {
     "accepted": true,
     "reason": "",
-    "index_name": "EDU-100",
+    "index_id": "EDU100",
     "level": 1051.20,
     "divisor": 7007100000.0,
     "timestamp": 1749760800.100
@@ -1505,7 +1524,7 @@ def _print_current_index(self) -> None:
             f"L={p['day_low']:.2f}[/dim]"
         )
     console.print(
-        f"[{ts}] [bold cyan]{p.get('index_name', 'INDEX')}[/bold cyan]  "
+        f"[{ts}] [bold cyan]{p.get('index_id', 'INDEX')}[/bold cyan]  "
         f"[bold]{level:.2f}[/bold]{chg}{ohlc}  [dim]{session}[/dim]"
     )
 ```
@@ -1536,47 +1555,28 @@ _TOP_LEVEL_CMDS = [
 
 ## 14. Configuration Reference
 
-### 14.1 Full `index:` YAML Section
+### 14.1 Full `indices:` YAML Section
 
 ```yaml
 # ---------------------------------------------------------------------------
 # Index configuration — used by pm-index
 # ---------------------------------------------------------------------------
-index:
-  enabled: true
+indices:
+    - id: EDU100
+        description: "Broad technology benchmark"
+        base_value: 1000.0
+        publish_interval_sec: 1.0
+        history_file: "data/indexes/EDU100_history.jsonl"
+        state_file: "data/indexes/EDU100_state.json"
+        constituents: [AAPL, MSFT, TSLA]
 
-  # Displayed name of the index; used in ZMQ messages and CALF output
-  name: "EDU-100"
-
-  # Starting level assigned at first launch (no state file found).
-  # Does NOT change after the index is initialised. Change of base_value
-  # after launch requires --reset, which loses all history continuity.
-  base_value: 1000.0
-
-  # Minimum seconds between consecutive index.update publishes.
-  # Recalculation still happens on every trade; only publishing is throttled.
-  publish_interval_sec: 1.0
-
-  # Path to the JSONL history file (relative to project root or absolute).
-  history_file: "data/index_history.jsonl"
-
-  # Path to the state file that persists divisor and last prices across restarts.
-  state_file: "data/index_state.json"
-
-  # Constituent symbols and their weighting parameters.
-  # shares_outstanding × initial_price = initial market cap weight.
-  # These values are used ONLY at first launch to compute the divisor.
-  # After launch, shares_outstanding is updated via corporate action commands.
-  constituents:
-    AAPL:
-      shares_outstanding: 15_000_000_000
-      initial_price: 209.50
-    MSFT:
-      shares_outstanding: 7_400_000_000
-      initial_price: 415.00
-    TSLA:
-      shares_outstanding: 3_200_000_000
-      initial_price: 248.00
+    - id: EDUFIN
+        description: "Financial sector basket"
+        base_value: 1000.0
+        publish_interval_sec: 1.0
+        history_file: "data/indexes/EDUFIN_history.jsonl"
+        state_file: "data/indexes/EDUFIN_state.json"
+        constituents: [JPM, BAC, GS]
 ```
 
 ### 14.2 Socket Addresses
@@ -1905,11 +1905,8 @@ flowchart TD
    `publish_interval_sec` throttle approximates this, but the calculation is still
    real-time. This is a deliberate simplification.
 
-3. **Multiple indices** — The design supports exactly one index. Supporting multiple
-   indices (e.g. an index for large caps and another for small caps) would require
-   `pm-index` to manage a list of `IndexCalculator` instances and route trades to
-   the right one. This is a straightforward extension: change the `index:` config
-   key to `indices:` (a list) and name each entry.
+3. **Multiple indices** — The design supports up to five indexes per exchange.
+    Each index has its own ID, description, divisor, history file, and state file.
 
 4. **What happens if `pm-index` is offline when a session closes?** — The EOD record
    will not be written. On restart, `pm-index` will load the state file and compute
@@ -1951,10 +1948,146 @@ For a junior developer, follow this order:
 3. **Create** `src/edumatcher/index/history.py` with `IndexHistory`. Write unit tests. Get them passing.
 4. **Add** message builders to `models/message.py` (Section 11.2). Add lightweight unit tests for topic names and required payload keys.
 5. **Add** address constants to `config.py`.
-6. **Create** `src/edumatcher/index/config_loader.py` to parse the `index:` YAML section.
+6. **Create** `src/edumatcher/index/config_loader.py` to parse the `indices:` YAML section.
 7. **Create** `src/edumatcher/index/main.py`. Start with a minimal version that subscribes, recalculates, and prints to stdout. No ZMQ publish yet. Test with the engine running.
 8. **Add** the ZMQ PUB socket output and PULL command socket to `pm-index`.
 9. **Add** the `INDEX` command to `gateway/main.py` (Section 13).
 10. **Add** the CALF `INDEX` channel to `pm-md-gwy` (Section 9.5).
 11. **Test** end-to-end with the manual test sequence in Section 15.3.
 12. **Add** corporate action and constituent change handling last — these are less urgent and depend on steps 7–8 being solid first.
+
+
+
+## 18. Implementation Plan
+
+This implementation plan assumes the current design target is a full-stack delivery: the core `pm-index` service, persistence, gateway command wiring, and CALF exposure all land as one coordinated feature set.
+
+### Phase 1: Core model and config plumbing
+
+Objectives:
+
+- Introduce the multi-index configuration model with up to five entries.
+- Parse `indices:` from `engine_config.yaml` and validate `index_id`, `description`, and constituent membership.
+- Add the index message builders and payload fields needed by the rest of the stack.
+- Establish the symbol-price basis from the existing mandatory `symbols.<SYM>.outstanding_shares` setting.
+
+Tests:
+
+- Unit tests for config parsing and validation.
+- Unit tests for message builders and required payload keys.
+- Unit tests for any new pure data structures used by the index package.
+- Index unit-test coverage must be at least 85%.
+
+Done when:
+
+- Tests pass.
+- `black --check` passes on touched files.
+- `flake8` passes on touched files.
+- `mypy` passes on touched files.
+- `pyright` passes on touched files.
+
+### Phase 2: Index calculation and persistence core
+
+Objectives:
+
+- Implement `IndexCalculator` as a pure state and math component.
+- Implement per-index divisor bootstrap, price updates, and corporate-action math.
+- Implement JSONL history writing and state-file persistence.
+- Handle EOD deduplication and restart recovery without changing engine behavior.
+
+Tests:
+
+- Unit tests for initial divisor calculation and price movement.
+- Unit tests for stock splits, cash dividends, shares issuance, delisting, and constituent addition.
+- Unit tests for history append/query and state reload.
+- Integration tests for EOD deduplication and restart recovery.
+- Index unit-test coverage must be at least 85%.
+
+Done when:
+
+- Tests pass.
+- `black --check` passes on touched files.
+- `flake8` passes on touched files.
+- `mypy` passes on touched files.
+- `pyright` passes on touched files.
+
+### Phase 3: Process loop and operator workflow
+
+Objectives:
+
+- Implement `pm-index` as the single-threaded event loop that subscribes to engine events and command requests.
+- Add support for `index.update`, `index.history_request`, `index.corp_action`, and `index.constituent_change`.
+- Publish acknowledgements and errors with the correct topics per index.
+- Keep the runtime logic deterministic for identical input event sequences.
+
+Tests:
+
+- Integration tests for socket wiring and topic routing.
+- Integration tests for mixed-event determinism and ack/error behavior.
+- Integration tests for invalid corporate actions and invalid constituent changes.
+- Index unit-test coverage must be at least 85%.
+
+Done when:
+
+- Tests pass.
+- `black --check` passes on touched files.
+- `flake8` passes on touched files.
+- `mypy` passes on touched files.
+- `pyright` passes on touched files.
+
+### Phase 4: Gateway and CALF integration
+
+Objectives:
+
+- Add the `INDEX` gateway command and its history subcommands.
+- Connect the gateway to the index PUB and PULL sockets without breaking the existing engine subscription path.
+- Map index events to CALF `SNAP` and `IDX` output for external clients.
+- Keep the gateway behavior consistent for cached display, history lookup, and subscription replay.
+
+Tests:
+
+- Integration tests for gateway command round-trips.
+- Integration tests for history queries and cached latest-value display.
+- Integration tests for CALF index subscription output.
+- Index unit-test coverage must be at least 85%.
+
+Done when:
+
+- Tests pass.
+- `black --check` passes on touched files.
+- `flake8` passes on touched files.
+- `mypy` passes on touched files.
+- `pyright` passes on touched files.
+
+### Phase 5: Multi-index hardening and release readiness
+
+Objectives:
+
+- Verify all code paths work with up to five simultaneous indexes.
+- Confirm per-index files, IDs, descriptions, and constituent sets remain isolated.
+- Update docs, sample config, and any user-facing text so the new model is discoverable.
+- Run the full end-to-end scenario from engine startup through gateway query and EOD persistence.
+
+Tests:
+
+- End-to-end integration tests for multiple configured indexes.
+- Failure-path tests for invalid configs, missing symbols, and restart conflicts.
+- Full documentation build.
+- Index unit-test coverage must be at least 85%.
+
+Done when:
+
+- Tests pass.
+- `black --check` passes on touched files.
+- `flake8` passes on touched files.
+- `mypy` passes on touched files.
+- `pyright` passes on touched files.
+
+### Open follow-up decisions
+
+These decisions are called out explicitly so they can be resolved during implementation rather than left implicit:
+
+- Whether the index should remain strictly real-time internally, with only the published stream throttled, or whether a delayed-calculation mode should be added later.
+- Whether stale constituent prices should be flagged in the CALF output now or deferred to a later revision.
+- Whether restart recovery should synthesize a missing EOD record or only reload state and continue from the latest persisted prices.
+- Whether any future free-float adjustment should extend the current `outstanding_shares` basis or introduce a separate multiplier.

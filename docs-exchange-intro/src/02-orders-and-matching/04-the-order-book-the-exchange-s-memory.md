@@ -3,6 +3,10 @@
 
 The **order book** (also called the **limit order book** or **LOB**) is the central data structure of a matching engine [1] [2]. It is the live record of every resting order in the market, all the buyers waiting to buy and all the sellers waiting to sell, organised by price.
 
+![The Order Book](assets/order-book-illustration-small2.png)
+
+***Figure 1:** The most mportant data structure in an Exchange - the book.*
+
 > **Key idea:** The order book contains only *resting* orders, those waiting for a counterparty. The current "market price" is derived from the book (as the mid of best bid and ask) or from the last trade, not from a stored field.
 
 Think of it as two sorted lists:
@@ -21,6 +25,11 @@ Think of it as two sorted lists:
 | 800 | $150.31 | | $150.38 | 4,200 |
 
 The **spread** here is $150.35 − $150.34 = $0.01. The **mid price** is ($150.34 + $150.35) / 2 = $150.345. If a market sell order for 3,500 shares arrives, it sweeps: 1,500 shares at $150.34 (exhausting that level), then 2,000 of the 2,800 available at $150.33. The new best bid after the sweep is $150.33 with 800 shares remaining.
+
+## A note on implementation
+
+It is probably safe to say that there are no other data structure as heavily optimized in an exchange the the order book. Since an exchange may need to support 10s of thousands of order books, one per symbol, and access them thousands of time per second it is easy to understand why shawing a $10^{-6}$ second for each call or reducing the footprint by just a few bytes might be crucial. For example you might want to design the central matching engine such that the hot-path (the always executed path) for a match will fit wihtin the processors L3 cache.
+
 
 ## The Spread
 

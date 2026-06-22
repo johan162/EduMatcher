@@ -1,4 +1,4 @@
-# Before the Exchange: How Companies Raise Capital
+# Before the Exchange: How Companies Raised Capital
 
 
 To understand why a financial exchange exists, you first need to understand why anyone bothers issuing shares in the first place. This section is a brief detour into basic corporate finance, the world your exchange is built to serve.
@@ -84,12 +84,15 @@ Early in a company's life, its shares are held by a small, private group: the fo
 At some point, usually when the company has proven its business model and needs a large infusion of capital for the next phase of growth, the company may choose to **go public**: to offer its shares for sale to anyone who wants to buy them. This event is called the **Initial Public Offering (IPO)**.
 
 In an IPO:
+
 1. The company works with **investment banks** to **underwrite** the offering. Underwriting means the banks agree to buy all the shares at a guaranteed price and immediately sell them on. This guarantee means the company receives its cash even if investor demand is weaker than expected. In practice, the banks first conduct a **roadshow**, a series of presentations to large institutional investors, to gauge demand and set the final price. They rarely actually get stuck holding the shares.
 2. New shares are created and sold, with the proceeds going directly to the company (or to early investors who are "cashing out" their stakes).
 3. The company's shares are listed on a stock exchange, NYSE, NASDAQ, LSE, or another regulated market.
 4. From that moment, anyone can buy or sell the shares through the exchange.
 
-Some of the largest IPOs in history by proceeds raised illustrate the scale: Saudi Aramco raised $25.6 billion in its 2019 IPO on the Saudi Exchange (Tadawul), still the largest in history [1]; Alibaba raised $21.8 billion on NYSE in 2014 [1]; Arm Holdings raised $4.9 billion on NASDAQ in September 2023 [1]. Each of these companies brought enormous new pools of capital onto public markets.
+Some of the largest IPOs in history by proceeds raised illustrate the scale: Saudi Aramco raised $25.6 billion in its 2019 IPO on the Saudi Exchange (Tadawul), still the largest in history [1]; Alibaba raised $21.8 billion on NYSE in 2014 [1]; Arm Holdings raised $4.9 billion on NASDAQ in September 2023 [1]. Each of these companies brought enormous new pools of capital onto public markets. 
+
+In recent times the 2026 IPO on NASDAQ for SpaceX (Symbol: SPCX) was to date largest IPO ever made (byb far). SpaceX was valued at approximately $1.77 trillion at IPO and went up to roughly 2.01 trillion as closing price on the first trading day validating the IPO set price. Interesting enough the share price (initially at \$135) was not set as a "blue chip" price which traditionally means an evaluation of $\geq$ \$200 per share.
 
 ## The Primary Market vs. the Secondary Market
 

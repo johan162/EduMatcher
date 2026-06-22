@@ -45,7 +45,7 @@ Options:
   --help                       Show this help text
 
 Example:
-  $0 --name edumatcher-071 --version 0.7.1 --snapshot
+  $0 --name edumatcher-071 --version 0.9.2 --snapshot
 EOF
 }
 

@@ -213,6 +213,62 @@ def test_outstanding_shares_output_is_emitted(
     assert cfg.symbols["MSFT"].outstanding_shares == 7_430_000_000
 
 
+def test_symbol_collar_band_flags_emit_per_symbol_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "MSFT",
+            "--gateways",
+            "TRADER01",
+            "--symbol-static-band",
+            "AAPL:0.18",
+            "--symbol-dynamic-band",
+            "AAPL:0.03",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    cfg = load_engine_config(out_file)
+    assert cfg.symbols["AAPL"].collar is not None
+    assert cfg.symbols["AAPL"].collar.static_band_pct == pytest.approx(0.18)
+    assert cfg.symbols["AAPL"].collar.dynamic_band_pct == pytest.approx(0.03)
+    assert cfg.symbols["MSFT"].collar is None
+
+
+def test_symbol_risk_level_flag_emits_per_symbol_level_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "MSFT",
+            "--gateways",
+            "TRADER01",
+            "--risk-level",
+            "CORE:0.18:0.02",
+            "--symbol-risk-level",
+            "AAPL:CORE",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    cfg = load_engine_config(out_file)
+    assert cfg.symbols["AAPL"].level == "CORE"
+    assert cfg.symbols["MSFT"].level is None
+
+
 def test_outstanding_shares_invalid_value(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -269,32 +325,38 @@ def test_seed_mm_mid_range_requires_mm_gateway(
         )
     assert exc_info.value.code == 2
 
-    def test_comment_default_config_fields_emits_engine_field_defaults(
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        _run_main(
-            monkeypatch,
-            [
-                "--symbols",
-                "AAPL",
-                "--gateways",
-                "TRADER01",
-                "--comment-default-config-fields",
-                "--dry-run",
-            ],
-        )
 
-        captured = capsys.readouterr()
-        assert "# Defaultable engine_config fields and default values:" in captured.out
-        assert (
-            "sessions_enabled: false  # true lets pm-scheduler drive session transitions; false keeps the engine in continuous mode"
-            in captured.out
-        )
-        assert (
-            "snapshot_interval_sec: 0.5  # seconds between book snapshot publications for dirty books"
-            in captured.out
-        )
-        assert "#   symbols.<SYM>.last_buy_price = null" in captured.out
-        assert "#   post_trade_gateway.port = 5580" in captured.out
-        assert "#   --snapshot-interval" not in captured.out
+def test_comment_default_config_fields_emits_engine_field_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--comment-default-config-fields",
+            "--dry-run",
+        ],
+    )
+
+    captured = capsys.readouterr()
+    assert "# Defaultable engine_config fields and default values:" in captured.out
+    assert (
+        "# true lets pm-scheduler drive session transitions;\n# false keeps the engine in continuous mode\nsessions_enabled: false"
+        in captured.out
+    )
+    assert (
+        "# seconds between book snapshot publications for dirty books\nsnapshot_interval_sec: 0.5"
+        in captured.out
+    )
+    # Check for circuit_breaker_defaults documentation in "Field Notes and Accepted Values" section
+    assert (
+        "#   reference_window_ns: 300000000000\n#     Lookback window used to compute the rolling reference price for halt triggers."
+        in captured.out
+    )
+    # Check for symbols documentation
+    assert "#   last_buy_price: null" in captured.out
+    assert "#   --snapshot-interval" not in captured.out

@@ -1,3 +1,29 @@
+## [v0.9.2] - 2026-06-22
+
+Release Type: patch
+
+### 📋 Summary
+This patch release refines `pm-config-gen` output with clearer, better-placed setting comments and more complete risk-level coverage, and hardens Mermaid diagram rendering against theme-related race conditions in the documentation builds. It also adds a complete set of example configurations (ref-data). 
+
+### 🚀 Improvements
+- Improved `pm-config-gen` generated configs by placing each setting's comment on the line above the setting for better readability
+- Improved generated config comments with fuller per-setting explanations and previously missing `risk_level` settings
+- Improved per-symbol risk-level configuration support in `pm-config-gen`
+
+### 🐛 Bug Fixes
+- Fixed a Mermaid rendering race condition with color themes that could produce inconsistent diagrams
+
+### 📚 Documentation
+- Clarified the distinction between circuit breakers and price collars in the configuration and risk-control documentation
+- Minor text updates to the Exchange Intro
+
+### 🛠 Internal
+- Added a script to count glossary entries in the Exchange Intro book
+- Removed an obsolete top-level config file
+- Updated bootstrap and Multipass setup scripts to the latest versions
+- Bumped Exchange Intro to 1.0.3
+
+
 ## [v0.9.1] - 2026-06-21
 
 Release Type: patch

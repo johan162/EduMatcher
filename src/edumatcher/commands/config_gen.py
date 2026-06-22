@@ -79,6 +79,27 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Per-symbol overrides. Can be repeated.",
     )
     parser.add_argument(
+        "--symbol-static-band",
+        action="append",
+        default=[],
+        metavar="SYM:PCT",
+        help="Per-symbol collar static band pct in (0,1). Can be repeated.",
+    )
+    parser.add_argument(
+        "--symbol-dynamic-band",
+        action="append",
+        default=[],
+        metavar="SYM:PCT",
+        help="Per-symbol collar dynamic band pct in (0,1). Can be repeated.",
+    )
+    parser.add_argument(
+        "--symbol-risk-level",
+        action="append",
+        default=[],
+        metavar="SYM:LEVEL",
+        help="Per-symbol risk level key override. Can be repeated.",
+    )
+    parser.add_argument(
         "--outstanding-shares",
         action="append",
         default=[],
@@ -421,104 +442,539 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _build_default_engine_field_comment_lines(config: dict[str, object]) -> list[str]:
-    lines: list[str] = [
-        _format_default_comment(
-            "sessions_enabled",
-            config.get("sessions_enabled", False),
-            "Disabled keeps the engine in continuous mode; enabled lets pm-scheduler drive session transitions",
-        ),
-        _format_default_comment(
-            "snapshot_interval_sec",
-            config.get("snapshot_interval_sec", DEFAULT_SNAPSHOT_INTERVAL_SEC),
-            "Seconds between book snapshot publications for dirty books",
-        ),
-    ]
+    """Build comprehensive comment block for optional engine configuration fields.
 
-    symbols_raw = config.get("symbols")
-    if isinstance(symbols_raw, dict) and symbols_raw:
-        symbol_payloads = [
-            payload for payload in symbols_raw.values() if isinstance(payload, dict)
+    Mimics the sample YAML format with three sections:
+    - Overview & top-level settings
+    - Complete recognized configuration shape (all optional fields with examples)
+    - Field notes and accepted values (detailed field documentation)
+    """
+    lines: list[str] = []
+
+    # =========================================================================
+    # Section 1: Header and overview
+    # =========================================================================
+    lines.extend(
+        [
+            "=============================================================================",
+            "Complete Recognized Configuration Shape",
+            "=============================================================================",
+            "",
+            "The following commented example lists optional top-level entries and nested",
+            "fields recognized by the current engine and scheduler parsers. Leave entries",
+            "commented unless you need them.",
+            "",
         ]
-    else:
-        symbol_payloads = []
+    )
 
-    gateways_raw = config.get("gateways")
-    gateways_alf_raw: list[dict[str, object]] = []
-    if isinstance(gateways_raw, dict):
-        alf_raw = gateways_raw.get("alf")
-        if isinstance(alf_raw, list):
-            gateways_alf_raw = [row for row in alf_raw if isinstance(row, dict)]
+    # sessions_enabled
+    lines.extend(
+        [
+            "sessions_enabled: true",
+            "  Controls whether the scheduler owns session-state transitions.",
+            "  true  = engine starts CLOSED and pm-scheduler drives the trading-day timeline.",
+            "  false = engine starts in CONTINUOUS and ignores scheduler session transitions.",
+            "",
+        ]
+    )
 
-    if symbol_payloads and any(
-        "last_buy_price" not in payload for payload in symbol_payloads
-    ):
-        lines.append(
-            "symbols.<SYM>.last_buy_price = null - Initial last-buy reference is omitted until set explicitly or restored from persisted stats"
-        )
-    if symbol_payloads and any(
-        "last_sell_price" not in payload for payload in symbol_payloads
-    ):
-        lines.append(
-            "symbols.<SYM>.last_sell_price = null - Initial last-sell reference is omitted until set explicitly or restored from persisted stats"
-        )
-    if symbol_payloads and any(
-        "outstanding_shares" not in payload for payload in symbol_payloads
-    ):
-        lines.append(
-            "symbols.<SYM>.outstanding_shares = null - Outstanding share counts are optional in config but useful for statistics and index-style consumers"
-        )
+    # enforce_collars
+    lines.extend(
+        [
+            "enforce_collars: true",
+            "  Global switch for price-collar validation on incoming orders.",
+            "",
+        ]
+    )
 
-    if gateways_alf_raw and any("description" not in row for row in gateways_alf_raw):
-        lines.append(
-            "gateways.alf[].description = '' - Optional human-readable label for the gateway"
-        )
+    # enforce_circuit_breakers
+    lines.extend(
+        [
+            "enforce_circuit_breakers: true",
+            "  Global switch for circuit-breaker halt detection and enforcement.",
+            "",
+        ]
+    )
 
-    schedule_raw = config.get("schedule")
-    if not isinstance(schedule_raw, dict):
-        lines.extend(
-            [
-                "schedule.pre_open = '09:00' - Default pre-open session time when no schedule block is provided",
-                "schedule.opening_auction_start = '09:25' - Default opening auction start time",
-                "schedule.continuous_start = '09:30' - Default continuous-trading start time",
-                "schedule.closing_auction_start = '16:00' - Default closing auction start time",
-                "schedule.closing_auction_end = '16:05' - Default closing auction end time",
-            ]
-        )
+    # snapshot_interval_sec
+    lines.extend(
+        [
+            "snapshot_interval_sec: 0.5",
+            "  Minimum interval between published book snapshots for a dirty symbol.",
+            "  Reduces outbound snapshot volume while preserving near-real-time updates.",
+            "",
+        ]
+    )
 
-    if "post_trade_gateway" not in config:
-        lines.extend(
-            [
-                "post_trade_gateway.name = 'ralf-gwy01' - Default RALF gateway id",
-                "post_trade_gateway.bind_address = '0.0.0.0' - Default listener bind address",
-                "post_trade_gateway.port = 5580 - Default TCP port for the RALF gateway",
-                "post_trade_gateway.replay_retention_sec = 86400 - Default replay history retention in seconds",
-                "post_trade_gateway.heartbeat_interval_sec = 1 - Default heartbeat interval in seconds",
-                "post_trade_gateway.idle_timeout_sec = 5 - Default idle timeout in seconds",
-                "post_trade_gateway.max_client_queue = 10000 - Default slow-client queue depth",
-                "post_trade_gateway.allowed_roles = [CLEARING, DROP_COPY, AUDIT] - Default external roles allowed to subscribe",
-            ]
-        )
+    # mm_obligation_defaults
+    lines.extend(
+        [
+            "mm_obligation_defaults:",
+            "  enforce_mm_obligation: false",
+            "  mm_max_spread_ticks: 10",
+            "  mm_min_qty: 100",
+            "  symbols:",
+            "    AAPL:",
+            "      enforce_mm_obligation: true",
+            "      mm_max_spread_ticks: 8",
+            "      mm_min_qty: 200",
+            "",
+        ]
+    )
 
-    if "market_data_gateway" not in config:
-        lines.extend(
-            [
-                "market_data_gateway.enabled = true - Enables the CALF gateway when true",
-                "market_data_gateway.name = 'md-gwy01' - Default CALF gateway id",
-                "market_data_gateway.bind_address = '0.0.0.0' - Default listener bind address",
-                "market_data_gateway.port = 5570 - Default TCP port for the CALF gateway",
-                "market_data_gateway.heartbeat_interval_sec = 1 - Default heartbeat interval in seconds",
-                "market_data_gateway.idle_timeout_sec = 5 - Default idle timeout in seconds",
-                "market_data_gateway.replay_window_sec = 30 - Default replay history window in seconds",
-                "market_data_gateway.max_symbols_per_client = 200 - Default per-client symbol subscription cap",
-                "market_data_gateway.max_client_queue = 10000 - Default slow-client queue depth",
-            ]
-        )
+    # risk_controls
+    lines.extend(
+        [
+            "risk_controls:",
+            "  default_level: L2",
+            "  levels:",
+            "    L1:",
+            "      collar:",
+            "        static_band_pct: 0.30",
+            "        dynamic_band_pct: 0.05",
+            "    L2:",
+            "      collar:",
+            "        static_band_pct: 0.20",
+            "        dynamic_band_pct: 0.02",
+            "",
+        ]
+    )
+
+    # circuit_breaker_defaults
+    lines.extend(
+        [
+            "circuit_breaker_defaults:",
+            "  reference_window_ns: 300000000000",
+            "  levels:",
+            "    L1:",
+            "      price_shift_pct: 0.07",
+            "      halt_duration_ns: 300000000000",
+            "      resumption_mode: AUCTION",
+            "    L2:",
+            "      price_shift_pct: 0.13",
+            "      halt_duration_ns: 900000000000",
+            "      resumption_mode: AUCTION",
+            "    L3:",
+            "      price_shift_pct: 0.20",
+            "      halt_duration_ns: null",
+            "      resumption_mode: AUCTION",
+            "",
+        ]
+    )
+
+    # gateways
+    lines.extend(
+        [
+            "gateways:",
+            "  alf:",
+            "    - id: TRADER01",
+            "      description: Student workstation 1",
+            "      role: TRADER",
+            "      disconnect_behaviour: CANCEL_ALL",
+            "      quote_refresh_policy: INACTIVATE_ON_ANY_FILL",
+            "      enforce_mm_obligation: false",
+            "      mm_max_spread_ticks: 10",
+            "      mm_min_qty: 100",
+            "      mm_obligations:",
+            "        AAPL:",
+            "          enforce_mm_obligation: true",
+            "          max_spread_ticks: 6",
+            "          min_qty: 300",
+            "",
+        ]
+    )
+
+    # symbols section
+    lines.extend(
+        [
+            "symbols:",
+            "  AAPL:",
+            "    tick_decimals: 2",
+            "    level: L2",
+            "    last_buy_price: 209.50",
+            "    last_sell_price: 210.50",
+            "    outstanding_shares: 2600000000",
+            "    collar:",
+            "      static_band_pct: 0.20",
+            "      dynamic_band_pct: 0.02",
+            "    circuit_breaker:",
+            "      reference_window_ns: 300000000000",
+            "      levels:",
+            "        L1:",
+            "          price_shift_pct: 0.07",
+            "          halt_duration_ns: 300000000000",
+            "          resumption_mode: AUCTION",
+            "        L2:",
+            "          price_shift_pct: 0.13",
+            "          halt_duration_ns: 900000000000",
+            "          resumption_mode: CONTINUOUS",
+            "        L3:",
+            "          price_shift_pct: 0.20",
+            "          halt_duration_ns:",
+            "          resumption_mode: AUCTION",
+            "    market_maker_quotes:",
+            "      - gateway_id: MM01",
+            "        quote_id: SEED-MM01-AAPL",
+            "        bid_price: 209.00",
+            "        ask_price: 211.00",
+            "        bid_qty: 1000",
+            "        ask_qty: 1000",
+            "        tif: DAY",
+            "        seed_once: true",
+            "",
+        ]
+    )
+
+    # market_maker_combos
+    lines.extend(
+        [
+            "market_maker_combos:",
+            "  - combo_id: SEED-PAIR-AAPL-MSFT",
+            "    combo_type: AON",
+            "    tif: DAY",
+            "    legs:",
+            "      - symbol: AAPL",
+            "        side: BUY",
+            "        order_type: LIMIT",
+            "        quantity: 100",
+            "        price: 20950",
+            "        stop_price: null",
+            "        smp_action: NONE",
+            "      - symbol: MSFT",
+            "        side: SELL",
+            "        order_type: LIMIT",
+            "        quantity: 50",
+            "        price: 41550",
+            "        stop_price: null",
+            "        smp_action: NONE",
+            "",
+        ]
+    )
+
+    # post_trade_gateway
+    lines.extend(
+        [
+            "post_trade_gateway:",
+            "  name: ralf-gwy01",
+            "  bind_address: 0.0.0.0",
+            "  port: 5580",
+            "  replay_retention_sec: 86400",
+            "  heartbeat_interval_sec: 1",
+            "  idle_timeout_sec: 5",
+            "  max_client_queue: 10000",
+            "  allowed_roles: [CLEARING, DROP_COPY, AUDIT]",
+            "",
+        ]
+    )
+
+    # market_data_gateway
+    lines.extend(
+        [
+            "market_data_gateway:",
+            "  enabled: true",
+            "  name: md-gwy01",
+            "  bind_address: 0.0.0.0",
+            "  port: 5570",
+            "  heartbeat_interval_sec: 1",
+            "  idle_timeout_sec: 5",
+            "  replay_window_sec: 30",
+            "  max_symbols_per_client: 200",
+            "  max_client_queue: 10000",
+            "",
+        ]
+    )
+
+    # schedule
+    lines.extend(
+        [
+            "schedule:",
+            '  pre_open: "09:00"',
+            '  opening_auction_start: "09:25"',
+            '  continuous_start: "09:30"',
+            '  closing_auction_start: "16:00"',
+            '  closing_auction_end: "16:05"',
+            "",
+        ]
+    )
+
+    # =========================================================================
+    # Section 2: Field notes and accepted values
+    # =========================================================================
+    lines.extend(
+        [
+            "=============================================================================",
+            "Field Notes and Accepted Values",
+            "=============================================================================",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "mm_obligation_defaults entries",
+            "" + "-" * 30,
+            "enforce_mm_obligation: false",
+            "  Enables exchange-side market-maker compliance checks for quote width and size.",
+            "mm_max_spread_ticks: 10",
+            "  Maximum allowed bid-ask spread (in ticks) for obligated quotes.",
+            "mm_min_qty: 100",
+            "  Minimum displayed quantity required on each side of an obligated quote.",
+            "symbols:",
+            "  Per-symbol policy overrides when different instruments require different",
+            "  quoting obligations. Keys must match configured symbols.",
+            "  Effective precedence is: gateway mm_obligations >",
+            "  mm_obligation_defaults.symbols > gateway flat fields >",
+            "  mm_obligation_defaults flat fields > built-in defaults.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "risk_controls entries",
+            "" + "-" * 21,
+            "default_level: L2",
+            "  Baseline risk profile applied to symbols that do not set a symbol-specific level.",
+            "levels:",
+            "  Named risk profile catalog used by symbols and by default_level.",
+            "levels.<NAME>.collar:",
+            "  Price-band configuration for order acceptance checks:",
+            "  static_band_pct anchors to a session reference, dynamic_band_pct tracks live prices.",
+            "levels.<NAME>.collar.static_band_pct: 0.20",
+            "  Wider static guardrail around the reference price.",
+            "levels.<NAME>.collar.dynamic_band_pct: 0.02",
+            "  Tighter dynamic guardrail around near-live trading levels.",
+            "  Precedence: symbols.<SYM>.collar > symbols.<SYM>.level >",
+            "  risk_controls.default_level > built-in defaults.",
+            "  Note: levels.<NAME>.circuit_breaker is not supported; use",
+            "  circuit_breaker_defaults at the top level instead.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "circuit_breaker_defaults entries",
+            "" + "-" * 33,
+            "reference_window_ns: 300000000000",
+            "  Lookback window used to compute the rolling reference price for halt triggers.",
+            "levels:",
+            "  Halt ladder definitions applied exchange-wide unless overridden per symbol.",
+            "  Symbol-level circuit_breaker.levels entries merge field-by-field over defaults.",
+            "levels.<NAME>.price_shift_pct:",
+            "  Percent move from the rolling reference price required to trigger this halt level.",
+            "levels.<NAME>.halt_duration_ns: null",
+            "  Halt length for this level; null means halt remains active for the rest of day.",
+            "  Built-in ladder values: L1=300000000000 (5m), L2=900000000000",
+            "  (15m), L3=null.",
+            "levels.<NAME>.resumption_mode: AUCTION",
+            "  How trading resumes after the halt: AUCTION runs an uncross,",
+            "  CONTINUOUS reopens matching immediately.",
+            "  Built-in default ladder: L1=7%/5m, L2=13%/15m, L3=20%/rest-of-day.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "gateways.alf entries",
+            "" + "-" * 20,
+            "id:",
+            "  Participant session identifier used for login, permissions, and routing.",
+            "description: null",
+            "  Operator-facing label for dashboards and diagnostics.",
+            "role: TRADER",
+            "  Permission profile: TRADER submits orders, MARKET_MAKER supplies quotes,",
+            "  ADMIN can issue exchange control commands.",
+            "disconnect_behaviour: CANCEL_QUOTES_ONLY",
+            "  Cleanup action on disconnect to control stale exposure risk.",
+            "quote_refresh_policy: INACTIVATE_ON_ANY_FILL",
+            "  Determines when seeded quotes are inactivated after executions.",
+            "enforce_mm_obligation: false",
+            "  Gateway-level switch to enforce market-maker obligations for this participant.",
+            "mm_max_spread_ticks: 10",
+            "  Gateway-level quote spread cap used by obligation checks.",
+            "mm_min_qty: 100",
+            "  Gateway-level minimum quote size used by obligation checks.",
+            "mm_obligations:",
+            "  Per-symbol overrides for this gateway when obligations differ by instrument.",
+            "  Use enforce_mm_obligation, max_spread_ticks, and min_qty inside this map.",
+            "mm_obligations.<SYM>.enforce_mm_obligation: false",
+            "  Per-symbol switch enabling/disabling obligation checks for this gateway.",
+            "mm_obligations.<SYM>.max_spread_ticks: 10",
+            "  Per-symbol spread cap in ticks.",
+            "mm_obligations.<SYM>.min_qty: 100",
+            "  Per-symbol minimum quote size.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "symbols entries",
+            "" + "-" * 15,
+            "tick_decimals: 2",
+            "  Display precision and tick-size conversion for all prices of this symbol.",
+            "level:",
+            "  Symbol's assigned risk profile name from risk_controls.levels.",
+            "  If omitted, the symbol inherits risk_controls.default_level.",
+            "last_buy_price: null",
+            "last_sell_price: null",
+            "  Startup seed values for last-trade references before live or persisted history exists.",
+            "outstanding_shares: null",
+            "  Issued share count used by analytics, reporting, and index-style consumers.",
+            "collar:",
+            "  Symbol-specific collar override when this instrument needs tighter/looser bands.",
+            "collar.static_band_pct: 0.20",
+            "  Symbol-level static guardrail around reference price.",
+            "collar.dynamic_band_pct: 0.02",
+            "  Symbol-level dynamic guardrail around near-live prices.",
+            "circuit_breaker:",
+            "  Symbol-specific halt policy override layered on top of circuit_breaker_defaults.",
+            "  Levels merge field-by-field, so each symbol can override only needed fields.",
+            "circuit_breaker.reference_window_ns: 300000000000",
+            "  Symbol-specific rolling reference window for halt detection.",
+            "circuit_breaker.levels.<NAME>.price_shift_pct: 0.07",
+            "  Percent move threshold that triggers halt level <NAME>.",
+            "circuit_breaker.levels.<NAME>.halt_duration_ns: null",
+            "  Halt duration for level <NAME>; null means rest-of-day.",
+            "circuit_breaker.levels.<NAME>.resumption_mode: AUCTION",
+            "  Trading resumption behavior for level <NAME>.",
+            "  halt_duration_ns may be null for rest-of-day halts.",
+            "  reference_window_ns can override the global rolling reference window.",
+            "market_maker_quotes:",
+            "  Startup quote seeds used to initialize liquidity for this symbol.",
+            "  Required when MARKET_MAKER gateways are configured.",
+            "  gateway_id must reference a configured MARKET_MAKER gateway.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "market_maker_quotes entries (under symbols.<SYM>.market_maker_quotes)",
+            "" + "-" * 68,
+            "gateway_id:",
+            "  Market-maker session that owns and submits this seed quote.",
+            "quote_id: null",
+            "  External quote identifier for audit/reconciliation; auto-generated when omitted.",
+            "bid_price / ask_price:",
+            "  Initial two-sided quote prices used to seed the order book.",
+            "  bid_price must be less than ask_price; engine converts display prices to ticks.",
+            "bid_qty / ask_qty:",
+            "  Initial displayed quantities for each side of the seeded quote.",
+            "tif: DAY",
+            "  Time-in-force policy for the seeded quote lifecycle.",
+            "  Prefer DAY for seeds — GTC seeds can duplicate on restart if",
+            "  gtc_orders.json still contains the previous session's orders.",
+            "seed_once: true",
+            "  Prevents re-injecting the same seed quote after restart when history already exists.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "market_maker_combos entries",
+            "" + "-" * 27,
+            "combo_id:",
+            "  Stable identifier for this seeded multi-leg strategy.",
+            "combo_type: AON",
+            "  Execution rule for the combo (AON executes all legs together).",
+            "tif: DAY",
+            "  Time-in-force policy for the combo order.",
+            "legs:",
+            "  Ordered leg definitions that specify how the strategy is composed.",
+            "  Requires 2..10 legs; symbols must be configured and unique per combo.",
+            "leg.symbol:",
+            "  Instrument traded by this leg; must reference a configured symbol.",
+            "leg.side:",
+            "  Direction of this leg within the strategy (BUY or SELL).",
+            "leg.order_type:",
+            "  Execution style for this leg (MARKET, LIMIT, STOP, etc.).",
+            "leg.quantity:",
+            "  Quantity contributed by this leg to each combo execution.",
+            "leg.price:",
+            "  Tick price used by priced order types (LIMIT, STOP_LIMIT, FOK, ICEBERG, IOC).",
+            "  Example: with tick_decimals=2, display 209.50 is stored as tick 20950.",
+            "leg.stop_price:",
+            "  Trigger price in ticks for STOP, STOP_LIMIT, and TRAILING_STOP leg types.",
+            "leg.smp_action: NONE",
+            "  Self-match prevention behavior when this leg would cross own resting interest.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "post_trade_gateway entries",
+            "" + "-" * 27,
+            "name: ralf-gwy01",
+            "  Service name used in logs, telemetry, and client diagnostics.",
+            "bind_address: 0.0.0.0",
+            "  Network interface/address the post-trade server listens on for incoming clients.",
+            "port: 5580",
+            "  TCP port clients connect to for fills, drop copy, and post-trade replay.",
+            "replay_retention_sec: 86400",
+            "  How long post-trade events are retained for client replay after reconnect.",
+            "heartbeat_interval_sec: 1",
+            "  Keepalive interval used to prove connection liveness to clients.",
+            "idle_timeout_sec: 5",
+            "  Disconnect threshold when a client is silent for too long.",
+            "max_client_queue: 10000",
+            "  Per-client outbound backlog limit before applying backpressure/disconnect logic.",
+            "allowed_roles: [CLEARING, DROP_COPY, AUDIT]",
+            "  Roles authorized to subscribe to this gateway's post-trade data stream.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "market_data_gateway entries",
+            "" + "-" * 28,
+            "enabled: true",
+            "  Master switch that enables or disables the market data gateway service.",
+            "name: md-gwy01",
+            "  Service name shown in logs, monitoring, and client banners.",
+            "bind_address: 0.0.0.0",
+            "  Network interface/address the market data server binds to.",
+            "port: 5570",
+            "  TCP port clients connect to for snapshots, deltas, and replay requests.",
+            "heartbeat_interval_sec: 1",
+            "  Keepalive cadence for market-data client sessions.",
+            "idle_timeout_sec: 5",
+            "  Session timeout when no traffic is received from a client.",
+            "replay_window_sec: 30",
+            "  In-memory replay horizon available to late/reconnecting clients.",
+            "max_symbols_per_client: 200",
+            "  Subscription safety limit to prevent a single client from over-consuming fanout.",
+            "max_client_queue: 10000",
+            "  Per-client outbound queue cap before overload handling is triggered.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "schedule entries",
+            "" + "-" * 16,
+            "pre_open: 09:00",
+            "  Start of pre-open state, when participants can stage orders before opening auction.",
+            "opening_auction_start: 09:25",
+            "  Time the opening uncross begins and opening match logic takes over.",
+            "continuous_start: 09:30",
+            "  Transition from opening auction into continuous limit-order-book matching.",
+            "closing_auction_start: 16:00",
+            "  Time the closing auction phase begins and continuous matching stops.",
+            "closing_auction_end: 16:05",
+            "  End of closing auction and completion of the trading session timeline.",
+            "  Times are HH:MM in local server time and are applied in trading-day order.",
+            "",
+        ]
+    )
 
     return lines
-
-
-def _format_default_comment(field: str, value: object, description: str) -> str:
-    return f"{field} = {value!r} - {description}"
 
 
 def _validate_basic_args(args: argparse.Namespace) -> None:
@@ -654,6 +1110,56 @@ def _parse_outstanding_shares(
     return result
 
 
+def _parse_symbol_band_specs(
+    specs: list[str],
+    allowed_symbols: set[str],
+    flag_name: str,
+) -> dict[str, float]:
+    result: dict[str, float] = {}
+    for raw in specs:
+        if ":" not in raw:
+            raise ValueError(f"Invalid {flag_name} '{raw}': expected SYM:PCT")
+        sym_raw, val_raw = raw.split(":", 1)
+        sym = sym_raw.strip().upper()
+        if not sym:
+            raise ValueError(f"Invalid {flag_name} '{raw}': symbol cannot be empty")
+        if sym not in allowed_symbols:
+            raise ValueError(f"{flag_name} references unknown symbol '{sym}'")
+        try:
+            value = float(val_raw.strip())
+        except ValueError:
+            raise ValueError(f"{flag_name} '{raw}': value must be numeric")
+        if not (0 < value < 1):
+            raise ValueError(f"{flag_name} '{raw}': value must be in (0, 1)")
+        result[sym] = value
+    return result
+
+
+def _parse_symbol_level_specs(
+    specs: list[str],
+    allowed_symbols: set[str],
+) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for raw in specs:
+        if ":" not in raw:
+            raise ValueError(f"Invalid --symbol-risk-level '{raw}': expected SYM:LEVEL")
+        sym_raw, level_raw = raw.split(":", 1)
+        sym = sym_raw.strip().upper()
+        if not sym:
+            raise ValueError(
+                f"Invalid --symbol-risk-level '{raw}': symbol cannot be empty"
+            )
+        if sym not in allowed_symbols:
+            raise ValueError(f"--symbol-risk-level references unknown symbol '{sym}'")
+        level = level_raw.strip().upper()
+        if not level:
+            raise ValueError(
+                f"Invalid --symbol-risk-level '{raw}': level cannot be empty"
+            )
+        result[sym] = level
+    return result
+
+
 def _parse_specs(args: argparse.Namespace) -> tuple[
     list[str],
     list[GatewaySpec],
@@ -681,6 +1187,31 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
         specs=args.symbol_opts,
         allowed_symbols=set(symbols),
     )
+
+    symbol_static_bands = _parse_symbol_band_specs(
+        specs=args.symbol_static_band,
+        allowed_symbols=set(symbols),
+        flag_name="--symbol-static-band",
+    )
+    for sym, static_band in symbol_static_bands.items():
+        symbol_overrides.setdefault(sym, SymbolOverride()).static_band_pct = static_band
+
+    symbol_dynamic_bands = _parse_symbol_band_specs(
+        specs=args.symbol_dynamic_band,
+        allowed_symbols=set(symbols),
+        flag_name="--symbol-dynamic-band",
+    )
+    for sym, dynamic_band in symbol_dynamic_bands.items():
+        symbol_overrides.setdefault(sym, SymbolOverride()).dynamic_band_pct = (
+            dynamic_band
+        )
+
+    symbol_risk_levels = _parse_symbol_level_specs(
+        specs=args.symbol_risk_level,
+        allowed_symbols=set(symbols),
+    )
+    for sym, risk_level in symbol_risk_levels.items():
+        symbol_overrides.setdefault(sym, SymbolOverride()).level = risk_level
 
     outstanding_shares = _parse_outstanding_shares(
         specs=args.outstanding_shares,
