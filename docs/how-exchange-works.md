@@ -45,7 +45,7 @@ Build the conceptual base: why exchanges exist, how capital formation connects t
 
 
 
-## Before the Exchange: How Companies Raise Capital
+## Before the Exchange: How Companies Raised Capital
 
 
 To understand why a financial exchange exists, you first need to understand why anyone bothers issuing shares in the first place. This section is a brief detour into basic corporate finance, the world your exchange is built to serve.
@@ -131,12 +131,15 @@ Early in a company's life, its shares are held by a small, private group: the fo
 At some point, usually when the company has proven its business model and needs a large infusion of capital for the next phase of growth, the company may choose to **go public**: to offer its shares for sale to anyone who wants to buy them. This event is called the **Initial Public Offering (IPO)**.
 
 In an IPO:
+
 1. The company works with **investment banks** to **underwrite** the offering. Underwriting means the banks agree to buy all the shares at a guaranteed price and immediately sell them on. This guarantee means the company receives its cash even if investor demand is weaker than expected. In practice, the banks first conduct a **roadshow**, a series of presentations to large institutional investors, to gauge demand and set the final price. They rarely actually get stuck holding the shares.
 2. New shares are created and sold, with the proceeds going directly to the company (or to early investors who are "cashing out" their stakes).
 3. The company's shares are listed on a stock exchange, NYSE, NASDAQ, LSE, or another regulated market.
 4. From that moment, anyone can buy or sell the shares through the exchange.
 
-Some of the largest IPOs in history by proceeds raised illustrate the scale: Saudi Aramco raised $25.6 billion in its 2019 IPO on the Saudi Exchange (Tadawul), still the largest in history [1]; Alibaba raised $21.8 billion on NYSE in 2014 [1]; Arm Holdings raised $4.9 billion on NASDAQ in September 2023 [1]. Each of these companies brought enormous new pools of capital onto public markets.
+Some of the largest IPOs in history by proceeds raised illustrate the scale: Saudi Aramco raised $25.6 billion in its 2019 IPO on the Saudi Exchange (Tadawul), still the largest in history [1]; Alibaba raised $21.8 billion on NYSE in 2014 [1]; Arm Holdings raised $4.9 billion on NASDAQ in September 2023 [1]. Each of these companies brought enormous new pools of capital onto public markets. 
+
+In recent times the 2026 IPO on NASDAQ for SpaceX (Symbol: SPCX) was to date largest IPO ever made (byb far). SpaceX was valued at approximately $1.77 trillion at IPO and went up to roughly 2.01 trillion as closing price on the first trading day validating the IPO set price. Interesting enough the share price (initially at \$135) was not set as a "blue chip" price which traditionally means an evaluation of $\geq$ \$200 per share.
 
 ### The Primary Market vs. the Secondary Market
 
@@ -369,7 +372,6 @@ The historical explanation above describes the *economics* of short selling. The
 
 **Why this matters for exchange developers.** The exchange's matching engine processes short sales exactly like any other sell order, the distinction between a short sale and a long sale is invisible at the order book level. The matching engine does not know or care whether the seller owns the shares. The borrow and locate process happens entirely outside the exchange, in the prime brokerage and custody infrastructure. However, exchange reporting systems are required to flag short sales (in the US, short sale orders must be marked "short" in the FIX message and this appears in the audit trail), and some regulatory checks at the gateway level confirm the short sale flag is present.
 
-**Broker** itself is an old word. The word "broker" traces back to Middle English (brocour) and Anglo-Norman (abrocour), originally referring to a middleman, small trader, or wine merchant. It referred originally to a person who "broaches" (opens) a cask and sells the wine retail, an intermediary between producer and consumer. By the late medieval period it had generalised to any trade intermediary, and it has carried that meaning into finance.
 
 ### Wall Street
 
@@ -420,6 +422,8 @@ NYSE has what it calls **Designated Market Makers (DMMs)**, specific firms assig
 > **Key idea:** Market makers earn the spread by continuously providing two-sided quotes, a standing bid and ask, making it possible for others to trade immediately at any time. They are not passive: their position changes with every fill, and they must manage inventory and information risk in real time. The *Market Makers* section of Part II examines the full operational detail: formal obligations, what happens when a quote is hit, protection mechanisms, and the software implications of supporting them.
 
 ### Brokers
+
+**Broker** itself is an old word. The word "broker" traces back to Middle English (brocour) and Anglo-Norman (abrocour), originally referring to a middleman, small trader, or wine merchant. It referred originally to a person who "broaches" (opens) a cask and sells the wine retail, an intermediary between producer and consumer. By the late medieval period it had generalised to any trade intermediary, and it has carried that meaning into finance.
 
 A broker does not trade for their own account. They act as an intermediary: they receive orders from clients and submit them to the exchange on the client's behalf. Retail brokerages (Fidelity, Schwab, eToro) aggregate small orders from millions of individuals. Institutional brokers (Goldman Sachs, Morgan Stanley, JPMorgan) execute large block orders for institutional clients with minimum market impact.
 
@@ -926,6 +930,10 @@ The exchange must verify available liquidity before executing any fills. In prac
 
 The **order book** (also called the **limit order book** or **LOB**) is the central data structure of a matching engine [1] [2]. It is the live record of every resting order in the market, all the buyers waiting to buy and all the sellers waiting to sell, organised by price.
 
+![The Order Book](assets/order-book-illustration-small2.png)
+
+***Figure 1:** The most mportant data structure in an Exchange - the book.*
+
 > **Key idea:** The order book contains only *resting* orders, those waiting for a counterparty. The current "market price" is derived from the book (as the mid of best bid and ask) or from the last trade, not from a stored field.
 
 Think of it as two sorted lists:
@@ -944,6 +952,11 @@ Think of it as two sorted lists:
 | 800 | $150.31 | | $150.38 | 4,200 |
 
 The **spread** here is $150.35 − $150.34 = $0.01. The **mid price** is ($150.34 + $150.35) / 2 = $150.345. If a market sell order for 3,500 shares arrives, it sweeps: 1,500 shares at $150.34 (exhausting that level), then 2,000 of the 2,800 available at $150.33. The new best bid after the sweep is $150.33 with 800 shares remaining.
+
+### A note on implementation
+
+It is probably safe to say that there are no other data structure as heavily optimized in an exchange the the order book. Since an exchange may need to support 10s of thousands of order books, one per symbol, and access them thousands of time per second it is easy to understand why shawing a $10^{-6}$ second for each call or reducing the footprint by just a few bytes might be crucial. For example you might want to design the central matching engine such that the hot-path (the always executed path) for a match will fit wihtin the processors L3 cache.
+
 
 ### The Spread
 
@@ -1644,7 +1657,7 @@ The sequence in which pre-trade checks run is not arbitrary. Checks requiring ex
 
 Failing at step 1 takes nanoseconds. Failing at step 7 takes longer because it requires consulting external state. Running all checks in parallel wastes resources on orders that would be rejected at step 1; running them in this sequence minimises latency for both accepted and rejected orders.
 
-```mermaid
+```mermaid{.mermaid width=450}
 flowchart TD
     A["Incoming order\nfrom participant"] --> B
 
@@ -1911,7 +1924,22 @@ SMP detects the wash condition and applies one of several policies before any fi
 
 ### How SMP Identifies a Self-Match
 
-The matching engine identifies orders from the same participant by their **gateway ID** (the identifier of the connection through which the order was submitted). Two orders with the same gateway ID constitute a potential self-match. The SMP action specified on the incoming order governs what happens.
+How the matching engine identifies orders from the same participant is exchange specific.
+Exchanges can identify these traders using one or several of the following mechanisms:
+
+- SMP IDs (Self-Match Prevention Identifiers): Market participants register unique identifiers (e.g., SMP IDs, STP IDs, or STPF IDs = "Self-Match Prevention Functionality Identifier") with the exchange. When submitting quotes or orders via APIs like FIX or SBE, the trader tags the message with this ID. The matching engine checks for matching SMP IDs on resting and incoming orders to prevent execution.
+- Firm/Trader Identifiers: SMP IDs are often paired with firm-level identifiers (such as a Globex Firm ID or Operator ID) to ensure that the cross-matching is coming from the same organization.
+- Account Numbers: In some simplified systems, the clearing account or firm account number is used by the exchange to block two orders from the same overarching entity from crossing.
+- Cross-Broker Tagging: Sophisticated frameworks (guided by standards from groups like DMIST) allow participants to share an SMP ID across multiple brokers. This means that even if a firm routes orders through different prime brokers, the exchange will still recognize them as the same trader and prevent self-trading.
+
+#### What is the SBE?
+
+**SBR** stands for *Simple Binary Encoding (SBE)* it is a high-performance, non-textual message protocol designed for electronic trading. It was developed by the FIX Trading Community as a faster alternative to traditional text-based protocols.
+
+- **Binary Format:** Unlike standard FIX protocol which sends data as text (e.g., 35=D;49=FIRM), SBE transmits data as raw binary bytes (zeros and ones).
+- **Fixed Position:** SBE uses fixed-length fields or highly predictable schemas. The matching engine knows exactly which byte contains the STPF ID without needing to scan or parse the entire message.
+- **Ultra-Low Latency:** Because computers read binary natively, SBE requires almost zero CPU overhead to decode. This allows algorithmic traders to submit orders—complete with their STPF IDs—in microseconds.
+- 
 
 ### Why This Matters for Developers
 
@@ -2783,20 +2811,62 @@ When events across multiple machines must be compared, all machines must share a
 
 ## Operational Observability and Incident Response
 
-Production readiness depends not only on matching correctness, but on fast, reliable detection and recovery when something degrades.
+Production readiness depends not only on matching correctness, but on fast, reliable detection and recovery when something degrades. An exchange that matches perfectly but cannot tell when it is sick, or cannot recover quickly when it is, is not production-grade. Observability and incident response are first-class engineering features, and in many jurisdictions they are also regulatory obligations.
+
+### The Four Golden Signals
+
+A useful framework for deciding *what* to measure is the set of **four golden signals** popularised by site reliability engineering. Each maps directly onto an exchange:
+
+- **Latency:** how long operations take, for example order ACK and fill time. Measure successful and failed requests separately, a fast rejection is not the same as a fast fill.
+- **Traffic:** demand on the system, for example orders per second, cancels per second, and market-data messages published.
+- **Errors:** the rate of failed operations, for example rejects by reason code.
+- **Saturation:** how full the system is, for example ingress queue depth, CPU and cache pressure, and WAL write latency. Saturation is the leading indicator: it rises *before* latency and errors degrade.
+
+The value of the framework is that it turns an open-ended "what should we monitor?" into four concrete questions that every component, gateway, matcher, market-data publisher, must answer.
 
 ### Core Production Signals
 
-At minimum, exchanges track and alert on:
+Building on the golden signals, exchanges track and alert on:
 
 - End-to-end order ACK/fill latency (p50/p95/p99/p99.9)
 - Ingress queue depth and backlog age per gateway and per symbol partition
 - Market-data publish latency and subscriber lag
+- Sequence-gap and retransmission rates on each market-data channel
 - Replay buffer utilisation and replay hit/miss ratios
 - Reject rates by code (risk, syntax, session, throttling)
+- Order-to-trade and cancel-to-fill ratios per participant
+- Business-level events: halts, MMP and LULD firings, extreme auction imbalances
 - Failover readiness (replication lag, last durable offset, heartbeat health)
 
-These metrics should be broken out by venue session state (auction, continuous, halt), because acceptable baselines differ by phase.
+These metrics should be broken out by venue session state (auction, continuous, halt), because acceptable baselines differ by phase. A p99 latency that is healthy during continuous trading may be meaningless during an auction uncross.
+
+### Clock and Time-Synchronisation Health
+
+An exchange is a time machine: every order is sequenced, every event is timestamped, and the audit trail is only as trustworthy as the clocks that produced it. **Clock health** is therefore a first-class signal unique to exchange infrastructure.
+
+Operators monitor the **offset** between each host's clock and a reference (via PTP or NTP), the drift rate, and the synchronisation source's own health. A gateway whose clock has drifted from the matching engine can produce timestamps that appear out of order, corrupting sequencing logic and regulatory reporting. Because clock degradation is silent, it must be alerted on directly rather than inferred after the fact.
+
+### The Three Pillars: Metrics, Logs, Traces
+
+Mature observability rests on three complementary data types:
+
+- **Metrics** are aggregated numeric time series (the signals above). They are cheap to store and ideal for dashboards and alerting, but they cannot explain *why* a single order behaved oddly.
+- **Logs** are structured, timestamped records of discrete events. In an exchange they overlap heavily with the **audit trail**, every accept, reject, fill, and cancellation, and must be structured (machine-parseable fields, not free text) to be searchable under pressure.
+- **Traces** follow a single request across components. By attaching a **correlation ID** (typically the order ID) to every message, an operator can reconstruct an order's full path, gateway → risk checks → matcher → market-data publish, and locate exactly where latency or an error was introduced.
+
+Metrics tell you *that* something is wrong, traces tell you *where*, and logs tell you *why*.
+
+### Service-Level Objectives and Error Budgets
+
+To distinguish "degraded" from "normal", a venue defines **Service-Level Indicators (SLIs)**, the precise metrics it cares about, and **Service-Level Objectives (SLOs)**, the target values for those metrics, for example "99.9% of order ACKs within 200 microseconds during continuous trading."
+
+The gap between an SLO and 100% is the **error budget**: the amount of degradation the venue is willing to tolerate over a period. Error budgets convert reliability into an explicit, shared currency, when the budget is healthy, teams can ship changes faster; when it is exhausted, the priority shifts to stability. Because acceptable performance differs by session phase, SLOs are usually defined per phase rather than as a single daily number.
+
+### Alerting Design
+
+More monitoring is not automatically better. Poorly designed alerting produces **alert fatigue**, where operators learn to ignore a noisy channel and miss the one alert that mattered.
+
+Good practice favours **symptom-based alerts** (page when participants are affected, for example fills are slow) over **cause-based alerts** (page on every elevated CPU reading), and separates **paging** alerts (wake a human now) from **ticketing** alerts (review during business hours). Critically, the monitoring system must itself be monitored: a **dead-man's-switch** or **heartbeat** alert fires when expected signals *stop arriving*, catching the dangerous case where the exchange looks healthy only because telemetry has silently failed.
 
 ### Runbooks and Recovery Drills
 
@@ -2807,9 +2877,21 @@ A professional venue maintains tested runbooks for:
 - Primary-to-secondary failover with deterministic replay verification
 - Market-data incident handling (gap storms, replay saturation, stale snapshots)
 
-Runbooks should include operator decision thresholds, not just command sequences. Drills should be rehearsed under load and during controlled session simulations, not only in staging idle conditions.
+Runbooks should include operator decision thresholds, not just command sequences. Drills should be rehearsed under load and during controlled session simulations, not only in staging idle conditions. **Determinism and replay** (covered later in this part) are themselves incident-response tools: the ability to replay an exact input sequence lets operators reproduce a failure offline while live trading continues, and the **kill switch** and **mass cancel** controls (from the risk and compliance part) are the operator's primary levers for containing a runaway participant.
 
-> **Key idea:** Low latency is valuable, but operational predictability is what keeps markets open during stress. A venue is publishable and production-grade only when observability and incident response are engineered as first-class features.
+### Incident Command and Postmortems
+
+When an incident exceeds routine handling, an explicit structure prevents chaos. Incidents are assigned a **severity level** (for example SEV1 for a trading-impacting outage down to SEV3 for a contained, non-customer-facing fault), which drives escalation and communication expectations.
+
+A defined **incident command** model assigns clear roles, an **Incident Commander** who coordinates and decides, and a separate **communications lead** who keeps participants and stakeholders informed, so that responders are not simultaneously fixing and explaining. Afterwards, a **blameless postmortem** records the timeline, measures **time-to-detect (MTTD)** and **time-to-recover (MTTR)**, and produces concrete corrective actions that feed back into runbooks, alerts, and tests. The goal is organisational learning, not individual blame; engineers who fear punishment hide the very information that prevents recurrence.
+
+### Participant Communication and Regulatory Obligations
+
+An exchange outage is not a private engineering matter. Participants need timely, accurate notice through **status pages** and **market notices** so they can manage their own risk, and silence during an incident erodes trust faster than the outage itself.
+
+In many jurisdictions, incident handling is mandated. In the US, **Regulation SCI (Systems Compliance and Integrity)** requires covered market infrastructure to maintain capacity and resilience, to report significant systems issues to the regulator, and to conduct business-continuity testing. Observability and incident response are therefore compliance functions as much as engineering ones: the venue must be able to *demonstrate*, with evidence, that it detected, communicated, and resolved an incident appropriately.
+
+> **Key idea:** Low latency is valuable, but operational predictability is what keeps markets open during stress. A venue is publishable and production-grade only when observability and incident response, signals, tracing, SLOs, alerting, runbooks, incident command, and regulatory communication, are engineered as first-class features rather than added after the first outage.
 
 
 ## Corporate Actions, When the Instrument Changes
@@ -2995,7 +3077,7 @@ The leading corporate finance textbook, used in business schools worldwide. Cove
 
 **[4]** De la Vega, Joseph. *Confusión de Confusiones* (written 1688). Translated by Hermann Kellenbenz. Harvard University Graduate School of Business Administration, Kress Library of Business and Economics, 1957.
 
-The oldest known book about stock market trading, written in Amsterdam in 1688 by a Spanish Jewish merchant named Joseph de la Vega. Describes, in dialogues, the practices of the Amsterdam VOC share market, including resting orders, market making, and speculative trading. A remarkable primary source demonstrating that many modern concepts are centuries old. The Kellenbenz translation includes a scholarly introduction providing historical context.
+The oldest known book about stock market trading, written in Amsterdam in 1688 by a Spanish merchant named Joseph de la Vega. Describes, in dialogues, the practices of the Amsterdam VOC share market, including resting orders, market making, and speculative trading. A remarkable primary source demonstrating that many modern concepts are centuries old. The Kellenbenz translation includes a scholarly introduction providing historical context.
 
 
 
@@ -3013,7 +3095,9 @@ A narrative account of the founding of IEX by Brad Katsuyama and colleagues, des
 
 **[7]** U.S. Securities and Exchange Commission and Commodity Futures Trading Commission. *Findings Regarding the Market Events of May 6, 2010*. Joint Report. 30 September 2010.
 
-The official regulatory investigation into the 2010 Flash Crash, which saw the Dow Jones Industrial Average fall approximately 1,000 points in minutes on May 6, 2010. Analyses the sequence of events, the role of automated trading, and the breakdown of circuit breakers. Available at: https://www.sec.gov/news/studies/2010/marketevents-report.pdf
+The official regulatory investigation into the 2010 Flash Crash, which saw the Dow Jones Industrial Average fall approximately 1,000 points in minutes on May 6, 2010. Analyses the sequence of events, the role of automated trading, and the breakdown of circuit breakers. 
+
+Available at: https://www.sec.gov/news/studies/2010/marketevents-report.pdf
 
 
 
