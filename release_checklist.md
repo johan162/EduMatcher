@@ -11,7 +11,7 @@ This document describes all steps necessary to make a new EduMacher release.
     poetry version <NEW VERSION>  
     ```
 
-2. Add a new `CHANGELOGENTRY.md`. Use the `/changelog` skill to create a draft version based on the git-logs
+2. Add a new `CHANGELOGENTRY.md`. Use the `/changelog <VERSION> <MAJOR|MINOR|PATCH>` skill to create a draft version based on the git-logs
 
 3. Run the complete build script `scripts/mkbld.sh` and fix any potential issues until it runs clean.
 
