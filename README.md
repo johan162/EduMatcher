@@ -124,7 +124,7 @@ This is an educational project. If you find bugs, improve the documentation, or 
 **Bootstrap with one command**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.9.1 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.9.2 --snapshot
 ```
 
 This command downloads the VM setup scripts, launches a Multipass VM,
