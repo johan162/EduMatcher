@@ -1427,6 +1427,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#price-collars-vs-circuit-breakers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Price collars vs circuit breakers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Price collars vs circuit breakers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#side-by-side-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Side-by-side comparison
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#practical-interpretation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Practical interpretation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#interaction-between-mechanisms" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3512,6 +3551,11 @@ a configurable pause, giving participants time to update their orders.</p>
 <p>Real-world examples: the US market-wide circuit breakers (Level 1/2/3), the
 London Stock Exchange's Automated Auction Call mechanism, and per-stock
 volatility interruptions on Euronext.</p>
+<p>In many production exchanges, the primary circuit-breaker trigger is linked to
+an index (market-wide reference) with per-symbol volatility controls layered on
+top. EduMatcher does not yet implement index-level circuit-breaker triggers, so
+its current circuit-breaker logic is symbol-linked: each symbol evaluates its
+own rolling trade reference and can halt independently.</p>
 <h3 id="how-it-works-step-by-step">How it works — step by step<a class="headerlink" href="#how-it-works-step-by-step" title="Permanent link">&para;</a></h3>
 <ol>
 <li>
@@ -3669,6 +3713,74 @@ present, per-symbol values override global defaults by level key.</p>
 <p>Circuit-breaker levels are <strong>trigger outcomes</strong>, not configuration profiles to
 pick one from. A symbol defines a ladder of levels; the observed price shift
 determines which level is activated at runtime.</p>
+<h2 id="price-collars-vs-circuit-breakers">Price collars vs circuit breakers<a class="headerlink" href="#price-collars-vs-circuit-breakers" title="Permanent link">&para;</a></h2>
+<p>Both controls are configured on symbols, but they protect the market at
+different points in the flow and for different failure modes.</p>
+<ul>
+<li>A <strong>price collar</strong> is a pre-trade admission guardrail on priced orders.</li>
+<li>A <strong>circuit breaker</strong> is a post-trade volatility interrupt that can halt the
+  full symbol after an extreme move is observed.</li>
+</ul>
+<h3 id="side-by-side-comparison">Side-by-side comparison<a class="headerlink" href="#side-by-side-comparison" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>Price collar (symbol)</th>
+<th>Circuit breaker (symbol)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Trigger moment</td>
+<td>Before matching (order admission)</td>
+<td>After a trade is executed</td>
+</tr>
+<tr>
+<td>Data checked</td>
+<td>Incoming order price vs static/dynamic bands</td>
+<td>Trade price shift vs rolling reference</td>
+</tr>
+<tr>
+<td>Scope of effect</td>
+<td>Single incoming order</td>
+<td>Entire symbol</td>
+</tr>
+<tr>
+<td>Typical action</td>
+<td>Reject offending order (<code>STATIC_COLLAR_BREACH</code> or <code>DYNAMIC_COLLAR_BREACH</code>)</td>
+<td>Halt symbol, cancel MM quotes, schedule/manual resume</td>
+</tr>
+<tr>
+<td>Market state after trigger</td>
+<td>Symbol keeps trading for other valid orders</td>
+<td>Symbol is halted until resume condition is met</td>
+</tr>
+<tr>
+<td>Configuration anchor</td>
+<td><code>symbols.&lt;SYM&gt;.collar</code> (or inherited level defaults)</td>
+<td><code>circuit_breaker_defaults</code> + <code>symbols.&lt;SYM&gt;.circuit_breaker</code> overrides</td>
+</tr>
+<tr>
+<td>Primary objective</td>
+<td>Prevent fat-finger / outlier order entry</td>
+<td>Pause disorderly market after extreme realized move</td>
+</tr>
+<tr>
+<td>Dependence on trade history</td>
+<td>Dynamic band needs last trade, static band does not</td>
+<td>Uses rolling trade history/reference window</td>
+</tr>
+</tbody>
+</table>
+<h3 id="practical-interpretation">Practical interpretation<a class="headerlink" href="#practical-interpretation" title="Permanent link">&para;</a></h3>
+<p>Use collars to stop clearly invalid prices from entering the book. Use circuit
+breakers to pause trading when validly admitted orders still produce an
+abnormally large executed move. In practice, collars reduce bad inputs and
+circuit breakers contain fast market dislocations.</p>
+<p>For field-level schema and merge precedence details, see
+<a href="../01-configuration/#circuit-breakers">Configuration - Circuit Breakers</a> and
+<a href="../01-configuration/#risk-controls-and-collars">Configuration - Risk Controls and Collars</a>.</p>
 <h2 id="interaction-between-mechanisms">Interaction between mechanisms<a class="headerlink" href="#interaction-between-mechanisms" title="Permanent link">&para;</a></h2>
 <p>All three controls can be active simultaneously on the same symbol.  The engine
 applies them in this order for every incoming order:</p>
@@ -4078,10 +4190,6 @@ cancel all orders across <em>all</em> gateways at once — use an exchange-wide
         <script src="../../javascripts/mathjax.js"></script>
       
         <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
-      
-        <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
-      
-        <script src="../../javascripts/mermaid-init.js"></script>
       
     
   </body>

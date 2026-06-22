@@ -558,15 +558,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#before-the-exchange-how-companies-raise-capital" class="md-nav__link">
+  <a href="#before-the-exchange-how-companies-raised-capital" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Before the Exchange: How Companies Raise Capital
+        Before the Exchange: How Companies Raised Capital
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Before the Exchange: How Companies Raise Capital">
+    <nav class="md-nav" aria-label="Before the Exchange: How Companies Raised Capital">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1438,6 +1438,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#a-note-on-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A note on implementation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-spread" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2137,6 +2148,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="How SMP Identifies a Self-Match">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-is-the-sbe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is the SBE?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -3038,6 +3066,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#the-four-golden-signals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Four Golden Signals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#core-production-signals" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3049,10 +3088,76 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#clock-and-time-synchronisation-health" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clock and Time-Synchronisation Health
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-three-pillars-metrics-logs-traces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Three Pillars: Metrics, Logs, Traces
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#service-level-objectives-and-error-budgets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Service-Level Objectives and Error Budgets
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#alerting-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alerting Design
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#runbooks-and-recovery-drills" class="md-nav__link">
     <span class="md-ellipsis">
       
         Runbooks and Recovery Drills
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#incident-command-and-postmortems" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Incident Command and Postmortems
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#participant-communication-and-regulatory-obligations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Participant Communication and Regulatory Obligations
       
     </span>
   </a>
@@ -5561,7 +5666,7 @@
 <li>The Participants</li>
 <li>A Brief Tour of Real-World Exchanges</li>
 </ul>
-<h2 id="before-the-exchange-how-companies-raise-capital">Before the Exchange: How Companies Raise Capital<a class="headerlink" href="#before-the-exchange-how-companies-raise-capital" title="Permanent link">&para;</a></h2>
+<h2 id="before-the-exchange-how-companies-raised-capital">Before the Exchange: How Companies Raised Capital<a class="headerlink" href="#before-the-exchange-how-companies-raised-capital" title="Permanent link">&para;</a></h2>
 <p>To understand why a financial exchange exists, you first need to understand why anyone bothers issuing shares in the first place. This section is a brief detour into basic corporate finance, the world your exchange is built to serve.</p>
 <h3 id="the-problem-of-growth">The Problem of Growth<a class="headerlink" href="#the-problem-of-growth" title="Permanent link">&para;</a></h3>
 <p>Imagine a small software company. It has a product, a team, and paying customers, but it wants to grow: hire more engineers, open offices in new countries, and invest in research that will take three years to generate revenue. All of that costs money, far more money than the company currently earns in a month or a quarter.</p>
@@ -5656,12 +5761,15 @@
 <h3 id="going-public-the-initial-public-offering-ipo">Going Public: The Initial Public Offering (IPO)<a class="headerlink" href="#going-public-the-initial-public-offering-ipo" title="Permanent link">&para;</a></h3>
 <p>Early in a company's life, its shares are held by a small, private group: the founders, early employees (who often receive shares as part of their compensation), and <strong>venture capital (VC) investors</strong> who provided early funding in exchange for equity stakes. These shares are not available to the general public; the company is <strong>private</strong>.</p>
 <p>At some point, usually when the company has proven its business model and needs a large infusion of capital for the next phase of growth, the company may choose to <strong>go public</strong>: to offer its shares for sale to anyone who wants to buy them. This event is called the <strong>Initial Public Offering (IPO)</strong>.</p>
-<p>In an IPO:
-1. The company works with <strong>investment banks</strong> to <strong>underwrite</strong> the offering. Underwriting means the banks agree to buy all the shares at a guaranteed price and immediately sell them on. This guarantee means the company receives its cash even if investor demand is weaker than expected. In practice, the banks first conduct a <strong>roadshow</strong>, a series of presentations to large institutional investors, to gauge demand and set the final price. They rarely actually get stuck holding the shares.
-2. New shares are created and sold, with the proceeds going directly to the company (or to early investors who are "cashing out" their stakes).
-3. The company's shares are listed on a stock exchange, NYSE, NASDAQ, LSE, or another regulated market.
-4. From that moment, anyone can buy or sell the shares through the exchange.</p>
-<p>Some of the largest IPOs in history by proceeds raised illustrate the scale: Saudi Aramco raised $25.6 billion in its 2019 IPO on the Saudi Exchange (Tadawul), still the largest in history [1]; Alibaba raised $21.8 billion on NYSE in 2014 [1]; Arm Holdings raised $4.9 billion on NASDAQ in September 2023 [1]. Each of these companies brought enormous new pools of capital onto public markets.</p>
+<p>In an IPO:</p>
+<ol>
+<li>The company works with <strong>investment banks</strong> to <strong>underwrite</strong> the offering. Underwriting means the banks agree to buy all the shares at a guaranteed price and immediately sell them on. This guarantee means the company receives its cash even if investor demand is weaker than expected. In practice, the banks first conduct a <strong>roadshow</strong>, a series of presentations to large institutional investors, to gauge demand and set the final price. They rarely actually get stuck holding the shares.</li>
+<li>New shares are created and sold, with the proceeds going directly to the company (or to early investors who are "cashing out" their stakes).</li>
+<li>The company's shares are listed on a stock exchange, NYSE, NASDAQ, LSE, or another regulated market.</li>
+<li>From that moment, anyone can buy or sell the shares through the exchange.</li>
+</ol>
+<p>Some of the largest IPOs in history by proceeds raised illustrate the scale: Saudi Aramco raised $25.6 billion in its 2019 IPO on the Saudi Exchange (Tadawul), still the largest in history [1]; Alibaba raised $21.8 billion on NYSE in 2014 [1]; Arm Holdings raised $4.9 billion on NASDAQ in September 2023 [1]. Each of these companies brought enormous new pools of capital onto public markets. </p>
+<p>In recent times the 2026 IPO on NASDAQ for SpaceX (Symbol: SPCX) was to date largest IPO ever made (byb far). SpaceX was valued at approximately $1.77 trillion at IPO and went up to roughly 2.01 trillion as closing price on the first trading day validating the IPO set price. Interesting enough the share price (initially at $135) was not set as a "blue chip" price which traditionally means an evaluation of <span class="arithmatex">\(\geq\)</span> $200 per share.</p>
 <h3 id="the-primary-market-vs-the-secondary-market">The Primary Market vs. the Secondary Market<a class="headerlink" href="#the-primary-market-vs-the-secondary-market" title="Permanent link">&para;</a></h3>
 <p>This distinction is critical, and it is where the exchange fits in.</p>
 <p>The <strong>primary market</strong> [3] is where new securities are created and sold for the first time. In an IPO, the company sells newly issued shares directly to investors, and the company receives the money. A bond issuance is also a primary market transaction, new bonds are created and the company receives the loan proceeds.</p>
@@ -5818,7 +5926,6 @@
 <p><strong>Short recall risk.</strong> The lender can recall their shares at any time (with short notice). If the lender sells their shares or instructs their custodian to recall the loan, the short seller must return the shares immediately, either by buying in the open market (a <strong>buy-in</strong>) or finding a new lender. In volatile markets, recalls at inopportune moments can force short sellers to cover at bad prices.</p>
 <p><strong>Settlement obligation.</strong> At settlement (T+1 in the US), the short seller must deliver the shares. They do not own them, they borrowed them. Their clearing position shows a negative (short) holding. The CCP ensures delivery; if the short seller fails to deliver, the failed settlement process applies.</p>
 <p><strong>Why this matters for exchange developers.</strong> The exchange's matching engine processes short sales exactly like any other sell order, the distinction between a short sale and a long sale is invisible at the order book level. The matching engine does not know or care whether the seller owns the shares. The borrow and locate process happens entirely outside the exchange, in the prime brokerage and custody infrastructure. However, exchange reporting systems are required to flag short sales (in the US, short sale orders must be marked "short" in the FIX message and this appears in the audit trail), and some regulatory checks at the gateway level confirm the short sale flag is present.</p>
-<p><strong>Broker</strong> itself is an old word. The word "broker" traces back to Middle English (brocour) and Anglo-Norman (abrocour), originally referring to a middleman, small trader, or wine merchant. It referred originally to a person who "broaches" (opens) a cask and sells the wine retail, an intermediary between producer and consumer. By the late medieval period it had generalised to any trade intermediary, and it has carried that meaning into finance.</p>
 <h3 id="wall-street">Wall Street<a class="headerlink" href="#wall-street" title="Permanent link">&para;</a></h3>
 <p><strong>Wall Street</strong> is named after an actual wall, a wooden palisade built in 1653 by Dutch colonists along the northern edge of their settlement (then called New Amsterdam, now Lower Manhattan) to protect against British and Native American incursions. The wall is long gone; the street that replaced it became the financial centre of America, and now "Wall Street" is a metonym for the entire US financial industry, regardless of where the actual firms are physically located.</p>
 <h3 id="why-this-matters-for-you">Why This Matters for You<a class="headerlink" href="#why-this-matters-for-you" title="Permanent link">&para;</a></h3>
@@ -5845,6 +5952,7 @@
 <p><strong>Key idea:</strong> Market makers earn the spread by continuously providing two-sided quotes, a standing bid and ask, making it possible for others to trade immediately at any time. They are not passive: their position changes with every fill, and they must manage inventory and information risk in real time. The <em>Market Makers</em> section of Part II examines the full operational detail: formal obligations, what happens when a quote is hit, protection mechanisms, and the software implications of supporting them.</p>
 </blockquote>
 <h3 id="brokers">Brokers<a class="headerlink" href="#brokers" title="Permanent link">&para;</a></h3>
+<p><strong>Broker</strong> itself is an old word. The word "broker" traces back to Middle English (brocour) and Anglo-Norman (abrocour), originally referring to a middleman, small trader, or wine merchant. It referred originally to a person who "broaches" (opens) a cask and sells the wine retail, an intermediary between producer and consumer. By the late medieval period it had generalised to any trade intermediary, and it has carried that meaning into finance.</p>
 <p>A broker does not trade for their own account. They act as an intermediary: they receive orders from clients and submit them to the exchange on the client's behalf. Retail brokerages (Fidelity, Schwab, eToro) aggregate small orders from millions of individuals. Institutional brokers (Goldman Sachs, Morgan Stanley, JPMorgan) execute large block orders for institutional clients with minimum market impact.</p>
 <p><strong>Prime brokers</strong> are a specific tier of broker providing a package of services to sophisticated clients, primarily hedge funds: securities lending (enabling short selling), leveraged financing, consolidated clearing and custody across multiple brokers, and sometimes execution services. Without a prime broker relationship, a hedge fund could not efficiently short sell or use leverage. The major prime brokers are divisions of the large investment banks.</p>
 <h3 id="the-exchange-itself">The Exchange Itself<a class="headerlink" href="#the-exchange-itself" title="Permanent link">&para;</a></h3>
@@ -6346,6 +6454,8 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
 </table>
 <h2 id="the-order-book-the-exchanges-memory">The Order Book, The Exchange's Memory<a class="headerlink" href="#the-order-book-the-exchanges-memory" title="Permanent link">&para;</a></h2>
 <p>The <strong>order book</strong> (also called the <strong>limit order book</strong> or <strong>LOB</strong>) is the central data structure of a matching engine [1] [2]. It is the live record of every resting order in the market, all the buyers waiting to buy and all the sellers waiting to sell, organised by price.</p>
+<p><img alt="The Order Book" src="assets/order-book-illustration-small2.png" /></p>
+<p><em><strong>Figure 1:</strong> The most mportant data structure in an Exchange - the book.</em></p>
 <blockquote>
 <p><strong>Key idea:</strong> The order book contains only <em>resting</em> orders, those waiting for a counterparty. The current "market price" is derived from the book (as the mid of best bid and ask) or from the last trade, not from a stored field.</p>
 </blockquote>
@@ -6395,6 +6505,8 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
 </tbody>
 </table>
 <p>The <strong>spread</strong> here is $150.35 − $150.34 = <span class="arithmatex">\(0.01. The **mid price** is (\)</span>150.34 + $150.35) / 2 = $150.345. If a market sell order for 3,500 shares arrives, it sweeps: 1,500 shares at $150.34 (exhausting that level), then 2,000 of the 2,800 available at $150.33. The new best bid after the sweep is $150.33 with 800 shares remaining.</p>
+<h3 id="a-note-on-implementation">A note on implementation<a class="headerlink" href="#a-note-on-implementation" title="Permanent link">&para;</a></h3>
+<p>It is probably safe to say that there are no other data structure as heavily optimized in an exchange the the order book. Since an exchange may need to support 10s of thousands of order books, one per symbol, and access them thousands of time per second it is easy to understand why shawing a <span class="arithmatex">\(10^{-6}\)</span> second for each call or reducing the footprint by just a few bytes might be crucial. For example you might want to design the central matching engine such that the hot-path (the always executed path) for a match will fit wihtin the processors L3 cache.</p>
 <h3 id="the-spread">The Spread<a class="headerlink" href="#the-spread" title="Permanent link">&para;</a></h3>
 <p>The <strong>spread</strong> is the gap between the best bid (highest buy offer) and the best ask (lowest sell offer). If the best bid is $150.30 and the best ask is $150.35, the spread is $0.05.</p>
 <p>The spread represents the immediate cost of trading: if you need to buy right now, you pay the ask price; if you need to sell right now, you receive the bid price. The round-trip cost of buying and immediately selling is the spread.</p>
@@ -6934,55 +7046,67 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
 <li><strong>SMP pre-check</strong> , Does an obvious self-match with a resting order exist?</li>
 </ol>
 <p>Failing at step 1 takes nanoseconds. Failing at step 7 takes longer because it requires consulting external state. Running all checks in parallel wastes resources on orders that would be rejected at step 1; running them in this sequence minimises latency for both accepted and rejected orders.</p>
-<pre class="mermaid"><code>flowchart TD
-    A["Incoming order\nfrom participant"] --&gt; B
+<p>```mermaid{.mermaid width=450}
+flowchart TD
+    A["Incoming order\nfrom participant"] --&gt; B</p>
+<div class="highlight"><pre><span></span><code>B{&quot;1. Format &amp;\nsyntax valid?&quot;}
+B --&gt;|No| R1[&quot;REJECTED\nMalformed message&quot;]
+B --&gt;|Yes| C
 
-    B{"1. Format &amp;\nsyntax valid?"}
-    B --&gt;|No| R1["REJECTED\nMalformed message"]
-    B --&gt;|Yes| C
+C{&quot;2. Symbol\nvalid &amp; tradeable?&quot;}
+C --&gt;|No| R2[&quot;REJECTED\nUnknown / halted symbol&quot;]
+C --&gt;|Yes| D
 
-    C{"2. Symbol\nvalid &amp; tradeable?"}
-    C --&gt;|No| R2["REJECTED\nUnknown / halted symbol"]
-    C --&gt;|Yes| D
+D{&quot;3. Within rate\nlimit for gateway?&quot;}
+D --&gt;|No| R3[&quot;REJECTED or QUEUED\nThrottle limit exceeded&quot;]
+D --&gt;|Yes| E
 
-    D{"3. Within rate\nlimit for gateway?"}
-    D --&gt;|No| R3["REJECTED or QUEUED\nThrottle limit exceeded"]
-    D --&gt;|Yes| E
+E{&quot;4. Price within\nfat-finger band?&quot;}
+E --&gt;|No| R4[&quot;REJECTED\nPrice too far from reference&quot;]
+E --&gt;|Yes| F
 
-    E{"4. Price within\nfat-finger band?"}
-    E --&gt;|No| R4["REJECTED\nPrice too far from reference"]
-    E --&gt;|Yes| F
+F{&quot;5. Quantity &amp;\nnotional within limits?&quot;}
+F --&gt;|No| R5[&quot;REJECTED\nSize / value limit exceeded&quot;]
+F --&gt;|Yes| G
 
-    F{"5. Quantity &amp;\nnotional within limits?"}
-    F --&gt;|No| R5["REJECTED\nSize / value limit exceeded"]
-    F --&gt;|Yes| G
+G{&quot;6. Short sale\nflag correct?&quot;}
+G --&gt;|No| R6[&quot;REJECTED\nReg SHO violation&quot;]
+G --&gt;|Yes| H
 
-    G{"6. Short sale\nflag correct?"}
-    G --&gt;|No| R6["REJECTED\nReg SHO violation"]
-    G --&gt;|Yes| H
+H{&quot;7. Position &amp;\ncredit limits OK?&quot;}
+H --&gt;|No| R7[&quot;REJECTED\nPosition / credit limit breached&quot;]
+H --&gt;|Yes| I
 
-    H{"7. Position &amp;\ncredit limits OK?"}
-    H --&gt;|No| R7["REJECTED\nPosition / credit limit breached"]
-    H --&gt;|Yes| I
-
-    I{"8. SMP\npre-check"}
-    I --&gt;|Self-match| R8["CANCELLED\nper SMP policy"]
-    I --&gt;|Clear| J["→ Matching Engine"]</code></pre>
+I{&quot;8. SMP\npre-check&quot;}
+I --&gt;|Self-match| R8[&quot;CANCELLED\nper SMP policy&quot;]
+I --&gt;|Clear| J[&quot;→ Matching Engine&quot;]
+</code></pre></div>
+<p>```
+</p>
 <h3 id="the-gateway-as-risk-layer">The Gateway as Risk Layer<a class="headerlink" href="#the-gateway-as-risk-layer" title="Permanent link">&para;</a></h3>
-<p>In most production architectures, the gateway performs these checks. The gateway is the first system to touch an incoming order; it can reject it immediately without the order ever reaching the matching engine's single-threaded queue. This keeps the matching engine clean and fast.</p>
-<p>The consequence for software design: the gateway and the matching engine have different codebases, different deployment configurations, and different update cadences. The gateway can be scaled horizontally (multiple gateway processes); the matching engine is typically single-threaded per symbol.</p>
+<p>In most production architectures, the gateway performs these checks. The gateway is the first system to touch an incoming order; it can reject it immediately without the order ever reaching the matching engine's single-threaded queue. This keeps the matching engine clean and fast.
+
+The consequence for software design: the gateway and the matching engine have different codebases, different deployment configurations, and different update cadences. The gateway can be scaled horizontally (multiple gateway processes); the matching engine is typically single-threaded per symbol.
+</p>
 <blockquote>
 <p><strong>Key idea:</strong> The matching engine is optimised for speed, not safety. Safety is enforced before the order arrives. Developers working on gateway code must treat pre-trade checks as first-class functionality, not as an afterthought.</p>
 </blockquote>
 <h2 id="risk-controls-protecting-the-market">Risk Controls, Protecting the Market<a class="headerlink" href="#risk-controls-protecting-the-market" title="Permanent link">&para;</a></h2>
-<p>An exchange has a duty not just to its participants but to market stability as a whole. The risk controls described in this section exist because markets can go very wrong, very fast.</p>
+<p>An exchange has a duty not just to its participants but to market stability as a whole. The risk controls described in this section exist because markets can go very wrong, very fast.
+</p>
 <h3 id="circuit-breakers">Circuit Breakers<a class="headerlink" href="#circuit-breakers" title="Permanent link">&para;</a></h3>
-<p>A <strong>circuit breaker</strong> (also called a <strong>trading curb</strong> in some regulatory contexts) is a mechanism that automatically halts trading when prices move too fast. The name comes from electrical circuit breakers, they "trip" to prevent damage when current (activity) becomes excessive.</p>
-<p><strong>Why they exist:</strong> In modern electronic markets, automated trading algorithms can drive prices far from fundamental value in seconds. The <strong>2010 Flash Crash</strong> saw the Dow Jones Industrial Average fall nearly 1,000 points in minutes before recovering [7]. Circuit breakers prevent such cascades from becoming permanent damage by imposing a mandatory pause during which participants can assess the situation, cancel erroneous orders, re-price their quotes, and allow the market to find equilibrium. A halt that lasts five minutes can prevent a price dislocation that might otherwise take hours or days to unwind.</p>
-<p>The origin of circuit breakers is the <strong>Black Monday crash of 19 October 1987</strong>, when US markets fell 22.6% in a single day. The Presidential Task Force on Market Mechanisms (the Brady Commission) recommended coordinated market-wide pause mechanisms in its January 1988 report, directly leading to the first exchange circuit breakers being implemented. The full history is in the <em>Black Monday and the Origin of Circuit Breakers</em> section of Part I.</p>
-<p><strong>The basic mechanism:</strong> After each trade, the exchange calculates how much the price has moved relative to a reference price (typically the most recent auction price, or the price at the start of a defined time window). If the movement exceeds a configured threshold in either direction, trading in that symbol is halted. During the halt, new orders can still be submitted and will rest in the book, but no matching occurs. When the halt ends, trading resumes through a <strong>resumption auction</strong> rather than instantly returning to continuous matching , this ensures that the first post-halt price is determined by the broadest available supply and demand, not by a single resting order that happens to be at the top of a thin book.</p>
-<p>The circuit breaker introduces its own state machine within the trading session:</p>
-<pre class="mermaid"><code>stateDiagram-v2
+<p>A <strong>circuit breaker</strong> (also called a <strong>trading curb</strong> in some regulatory contexts) is a mechanism that automatically halts trading when prices move too fast. The name comes from electrical circuit breakers, they "trip" to prevent damage when current (activity) becomes excessive.
+
+<strong>Why they exist:</strong> In modern electronic markets, automated trading algorithms can drive prices far from fundamental value in seconds. The <strong>2010 Flash Crash</strong> saw the Dow Jones Industrial Average fall nearly 1,000 points in minutes before recovering [7]. Circuit breakers prevent such cascades from becoming permanent damage by imposing a mandatory pause during which participants can assess the situation, cancel erroneous orders, re-price their quotes, and allow the market to find equilibrium. A halt that lasts five minutes can prevent a price dislocation that might otherwise take hours or days to unwind.
+
+The origin of circuit breakers is the <strong>Black Monday crash of 19 October 1987</strong>, when US markets fell 22.6% in a single day. The Presidential Task Force on Market Mechanisms (the Brady Commission) recommended coordinated market-wide pause mechanisms in its January 1988 report, directly leading to the first exchange circuit breakers being implemented. The full history is in the <em>Black Monday and the Origin of Circuit Breakers</em> section of Part I.
+
+<strong>The basic mechanism:</strong> After each trade, the exchange calculates how much the price has moved relative to a reference price (typically the most recent auction price, or the price at the start of a defined time window). If the movement exceeds a configured threshold in either direction, trading in that symbol is halted. During the halt, new orders can still be submitted and will rest in the book, but no matching occurs. When the halt ends, trading resumes through a <strong>resumption auction</strong> rather than instantly returning to continuous matching , this ensures that the first post-halt price is determined by the broadest available supply and demand, not by a single resting order that happens to be at the top of a thin book.
+
+The circuit breaker introduces its own state machine within the trading session:
+
+<code>mermaid
+stateDiagram-v2
     direction LR
     CONTINUOUS --&gt; HALTED : Price moves beyond\nthreshold from reference
     HALTED --&gt; RESUMPTION_AUCTION : Halt duration expires\n(min + possible extension)
@@ -6990,7 +7114,7 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
     RESUMPTION_AUCTION --&gt; RESUMPTION_AUCTION : Indicative price still\noutside extension band\n(auction extended)
     HALTED --&gt; CLOSED : End-of-day signal\nduring halt (Level 3)
     note right of HALTED : Orders rest but\nno matching occurs
-    note right of RESUMPTION_AUCTION : Price discovery\nbefore resuming</code></pre>
+    note right of RESUMPTION_AUCTION : Price discovery\nbefore resuming</code></p>
 <p>Note that this is a sub-machine nested within the full trading session state machine (which is described in Part II). A halt can occur multiple times during a single session; each time the circuit breaker trips in CONTINUOUS, the session cycles through HALTED → RESUMPTION_AUCTION → CONTINUOUS before continuing.</p>
 <h3 id="should-halt-duration-be-fixed-or-proportional-to-move-size">Should Halt Duration Be Fixed or Proportional to Move Size?<a class="headerlink" href="#should-halt-duration-be-fixed-or-proportional-to-move-size" title="Permanent link">&para;</a></h3>
 <p>This is a genuine design question, and the answer, confirmed by how major markets actually operate, is that both the trigger thresholds <em>and</em> the halt durations should be graduated by severity. The reasoning is straightforward: the purpose of a halt is to allow participants enough time to respond. A 0.5% move may reflect a momentary liquidity gap that resolves in two minutes. A 15% move may reflect genuine macroeconomic news that requires participants to read announcements, consult risk managers, recalculate valuations, and obtain fresh margin collateral, a process that cannot be completed in two minutes no matter how urgently it proceeds.</p>
@@ -7233,7 +7357,22 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
 <p><strong>Cancel both</strong>: Both the resting and incoming order are cancelled. Use this when you want to eliminate both sides cleanly, for example, when re-positioning and wanting neither order to remain active.</p>
 <p><strong>Allow the match (no SMP)</strong>: Some systems permit self-matching in testing environments or for specific account structures where the "two sides" are legally distinct entities despite sharing a gateway ID. In most production environments, SMP is always on.</p>
 <h3 id="how-smp-identifies-a-self-match">How SMP Identifies a Self-Match<a class="headerlink" href="#how-smp-identifies-a-self-match" title="Permanent link">&para;</a></h3>
-<p>The matching engine identifies orders from the same participant by their <strong>gateway ID</strong> (the identifier of the connection through which the order was submitted). Two orders with the same gateway ID constitute a potential self-match. The SMP action specified on the incoming order governs what happens.</p>
+<p>How the matching engine identifies orders from the same participant is exchange specific.
+Exchanges can identify these traders using one or several of the following mechanisms:</p>
+<ul>
+<li>SMP IDs (Self-Match Prevention Identifiers): Market participants register unique identifiers (e.g., SMP IDs, STP IDs, or STPF IDs = "Self-Match Prevention Functionality Identifier") with the exchange. When submitting quotes or orders via APIs like FIX or SBE, the trader tags the message with this ID. The matching engine checks for matching SMP IDs on resting and incoming orders to prevent execution.</li>
+<li>Firm/Trader Identifiers: SMP IDs are often paired with firm-level identifiers (such as a Globex Firm ID or Operator ID) to ensure that the cross-matching is coming from the same organization.</li>
+<li>Account Numbers: In some simplified systems, the clearing account or firm account number is used by the exchange to block two orders from the same overarching entity from crossing.</li>
+<li>Cross-Broker Tagging: Sophisticated frameworks (guided by standards from groups like DMIST) allow participants to share an SMP ID across multiple brokers. This means that even if a firm routes orders through different prime brokers, the exchange will still recognize them as the same trader and prevent self-trading.</li>
+</ul>
+<h4 id="what-is-the-sbe">What is the SBE?<a class="headerlink" href="#what-is-the-sbe" title="Permanent link">&para;</a></h4>
+<p><strong>SBR</strong> stands for <em>Simple Binary Encoding (SBE)</em> it is a high-performance, non-textual message protocol designed for electronic trading. It was developed by the FIX Trading Community as a faster alternative to traditional text-based protocols.</p>
+<ul>
+<li><strong>Binary Format:</strong> Unlike standard FIX protocol which sends data as text (e.g., 35=D;49=FIRM), SBE transmits data as raw binary bytes (zeros and ones).</li>
+<li><strong>Fixed Position:</strong> SBE uses fixed-length fields or highly predictable schemas. The matching engine knows exactly which byte contains the STPF ID without needing to scan or parse the entire message.</li>
+<li><strong>Ultra-Low Latency:</strong> Because computers read binary natively, SBE requires almost zero CPU overhead to decode. This allows algorithmic traders to submit orders—complete with their STPF IDs—in microseconds.</li>
+<li></li>
+</ul>
 <h3 id="why-this-matters-for-developers">Why This Matters for Developers<a class="headerlink" href="#why-this-matters-for-developers" title="Permanent link">&para;</a></h3>
 <p>SMP is implemented inside the matching sweep loop, it runs after price compatibility is checked but before any fill is committed. The code path must handle all three cancellation outcomes, generate appropriate event notifications (the cancelled order receives a cancellation event, not a fill), and continue the sweep to look for non-self counterparties if the resting order was cancelled.</p>
 <blockquote>
@@ -7546,7 +7685,7 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
 </ul>
 <p>In many architectures, the gateway performs only structural and session checks, while instrument-specific validation (tick alignment, price collars, and auction/session constraints) is enforced in the matching engine or in a dedicated risk layer fed by reference data. Some venues do cache reference data in gateways and validate there too; the key requirement is consistent enforcement in exactly one authoritative path.</p>
 <p><strong>FIX Protocol:</strong> The industry-standard format for order submission is FIX (Financial Information eXchange), a text-based protocol developed in the early 1990s. A FIX order message looks something like:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>8=FIX.4.2|35=D|49=CLIENT1|56=EXCHANGE|11=ORDER001|55=AAPL|54=1|38=100|44=150.30|40=2|59=0
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>8=FIX.4.2|35=D|49=CLIENT1|56=EXCHANGE|11=ORDER001|55=AAPL|54=1|38=100|44=150.30|40=2|59=0
 </code></pre></div>
 (Note: the <code>|</code> separator here is a display convention. On the wire, FIX uses the SOH character, ASCII value 1, a non-printable control character, as the field delimiter. Tools and documentation almost always substitute <code>|</code> or <code>^A</code> for readability.)</p>
 <p>All eleven fields in this message have meaning:</p>
@@ -7905,18 +8044,47 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
 <p><strong>Key idea:</strong> In exchange infrastructure, latency is not just a performance metric, it determines who gets to trade at what price. Every architectural decision (data structures, networking, hardware) has latency implications. Understanding this context helps you make better design choices even in components not directly in the critical path.</p>
 </blockquote>
 <h2 id="operational-observability-and-incident-response">Operational Observability and Incident Response<a class="headerlink" href="#operational-observability-and-incident-response" title="Permanent link">&para;</a></h2>
-<p>Production readiness depends not only on matching correctness, but on fast, reliable detection and recovery when something degrades.</p>
+<p>Production readiness depends not only on matching correctness, but on fast, reliable detection and recovery when something degrades. An exchange that matches perfectly but cannot tell when it is sick, or cannot recover quickly when it is, is not production-grade. Observability and incident response are first-class engineering features, and in many jurisdictions they are also regulatory obligations.</p>
+<h3 id="the-four-golden-signals">The Four Golden Signals<a class="headerlink" href="#the-four-golden-signals" title="Permanent link">&para;</a></h3>
+<p>A useful framework for deciding <em>what</em> to measure is the set of <strong>four golden signals</strong> popularised by site reliability engineering. Each maps directly onto an exchange:</p>
+<ul>
+<li><strong>Latency:</strong> how long operations take, for example order ACK and fill time. Measure successful and failed requests separately, a fast rejection is not the same as a fast fill.</li>
+<li><strong>Traffic:</strong> demand on the system, for example orders per second, cancels per second, and market-data messages published.</li>
+<li><strong>Errors:</strong> the rate of failed operations, for example rejects by reason code.</li>
+<li><strong>Saturation:</strong> how full the system is, for example ingress queue depth, CPU and cache pressure, and WAL write latency. Saturation is the leading indicator: it rises <em>before</em> latency and errors degrade.</li>
+</ul>
+<p>The value of the framework is that it turns an open-ended "what should we monitor?" into four concrete questions that every component, gateway, matcher, market-data publisher, must answer.</p>
 <h3 id="core-production-signals">Core Production Signals<a class="headerlink" href="#core-production-signals" title="Permanent link">&para;</a></h3>
-<p>At minimum, exchanges track and alert on:</p>
+<p>Building on the golden signals, exchanges track and alert on:</p>
 <ul>
 <li>End-to-end order ACK/fill latency (p50/p95/p99/p99.9)</li>
 <li>Ingress queue depth and backlog age per gateway and per symbol partition</li>
 <li>Market-data publish latency and subscriber lag</li>
+<li>Sequence-gap and retransmission rates on each market-data channel</li>
 <li>Replay buffer utilisation and replay hit/miss ratios</li>
 <li>Reject rates by code (risk, syntax, session, throttling)</li>
+<li>Order-to-trade and cancel-to-fill ratios per participant</li>
+<li>Business-level events: halts, MMP and LULD firings, extreme auction imbalances</li>
 <li>Failover readiness (replication lag, last durable offset, heartbeat health)</li>
 </ul>
-<p>These metrics should be broken out by venue session state (auction, continuous, halt), because acceptable baselines differ by phase.</p>
+<p>These metrics should be broken out by venue session state (auction, continuous, halt), because acceptable baselines differ by phase. A p99 latency that is healthy during continuous trading may be meaningless during an auction uncross.</p>
+<h3 id="clock-and-time-synchronisation-health">Clock and Time-Synchronisation Health<a class="headerlink" href="#clock-and-time-synchronisation-health" title="Permanent link">&para;</a></h3>
+<p>An exchange is a time machine: every order is sequenced, every event is timestamped, and the audit trail is only as trustworthy as the clocks that produced it. <strong>Clock health</strong> is therefore a first-class signal unique to exchange infrastructure.</p>
+<p>Operators monitor the <strong>offset</strong> between each host's clock and a reference (via PTP or NTP), the drift rate, and the synchronisation source's own health. A gateway whose clock has drifted from the matching engine can produce timestamps that appear out of order, corrupting sequencing logic and regulatory reporting. Because clock degradation is silent, it must be alerted on directly rather than inferred after the fact.</p>
+<h3 id="the-three-pillars-metrics-logs-traces">The Three Pillars: Metrics, Logs, Traces<a class="headerlink" href="#the-three-pillars-metrics-logs-traces" title="Permanent link">&para;</a></h3>
+<p>Mature observability rests on three complementary data types:</p>
+<ul>
+<li><strong>Metrics</strong> are aggregated numeric time series (the signals above). They are cheap to store and ideal for dashboards and alerting, but they cannot explain <em>why</em> a single order behaved oddly.</li>
+<li><strong>Logs</strong> are structured, timestamped records of discrete events. In an exchange they overlap heavily with the <strong>audit trail</strong>, every accept, reject, fill, and cancellation, and must be structured (machine-parseable fields, not free text) to be searchable under pressure.</li>
+<li><strong>Traces</strong> follow a single request across components. By attaching a <strong>correlation ID</strong> (typically the order ID) to every message, an operator can reconstruct an order's full path, gateway → risk checks → matcher → market-data publish, and locate exactly where latency or an error was introduced.</li>
+</ul>
+<p>Metrics tell you <em>that</em> something is wrong, traces tell you <em>where</em>, and logs tell you <em>why</em>.</p>
+<h3 id="service-level-objectives-and-error-budgets">Service-Level Objectives and Error Budgets<a class="headerlink" href="#service-level-objectives-and-error-budgets" title="Permanent link">&para;</a></h3>
+<p>To distinguish "degraded" from "normal", a venue defines <strong>Service-Level Indicators (SLIs)</strong>, the precise metrics it cares about, and <strong>Service-Level Objectives (SLOs)</strong>, the target values for those metrics, for example "99.9% of order ACKs within 200 microseconds during continuous trading."</p>
+<p>The gap between an SLO and 100% is the <strong>error budget</strong>: the amount of degradation the venue is willing to tolerate over a period. Error budgets convert reliability into an explicit, shared currency, when the budget is healthy, teams can ship changes faster; when it is exhausted, the priority shifts to stability. Because acceptable performance differs by session phase, SLOs are usually defined per phase rather than as a single daily number.</p>
+<h3 id="alerting-design">Alerting Design<a class="headerlink" href="#alerting-design" title="Permanent link">&para;</a></h3>
+<p>More monitoring is not automatically better. Poorly designed alerting produces <strong>alert fatigue</strong>, where operators learn to ignore a noisy channel and miss the one alert that mattered.</p>
+<p>Good practice favours <strong>symptom-based alerts</strong> (page when participants are affected, for example fills are slow) over <strong>cause-based alerts</strong> (page on every elevated CPU reading), and separates <strong>paging</strong> alerts (wake a human now) from <strong>ticketing</strong> alerts (review during business hours). Critically, the monitoring system must itself be monitored: a <strong>dead-man's-switch</strong> or <strong>heartbeat</strong> alert fires when expected signals <em>stop arriving</em>, catching the dangerous case where the exchange looks healthy only because telemetry has silently failed.</p>
 <h3 id="runbooks-and-recovery-drills">Runbooks and Recovery Drills<a class="headerlink" href="#runbooks-and-recovery-drills" title="Permanent link">&para;</a></h3>
 <p>A professional venue maintains tested runbooks for:</p>
 <ul>
@@ -7925,9 +8093,15 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
 <li>Primary-to-secondary failover with deterministic replay verification</li>
 <li>Market-data incident handling (gap storms, replay saturation, stale snapshots)</li>
 </ul>
-<p>Runbooks should include operator decision thresholds, not just command sequences. Drills should be rehearsed under load and during controlled session simulations, not only in staging idle conditions.</p>
+<p>Runbooks should include operator decision thresholds, not just command sequences. Drills should be rehearsed under load and during controlled session simulations, not only in staging idle conditions. <strong>Determinism and replay</strong> (covered later in this part) are themselves incident-response tools: the ability to replay an exact input sequence lets operators reproduce a failure offline while live trading continues, and the <strong>kill switch</strong> and <strong>mass cancel</strong> controls (from the risk and compliance part) are the operator's primary levers for containing a runaway participant.</p>
+<h3 id="incident-command-and-postmortems">Incident Command and Postmortems<a class="headerlink" href="#incident-command-and-postmortems" title="Permanent link">&para;</a></h3>
+<p>When an incident exceeds routine handling, an explicit structure prevents chaos. Incidents are assigned a <strong>severity level</strong> (for example SEV1 for a trading-impacting outage down to SEV3 for a contained, non-customer-facing fault), which drives escalation and communication expectations.</p>
+<p>A defined <strong>incident command</strong> model assigns clear roles, an <strong>Incident Commander</strong> who coordinates and decides, and a separate <strong>communications lead</strong> who keeps participants and stakeholders informed, so that responders are not simultaneously fixing and explaining. Afterwards, a <strong>blameless postmortem</strong> records the timeline, measures <strong>time-to-detect (MTTD)</strong> and <strong>time-to-recover (MTTR)</strong>, and produces concrete corrective actions that feed back into runbooks, alerts, and tests. The goal is organisational learning, not individual blame; engineers who fear punishment hide the very information that prevents recurrence.</p>
+<h3 id="participant-communication-and-regulatory-obligations">Participant Communication and Regulatory Obligations<a class="headerlink" href="#participant-communication-and-regulatory-obligations" title="Permanent link">&para;</a></h3>
+<p>An exchange outage is not a private engineering matter. Participants need timely, accurate notice through <strong>status pages</strong> and <strong>market notices</strong> so they can manage their own risk, and silence during an incident erodes trust faster than the outage itself.</p>
+<p>In many jurisdictions, incident handling is mandated. In the US, <strong>Regulation SCI (Systems Compliance and Integrity)</strong> requires covered market infrastructure to maintain capacity and resilience, to report significant systems issues to the regulator, and to conduct business-continuity testing. Observability and incident response are therefore compliance functions as much as engineering ones: the venue must be able to <em>demonstrate</em>, with evidence, that it detected, communicated, and resolved an incident appropriately.</p>
 <blockquote>
-<p><strong>Key idea:</strong> Low latency is valuable, but operational predictability is what keeps markets open during stress. A venue is publishable and production-grade only when observability and incident response are engineered as first-class features.</p>
+<p><strong>Key idea:</strong> Low latency is valuable, but operational predictability is what keeps markets open during stress. A venue is publishable and production-grade only when observability and incident response, signals, tracing, SLOs, alerting, runbooks, incident command, and regulatory communication, are engineered as first-class features rather than added after the first outage.</p>
 </blockquote>
 <h2 id="corporate-actions-when-the-instrument-changes">Corporate Actions, When the Instrument Changes<a class="headerlink" href="#corporate-actions-when-the-instrument-changes" title="Permanent link">&para;</a></h2>
 <p>An exchange does not just serve static instruments. Companies whose shares trade on an exchange undergo <strong>corporate actions</strong>, events that change the structure of the instrument itself. These events have significant operational consequences for every component of an exchange system.</p>
@@ -8036,13 +8210,14 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
 <p><strong>[3]</strong> Brealey, Richard A., Stewart C. Myers, and Franklin Allen. <em>Principles of Corporate Finance</em>. 13th edition. McGraw-Hill Education, 2020. ISBN 978-1-260-01390-0.</p>
 <p>The leading corporate finance textbook, used in business schools worldwide. Covers equity, bonds, dividends, IPOs, cost of capital, and the relationship between primary and secondary markets. The source for concepts in Part I of this document (equity, bonds, how companies raise capital).</p>
 <p><strong>[4]</strong> De la Vega, Joseph. <em>Confusión de Confusiones</em> (written 1688). Translated by Hermann Kellenbenz. Harvard University Graduate School of Business Administration, Kress Library of Business and Economics, 1957.</p>
-<p>The oldest known book about stock market trading, written in Amsterdam in 1688 by a Spanish Jewish merchant named Joseph de la Vega. Describes, in dialogues, the practices of the Amsterdam VOC share market, including resting orders, market making, and speculative trading. A remarkable primary source demonstrating that many modern concepts are centuries old. The Kellenbenz translation includes a scholarly introduction providing historical context.</p>
+<p>The oldest known book about stock market trading, written in Amsterdam in 1688 by a Spanish merchant named Joseph de la Vega. Describes, in dialogues, the practices of the Amsterdam VOC share market, including resting orders, market making, and speculative trading. A remarkable primary source demonstrating that many modern concepts are centuries old. The Kellenbenz translation includes a scholarly introduction providing historical context.</p>
 <p><strong>[5]</strong> Petram, Lodewijk. <em>The World's First Stock Exchange</em>. Columbia Business School Publishing, 2014. ISBN 978-0-231-16714-9. (Originally published in Dutch as <em>De wereld's eerste beurs</em>. Uitgeverij Atlas Contact, 2011.)</p>
 <p>The definitive modern history of the Amsterdam Exchange and the VOC share market. Covers the founding of the VOC (1602), the development of the first secondary market in shares, Isaac Le Maire's 1609 short selling campaign against VOC stock, the 1610 Amsterdam edict attempting to ban short selling, and the broader financial innovations that originated in 17th-century Amsterdam. Directly cited for the Le Maire material in this document.</p>
 <p><strong>[6]</strong> Lewis, Michael. <em>Flash Boys: A Wall Street Revolt</em>. W.W. Norton &amp; Company, 2014. ISBN 978-0-393-24413-3.</p>
 <p>A narrative account of the founding of IEX by Brad Katsuyama and colleagues, describing the practice of high-frequency trading, its effects on institutional investors, and the design of the speed bump as a countermeasure. The primary source for the IEX material in the <em>Speed Bumps</em> section of Part IV. Accessible to non-specialist readers; recommended as background reading for anyone working on exchange latency and fairness.</p>
 <p><strong>[7]</strong> U.S. Securities and Exchange Commission and Commodity Futures Trading Commission. <em>Findings Regarding the Market Events of May 6, 2010</em>. Joint Report. 30 September 2010.</p>
-<p>The official regulatory investigation into the 2010 Flash Crash, which saw the Dow Jones Industrial Average fall approximately 1,000 points in minutes on May 6, 2010. Analyses the sequence of events, the role of automated trading, and the breakdown of circuit breakers. Available at: https://www.sec.gov/news/studies/2010/marketevents-report.pdf</p>
+<p>The official regulatory investigation into the 2010 Flash Crash, which saw the Dow Jones Industrial Average fall approximately 1,000 points in minutes on May 6, 2010. Analyses the sequence of events, the role of automated trading, and the breakdown of circuit breakers. </p>
+<p>Available at: https://www.sec.gov/news/studies/2010/marketevents-report.pdf</p>
 <p><strong>[8]</strong> U.S. Securities and Exchange Commission. <em>SEC Adopts T+2 Settlement Cycle for Securities Transactions</em>. Press Release No. 2017-68. 22 March 2017.</p>
 <p>The formal SEC announcement of the rule change shortening US equity settlement from T+3 to T+2, effective September 5, 2017. Contains the rationale for the change and the text of the amended rules. Available at: https://www.sec.gov/news/press-release/2017-68</p>
 <p><strong>[9]</strong> CME Group. <em>CME Group to Close Open Outcry Trading in Most Futures Pits</em>. Press Release. 4 February 2015. Available at: https://www.cmegroup.com</p>
@@ -8158,10 +8333,6 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
         <script src="../javascripts/mathjax.js"></script>
       
         <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
-      
-        <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
-      
-        <script src="../javascripts/mermaid-init.js"></script>
       
     
   </body>
