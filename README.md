@@ -62,7 +62,8 @@ If you run from source, prefix commands with `poetry run`.
 ## Performance
 
 EduMatcher does not aim to match venues like NYSE or LSE, but it is still
-fast for a pure Python educational project.
+fast for a pure Python educational project. The figures below reflect the performance on an Intel MacBook Pro.
+On an ARM M1 MacBook the throughput is roughly 150,000 TPS (an improvement of almost 150%). Latencies are about 25% lower.
 
 
 ### Latency (engine-only, n=1,000 each)
@@ -83,29 +84,15 @@ fast for a pure Python educational project.
 for every match. They are required for realistic risk control and add measurable cost.
 
 
-
-## Explore the Code
-
-Start with these key areas:
-
-- **[src/edumatcher/engine/](src/edumatcher/engine/)** — Core matching logic and order book
-- **[src/edumatcher/gateway/](src/edumatcher/gateway/)** — Message handling and order validation
-- **[src/edumatcher/clearing/](src/edumatcher/clearing/)** — Trade settlement and P&L calculation
-
 ## Documentation
 
-Full docs: [EduMatcher Documentation](https://johan162.github.io/edumatcher/)
+Main documentation site [EduMatcher Documentation](https://johan162.github.io/edumatcher/) that among other things includes:
 
-Additional references:
-
-- [How an Exchange Works](https://johan162.github.io/how-exchange-works/). This is a generic
-document meant for SW developers with no previous financial experience. Reading this document
-will give the necessary background both in finance and the core workings of an exchange.
-- [ALF Protocol Appendix](https://johan162.github.io/user-guide/90-app-alf-protocol.md). `ALF` 
-is the Gatewauy human protocol used to send in orders vi the `ALF` gateway. It is a drastically
-simplified `FIX` inspired protocol (`ALF` = `ALmost Fix`)
-- [Glossary](https://johan162.github.io/glossary/). An extensiv glossary with all commonly used
-financial terms used in these documents.
+- **Installation Guide**: how to get up and running with EduMatcher
+- **User Guide**: step-by-step instructions for installation, configuration, and running EduMatcher
+- **Developer Guide**: deep dive into the architecture, design decisions, and code structure- 
+- **Training Materials**: self-paced exercises to learn how to setup and manage the Exchange
+- **How an Exchange Works**: a primer on exchange mechanics and market microstructure concepts aimed at software developers with no prior financial experience
 
 
 ## Who It's For
@@ -119,6 +106,53 @@ financial terms used in these documents.
 ## Contributing
 
 This is an educational project. If you find bugs, improve the documentation, or make other enhancements PRs are welcome!
+
+
+## Setup a running system in a VM with one command
+
+**Requirements**
+
+| Requirement | Notes |
+|---|---|
+| Multipass | A lightweight VM manager. Install from [multipass.run](https://multipass.run/install) |
+| curl | Used to download the VM bootstrap script |
+| Internet access | Required for downloading scripts and PyPI packages |
+| Host resources | Recommended minimum: 2 vCPU, 3 GB RAM, 10 GB disk |
+
+&nbsp;
+
+**Bootstrap with one command**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.9.1 --snapshot
+```
+
+This command downloads the VM setup scripts, launches a Multipass VM,
+installs EduMatcher in the VM, links all process commands in the exchange `pm-*` commands into
+`/usr/local/bin`, prepares `/home/ubuntu/session`, and takes
+an initial snapshot to allow you to easily reset the environment. 
+
+
+**Start the CME (Central Matching Engine) in the VM**
+
+```bash
+multipass shell edumatcher-vm
+cd /home/ubuntu/session
+pm-engine --verbose
+```
+
+Open additional host terminals and run `multipass shell edumatcher-vm` in each
+terminal to start `pm-gateway`, `pm-viewer`, `pm-clearing`, and `pm-audit`.
+
+**Note:** Running the exchange is complex enough that you really **need** to read the documentation and follow the instructions in the User Guide to get a full exchange up and running. The above commands are just to show the quickest way to get an environment up and running without the need for local Python setup. If you are comfortable with Python then the second easiests way to get up and running is to install the *EduMatcher* from PyPI with:
+
+```bash
+pipx install edumatcher
+```
+
+and then follow the instructions in the User Guide to generate your own `engine_config.yaml` and start the exchange processes. 
+
+***Note:** Using `pipx` instead of `pip` is recommended to avoid polluting your global Python environment. If you are a Python developer and want to contribute to the codebase, then the best way to get up and running is to clone the repository and read the Developer Guide.*
 
 
 ## Citation
