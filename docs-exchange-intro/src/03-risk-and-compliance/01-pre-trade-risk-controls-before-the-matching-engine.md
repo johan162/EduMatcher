@@ -42,7 +42,7 @@ The sequence in which pre-trade checks run is not arbitrary. Checks requiring ex
 
 Failing at step 1 takes nanoseconds. Failing at step 7 takes longer because it requires consulting external state. Running all checks in parallel wastes resources on orders that would be rejected at step 1; running them in this sequence minimises latency for both accepted and rejected orders.
 
-```mermaid
+```mermaid{.mermaid width=450}
 flowchart TD
     A["Incoming order\nfrom participant"] --> B
 
