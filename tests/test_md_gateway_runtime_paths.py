@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import select
 import signal
 import socket
 import threading
@@ -95,6 +96,7 @@ def test_accept_new_clients(unit_gateway: MarketDataGateway) -> None:
 
     client = socket.create_connection(server.getsockname())
     client.setblocking(False)
+    select.select([server], [], [], 2.0)
     unit_gateway._accept_new_clients()
     assert len(unit_gateway._clients) >= 1
 
