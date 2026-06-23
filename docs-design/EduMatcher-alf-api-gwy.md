@@ -1273,31 +1273,31 @@ flowchart LR
 
 ## 11. Open Questions (all settled)
 
-1. ~~**Event transport:** WebSocket (recommended) vs. SSE vs. long-poll~~ —
+1. **Event transport:** WebSocket (recommended) vs. SSE vs. long-poll —
    **Settled:** WebSocket for both `/events` (private) and `/market-data`
    (public). SSE is insufficient for the bidirectional subscription control
    needed by `/market-data`; long-poll adds unnecessary latency.
-2. ~~**Shared construction helper:** extract or keep independent?~~ —
+2. **Shared construction helper:** extract or keep independent? —
    **Settled:** Extract `build_order` / leg parsing / conditional-field
    validation into a shared module (e.g. `edumatcher.models.builders`) used by
    both `pm-gateway` and `pm-api-gateway`. Single source of truth eliminates
    drift risk.
-3. ~~**Credential store:**~~ — **Settled:** YAML config file (e.g.
+3. **Credential store:** — **Settled:** YAML config file (e.g.
    `api_gateway_config.yaml` alongside `engine_config.yaml`). One API key maps
    to exactly one `gateway_id` (1:1). Multiple gateway identities require
    multiple keys. This keeps the audit trail unambiguous.
-4. ~~**History depth:**~~ — **Settled:** Durable historical order/fill query is
+4. **History depth:** — **Settled:** Durable historical order/fill query is
    required. Implemented by extending `pm-stats` with an `order_events` table
-   and exposing it through the API gateway. See §12 for the full design.
-5. ~~**Amend modelling:**~~ — **Settled:** Add a cancel-replace endpoint
+   and exposing it through the API gateway. See §10 for the full design.
+5. **Amend modelling:** — **Settled:** Add a cancel-replace endpoint
    (`POST /orders/{order_id}/replace`). This provides atomic cancel + new order
    semantics, avoiding the gap between a client-side `DELETE` + `POST` where the
    cancel may succeed but the replacement fails. The existing `PATCH` (amend
    price/qty in place) is retained for simple amends. See §5.4a.
-6. ~~**Rate limits & quotas:**~~ — **Settled:** ~10 write requests/second per
-   API key. Suitable for manual/UI trading and light bot usage. Limit is
-   enforced gateway-local (not engine-side). Read endpoints and WebSocket
-   connections are not rate-limited.
+6. **Rate limits and quotas:** — **Settled:** Approximately 10 write
+   requests/second per API key. Suitable for manual/UI trading and light bot
+   usage. Limit is enforced gateway-local (not engine-side). Read endpoints and
+   WebSocket connections are not rate-limited.
 
 ---
 
