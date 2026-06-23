@@ -90,9 +90,9 @@ In an IPO:
 3. The company's shares are listed on a stock exchange, NYSE, NASDAQ, LSE, or another regulated market.
 4. From that moment, anyone can buy or sell the shares through the exchange.
 
-Some of the largest IPOs in history by proceeds raised illustrate the scale: Saudi Aramco raised $25.6 billion in its 2019 IPO on the Saudi Exchange (Tadawul), still the largest in history [1]; Alibaba raised $21.8 billion on NYSE in 2014 [1]; Arm Holdings raised $4.9 billion on NASDAQ in September 2023 [1]. Each of these companies brought enormous new pools of capital onto public markets. 
+Some of the largest IPOs in history by proceeds raised illustrate the scale: Saudi Aramco raised $25.6 billion in its 2019 IPO on the Saudi Exchange (Tadawul) [1]; Alibaba raised $21.8 billion on NYSE in 2014 [1]; Arm Holdings raised $4.9 billion on NASDAQ in September 2023 [1]. Each of these companies brought enormous new pools of capital onto public markets. 
 
-In recent times the 2026 IPO on NASDAQ for SpaceX (Symbol: SPCX) was to date largest IPO ever made (byb far). SpaceX was valued at approximately $1.77 trillion at IPO and went up to roughly 2.01 trillion as closing price on the first trading day validating the IPO set price. Interesting enough the share price (initially at \$135) was not set as a "blue chip" price which traditionally means an evaluation of $\geq$ \$200 per share.
+In recent times the 2026 IPO on NASDAQ for SpaceX (Symbol: SPCX) is the worlds largest IPO ever made. SpaceX was valued at approximately $1.77 trillion at IPO and went up to roughly 2.01 trillion as closing price on the first trading day, validating the IPO set price. Interesting enough the share price (initially at \$135) was not set as a "blue chip" price which traditionally means an evaluation of $\geq$ \$200 per share.
 
 ## The Primary Market vs. the Secondary Market
 
