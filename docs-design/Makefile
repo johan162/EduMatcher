@@ -11,7 +11,7 @@ MERMAID_FILTER_FORMAT ?= pdf
 MERMAID_FILTER_WIDTH ?= 600
 
 
-.PHONY: pdfs reqs help clean really-clean dark 
+.PHONY: pdfs reqs help clean really-clean dark check-latex-engine
 
 # Makefile itself as a dependency to ensure it is re-evaluated when changed
 # NOTE: This requires GNU Make 4.3+ and MacOS ships with vGNU Make 3.81 due to licensing issues
@@ -24,6 +24,10 @@ MAKEFLAGS += -j8
 
 # Get full path to bash
 SHELL := $(shell which bash)
+
+# LaTeX engine configuration (macOS TeX binaries commonly live under /Library/TeX/texbin)
+LATEX_ENGINE ?= xelatex
+TEXBIN_FALLBACK := /Library/TeX/texbin
 
 # Delete target files on error to prevent stale timestamps
 .DELETE_ON_ERROR:
@@ -175,12 +179,12 @@ $$($1_STAMP): $$($1_MD) $$(DESIGN_LATEX_TEMPLATE) $$($1_EXTRA_DEPS) | $$(BUILD_D
 		exit 1; \
 	fi; \
 	rm -f $$($1_TEX).bak; \
-	if ! xelatex -interaction=nonstopmode -halt-on-error -output-directory $$($1_BUILD_DIR) $$($1_TEX) >/dev/null; then \
+	if ! PATH="$(PATH):$(TEXBIN_FALLBACK)" $(LATEX_ENGINE) -interaction=nonstopmode -halt-on-error -output-directory $$($1_BUILD_DIR) $$($1_TEX) >/dev/null; then \
 		echo -e "$$(RED)✗ Error: xelatex pass 1 failed for $$($1_TEX)$$(NC)"; \
 		echo -e "$$(YELLOW)  See log: $$($1_BUILD_DIR)/$$($1_BASENAME_ESC)_report.log$$(NC)"; \
 		exit 1; \
 	fi; \
-	if ! xelatex -interaction=nonstopmode -halt-on-error -output-directory $$($1_BUILD_DIR) $$($1_TEX) >/dev/null; then \
+	if ! PATH="$(PATH):$(TEXBIN_FALLBACK)" $(LATEX_ENGINE) -interaction=nonstopmode -halt-on-error -output-directory $$($1_BUILD_DIR) $$($1_TEX) >/dev/null; then \
 		echo -e "$$(RED)✗ Error: xelatex pass 2 failed for $$($1_TEX)$$(NC)"; \
 		echo -e "$$(YELLOW)  See log: $$($1_BUILD_DIR)/$$($1_BASENAME_ESC)_report.log$$(NC)"; \
 		exit 1; \
@@ -265,11 +269,22 @@ really-clean: clean ## Clean all generated intermediate documentation files and 
 pdf-docs: $(PDF_DESIGN_DOCS) ## Build all the PDF versions of the design documents (light theme)
 	@:
 
+check-latex-engine:
+	@if ! PATH="$(PATH):$(TEXBIN_FALLBACK)" command -v "$(LATEX_ENGINE)" >/dev/null 2>&1; then \
+		echo -e "$(RED)✗ LaTeX engine '$(LATEX_ENGINE)' not found in PATH.$(NC)" >&2; \
+		echo -e "$(RED)  Current PATH: $(PATH)$(NC)" >&2; \
+		echo -e "$(RED)  Expected fallback path: $(TEXBIN_FALLBACK)$(NC)" >&2; \
+		echo -e "$(RED)  Install/update TeX (e.g. MacTeX/BasicTeX) or run after upgrade completes.$(NC)" >&2; \
+		exit 1; \
+	fi
+
+pdf-docs: check-latex-engine
+
 dark: ## Build all PDFs in dark theme (adds -dark suffix to filenames)
 	@$(MAKE) pdf-design-docs THEME=dark
 
 
-reqs: $(REQUIREMENTS_PDF) ## Build the MCPProjSim requirements design document PDF
+reqs: check-latex-engine $(REQUIREMENTS_PDF) ## Build the MCPProjSim requirements design document PDF
 	@:
 
 

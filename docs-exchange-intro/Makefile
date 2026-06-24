@@ -10,7 +10,7 @@ PUPPETER_EXECUTABLE_PATH ?= /Applications/Google Chrome.app/Contents/MacOS/Googl
 MERMAID_FILTER_FORMAT ?= pdf
 MERMAID_FILTER_WIDTH ?= 600
 
-.PHONY: pdf-docs help clean really-clean
+.PHONY: pdf-docs help clean really-clean check-latex-engine
 
 
 # Makefile itself as a dependency to ensure it is re-evaluated when changed
@@ -24,6 +24,10 @@ MERMAID_FILTER_WIDTH ?= 600
 
 # Get full path to bash
 SHELL := $(shell which bash)
+
+# LaTeX engine configuration (macOS TeX binaries commonly live under /Library/TeX/texbin)
+LATEX_ENGINE ?= xelatex
+TEXBIN_FALLBACK := /Library/TeX/texbin
 
 # Delete target files on error to prevent stale timestamps
 .DELETE_ON_ERROR:
@@ -179,7 +183,16 @@ help: ## Show this help message
 $(DIST_DIR):
 	@mkdir -p $(DIST_DIR)
 
-pdf-docs: ## Build all PDF documentation variants in parallel
+check-latex-engine:
+	@if ! PATH="$(PATH):$(TEXBIN_FALLBACK)" command -v "$(LATEX_ENGINE)" >/dev/null 2>&1; then \
+		echo -e "$(RED)✗ LaTeX engine '$(LATEX_ENGINE)' not found in PATH.$(NC)" >&2; \
+		echo -e "$(RED)  Current PATH: $(PATH)$(NC)" >&2; \
+		echo -e "$(RED)  Expected fallback path: $(TEXBIN_FALLBACK)$(NC)" >&2; \
+		echo -e "$(RED)  Install/update TeX (e.g. MacTeX/BasicTeX) or run after upgrade completes.$(NC)" >&2; \
+		exit 1; \
+	fi
+
+pdf-docs: check-latex-engine ## Build all PDF documentation variants in parallel
 	@rm -rf $(EXCHANGE_INTRO_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm $(DIST_DIR)/$(PROJECT)-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(EXCHANGE_INTRO_A4_PDF) $(EXCHANGE_INTRO_DARK_A4_PDF) $(EXCHANGE_INTRO_B5_PDF) $(EXCHANGE_INTRO_DARK_B5_PDF)
@@ -237,18 +250,18 @@ $$($1_PDF): $$(EXCHANGE_INTRO_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_TEMP
 		{ print } \
 		END { if (!inserted) { print "Template placeholder %%__EXCHANGE_INTRO_CONTENT__%% not found" > "/dev/stderr"; exit 2 } }' \
 		$$($1_TEMPLATE) > $$($1_TEX)
-	@echo -e "$$(DARKYELLOW)  - Compiling $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(DARKYELLOW) with xelatex (3 passes for references/TOC with shorttoc)...$$(NC)"
-	@xelatex -interaction=nonstopmode -halt-on-error -output-directory $$(EXCHANGE_INTRO_BUILD_DIR) $$($1_TEX) \
+	@echo -e "$$(DARKYELLOW)  - Compiling $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(DARKYELLOW) with $$(BRIGHTCYAN)\"$(LATEX_ENGINE)\"$$(DARKYELLOW) (3 passes for references/TOC with shorttoc)...$$(NC)"
+	@PATH="$(PATH):$(TEXBIN_FALLBACK)" $(LATEX_ENGINE) -interaction=nonstopmode -halt-on-error -output-directory $$(EXCHANGE_INTRO_BUILD_DIR) $$($1_TEX) \
 		> $$($1_PDF_BUILT:.pdf=-xelatex-pass1.log) 2>&1 \
 		|| { echo -e "$$(RED)✗ xelatex pass 1 failed for $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(RED).$$(NC)" >&2; \
 		     echo -e "$$(RED)  Last 30 lines of $$($1_PDF_BUILT:.pdf=-xelatex-pass1.log):$$(NC)" >&2; \
 		     tail -30 $$($1_PDF_BUILT:.pdf=-xelatex-pass1.log) >&2; exit 1; }
-	@xelatex -interaction=nonstopmode -halt-on-error -output-directory $$(EXCHANGE_INTRO_BUILD_DIR) $$($1_TEX) \
+	@PATH="$(PATH):$(TEXBIN_FALLBACK)" $(LATEX_ENGINE) -interaction=nonstopmode -halt-on-error -output-directory $$(EXCHANGE_INTRO_BUILD_DIR) $$($1_TEX) \
 		> $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log) 2>&1 \
 		|| { echo -e "$$(RED)✗ xelatex pass 2 failed for $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(RED).$$(NC)" >&2; \
 		     echo -e "$$(RED)  Last 30 lines of $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log):$$(NC)" >&2; \
 		     tail -30 $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log) >&2; exit 1; }
-	@xelatex -interaction=nonstopmode -halt-on-error -output-directory $$(EXCHANGE_INTRO_BUILD_DIR) $$($1_TEX) \
+	@PATH="$(PATH):$(TEXBIN_FALLBACK)" $(LATEX_ENGINE) -interaction=nonstopmode -halt-on-error -output-directory $$(EXCHANGE_INTRO_BUILD_DIR) $$($1_TEX) \
 		> $$($1_PDF_BUILT:.pdf=-xelatex-pass3.log) 2>&1 \
 		|| { echo -e "$$(RED)✗ xelatex pass 3 failed for $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(RED).$$(NC)" >&2; \
 		     echo -e "$$(RED)  Last 30 lines of $$($1_PDF_BUILT:.pdf=-xelatex-pass3.log):$$(NC)" >&2; \
