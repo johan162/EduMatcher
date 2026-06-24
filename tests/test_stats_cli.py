@@ -47,6 +47,67 @@ def _seed_db(path: Path) -> None:
         ),
     )
 
+    conn.execute(
+        "INSERT INTO order_events "
+        "(ts, event_type, order_id, gateway_id, symbol, side, order_type, tif, "
+        "price, quantity, remaining_qty, status, client_order_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "2026-06-14T09:00:00.100+00:00",
+            "ACK",
+            "O-AAPL-1",
+            "GW01",
+            "AAPL",
+            "BUY",
+            "LIMIT",
+            "DAY",
+            150.0,
+            100,
+            100,
+            "ACCEPTED",
+            "client-1",
+        ),
+    )
+    conn.execute(
+        "INSERT INTO order_events "
+        "(ts, event_type, order_id, gateway_id, symbol, side, fill_price, fill_qty, "
+        "trade_id, remaining_qty, status) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "2026-06-14T09:00:01.000+00:00",
+            "FILL",
+            "O-AAPL-1",
+            "GW01",
+            "AAPL",
+            "BUY",
+            150.0,
+            100,
+            "T-AAPL-1",
+            0,
+            "FILLED",
+        ),
+    )
+    conn.execute(
+        "INSERT INTO order_events "
+        "(ts, event_type, order_id, gateway_id, symbol, side, order_type, tif, "
+        "price, quantity, remaining_qty, status) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "2026-06-14T09:00:02.000+00:00",
+            "ACK",
+            "O-MSFT-1",
+            "GW02",
+            "MSFT",
+            "SELL",
+            "LIMIT",
+            "DAY",
+            415.0,
+            50,
+            50,
+            "ACCEPTED",
+        ),
+    )
+
     conn.commit()
     conn.close()
 
@@ -248,3 +309,59 @@ def test_symbols_and_dates_commands(
     date_out = capsys.readouterr().out
     assert "2026-06-15" in date_out
     assert "2026-06-14" in date_out
+
+
+def test_order_events_filters_by_gateway_symbol_and_type(
+    monkeypatch: pytest.MonkeyPatch,
+    seeded_db: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _run_cli(
+        monkeypatch,
+        [
+            "--db",
+            str(seeded_db),
+            "--format",
+            "json",
+            "order-events",
+            "--gateway",
+            "gw01",
+            "--symbol",
+            "aapl",
+            "--event-type",
+            "fill",
+        ],
+    )
+    out = capsys.readouterr().out
+
+    assert '"event_type": "FILL"' in out
+    assert '"order_id": "O-AAPL-1"' in out
+    assert '"gateway_id": "GW01"' in out
+    assert "O-MSFT-1" not in out
+
+
+def test_order_lifecycle_outputs_all_events_for_order(
+    monkeypatch: pytest.MonkeyPatch,
+    seeded_db: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _run_cli(
+        monkeypatch,
+        [
+            "--db",
+            str(seeded_db),
+            "--format",
+            "csv",
+            "order-lifecycle",
+            "--gateway",
+            "GW01",
+            "--order-id",
+            "O-AAPL-1",
+        ],
+    )
+    lines = capsys.readouterr().out.strip().splitlines()
+
+    assert lines[0].startswith("seq,ts,event_type,order_id,gateway_id")
+    assert len(lines) == 3
+    assert "ACK,O-AAPL-1,GW01,AAPL" in lines[1]
+    assert "FILL,O-AAPL-1,GW01,AAPL" in lines[2]

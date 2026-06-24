@@ -1,0 +1,360 @@
+# API Gateway (REST/WebSocket)
+
+!!! note "Learning objectives"
+    After reading this page you will understand:
+
+    - What `pm-api-gateway` does in the EduMatcher process model
+    - How to configure API keys in the central `engine_config.yaml`
+    - How to call the REST API and inspect Swagger documentation
+    - How private and public WebSocket streams work
+    - Where to find reusable Python and C REST examples
+
+
+## What this process is
+
+`pm-api-gateway` exposes EduMatcher order entry, order management, reference
+data, history, and market data over REST/JSON and WebSocket. It is intended for
+third-party software: browser UIs, dashboards, simple bots, and teaching
+examples.
+
+It is not a second matching engine. The process translates HTTP and WebSocket
+requests into the same engine ZMQ/JSON messages used by the interactive
+`pm-gateway` process.
+
+```mermaid
+flowchart LR
+    UI[Trading UI] -->|REST /api/v1| API[pm-api-gateway]
+    BOT[Bot] -->|REST /api/v1| API
+    UI -->|WS /events| API
+    DASH[Dashboard] -->|WS /market-data| API
+    API -->|ZMQ PUSH :5555| ENG[pm-engine]
+    ENG -->|ZMQ PUB :5556| API
+    STATS[pm-stats\nstats.db] -->|read-only history| API
+```
+
+
+## Configuration
+
+API gateway configuration lives in the central `engine_config.yaml`, matching
+the existing CALF and RALF gateway pattern.
+
+```yaml
+api_gateways:
+  desk:
+    enabled: true
+    host: 127.0.0.1
+    port: 8080
+    swagger_enabled: true
+    log_level: info
+    stats_db: data/stats.db
+
+    credentials:
+      - api_key: key-trader-demo
+        gateway_id: TRADER01
+        description: Demo trading client
+      - api_key: key-dashboard-demo
+        gateway_id: null
+        description: Read-only dashboard client
+
+    rate_limit:
+      writes_per_second: 10
+      burst: 20
+
+    timeouts:
+      engine_auth_sec: 3.0
+      engine_reply_sec: 3.0
+      wait_ack_sec: 3.0
+```
+
+| Field | Meaning |
+|---|---|
+| `api_gateways.<NAME>` | Named API gateway process configuration selected with `--instance NAME` when needed |
+| `host` / `port` | HTTP server bind address and port |
+| `swagger_enabled` | Enables `/docs` and `/openapi.json` when true |
+| `credentials[].api_key` | Bearer token clients use for REST and WebSocket auth |
+| `credentials[].gateway_id` | Engine gateway identity; `null` means read-only market-data access; non-null values must be unique across `api_gateways` entries |
+| `rate_limit` | Per-key write limiting for POST/PATCH/DELETE endpoints |
+| `timeouts` | Engine auth, request/reply, and synchronous ACK wait timeouts |
+
+The engine's `gateways.alf` allowlist remains authoritative. If a credential
+maps to `TRADER01` but `TRADER01` is not allowed by the engine config, the
+engine rejects the API gateway handshake.
+
+Use multiple named entries when you want logical process separation, such as one
+gateway for a human trading desk and another for automated clients. Each
+non-null `gateway_id` is owned by one API gateway process so process-local
+session and event state remain unambiguous. Read-only `gateway_id: null`
+credentials can appear in more than one entry.
+
+
+## Start the process
+
+Installed mode:
+
+```bash
+pm-engine --verbose
+pm-stats
+pm-api-gateway --config engine_config.yaml --instance desk
+```
+
+Developer mode:
+
+```bash
+poetry run pm-engine --verbose
+poetry run pm-stats
+poetry run pm-api-gateway --config engine_config.yaml --instance desk
+```
+
+Useful options:
+
+| Option | Default | Description |
+|---|---:|---|
+| `--host ADDR` | config value | Override HTTP bind address |
+| `--port PORT` | config value | Override HTTP listen port |
+| `--instance NAME` | auto-selected only when one entry exists | Select a named `api_gateways` entry |
+| `--config PATH` | `EDUMATCHER_CONFIG` resolution | Central engine config path |
+| `--engine-host HOST` | config value | Override engine host for ZMQ ports `5555`/`5556` |
+| `--stats-db PATH` | config value | SQLite database for `/history/*` |
+| `--log-level LEVEL` | config value | `debug`, `info`, `warning`, or `error` |
+
+Uvicorn writes access and application logs to stdout/stderr. Redirect them with
+your shell or service manager:
+
+```bash
+poetry run pm-api-gateway --config engine_config.yaml --instance desk --log-level debug \
+  > api-gateway.log 2>&1
+```
+
+
+## Swagger interface
+
+When `swagger_enabled: true`, open:
+
+```text
+http://127.0.0.1:8080/docs
+```
+
+Swagger shows all REST endpoints, request schemas, response schemas, and enum
+values. Use the **Authorize** button with:
+
+```text
+Bearer key-trader-demo
+```
+
+
+## Authentication principles
+
+REST clients send an HTTP bearer token:
+
+```http
+Authorization: Bearer key-trader-demo
+```
+
+WebSocket clients send the API key as their first JSON message:
+
+```json
+{ "api_key": "key-trader-demo" }
+```
+
+Read-only credentials (`gateway_id: null`) can use `/api/v1/market-data` but
+cannot submit, cancel, or inspect private orders.
+
+
+## REST endpoints
+
+Base path: `/api/v1`.
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `POST` | `/orders` | trading | Submit one order |
+| `DELETE` | `/orders/{order_id}` | trading | Cancel one order |
+| `PATCH` | `/orders/{order_id}` | trading | Amend price and/or quantity |
+| `POST` | `/orders/{order_id}/replace` | trading | Cancel then submit replacement |
+| `GET` | `/orders` | trading | List live orders for the gateway |
+| `GET` | `/orders/{order_id}` | trading | Read cached order state |
+| `POST` | `/oco` | trading | Submit OCO pair |
+| `DELETE` | `/oco/{oco_id}` | trading | Cancel OCO pair |
+| `POST` | `/combos` | trading | Submit combo order |
+| `DELETE` | `/combos/{combo_id}` | trading | Cancel combo |
+| `POST` | `/quotes` | trading | Submit two-sided quote |
+| `DELETE` | `/quotes/{symbol}` | trading | Cancel quote for symbol |
+| `POST` | `/mass-cancel` | trading | Cancel all or symbol-scoped exposure |
+| `POST` | `/kill-switch` | trading | Alias of `/mass-cancel` |
+| `GET` | `/symbols` | trading | Instrument metadata |
+| `GET` | `/session` | trading | Current engine session state |
+| `GET` | `/quotes/bootstrap` | trading | Active quote bootstrap state |
+| `GET` | `/quotes/legs` | trading | Quote leg state |
+| `GET` | `/positions` | trading | Net positions by symbol |
+| `GET` | `/status` | trading | Gateway cache summary |
+| `GET` | `/history/orders` | trading | Historical order lifecycle events |
+| `GET` | `/history/orders/{order_id}` | trading | Full lifecycle for one order |
+| `GET` | `/history/fills` | trading | Historical fills |
+| `GET` | `/history/trades` | any valid key | Public trade log |
+| `GET` | `/history/daily` | any valid key | Daily OHLCV rows |
+
+
+### Submit order
+
+```http
+POST /api/v1/orders?wait=ack
+Authorization: Bearer key-trader-demo
+Content-Type: application/json
+```
+
+```json
+{
+  "symbol": "AAPL",
+  "side": "BUY",
+  "order_type": "LIMIT",
+  "quantity": 100,
+  "tif": "DAY",
+  "price": 150.50,
+  "smp_action": "NONE",
+  "client_order_id": "ui-42"
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `symbol` | yes | Instrument symbol |
+| `side` | yes | `BUY` or `SELL` |
+| `order_type` | yes | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` |
+| `quantity` | yes | Positive integer |
+| `tif` | no | `DAY`, `GTC`, `ATO`, `ATC`; default `DAY` |
+| `price` | conditional | Required for `LIMIT`, `FOK`, `IOC`, `ICEBERG`, `STOP_LIMIT` |
+| `stop_price` | conditional | Required for `STOP`, `STOP_LIMIT` |
+| `visible_qty` | conditional | Required for `ICEBERG`, less than `quantity` |
+| `trail_offset` | conditional | Required for `TRAILING_STOP` |
+| `smp_action` | no | Self-match prevention action |
+
+Default write calls return immediately with `202 Accepted`. Add `?wait=ack` to
+wait for the matching engine ACK until the configured timeout.
+
+
+### Cancel, amend, and replace
+
+| Operation | Payload |
+|---|---|
+| `DELETE /orders/{order_id}` | no body |
+| `PATCH /orders/{order_id}` | `{ "price": 151.00 }`, `{ "quantity": 200 }`, or both |
+| `POST /orders/{order_id}/replace` | same shape as `POST /orders` |
+
+
+### OCO, combos, quotes, and mass cancel
+
+| Endpoint | Minimal payload |
+|---|---|
+| `POST /oco` | `{ "oco_id":"tp-sl-1", "symbol":"AAPL", "quantity":100, "leg1":{"side":"SELL","order_type":"LIMIT","price":152.0}, "leg2":{"side":"SELL","order_type":"STOP","stop_price":147.0} }` |
+| `POST /combos` | `{ "combo_id":"spread-1", "legs":[{"symbol":"AAPL","side":"BUY","quantity":100,"price":150.0},{"symbol":"MSFT","side":"SELL","quantity":100,"price":410.0}] }` |
+| `POST /quotes` | `{ "symbol":"AAPL", "bid_price":150.0, "bid_qty":500, "ask_price":150.1, "ask_qty":500 }` |
+| `POST /mass-cancel` | `{ "symbol":"AAPL" }` or `{}` for all symbols |
+
+
+## WebSocket endpoints
+
+| Path | Purpose | First message |
+|---|---|---|
+| `/api/v1/events` | Private order/quote/risk lifecycle events for one gateway | `{ "api_key": "key-trader-demo" }` |
+| `/api/v1/market-data` | Public book, trade, depth, session, and circuit-breaker events | `{ "api_key": "key-dashboard-demo" }` |
+
+Private event envelope:
+
+```json
+{
+  "type": "order.fill",
+  "ts": "2026-06-24T10:15:03.221Z",
+  "gateway_id": "TRADER01",
+  "data": {
+    "order_id": "ORD-...",
+    "fill_qty": 50,
+    "fill_price": 150.50,
+    "remaining_qty": 50,
+    "status": "PARTIAL"
+  }
+}
+```
+
+Market-data subscription control:
+
+```json
+{ "action": "subscribe", "symbols": ["AAPL", "MSFT"], "channels": ["book", "trades", "depth"] }
+```
+
+Session and circuit-breaker events are always delivered after authentication.
+
+
+## Python REST example
+
+```python
+from api_gateway_client import ApiGatewayClient
+
+client = ApiGatewayClient("http://127.0.0.1:8080", "key-trader-demo")
+print(client.get_json("/api/v1/status"))
+print(client.get_json("/api/v1/symbols"))
+```
+
+Runnable examples live under `docs/examples/REST/python/`.
+
+
+## C REST example
+
+The C example uses a small POSIX socket helper for simple HTTP GET calls:
+
+```c
+ApiGatewayClient client = api_gateway_client("127.0.0.1", 8080, "key-trader-demo");
+char *body = api_gateway_get(&client, "/api/v1/status");
+puts(body);
+free(body);
+```
+
+Runnable examples live under `docs/examples/REST/c/`.
+
+
+## Implementation notes and design deviations
+
+The original API gateway design described a separate `api_gateway_config.yaml`.
+EduMatcher now keeps API gateway settings in the central `engine_config.yaml`
+under `api_gateways:` so the API gateway follows the same configuration pattern
+as the other gateway processes and supports multiple named API gateway process
+configs.
+
+The runtime rejects duplicate non-null `gateway_id` assignments across named
+API gateway entries. This is deliberate: sharing one engine gateway identity
+between two API gateway processes would split private session/event state across
+process memory. Use separate ALF gateway IDs for separately managed write paths,
+or use `gateway_id: null` for read-only dashboard credentials.
+
+Swagger exposure is configurable with `swagger_enabled`. Plain bearer keys in
+YAML are used for teaching and local labs; production deployments should put the
+gateway behind TLS and manage secrets with the surrounding platform.
+
+`?wait=ack` waits for the next matching engine topic for that gateway. For
+high-concurrency clients sharing one `gateway_id`, use the private `/events`
+WebSocket as the authoritative per-order outcome stream.
+
+`engine_reply_sec` and `wait_ack_sec` are applied from configuration. The
+engine authentication handshake currently uses a fixed 3 second timeout.
+
+The implementation keeps engine payloads close to the existing EduMatcher event
+model. Outbound WebSocket events are wrapped in a consistent envelope, but they
+do not attempt broad tick-to-display price rewriting beyond the payloads already
+published by the engine.
+
+Cancel-replace is implemented as cancel, wait for the cancel event, then submit
+the replacement. The replacement body uses the same shape as `POST /orders`,
+including `symbol`.
+
+Startup creates the engine client and listener, but does not fail the process
+only because `stats.db` is absent. History endpoints depend on `pm-stats` having
+created and populated the configured database.
+
+
+## Operational checklist
+
+1. Confirm `api_gateways.<NAME>.credentials` maps to gateways allowed under `gateways.alf`
+2. Confirm each non-null `gateway_id` appears in only one API gateway entry
+3. Start `pm-engine`, `pm-stats`, then `pm-api-gateway --instance NAME`
+4. Open `/docs` if Swagger is enabled
+5. Test `GET /api/v1/status` with a bearer token
+6. Connect `/api/v1/events` before submitting orders if you want async outcomes
+7. Use `/history/*` only when `pm-stats` is running and writing `stats.db`

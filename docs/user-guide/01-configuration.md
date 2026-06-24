@@ -6,7 +6,7 @@
     - Which `engine_config.yaml` sections are required when a config file exists
     - How to generate a starter config with `pm-config-gen`
     - Which fields the current engine and scheduler parsers recognize
-    - How to configure the optional `pm-ralf-gwy` post-trade and `pm-md-gwy` market-data gateway blocks
+    - How to configure the optional `pm-ralf-gwy`, `pm-md-gwy`, and `pm-api-gateway` blocks
     - How to configure symbols, gateways, risk controls, market-maker seeds, combo seeds, and schedules
     - How to choose between minimal, medium, and fully featured configurations
     - Which checks to perform before using a config in a class, demo, or test
@@ -18,8 +18,9 @@ The matching engine and session scheduler both read `engine_config.yaml`. The
 engine uses it to define the symbol universe, authenticated ALF gateway IDs,
 session mode, risk controls, market-maker policy, per-symbol outstanding shares,
 and startup seeds. The scheduler uses only the optional `schedule` section.
-The optional `post_trade_gateway` and `market_data_gateway` sections are read by
-`pm-ralf-gwy` and `pm-md-gwy` respectively.
+The optional `post_trade_gateway`, `market_data_gateway`, and `api_gateways`
+sections are read by `pm-ralf-gwy`, `pm-md-gwy`, and `pm-api-gateway`
+respectively.
 
 If the config file is absent, `pm-engine` starts in unrestricted mode: any symbol
 and gateway can be used, and no startup seeds are loaded. If the config file is
@@ -240,6 +241,39 @@ Market-data gateway options:
 | `--market-data-max-symbols-per-client` | int (`> 0`) | `200` | `market_data_gateway.max_symbols_per_client` |
 | `--market-data-max-client-queue` | int (`> 0`) | `10000` | `market_data_gateway.max_client_queue` |
 
+API gateway options:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--api-gateway` | Flag | off | Emit top-level `api_gateways` block for `pm-api-gateway` |
+| `--api-gateway-name NAME` | string | `default` | Name of the generated `api_gateways.<NAME>` entry for single-process generation |
+| `--api-gateway-instance NAME:GATEWAY[,GATEWAY...][:PORT]` | Repeatable | none | Emit one named API gateway process per option, optionally limiting generated keys to listed ALF gateways |
+| `--api-gateway-enabled` / `--api-gateway-disabled` | Flag pair | unset (`true` when emitted) | Set each generated API gateway `enabled` field |
+| `--api-gateway-host ADDR` | string | `127.0.0.1` | HTTP bind address |
+| `--api-gateway-port N` | int (`> 0`) | `8080` | HTTP listen port |
+| `--api-gateway-swagger-enabled` / `--api-gateway-swagger-disabled` | Flag pair | unset (`true` when emitted) | Enable or disable `/docs` and `/openapi.json` |
+| `--api-gateway-log-level LEVEL` | enum | `info` | `debug`, `info`, `warning`, or `error` |
+| `--api-gateway-stats-db PATH` | path | `data/stats.db` | SQLite database used by `/history/*` endpoints |
+| `--api-key KEY:GATEWAY_ID[:DESCRIPTION]` | Repeatable | none | Add an explicit bearer-token credential; use `GATEWAY_ID=null` for read-only access |
+| `--api-gateway-generate-keys` / `--no-api-gateway-generate-keys` | Flag pair | generated when emitted | Generate one key for each `gateways.alf` entry |
+| `--api-gateway-readonly-key` | Flag | off | Generate an additional read-only key with `gateway_id: null` |
+| `--api-gateway-rate-limit-writes-per-second N` | int (`> 0`) | `10` | Per-key write rate limit |
+| `--api-gateway-rate-limit-burst N` | int (`> 0`) | `20` | Per-key write burst capacity |
+| `--api-gateway-engine-auth-sec SECS` | float (`> 0`) | `3.0` | Engine auth timeout field |
+| `--api-gateway-engine-reply-sec SECS` | float (`> 0`) | `3.0` | Engine request/reply timeout |
+| `--api-gateway-wait-ack-sec SECS` | float (`> 0`) | `3.0` | `?wait=ack` timeout |
+
+When `--api-gateway` is enabled, `pm-config-gen` emits sensible local defaults
+and automatically generates one bearer token for each configured ALF gateway.
+Pass `--seed N` to make those generated keys reproducible. Use
+`--no-api-gateway-generate-keys` when you only want manually supplied
+`--api-key` entries.
+
+Use repeated `--api-gateway-instance` options when you want separate API
+gateway processes for logical separation. A non-null `gateway_id` can belong to
+only one generated API gateway entry; read-only `gateway_id: null` credentials
+may be repeated.
+
 Typical CLI example for a local lab with RALF enabled:
 
 ```bash
@@ -441,6 +475,76 @@ This is the quickest path when you want one command that prepares both:
 - the engine symbol and ALF gateway config used by `pm-engine`
 - the optional RALF listener settings used by `pm-ralf-gwy`
 
+REST/WebSocket API gateway config with generated keys:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT \
+  --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --outstanding-shares AAPL:15400000000 \
+  --outstanding-shares MSFT:7430000000 \
+  --api-gateway \
+  --api-gateway-readonly-key \
+  --api-gateway-host 127.0.0.1 \
+  --api-gateway-port 8080 \
+  --seed 20260624 \
+  --output engine_config.yaml
+```
+
+Expected emitted section shape:
+
+```yaml
+api_gateways:
+  default:
+    enabled: true
+    host: 127.0.0.1
+    port: 8080
+    swagger_enabled: true
+    log_level: info
+    stats_db: data/stats.db
+    credentials:
+      - api_key: key-trader01-...
+        gateway_id: TRADER01
+        description: Generated key for TRADER01
+      - api_key: key-trader02-...
+        gateway_id: TRADER02
+        description: Generated key for TRADER02
+      - api_key: key-ops01-...
+        gateway_id: OPS01
+        description: Generated key for OPS01
+      - api_key: key-readonly-...
+        gateway_id: null
+        description: Generated read-only market-data key
+    rate_limit:
+      writes_per_second: 10
+      burst: 20
+    timeouts:
+      engine_auth_sec: 3.0
+      engine_reply_sec: 3.0
+      wait_ack_sec: 3.0
+```
+
+Explicit API-key config:
+
+```bash
+pm-config-gen \
+  --symbols AAPL \
+  --gateways TRADER01 \
+  --api-key trader-secret:TRADER01:"Desk app" \
+  --api-key dashboard-secret:null:"Read-only dashboard" \
+  --no-api-gateway-generate-keys \
+  --output engine_config.yaml
+```
+
+`gateway_id` values in API credentials must either be `null` for read-only
+market-data access or match an ID from `gateways.alf`. Generated keys are plain
+YAML bearer tokens for local labs and teaching setups; production deployments
+should manage secrets with the surrounding platform and terminate TLS in front
+of `pm-api-gateway`.
+
+For multiple generated processes, start a specific named entry with
+`pm-api-gateway --config engine_config.yaml --instance NAME`.
+
 
 ## Current Schema
 
@@ -462,6 +566,7 @@ The current parser recognizes these top-level keys:
 | `schedule` | No | Scheduler, parsed by engine too | Session transition times |
 | `post_trade_gateway` | No | `pm-ralf-gwy` | External RALF dissemination gateway settings |
 | `market_data_gateway` | No | `pm-md-gwy` | External CALF dissemination gateway settings |
+| `api_gateways` | No | `pm-api-gateway` | Named REST/WebSocket order-entry and market-data gateway process settings |
 
 The nested sections below document every field currently parsed under these
 top-level keys. Unknown keys in a mapping are generally ignored by the loader,
@@ -541,6 +646,63 @@ subscribers. In the current implementation:
 If you prefer to generate this block instead of writing it by hand,
 `pm-config-gen` can emit it with `--market-data-gateway` and optional
 `--market-data-*` overrides.
+
+
+## Configuring `pm-api-gateway`
+
+`pm-api-gateway` reads an optional top-level `api_gateways` block from the same
+`engine_config.yaml` file. This block is not consumed by `pm-engine`; it is
+consumed by the REST/WebSocket API gateway process.
+
+Minimal generated example:
+
+```yaml
+api_gateways:
+  desk:
+    enabled: true
+    host: 127.0.0.1
+    port: 8080
+    swagger_enabled: true
+    log_level: info
+    stats_db: data/stats.db
+    credentials:
+      - api_key: key-trader01-example
+        gateway_id: TRADER01
+        description: Generated key for TRADER01
+      - api_key: key-dashboard-example
+        gateway_id: null
+        description: Read-only dashboard client
+    rate_limit:
+      writes_per_second: 10
+      burst: 20
+    timeouts:
+      engine_auth_sec: 3.0
+      engine_reply_sec: 3.0
+      wait_ack_sec: 3.0
+```
+
+Use this block to control where the REST API listens, whether Swagger is
+available, which bearer tokens are accepted, and how write rate limits and
+engine reply waits are applied. In the current implementation:
+
+- `enabled` lets `pm-api-gateway` refuse startup when set to `false`
+- `host` and `port` define the uvicorn HTTP listener
+- `swagger_enabled` controls `/docs` and `/openapi.json`
+- `stats_db` points history endpoints at the `pm-stats` SQLite database
+- `credentials[].api_key` is the bearer token used by REST and WebSocket clients
+- `credentials[].gateway_id` maps a key to an ALF gateway; `null` is read-only
+- a non-null `credentials[].gateway_id` may appear in only one `api_gateways` entry
+- `rate_limit` applies per API key to write endpoints only
+- `timeouts.engine_reply_sec` and `timeouts.wait_ack_sec` control request/reply and `?wait=ack` waits
+
+If you prefer to generate this block instead of writing it by hand,
+`pm-config-gen` can emit it with `--api-gateway`. By default it generates one
+credential per configured ALF gateway. Add `--api-gateway-readonly-key` for a
+dashboard-style key with `gateway_id: null`, or pass explicit `--api-key`
+entries when you need known token values.
+
+When more than one named API gateway is configured, start each process with its
+entry name, for example `pm-api-gateway --config engine_config.yaml --instance desk`.
 
 
 ## Minimal Example

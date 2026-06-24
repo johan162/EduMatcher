@@ -5,12 +5,24 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 import random
+import string
 from typing import Any
 
 from edumatcher.models.participant import ParticipantRole
 
 from .cb_spec import CbSpec
 from .defaults import (
+    DEFAULT_API_GATEWAY_ENGINE_AUTH_SEC,
+    DEFAULT_API_GATEWAY_ENGINE_REPLY_SEC,
+    DEFAULT_API_GATEWAY_HOST,
+    DEFAULT_API_GATEWAY_KEY_BYTES,
+    DEFAULT_API_GATEWAY_LOG_LEVEL,
+    DEFAULT_API_GATEWAY_PORT,
+    DEFAULT_API_GATEWAY_RATE_LIMIT_BURST,
+    DEFAULT_API_GATEWAY_RATE_LIMIT_WRITES_PER_SECOND,
+    DEFAULT_API_GATEWAY_STATS_DB,
+    DEFAULT_API_GATEWAY_SWAGGER_ENABLED,
+    DEFAULT_API_GATEWAY_WAIT_ACK_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS,
     DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC,
@@ -72,6 +84,7 @@ class ConfigSpec:
     outstanding_shares: dict[str, int] = field(default_factory=dict)
     post_trade_gateway: PostTradeGatewaySpec | None = None
     market_data_gateway: MarketDataGatewaySpec | None = None
+    api_gateways: tuple[ApiGatewaySpec, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -97,6 +110,33 @@ class MarketDataGatewaySpec:
     replay_window_sec: int = DEFAULT_MARKET_DATA_GATEWAY_REPLAY_WINDOW_SEC
     max_symbols_per_client: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_SYMBOLS_PER_CLIENT
     max_client_queue: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE
+
+
+@dataclass(frozen=True)
+class ApiCredentialSpec:
+    api_key: str
+    gateway_id: str | None
+    description: str = ""
+
+
+@dataclass(frozen=True)
+class ApiGatewaySpec:
+    name: str = "default"
+    enabled: bool = True
+    host: str = DEFAULT_API_GATEWAY_HOST
+    port: int = DEFAULT_API_GATEWAY_PORT
+    swagger_enabled: bool = DEFAULT_API_GATEWAY_SWAGGER_ENABLED
+    log_level: str = DEFAULT_API_GATEWAY_LOG_LEVEL
+    stats_db: str = DEFAULT_API_GATEWAY_STATS_DB
+    credentials: tuple[ApiCredentialSpec, ...] = ()
+    gateway_ids: tuple[str, ...] = ()
+    generate_keys: bool = True
+    generate_readonly_key: bool = False
+    rate_limit_writes_per_second: int = DEFAULT_API_GATEWAY_RATE_LIMIT_WRITES_PER_SECOND
+    rate_limit_burst: int = DEFAULT_API_GATEWAY_RATE_LIMIT_BURST
+    engine_auth_sec: float = DEFAULT_API_GATEWAY_ENGINE_AUTH_SEC
+    engine_reply_sec: float = DEFAULT_API_GATEWAY_ENGINE_REPLY_SEC
+    wait_ack_sec: float = DEFAULT_API_GATEWAY_WAIT_ACK_SEC
 
 
 class ConfigBuilder:
@@ -127,6 +167,8 @@ class ConfigBuilder:
             cfg["post_trade_gateway"] = self._build_post_trade_gateway()
         if self.spec.market_data_gateway is not None:
             cfg["market_data_gateway"] = self._build_market_data_gateway()
+        if self.spec.api_gateways:
+            cfg["api_gateways"] = self._build_api_gateways()
         cfg["symbols"] = self._build_symbols()
 
         if self.spec.sessions_enabled and self.spec.emit_schedule:
@@ -172,6 +214,96 @@ class ConfigBuilder:
             "max_symbols_per_client": spec.max_symbols_per_client,
             "max_client_queue": spec.max_client_queue,
         }
+
+    def _build_api_gateways(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        gateway_owners: dict[str, str] = {}
+        for spec in self.spec.api_gateways:
+            for credential in self._effective_api_credentials(spec):
+                if credential.gateway_id is None:
+                    continue
+                existing = gateway_owners.get(credential.gateway_id)
+                if existing is not None and existing != spec.name:
+                    raise ValueError(
+                        f"gateway_id {credential.gateway_id!r} is used by multiple "
+                        f"api_gateways entries: {existing!r} and {spec.name!r}"
+                    )
+                gateway_owners[credential.gateway_id] = spec.name
+            payload[spec.name] = self._build_api_gateway(spec)
+        return payload
+
+    def _build_api_gateway(self, spec: ApiGatewaySpec) -> dict[str, Any]:
+        return {
+            "enabled": spec.enabled,
+            "host": spec.host,
+            "port": spec.port,
+            "swagger_enabled": spec.swagger_enabled,
+            "log_level": spec.log_level,
+            "stats_db": spec.stats_db,
+            "credentials": [
+                {
+                    "api_key": item.api_key,
+                    "gateway_id": item.gateway_id,
+                    "description": item.description,
+                }
+                for item in self._effective_api_credentials(spec)
+            ],
+            "rate_limit": {
+                "writes_per_second": spec.rate_limit_writes_per_second,
+                "burst": spec.rate_limit_burst,
+            },
+            "timeouts": {
+                "engine_auth_sec": spec.engine_auth_sec,
+                "engine_reply_sec": spec.engine_reply_sec,
+                "wait_ack_sec": spec.wait_ack_sec,
+            },
+        }
+
+    def _effective_api_credentials(
+        self, spec: ApiGatewaySpec
+    ) -> list[ApiCredentialSpec]:
+        credentials = list(spec.credentials)
+        explicit_gateway_ids = {item.gateway_id for item in credentials}
+        included_gateway_ids = set(spec.gateway_ids)
+
+        if spec.generate_keys:
+            for gateway in self.spec.gateways:
+                if (
+                    included_gateway_ids
+                    and gateway.gateway_id not in included_gateway_ids
+                ):
+                    continue
+                if gateway.gateway_id in explicit_gateway_ids:
+                    continue
+                credentials.append(
+                    ApiCredentialSpec(
+                        api_key=self._generated_api_key(gateway.gateway_id),
+                        gateway_id=gateway.gateway_id,
+                        description=f"Generated key for {gateway.gateway_id}",
+                    )
+                )
+        if spec.generate_readonly_key and None not in explicit_gateway_ids:
+            credentials.append(
+                ApiCredentialSpec(
+                    api_key=self._generated_api_key("readonly"),
+                    gateway_id=None,
+                    description="Generated read-only market-data key",
+                )
+            )
+
+        return credentials
+
+    def _generated_api_key(self, label: str) -> str:
+        alphabet = string.ascii_lowercase + string.digits
+        rng = (
+            random.Random(f"api:{self.spec.random_seed}:{label}")
+            if self.spec.random_seed is not None
+            else self._rng
+        )
+        token = "".join(
+            rng.choice(alphabet) for _ in range(DEFAULT_API_GATEWAY_KEY_BYTES * 2)
+        )
+        return f"key-{label.lower()}-{token}"
 
     def _should_emit_mm_defaults(self) -> bool:
         if self.spec.emit_mm_defaults:
