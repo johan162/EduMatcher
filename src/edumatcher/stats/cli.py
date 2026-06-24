@@ -292,6 +292,7 @@ def _run_query(
         rows = query_symbols(conn, date_value=args.date)
         return _SYMBOLS_COLUMNS, rows
 
+    assert args.command == "dates", f"Unhandled command: {args.command}"
     rows = query_dates(conn, symbol=args.symbol.upper() if args.symbol else None)
     return _DATES_COLUMNS, rows
 

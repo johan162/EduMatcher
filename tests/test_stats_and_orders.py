@@ -203,11 +203,6 @@ class TestOnBook:
         assert acc.open_bid == 149.5  # first value preserved
         assert acc.open_ask == 150.5
 
-    def test_stores_last_book(self, sp: StatsProcess) -> None:
-        snap = self._book_payload()
-        sp._on_book("AAPL", snap)
-        assert sp._last_book["AAPL"] == snap
-
     def test_writes_snapshot_when_interval_elapsed(self, sp: StatsProcess) -> None:
         # Force interval to have elapsed (last snap was long ago)
         sp._last_snap_ts["AAPL"] = time.monotonic() - SNAPSHOT_INTERVAL_SEC - 1

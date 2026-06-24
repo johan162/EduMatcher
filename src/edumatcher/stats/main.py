@@ -256,9 +256,6 @@ class StatsProcess:
         # symbol → _DayAccum for current calendar date
         self._accum: dict[str, _DayAccum] = {}
 
-        # symbol → most-recent book snapshot (for 15-min snapshots and opening bid/ask)
-        self._last_book: dict[str, dict[str, Any]] = {}
-
         # symbol → last snapshot mid_price (for % change)
         self._last_snap_mid: dict[str, float] = {}
 
@@ -361,8 +358,6 @@ class StatsProcess:
 
     def _on_book(self, symbol: str, payload: dict[str, Any]) -> None:
         with self._lock:
-            self._last_book[symbol] = payload
-
             # Record opening bid/ask once per day
             acc = self._accum_for(symbol)
             bids = payload.get("bids", [])
@@ -536,6 +531,9 @@ class StatsProcess:
         while self._running:
             t.join(timeout=0.5)
 
+        # Wait for the receive thread to finish its current message before
+        # closing the database and sockets to avoid mid-transaction errors.
+        t.join(timeout=1.0)
         self._conn.close()
         self.sub.close()
         self.push.close()

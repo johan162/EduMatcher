@@ -197,7 +197,7 @@ pm-stats
 `pm-stats` will:
 
 1. Connect as a subscriber to the engine's PUB socket (:5556)
-2. Request an initial book snapshot from the engine via PUSH (:5555)
+2. Wait briefly for ZMQ subscriptions to propagate, then request the symbol list from the engine via PUSH (:5555); on receipt, request a current book snapshot per symbol so opening bid/ask and initial price rows are captured even before new trading activity
 3. Begin recording trades to `daily_stats` as they execute
 4. Write intraday snapshots every 15 minutes
 5. Write trade-by-trade records to `trade_log` immediately
@@ -352,7 +352,7 @@ pm-stats-cli --format json order-events --gateway TRADER01 --from 2026-06-14T09:
 |--------|----------|---------|-------------|
 | `--gateway` | Yes | - | Gateway ID that owns the private events |
 | `--symbol` | No | all symbols | Restrict to one symbol |
-| `--event-type` | No | all event types | Restrict to one normalized type such as `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO`, `OCO`, or `QUOTE` |
+| `--event-type` | No | all event types | Restrict to one normalized type such as `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO`, `OCO`, `QUOTE`, or `EVENT` |
 | `--date` | No | all dates | Restrict to one trading date |
 | `--from` | No | - | Start timestamp |
 | `--to` | No | - | End timestamp |
@@ -449,7 +449,7 @@ API filters for `/api/v1/history/orders`:
 | Query parameter | Required | Description |
 |-----------------|----------|-------------|
 | `symbol` | No | Restrict to one symbol |
-| `event_type` | No | Restrict to one normalized type such as `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO`, `OCO`, or `QUOTE` |
+| `event_type` | No | Restrict to one normalized type such as `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO`, `OCO`, `QUOTE`, or `EVENT` |
 | `date` | No | Restrict to one `YYYY-MM-DD` date based on `order_events.ts` |
 | `from` | No | Inclusive ISO timestamp lower bound |
 | `to` | No | Inclusive ISO timestamp upper bound |
@@ -797,7 +797,7 @@ print(daily[['symbol', 'return_pct']])
 
 ### Database is locked or "unable to open"
 
-1. **`pm-stats` holds an exclusive write lock while running.** You can still read from `pm-stats-cli` concurrently, but if you try to directly write to the database, you'll get a lock error.
+1. **`pm-stats` acquires short write locks during individual database transactions** (trade writes, snapshot writes, daily-stats flushes, order-event inserts). Between transactions no lock is held, so `pm-stats-cli` reads are never blocked. If you try to directly write to the database while `pm-stats` is running, you may get a transient lock error.
 
 2. **Solution**: Use `pm-stats-cli` for queries, not direct `sqlite3` access while `pm-stats` is running.
 
