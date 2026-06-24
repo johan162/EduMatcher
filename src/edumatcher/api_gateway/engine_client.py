@@ -50,6 +50,9 @@ class EngineClient:
         self._running = False
         self._thread: threading.Thread | None = None
         self._authenticated: set[str] = set()
+        # Per-gateway locks prevent duplicate gateway_connect messages when
+        # concurrent requests authenticate the same gateway simultaneously.
+        self._auth_locks: dict[str, asyncio.Lock] = {}
         self._caches: dict[str, SessionCaches] = defaultdict(SessionCaches)
         self._sinks: dict[str, set[asyncio.Queue[dict[str, Any]]]] = defaultdict(set)
         self._market_data_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
@@ -80,21 +83,34 @@ class EngineClient:
         self._push.send_multipart(make_gateway_disconnect_msg(gateway_id, reason))
 
     async def authenticate(self, gateway_id: str) -> tuple[bool, str]:
-        """Perform the engine gateway_connect handshake once per gateway id."""
+        """Perform the engine gateway_connect handshake once per gateway id.
+
+        Uses a per-gateway asyncio.Lock so that concurrent requests for the
+        same unauthenticated gateway send exactly one gateway_connect message.
+        Subsequent callers queue on the lock and short-circuit when they see
+        the gateway already authenticated.
+        """
         if gateway_id in self._authenticated:
             return True, ""
-        future = self._register_future(f"system.gateway_auth.{gateway_id}")
-        self._push.send_multipart(make_gateway_connect_msg(gateway_id))
-        try:
-            payload = await asyncio.wait_for(future, timeout=3.0)
-        except TimeoutError:
-            return False, "Engine authentication timed out"
-        accepted = bool(payload.get("accepted", False))
-        reason = str(payload.get("reason", ""))
-        if accepted:
-            self._authenticated.add(gateway_id)
-            self._push.send_multipart(make_symbols_request_msg(gateway_id))
-        return accepted, reason
+        if gateway_id not in self._auth_locks:
+            self._auth_locks[gateway_id] = asyncio.Lock()
+        async with self._auth_locks[gateway_id]:
+            # Re-check after acquiring the lock; a concurrent caller may have
+            # already completed authentication while we were waiting.
+            if gateway_id in self._authenticated:
+                return True, ""
+            future = self._register_future(f"system.gateway_auth.{gateway_id}")
+            self._push.send_multipart(make_gateway_connect_msg(gateway_id))
+            try:
+                payload = await asyncio.wait_for(future, timeout=3.0)
+            except TimeoutError:
+                return False, "Engine authentication timed out"
+            accepted = bool(payload.get("accepted", False))
+            reason = str(payload.get("reason", ""))
+            if accepted:
+                self._authenticated.add(gateway_id)
+                self._push.send_multipart(make_symbols_request_msg(gateway_id))
+            return accepted, reason
 
     def _register_future(self, key: str) -> asyncio.Future[dict[str, Any]]:
         future: asyncio.Future[dict[str, Any]] = self._loop.create_future()
@@ -106,6 +122,17 @@ class EngineClient:
         try:
             return await asyncio.wait_for(future, timeout=timeout)
         except TimeoutError as exc:
+            # asyncio.wait_for cancels the inner future on timeout.  Remove it
+            # from _pending so cancelled futures do not accumulate if the engine
+            # never sends the matching topic.
+            pending = self._pending.get(key)
+            if pending is not None:
+                try:
+                    pending.remove(future)
+                except ValueError:
+                    pass
+                if not pending:
+                    del self._pending[key]
             raise TimeoutError(f"Timed out waiting for {key}") from exc
 
     def _resolve_pending(self, topic: str, payload: dict[str, Any]) -> None:

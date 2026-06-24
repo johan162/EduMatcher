@@ -27,7 +27,7 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
 
     FastAPI automatically publishes OpenAPI at ``/openapi.json`` and Swagger UI
     at ``/docs``.  Those endpoints are controlled by ``swagger_enabled`` in the
-    central ``api_gateway`` config block.
+    central ``api_gateways`` config.
     """
 
     @asynccontextmanager

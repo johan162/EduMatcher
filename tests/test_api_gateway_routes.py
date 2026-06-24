@@ -10,7 +10,6 @@ from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
 from edumatcher.api_gateway.events import (
     envelope,
     gateway_from_topic,
-    market_data_channel,
     market_data_symbol,
     websocket_type,
 )
@@ -157,7 +156,6 @@ def test_events_helpers() -> None:
     assert websocket_type("trade.executed") == "trade"
     assert market_data_symbol("book.AAPL", {}) == "AAPL"
     assert market_data_symbol("trade.executed", {"symbol": "msft"}) == "MSFT"
-    assert market_data_channel("depth.AAPL") == "depth"
     wrapped = envelope("order.fill.GW01", {"order_id": "ORD1"})
     assert wrapped["type"] == "order.fill"
     assert wrapped["gateway_id"] == "GW01"

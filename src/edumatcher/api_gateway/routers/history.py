@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from contextlib import closing
 from typing import Annotated
 
@@ -14,18 +15,40 @@ from edumatcher.stats.query import (
     query_order_events,
     query_order_lifecycle,
     query_trades,
+    validate_date,
+    validate_iso_ts,
 )
 
 router = APIRouter(prefix="/api/v1/history", tags=["history"])
 
 
-def _open_stats(request: Request):  # type: ignore[no-untyped-def]
+def _open_stats(request: Request) -> sqlite3.Connection:
     try:
         return open_readonly_connection(request.app.state.config.stats_db)
     except FileNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={"error": {"code": "STATS_DB", "message": str(exc)}},
+        ) from exc
+
+
+def _validate_time_filters(
+    date: str | None,
+    from_ts: str | None,
+    to_ts: str | None,
+) -> None:
+    """Raise HTTP 422 when any time-filter parameter is malformed."""
+    try:
+        if date is not None:
+            validate_date(date)
+        if from_ts is not None:
+            validate_iso_ts(from_ts)
+        if to_ts is not None:
+            validate_iso_ts(to_ts)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": {"code": "VALIDATION", "message": str(exc)}},
         ) from exc
 
 
@@ -41,6 +64,7 @@ async def history_orders(
     limit: int = Query(default=500, ge=1, le=5000),
 ) -> dict[str, object]:
     gateway_id = require_trading(session)
+    _validate_time_filters(date, from_ts, to_ts)
     with closing(_open_stats(request)) as conn:
         events = query_order_events(
             conn,
@@ -78,6 +102,7 @@ async def history_fills(
     limit: int = Query(default=500, ge=1, le=5000),
 ) -> dict[str, object]:
     gateway_id = require_trading(session)
+    _validate_time_filters(date, from_ts, to_ts)
     with closing(_open_stats(request)) as conn:
         events = query_order_events(
             conn,
@@ -103,6 +128,7 @@ async def history_trades(
     limit: int = Query(default=500, ge=1, le=5000),
 ) -> dict[str, object]:
     _ = session
+    _validate_time_filters(date, from_ts, to_ts)
     with closing(_open_stats(request)) as conn:
         trades = query_trades(
             conn,

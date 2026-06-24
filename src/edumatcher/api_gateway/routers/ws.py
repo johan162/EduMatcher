@@ -53,7 +53,7 @@ async def private_events(websocket: WebSocket) -> None:
                 await websocket.send_json(event)
         finally:
             websocket.app.state.engine.remove_sink(gateway_id, queue)
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, TimeoutError):
         return
 
 
@@ -83,7 +83,7 @@ async def market_data(websocket: WebSocket) -> None:
                 task.result()
         finally:
             websocket.app.state.engine.remove_market_data_sink(queue)
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, TimeoutError):
         return
 
 

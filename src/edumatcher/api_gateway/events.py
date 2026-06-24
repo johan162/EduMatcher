@@ -19,6 +19,7 @@ PRIVATE_PREFIXES = (
     "quote.ack.",
     "quote.status.",
     "risk.kill_switch_ack.",
+    "system.gateway_auth.",
     "system.symbols.",
     "system.quote_bootstrap.",
     "system.quote_legs.",
@@ -82,18 +83,3 @@ def market_data_symbol(topic: str, payload: dict[str, Any]) -> str | None:
         return topic.split(".", 1)[1]
     raw_symbol = payload.get("symbol")
     return str(raw_symbol).upper() if raw_symbol else None
-
-
-def market_data_channel(topic: str) -> str | None:
-    """Return the client channel name for a public market-data topic."""
-    if topic.startswith("book."):
-        return "book"
-    if topic == "trade.executed":
-        return "trades"
-    if topic.startswith("depth."):
-        return "depth"
-    if topic == "session.state":
-        return "session"
-    if topic.startswith("circuit_breaker."):
-        return "circuit_breaker"
-    return None

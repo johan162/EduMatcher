@@ -2,7 +2,7 @@
 
 The original design used a separate ``api_gateway_config.yaml``.  The project
 already keeps CALF and RALF gateway settings in ``engine_config.yaml``, so this
-implementation follows that established pattern and reads an optional
+implementation follows that established pattern and reads optional
 ``api_gateway``/``api_gateways`` blocks from the central engine config.  API keys are plain bearer
 tokens because EduMatcher is an educational system; the loader keeps the parsing
 rules explicit so switching to hashed keys later is localised to this module.
