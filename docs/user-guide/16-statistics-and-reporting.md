@@ -5,7 +5,7 @@
 
     - How to record market statistics continuously using `pm-stats`
     - How to query statistics data without writing SQL using `pm-stats-cli`
-    - Common analyst workflows: end-of-day summaries, intraday price analysis, trade analysis
+      - Common analyst workflows: end-of-day summaries, intraday price analysis, trade analysis, and order lifecycle investigation
     - How to export statistics for external analysis (spreadsheets, BI tools)
     - How the statistics system integrates with other tools like `pm-ticker`
     - How to troubleshoot and validate statistics data
@@ -18,7 +18,7 @@ EduMatcher has a two-part statistics system:
 
 | Component | Role | Type | Purpose |
 |-----------|------|------|---------|
-| **pm-stats** | Subscriber | Long-running process | Listens to all trades and book updates; writes OHLCV, snapshots, and trade log to `data/stats.db` |
+| **pm-stats** | Subscriber | Long-running process | Listens to trades, book updates, and private order lifecycle events; writes OHLCV, snapshots, trade log, and `order_events` to `data/stats.db` |
 | **pm-stats-cli** | Query tool | One-shot CLI | Reads from `data/stats.db` and prints human-friendly or machine-readable output without SQL |
 
 This split keeps the recorder separate from the query interface, so you can:
@@ -93,7 +93,7 @@ See [Processes — Environment variables](10-processes.md#environment-variables)
 
 ## The Statistics Database Schema
 
-All statistics are stored in `data/stats.db`, a SQLite 3 database with three tables:
+All statistics are stored in `data/stats.db`, a SQLite 3 database with four tables:
 
 ### `daily_stats`
 
@@ -150,6 +150,36 @@ Append-only record of every matched trade — no aggregation, one row per trade.
 
 **Use case**: Trade-by-trade analysis, flow analysis, detecting potential market manipulation, audit trails.
 
+### `order_events`
+
+Append-only order lifecycle history captured from private engine topics. This table is used by API Gateway history endpoints to reconstruct per-gateway order, fill, cancel, amend, combo, OCO, and quote events.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `seq` | INTEGER | Monotonic local sequence assigned by SQLite for stable event ordering |
+| `ts` | TEXT | ISO-8601 timestamp (UTC, millisecond precision) when `pm-stats` recorded the event |
+| `event_type` | TEXT | Normalized event category: `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO`, `OCO`, `QUOTE`, or `EVENT` |
+| `order_id` | TEXT | Order-like identifier; for combo/OCO/quote events this may be `combo_id`, `oco_id`, or `quote_id` |
+| `gateway_id` | TEXT | Gateway identity that owns the private event |
+| `symbol` | TEXT | Instrument ticker when present in the event payload |
+| `side` | TEXT | `BUY` or `SELL` when applicable |
+| `order_type` | TEXT | Order type from the original order or lifecycle event |
+| `tif` | TEXT | Time-in-force value when present |
+| `price` | REAL | Limit/order price when present |
+| `quantity` | INTEGER | Original or submitted quantity when present |
+| `remaining_qty` | INTEGER | Quantity remaining after the event when provided by the engine |
+| `status` | TEXT | Engine status value when present |
+| `fill_price` | REAL | Execution price for fill events |
+| `fill_qty` | INTEGER | Executed quantity for fill events |
+| `trade_id` | TEXT | Trade identifier linked to a fill event |
+| `reason` | TEXT | Rejection, cancel, expire, or status reason when provided |
+| `client_order_id` | TEXT | Client-supplied order identifier when present |
+| `combo_parent_id` | TEXT | Parent combo identifier for combo child events |
+| `oco_group_id` | TEXT | OCO group identifier for linked order events |
+| `priority_reset` | INTEGER | `1` when an amend reset queue priority, `0` when it did not, null when not applicable |
+
+**Use case**: API Gateway order history, support investigations, per-gateway audit trails, fill-only history, and lifecycle reconstruction for a single order ID.
+
 
 
 ## Running the Statistics Recorder
@@ -171,7 +201,8 @@ pm-stats
 3. Begin recording trades to `daily_stats` as they execute
 4. Write intraday snapshots every 15 minutes
 5. Write trade-by-trade records to `trade_log` immediately
-6. At engine shutdown, record the final close bid/ask to `daily_stats`
+6. Write private order lifecycle events to `order_events`
+7. At engine shutdown, record the final close bid/ask to `daily_stats`
 
 **Startup options:**
 
@@ -302,6 +333,58 @@ ts                       | trade_id  | symbol | price | quantity | buy_gateway_i
 2026-06-14T09:00:10.456  | T-AAPL-3  | AAPL   | 150.2 | 200      | TRADER02       | TRADER01
 ```
 
+#### `order-events` — Private Order Lifecycle Events
+
+Show order lifecycle events from `order_events` for one gateway. The gateway is
+required because lifecycle history is private per participant.
+
+```bash
+pm-stats-cli order-events --gateway TRADER01
+pm-stats-cli order-events --gateway TRADER01 --symbol AAPL
+pm-stats-cli order-events --gateway TRADER01 --event-type FILL
+pm-stats-cli order-events --gateway TRADER01 --date 2026-06-14 --limit 50
+pm-stats-cli --format json order-events --gateway TRADER01 --from 2026-06-14T09:00:00+00:00
+```
+
+**Options:**
+
+| Option | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `--gateway` | Yes | - | Gateway ID that owns the private events |
+| `--symbol` | No | all symbols | Restrict to one symbol |
+| `--event-type` | No | all event types | Restrict to one normalized type such as `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO`, `OCO`, or `QUOTE` |
+| `--date` | No | all dates | Restrict to one trading date |
+| `--from` | No | - | Start timestamp |
+| `--to` | No | - | End timestamp |
+| `--limit` | No | 500 | Maximum rows to return |
+
+**Example output:**
+
+```
+seq | ts                            | event_type | order_id | gateway_id | symbol | side | order_type | tif | price | quantity | remaining_qty | status
+----|-------------------------------|------------|----------|------------|--------|------|------------|-----|-------|----------|---------------|---------
+1   | 2026-06-14T09:00:00.100+00:00 | ACK        | O-AAPL-1 | TRADER01   | AAPL   | BUY  | LIMIT      | DAY | 150   | 100      | 100           | ACCEPTED
+2   | 2026-06-14T09:00:01.000+00:00 | FILL       | O-AAPL-1 | TRADER01   | AAPL   | BUY  |            |     |       |          | 0             | FILLED
+```
+
+#### `order-lifecycle` — One Order's Event Trail
+
+Show every lifecycle event for one order-like ID owned by a gateway. For combo,
+OCO, and quote events, the ID may be a `combo_id`, `oco_id`, or `quote_id` stored
+in the `order_id` column.
+
+```bash
+pm-stats-cli order-lifecycle --gateway TRADER01 --order-id O-AAPL-1
+pm-stats-cli --format csv order-lifecycle --gateway TRADER01 --order-id O-AAPL-1
+```
+
+**Options:**
+
+| Option | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `--gateway` | Yes | - | Gateway ID that owns the private event trail |
+| `--order-id` | Yes | - | Order, combo, OCO, or quote identifier to reconstruct |
+
 #### `symbols` — Symbol Discovery
 
 List all symbols with data in the statistics DB.
@@ -329,6 +412,66 @@ date
 2026-06-14
 2026-06-13
 ```
+
+### Order Lifecycle History Queries
+
+`order_events` can be queried directly with `pm-stats-cli` or through the API
+Gateway history endpoints. Use `pm-stats-cli` for local support, audit, and
+offline analysis. Use API Gateway history when a client should see only the
+private history for its authenticated trading credential.
+
+Direct CLI examples:
+
+```bash
+pm-stats-cli order-events --gateway TRADER01 --symbol AAPL --event-type FILL --limit 50
+pm-stats-cli order-lifecycle --gateway TRADER01 --order-id ORDER_ID
+pm-stats-cli --format json order-events --gateway TRADER01 --date 2026-06-14
+```
+
+For API Gateway history queries, start the recorder, engine, stats database, and
+API gateway with matching config:
+
+```bash
+pm-engine --verbose --config engine_config.yaml
+pm-stats --db data/stats.db
+pm-api-gateway --config engine_config.yaml --instance desk
+```
+
+Then query order lifecycle history through HTTP with a trading API key:
+
+```bash
+curl -H 'Authorization: Bearer key-trader-demo' \
+   'http://127.0.0.1:8080/api/v1/history/orders?symbol=AAPL&event_type=FILL&limit=50'
+```
+
+API filters for `/api/v1/history/orders`:
+
+| Query parameter | Required | Description |
+|-----------------|----------|-------------|
+| `symbol` | No | Restrict to one symbol |
+| `event_type` | No | Restrict to one normalized type such as `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO`, `OCO`, or `QUOTE` |
+| `date` | No | Restrict to one `YYYY-MM-DD` date based on `order_events.ts` |
+| `from` | No | Inclusive ISO timestamp lower bound |
+| `to` | No | Inclusive ISO timestamp upper bound |
+| `limit` | No | Maximum rows to return, default `500`, maximum `5000` |
+
+To reconstruct one order's lifecycle, use the order ID path:
+
+```bash
+curl -H 'Authorization: Bearer key-trader-demo' \
+   'http://127.0.0.1:8080/api/v1/history/orders/ORDER_ID'
+```
+
+For fill-only history, use the shortcut endpoint:
+
+```bash
+curl -H 'Authorization: Bearer key-trader-demo' \
+   'http://127.0.0.1:8080/api/v1/history/fills?symbol=AAPL&date=2026-06-14'
+```
+
+Responses include an `events` array, `count`, and for list-style queries a `has_more` flag. Each event row mirrors the `order_events` table columns, so JSON output can be loaded directly into audit notebooks or support tooling.
+
+Read-only API keys with `gateway_id: null` cannot query private order lifecycle history. Use a trading credential whose `gateway_id` owns the orders being investigated.
 
 
 
@@ -502,6 +645,31 @@ After a trading session ends, verify key metrics:
    ```
    Look at `largest_trade_qty` vs. average (`volume / trade_count`). Outliers warrant investigation.
 
+### Order Lifecycle Investigation
+
+Use `order_events` when the question is about what happened to a submitted order rather than what trades printed to the market.
+
+Examples:
+
+```bash
+# All recent events for a gateway
+pm-stats-cli order-events --gateway TRADER01 --limit 100
+
+# One order from ACK through fills, cancels, expiry, or rejection
+pm-stats-cli order-lifecycle --gateway TRADER01 --order-id ORDER_ID
+
+# Fill-only view for one symbol and date
+pm-stats-cli order-events --gateway TRADER01 --symbol AAPL --event-type FILL --date 2026-06-14
+```
+
+Use this workflow to answer:
+
+- Was the order accepted or rejected?
+- Did an amend reset priority?
+- Which fills belong to this order ID?
+- Was the order cancelled, expired, or linked to a combo/OCO group?
+- Does API Gateway history match the live private WebSocket events seen by the client?
+
 
 
 ## Integration with Other Tools
@@ -593,13 +761,19 @@ print(daily[['symbol', 'return_pct']])
    ```bash
    sqlite3 data/stats.db ".tables"
    ```
-   You should see: `daily_stats`, `price_snapshots`, `trade_log`.
+   You should see: `daily_stats`, `price_snapshots`, `trade_log`, and `order_events`.
 
 4. **Check for recent trades:**
    ```bash
    pm-stats-cli trades --limit 5
    ```
    If empty, no trades have executed yet. Execute a test trade first.
+
+5. **Check for order lifecycle history:**
+   ```bash
+   sqlite3 data/stats.db "SELECT ts,event_type,order_id,gateway_id,symbol FROM order_events ORDER BY seq DESC LIMIT 5;"
+   ```
+   If empty, no private order lifecycle topics have reached `pm-stats` yet. Submit, amend, cancel, or fill an order while `pm-stats` is running.
 
 ### Queries return "No rows found" but I know data should exist
 

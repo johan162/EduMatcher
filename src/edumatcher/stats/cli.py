@@ -15,6 +15,8 @@ from edumatcher.stats.query import (
     open_readonly_connection,
     query_daily,
     query_dates,
+    query_order_events,
+    query_order_lifecycle,
     query_snapshots,
     query_symbols,
     query_trades,
@@ -61,6 +63,29 @@ _TRADES_COLUMNS = [
     "quantity",
     "buy_gateway_id",
     "sell_gateway_id",
+]
+_ORDER_EVENTS_COLUMNS = [
+    "seq",
+    "ts",
+    "event_type",
+    "order_id",
+    "gateway_id",
+    "symbol",
+    "side",
+    "order_type",
+    "tif",
+    "price",
+    "quantity",
+    "remaining_qty",
+    "status",
+    "fill_price",
+    "fill_qty",
+    "trade_id",
+    "reason",
+    "client_order_id",
+    "combo_parent_id",
+    "oco_group_id",
+    "priority_reset",
 ]
 _SYMBOLS_COLUMNS = ["symbol"]
 _DATES_COLUMNS = ["date"]
@@ -115,6 +140,23 @@ def _build_parser() -> argparse.ArgumentParser:
     trades.add_argument("--from", dest="from_ts", metavar="ISO_TS")
     trades.add_argument("--to", dest="to_ts", metavar="ISO_TS")
     trades.add_argument("--limit", type=int, default=200, metavar="N")
+
+    order_events = sub.add_parser(
+        "order-events", help="Show private order lifecycle events"
+    )
+    order_events.add_argument("--gateway", required=True, metavar="GATEWAY_ID")
+    order_events.add_argument("--symbol", metavar="SYMBOL")
+    order_events.add_argument("--event-type", metavar="TYPE")
+    order_events.add_argument("--date", metavar="YYYY-MM-DD")
+    order_events.add_argument("--from", dest="from_ts", metavar="ISO_TS")
+    order_events.add_argument("--to", dest="to_ts", metavar="ISO_TS")
+    order_events.add_argument("--limit", type=int, default=500, metavar="N")
+
+    lifecycle = sub.add_parser(
+        "order-lifecycle", help="Show all events for one order ID"
+    )
+    lifecycle.add_argument("--gateway", required=True, metavar="GATEWAY_ID")
+    lifecycle.add_argument("--order-id", required=True, metavar="ORDER_ID")
 
     symbols = sub.add_parser("symbols", help="List symbols present in stats DB")
     symbols.add_argument("--date", metavar="YYYY-MM-DD")
@@ -224,6 +266,27 @@ def _run_query(
             limit=args.limit,
         )
         return _TRADES_COLUMNS, rows
+
+    if args.command == "order-events":
+        rows = query_order_events(
+            conn,
+            gateway_id=args.gateway.upper(),
+            symbol=args.symbol.upper() if args.symbol else None,
+            event_type=args.event_type.upper() if args.event_type else None,
+            date_value=args.date,
+            from_ts=args.from_ts,
+            to_ts=args.to_ts,
+            limit=args.limit,
+        )
+        return _ORDER_EVENTS_COLUMNS, rows
+
+    if args.command == "order-lifecycle":
+        rows = query_order_lifecycle(
+            conn,
+            gateway_id=args.gateway.upper(),
+            order_id=args.order_id,
+        )
+        return _ORDER_EVENTS_COLUMNS, rows
 
     if args.command == "symbols":
         rows = query_symbols(conn, date_value=args.date)
