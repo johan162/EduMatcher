@@ -256,16 +256,24 @@ class OrderBook:
         entry = self._entry_index.get(order_id)
         if entry:
             entry.valid = False
-            # Remove remaining visible qty from price-level index
+            # Remove remaining visible qty from price-level index.
+            # STOP / STOP_LIMIT orders rest in the stop heaps and never
+            # contribute to _bid_qty/_ask_qty; deducting them here would
+            # corrupt the qty index of genuine resting orders that share the
+            # stop's limit price (STOP_LIMIT carries a non-None price).
             o = entry.order
-            if o.price is not None:
+            if (
+                o.order_type not in (OrderType.STOP, OrderType.STOP_LIMIT)
+                and o.price is not None
+            ):
                 qty = (
                     o.displayed_qty
                     if o.order_type == OrderType.ICEBERG
                     else o.remaining_qty
                 )
                 self._deduct_qty_index(o, qty)  # type: ignore[arg-type]
-        # stops are not in _entry_index
+        # Stops live in the stop heaps but are also tracked in _entry_index;
+        # invalidating the entry above is enough to drop them lazily.
         return order
 
     def amend_order(
