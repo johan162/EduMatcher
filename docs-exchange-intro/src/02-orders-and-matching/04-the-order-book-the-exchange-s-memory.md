@@ -5,7 +5,7 @@ The **order book** (also called the **limit order book** or **LOB**) is the cent
 
 ![The Order Book](assets/order-book-illustration-small2.png)
 
-***Figure 1:** The most mportant data structure in an Exchange - the book.*
+***Figure 1:** The most important data structure in an Exchange - the book.*
 
 > **Key idea:** The order book contains only *resting* orders, those waiting for a counterparty. The current "market price" is derived from the book (as the mid of best bid and ask) or from the last trade, not from a stored field.
 

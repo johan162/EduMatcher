@@ -3,15 +3,22 @@
 
 The **matching engine** is the software that receives orders, manages the order book, and executes trades when buy and sell orders are compatible. It is the exchange's most critical, performance-sensitive component.
 
+![Matching Engine Diagram](assets/exchange-and-books-illustration-small.png)
+
+***Figure 1:** The matching engine receives orders from participants, manages the order book, and executes trades when compatible orders are found. It publishes trade and order status events to participants and subscribers.*
+
+
 ## The Core Loop
 
 At its simplest, the matching engine runs an endless loop:
+
 1. Receive an incoming order.
 2. Check if it can immediately match against resting orders on the opposite side.
 3. If yes, execute the match (create a trade, update quantities, notify participants).
 4. If there is remaining unfilled quantity, decide what to do with it (rest it in the book, or cancel it, depending on order type and TIF).
 5. Check if any dormant stop orders have now been triggered by the new trade price.
 6. Publish the results (trades, order status changes) to participants and subscribers.
+
 
 ```mermaid
 flowchart TD
