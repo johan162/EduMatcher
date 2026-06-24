@@ -14,15 +14,28 @@ Commands
   NEW|SYM=AAPL|SIDE=BUY|TYPE=STOP|QTY=100|STOP=148.00
   NEW|SYM=AAPL|SIDE=BUY|TYPE=STOP_LIMIT|QTY=100|STOP=148.00|PRICE=147.50
   NEW|SYM=AAPL|SIDE=BUY|TYPE=FOK|QTY=100|PRICE=150.00
+  NEW|SYM=AAPL|SIDE=BUY|TYPE=IOC|QTY=100|PRICE=150.00
   NEW|SYM=AAPL|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=150.00|VISIBLE=100
+  NEW|SYM=AAPL|SIDE=BUY|TYPE=TRAILING_STOP|QTY=100|TRAIL=0.50
+  NEW|TYPE=OCO|OCO_ID=<label>|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=BUY|LEG1_TYPE=LIMIT|LEG1_PRICE=150.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=148.00
+  NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=300.00
   AMEND|ID=ORD-xxxx|PRICE=151.00
   AMEND|ID=ORD-xxxx|QTY=200
   AMEND|ID=ORD-xxxx|PRICE=151.00|QTY=200
   CANCEL|ID=ORD-xxxx
-    STATUS                 — print gateway/session summary
-  ORDERS                 — print table of this session's orders
-  HELP                   — show command reference
-  EXIT / QUIT            — disconnect
+  CANCEL|COMBO_ID=<label>
+  CANCEL|OCO_ID=<label>
+  QUOTE|SYM=AAPL|BID=150.00|ASK=150.10|BID_QTY=500|ASK_QTY=500
+  QUOTE_CANCEL|SYM=AAPL
+  QBOOT[|SYM=AAPL]         — request active quote bootstrap state from engine
+  QLEGS[|SYM=AAPL][|SHOW=ACTIVE|RECENT|ALL]  — show MM quote legs
+  KILL[|SYM=AAPL]          — kill-switch cancel for this gateway
+  STATUS                   — print gateway/session summary
+  ORDERS                   — print table of this session's orders
+  POS                      — print current positions with P&L
+  SYMBOLS                  — list all active instruments in the engine
+  HELP                     — show command reference
+  EXIT / QUIT              — disconnect
 """
 
 from __future__ import annotations
@@ -213,7 +226,9 @@ class GatewayCompleter(Completer):
             field = key.split(".")[-1] if "." in key else key
 
             if field == "SYM":
-                candidates = self.known_symbols
+                candidates = list(
+                    self.known_symbols
+                )  # snapshot: listener may clear+extend concurrently
             elif field == "SIDE":
                 candidates = ["BUY", "SELL"]
             elif key == "TYPE":
@@ -279,6 +294,12 @@ class GatewayCompleter(Completer):
                     if c.upper().startswith(partial_key):
                         yield Completion(c, start_position=-len(current))
                 return
+            elif type_val == "OCO":
+                candidates = self._oco_completions(already_keys)
+                for c in candidates:
+                    if c.upper().startswith(partial_key):
+                        yield Completion(c, start_position=-len(current))
+                return
             elif type_val and type_val in _TYPE_FIELDS:
                 candidates = [
                     f
@@ -329,6 +350,27 @@ class GatewayCompleter(Completer):
                     candidates.append(key)
 
         return candidates
+
+    @staticmethod
+    def _oco_completions(already_keys: set[str]) -> list[str]:
+        """Generate completion candidates for TYPE=OCO fields."""
+        oco_fields = [
+            "OCO_ID=",
+            "SYM=",
+            "QTY=",
+            "TIF=",
+            "LEG1_SIDE=",
+            "LEG1_TYPE=",
+            "LEG1_PRICE=",
+            "LEG1_STOP=",
+            "LEG1_TRAIL=",
+            "LEG2_SIDE=",
+            "LEG2_TYPE=",
+            "LEG2_PRICE=",
+            "LEG2_STOP=",
+            "LEG2_TRAIL=",
+        ]
+        return [f for f in oco_fields if f.rstrip("=") not in already_keys]
 
 
 _PROMPT_STYLE = Style.from_dict(
@@ -698,11 +740,18 @@ class Gateway:
         poller = zmq.Poller()
         poller.register(self.sub_sock, zmq.POLLIN)
         while self._running:
-            socks = dict(poller.poll(timeout=200))
+            try:
+                socks = dict(poller.poll(timeout=200))
+            except zmq.ZMQError:
+                break
             if self.sub_sock in socks:
-                frames = self.sub_sock.recv_multipart()
-                topic, payload = decode(frames)
-                self._handle_event(topic, payload)
+                try:
+                    frames = self.sub_sock.recv_multipart()
+                    topic, payload = decode(frames)
+                    self._handle_event(topic, payload)
+                except Exception as exc:
+                    if self._running:
+                        console.print(f"[dim][WARN] listener error: {exc}[/dim]")
 
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
