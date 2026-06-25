@@ -1,3 +1,18 @@
+## [v0.10.1] - 2026-06-25
+
+Release Type: patch
+
+### 📋 Summary
+This patch release improves PDF documentation rendering stability and layout consistency for Mermaid-heavy content. It also includes minor documentation text refinements.
+
+### 🚀 Improvements
+- Improved Mermaid figure sizing in the PDF pipeline for more consistent diagram rendering
+- Improved pagebreak handling in the Lua filter by emitting clearpage to better handle floating images
+
+### 📚 Documentation
+- Updated documentation text with minor wording and clarity refinements
+
+
 ## [v0.10.0] - 2026-06-24
 
 Release Type: minor
