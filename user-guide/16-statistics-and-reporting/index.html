@@ -1367,6 +1367,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#order_events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        order_events
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1452,6 +1463,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#order-events-private-order-lifecycle-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        order-events — Private Order Lifecycle Events
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#order-lifecycle-one-orders-event-trail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        order-lifecycle — One Order's Event Trail
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#symbols-symbol-discovery" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1475,6 +1508,17 @@
         
       </ul>
     </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#order-lifecycle-history-queries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order Lifecycle History Queries
+      
+    </span>
+  </a>
   
 </li>
         
@@ -1605,6 +1649,17 @@
     <span class="md-ellipsis">
       
         Validation — Did the Trade Complete Correctly?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#order-lifecycle-investigation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Order Lifecycle Investigation
       
     </span>
   </a>
@@ -1877,6 +1932,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../21-api-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Gateway (REST/WebSocket)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../80-examples/" class="md-nav__link">
         
   
@@ -1913,6 +1996,34 @@
     
   
     Example Engine Configs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../89-known-limitations-bugs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Known Limitations & Bugs
   
 
     
@@ -2799,6 +2910,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/24-api-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    24 — API Gateway (REST/WebSocket)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3205,7 +3344,7 @@
 <ul>
 <li>How to record market statistics continuously using <code>pm-stats</code></li>
 <li>How to query statistics data without writing SQL using <code>pm-stats-cli</code></li>
-<li>Common analyst workflows: end-of-day summaries, intraday price analysis, trade analysis</li>
+<li>Common analyst workflows: end-of-day summaries, intraday price analysis, trade analysis, and order lifecycle investigation</li>
 <li>How to export statistics for external analysis (spreadsheets, BI tools)</li>
 <li>How the statistics system integrates with other tools like <code>pm-ticker</code></li>
 <li>How to troubleshoot and validate statistics data</li>
@@ -3227,7 +3366,7 @@
 <td><strong>pm-stats</strong></td>
 <td>Subscriber</td>
 <td>Long-running process</td>
-<td>Listens to all trades and book updates; writes OHLCV, snapshots, and trade log to <code>data/stats.db</code></td>
+<td>Listens to trades, book updates, and private order lifecycle events; writes OHLCV, snapshots, trade log, and <code>order_events</code> to <code>data/stats.db</code></td>
 </tr>
 <tr>
 <td><strong>pm-stats-cli</strong></td>
@@ -3330,7 +3469,7 @@
 </div>
 <p>See <a href="../10-processes/#environment-variables">Processes — Environment variables</a> for full details on <code>EDUMATCHER_DATA_DIR</code> and <code>EDUMATCHER_CONFIG</code>.</p>
 <h2 id="the-statistics-database-schema">The Statistics Database Schema<a class="headerlink" href="#the-statistics-database-schema" title="Permanent link">&para;</a></h2>
-<p>All statistics are stored in <code>data/stats.db</code>, a SQLite 3 database with three tables:</p>
+<p>All statistics are stored in <code>data/stats.db</code>, a SQLite 3 database with four tables:</p>
 <h3 id="daily_stats"><code>daily_stats</code><a class="headerlink" href="#daily_stats" title="Permanent link">&para;</a></h3>
 <p>Aggregated OHLCV (open, high, low, close, volume) and related metrics for each symbol per day.</p>
 <table>
@@ -3513,6 +3652,125 @@
 </tbody>
 </table>
 <p><strong>Use case</strong>: Trade-by-trade analysis, flow analysis, detecting potential market manipulation, audit trails.</p>
+<h3 id="order_events"><code>order_events</code><a class="headerlink" href="#order_events" title="Permanent link">&para;</a></h3>
+<p>Append-only order lifecycle history captured from private engine topics. This table is used by API Gateway history endpoints to reconstruct per-gateway order, fill, cancel, amend, combo, OCO, and quote events.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>seq</code></td>
+<td>INTEGER</td>
+<td>Monotonic local sequence assigned by SQLite for stable event ordering</td>
+</tr>
+<tr>
+<td><code>ts</code></td>
+<td>TEXT</td>
+<td>ISO-8601 timestamp (UTC, millisecond precision) when <code>pm-stats</code> recorded the event</td>
+</tr>
+<tr>
+<td><code>event_type</code></td>
+<td>TEXT</td>
+<td>Normalized event category: <code>ACK</code>, <code>REJECT</code>, <code>FILL</code>, <code>AMEND</code>, <code>CANCEL</code>, <code>EXPIRE</code>, <code>COMBO</code>, <code>OCO</code>, <code>QUOTE</code>, or <code>EVENT</code></td>
+</tr>
+<tr>
+<td><code>order_id</code></td>
+<td>TEXT</td>
+<td>Order-like identifier; for combo/OCO/quote events this may be <code>combo_id</code>, <code>oco_id</code>, or <code>quote_id</code></td>
+</tr>
+<tr>
+<td><code>gateway_id</code></td>
+<td>TEXT</td>
+<td>Gateway identity that owns the private event</td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td>TEXT</td>
+<td>Instrument ticker when present in the event payload</td>
+</tr>
+<tr>
+<td><code>side</code></td>
+<td>TEXT</td>
+<td><code>BUY</code> or <code>SELL</code> when applicable</td>
+</tr>
+<tr>
+<td><code>order_type</code></td>
+<td>TEXT</td>
+<td>Order type from the original order or lifecycle event</td>
+</tr>
+<tr>
+<td><code>tif</code></td>
+<td>TEXT</td>
+<td>Time-in-force value when present</td>
+</tr>
+<tr>
+<td><code>price</code></td>
+<td>REAL</td>
+<td>Limit/order price when present</td>
+</tr>
+<tr>
+<td><code>quantity</code></td>
+<td>INTEGER</td>
+<td>Original or submitted quantity when present</td>
+</tr>
+<tr>
+<td><code>remaining_qty</code></td>
+<td>INTEGER</td>
+<td>Quantity remaining after the event when provided by the engine</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>TEXT</td>
+<td>Engine status value when present</td>
+</tr>
+<tr>
+<td><code>fill_price</code></td>
+<td>REAL</td>
+<td>Execution price for fill events</td>
+</tr>
+<tr>
+<td><code>fill_qty</code></td>
+<td>INTEGER</td>
+<td>Executed quantity for fill events</td>
+</tr>
+<tr>
+<td><code>trade_id</code></td>
+<td>TEXT</td>
+<td>Trade identifier linked to a fill event</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td>TEXT</td>
+<td>Rejection, cancel, expire, or status reason when provided</td>
+</tr>
+<tr>
+<td><code>client_order_id</code></td>
+<td>TEXT</td>
+<td>Client-supplied order identifier when present</td>
+</tr>
+<tr>
+<td><code>combo_parent_id</code></td>
+<td>TEXT</td>
+<td>Parent combo identifier for combo child events</td>
+</tr>
+<tr>
+<td><code>oco_group_id</code></td>
+<td>TEXT</td>
+<td>OCO group identifier for linked order events</td>
+</tr>
+<tr>
+<td><code>priority_reset</code></td>
+<td>INTEGER</td>
+<td><code>1</code> when an amend reset queue priority, <code>0</code> when it did not, null when not applicable</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Use case</strong>: API Gateway order history, support investigations, per-gateway audit trails, fill-only history, and lifecycle reconstruction for a single order ID.</p>
 <h2 id="running-the-statistics-recorder">Running the Statistics Recorder<a class="headerlink" href="#running-the-statistics-recorder" title="Permanent link">&para;</a></h2>
 <p>Start <code>pm-stats</code> as a background process after the engine starts:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Terminal 1: Start the engine</span>
@@ -3524,10 +3782,11 @@
 <p><code>pm-stats</code> will:</p>
 <ol>
 <li>Connect as a subscriber to the engine's PUB socket (:5556)</li>
-<li>Request an initial book snapshot from the engine via PUSH (:5555)</li>
+<li>Wait briefly for ZMQ subscriptions to propagate, then request the symbol list from the engine via PUSH (:5555); on receipt, request a current book snapshot per symbol so opening bid/ask and initial price rows are captured even before new trading activity</li>
 <li>Begin recording trades to <code>daily_stats</code> as they execute</li>
 <li>Write intraday snapshots every 15 minutes</li>
 <li>Write trade-by-trade records to <code>trade_log</code> immediately</li>
+<li>Write private order lifecycle events to <code>order_events</code></li>
 <li>At engine shutdown, record the final close bid/ask to <code>daily_stats</code></li>
 </ol>
 <p><strong>Startup options:</strong></p>
@@ -3739,63 +3998,237 @@
 <a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>2026-06-14T09:00:05.123  | T-AAPL-2  | AAPL   | 150.5 | 50       | MM01           | TRADER02
 <a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>2026-06-14T09:00:10.456  | T-AAPL-3  | AAPL   | 150.2 | 200      | TRADER02       | TRADER01
 </code></pre></div>
+<h4 id="order-events-private-order-lifecycle-events"><code>order-events</code> — Private Order Lifecycle Events<a class="headerlink" href="#order-events-private-order-lifecycle-events" title="Permanent link">&para;</a></h4>
+<p>Show order lifecycle events from <code>order_events</code> for one gateway. The gateway is
+required because lifecycle history is private per participant.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-stats-cli<span class="w"> </span>order-events<span class="w"> </span>--gateway<span class="w"> </span>TRADER01
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>pm-stats-cli<span class="w"> </span>order-events<span class="w"> </span>--gateway<span class="w"> </span>TRADER01<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>pm-stats-cli<span class="w"> </span>order-events<span class="w"> </span>--gateway<span class="w"> </span>TRADER01<span class="w"> </span>--event-type<span class="w"> </span>FILL
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>pm-stats-cli<span class="w"> </span>order-events<span class="w"> </span>--gateway<span class="w"> </span>TRADER01<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>order-events<span class="w"> </span>--gateway<span class="w"> </span>TRADER01<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-06-14T09:00:00+00:00
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--gateway</code></td>
+<td>Yes</td>
+<td>-</td>
+<td>Gateway ID that owns the private events</td>
+</tr>
+<tr>
+<td><code>--symbol</code></td>
+<td>No</td>
+<td>all symbols</td>
+<td>Restrict to one symbol</td>
+</tr>
+<tr>
+<td><code>--event-type</code></td>
+<td>No</td>
+<td>all event types</td>
+<td>Restrict to one normalized type such as <code>ACK</code>, <code>REJECT</code>, <code>FILL</code>, <code>AMEND</code>, <code>CANCEL</code>, <code>EXPIRE</code>, <code>COMBO</code>, <code>OCO</code>, <code>QUOTE</code>, or <code>EVENT</code></td>
+</tr>
+<tr>
+<td><code>--date</code></td>
+<td>No</td>
+<td>all dates</td>
+<td>Restrict to one trading date</td>
+</tr>
+<tr>
+<td><code>--from</code></td>
+<td>No</td>
+<td>-</td>
+<td>Start timestamp</td>
+</tr>
+<tr>
+<td><code>--to</code></td>
+<td>No</td>
+<td>-</td>
+<td>End timestamp</td>
+</tr>
+<tr>
+<td><code>--limit</code></td>
+<td>No</td>
+<td>500</td>
+<td>Maximum rows to return</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Example output:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>seq | ts                            | event_type | order_id | gateway_id | symbol | side | order_type | tif | price | quantity | remaining_qty | status
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>----|-------------------------------|------------|----------|------------|--------|------|------------|-----|-------|----------|---------------|---------
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>1   | 2026-06-14T09:00:00.100+00:00 | ACK        | O-AAPL-1 | TRADER01   | AAPL   | BUY  | LIMIT      | DAY | 150   | 100      | 100           | ACCEPTED
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>2   | 2026-06-14T09:00:01.000+00:00 | FILL       | O-AAPL-1 | TRADER01   | AAPL   | BUY  |            |     |       |          | 0             | FILLED
+</code></pre></div>
+<h4 id="order-lifecycle-one-orders-event-trail"><code>order-lifecycle</code> — One Order's Event Trail<a class="headerlink" href="#order-lifecycle-one-orders-event-trail" title="Permanent link">&para;</a></h4>
+<p>Show every lifecycle event for one order-like ID owned by a gateway. For combo,
+OCO, and quote events, the ID may be a <code>combo_id</code>, <code>oco_id</code>, or <code>quote_id</code> stored
+in the <code>order_id</code> column.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-stats-cli<span class="w"> </span>order-lifecycle<span class="w"> </span>--gateway<span class="w"> </span>TRADER01<span class="w"> </span>--order-id<span class="w"> </span>O-AAPL-1
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>order-lifecycle<span class="w"> </span>--gateway<span class="w"> </span>TRADER01<span class="w"> </span>--order-id<span class="w"> </span>O-AAPL-1
+</code></pre></div>
+<p><strong>Options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--gateway</code></td>
+<td>Yes</td>
+<td>-</td>
+<td>Gateway ID that owns the private event trail</td>
+</tr>
+<tr>
+<td><code>--order-id</code></td>
+<td>Yes</td>
+<td>-</td>
+<td>Order, combo, OCO, or quote identifier to reconstruct</td>
+</tr>
+</tbody>
+</table>
 <h4 id="symbols-symbol-discovery"><code>symbols</code> — Symbol Discovery<a class="headerlink" href="#symbols-symbol-discovery" title="Permanent link">&para;</a></h4>
 <p>List all symbols with data in the statistics DB.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-stats-cli<span class="w"> </span>symbols
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>pm-stats-cli<span class="w"> </span>symbols<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w">  </span><span class="c1"># symbols with data on a specific date</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-stats-cli<span class="w"> </span>symbols
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>pm-stats-cli<span class="w"> </span>symbols<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w">  </span><span class="c1"># symbols with data on a specific date</span>
 </code></pre></div>
 <h4 id="dates-trading-date-discovery"><code>dates</code> — Trading Date Discovery<a class="headerlink" href="#dates-trading-date-discovery" title="Permanent link">&para;</a></h4>
 <p>List all available trading dates recorded in <code>daily_stats</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-stats-cli<span class="w"> </span>dates
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>pm-stats-cli<span class="w"> </span>dates<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w">  </span><span class="c1"># dates with data for a specific symbol</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>pm-stats-cli<span class="w"> </span>dates
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>pm-stats-cli<span class="w"> </span>dates<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w">  </span><span class="c1"># dates with data for a specific symbol</span>
 </code></pre></div>
 <p><strong>Example output:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>date
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>----------
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>2026-06-15
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>2026-06-14
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>2026-06-13
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>date
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>----------
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>2026-06-15
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a>2026-06-14
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a>2026-06-13
 </code></pre></div>
+<h3 id="order-lifecycle-history-queries">Order Lifecycle History Queries<a class="headerlink" href="#order-lifecycle-history-queries" title="Permanent link">&para;</a></h3>
+<p><code>order_events</code> can be queried directly with <code>pm-stats-cli</code> or through the API
+Gateway history endpoints. Use <code>pm-stats-cli</code> for local support, audit, and
+offline analysis. Use API Gateway history when a client should see only the
+private history for its authenticated trading credential.</p>
+<p>Direct CLI examples:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>pm-stats-cli<span class="w"> </span>order-events<span class="w"> </span>--gateway<span class="w"> </span>TRADER01<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--event-type<span class="w"> </span>FILL<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>pm-stats-cli<span class="w"> </span>order-lifecycle<span class="w"> </span>--gateway<span class="w"> </span>TRADER01<span class="w"> </span>--order-id<span class="w"> </span>ORDER_ID
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>order-events<span class="w"> </span>--gateway<span class="w"> </span>TRADER01<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14
+</code></pre></div>
+<p>For API Gateway history queries, start the recorder, engine, stats database, and
+API gateway with matching config:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-engine<span class="w"> </span>--verbose<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>pm-stats<span class="w"> </span>--db<span class="w"> </span>data/stats.db
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>pm-api-gateway<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
+</code></pre></div>
+<p>Then query order lifecycle history through HTTP with a trading API key:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">&#39;Authorization: Bearer key-trader-demo&#39;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">   </span><span class="s1">&#39;http://127.0.0.1:8080/api/v1/history/orders?symbol=AAPL&amp;event_type=FILL&amp;limit=50&#39;</span>
+</code></pre></div>
+<p>API filters for <code>/api/v1/history/orders</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Query parameter</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td>No</td>
+<td>Restrict to one symbol</td>
+</tr>
+<tr>
+<td><code>event_type</code></td>
+<td>No</td>
+<td>Restrict to one normalized type such as <code>ACK</code>, <code>REJECT</code>, <code>FILL</code>, <code>AMEND</code>, <code>CANCEL</code>, <code>EXPIRE</code>, <code>COMBO</code>, <code>OCO</code>, <code>QUOTE</code>, or <code>EVENT</code></td>
+</tr>
+<tr>
+<td><code>date</code></td>
+<td>No</td>
+<td>Restrict to one <code>YYYY-MM-DD</code> date based on <code>order_events.ts</code></td>
+</tr>
+<tr>
+<td><code>from</code></td>
+<td>No</td>
+<td>Inclusive ISO timestamp lower bound</td>
+</tr>
+<tr>
+<td><code>to</code></td>
+<td>No</td>
+<td>Inclusive ISO timestamp upper bound</td>
+</tr>
+<tr>
+<td><code>limit</code></td>
+<td>No</td>
+<td>Maximum rows to return, default <code>500</code>, maximum <code>5000</code></td>
+</tr>
+</tbody>
+</table>
+<p>To reconstruct one order's lifecycle, use the order ID path:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">&#39;Authorization: Bearer key-trader-demo&#39;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">   </span><span class="s1">&#39;http://127.0.0.1:8080/api/v1/history/orders/ORDER_ID&#39;</span>
+</code></pre></div>
+<p>For fill-only history, use the shortcut endpoint:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">&#39;Authorization: Bearer key-trader-demo&#39;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="w">   </span><span class="s1">&#39;http://127.0.0.1:8080/api/v1/history/fills?symbol=AAPL&amp;date=2026-06-14&#39;</span>
+</code></pre></div>
+<p>Responses include an <code>events</code> array, <code>count</code>, and for list-style queries a <code>has_more</code> flag. Each event row mirrors the <code>order_events</code> table columns, so JSON output can be loaded directly into audit notebooks or support tooling.</p>
+<p>Read-only API keys with <code>gateway_id: null</code> cannot query private order lifecycle history. Use a trading credential whose <code>gateway_id</code> owns the orders being investigated.</p>
 <h2 id="output-formats">Output Formats<a class="headerlink" href="#output-formats" title="Permanent link">&para;</a></h2>
 <h3 id="table-format-default">Table Format (default)<a class="headerlink" href="#table-format-default" title="Permanent link">&para;</a></h3>
 <p>Human-readable aligned columns, designed for terminal viewing.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-stats-cli<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>pm-stats-cli<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14
 </code></pre></div>
 <p>Good for: interactive exploration, demos, quick spot-checks.</p>
 <h3 id="json-format">JSON Format<a class="headerlink" href="#json-format" title="Permanent link">&para;</a></h3>
 <p>Machine-readable structured output for automation and downstream tools.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.[] | select(.symbol == &quot;AAPL&quot;)&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.[] | select(.symbol == &quot;AAPL&quot;)&#39;</span>
 </code></pre></div>
 <p>Output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="p">[</span>
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">  </span><span class="p">{</span>
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="w">    </span><span class="nt">&quot;date&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-06-14&quot;</span><span class="p">,</span>
-<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="w">    </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span>
-<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="w">    </span><span class="nt">&quot;open_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">150.0</span><span class="p">,</span>
-<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="w">    </span><span class="nt">&quot;high_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">153.25</span><span class="p">,</span>
-<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="w">    </span><span class="err">...</span>
-<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="w">  </span><span class="p">},</span>
-<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="w">  </span><span class="err">...</span>
-<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="p">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="p">[</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="w">  </span><span class="p">{</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="w">    </span><span class="nt">&quot;date&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2026-06-14&quot;</span><span class="p">,</span>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="w">    </span><span class="nt">&quot;symbol&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a><span class="w">    </span><span class="nt">&quot;open_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">150.0</span><span class="p">,</span>
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a><span class="w">    </span><span class="nt">&quot;high_price&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">153.25</span><span class="p">,</span>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="w">    </span><span class="err">...</span>
+<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a><span class="w">  </span><span class="p">},</span>
+<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a><span class="w">  </span><span class="err">...</span>
+<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a><span class="p">]</span>
 </code></pre></div>
 <p>Good for: scripts, APIs, BI tools, data pipelines.</p>
 <h3 id="csv-format">CSV Format<a class="headerlink" href="#csv-format" title="Permanent link">&para;</a></h3>
 <p>Comma-separated values suitable for spreadsheets and data analysis tools.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span>&gt;<span class="w"> </span>trades.csv
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span>&gt;<span class="w"> </span>trades.csv
 </code></pre></div>
 <p>Output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>ts,trade_id,symbol,price,quantity,buy_gateway_id,sell_gateway_id
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>2026-06-14T09:00:01.000,T-AAPL-1,AAPL,150,100,TRADER01,MM01
-<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>2026-06-14T09:00:05.123,T-AAPL-2,AAPL,150.5,50,MM01,TRADER02
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>ts,trade_id,symbol,price,quantity,buy_gateway_id,sell_gateway_id
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>2026-06-14T09:00:01.000,T-AAPL-1,AAPL,150,100,TRADER01,MM01
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>2026-06-14T09:00:05.123,T-AAPL-2,AAPL,150.5,50,MM01,TRADER02
 </code></pre></div>
 <p>Good for: Excel, Google Sheets, R/Python data frames, general-purpose analysis.</p>
 <p>Use <code>--no-header</code> to suppress the header row:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>--no-header<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>&gt;&gt;<span class="w"> </span>all_trades.csv
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>--no-header<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>&gt;&gt;<span class="w"> </span>all_trades.csv
 </code></pre></div>
 <h2 id="common-analyst-workflows">Common Analyst Workflows<a class="headerlink" href="#common-analyst-workflows" title="Permanent link">&para;</a></h2>
 <h3 id="end-of-day-summary-report">End-of-Day Summary Report<a class="headerlink" href="#end-of-day-summary-report" title="Permanent link">&para;</a></h3>
 <p>Generate a quick summary of all symbols for a given trading date:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>pm-stats-cli<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span>--wide
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>pm-stats-cli<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span>--wide
 </code></pre></div>
 <p>This shows open/close prices, bid/ask spreads, volume, trade count, and VWAP for every symbol.</p>
 <p><strong>Follow-up questions:</strong>
@@ -3804,7 +4237,7 @@
 - Did any symbol experience a large single trade?</p>
 <h3 id="intraday-price-volatility-analysis">Intraday Price Volatility Analysis<a class="headerlink" href="#intraday-price-volatility-analysis" title="Permanent link">&para;</a></h3>
 <p>Check mid-price movement for one symbol throughout the day:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>pm-stats-cli<span class="w"> </span>snapshots<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-20
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>pm-stats-cli<span class="w"> </span>snapshots<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-20
 </code></pre></div>
 <p>Look at the <code>pct_change</code> column to spot:
 - Periods of high volatility (large jumps)
@@ -3813,25 +4246,25 @@
 - Times when the book was empty (null bids/asks)</p>
 <h3 id="trade-flow-analysis">Trade Flow Analysis<a class="headerlink" href="#trade-flow-analysis" title="Permanent link">&para;</a></h3>
 <p>Examine all trades for a symbol to identify patterns:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span>&gt;<span class="w"> </span>aapl_trades.csv
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span>&gt;<span class="w"> </span>aapl_trades.csv
 </code></pre></div>
 <p>Then analyze in a spreadsheet or Python:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
-<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="n">trades</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s1">&#39;aapl_trades.csv&#39;</span><span class="p">,</span> <span class="n">parse_dates</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;ts&#39;</span><span class="p">])</span>
-<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="n">trades</span><span class="p">[</span><span class="s1">&#39;hour&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">trades</span><span class="p">[</span><span class="s1">&#39;ts&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">hour</span>
-<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a>
-<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="c1"># Trades per hour</span>
-<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">trades</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;hour&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">size</span><span class="p">())</span>
-<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a>
-<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="c1"># Average trade size</span>
-<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">trades</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;hour&#39;</span><span class="p">)[</span><span class="s1">&#39;quantity&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span>
-<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a>
-<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a><span class="c1"># Who are the active participants?</span>
-<a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a><span class="nb">print</span><span class="p">(</span><span class="n">trades</span><span class="p">[</span><span class="s1">&#39;buy_gateway_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">()</span> <span class="o">+</span> <span class="n">trades</span><span class="p">[</span><span class="s1">&#39;sell_gateway_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">())</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="n">trades</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s1">&#39;aapl_trades.csv&#39;</span><span class="p">,</span> <span class="n">parse_dates</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;ts&#39;</span><span class="p">])</span>
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="n">trades</span><span class="p">[</span><span class="s1">&#39;hour&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">trades</span><span class="p">[</span><span class="s1">&#39;ts&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">dt</span><span class="o">.</span><span class="n">hour</span>
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>
+<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a><span class="c1"># Trades per hour</span>
+<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a><span class="nb">print</span><span class="p">(</span><span class="n">trades</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;hour&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">size</span><span class="p">())</span>
+<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a>
+<a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a><span class="c1"># Average trade size</span>
+<a id="__codelineno-33-9" name="__codelineno-33-9" href="#__codelineno-33-9"></a><span class="nb">print</span><span class="p">(</span><span class="n">trades</span><span class="o">.</span><span class="n">groupby</span><span class="p">(</span><span class="s1">&#39;hour&#39;</span><span class="p">)[</span><span class="s1">&#39;quantity&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mean</span><span class="p">())</span>
+<a id="__codelineno-33-10" name="__codelineno-33-10" href="#__codelineno-33-10"></a>
+<a id="__codelineno-33-11" name="__codelineno-33-11" href="#__codelineno-33-11"></a><span class="c1"># Who are the active participants?</span>
+<a id="__codelineno-33-12" name="__codelineno-33-12" href="#__codelineno-33-12"></a><span class="nb">print</span><span class="p">(</span><span class="n">trades</span><span class="p">[</span><span class="s1">&#39;buy_gateway_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">()</span> <span class="o">+</span> <span class="n">trades</span><span class="p">[</span><span class="s1">&#39;sell_gateway_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">value_counts</span><span class="p">())</span>
 </code></pre></div>
 <h3 id="participant-performance-analysis">Participant Performance Analysis<a class="headerlink" href="#participant-performance-analysis" title="Permanent link">&para;</a></h3>
 <p>Export trade logs and group by participant to see:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>trades<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.[] | {buyer: .buy_gateway_id, seller: .sell_gateway_id, price: .price, qty: .quantity}&#39;</span><span class="w"> </span>&gt;<span class="w"> </span>participant_flows.json
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>trades<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.[] | {buyer: .buy_gateway_id, seller: .sell_gateway_id, price: .price, qty: .quantity}&#39;</span><span class="w"> </span>&gt;<span class="w"> </span>participant_flows.json
 </code></pre></div>
 <p>Then aggregate in your tool of choice:
 - How many trades did each participant execute?
@@ -3839,7 +4272,7 @@
 - Did they tend to be buyers or sellers?</p>
 <h3 id="multi-day-price-trends">Multi-Day Price Trends<a class="headerlink" href="#multi-day-price-trends" title="Permanent link">&para;</a></h3>
 <p>Compare the same symbol across multiple trading dates:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>daily<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--limit<span class="w"> </span><span class="m">100</span><span class="w"> </span>&gt;<span class="w"> </span>aapl_history.csv
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>daily<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--limit<span class="w"> </span><span class="m">100</span><span class="w"> </span>&gt;<span class="w"> </span>aapl_history.csv
 </code></pre></div>
 <p>This gives you historical OHLCV to track trends, seasonal patterns, or support/resistance zones over time.</p>
 <h3 id="validation-did-the-trade-complete-correctly">Validation — Did the Trade Complete Correctly?<a class="headerlink" href="#validation-did-the-trade-complete-correctly" title="Permanent link">&para;</a></h3>
@@ -3847,127 +4280,153 @@
 <ol>
 <li>
 <p><strong>Check daily summary recorded:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pm-stats-cli<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-stats-cli<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14
 </code></pre></div>
    Verify: all symbols present, volume &gt; 0, open/close prices are reasonable.</p>
 </li>
 <li>
 <p><strong>Check trade count:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span>wc<span class="w"> </span>-l
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span>wc<span class="w"> </span>-l
 </code></pre></div>
    Verify: matches expected number from the trading floor.</p>
 </li>
 <li>
 <p><strong>Check for any empty books:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>pm-stats-cli<span class="w"> </span>snapshots<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s2">&quot;(null|^-)&quot;</span>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>pm-stats-cli<span class="w"> </span>snapshots<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s2">&quot;(null|^-)&quot;</span>
 </code></pre></div>
    Empty books during active trading hours may indicate a problem.</p>
 </li>
 <li>
 <p><strong>Check largest trade vs. typical trade size:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>pm-stats-cli<span class="w"> </span>daily<span class="w"> </span>--wide<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>pm-stats-cli<span class="w"> </span>daily<span class="w"> </span>--wide<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span>--symbol<span class="w"> </span>AAPL
 </code></pre></div>
    Look at <code>largest_trade_qty</code> vs. average (<code>volume / trade_count</code>). Outliers warrant investigation.</p>
 </li>
 </ol>
+<h3 id="order-lifecycle-investigation">Order Lifecycle Investigation<a class="headerlink" href="#order-lifecycle-investigation" title="Permanent link">&para;</a></h3>
+<p>Use <code>order_events</code> when the question is about what happened to a submitted order rather than what trades printed to the market.</p>
+<p>Examples:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a><span class="c1"># All recent events for a gateway</span>
+<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>pm-stats-cli<span class="w"> </span>order-events<span class="w"> </span>--gateway<span class="w"> </span>TRADER01<span class="w"> </span>--limit<span class="w"> </span><span class="m">100</span>
+<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a>
+<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a><span class="c1"># One order from ACK through fills, cancels, expiry, or rejection</span>
+<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a>pm-stats-cli<span class="w"> </span>order-lifecycle<span class="w"> </span>--gateway<span class="w"> </span>TRADER01<span class="w"> </span>--order-id<span class="w"> </span>ORDER_ID
+<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a>
+<a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a><span class="c1"># Fill-only view for one symbol and date</span>
+<a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a>pm-stats-cli<span class="w"> </span>order-events<span class="w"> </span>--gateway<span class="w"> </span>TRADER01<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--event-type<span class="w"> </span>FILL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14
+</code></pre></div>
+<p>Use this workflow to answer:</p>
+<ul>
+<li>Was the order accepted or rejected?</li>
+<li>Did an amend reset priority?</li>
+<li>Which fills belong to this order ID?</li>
+<li>Was the order cancelled, expired, or linked to a combo/OCO group?</li>
+<li>Does API Gateway history match the live private WebSocket events seen by the client?</li>
+</ul>
 <h2 id="integration-with-other-tools">Integration with Other Tools<a class="headerlink" href="#integration-with-other-tools" title="Permanent link">&para;</a></h2>
 <h3 id="combining-with-pm-ticker">Combining with pm-ticker<a class="headerlink" href="#combining-with-pm-ticker" title="Permanent link">&para;</a></h3>
 <p><code>pm-ticker</code> uses <code>data/stats.db</code> to display OHLCV and volume context in its live display.</p>
 <p>To verify <code>pm-stats</code> is recording correctly while <code>pm-ticker</code> runs:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="c1"># Terminal 1: Start engine</span>
-<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>pm-engine<span class="w"> </span>--verbose
-<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>
-<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="c1"># Terminal 2: Start stats</span>
-<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>pm-stats
-<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>
-<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a><span class="c1"># Terminal 3: Start ticker (reads from stats DB)</span>
-<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a>pm-ticker
-<a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a>
-<a id="__codelineno-32-10" name="__codelineno-32-10" href="#__codelineno-32-10"></a><span class="c1"># Terminal 4: Live-check stats as trades occur</span>
-<a id="__codelineno-32-11" name="__codelineno-32-11" href="#__codelineno-32-11"></a>watch<span class="w"> </span>-n<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="s1">&#39;pm-stats-cli daily | tail -5&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a><span class="c1"># Terminal 1: Start engine</span>
+<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>pm-engine<span class="w"> </span>--verbose
+<a id="__codelineno-41-3" name="__codelineno-41-3" href="#__codelineno-41-3"></a>
+<a id="__codelineno-41-4" name="__codelineno-41-4" href="#__codelineno-41-4"></a><span class="c1"># Terminal 2: Start stats</span>
+<a id="__codelineno-41-5" name="__codelineno-41-5" href="#__codelineno-41-5"></a>pm-stats
+<a id="__codelineno-41-6" name="__codelineno-41-6" href="#__codelineno-41-6"></a>
+<a id="__codelineno-41-7" name="__codelineno-41-7" href="#__codelineno-41-7"></a><span class="c1"># Terminal 3: Start ticker (reads from stats DB)</span>
+<a id="__codelineno-41-8" name="__codelineno-41-8" href="#__codelineno-41-8"></a>pm-ticker
+<a id="__codelineno-41-9" name="__codelineno-41-9" href="#__codelineno-41-9"></a>
+<a id="__codelineno-41-10" name="__codelineno-41-10" href="#__codelineno-41-10"></a><span class="c1"># Terminal 4: Live-check stats as trades occur</span>
+<a id="__codelineno-41-11" name="__codelineno-41-11" href="#__codelineno-41-11"></a>watch<span class="w"> </span>-n<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="s1">&#39;pm-stats-cli daily | tail -5&#39;</span>
 </code></pre></div>
 <h3 id="exporting-to-bi-tools">Exporting to BI Tools<a class="headerlink" href="#exporting-to-bi-tools" title="Permanent link">&para;</a></h3>
 <p>Example: Export daily summaries to a cloud data warehouse:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="c1"># Export as CSV</span>
-<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>daily<span class="w"> </span>--limit<span class="w"> </span><span class="m">1000</span><span class="w"> </span>&gt;<span class="w"> </span>daily_stats.csv
-<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>
-<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="c1"># Upload to BigQuery, Redshift, Snowflake, etc.</span>
-<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a>bq<span class="w"> </span>load<span class="w"> </span>my_dataset.daily_stats<span class="w"> </span>daily_stats.csv
-<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a>
-<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a><span class="c1"># Or load into local database</span>
-<a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a>sqlite3<span class="w"> </span>analysis.db<span class="w"> </span>&lt;<span class="w"> </span><span class="s">&lt;&lt;EOF</span>
-<a id="__codelineno-33-9" name="__codelineno-33-9" href="#__codelineno-33-9"></a><span class="s">.mode csv</span>
-<a id="__codelineno-33-10" name="__codelineno-33-10" href="#__codelineno-33-10"></a><span class="s">.import daily_stats.csv daily_stats</span>
-<a id="__codelineno-33-11" name="__codelineno-33-11" href="#__codelineno-33-11"></a><span class="s">EOF</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a><span class="c1"># Export as CSV</span>
+<a id="__codelineno-42-2" name="__codelineno-42-2" href="#__codelineno-42-2"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>daily<span class="w"> </span>--limit<span class="w"> </span><span class="m">1000</span><span class="w"> </span>&gt;<span class="w"> </span>daily_stats.csv
+<a id="__codelineno-42-3" name="__codelineno-42-3" href="#__codelineno-42-3"></a>
+<a id="__codelineno-42-4" name="__codelineno-42-4" href="#__codelineno-42-4"></a><span class="c1"># Upload to BigQuery, Redshift, Snowflake, etc.</span>
+<a id="__codelineno-42-5" name="__codelineno-42-5" href="#__codelineno-42-5"></a>bq<span class="w"> </span>load<span class="w"> </span>my_dataset.daily_stats<span class="w"> </span>daily_stats.csv
+<a id="__codelineno-42-6" name="__codelineno-42-6" href="#__codelineno-42-6"></a>
+<a id="__codelineno-42-7" name="__codelineno-42-7" href="#__codelineno-42-7"></a><span class="c1"># Or load into local database</span>
+<a id="__codelineno-42-8" name="__codelineno-42-8" href="#__codelineno-42-8"></a>sqlite3<span class="w"> </span>analysis.db<span class="w"> </span>&lt;<span class="w"> </span><span class="s">&lt;&lt;EOF</span>
+<a id="__codelineno-42-9" name="__codelineno-42-9" href="#__codelineno-42-9"></a><span class="s">.mode csv</span>
+<a id="__codelineno-42-10" name="__codelineno-42-10" href="#__codelineno-42-10"></a><span class="s">.import daily_stats.csv daily_stats</span>
+<a id="__codelineno-42-11" name="__codelineno-42-11" href="#__codelineno-42-11"></a><span class="s">EOF</span>
 </code></pre></div>
 <h3 id="python-pandas-integration">Python / Pandas Integration<a class="headerlink" href="#python-pandas-integration" title="Permanent link">&para;</a></h3>
 <p>Query and analyze directly in Python:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span>
-<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
-<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
-<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a>
-<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a><span class="c1"># Get daily stats as JSON</span>
-<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a><span class="n">result</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
-<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a>    <span class="p">[</span><span class="s1">&#39;pm-stats-cli&#39;</span><span class="p">,</span> <span class="s1">&#39;--format&#39;</span><span class="p">,</span> <span class="s1">&#39;json&#39;</span><span class="p">,</span> <span class="s1">&#39;daily&#39;</span><span class="p">,</span> <span class="s1">&#39;--date&#39;</span><span class="p">,</span> <span class="s1">&#39;2026-06-14&#39;</span><span class="p">],</span>
-<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a>    <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<a id="__codelineno-34-9" name="__codelineno-34-9" href="#__codelineno-34-9"></a>    <span class="n">text</span><span class="o">=</span><span class="kc">True</span>
-<a id="__codelineno-34-10" name="__codelineno-34-10" href="#__codelineno-34-10"></a><span class="p">)</span>
-<a id="__codelineno-34-11" name="__codelineno-34-11" href="#__codelineno-34-11"></a>
-<a id="__codelineno-34-12" name="__codelineno-34-12" href="#__codelineno-34-12"></a><span class="n">daily</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">stdout</span><span class="p">))</span>
-<a id="__codelineno-34-13" name="__codelineno-34-13" href="#__codelineno-34-13"></a>
-<a id="__codelineno-34-14" name="__codelineno-34-14" href="#__codelineno-34-14"></a><span class="c1"># Pivot to wide format for correlation analysis</span>
-<a id="__codelineno-34-15" name="__codelineno-34-15" href="#__codelineno-34-15"></a><span class="n">daily_pivot</span> <span class="o">=</span> <span class="n">daily</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s1">&#39;symbol&#39;</span><span class="p">)</span>
-<a id="__codelineno-34-16" name="__codelineno-34-16" href="#__codelineno-34-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">daily_pivot</span><span class="p">[[</span><span class="s1">&#39;open_price&#39;</span><span class="p">,</span> <span class="s1">&#39;close_price&#39;</span><span class="p">,</span> <span class="s1">&#39;volume&#39;</span><span class="p">]])</span>
-<a id="__codelineno-34-17" name="__codelineno-34-17" href="#__codelineno-34-17"></a>
-<a id="__codelineno-34-18" name="__codelineno-34-18" href="#__codelineno-34-18"></a><span class="c1"># Calculate returns</span>
-<a id="__codelineno-34-19" name="__codelineno-34-19" href="#__codelineno-34-19"></a><span class="n">daily</span><span class="p">[</span><span class="s1">&#39;return_pct&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">daily</span><span class="p">[</span><span class="s1">&#39;close_price&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">daily</span><span class="p">[</span><span class="s1">&#39;open_price&#39;</span><span class="p">])</span> <span class="o">/</span> <span class="n">daily</span><span class="p">[</span><span class="s1">&#39;open_price&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">100</span>
-<a id="__codelineno-34-20" name="__codelineno-34-20" href="#__codelineno-34-20"></a><span class="nb">print</span><span class="p">(</span><span class="n">daily</span><span class="p">[[</span><span class="s1">&#39;symbol&#39;</span><span class="p">,</span> <span class="s1">&#39;return_pct&#39;</span><span class="p">]])</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span>
+<a id="__codelineno-43-2" name="__codelineno-43-2" href="#__codelineno-43-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<a id="__codelineno-43-3" name="__codelineno-43-3" href="#__codelineno-43-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<a id="__codelineno-43-4" name="__codelineno-43-4" href="#__codelineno-43-4"></a>
+<a id="__codelineno-43-5" name="__codelineno-43-5" href="#__codelineno-43-5"></a><span class="c1"># Get daily stats as JSON</span>
+<a id="__codelineno-43-6" name="__codelineno-43-6" href="#__codelineno-43-6"></a><span class="n">result</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+<a id="__codelineno-43-7" name="__codelineno-43-7" href="#__codelineno-43-7"></a>    <span class="p">[</span><span class="s1">&#39;pm-stats-cli&#39;</span><span class="p">,</span> <span class="s1">&#39;--format&#39;</span><span class="p">,</span> <span class="s1">&#39;json&#39;</span><span class="p">,</span> <span class="s1">&#39;daily&#39;</span><span class="p">,</span> <span class="s1">&#39;--date&#39;</span><span class="p">,</span> <span class="s1">&#39;2026-06-14&#39;</span><span class="p">],</span>
+<a id="__codelineno-43-8" name="__codelineno-43-8" href="#__codelineno-43-8"></a>    <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<a id="__codelineno-43-9" name="__codelineno-43-9" href="#__codelineno-43-9"></a>    <span class="n">text</span><span class="o">=</span><span class="kc">True</span>
+<a id="__codelineno-43-10" name="__codelineno-43-10" href="#__codelineno-43-10"></a><span class="p">)</span>
+<a id="__codelineno-43-11" name="__codelineno-43-11" href="#__codelineno-43-11"></a>
+<a id="__codelineno-43-12" name="__codelineno-43-12" href="#__codelineno-43-12"></a><span class="n">daily</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">stdout</span><span class="p">))</span>
+<a id="__codelineno-43-13" name="__codelineno-43-13" href="#__codelineno-43-13"></a>
+<a id="__codelineno-43-14" name="__codelineno-43-14" href="#__codelineno-43-14"></a><span class="c1"># Pivot to wide format for correlation analysis</span>
+<a id="__codelineno-43-15" name="__codelineno-43-15" href="#__codelineno-43-15"></a><span class="n">daily_pivot</span> <span class="o">=</span> <span class="n">daily</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="s1">&#39;symbol&#39;</span><span class="p">)</span>
+<a id="__codelineno-43-16" name="__codelineno-43-16" href="#__codelineno-43-16"></a><span class="nb">print</span><span class="p">(</span><span class="n">daily_pivot</span><span class="p">[[</span><span class="s1">&#39;open_price&#39;</span><span class="p">,</span> <span class="s1">&#39;close_price&#39;</span><span class="p">,</span> <span class="s1">&#39;volume&#39;</span><span class="p">]])</span>
+<a id="__codelineno-43-17" name="__codelineno-43-17" href="#__codelineno-43-17"></a>
+<a id="__codelineno-43-18" name="__codelineno-43-18" href="#__codelineno-43-18"></a><span class="c1"># Calculate returns</span>
+<a id="__codelineno-43-19" name="__codelineno-43-19" href="#__codelineno-43-19"></a><span class="n">daily</span><span class="p">[</span><span class="s1">&#39;return_pct&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">daily</span><span class="p">[</span><span class="s1">&#39;close_price&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">daily</span><span class="p">[</span><span class="s1">&#39;open_price&#39;</span><span class="p">])</span> <span class="o">/</span> <span class="n">daily</span><span class="p">[</span><span class="s1">&#39;open_price&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="mi">100</span>
+<a id="__codelineno-43-20" name="__codelineno-43-20" href="#__codelineno-43-20"></a><span class="nb">print</span><span class="p">(</span><span class="n">daily</span><span class="p">[[</span><span class="s1">&#39;symbol&#39;</span><span class="p">,</span> <span class="s1">&#39;return_pct&#39;</span><span class="p">]])</span>
 </code></pre></div>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <h3 id="no-data-recorded-where-did-the-trades-go">No data recorded — where did the trades go?<a class="headerlink" href="#no-data-recorded-where-did-the-trades-go" title="Permanent link">&para;</a></h3>
 <ol>
 <li>
 <p><strong>Verify <code>pm-stats</code> is running:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>ps<span class="w"> </span>aux<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>pm-stats
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>ps<span class="w"> </span>aux<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>pm-stats
 </code></pre></div>
    If not running, start it.</p>
 </li>
 <li>
 <p><strong>Check that <code>pm-stats</code> connected to the engine:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-engine<span class="w"> </span>--verbose
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>pm-engine<span class="w"> </span>--verbose
 </code></pre></div>
    Look for log messages showing that <code>pm-stats</code> sent a <code>book.snapshot_request</code>.</p>
 </li>
 <li>
 <p><strong>Verify the database file exists and has the right tables:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">&quot;.tables&quot;</span>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">&quot;.tables&quot;</span>
 </code></pre></div>
-   You should see: <code>daily_stats</code>, <code>price_snapshots</code>, <code>trade_log</code>.</p>
+   You should see: <code>daily_stats</code>, <code>price_snapshots</code>, <code>trade_log</code>, and <code>order_events</code>.</p>
 </li>
 <li>
 <p><strong>Check for recent trades:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>pm-stats-cli<span class="w"> </span>trades<span class="w"> </span>--limit<span class="w"> </span><span class="m">5</span>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>pm-stats-cli<span class="w"> </span>trades<span class="w"> </span>--limit<span class="w"> </span><span class="m">5</span>
 </code></pre></div>
    If empty, no trades have executed yet. Execute a test trade first.</p>
+</li>
+<li>
+<p><strong>Check for order lifecycle history:</strong>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>sqlite3<span class="w"> </span>data/stats.db<span class="w"> </span><span class="s2">&quot;SELECT ts,event_type,order_id,gateway_id,symbol FROM order_events ORDER BY seq DESC LIMIT 5;&quot;</span>
+</code></pre></div>
+   If empty, no private order lifecycle topics have reached <code>pm-stats</code> yet. Submit, amend, cancel, or fill an order while <code>pm-stats</code> is running.</p>
 </li>
 </ol>
 <h3 id="queries-return-no-rows-found-but-i-know-data-should-exist">Queries return "No rows found" but I know data should exist<a class="headerlink" href="#queries-return-no-rows-found-but-i-know-data-should-exist" title="Permanent link">&para;</a></h3>
 <ol>
 <li>
 <p><strong>Check the date format:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>pm-stats-cli<span class="w"> </span>dates<span class="w">  </span><span class="c1"># What dates are actually in the DB?</span>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a>pm-stats-cli<span class="w"> </span>dates<span class="w">  </span><span class="c1"># What dates are actually in the DB?</span>
 </code></pre></div>
    Use the exact date returned, e.g., <code>--date 2026-06-14</code>.</p>
 </li>
 <li>
 <p><strong>Verify the symbol is correct (case-sensitive):</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>pm-stats-cli<span class="w"> </span>symbols
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a>pm-stats-cli<span class="w"> </span>symbols
 </code></pre></div>
    Use exact symbol, e.g., <code>AAPL</code> not <code>aapl</code>.</p>
 </li>
 <li>
 <p><strong>Check the time window for snapshots/trades:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>pm-stats-cli<span class="w"> </span>snapshots<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a>pm-stats-cli<span class="w"> </span>snapshots<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14
 </code></pre></div>
    If using <code>--from</code> / <code>--to</code>, ensure they match the timestamp format (ISO 8601).</p>
 </li>
@@ -3975,17 +4434,17 @@
 <h3 id="database-is-locked-or-unable-to-open">Database is locked or "unable to open"<a class="headerlink" href="#database-is-locked-or-unable-to-open" title="Permanent link">&para;</a></h3>
 <ol>
 <li>
-<p><strong><code>pm-stats</code> holds an exclusive write lock while running.</strong> You can still read from <code>pm-stats-cli</code> concurrently, but if you try to directly write to the database, you'll get a lock error.</p>
+<p><strong><code>pm-stats</code> acquires short write locks during individual database transactions</strong> (trade writes, snapshot writes, daily-stats flushes, order-event inserts). Between transactions no lock is held, so <code>pm-stats-cli</code> reads are never blocked. If you try to directly write to the database while <code>pm-stats</code> is running, you may get a transient lock error.</p>
 </li>
 <li>
 <p><strong>Solution</strong>: Use <code>pm-stats-cli</code> for queries, not direct <code>sqlite3</code> access while <code>pm-stats</code> is running.</p>
 </li>
 <li>
 <p><strong>If you need to copy the DB for backup:</strong>
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a><span class="c1"># Stop pm-stats first</span>
-<a id="__codelineno-42-2" name="__codelineno-42-2" href="#__codelineno-42-2"></a><span class="c1"># Then copy the DB</span>
-<a id="__codelineno-42-3" name="__codelineno-42-3" href="#__codelineno-42-3"></a>cp<span class="w"> </span>data/stats.db<span class="w"> </span>data/stats_backup.db
-<a id="__codelineno-42-4" name="__codelineno-42-4" href="#__codelineno-42-4"></a><span class="c1"># Then restart pm-stats</span>
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-52-1" name="__codelineno-52-1" href="#__codelineno-52-1"></a><span class="c1"># Stop pm-stats first</span>
+<a id="__codelineno-52-2" name="__codelineno-52-2" href="#__codelineno-52-2"></a><span class="c1"># Then copy the DB</span>
+<a id="__codelineno-52-3" name="__codelineno-52-3" href="#__codelineno-52-3"></a>cp<span class="w"> </span>data/stats.db<span class="w"> </span>data/stats_backup.db
+<a id="__codelineno-52-4" name="__codelineno-52-4" href="#__codelineno-52-4"></a><span class="c1"># Then restart pm-stats</span>
 </code></pre></div></p>
 </li>
 </ol>
@@ -3996,14 +4455,14 @@
 <li>This is by design — snapshots only record when the market moves.</li>
 </ul>
 <p>To verify:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>pm-stats-cli<span class="w"> </span>snapshots<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">&#39;{print $1}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>uniq<span class="w"> </span>-c
+<div class="highlight"><pre><span></span><code><a id="__codelineno-53-1" name="__codelineno-53-1" href="#__codelineno-53-1"></a>pm-stats-cli<span class="w"> </span>snapshots<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span>awk<span class="w"> </span><span class="s1">&#39;{print $1}&#39;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>uniq<span class="w"> </span>-c
 </code></pre></div>
 <p>You should see roughly one entry every 15 minutes. Large gaps indicate periods with no trading.</p>
 <h3 id="vwap-calculation-looks-wrong">VWAP calculation looks wrong<a class="headerlink" href="#vwap-calculation-looks-wrong" title="Permanent link">&para;</a></h3>
 <p>VWAP is recalculated on every trade and stored at that moment. The final VWAP for the day is stored in <code>daily_stats</code> after the close.</p>
 <p>To verify VWAP manually:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-44-2" name="__codelineno-44-2" href="#__codelineno-44-2"></a><span class="w">  </span>awk<span class="w"> </span>-F,<span class="w"> </span><span class="s1">&#39;NR&gt;1 {qty_sum += $5; price_qty += $4*$5} END {print price_qty/qty_sum}&#39;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-54-1" name="__codelineno-54-1" href="#__codelineno-54-1"></a>pm-stats-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-06-14<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-54-2" name="__codelineno-54-2" href="#__codelineno-54-2"></a><span class="w">  </span>awk<span class="w"> </span>-F,<span class="w"> </span><span class="s1">&#39;NR&gt;1 {qty_sum += $5; price_qty += $4*$5} END {print price_qty/qty_sum}&#39;</span>
 </code></pre></div>
 <p>This calculates <span class="arithmatex">\(\sum(price \times qty) / \sum(qty)\)</span> from the trade log. Compare it to the value in <code>daily_stats</code> — they should match.</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
