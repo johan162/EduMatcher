@@ -34,6 +34,8 @@ Commands
   ORDERS                   — print table of this session's orders
   POS                      — print current positions with P&L
   SYMBOLS                  — list all active instruments in the engine
+    INDEX                    — show current index level
+    INDEX|HISTORY|INDEX=<id>[|FROM=YYYY-MM-DD|TO=YYYY-MM-DD] — query index history
   HELP                     — show command reference
   EXIT / QUIT              — disconnect
 """
@@ -58,7 +60,12 @@ from prompt_toolkit.styles import Style
 from rich.console import Console
 from rich.table import Table
 
-from edumatcher.config import ENGINE_PULL_ADDR, ENGINE_PUB_ADDR
+from edumatcher.config import (
+    ENGINE_PULL_ADDR,
+    ENGINE_PUB_ADDR,
+    INDEX_PUB_CONNECT_ADDR,
+    INDEX_PULL_CONNECT_ADDR,
+)
 
 
 class _SysStdoutProxy:
@@ -109,6 +116,7 @@ from edumatcher.models.message import (  # noqa: E402
     make_quote_cancel_msg,
     make_quote_new_msg,
     make_symbols_request_msg,
+    make_index_history_request_msg,
     make_oco_order_msg,
     make_oco_cancel_msg,
 )
@@ -142,6 +150,7 @@ _TOP_LEVEL_CMDS = [
     "ORDERS",
     "POS",
     "SYMBOLS",
+    "INDEX",
     "HELP",
     "EXIT",
     "QUIT",
@@ -429,6 +438,8 @@ _HELP_TEXT = """
     ORDERS      — inspect this gateway's order table with IDs, quantities, and status
   POS         — show current positions with P&L
   SYMBOLS     — list all active instruments in the engine
+    INDEX       — show current cached index level
+    INDEX|HISTORY|INDEX=<id>[|FROM=YYYY-MM-DD|TO=YYYY-MM-DD] — query index history
   HELP        — this message
   EXIT / QUIT — disconnect
 """
@@ -448,9 +459,12 @@ class Gateway:
             {}
         )  # symbol → {net_qty, avg_cost, realized_pnl}
         self._last_prices: dict[str, float] = {}  # symbol → last trade price
+        self._last_index_update: dict[str, Any] | None = None
+        self._default_index_id: str | None = None
         self._running = True
 
         self.push_sock = make_pusher(ENGINE_PULL_ADDR)
+        self._index_push_sock = make_pusher(INDEX_PULL_CONNECT_ADDR)
         # Subscribe to all order events for this gateway + trade feed for last prices
         self.sub_sock = make_subscriber(
             ENGINE_PUB_ADDR,
@@ -471,6 +485,12 @@ class Gateway:
             f"system.quote_bootstrap.{self.gateway_id}",
             f"system.gateway_auth.{self.gateway_id}",
             "trade.executed",
+        )
+        self._index_sub_sock = make_subscriber(
+            INDEX_PUB_CONNECT_ADDR,
+            "index.update",
+            f"index.history.{self.gateway_id}",
+            f"index.error.{self.gateway_id}",
         )
         self._auth_reason: str = ""
         self._auth_description: str = ""
@@ -739,6 +759,7 @@ class Gateway:
     def _listen(self) -> None:
         poller = zmq.Poller()
         poller.register(self.sub_sock, zmq.POLLIN)
+        poller.register(self._index_sub_sock, zmq.POLLIN)
         while self._running:
             try:
                 socks = dict(poller.poll(timeout=200))
@@ -752,6 +773,14 @@ class Gateway:
                 except Exception as exc:
                     if self._running:
                         console.print(f"[dim][WARN] listener error: {exc}[/dim]")
+            if self._index_sub_sock in socks:
+                try:
+                    frames = self._index_sub_sock.recv_multipart()
+                    topic, payload = decode(frames)
+                    self._handle_event(topic, payload)
+                except Exception as exc:
+                    if self._running:
+                        console.print(f"[dim][WARN] index listener error: {exc}[/dim]")
 
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
         ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
@@ -1025,6 +1054,23 @@ class Gateway:
             if symbol and price:
                 self._last_prices[symbol] = price
 
+        elif topic == "index.update":
+            self._last_index_update = payload
+            index_id = payload.get("index_id")
+            if isinstance(index_id, str) and index_id:
+                self._default_index_id = index_id.upper()
+
+        elif topic == f"index.history.{self.gateway_id}":
+            records = payload.get("records", [])
+            if isinstance(records, list):
+                self._print_index_history(records)
+            else:
+                console.print("[red]Malformed index history response.[/red]")
+
+        elif topic == f"index.error.{self.gateway_id}":
+            reason = payload.get("reason", "")
+            console.print(f"[{ts}] [red]INDEX ERROR[/red] {reason}")
+
     # ------------------------------------------------------------------
     # Position tracking
     # ------------------------------------------------------------------
@@ -1172,6 +1218,33 @@ class Gateway:
 
         if cmd == "SYMBOLS":
             self.push_sock.send_multipart(make_symbols_request_msg(self.gateway_id))
+            return
+
+        if cmd == "INDEX":
+            kv = self._kv(parts[1:])
+            if len(parts) > 1 and parts[1].upper() == "HISTORY":
+                index_id = kv.get("INDEX") or self._default_index_id or ""
+                if not index_id:
+                    console.print(
+                        "[red]INDEX|HISTORY requires INDEX=<id> or prior index.update.[/red]"
+                    )
+                    return
+                from_ts = self._parse_date(kv.get("FROM"))
+                to_ts = self._parse_date(kv.get("TO"))
+                if from_ts is None:
+                    from_ts = time.time() - 30 * 86400
+                if to_ts is None:
+                    to_ts = time.time()
+                self._index_push_sock.send_multipart(
+                    make_index_history_request_msg(
+                        gateway_id=self.gateway_id,
+                        index_id=index_id,
+                        from_ts=from_ts,
+                        to_ts=to_ts,
+                    )
+                )
+                return
+            self._print_current_index()
             return
 
         if cmd == "QUOTE":
@@ -1551,6 +1624,87 @@ class Gateway:
             "[dim]Use ORDERS for detailed order inspection and POS for P&L.[/dim]"
         )
 
+    @staticmethod
+    def _parse_date(raw: str | None) -> float | None:
+        if not raw:
+            return None
+        try:
+            dt = datetime.strptime(raw, "%Y-%m-%d")
+        except ValueError:
+            return None
+        return dt.timestamp()
+
+    def _print_current_index(self) -> None:
+        payload = self._last_index_update
+        if not payload:
+            console.print("[dim]No index data received yet. Is pm-index running?[/dim]")
+            return
+
+        ts_raw = payload.get("timestamp")
+        if isinstance(ts_raw, (int, float)):
+            ts = datetime.fromtimestamp(float(ts_raw)).strftime("%H:%M:%S.%f")[:-3]
+        else:
+            ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+
+        index_id = str(payload.get("index_id", "INDEX"))
+        level = float(payload.get("level", 0.0))
+        session_state = str(payload.get("session_state", "?"))
+
+        change_txt = ""
+        day_open = payload.get("day_open")
+        if isinstance(day_open, (int, float)) and day_open > 0.0:
+            delta = level - float(day_open)
+            pct = (delta / float(day_open)) * 100
+            colour = "green" if delta >= 0 else "red"
+            change_txt = f" [{colour}]{delta:+.2f} {pct:+.2f}%[/{colour}]"
+
+        ohlc_txt = ""
+        day_high = payload.get("day_high")
+        day_low = payload.get("day_low")
+        if (
+            isinstance(day_open, (int, float))
+            and isinstance(day_high, (int, float))
+            and isinstance(day_low, (int, float))
+        ):
+            ohlc_txt = (
+                f" [dim]O={float(day_open):.2f} H={float(day_high):.2f} "
+                f"L={float(day_low):.2f}[/dim]"
+            )
+
+        console.print(
+            f"[{ts}] [bold cyan]{index_id}[/bold cyan] [bold]{level:.2f}[/bold]"
+            f"{change_txt}{ohlc_txt} [dim]{session_state}[/dim]"
+        )
+
+    def _print_index_history(self, records: list[dict[str, Any]]) -> None:
+        if not records:
+            console.print("[dim]No index history records returned.[/dim]")
+            return
+
+        table = Table(
+            title="Index history", show_header=True, header_style="bold magenta"
+        )
+        table.add_column("Type", style="bold")
+        table.add_column("Time", style="dim")
+        table.add_column("Level", justify="right")
+        table.add_column("Session", style="dim")
+
+        for rec in records:
+            rec_type = str(rec.get("type", "?"))
+            ts = rec.get("timestamp")
+            if isinstance(ts, (int, float)):
+                ts_txt = datetime.fromtimestamp(float(ts)).strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                ts_txt = "?"
+            level = rec.get("level")
+            level_txt = (
+                f"{float(level):.2f}" if isinstance(level, (int, float)) else "-"
+            )
+            session_state = str(rec.get("session_state", "-"))
+            table.add_row(rec_type, ts_txt, level_txt, session_state)
+
+        console.print(table)
+
     # ------------------------------------------------------------------
     # ORDERS table
     # ------------------------------------------------------------------
@@ -1654,8 +1808,10 @@ class Gateway:
                 )
             except Exception:
                 pass
+            self._index_push_sock.close()
             self.push_sock.close()
             self.sub_sock.close()
+            self._index_sub_sock.close()
             console.print(f"\n[bold]Gateway {self.gateway_id} disconnected.[/bold]")
 
 

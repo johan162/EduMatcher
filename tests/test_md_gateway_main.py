@@ -34,12 +34,14 @@ market_data_gateway:
         bind="127.0.0.1",
         port=6001,
         engine_pub="tcp://127.0.0.1:7000",
+        index_pub="tcp://127.0.0.1:7001",
     )
     cfg, symbols = _resolve_config(args)
     assert cfg.name == "md-from-config"
     assert cfg.bind_address == "127.0.0.1"
     assert cfg.port == 6001
     assert cfg.engine_pub_addr == "tcp://127.0.0.1:7000"
+    assert cfg.index_pub_addr == "tcp://127.0.0.1:7001"
     assert symbols == {"AAPL"}
 
 

@@ -263,6 +263,19 @@ API gateway options:
 | `--api-gateway-engine-reply-sec SECS` | float (`> 0`) | `3.0` | Engine request/reply timeout |
 | `--api-gateway-wait-ack-sec SECS` | float (`> 0`) | `3.0` | `?wait=ack` timeout |
 
+Index options:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--index ID[:DESCRIPTION]` | Repeatable | none | Define an index; `ID` is alphanumeric, `DESCRIPTION` is optional text after the first colon |
+| `--index-constituents ID:SYM[,SYM,...]` | Repeatable | none | Set constituent symbols for the named index |
+| `--index-base-value ID:VALUE` | Repeatable | `1000.0` | Override `base_value` for the named index |
+| `--index-interval ID:SECS` | Repeatable | `1.0` | Override `publish_interval_sec` for the named index |
+| `--index-history-file ID:PATH` | Repeatable | derived from ID | Override `history_file` path; default is `data/indexes/<ID>_history.jsonl` |
+| `--index-state-file ID:PATH` | Repeatable | derived from ID | Override `state_file` path; default is `data/indexes/<ID>_state.json` |
+
+Up to 5 indices may be defined. Every constituent symbol must appear in `--symbols`. Every index must have at least one constituent. Each `ID` must be alphanumeric. When `history_file` and `state_file` are omitted, `pm-config-gen` derives them from the index ID under `data/indexes/`.
+
 When `--api-gateway` is enabled, `pm-config-gen` emits sensible local defaults
 and automatically generates one bearer token for each configured ALF gateway.
 Pass `--seed N` to make those generated keys reproducible. Use
@@ -545,6 +558,55 @@ of `pm-api-gateway`.
 For multiple generated processes, start a specific named entry with
 `pm-api-gateway --config engine_config.yaml --instance NAME`.
 
+Index calculation config with `pm-index`:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT TSLA \
+  --gateways TRADER01 OPS01:ADMIN \
+  --outstanding-shares AAPL:15400000000 \
+  --outstanding-shares MSFT:7430000000 \
+  --outstanding-shares TSLA:3200000000 \
+  --sessions-enabled \
+  --index EDU100:"EduMatcher broad index" \
+  --index-constituents EDU100:AAPL,MSFT,TSLA \
+  --output engine_config.yaml
+```
+
+Expected emitted section shape:
+
+```yaml
+indices:
+  - id: EDU100
+    description: EduMatcher broad index
+    base_value: 1000.0
+    publish_interval_sec: 1.0
+    history_file: data/indexes/EDU100_history.jsonl
+    state_file: data/indexes/EDU100_state.json
+    constituents:
+      - AAPL
+      - MSFT
+      - TSLA
+```
+
+With multiple indices and custom settings:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT TSLA \
+  --gateways TRADER01 OPS01:ADMIN \
+  --outstanding-shares AAPL:15400000000 \
+  --outstanding-shares MSFT:7430000000 \
+  --outstanding-shares TSLA:3200000000 \
+  --index TECH2:"Technology pair" \
+  --index-constituents TECH2:AAPL,MSFT \
+  --index-base-value TECH2:500.0 \
+  --index-interval TECH2:2.0 \
+  --index VOLAT1:"High-beta watch" \
+  --index-constituents VOLAT1:TSLA \
+  --output engine_config.yaml
+```
+
 
 ## Current Schema
 
@@ -567,6 +629,7 @@ The current parser recognizes these top-level keys:
 | `post_trade_gateway` | No | `pm-ralf-gwy` | External RALF dissemination gateway settings |
 | `market_data_gateway` | No | `pm-md-gwy` | External CALF dissemination gateway settings |
 | `api_gateways` | No | `pm-api-gateway` | Named REST/WebSocket order-entry and market-data gateway process settings |
+| `indices` | No | `pm-index` | Index calculation process configurations |
 
 The nested sections below document every field currently parsed under these
 top-level keys. Unknown keys in a mapping are generally ignored by the loader,
@@ -703,6 +766,61 @@ entries when you need known token values.
 
 When more than one named API gateway is configured, start each process with its
 entry name, for example `pm-api-gateway --config engine_config.yaml --instance desk`.
+
+
+## Configuring `pm-index`
+
+`pm-index` reads an optional top-level `indices` block from the same
+`engine_config.yaml` file. This block is not consumed by `pm-engine`; it is
+consumed by the index calculation process.
+
+Example with two indices:
+
+```yaml
+indices:
+  - id: EDU100
+    description: EduMatcher broad index
+    base_value: 1000.0
+    publish_interval_sec: 1.0
+    history_file: data/indexes/EDU100_history.jsonl
+    state_file: data/indexes/EDU100_state.json
+    constituents:
+      - AAPL
+      - MSFT
+      - TSLA
+  - id: TECH2
+    description: Technology pair
+    base_value: 500.0
+    publish_interval_sec: 2.0
+    history_file: data/indexes/TECH2_history.jsonl
+    state_file: data/indexes/TECH2_state.json
+    constituents:
+      - AAPL
+      - MSFT
+```
+
+Use this block to define one or more weighted-average price indices that
+`pm-index` tracks as trades print through the engine. In the current
+implementation:
+
+- `id` is the unique index identifier used in events, history records, and derived file names
+- `description` is a human-readable label emitted in `INDEX_OPEN` and `INDEX_UPDATED` events
+- `base_value` is the divisor-normalized starting level; `1000.0` is the standard convention
+- `publish_interval_sec` throttles how frequently index updates are published to subscribers
+- `history_file` is a line-delimited JSON file where corporate-action and constituent events are persisted
+- `state_file` is a JSON file where the current divisor and constituent shares are checkpointed
+- `constituents` is an ordered list of symbols; each must have `outstanding_shares` set in `symbols:`
+
+Constraints enforced at startup:
+
+- Maximum 5 indices per config file
+- Every constituent symbol must appear in `symbols:` with a positive `outstanding_shares`
+- `id` values must be unique across the `indices` list
+
+If you prefer to generate this block instead of writing it by hand,
+`pm-config-gen` can emit it with `--index` and the associated `--index-*`
+options. File paths are automatically derived from the index ID when not
+specified.
 
 
 ## Minimal Example
@@ -1038,15 +1156,21 @@ Use this checklist when creating a new engine configuration.
    Keep combo leg symbols unique within one combo, use 2 to 10 legs, and remember
    combo leg prices are integer ticks.
 
-8. Add a schedule if sessions are enabled.
+8. Add index calculations if needed.
+   Define each `pm-index` process in the `indices` block. Every constituent must
+   appear in `symbols:` with a positive `outstanding_shares`. Run
+   `pm-index --config engine_config.yaml` for each configured index; `pm-config-gen
+   --index` generates the block automatically.
+
+9. Add a schedule if sessions are enabled.
    Provide all five schedule keys for readability and confirm times are local
    server `HH:MM` strings.
 
-9. Check persistence before first run.
-   Remove stale state when changing seed behavior or symbol universe, especially
-   `data/book_stats.json`, `data/gtc_orders.json`, and `data/gtc_combos.json`.
+10. Check persistence before first run.
+    Remove stale state when changing seed behavior or symbol universe, especially
+    `data/book_stats.json`, `data/gtc_orders.json`, and `data/gtc_combos.json`.
 
-10. Validate before class or demo.
+11. Validate before class or demo.
     Start `pm-engine --verbose --config your_config.yaml`, connect each gateway
     ID you expect to use, and run `SYMBOLS` from a gateway.
 

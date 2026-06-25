@@ -5,6 +5,7 @@ from edumatcher.config_gen.builder import (
     ApiGatewaySpec,
     ConfigBuilder,
     ConfigSpec,
+    IndexSpec,
     MarketDataGatewaySpec,
     PostTradeGatewaySpec,
 )
@@ -279,3 +280,63 @@ def test_builder_outstanding_shares_omitted_when_not_set() -> None:
     payload = ConfigBuilder(spec).build()
 
     assert "outstanding_shares" not in payload["symbols"]["AAPL"]
+
+
+def test_builder_index_section_emitted() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL", "MSFT", "TSLA"],
+        gateways=[parse_gateway_spec("TRADER01")],
+        indices=(
+            IndexSpec(
+                id="EDU100",
+                description="Broad tech benchmark",
+                constituents=("AAPL", "MSFT", "TSLA"),
+            ),
+        ),
+    )
+    payload = ConfigBuilder(spec).build()
+
+    assert "indices" in payload
+    idx = payload["indices"][0]
+    assert idx["id"] == "EDU100"
+    assert idx["description"] == "Broad tech benchmark"
+    assert idx["base_value"] == 1000.0
+    assert idx["publish_interval_sec"] == 1.0
+    assert idx["history_file"] == "data/indexes/EDU100_history.jsonl"
+    assert idx["state_file"] == "data/indexes/EDU100_state.json"
+    assert idx["constituents"] == ["AAPL", "MSFT", "TSLA"]
+
+
+def test_builder_index_custom_paths_and_overrides() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01")],
+        indices=(
+            IndexSpec(
+                id="MYIDX",
+                description="Custom index",
+                constituents=("AAPL",),
+                base_value=500.0,
+                publish_interval_sec=2.0,
+                history_file="custom/myidx_history.jsonl",
+                state_file="custom/myidx_state.json",
+            ),
+        ),
+    )
+    payload = ConfigBuilder(spec).build()
+
+    idx = payload["indices"][0]
+    assert idx["base_value"] == 500.0
+    assert idx["publish_interval_sec"] == 2.0
+    assert idx["history_file"] == "custom/myidx_history.jsonl"
+    assert idx["state_file"] == "custom/myidx_state.json"
+
+
+def test_builder_no_indices_omits_section() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01")],
+    )
+    payload = ConfigBuilder(spec).build()
+
+    assert "indices" not in payload

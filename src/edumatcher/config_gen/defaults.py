@@ -56,3 +56,7 @@ DEFAULT_SCHEDULE = {
     "closing_auction_start": "16:00",
     "closing_auction_end": "16:05",
 }
+
+DEFAULT_INDEX_BASE_VALUE = 1000.0
+DEFAULT_INDEX_PUBLISH_INTERVAL_SEC = 1.0
+DEFAULT_INDEX_DATA_DIR = "data/indexes"

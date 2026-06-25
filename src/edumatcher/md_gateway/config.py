@@ -7,7 +7,11 @@ from pathlib import Path
 
 import yaml
 
-from edumatcher.config import ENGINE_CONFIG_FILE, ENGINE_PUB_ADDR
+from edumatcher.config import (
+    ENGINE_CONFIG_FILE,
+    ENGINE_PUB_ADDR,
+    INDEX_PUB_CONNECT_ADDR,
+)
 
 
 @dataclass(frozen=True)
@@ -19,6 +23,7 @@ class MarketDataGatewayConfig:
     bind_address: str = "0.0.0.0"
     port: int = 5570
     engine_pub_addr: str = ENGINE_PUB_ADDR
+    index_pub_addr: str = INDEX_PUB_CONNECT_ADDR
     heartbeat_interval_sec: int = 1
     idle_timeout_sec: int = 5
     replay_window_sec: int = 30
@@ -93,6 +98,7 @@ def load_market_data_gateway_config(path: Path) -> MarketDataGatewayConfig:
         bind_address=bind_address,
         port=port,
         engine_pub_addr=ENGINE_PUB_ADDR,
+        index_pub_addr=INDEX_PUB_CONNECT_ADDR,
         heartbeat_interval_sec=heartbeat_interval_sec,
         idle_timeout_sec=idle_timeout_sec,
         replay_window_sec=replay_window_sec,

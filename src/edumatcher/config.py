@@ -46,6 +46,19 @@ DROP_COPY_PUB_ADDR = (
     "tcp://127.0.0.1:5557"  # engine drop-copy feed (per-participant fills)
 )
 
+# Index process endpoints
+EDUMATCHER_INDEX_BIND_HOST = os.getenv("EDUMATCHER_INDEX_BIND_HOST", "127.0.0.1")
+EDUMATCHER_ENGINE_HOST = os.getenv("EDUMATCHER_ENGINE_HOST", "127.0.0.1")
+EDUMATCHER_INDEX_PUB_PORT = int(os.getenv("EDUMATCHER_INDEX_PUB_PORT", "5558"))
+EDUMATCHER_INDEX_PULL_PORT = int(os.getenv("EDUMATCHER_INDEX_PULL_PORT", "5559"))
+
+INDEX_PUB_ADDR = f"tcp://{EDUMATCHER_INDEX_BIND_HOST}:{EDUMATCHER_INDEX_PUB_PORT}"
+INDEX_PULL_ADDR = f"tcp://{EDUMATCHER_INDEX_BIND_HOST}:{EDUMATCHER_INDEX_PULL_PORT}"
+
+# Connect-side addresses for clients subscribing/sending to pm-index
+INDEX_PUB_CONNECT_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_INDEX_PUB_PORT}"
+INDEX_PULL_CONNECT_ADDR = f"tcp://{EDUMATCHER_ENGINE_HOST}:{EDUMATCHER_INDEX_PULL_PORT}"
+
 # ---------------------------------------------------------------------------
 # Data directory resolution
 # ---------------------------------------------------------------------------

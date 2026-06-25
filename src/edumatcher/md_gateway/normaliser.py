@@ -48,6 +48,7 @@ class EngineNormaliser:
     top_cache: dict[str, TopOfBook] = field(default_factory=dict)
     session_state: str = "CONTINUOUS"
     symbol_state: dict[str, str] = field(default_factory=dict)
+    index_cache: dict[str, dict[str, str]] = field(default_factory=dict)
 
     def normalise_book(
         self, symbol: str, payload: dict[str, Any]
@@ -160,6 +161,58 @@ class EngineNormaliser:
         if sym == "*":
             return {"SESSION": self.session_state}
         return {"SESSION": self.symbol_state.get(sym, self.session_state)}
+
+    def normalise_index_update(
+        self,
+        payload: dict[str, Any],
+    ) -> tuple[str, dict[str, str]]:
+        """Map internal index.update payload to CALF INDEX fields."""
+        index_id = str(payload.get("index_id", "")).upper()
+        level = _as_decimal(payload.get("level")) or "0"
+        fields: dict[str, str] = {
+            "LEVEL": level,
+            "SESSION": str(payload.get("session_state", "")).upper() or "UNKNOWN",
+        }
+
+        day_open = payload.get("day_open")
+        day_high = payload.get("day_high")
+        day_low = payload.get("day_low")
+        if day_open is not None:
+            open_text = _as_decimal(day_open)
+            if open_text is not None:
+                fields["OPEN"] = open_text
+                try:
+                    delta = float(level) - float(open_text)
+                    pct = (
+                        (delta / float(open_text)) * 100
+                        if float(open_text) != 0.0
+                        else 0.0
+                    )
+                    fields["CHG"] = f"{delta:+.2f}"
+                    fields["PCTCHG"] = f"{pct:+.2f}"
+                except (TypeError, ValueError, ZeroDivisionError):
+                    pass
+        if day_high is not None:
+            high_text = _as_decimal(day_high)
+            if high_text is not None:
+                fields["HIGH"] = high_text
+        if day_low is not None:
+            low_text = _as_decimal(day_low)
+            if low_text is not None:
+                fields["LOW"] = low_text
+
+        agg_cap = payload.get("aggregate_cap")
+        if agg_cap is not None:
+            cap_text = _as_int_text(agg_cap)
+            if cap_text is not None:
+                fields["AGGCAP"] = cap_text
+
+        self.index_cache[index_id] = dict(fields)
+        return index_id, fields
+
+    def index_snapshot_fields(self, index_id: str) -> dict[str, str]:
+        """Return cached snapshot fields for one index stream."""
+        return dict(self.index_cache.get(index_id.upper(), {}))
 
 
 def _as_decimal(raw: Any) -> str | None:

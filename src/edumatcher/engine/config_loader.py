@@ -87,6 +87,17 @@ class ComboSeedConfig:
 
 
 @dataclass
+class IndexConfig:
+    id: str
+    description: str
+    base_value: float = 1000.0
+    publish_interval_sec: float = 1.0
+    history_file: str = ""
+    state_file: str = ""
+    constituents: list[str] = field(default_factory=list)
+
+
+@dataclass
 class FixGatewayConfig:
     id: str
     description: str = ""
@@ -119,6 +130,7 @@ class EngineConfig:
     symbols: dict[str, SymbolConfig] = field(default_factory=dict)
     fix_gateways: dict[str, FixGatewayConfig] = field(default_factory=dict)
     market_maker_combos: list[ComboSeedConfig] = field(default_factory=list)
+    indices: list[IndexConfig] = field(default_factory=list)
     risk_control_levels: dict[str, dict[str, dict[str, Any]]] = field(
         default_factory=dict
     )
@@ -704,6 +716,93 @@ def load_engine_config(path: Path) -> EngineConfig:
             )
         )
 
+    indices_raw = raw.get("indices") or []
+    if not isinstance(indices_raw, list):
+        raise ValueError("Engine config 'indices' must be a list")
+    if len(indices_raw) > 5:
+        raise ValueError("Engine config supports at most 5 indices")
+
+    indices: list[IndexConfig] = []
+    seen_index_ids: set[str] = set()
+    for i, idx_raw in enumerate(indices_raw):
+        if not isinstance(idx_raw, dict):
+            raise ValueError(f"indices[{i}] must be a mapping")
+
+        idx_id_raw = idx_raw.get("id")
+        if not isinstance(idx_id_raw, str) or not idx_id_raw.strip():
+            raise ValueError(f"indices[{i}].id must be a non-empty string")
+        idx_id = idx_id_raw.strip().upper()
+        if not idx_id.isalnum():
+            raise ValueError(f"indices[{i}].id must be alphanumeric")
+        if idx_id in seen_index_ids:
+            raise ValueError(f"Duplicate index id in indices: {idx_id}")
+        seen_index_ids.add(idx_id)
+
+        desc_raw = idx_raw.get("description")
+        if not isinstance(desc_raw, str) or not desc_raw.strip():
+            raise ValueError(f"indices[{i}].description must be a non-empty string")
+        description = desc_raw.strip()
+
+        try:
+            base_value = float(idx_raw.get("base_value", 1000.0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"indices[{i}].base_value must be numeric") from exc
+        if base_value <= 0.0:
+            raise ValueError(f"indices[{i}].base_value must be > 0")
+
+        try:
+            publish_interval_sec = float(idx_raw.get("publish_interval_sec", 1.0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"indices[{i}].publish_interval_sec must be numeric"
+            ) from exc
+        if publish_interval_sec <= 0.0:
+            raise ValueError(f"indices[{i}].publish_interval_sec must be > 0")
+
+        history_file_raw = idx_raw.get(
+            "history_file", f"data/indexes/{idx_id}_history.jsonl"
+        )
+        state_file_raw = idx_raw.get("state_file", f"data/indexes/{idx_id}_state.json")
+        if not isinstance(history_file_raw, str) or not history_file_raw.strip():
+            raise ValueError(f"indices[{i}].history_file must be a non-empty string")
+        if not isinstance(state_file_raw, str) or not state_file_raw.strip():
+            raise ValueError(f"indices[{i}].state_file must be a non-empty string")
+
+        constituents_raw = idx_raw.get("constituents")
+        if not isinstance(constituents_raw, list) or not constituents_raw:
+            raise ValueError(f"indices[{i}].constituents must be a non-empty list")
+
+        constituents: list[str] = []
+        seen_constituents: set[str] = set()
+        for sym_raw in constituents_raw:
+            sym = str(sym_raw).upper()
+            if sym in seen_constituents:
+                raise ValueError(
+                    f"indices[{i}].constituents contains duplicate symbol '{sym}'"
+                )
+            if sym not in symbols:
+                raise ValueError(
+                    f"indices[{i}] references unknown constituent symbol '{sym}'"
+                )
+            if symbols[sym].outstanding_shares is None:
+                raise ValueError(
+                    f"indices[{i}] constituent '{sym}' requires symbols.{sym}.outstanding_shares"
+                )
+            seen_constituents.add(sym)
+            constituents.append(sym)
+
+        indices.append(
+            IndexConfig(
+                id=idx_id,
+                description=description,
+                base_value=base_value,
+                publish_interval_sec=publish_interval_sec,
+                history_file=history_file_raw.strip(),
+                state_file=state_file_raw.strip(),
+                constituents=constituents,
+            )
+        )
+
     fix_gateways: dict[str, FixGatewayConfig] = {}
     for i, item in enumerate(alf_raw):
         if not isinstance(item, dict):
@@ -905,6 +1004,7 @@ def load_engine_config(path: Path) -> EngineConfig:
         symbols=symbols,
         fix_gateways=fix_gateways,
         market_maker_combos=market_maker_combos,
+        indices=indices,
         risk_control_levels=risk_control_levels,
         default_risk_level=default_risk_level,
         global_mm_obligation_policy=mm_global_policy,

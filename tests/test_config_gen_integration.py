@@ -490,3 +490,230 @@ def test_comment_default_config_fields_emits_engine_field_defaults(
     # Check for symbols documentation
     assert "#   last_buy_price: null" in captured.out
     assert "#   --snapshot-interval" not in captured.out
+
+
+def test_index_section_is_emitted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "MSFT",
+            "TSLA",
+            "--gateways",
+            "TRADER01",
+            "--outstanding-shares",
+            "AAPL:15000000000",
+            "--outstanding-shares",
+            "MSFT:7400000000",
+            "--outstanding-shares",
+            "TSLA:3200000000",
+            "--index",
+            "EDU100:Broad tech benchmark",
+            "--index-constituents",
+            "EDU100:AAPL,MSFT,TSLA",
+            "--output",
+            str(out_file),
+        ],
+    )
+    content = out_file.read_text()
+    assert "indices:" in content
+    assert "id: EDU100" in content
+    assert "description: Broad tech benchmark" in content
+    assert "AAPL" in content
+
+    cfg = load_engine_config(out_file)
+    assert len(cfg.indices) == 1
+    assert cfg.indices[0].id == "EDU100"
+    assert set(cfg.indices[0].constituents) == {"AAPL", "MSFT", "TSLA"}
+    assert cfg.indices[0].base_value == 1000.0
+
+
+def test_index_two_indices_emitted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "MSFT",
+            "JPM",
+            "--gateways",
+            "TRADER01",
+            "--outstanding-shares",
+            "AAPL:15000000000",
+            "--outstanding-shares",
+            "MSFT:7400000000",
+            "--outstanding-shares",
+            "JPM:3000000000",
+            "--index",
+            "TECH",
+            "--index-constituents",
+            "TECH:AAPL,MSFT",
+            "--index",
+            "FIN:Financial basket",
+            "--index-constituents",
+            "FIN:JPM",
+            "--index-base-value",
+            "TECH:500.0",
+            "--index-interval",
+            "FIN:2.0",
+            "--output",
+            str(out_file),
+        ],
+    )
+    cfg = load_engine_config(out_file)
+    assert len(cfg.indices) == 2
+    tech = next(i for i in cfg.indices if i.id == "TECH")
+    fin = next(i for i in cfg.indices if i.id == "FIN")
+    assert tech.base_value == 500.0
+    assert set(tech.constituents) == {"AAPL", "MSFT"}
+    assert fin.publish_interval_sec == 2.0
+    assert fin.description == "Financial basket"
+
+
+def test_index_custom_file_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--outstanding-shares",
+            "AAPL:15000000000",
+            "--index",
+            "IDX1",
+            "--index-constituents",
+            "IDX1:AAPL",
+            "--index-history-file",
+            "IDX1:custom/hist.jsonl",
+            "--index-state-file",
+            "IDX1:custom/state.json",
+            "--output",
+            str(out_file),
+        ],
+    )
+    cfg = load_engine_config(out_file)
+    assert cfg.indices[0].history_file == "custom/hist.jsonl"
+    assert cfg.indices[0].state_file == "custom/state.json"
+
+
+def test_index_default_file_paths_derived_from_id(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--outstanding-shares",
+            "AAPL:15000000000",
+            "--index",
+            "EDU100",
+            "--index-constituents",
+            "EDU100:AAPL",
+            "--output",
+            str(out_file),
+        ],
+    )
+    cfg = load_engine_config(out_file)
+    assert cfg.indices[0].history_file == "data/indexes/EDU100_history.jsonl"
+    assert cfg.indices[0].state_file == "data/indexes/EDU100_state.json"
+
+
+def test_index_missing_constituents_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import pytest as _pytest
+
+    with _pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                "--index",
+                "EDU100",
+                # no --index-constituents
+                "--dry-run",
+            ],
+        )
+    assert exc_info.value.code == 2
+    assert "no constituents" in capsys.readouterr().err
+
+
+def test_index_unknown_constituent_symbol_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import pytest as _pytest
+
+    with _pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                "--index",
+                "EDU100",
+                "--index-constituents",
+                "EDU100:AAPL,UNKNOWN",
+                "--dry-run",
+            ],
+        )
+    assert exc_info.value.code == 2
+    assert "UNKNOWN" in capsys.readouterr().err
+
+
+def test_index_more_than_five_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import pytest as _pytest
+
+    with _pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                "--index",
+                "I1",
+                "--index",
+                "I2",
+                "--index",
+                "I3",
+                "--index",
+                "I4",
+                "--index",
+                "I5",
+                "--index",
+                "I6",
+                "--dry-run",
+            ],
+        )
+    assert exc_info.value.code == 2
+    assert "maximum 5" in capsys.readouterr().err.lower()

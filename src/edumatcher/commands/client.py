@@ -27,7 +27,12 @@ from typing import Any
 
 import zmq
 
-from edumatcher.config import ENGINE_PUB_ADDR, ENGINE_PULL_ADDR
+from edumatcher.config import (
+    ENGINE_PUB_ADDR,
+    ENGINE_PULL_ADDR,
+    INDEX_PUB_CONNECT_ADDR,
+    INDEX_PULL_CONNECT_ADDR,
+)
 from edumatcher.models.message import (
     decode,
     make_book_snapshot_request_msg,
@@ -46,6 +51,9 @@ from edumatcher.models.message import (
     make_session_transition_msg,
     make_symbol_halt_msg,
     make_symbol_resume_msg,
+    make_index_constituent_change_msg,
+    make_index_corp_action_msg,
+    make_index_history_request_msg,
     make_symbols_request_msg,
     make_volume_request_msg,
 )
@@ -70,6 +78,10 @@ _ACK_SUB_PREFIXES: tuple[str, ...] = (
     "system.session_schedule.",
     "system.gateways.",
     "system.volume.",
+    "index.history.",
+    "index.corp_action_ack.",
+    "index.constituent_change_ack.",
+    "index.error.",
 )
 
 
@@ -110,6 +122,8 @@ class ExchangeCommandClient:
         gw_id: str,
         push_addr: str = ENGINE_PULL_ADDR,
         pub_addr: str = ENGINE_PUB_ADDR,
+        index_pull_addr: str = INDEX_PULL_CONNECT_ADDR,
+        index_pub_addr: str = INDEX_PUB_CONNECT_ADDR,
         timeout_ms: int = 3000,
         *,
         _push_sock: Any = None,
@@ -124,7 +138,9 @@ class ExchangeCommandClient:
         if _push_sock is not None:
             # Injection mode (tests) — use provided sockets as-is.
             self._push = _push_sock
+            self._index_push = _push_sock
             self._sub = _sub_sock
+            self._index_sub = _sub_sock
             return
 
         ctx = zmq.Context.instance()
@@ -132,10 +148,17 @@ class ExchangeCommandClient:
         self._push = ctx.socket(zmq.PUSH)
         self._push.connect(push_addr)
 
+        self._index_push = ctx.socket(zmq.PUSH)
+        self._index_push.connect(index_pull_addr)
+
         self._sub = ctx.socket(zmq.SUB)
         self._sub.connect(pub_addr)
+
+        self._index_sub = ctx.socket(zmq.SUB)
+        self._index_sub.connect(index_pub_addr)
         for prefix in _ACK_SUB_PREFIXES:
             self._sub.setsockopt_string(zmq.SUBSCRIBE, prefix)
+            self._index_sub.setsockopt_string(zmq.SUBSCRIBE, prefix)
 
     # ------------------------------------------------------------------
     # Low-level send / recv
@@ -173,18 +196,26 @@ class ExchangeCommandClient:
         # Production mode — use ZMQ poller with timeout.
         poller = zmq.Poller()
         poller.register(self._sub, zmq.POLLIN)
+        if self._index_sub is not None:
+            poller.register(self._index_sub, zmq.POLLIN)
         deadline = time.monotonic() + self._timeout_ms / 1000.0
         while True:
             remaining_ms = max(0, int((deadline - time.monotonic()) * 1000))
-            if not dict(poller.poll(remaining_ms)):
+            socks = dict(poller.poll(remaining_ms))
+            if not socks:
                 raise CommandTimeoutError(
                     f"No ack with prefix '{expected_prefix}' "
                     f"within {self._timeout_ms} ms"
                 )
-            frames = self._sub.recv_multipart()
-            topic, payload = decode(frames)
-            if topic.startswith(expected_prefix):
-                return payload
+            for sock in (self._sub, self._index_sub):
+                if sock is None:
+                    continue
+                if sock not in socks:
+                    continue
+                frames = sock.recv_multipart()
+                topic, payload = decode(frames)
+                if topic.startswith(expected_prefix):
+                    return payload
             # Discard unrelated messages and keep waiting.
 
     # ------------------------------------------------------------------
@@ -209,7 +240,9 @@ class ExchangeCommandClient:
         """Close ZMQ sockets (only when they were created by this instance)."""
         if self._owns_sockets:
             self._push.close()
+            self._index_push.close()
             self._sub.close()
+            self._index_sub.close()
 
     def __enter__(self) -> "ExchangeCommandClient":
         return self
@@ -330,6 +363,76 @@ class ExchangeCommandClient:
         self._send(make_symbols_request_msg(self._gw_id))
         result = self._recv(f"system.symbols.{self._gw_id}")
         return list(result.get("symbols", []))
+
+    def index_history(
+        self,
+        index_id: str,
+        from_ts: float,
+        to_ts: float,
+        types: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Query historical index records for one index id."""
+        self._index_push.send_multipart(
+            make_index_history_request_msg(
+                gateway_id=self._gw_id,
+                index_id=index_id.upper(),
+                from_ts=from_ts,
+                to_ts=to_ts,
+                types=types,
+            )
+        )
+        return self._recv(f"index.history.{self._gw_id}")
+
+    def index_corp_action(
+        self,
+        index_id: str,
+        action: str,
+        symbol: str,
+        **params: Any,
+    ) -> dict[str, Any]:
+        """Apply a corporate action on an index constituent."""
+        self._index_push.send_multipart(
+            make_index_corp_action_msg(
+                action=action.upper(),
+                index_id=index_id.upper(),
+                symbol=symbol.upper(),
+                gateway_id=self._gw_id,
+                params=params,
+            )
+        )
+        return self._recv(f"index.corp_action_ack.{self._gw_id}")
+
+    def index_delist(self, index_id: str, symbol: str) -> dict[str, Any]:
+        """Delist a symbol from an index."""
+        self._index_push.send_multipart(
+            make_index_constituent_change_msg(
+                change_type="DELIST",
+                index_id=index_id.upper(),
+                symbol=symbol.upper(),
+                gateway_id=self._gw_id,
+            )
+        )
+        return self._recv(f"index.constituent_change_ack.{self._gw_id}")
+
+    def index_add_constituent(
+        self,
+        index_id: str,
+        symbol: str,
+        shares_outstanding: int,
+        initial_price: float,
+    ) -> dict[str, Any]:
+        """Add a constituent to an index."""
+        self._index_push.send_multipart(
+            make_index_constituent_change_msg(
+                change_type="ADD",
+                index_id=index_id.upper(),
+                symbol=symbol.upper(),
+                gateway_id=self._gw_id,
+                shares_outstanding=shares_outstanding,
+                initial_price=initial_price,
+            )
+        )
+        return self._recv(f"index.constituent_change_ack.{self._gw_id}")
 
     def quote_bootstrap(self, target_gw: str, symbol: str = "") -> list[dict[str, Any]]:
         """
