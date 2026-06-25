@@ -3259,7 +3259,33 @@ ready to run commands.</p>
 <li>Poetry (for developers)</li>
 </ul>
 <h3 id="install-choose-one">Install (choose one)<a class="headerlink" href="#install-choose-one" title="Permanent link">&para;</a></h3>
-<p><strong>VM bootstrap mode (curl + Multipass)</strong></p>
+<p><em><strong>Alternative 1:</strong> VM bootstrap mode (curl + Multipass)</em></p>
+<table>
+<thead>
+<tr>
+<th>Requirement</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Multipass</td>
+<td>A lightweight VM manager. Install from <a href="https://multipass.run/install">multipass.run</a></td>
+</tr>
+<tr>
+<td>curl</td>
+<td>Used to download the VM bootstrap script</td>
+</tr>
+<tr>
+<td>Internet access</td>
+<td>Required for downloading scripts and PyPI packages</td>
+</tr>
+<tr>
+<td>Host resources</td>
+<td>Recommended minimum: 2 vCPU, 3 GB RAM, 10 GB disk</td>
+</tr>
+</tbody>
+</table>
 <p>Prefer this mode if you want a ready-to-run Linux VM without installing Python
 or cloning this repository on your host machine.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.9.2<span class="w"> </span>--snapshot
@@ -3267,7 +3293,7 @@ or cloning this repository on your host machine.</p>
 <p>More information:
 - <a href="user-guide/00-getting-started/">Getting Started - VM bootstrap mode</a>
 - <a href="developer/05-vm-runtime-image/">Developer guide - VM runtime image</a></p>
-<p><strong>Installed mode (pipx)</strong></p>
+<p><em><strong>ALTERNATIVE 2:</strong> Installed mode (pipx)</em></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pipx<span class="w"> </span>install<span class="w"> </span>edumatcher
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pm-setup
 </code></pre></div>
@@ -3286,6 +3312,7 @@ or cloning this repository on your host machine.</p>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>poetry<span class="w"> </span>install<span class="w"> </span>--with<span class="w"> </span>dev,docs
 </code></pre></div>
 <h3 id="start-the-system-minimum-viable-session">Start the system (minimum viable session)<a class="headerlink" href="#start-the-system-minimum-viable-session" title="Permanent link">&para;</a></h3>
+<p><strong>Note:</strong> Running the exchange is complex enough that you really <strong>need</strong> to read the documentation and follow the instructions in the User Guide to get a full exchange up and running. The above commands are just a quick start to get you going. The User Guide will explain how to configure the exchange, start and stop processes, and run the system in a realistic way.</p>
 <p>Open <strong>five</strong> terminal windows and run one process per window, in this order:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Terminal 1 — Matching engine</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pm-engine<span class="w"> </span>--verbose

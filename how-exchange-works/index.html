@@ -6041,7 +6041,7 @@
 <li>Many investors participate because companies with real value list their shares there.</li>
 </ul>
 <p>The stock exchange, the subject of this entire document, is the infrastructure that makes this cycle turn.</p>
-<pre class="mermaid" width="400"><code>flowchart TD
+<pre class="mermaid" width="350"><code>flowchart TD
     CO["🏢 Company"]
     PM["Primary Market\nIPO / follow-on offering\nCompany receives cash"]
     EX["Stock Exchange\nSecondary Market"]
@@ -6902,7 +6902,10 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
 <li>Check if any dormant stop orders have now been triggered by the new trade price.</li>
 <li>Publish the results (trades, order status changes) to participants and subscribers.</li>
 </ol>
-<pre class="mermaid"><code>flowchart TD
+<!-- pagebreak:any -->
+
+<p>```mermaid{.mermaid width=550}
+flowchart TD
     A["Dequeue next message\nfrom input queue"]
     B{"Message\ntype?"}
     C{"Can order match\nagainst resting orders?"}
@@ -6913,70 +6916,87 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
     H["Place order\nin book at price level\nPublish ACK"]
     I["Process cancel\nor modification\nPublish event"]
     J["Check dormant stops:\ndid last_trade_price trigger any?"]
-    K["Publish all events\nto PUB socket"]
-
-    A --&gt; B
-    B --&gt;|New order| C
-    B --&gt;|Cancel / Modify| I --&gt; K --&gt; A
-    C --&gt;|Yes| D --&gt; E
-    E --&gt;|Yes| F --&gt; J --&gt; K --&gt; A
-    E --&gt;|No| G --&gt; J --&gt; K --&gt; A
-    C --&gt;|No| H --&gt; K --&gt; A</code></pre>
+    K["Publish all events\nto PUB socket"]</p>
+<div class="highlight"><pre><span></span><code>A --&gt; B
+B --&gt;|New order| C
+B --&gt;|Cancel / Modify| I --&gt; K --&gt; A
+C --&gt;|Yes| D --&gt; E
+E --&gt;|Yes| F --&gt; J --&gt; K --&gt; A
+E --&gt;|No| G --&gt; J --&gt; K --&gt; A
+C --&gt;|No| H --&gt; K --&gt; A
+</code></pre></div>
+<p>```
+</p>
 <h3 id="the-sweep">The Sweep<a class="headerlink" href="#the-sweep" title="Permanent link">&para;</a></h3>
-<p>When an aggressive order arrives and begins filling against the resting book, this process is called <strong>sweeping</strong> the book. The aggressive order works through price levels one by one, from best to worst, until either it is fully filled or it reaches its limit price (or the book runs out of orders).</p>
-<p>For example, a market buy order for 5,000 shares arrives:
+<p>When an aggressive order arrives and begins filling against the resting book, this process is called <strong>sweeping</strong> the book. The aggressive order works through price levels one by one, from best to worst, until either it is fully filled or it reaches its limit price (or the book runs out of orders).
+
+For example, a market buy order for 5,000 shares arrives:
 - Takes 2,000 shares at the best ask of $150.35.
 - Takes 1,500 shares at the next level, $150.40.
 - Takes 1,200 shares at $150.45.
 - Takes 300 shares at $150.50.
-- Fully filled. Total cost: a weighted average of these prices.</p>
-<p>The price impact of sweeping through multiple levels is called <strong>slippage</strong> or <strong>market impact</strong>, the large order moved the effective price away from the initial best ask.</p>
+- Fully filled. Total cost: a weighted average of these prices.
+
+The price impact of sweeping through multiple levels is called <strong>slippage</strong> or <strong>market impact</strong>, the large order moved the effective price away from the initial best ask.
+</p>
 <h3 id="single-threaded-by-design">Single-Threaded by Design<a class="headerlink" href="#single-threaded-by-design" title="Permanent link">&para;</a></h3>
-<p>Perhaps counterintuitively, most matching engines are <strong>single-threaded</strong>, they process orders one at a time, in strict sequence, with no parallel processing of orders. This is not a performance limitation; it is a deliberate design choice.</p>
-<p>The order book is a shared, stateful data structure. If two threads tried to modify it simultaneously, you would need complex locking mechanisms to prevent corruption, and you might still end up with non-deterministic outcomes. In a system where fairness and determinism are legally required, this is unacceptable.</p>
-<p>By processing orders in a single thread, the engine guarantees that the outcome is perfectly deterministic: given the same sequence of orders, the same sequence of trades will always result.</p>
+<p>Perhaps counterintuitively, most matching engines are <strong>single-threaded</strong>, they process orders one at a time, in strict sequence, with no parallel processing of orders. This is not a performance limitation; it is a deliberate design choice.
+
+The order book is a shared, stateful data structure. If two threads tried to modify it simultaneously, you would need complex locking mechanisms to prevent corruption, and you might still end up with non-deterministic outcomes. In a system where fairness and determinism are legally required, this is unacceptable.
+
+By processing orders in a single thread, the engine guarantees that the outcome is perfectly deterministic: given the same sequence of orders, the same sequence of trades will always result.
+</p>
 <blockquote>
 <p><strong>Key idea:</strong> Single-threaded design is a feature, not a limitation. It makes the matching engine auditable, replayable, and legally defensible. Performance comes from algorithmic efficiency, not parallelism.</p>
+<p>The performance requirement is achieved through algorithmic efficiency (correct data structures, avoiding unnecessary computation) rather than parallelism. The world's fastest matching engines can process orders in microseconds or even nanoseconds. CME Globex handles approximately 30–35 million messages per day across all products [CME Group Market Statistics, 2023]. NASDAQ's matching engines acknowledge orders in under 100 microseconds in typical conditions; co-located HFT firms that respond to market data and submit an order may achieve round-trip latencies below 5 microseconds. These numbers drive the entire hardware and architecture design: no garbage-collected language, no dynamic memory allocation in the critical path, no operating system calls that can introduce variable latency.
+</p>
 </blockquote>
-<p>The performance requirement is achieved through algorithmic efficiency (correct data structures, avoiding unnecessary computation) rather than parallelism. The world's fastest matching engines can process orders in microseconds or even nanoseconds. CME Globex handles approximately 30–35 million messages per day across all products [CME Group Market Statistics, 2023]. NASDAQ's matching engines acknowledge orders in under 100 microseconds in typical conditions; co-located HFT firms that respond to market data and submit an order may achieve round-trip latencies below 5 microseconds. These numbers drive the entire hardware and architecture design: no garbage-collected language, no dynamic memory allocation in the critical path, no operating system calls that can introduce variable latency.</p>
 <h3 id="one-book-per-symbol">One Book Per Symbol<a class="headerlink" href="#one-book-per-symbol" title="Permanent link">&para;</a></h3>
-<p>The matching engine maintains one order book per tradeable symbol. AAPL trades in one book, MSFT in another. These books are entirely independent, an order in the AAPL book cannot interact directly with an order in the MSFT book (combo orders handle cross-symbol interaction at a higher level).</p>
-<p>Conceptually, one logical order book per symbol is the correct mental model. In production systems, the implementation may be distributed differently, books may be sharded across cores, replicated for high availability, or partitioned by instrument group across multiple machines, but the logical behaviour is identical: each symbol has its own independent price-time priority queue.</p>
-<p><strong>Where symbol independence breaks down:</strong> Several order types and matching mechanisms require coordination <em>across</em> symbols, and developers should not over-generalise the "symbols are independent" rule:</p>
-<ul>
-<li>
-<p><strong>Spread orders and calendar spreads</strong> (CME): a single order to buy a March futures contract and sell a June contract simultaneously. The exchange must evaluate both legs together, filling only one is leg risk.</p>
-</li>
-<li>
-<p><strong>Implied matching</strong> (derivatives markets): if there is a spread order to trade March-vs-June, and a separate outright order in June, the exchange can "imply" a synthetic March price and fill the outright June against the spread. CME Globex implements implied matching across multiple contract months.</p>
-</li>
-<li>
-<p><strong>Multi-leg options strategies</strong> (Eurex, CBOE): a straddle (buy call + buy put at the same strike) or a strangle requires co-ordination between two different option series, each with its own symbol.</p>
-</li>
-<li>
-<p><strong>Basket orders and index rebalancing</strong>: trading a portfolio of dozens of stocks as a single instruction requires cross-symbol scheduling and coordination.</p>
-</li>
-</ul>
-<p>For exchange system developers, this means the "separate process per symbol" architecture that works cleanly for single-instrument matching must be extended, or wrapped with a higher-level combinator, to handle any multi-leg or implied matching requirements.</p>
+<p>The matching engine maintains one order book per tradeable symbol. AAPL trades in one book, MSFT in another. These books are entirely independent, an order in the AAPL book cannot interact directly with an order in the MSFT book (combo orders handle cross-symbol interaction at a higher level).
+
+Conceptually, one logical order book per symbol is the correct mental model. In production systems, the implementation may be distributed differently, books may be sharded across cores, replicated for high availability, or partitioned by instrument group across multiple machines, but the logical behaviour is identical: each symbol has its own independent price-time priority queue.
+
+<strong>Where symbol independence breaks down:</strong> Several order types and matching mechanisms require coordination <em>across</em> symbols, and developers should not over-generalise the "symbols are independent" rule:
+
+- <strong>Spread orders and calendar spreads</strong> (CME): a single order to buy a March futures contract and sell a June contract simultaneously. The exchange must evaluate both legs together, filling only one is leg risk.
+
+- <strong>Implied matching</strong> (derivatives markets): if there is a spread order to trade March-vs-June, and a separate outright order in June, the exchange can "imply" a synthetic March price and fill the outright June against the spread. CME Globex implements implied matching across multiple contract months.
+
+- <strong>Multi-leg options strategies</strong> (Eurex, CBOE): a straddle (buy call + buy put at the same strike) or a strangle requires co-ordination between two different option series, each with its own symbol.
+
+- <strong>Basket orders and index rebalancing</strong>: trading a portfolio of dozens of stocks as a single instruction requires cross-symbol scheduling and coordination.
+
+For exchange system developers, this means the "separate process per symbol" architecture that works cleanly for single-instrument matching must be extended, or wrapped with a higher-level combinator, to handle any multi-leg or implied matching requirements.
+</p>
 <h3 id="the-role-of-data-structures">The Role of Data Structures<a class="headerlink" href="#the-role-of-data-structures" title="Permanent link">&para;</a></h3>
-<p>The order book needs to answer one question extremely fast: "What is the best available price right now?" Priority queues and heap-like structures are conceptually useful for understanding this, a heap gives O(1) access to the minimum or maximum element, and O(log n) insertion and deletion, which suits the matching engine's primary operations well.</p>
-<p>Production exchange engines, however, often use more specialised data structures optimised for FIFO ordering within price levels, cache locality, and deterministic latency: balanced trees, skip lists, or intrusive linked lists indexed by price level are common. The conceptual model of "best price always accessible in O(1)" is correct regardless of the underlying structure; the heap is a pedagogically useful approximation of what these structures achieve.</p>
+<p>The order book needs to answer one question extremely fast: "What is the best available price right now?" Priority queues and heap-like structures are conceptually useful for understanding this, a heap gives O(1) access to the minimum or maximum element, and O(log n) insertion and deletion, which suits the matching engine's primary operations well.
+
+Production exchange engines, however, often use more specialised data structures optimised for FIFO ordering within price levels, cache locality, and deterministic latency: balanced trees, skip lists, or intrusive linked lists indexed by price level are common. The conceptual model of "best price always accessible in O(1)" is correct regardless of the underlying structure; the heap is a pedagogically useful approximation of what these structures achieve.
+
+</p>
 <h2 id="the-life-of-a-trade">The Life of a Trade<a class="headerlink" href="#the-life-of-a-trade" title="Permanent link">&para;</a></h2>
-<p>Let us trace a single trade from start to finish.</p>
+<p>Let us trace a single trade from start to finish.
+</p>
 <h3 id="order-submission">Order Submission<a class="headerlink" href="#order-submission" title="Permanent link">&para;</a></h3>
-<p>Participant A, connected through Gateway GW01, submits a limit buy order: "Buy 500 shares of AAPL at $150.30, DAY." The order arrives as a <strong>FIX message</strong> (Financial Information eXchange , the standard protocol for order submission in financial markets, covered in full in the Technology Architecture section). The gateway validates the basic format and forwards it to the matching engine.</p>
-<p>The engine receives the order and assigns it:
+<p>Participant A, connected through Gateway GW01, submits a limit buy order: "Buy 500 shares of AAPL at $150.30, DAY." The order arrives as a <strong>FIX message</strong> (Financial Information eXchange , the standard protocol for order submission in financial markets, covered in full in the Technology Architecture section). The gateway validates the basic format and forwards it to the matching engine.
+
+The engine receives the order and assigns it:
 - A <strong>unique order ID</strong> (a system-wide identifier, discussed in detail in the architecture section)
 - A <strong>timestamp</strong> (nanosecond precision)
-- An initial status of <strong>NEW</strong> (the order has been accepted and registered)</p>
-<p>The engine publishes an <strong>acknowledgment (ACK)</strong> back to GW01 confirming the order is live. The order now rests in the book.</p>
+- An initial status of <strong>NEW</strong> (the order has been accepted and registered)
+
+The engine publishes an <strong>acknowledgment (ACK)</strong> back to GW01 confirming the order is live. The order now rests in the book.
+</p>
 <h3 id="the-match">The Match<a class="headerlink" href="#the-match" title="Permanent link">&para;</a></h3>
-<p>Moments later, Participant B, connected through Gateway GW02, submits a sell limit order: "Sell 500 shares of AAPL at $150.30, DAY." Or perhaps a market sell order. Either way, the engine determines that this sell order can match the resting buy order.</p>
-<p>The match happens: 500 shares trade at $150.30. Two events occur simultaneously:
+<p>Moments later, Participant B, connected through Gateway GW02, submits a sell limit order: "Sell 500 shares of AAPL at $150.30, DAY." Or perhaps a market sell order. Either way, the engine determines that this sell order can match the resting buy order.
+
+The match happens: 500 shares trade at $150.30. Two events occur simultaneously:
 - Order A transitions from status NEW to <strong>FILLED</strong>.
-- Order B transitions from status NEW to FILLED.</p>
-<p>Both GW01 and GW02 receive <strong>fill notifications</strong> (also called <strong>execution reports</strong>) detailing the trade: quantity, price, and any remaining unfilled quantity.</p>
-<p>A <strong>trade record</strong> is created, capturing:
+- Order B transitions from status NEW to FILLED.
+
+Both GW01 and GW02 receive <strong>fill notifications</strong> (also called <strong>execution reports</strong>) detailing the trade: quantity, price, and any remaining unfilled quantity.
+
+A <strong>trade record</strong> is created, capturing:
 - The trade ID
 - The symbol
 - The price
@@ -6984,50 +7004,32 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
 - The IDs of both orders involved
 - The IDs of both gateways (participants)
 - The timestamp
-- Which side was the <strong>aggressor</strong> (which order arrived and "took" the fill)</p>
-<p>The aggressor field is more than just a label. It matters for several reasons. First, for <strong>fee calculation</strong>: most exchanges charge takers (aggressors) a fee and pay makers (resting orders) a rebate, so correctly identifying which side was aggressive determines the billing for each trade. Second, for <strong>regulatory reporting</strong>: in some jurisdictions, trades must be classified as "buy-initiated" or "sell-initiated" based on which side was the aggressor. Third, for <strong>market analysis</strong>: the sequence of buyer-initiated and seller-initiated trades is a standard input to microstructure models that infer order flow direction and predict short-term price movement. Fourth, for <strong>clearing</strong>: in some clearing architectures, the aggressor side may have different margin or settlement obligations.</p>
+- Which side was the <strong>aggressor</strong> (which order arrived and "took" the fill)
+
+The aggressor field is more than just a label. It matters for several reasons. First, for <strong>fee calculation</strong>: most exchanges charge takers (aggressors) a fee and pay makers (resting orders) a rebate, so correctly identifying which side was aggressive determines the billing for each trade. Second, for <strong>regulatory reporting</strong>: in some jurisdictions, trades must be classified as "buy-initiated" or "sell-initiated" based on which side was the aggressor. Third, for <strong>market analysis</strong>: the sequence of buyer-initiated and seller-initiated trades is a standard input to microstructure models that infer order flow direction and predict short-term price movement. Fourth, for <strong>clearing</strong>: in some clearing architectures, the aggressor side may have different margin or settlement obligations.
+</p>
 <h3 id="partial-fills">Partial Fills<a class="headerlink" href="#partial-fills" title="Permanent link">&para;</a></h3>
-<p>If Order A was for 500 shares but only 300 shares were available at $150.30, a <strong>partial fill</strong> occurs: 300 shares trade, Order A's status becomes <strong>PARTIAL</strong> with 200 shares remaining, and it continues resting at $150.30 waiting for more sellers.</p>
+<p>If Order A was for 500 shares but only 300 shares were available at $150.30, a <strong>partial fill</strong> occurs: 300 shares trade, Order A's status becomes <strong>PARTIAL</strong> with 200 shares remaining, and it continues resting at $150.30 waiting for more sellers.
+</p>
 <h3 id="publication">Publication<a class="headerlink" href="#publication" title="Permanent link">&para;</a></h3>
-<p>Every trade is immediately published over the market data feed to all subscribers. The viewer, board, stats database, clearing system, and any other subscriber all receive the trade notification within microseconds of it occurring.</p>
+<p>Every trade is immediately published over the market data feed to all subscribers. The viewer, board, stats database, clearing system, and any other subscriber all receive the trade notification within microseconds of it occurring.
+</p>
 <h3 id="order-status-lifecycle">Order Status Lifecycle<a class="headerlink" href="#order-status-lifecycle" title="Permanent link">&para;</a></h3>
-<p>An order passes through a defined set of statuses during its lifetime. Understanding these is essential for anyone building order management, reporting, or audit systems.</p>
-<table>
-<thead>
-<tr>
-<th>Status</th>
-<th>Meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><strong>NEW</strong></td>
-<td>The order has been accepted and acknowledged by the exchange. It is live, either resting in the book (if a limit order) or being matched (if aggressive).</td>
-</tr>
-<tr>
-<td><strong>PARTIAL</strong></td>
-<td>At least one fill has occurred but the order quantity is not yet fully satisfied. The remaining quantity continues to rest or be eligible for matching.</td>
-</tr>
-<tr>
-<td><strong>FILLED</strong></td>
-<td>The entire order quantity has been executed. The order is complete and leaves the book.</td>
-</tr>
-<tr>
-<td><strong>CANCELLED</strong></td>
-<td>The order was withdrawn before it was fully filled, either by the participant, by the exchange (e.g., kill switch), or by a system rule (e.g., end-of-day cancellation of DAY orders).</td>
-</tr>
-<tr>
-<td><strong>REJECTED</strong></td>
-<td>The order was refused by the gateway or the engine before entering the book, for example, failing a pre-trade risk check, containing an invalid price, or submitted during a halt. A rejected order never entered the book.</td>
-</tr>
-<tr>
-<td><strong>EXPIRED</strong></td>
-<td>The order's time-in-force condition was not met. GTD orders that reach their expiry date without filling receive this status. ATO orders unfilled after the opening auction expire automatically.</td>
-</tr>
-</tbody>
-</table>
-<p>The key transitions: an order starts as NEW. A partial fill moves it to PARTIAL. A final fill completes the transition to FILLED. A cancel message (from the participant) or a kill switch (from the exchange) moves a NEW or PARTIAL order to CANCELLED. A pre-trade rejection produces REJECTED without the order ever becoming NEW. An elapsed GTD date produces EXPIRED.</p>
-<pre class="mermaid"><code>stateDiagram-v2
+<p>An order passes through a defined set of statuses during its lifetime. Understanding these is essential for anyone building order management, reporting, or audit systems.
+
+| Status | Meaning |
+|---|---|
+| <strong>NEW</strong> | The order has been accepted and acknowledged by the exchange. It is live, either resting in the book (if a limit order) or being matched (if aggressive). |
+| <strong>PARTIAL</strong> | At least one fill has occurred but the order quantity is not yet fully satisfied. The remaining quantity continues to rest or be eligible for matching. |
+| <strong>FILLED</strong> | The entire order quantity has been executed. The order is complete and leaves the book. |
+| <strong>CANCELLED</strong> | The order was withdrawn before it was fully filled, either by the participant, by the exchange (e.g., kill switch), or by a system rule (e.g., end-of-day cancellation of DAY orders). |
+| <strong>REJECTED</strong> | The order was refused by the gateway or the engine before entering the book, for example, failing a pre-trade risk check, containing an invalid price, or submitted during a halt. A rejected order never entered the book. |
+| <strong>EXPIRED</strong> | The order's time-in-force condition was not met. GTD orders that reach their expiry date without filling receive this status. ATO orders unfilled after the opening auction expire automatically. |
+
+The key transitions: an order starts as NEW. A partial fill moves it to PARTIAL. A final fill completes the transition to FILLED. A cancel message (from the participant) or a kill switch (from the exchange) moves a NEW or PARTIAL order to CANCELLED. A pre-trade rejection produces REJECTED without the order ever becoming NEW. An elapsed GTD date produces EXPIRED.
+
+<code>mermaid
+stateDiagram-v2
     direction LR
     [*] --&gt; NEW : Order accepted and acknowledged
     NEW --&gt; PARTIAL : First partial fill
@@ -7041,7 +7043,7 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
     CANCELLED --&gt; [*]
     EXPIRED --&gt; [*]
     NEW --&gt; REJECTED : Pre-trade check fails (never entered book)
-    REJECTED --&gt; [*]</code></pre>
+    REJECTED --&gt; [*]</code></p>
 <blockquote>
 <p><strong>Key idea for developers:</strong> REJECTED is fundamentally different from CANCELLED. A rejected order never existed in the book; a cancelled order did. Audit trails must record both, but they have different implications for position tracking (a rejected order has no position impact) and for regulatory reporting.</p>
 </blockquote>
@@ -7291,14 +7293,14 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
 <p><strong>Market-capitalisation-weighted.</strong> Each constituent contributes in proportion to its <strong>market capitalisation</strong>, the total value of its shares. This is how the S&amp;P 500, FTSE 100, DAX, and almost every modern serious index works, and it is the method worth understanding in depth.</p>
 <h4 id="market-capitalisation-and-normalisation">Market Capitalisation and Normalisation<a class="headerlink" href="#market-capitalisation-and-normalisation" title="Permanent link">&para;</a></h4>
 <p>A company's <strong>market capitalisation</strong> ("market cap") is simply:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>market cap = share price × shares outstanding
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>market cap = share price × shares outstanding
 </code></pre></div>
 <p>A company trading at $200 with one billion shares is worth $200 billion. In a cap-weighted index, that company's influence is its market cap as a fraction of the <em>total</em> market cap of all constituents. A $400 billion company in an index whose constituents total $4 trillion drives 10% of the index's movement; a $40 billion company drives 1%. Large companies dominate, which is usually what we want, the index reflects where the market's money actually sits.</p>
 <p>But there is a problem. If you just add up the market caps of 500 companies, you get a number in the tens of trillions, an unwieldy figure that means nothing to a human and that jumps every time a company issues shares or is swapped out of the index. The solution is <strong>normalisation against a divisor</strong>.</p>
 <blockquote>
 <p><strong>Key idea:</strong> An index level is the aggregate market cap of its constituents divided by a <strong>divisor</strong>, a scaling number chosen so the index reads as a friendly figure (say, 1000 at launch) and, crucially, so the level stays continuous when the basket itself changes.</p>
 </blockquote>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>index level = aggregate market cap / divisor
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>index level = aggregate market cap / divisor
 </code></pre></div>
 <p>At launch, the divisor is set so the index equals its chosen <strong>base value</strong>. If the constituents total $7 trillion and you want the index to start at 1000, you set the divisor to $7 trillion ÷ 1000 = $7 billion. From then on, as prices move, the aggregate cap moves, and dividing by the (mostly fixed) divisor produces the published level.</p>
 <p><strong>A worked example.</strong> Suppose a small index has three constituents:</p>
@@ -7339,8 +7341,8 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
 </tbody>
 </table>
 <p>To launch at a base value of 1000:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>divisor = 7,007,100,000,000 / 1000 = 7,007,100,000
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>index level = 7,007,100,000,000 / 7,007,100,000 = 1000.00
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>divisor = 7,007,100,000,000 / 1000 = 7,007,100,000
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>index level = 7,007,100,000,000 / 7,007,100,000 = 1000.00
 </code></pre></div>
 <p>Now if Alpha rises to $230, the aggregate cap rises to about $7.32 trillion, and the index reads roughly 1045, up 4.5%. Notice that Alpha, the largest constituent, moved the index more than an identical percentage move in tiny Gamma would have. That is cap weighting doing its job.</p>
 <p>Most serious indexes refine this further with <strong>free-float adjustment</strong>: instead of <em>all</em> shares outstanding, they count only the shares actually available to public trading, excluding blocks held by founders, governments, or strategic owners that never trade. A company that is 60% owned by its founding family has only 40% of its shares influencing supply and demand, so only that 40% should influence the index. The principle is identical; only the share count used in the market-cap formula changes.</p>
@@ -7353,16 +7355,17 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
 <p><strong>Key idea:</strong> Whenever a corporate action changes the <em>aggregate market cap</em> of the basket for a reason unrelated to genuine price movement, the divisor is adjusted to absorb the change, so the index level does not jump at that instant. Only <em>future</em> price movements then change the level.</p>
 </blockquote>
 <p>The mechanism is a simple ratio. If a corporate action changes the aggregate cap from an old value to a new value, the divisor is rescaled by the same ratio:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>new divisor = old divisor × (new aggregate cap / old aggregate cap)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>new divisor = old divisor × (new aggregate cap / old aggregate cap)
 </code></pre></div>
 <p>Because the level is <code>aggregate cap ÷ divisor</code>, multiplying both the cap <em>and</em> the divisor by the same factor leaves the level unchanged at the moment of adjustment. The index glides through the event seamlessly. This is precisely the technique the S&amp;P 500 has used for decades, its famous divisor is a closely tracked number that evolves continuously as constituents split, pay dividends, get added, and get removed [S&amp;P Dow Jones Indices, <em>Index Mathematics Methodology</em>].</p>
-<pre class="mermaid" width="420"><code>flowchart TD
+<p><pre class="mermaid" width="225"><code>flowchart TD
     A["Corporate action occurs\n(split, dividend, issuance, removal)"]
     B["Aggregate market cap\nchanges for non-price reason"]
     C["Rescale the divisor\nby the same ratio"]
     D["Index level unchanged\nat the instant of adjustment"]
     E["Future price moves\nnow change the level normally"]
     A --&gt; B --&gt; C --&gt; D --&gt; E</code></pre>
+<em><strong>Figure 17.1:</strong> The divisor is adjusted to absorb changes in aggregate market cap that are not genuine price moves, so the index level remains continuous.</em></p>
 <p>The continuity this provides is not a nicety, it is the whole point. An index is only meaningful if a move from 4000 to 4040 always means "the market rose 1%," never "a constituent happened to split last night."</p>
 <h3 id="getting-into-the-index-the-sp-500-example">Getting Into the Index: The S&amp;P 500 Example<a class="headerlink" href="#getting-into-the-index-the-sp-500-example" title="Permanent link">&para;</a></h3>
 <p>Membership in a major index is coveted, and the criteria are strict. The S&amp;P 500 is instructive because it is <em>not</em> purely mechanical, a committee makes the final call, which surprises many people who assume it is simply "the 500 biggest US companies."</p>
@@ -8157,7 +8160,7 @@ Exchanges can identify these traders using one or several of the following mecha
 </ul>
 <p>In many architectures, the gateway performs only structural and session checks, while instrument-specific validation (tick alignment, price collars, and auction/session constraints) is enforced in the matching engine or in a dedicated risk layer fed by reference data. Some venues do cache reference data in gateways and validate there too; the key requirement is consistent enforcement in exactly one authoritative path.</p>
 <p><strong>FIX Protocol:</strong> The industry-standard format for order submission is FIX (Financial Information eXchange), a text-based protocol developed in the early 1990s. A FIX order message looks something like:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>8=FIX.4.2|35=D|49=CLIENT1|56=EXCHANGE|11=ORDER001|55=AAPL|54=1|38=100|44=150.30|40=2|59=0
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>8=FIX.4.2|35=D|49=CLIENT1|56=EXCHANGE|11=ORDER001|55=AAPL|54=1|38=100|44=150.30|40=2|59=0
 </code></pre></div>
 (Note: the <code>|</code> separator here is a display convention. On the wire, FIX uses the SOH character, ASCII value 1, a non-printable control character, as the field delimiter. Tools and documentation almost always substitute <code>|</code> or <code>^A</code> for readability.)</p>
 <p>All eleven fields in this message have meaning:</p>
