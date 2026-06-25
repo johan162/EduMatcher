@@ -19,8 +19,9 @@ At its simplest, the matching engine runs an endless loop:
 5. Check if any dormant stop orders have now been triggered by the new trade price.
 6. Publish the results (trades, order status changes) to participants and subscribers.
 
+<!-- pagebreak:any -->
 
-```mermaid
+```mermaid{.mermaid width=550}
 flowchart TD
     A["Dequeue next message\nfrom input queue"]
     B{"Message\ntype?"}

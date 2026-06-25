@@ -19,7 +19,7 @@
 --
 -- The prefix before -cbreak- sets the language class of the code block that
 -- follows the break (e.g. yaml, text, toml) for correct syntax highlighting.
--- Marker lines are always stripped from the output; a \newpage is inserted
+-- Marker lines are always stripped from the output; a \clearpage is inserted
 -- only for the active format.  In non-LaTeX output all markers are just removed.
 --
 -- Implementation note: pandoc's Lua filter traversal is bottom-up, so a plain
@@ -28,7 +28,8 @@
 -- us read metadata before walking any elements.
 
 local function newpage()
-  return pandoc.RawBlock("latex", "\\newpage")
+  -- clearpage flushes pending floats before breaking the page.
+  return pandoc.RawBlock("latex", "\\clearpage")
 end
 
 local PAGEBREAK_COMMENT_ANY = "^%s*<!%-%-%s*pagebreak%s*%-%->%s*$"
@@ -108,7 +109,7 @@ end
 --   <!-- pagebreak:b5 -->
 --
 -- MkDocs ignores these comments, while Pandoc exposes them as raw HTML blocks
--- or raw HTML inlines that we can translate to \newpage for LaTeX output.
+-- or raw HTML inlines that we can translate to \clearpage for LaTeX output.
 -- ──────────────────────────────────────────────────────────────────────────────
 local function make_rawblock_filter(paper_format)
   return function(el)
