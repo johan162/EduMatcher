@@ -164,7 +164,7 @@ Who would invest in a company's IPO if they knew they could never sell their sha
 
 The stock exchange, the subject of this entire document, is the infrastructure that makes this cycle turn.
 
-```{.mermaid width=400}
+```{.mermaid width=350}
 flowchart TD
     CO["🏢 Company"]
     PM["Primary Market\nIPO / follow-on offering\nCompany receives cash"]
@@ -1167,8 +1167,9 @@ At its simplest, the matching engine runs an endless loop:
 5. Check if any dormant stop orders have now been triggered by the new trade price.
 6. Publish the results (trades, order status changes) to participants and subscribers.
 
+<!-- pagebreak:any -->
 
-```mermaid
+```mermaid{.mermaid width=550}
 flowchart TD
     A["Dequeue next message\nfrom input queue"]
     B{"Message\ntype?"}
@@ -1709,7 +1710,7 @@ new divisor = old divisor × (new aggregate cap / old aggregate cap)
 
 Because the level is `aggregate cap ÷ divisor`, multiplying both the cap *and* the divisor by the same factor leaves the level unchanged at the moment of adjustment. The index glides through the event seamlessly. This is precisely the technique the S&P 500 has used for decades, its famous divisor is a closely tracked number that evolves continuously as constituents split, pay dividends, get added, and get removed [S&P Dow Jones Indices, *Index Mathematics Methodology*].
 
-```{.mermaid width=420}
+```{.mermaid width=225}
 flowchart TD
     A["Corporate action occurs\n(split, dividend, issuance, removal)"]
     B["Aggregate market cap\nchanges for non-price reason"]
@@ -1718,6 +1719,7 @@ flowchart TD
     E["Future price moves\nnow change the level normally"]
     A --> B --> C --> D --> E
 ```
+***Figure 17.1:** The divisor is adjusted to absorb changes in aggregate market cap that are not genuine price moves, so the index level remains continuous.*
 
 The continuity this provides is not a nicety, it is the whole point. An index is only meaningful if a move from 4000 to 4040 always means "the market rose 1%," never "a constituent happened to split last night."
 

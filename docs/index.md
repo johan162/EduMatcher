@@ -148,7 +148,15 @@ This quick start points to the full walkthrough in
 
 ### Install (choose one)
 
-**VM bootstrap mode (curl + Multipass)**
+***Alternative 1:** VM bootstrap mode (curl + Multipass)*
+
+
+| Requirement | Notes |
+|---|---|
+| Multipass | A lightweight VM manager. Install from [multipass.run](https://multipass.run/install) |
+| curl | Used to download the VM bootstrap script |
+| Internet access | Required for downloading scripts and PyPI packages |
+| Host resources | Recommended minimum: 2 vCPU, 3 GB RAM, 10 GB disk |
 
 Prefer this mode if you want a ready-to-run Linux VM without installing Python
 or cloning this repository on your host machine.
@@ -162,7 +170,7 @@ More information:
 - [Developer guide - VM runtime image](developer/05-vm-runtime-image.md)
 
 
-**Installed mode (pipx)**
+***ALTERNATIVE 2:** Installed mode (pipx)*
 
 ```bash
 pipx install edumatcher
@@ -191,6 +199,9 @@ poetry install --with dev,docs
 ```
 
 ### Start the system (minimum viable session)
+
+**Note:** Running the exchange is complex enough that you really **need** to read the documentation and follow the instructions in the User Guide to get a full exchange up and running. The above commands are just a quick start to get you going. The User Guide will explain how to configure the exchange, start and stop processes, and run the system in a realistic way.
+
 
 Open **five** terminal windows and run one process per window, in this order:
 
