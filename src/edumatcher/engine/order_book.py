@@ -232,6 +232,10 @@ class OrderBook:
 
         return trades, events
 
+    def get_order(self, order_id: str) -> Optional[Order]:
+        """Return the resting Order with *order_id*, or None if not found."""
+        return self._order_index.get(order_id)
+
     def cancel_order(self, order_id: str) -> Optional[Order]:
         """
         Cancel a resting order.  Returns the Order if found and cancellable,
@@ -252,16 +256,24 @@ class OrderBook:
         entry = self._entry_index.get(order_id)
         if entry:
             entry.valid = False
-            # Remove remaining visible qty from price-level index
+            # Remove remaining visible qty from price-level index.
+            # STOP / STOP_LIMIT orders rest in the stop heaps and never
+            # contribute to _bid_qty/_ask_qty; deducting them here would
+            # corrupt the qty index of genuine resting orders that share the
+            # stop's limit price (STOP_LIMIT carries a non-None price).
             o = entry.order
-            if o.price is not None:
+            if (
+                o.order_type not in (OrderType.STOP, OrderType.STOP_LIMIT)
+                and o.price is not None
+            ):
                 qty = (
                     o.displayed_qty
                     if o.order_type == OrderType.ICEBERG
                     else o.remaining_qty
                 )
                 self._deduct_qty_index(o, qty)  # type: ignore[arg-type]
-        # stops are not in _entry_index
+        # Stops live in the stop heaps but are also tracked in _entry_index;
+        # invalidating the entry above is enough to drop them lazily.
         return order
 
     def amend_order(
@@ -897,7 +909,10 @@ class OrderBook:
                 # PERF #3: Reuse cached timestamp for iceberg replenishment
                 # instead of another time.time() syscall.
                 passive.timestamp = now
-                # Re-insert with new key so priority is refreshed
+                # Deduct the consumed peak from the qty index BEFORE reinserting
+                # the fresh peak.  Without this call the index over-counts by
+                # fill_qty, corrupting FOK pre-checks and depth snapshots.
+                self._deduct_qty_index(passive, fill_qty)
                 self._reinsert_iceberg(passive)
             else:
                 self._deduct_qty_index(passive, fill_qty)
@@ -1027,6 +1042,11 @@ class OrderBook:
             # PERF #3: Reuse cached timestamp for triggered stop conversion.
             stop_order.timestamp = now
             self._order_index.pop(stop_order.id, None)
+            # Remove from _entry_index; if the triggered order converts to MARKET
+            # (never rests) the entry would otherwise leak indefinitely.
+            # STOP_LIMIT→LIMIT orders overwrite this entry in _rest(), so popping
+            # first is safe for both cases.
+            self._entry_index.pop(stop_order.id, None)
             triggered.append(stop_order)
 
         # SELL stops: fire when price falls to/below stop_price
@@ -1052,6 +1072,7 @@ class OrderBook:
             # PERF #3: Reuse cached timestamp for triggered stop conversion.
             stop_order.timestamp = now
             self._order_index.pop(stop_order.id, None)
+            self._entry_index.pop(stop_order.id, None)
             triggered.append(stop_order)
 
         if not self._buy_stops and not self._sell_stops and not self._trailing_stops:

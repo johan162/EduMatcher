@@ -1,3 +1,29 @@
+## [v0.10.0] - 2026-06-24
+
+Release Type: minor
+
+### 📋 Summary
+This release introduces the new API Gateway REST/WebSocket flow and strengthens matching-engine correctness in critical execution paths. It also expands Exchange Intro and User Guide coverage with new operational and known-limitations material, while improving PDF build reliability across documentation workspaces.
+
+### ✨ Additions
+- Added `pm-api-gateway` with REST and WebSocket support for authenticated order and event workflows
+- Added API Gateway training material with end-to-end exercises for REST, WebSocket, and multi-instance gateway separation
+- Added index calculation data support in statistics with `order_events` table and query coverage
+
+### 🚀 Improvements
+- Improved PDF build robustness with fail-fast LaTeX toolchain checks across documentation Makefiles
+
+### 🐛 Bug Fixes
+- Fixed three critical matcher defects affecting auction uncross handling after circuit-breaker resume, iceberg peek-quantity accounting, and aggressive sweep event duplication
+- Fixed `OrderBook.cancel_order` corruption of quantity indexes when canceling untriggered STOP_LIMIT orders
+- Fixed missing ALF gateway tab-completion behavior
+- Fixed theoretical inconsistencies in `pm-stats` processing paths
+
+### 📚 Documentation
+- Added a detailed Known Limitations and Bugs chapter documenting the multi-level sweep aggressor VWAP/P&L limitation and proposed remediation paths
+- Updated Exchange Intro preface and supporting text for improved readability and consistency
+
+
 ## [v0.9.2] - 2026-06-22
 
 Release Type: patch

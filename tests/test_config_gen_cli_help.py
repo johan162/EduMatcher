@@ -19,3 +19,8 @@ def test_pm_config_gen_help_runs() -> None:
     assert "--symbol-static-band" in result.stdout
     assert "--symbol-dynamic-band" in result.stdout
     assert "--symbol-risk-level" in result.stdout
+    assert "--api-gateway" in result.stdout
+    assert "--api-gateway-name" in result.stdout
+    assert "--api-gateway-instance" in result.stdout
+    assert "--api-key" in result.stdout
+    assert "--api-gateway-readonly-key" in result.stdout

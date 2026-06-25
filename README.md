@@ -17,21 +17,6 @@ matching logic, and exchange architecture through runnable code.
 
 Unlike toy examples, it is designed to be both understandable and fast.
 
-## Quick Start
-
-Bootstrap a new session directory and either generate `engine_config.yaml`
-with sane defaults, or start from the sample config copied by `pm-setup`:
-
-```bash
-pm-setup
-pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --sessions-enabled --output engine_config.yaml
-pm-engine --verbose
-```
-
-Alternative: skip `pm-config-gen` and edit the sample `engine_config.yaml`
-that `pm-setup` already placed in your working directory.
-
-If you run from source, prefix commands with `poetry run`.
 
 ## Why EduMatcher?
 
@@ -108,9 +93,27 @@ Main documentation site [EduMatcher Documentation](https://johan162.github.io/ed
 This is an educational project. If you find bugs, improve the documentation, or make other enhancements PRs are welcome!
 
 
-## Setup a running system in a VM with one command
+## Setup a running system 
 
-**Requirements**
+### ALTERNATIVE 1: Local Python Installation via `pipx`
+
+1. Install Python 3.13+ and Poetry (or use the VM setup below)
+2. Install from PyPI with `pipx install edumatcher` 
+3. Bootstrap a new session directory and either generate `engine_config.yaml`
+with sane defaults, or start from the sample config copied by `pm-setup`:
+
+```bash
+mkdir session
+cd session
+pm-setup
+pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --sessions-enabled --output engine_config.yaml
+pm-engine --verbose
+```
+
+
+### ALTERNATIVE 2: Using a Multipass VM
+
+#### Requirements
 
 | Requirement | Notes |
 |---|---|
@@ -119,9 +122,8 @@ This is an educational project. If you find bugs, improve the documentation, or 
 | Internet access | Required for downloading scripts and PyPI packages |
 | Host resources | Recommended minimum: 2 vCPU, 3 GB RAM, 10 GB disk |
 
-&nbsp;
 
-**Bootstrap with one command**
+#### Bootstrap with one command
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.9.2 --snapshot
@@ -133,7 +135,7 @@ installs EduMatcher in the VM, links all process commands in the exchange `pm-*`
 an initial snapshot to allow you to easily reset the environment. 
 
 
-**Start the CME (Central Matching Engine) in the VM**
+#### Start the CME (Central Matching Engine) in the VM
 
 ```bash
 multipass shell edumatcher-vm
@@ -144,15 +146,7 @@ pm-engine --verbose
 Open additional host terminals and run `multipass shell edumatcher-vm` in each
 terminal to start `pm-gateway`, `pm-viewer`, `pm-clearing`, and `pm-audit`.
 
-**Note:** Running the exchange is complex enough that you really **need** to read the documentation and follow the instructions in the User Guide to get a full exchange up and running. The above commands are just to show the quickest way to get an environment up and running without the need for local Python setup. If you are comfortable with Python then the second easiests way to get up and running is to install the *EduMatcher* from PyPI with:
-
-```bash
-pipx install edumatcher
-```
-
-and then follow the instructions in the User Guide to generate your own `engine_config.yaml` and start the exchange processes. 
-
-***Note:** Using `pipx` instead of `pip` is recommended to avoid polluting your global Python environment. If you are a Python developer and want to contribute to the codebase, then the best way to get up and running is to clone the repository and read the Developer Guide.*
+**Note:** Running the exchange is complex enough that you really **need** to read the documentation and follow the instructions in the User Guide to get a full exchange up and running. The above commands are just a quick start to get you going. The User Guide will explain how to configure the exchange, start and stop processes, and run the system in a realistic way.
 
 
 ## Citation
@@ -165,7 +159,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/edumatcher},
-  version = {0.9.2}
+  version = {0.10.0}
 }
 ```
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from edumatcher.config_gen.builder import (
+    ApiCredentialSpec,
+    ApiGatewaySpec,
     ConfigBuilder,
     ConfigSpec,
     MarketDataGatewaySpec,
@@ -169,6 +171,92 @@ def test_builder_with_market_data_gateway_section() -> None:
     assert payload["market_data_gateway"]["bind_address"] == "127.0.0.1"
     assert payload["market_data_gateway"]["port"] == 7001
     assert payload["market_data_gateway"]["max_symbols_per_client"] == 50
+
+
+def test_builder_with_api_gateway_generates_credentials() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01"), parse_gateway_spec("OPS01:ADMIN")],
+        random_seed=42,
+        api_gateways=(ApiGatewaySpec(name="desk", generate_readonly_key=True),),
+    )
+    payload = ConfigBuilder(spec).build()
+
+    api_gateway = payload["api_gateways"]["desk"]
+    assert api_gateway["host"] == "127.0.0.1"
+    assert api_gateway["port"] == 8080
+    assert api_gateway["rate_limit"] == {"writes_per_second": 10, "burst": 20}
+    assert api_gateway["timeouts"]["wait_ack_sec"] == 3.0
+    assert [item["gateway_id"] for item in api_gateway["credentials"]] == [
+        "TRADER01",
+        "OPS01",
+        None,
+    ]
+    assert all(
+        str(item["api_key"]).startswith("key-") for item in api_gateway["credentials"]
+    )
+
+
+def test_builder_with_api_gateway_explicit_credentials_skip_duplicate_generation() -> (
+    None
+):
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01"), parse_gateway_spec("TRADER02")],
+        api_gateways=(
+            ApiGatewaySpec(
+                name="desk",
+                credentials=(
+                    ApiCredentialSpec("manual-key", "TRADER01", "manual trader"),
+                ),
+                generate_keys=True,
+            ),
+        ),
+    )
+    payload = ConfigBuilder(spec).build()
+
+    credentials = payload["api_gateways"]["desk"]["credentials"]
+    assert credentials[0] == {
+        "api_key": "manual-key",
+        "gateway_id": "TRADER01",
+        "description": "manual trader",
+    }
+    assert credentials[1]["gateway_id"] == "TRADER02"
+
+
+def test_builder_with_multiple_api_gateways_filters_gateway_ids() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01"), parse_gateway_spec("TRADER02")],
+        api_gateways=(
+            ApiGatewaySpec(name="desk", gateway_ids=("TRADER01",)),
+            ApiGatewaySpec(name="algos", port=8081, gateway_ids=("TRADER02",)),
+        ),
+    )
+    payload = ConfigBuilder(spec).build()
+
+    assert payload["api_gateways"]["desk"]["credentials"][0]["gateway_id"] == "TRADER01"
+    assert (
+        payload["api_gateways"]["algos"]["credentials"][0]["gateway_id"] == "TRADER02"
+    )
+
+
+def test_builder_rejects_gateway_id_in_multiple_api_gateways() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01")],
+        api_gateways=(
+            ApiGatewaySpec(name="desk", gateway_ids=("TRADER01",)),
+            ApiGatewaySpec(name="algos", gateway_ids=("TRADER01",)),
+        ),
+    )
+
+    try:
+        ConfigBuilder(spec).build()
+    except ValueError as exc:
+        assert "multiple api_gateways" in str(exc)
+    else:  # pragma: no cover - assertion guard
+        raise AssertionError("expected duplicate gateway_id rejection")
 
 
 def test_builder_outstanding_shares_emitted() -> None:

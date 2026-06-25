@@ -11,7 +11,7 @@ MERMAID_FILTER_FORMAT ?= pdf
 MERMAID_FILTER_WIDTH ?= 600
 
 
-.PHONY: pdfs reqs help clean really-clean dark 
+.PHONY: pdfs reqs help clean really-clean dark check-latex-engine
 
 # Makefile itself as a dependency to ensure it is re-evaluated when changed
 # NOTE: This requires GNU Make 4.3+ and MacOS ships with vGNU Make 3.81 due to licensing issues
@@ -20,10 +20,14 @@ MERMAID_FILTER_WIDTH ?= 600
 
 # Make behavior
 .DEFAULT_GOAL := pdf-docs
-MAKEFLAGS += -j12
+MAKEFLAGS += -j8
 
 # Get full path to bash
 SHELL := $(shell which bash)
+
+# LaTeX engine configuration (macOS TeX binaries commonly live under /Library/TeX/texbin)
+LATEX_ENGINE ?= xelatex
+TEXBIN_FALLBACK := /Library/TeX/texbin
 
 # Delete target files on error to prevent stale timestamps
 .DELETE_ON_ERROR:
@@ -175,12 +179,12 @@ $$($1_STAMP): $$($1_MD) $$(DESIGN_LATEX_TEMPLATE) $$($1_EXTRA_DEPS) | $$(BUILD_D
 		exit 1; \
 	fi; \
 	rm -f $$($1_TEX).bak; \
-	if ! xelatex -interaction=nonstopmode -halt-on-error -output-directory $$($1_BUILD_DIR) $$($1_TEX) >/dev/null; then \
+	if ! PATH="$(PATH):$(TEXBIN_FALLBACK)" $(LATEX_ENGINE) -interaction=nonstopmode -halt-on-error -output-directory $$($1_BUILD_DIR) $$($1_TEX) >/dev/null; then \
 		echo -e "$$(RED)✗ Error: xelatex pass 1 failed for $$($1_TEX)$$(NC)"; \
 		echo -e "$$(YELLOW)  See log: $$($1_BUILD_DIR)/$$($1_BASENAME_ESC)_report.log$$(NC)"; \
 		exit 1; \
 	fi; \
-	if ! xelatex -interaction=nonstopmode -halt-on-error -output-directory $$($1_BUILD_DIR) $$($1_TEX) >/dev/null; then \
+	if ! PATH="$(PATH):$(TEXBIN_FALLBACK)" $(LATEX_ENGINE) -interaction=nonstopmode -halt-on-error -output-directory $$($1_BUILD_DIR) $$($1_TEX) >/dev/null; then \
 		echo -e "$$(RED)✗ Error: xelatex pass 2 failed for $$($1_TEX)$$(NC)"; \
 		echo -e "$$(YELLOW)  See log: $$($1_BUILD_DIR)/$$($1_BASENAME_ESC)_report.log$$(NC)"; \
 		exit 1; \
@@ -207,6 +211,7 @@ $(eval $(call DEFINE_DESIGN_DOC_VARS,STAT_COMMANDS,EduMatcher-Stat-commands,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,CONFIG_GENERATOR,EduMatcher-config-generator,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,MM_QUOTE_IDENTIFICATION,mm-quote-identification,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,POST_TRADE_DISSEMINATION_GATEWAY,EduMatcher-Post-Trade-Dissemination-Gateway,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,API_GATEWAY_V2,EduMatcher-ALF-API-Gwy2,,))
 
 $(eval $(call DEFINE_DESIGN_DOC_VARS,REQUIREMENTS,EduMatcher-Requirements,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,MM_BOTS,EduMatcher-MM-bots,,))
@@ -228,6 +233,7 @@ $(eval $(call DESIGN_DOC_PDF_RULE,STAT_COMMANDS,"EduMatcher-Stat-commands"))
 $(eval $(call DESIGN_DOC_PDF_RULE,CONFIG_GENERATOR,"EduMatcher-config-generator"))
 $(eval $(call DESIGN_DOC_PDF_RULE,MM_QUOTE_IDENTIFICATION,"mm-quote-identification"))
 $(eval $(call DESIGN_DOC_PDF_RULE,POST_TRADE_DISSEMINATION_GATEWAY,"EduMatcher-Post-Trade-Dissemination-Gateway"))
+$(eval $(call DESIGN_DOC_PDF_RULE,API_GATEWAY_V2,"EduMatcher-ALF-API-Gwy2"))
 
 $(eval $(call DESIGN_DOC_PDF_RULE,REQUIREMENTS,"EduMatcher-Requirements"))
 $(eval $(call DESIGN_DOC_PDF_RULE,MM_BOTS,"EduMatcher-MM-bots"))
@@ -236,7 +242,7 @@ $(eval $(call DESIGN_DOC_PDF_RULE,MM_BOTS,"EduMatcher-MM-bots"))
 PDF_DESIGN_DOCS := $(BALF_PROPOSAL_PDF) $(FEATURE_IMPLEMENTATION_PDF) $(MM_QUOTES_IMPLEMENTATION_PDF) \
 $(TICK_MIGRATION_PLAN_PDF) $(MARKET_DATA_PROTOCOL_PDF) $(SESSION_GWY_COMMAND_PDF) $(INDEX_DESIGN_PDF) \
 $(CROSS_HOST_CONNECTION_PDF) $(STAT_COMMANDS_PDF) $(CONFIG_GENERATOR_PDF) $(MM_QUOTE_IDENTIFICATION_PDF) \
-$(MM_BOTS_PDF) $(POST_TRADE_DISSEMINATION_GATEWAY_PDF)
+$(MM_BOTS_PDF) $(POST_TRADE_DISSEMINATION_GATEWAY_PDF) $(API_GATEWAY_V2_PDF)
 
 help: ## Show this help message
 	@echo -e "$(DARKYELLOW)OneSelect - Makefile Targets$(NC)"
@@ -263,11 +269,22 @@ really-clean: clean ## Clean all generated intermediate documentation files and 
 pdf-docs: $(PDF_DESIGN_DOCS) ## Build all the PDF versions of the design documents (light theme)
 	@:
 
+check-latex-engine:
+	@if ! PATH="$(PATH):$(TEXBIN_FALLBACK)" command -v "$(LATEX_ENGINE)" >/dev/null 2>&1; then \
+		echo -e "$(RED)✗ LaTeX engine '$(LATEX_ENGINE)' not found in PATH.$(NC)" >&2; \
+		echo -e "$(RED)  Current PATH: $(PATH)$(NC)" >&2; \
+		echo -e "$(RED)  Expected fallback path: $(TEXBIN_FALLBACK)$(NC)" >&2; \
+		echo -e "$(RED)  Install/update TeX (e.g. MacTeX/BasicTeX) or run after upgrade completes.$(NC)" >&2; \
+		exit 1; \
+	fi
+
+pdf-docs: check-latex-engine
+
 dark: ## Build all PDFs in dark theme (adds -dark suffix to filenames)
 	@$(MAKE) pdf-design-docs THEME=dark
 
 
-reqs: $(REQUIREMENTS_PDF) ## Build the MCPProjSim requirements design document PDF
+reqs: check-latex-engine $(REQUIREMENTS_PDF) ## Build the MCPProjSim requirements design document PDF
 	@:
 
 

@@ -82,6 +82,39 @@ class TestCancelOrder:
         book.cancel_order(o.id)
         assert book._bid_qty.get(100.0, 0) == 0
 
+    def test_cancel_stop_limit_does_not_corrupt_qty_index(self) -> None:
+        # A resting STOP_LIMIT sits in the stop heap and contributes nothing to
+        # the bid/ask qty index, even though it carries a limit price.
+        # Cancelling it must NOT deduct from the genuine resting qty that shares
+        # that limit price.
+        book = OrderBook("TEST")
+        resting = _make(Side.BUY, OrderType.LIMIT, 100, price=100.0)
+        book.process(resting, match=False)
+        stop_limit = _make(
+            Side.BUY, OrderType.STOP_LIMIT, 50, price=100.0, stop_price=105.0
+        )
+        book.process(stop_limit, match=False)
+        assert book._bid_qty.get(100.0) == 100
+
+        book.cancel_order(stop_limit.id)
+        assert stop_limit.status == OrderStatus.CANCELLED
+        # The genuine resting LIMIT qty at price 100 must be untouched.
+        assert book._bid_qty.get(100.0) == 100
+
+    def test_cancel_sell_stop_limit_does_not_corrupt_qty_index(self) -> None:
+        book = OrderBook("TEST")
+        resting = _make(Side.SELL, OrderType.LIMIT, 80, price=200.0)
+        book.process(resting, match=False)
+        stop_limit = _make(
+            Side.SELL, OrderType.STOP_LIMIT, 40, price=200.0, stop_price=195.0
+        )
+        book.process(stop_limit, match=False)
+        assert book._ask_qty.get(200.0) == 80
+
+        book.cancel_order(stop_limit.id)
+        assert stop_limit.status == OrderStatus.CANCELLED
+        assert book._ask_qty.get(200.0) == 80
+
 
 # ---------------------------------------------------------------------------
 # Resting orders / restore_stats

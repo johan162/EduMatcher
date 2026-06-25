@@ -397,7 +397,7 @@ SMP prevents you from accidentally trading against your own resting orders.
 | STOP | SYM, SIDE, QTY, STOP | TIF, SMP |
 | STOP_LIMIT | SYM, SIDE, QTY, STOP, PRICE | TIF, SMP |
 | FOK | SYM, SIDE, QTY, PRICE | SMP |
-| IOC | SYM, SIDE, QTY | PRICE, SMP |
+| IOC | SYM, SIDE, QTY, PRICE | SMP |
 | ICEBERG | SYM, SIDE, QTY, PRICE, VISIBLE (must be < QTY) | TIF, SMP |
 | TRAILING_STOP | SYM, SIDE, QTY, TRAIL | STOP (initial stop price), TIF, SMP |
 
@@ -751,7 +751,7 @@ The gateway provides **context-aware tab completion**:
 
 | Position | Completions |
 |----------|-------------|
-| First word | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `QBOOT`, `KILL`, `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `HELP`, `EXIT`, `QUIT` |
+| First word | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `QBOOT`, `QLEGS`, `KILL`, `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `HELP`, `EXIT`, `QUIT` |
 | After `NEW\|` | `SYM=`, `SIDE=`, `TYPE=`, `QTY=`, `PRICE=`, `STOP=`, `TRAIL=`, `TIF=`, `VISIBLE=`, `SMP=` |
 | After `NEW\|TYPE=COMBO\|` | `COMBO_ID=`, `COMBO_TYPE=`, `TIF=`, `LEG_COUNT=`, plus `LEG0.SYM=`, `LEG0.SIDE=`, etc. |
 | After `NEW\|TYPE=OCO\|` | `OCO_ID=`, `SYM=`, `QTY=`, `TIF=`, `LEG1_SIDE=`, `LEG1_TYPE=`, etc. |

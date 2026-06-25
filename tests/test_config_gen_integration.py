@@ -186,6 +186,136 @@ def test_market_data_gateway_output_is_emitted(
     assert "replay_window_sec: 120" in content
 
 
+def test_api_gateway_output_generates_keys(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "OPS01:ADMIN",
+            "--api-gateway",
+            "--api-gateway-readonly-key",
+            "--api-gateway-host",
+            "0.0.0.0",
+            "--api-gateway-port",
+            "9090",
+            "--api-gateway-swagger-disabled",
+            "--api-gateway-rate-limit-writes-per-second",
+            "25",
+            "--api-gateway-rate-limit-burst",
+            "50",
+            "--seed",
+            "99",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    content = out_file.read_text(encoding="utf-8")
+    assert "api_gateways:" in content
+    assert "default:" in content
+    assert "host: 0.0.0.0" in content
+    assert "port: 9090" in content
+    assert "swagger_enabled: false" in content
+    assert "writes_per_second: 25" in content
+    assert "burst: 50" in content
+    assert "gateway_id: TRADER01" in content
+    assert "gateway_id: OPS01" in content
+    assert "gateway_id: null" in content
+    assert "api_key: key-trader01-" in content
+    cfg = load_engine_config(out_file)
+    assert "TRADER01" in cfg.fix_gateways
+
+
+def test_api_gateway_explicit_key_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--api-key",
+            "manual-token:TRADER01:Desk app",
+            "--no-api-gateway-generate-keys",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    content = out_file.read_text(encoding="utf-8")
+    assert "api_gateways:" in content
+    assert "default:" in content
+    assert "api_key: manual-token" in content
+    assert "gateway_id: TRADER01" in content
+    assert "description: Desk app" in content
+    assert "key-trader01-" not in content
+
+
+def test_api_gateway_multiple_instances_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "ALGO01",
+            "--api-gateway-instance",
+            "desk:TRADER01:8080",
+            "--api-gateway-instance",
+            "algos:ALGO01:8081",
+            "--seed",
+            "99",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    content = out_file.read_text(encoding="utf-8")
+    assert "api_gateways:" in content
+    assert "desk:" in content
+    assert "algos:" in content
+    assert "port: 8081" in content
+    assert "gateway_id: TRADER01" in content
+    assert "gateway_id: ALGO01" in content
+
+
+def test_api_gateway_multiple_instances_reject_duplicate_gateway(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                "--api-gateway-instance",
+                "desk:TRADER01",
+                "--api-gateway-instance",
+                "algos:TRADER01",
+                "--dry-run",
+            ],
+        )
+    assert exc_info.value.code == 2
+
+
 def test_outstanding_shares_output_is_emitted(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -773,6 +773,17 @@ class Engine:
         )
 
         # Publish fills / cancels
+        # Guard against duplicate fill events: when an aggressive order sweeps
+        # multiple resting price levels, _apply_fill appends the SAME order
+        # object to `events` once per fill.  By the time this loop runs the
+        # object reflects only the FINAL state, so iterating it N times would
+        # emit N identical fill messages (wrong fill_qty and fill_price for the
+        # first N-1 occurrences, and N× overcounting in position trackers).
+        # Using a seen-set ensures exactly ONE fill message per order per
+        # process() call — reporting the correct total fill quantity and final
+        # remaining_qty.  Combo/OCO side-effect checks are idempotent so they
+        # run unconditionally and are safe to call on every occurrence.
+        _published_fill_ids: set[str] = set()
         for evt in events:
             if evt.status in _FILL_STATUSES:
                 # PERF #9: Build the full fill payload in one dict literal and
@@ -790,68 +801,74 @@ class Engine:
                 # call .value / from_ticks as usual.
                 # Status never needs enum.value: remaining_qty==0 → FILLED.
                 _is_agg = evt is order
-                _pub.send_multipart(
-                    [
-                        (
-                            _fill_topic
-                            if evt.gateway_id == _gw
-                            else (
-                                _tc.get(f"fill.{evt.gateway_id}")
-                                or f"order.fill.{evt.gateway_id}".encode()
-                            )
-                        ),
-                        dumps(
-                            {
+                if evt.id not in _published_fill_ids:
+                    _published_fill_ids.add(evt.id)
+                    _pub.send_multipart(
+                        [
+                            (
+                                _fill_topic
+                                if evt.gateway_id == _gw
+                                else (
+                                    _tc.get(f"fill.{evt.gateway_id}")
+                                    or f"order.fill.{evt.gateway_id}".encode()
+                                )
+                            ),
+                            dumps(
+                                {
+                                    "order_id": evt.id,
+                                    "fill_qty": evt.quantity - evt.remaining_qty,
+                                    "fill_price": _fill_px,
+                                    "remaining_qty": evt.remaining_qty,
+                                    "status": (
+                                        "PARTIAL_FILL"
+                                        if evt.remaining_qty
+                                        else "FILLED"
+                                    ),
+                                    "symbol": evt.symbol,
+                                    "side": _side_v if _is_agg else evt.side.value,
+                                    "order_type": (
+                                        _ot_v if _is_agg else evt.order_type.value
+                                    ),
+                                    "qty": evt.quantity,
+                                    "price": (
+                                        _price_v
+                                        if _is_agg
+                                        else (
+                                            from_ticks(evt.price, evt.symbol)
+                                            if evt.price is not None
+                                            else None
+                                        )
+                                    ),
+                                }
+                            ),
+                        ]
+                    )
+                    # Drop copy — forward fill to participant's risk/clearing system
+                    if self._drop_copy is not None:
+                        self._drop_copy.publish(
+                            gateway_id=evt.gateway_id,
+                            event_type="order.fill",
+                            payload={
                                 "order_id": evt.id,
-                                "fill_qty": evt.quantity - evt.remaining_qty,
-                                "fill_price": _fill_px,
-                                "remaining_qty": evt.remaining_qty,
-                                "status": (
-                                    "PARTIAL_FILL" if evt.remaining_qty else "FILLED"
-                                ),
                                 "symbol": evt.symbol,
-                                "side": _side_v if _is_agg else evt.side.value,
-                                "order_type": (
-                                    _ot_v if _is_agg else evt.order_type.value
+                                "fill_qty": evt.quantity - evt.remaining_qty,
+                                "fill_price": (
+                                    _fill_px if _fill_px is not None else 0.0
                                 ),
-                                "qty": evt.quantity,
-                                "price": (
-                                    _price_v
-                                    if _is_agg
-                                    else (
-                                        from_ticks(evt.price, evt.symbol)
-                                        if evt.price is not None
-                                        else None
-                                    )
+                                "remaining_qty": evt.remaining_qty,
+                                "liquidity_flag": (
+                                    "MAKER_QUOTE"
+                                    if evt.origin == OrderOrigin.QUOTE
+                                    else "MAKER"
                                 ),
-                            }
-                        ),
-                    ]
-                )
+                            },
+                        )
                 # If this event is for a combo child, update combo state
                 if evt.combo_parent_id:
                     self._check_combo_after_child_event(evt)
                 # If this order is an OCO leg, cancel the sibling when fully filled
                 if evt.status == OrderStatus.FILLED and evt.oco_group_id:
                     self._check_oco_after_event(evt)
-                # Drop copy — forward fill to participant's risk/clearing system
-                if self._drop_copy is not None:
-                    self._drop_copy.publish(
-                        gateway_id=evt.gateway_id,
-                        event_type="order.fill",
-                        payload={
-                            "order_id": evt.id,
-                            "symbol": evt.symbol,
-                            "fill_qty": evt.quantity - evt.remaining_qty,
-                            "fill_price": (_fill_px if _fill_px is not None else 0.0),
-                            "remaining_qty": evt.remaining_qty,
-                            "liquidity_flag": (
-                                "MAKER_QUOTE"
-                                if evt.origin == OrderOrigin.QUOTE
-                                else "MAKER"
-                            ),
-                        },
-                    )
             elif evt.status == OrderStatus.REJECTED:
                 _pub.send_multipart(
                     make_ack_msg(
@@ -1302,14 +1319,16 @@ class Engine:
         for symbol, cb in self._circuit_breakers.items():
             if not cb.should_resume(now):
                 continue
+            # Capture resumption_mode BEFORE deactivate() clears it.
+            _resumption_mode = cb.active_resumption_mode
             cb.deactivate()
             self._halted_symbols[symbol] = False
-            if cb.active_resumption_mode == "AUCTION":
+            if _resumption_mode == "AUCTION":
                 self._run_uncross(from_state=self._session_state, symbol_filter=symbol)
             self.pub_sock.send_multipart(
                 encode(
                     f"circuit_breaker.resume.{symbol}",
-                    {"symbol": symbol, "mode": cb.active_resumption_mode},
+                    {"symbol": symbol, "mode": _resumption_mode},
                 )
             )
             self._mark_dirty(symbol)
@@ -2741,6 +2760,21 @@ class Engine:
         # O(1) lookup via global order→symbol map
         symbol = self._order_symbol.get(order_id)
         book = self.books.get(symbol) if symbol else None
+
+        # Ownership check: a gateway may only cancel its own orders.
+        if book is not None:
+            resting = book.get_order(order_id)
+            if resting is not None and resting.gateway_id != gateway_id:
+                self.pub_sock.send_multipart(
+                    make_ack_msg(
+                        gateway_id,
+                        order_id,
+                        accepted=False,
+                        reason="Cannot cancel an order owned by another gateway",
+                    )
+                )
+                return
+
         cancelled = book.cancel_order(order_id) if book else None
 
         if cancelled:
@@ -2797,6 +2831,19 @@ class Engine:
             )
             return
         assert symbol is not None
+
+        # Ownership check: a gateway may only amend its own orders.
+        resting = book.get_order(order_id)
+        if resting is not None and resting.gateway_id != gateway_id:
+            self.pub_sock.send_multipart(
+                make_ack_msg(
+                    gateway_id,
+                    order_id,
+                    accepted=False,
+                    reason="Cannot amend an order owned by another gateway",
+                )
+            )
+            return
 
         now = now_ns()
         amended, priority_reset, err = book.amend_order(

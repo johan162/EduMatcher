@@ -140,6 +140,54 @@ def query_trades(
     return [dict(row) for row in rows]
 
 
+def query_order_events(
+    conn: sqlite3.Connection,
+    *,
+    gateway_id: str,
+    symbol: str | None,
+    event_type: str | None,
+    date_value: str | None,
+    from_ts: str | None,
+    to_ts: str | None,
+    limit: int,
+) -> list[dict[str, Any]]:
+    sql = "SELECT * FROM order_events WHERE gateway_id = ?"
+    params: list[Any] = [gateway_id]
+    if symbol is not None:
+        sql += " AND symbol = ?"
+        params.append(symbol)
+    if event_type is not None:
+        sql += " AND event_type = ?"
+        params.append(event_type)
+    if date_value is not None:
+        sql += " AND substr(ts, 1, 10) = ?"
+        params.append(date_value)
+    if from_ts is not None:
+        sql += " AND ts >= ?"
+        params.append(from_ts)
+    if to_ts is not None:
+        sql += " AND ts <= ?"
+        params.append(to_ts)
+    sql += " ORDER BY ts ASC, seq ASC LIMIT ?"
+    params.append(limit)
+    rows = conn.execute(sql, params).fetchall()
+    return [dict(row) for row in rows]
+
+
+def query_order_lifecycle(
+    conn: sqlite3.Connection,
+    *,
+    gateway_id: str,
+    order_id: str,
+) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        "SELECT * FROM order_events WHERE gateway_id = ? AND order_id = ? "
+        "ORDER BY ts ASC, seq ASC",
+        (gateway_id, order_id),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def query_symbols(
     conn: sqlite3.Connection,
     *,

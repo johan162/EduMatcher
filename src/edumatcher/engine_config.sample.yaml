@@ -63,6 +63,33 @@
 #         price_shift_pct: 0.13
 #         halt_duration_ns: 900000000000
 #         resumption_mode: AUCTION
+#   api_gateways:
+#     desk:
+#       enabled: true
+#       host: 127.0.0.1
+#       port: 8080
+#       swagger_enabled: true
+#       log_level: info
+#       stats_db: data/stats.db
+#       credentials:
+#         - api_key: key-trader-demo
+#           gateway_id: TRADER01
+#           description: Demo trading client
+#       rate_limit:
+#         writes_per_second: 10
+#         burst: 20
+#       timeouts:
+#         engine_auth_sec: 3.0
+#         engine_reply_sec: 3.0
+#         wait_ack_sec: 3.0
+#     dashboards:
+#       enabled: true
+#       host: 127.0.0.1
+#       port: 8081
+#       credentials:
+#         - api_key: key-dashboard-demo
+#           gateway_id: null
+#           description: Read-only dashboard client
 #       L3:
 #         price_shift_pct: 0.20
 #         halt_duration_ns: null
@@ -73,6 +100,7 @@
 #       - id: TRADER01
 #         description: Student workstation 1
 #         role: TRADER
+#     A non-null gateway_id may appear in only one api_gateways entry.
 #         disconnect_behaviour: CANCEL_ALL
 #         quote_refresh_policy: INACTIVATE_ON_ANY_FILL
 #         enforce_mm_obligation: false
@@ -159,6 +187,34 @@
 #     replay_window_sec: 30
 #     max_symbols_per_client: 200
 #     max_client_queue: 10000
+#
+#   api_gateways:
+#     desk:
+#       enabled: true
+#       host: 127.0.0.1
+#       port: 8080
+#       swagger_enabled: true
+#       log_level: info
+#       stats_db: data/stats.db
+#       credentials:
+#         - api_key: key-trader-demo
+#           gateway_id: TRADER01
+#           description: Demo trading client
+#       rate_limit:
+#         writes_per_second: 10
+#         burst: 20
+#       timeouts:
+#         engine_auth_sec: 3.0
+#         engine_reply_sec: 3.0
+#         wait_ack_sec: 3.0
+#     dashboards:
+#       enabled: true
+#       host: 127.0.0.1
+#       port: 8081
+#       credentials:
+#         - api_key: key-dashboard-demo
+#           gateway_id: null
+#           description: Read-only dashboard client
 #
 #   schedule:
 #     pre_open: "09:00"

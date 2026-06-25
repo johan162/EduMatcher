@@ -13,10 +13,20 @@ from edumatcher.engine.config_loader import load_engine_config
 from edumatcher.models.participant import ParticipantRole
 
 from edumatcher.config_gen.builder import ConfigBuilder, ConfigSpec
+from edumatcher.config_gen.builder import ApiCredentialSpec, ApiGatewaySpec
 from edumatcher.config_gen.builder import MarketDataGatewaySpec
 from edumatcher.config_gen.builder import PostTradeGatewaySpec
 from edumatcher.config_gen.cb_spec import CbSpec, parse_cb_spec
 from edumatcher.config_gen.defaults import (
+    DEFAULT_API_GATEWAY_ENGINE_AUTH_SEC,
+    DEFAULT_API_GATEWAY_ENGINE_REPLY_SEC,
+    DEFAULT_API_GATEWAY_HOST,
+    DEFAULT_API_GATEWAY_LOG_LEVEL,
+    DEFAULT_API_GATEWAY_PORT,
+    DEFAULT_API_GATEWAY_RATE_LIMIT_BURST,
+    DEFAULT_API_GATEWAY_RATE_LIMIT_WRITES_PER_SECOND,
+    DEFAULT_API_GATEWAY_STATS_DB,
+    DEFAULT_API_GATEWAY_WAIT_ACK_SEC,
     DEFAULT_CB_WINDOW_NS,
     DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS,
     DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC,
@@ -380,6 +390,146 @@ def _build_parser() -> argparse.ArgumentParser:
         help="market_data_gateway.max_client_queue override (> 0).",
     )
 
+    parser.add_argument(
+        "--api-gateway",
+        action="store_true",
+        help="Emit a top-level api_gateways section for pm-api-gateway.",
+    )
+    parser.add_argument(
+        "--api-gateway-name",
+        default="default",
+        metavar="NAME",
+        help="Name for the generated api_gateways entry when using a single API gateway.",
+    )
+    parser.add_argument(
+        "--api-gateway-instance",
+        action="append",
+        default=[],
+        metavar="NAME:GATEWAY[,GATEWAY...][:PORT]",
+        help=(
+            "Repeatable named API gateway process. Generates credentials only for "
+            "the listed gateway IDs and optionally overrides port."
+        ),
+    )
+    parser.add_argument(
+        "--api-gateway-enabled",
+        dest="api_gateway_enabled",
+        action="store_true",
+        default=None,
+        help="Set api_gateway.enabled: true.",
+    )
+    parser.add_argument(
+        "--api-gateway-disabled",
+        dest="api_gateway_enabled",
+        action="store_false",
+        default=None,
+        help="Set api_gateway.enabled: false.",
+    )
+    parser.add_argument(
+        "--api-gateway-host",
+        default=None,
+        metavar="ADDR",
+        help="api_gateway.host override.",
+    )
+    parser.add_argument(
+        "--api-gateway-port",
+        type=int,
+        default=None,
+        metavar="N",
+        help="api_gateway.port override (> 0).",
+    )
+    parser.add_argument(
+        "--api-gateway-swagger-enabled",
+        dest="api_gateway_swagger_enabled",
+        action="store_true",
+        default=None,
+        help="Set api_gateway.swagger_enabled: true.",
+    )
+    parser.add_argument(
+        "--api-gateway-swagger-disabled",
+        dest="api_gateway_swagger_enabled",
+        action="store_false",
+        default=None,
+        help="Set api_gateway.swagger_enabled: false.",
+    )
+    parser.add_argument(
+        "--api-gateway-log-level",
+        default=None,
+        choices=["debug", "info", "warning", "error"],
+        help="api_gateway.log_level override.",
+    )
+    parser.add_argument(
+        "--api-gateway-stats-db",
+        default=None,
+        metavar="PATH",
+        help="api_gateway.stats_db override.",
+    )
+    parser.add_argument(
+        "--api-key",
+        action="append",
+        default=[],
+        metavar="KEY:GATEWAY_ID[:DESCRIPTION]",
+        help=(
+            "Explicit api_gateways credential for single-instance generation. Use GATEWAY_ID=null for a read-only "
+            "market-data key. Can be repeated."
+        ),
+    )
+    api_key_group = parser.add_mutually_exclusive_group()
+    api_key_group.add_argument(
+        "--api-gateway-generate-keys",
+        dest="api_gateway_generate_keys",
+        action="store_true",
+        default=None,
+        help="Generate one API key for each configured ALF gateway when api_gateway is emitted.",
+    )
+    api_key_group.add_argument(
+        "--no-api-gateway-generate-keys",
+        dest="api_gateway_generate_keys",
+        action="store_false",
+        default=None,
+        help="Do not auto-generate API keys for ALF gateways.",
+    )
+    parser.add_argument(
+        "--api-gateway-readonly-key",
+        action="store_true",
+        help="Generate an additional read-only API key with gateway_id: null.",
+    )
+    parser.add_argument(
+        "--api-gateway-rate-limit-writes-per-second",
+        type=int,
+        default=None,
+        metavar="N",
+        help="api_gateway.rate_limit.writes_per_second override (> 0).",
+    )
+    parser.add_argument(
+        "--api-gateway-rate-limit-burst",
+        type=int,
+        default=None,
+        metavar="N",
+        help="api_gateway.rate_limit.burst override (> 0).",
+    )
+    parser.add_argument(
+        "--api-gateway-engine-auth-sec",
+        type=float,
+        default=None,
+        metavar="SECS",
+        help="api_gateway.timeouts.engine_auth_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--api-gateway-engine-reply-sec",
+        type=float,
+        default=None,
+        metavar="SECS",
+        help="api_gateway.timeouts.engine_reply_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--api-gateway-wait-ack-sec",
+        type=float,
+        default=None,
+        metavar="SECS",
+        help="api_gateway.timeouts.wait_ack_sec override (> 0).",
+    )
+
     sched_group = parser.add_mutually_exclusive_group()
     sched_group.add_argument(
         "--schedule",
@@ -684,6 +834,40 @@ def _build_default_engine_field_comment_lines(config: dict[str, object]) -> list
         ]
     )
 
+    # api_gateways
+    lines.extend(
+        [
+            "api_gateways:",
+            "  desk:",
+            "    enabled: true",
+            "    host: 127.0.0.1",
+            "    port: 8080",
+            "    swagger_enabled: true",
+            "    log_level: info",
+            "    stats_db: data/stats.db",
+            "    credentials:",
+            "      - api_key: key-trader-demo",
+            "        gateway_id: TRADER01",
+            "        description: Demo trading client",
+            "    rate_limit:",
+            "      writes_per_second: 10",
+            "      burst: 20",
+            "    timeouts:",
+            "      engine_auth_sec: 3.0",
+            "      engine_reply_sec: 3.0",
+            "      wait_ack_sec: 3.0",
+            "  dashboards:",
+            "    enabled: true",
+            "    host: 127.0.0.1",
+            "    port: 8081",
+            "    credentials:",
+            "      - api_key: key-dashboard-demo",
+            "        gateway_id: null",
+            "        description: Read-only dashboard client",
+            "",
+        ]
+    )
+
     # schedule
     lines.extend(
         [
@@ -957,6 +1141,43 @@ def _build_default_engine_field_comment_lines(config: dict[str, object]) -> list
 
     lines.extend(
         [
+            "api_gateways entries",
+            "" + "-" * 20,
+            "api_gateways.<NAME>:",
+            "  Named REST/WebSocket gateway process configuration.",
+            "enabled: true",
+            "  Master switch that lets pm-api-gateway start serving clients.",
+            "host: 127.0.0.1",
+            "  HTTP bind address used by uvicorn.",
+            "port: 8080",
+            "  HTTP listen port for REST and WebSocket clients.",
+            "swagger_enabled: true",
+            "  Enables /docs and /openapi.json when true.",
+            "log_level: info",
+            "  Uvicorn logging level: debug, info, warning, or error.",
+            "stats_db: data/stats.db",
+            "  SQLite stats database used by /history endpoints.",
+            "credentials:",
+            "  Bearer-token credentials accepted by REST and WebSocket auth.",
+            "credentials[].gateway_id:",
+            "  Must reference gateways.alf[].id for trading access; null means read-only.",
+            "  A non-null gateway_id may appear in only one api_gateways entry.",
+            "rate_limit.writes_per_second: 10",
+            "  Per API-key write throughput for POST/PATCH/DELETE routes.",
+            "rate_limit.burst: 20",
+            "  Per API-key burst capacity for write routes.",
+            "timeouts.engine_auth_sec: 3.0",
+            "  Intended engine-auth handshake timeout setting.",
+            "timeouts.engine_reply_sec: 3.0",
+            "  Timeout for engine request/reply read endpoints.",
+            "timeouts.wait_ack_sec: 3.0",
+            "  Timeout for write endpoints using ?wait=ack.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
             "schedule entries",
             "" + "-" * 16,
             "pre_open: 09:00",
@@ -1037,6 +1258,30 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         and args.market_data_max_client_queue <= 0
     ):
         raise ValueError("--market-data-max-client-queue must be > 0")
+    if args.api_gateway_port is not None and args.api_gateway_port <= 0:
+        raise ValueError("--api-gateway-port must be > 0")
+    if (
+        args.api_gateway_rate_limit_writes_per_second is not None
+        and args.api_gateway_rate_limit_writes_per_second <= 0
+    ):
+        raise ValueError("--api-gateway-rate-limit-writes-per-second must be > 0")
+    if (
+        args.api_gateway_rate_limit_burst is not None
+        and args.api_gateway_rate_limit_burst <= 0
+    ):
+        raise ValueError("--api-gateway-rate-limit-burst must be > 0")
+    if (
+        args.api_gateway_engine_auth_sec is not None
+        and args.api_gateway_engine_auth_sec <= 0
+    ):
+        raise ValueError("--api-gateway-engine-auth-sec must be > 0")
+    if (
+        args.api_gateway_engine_reply_sec is not None
+        and args.api_gateway_engine_reply_sec <= 0
+    ):
+        raise ValueError("--api-gateway-engine-reply-sec must be > 0")
+    if args.api_gateway_wait_ack_sec is not None and args.api_gateway_wait_ack_sec <= 0:
+        raise ValueError("--api-gateway-wait-ack-sec must be > 0")
 
     if args.static_band is not None and not (0 < args.static_band < 1):
         raise ValueError("--static-band must be in (0, 1)")
@@ -1158,6 +1403,82 @@ def _parse_symbol_level_specs(
             )
         result[sym] = level
     return result
+
+
+def _parse_api_credentials(
+    specs: list[str], allowed_gateways: set[str]
+) -> tuple[ApiCredentialSpec, ...]:
+    credentials: list[ApiCredentialSpec] = []
+    seen_keys: set[str] = set()
+    for raw in specs:
+        parts = raw.split(":", 2)
+        if len(parts) < 2:
+            raise ValueError(
+                f"Invalid --api-key '{raw}': expected KEY:GATEWAY_ID[:DESCRIPTION]"
+            )
+        api_key = parts[0].strip()
+        gateway_raw = parts[1].strip()
+        description = parts[2].strip() if len(parts) == 3 else ""
+        if not api_key:
+            raise ValueError(f"Invalid --api-key '{raw}': key cannot be empty")
+        if api_key in seen_keys:
+            raise ValueError(f"Duplicate --api-key value '{api_key}'")
+        seen_keys.add(api_key)
+        gateway_id = None if gateway_raw.lower() == "null" else gateway_raw.upper()
+        if gateway_id is not None and gateway_id not in allowed_gateways:
+            raise ValueError(f"--api-key references unknown gateway_id '{gateway_id}'")
+        credentials.append(
+            ApiCredentialSpec(
+                api_key=api_key,
+                gateway_id=gateway_id,
+                description=description,
+            )
+        )
+    return tuple(credentials)
+
+
+def _parse_api_gateway_instance(
+    raw: str, allowed_gateways: set[str]
+) -> tuple[str, tuple[str, ...], int | None]:
+    parts = raw.split(":")
+    if len(parts) not in (2, 3):
+        raise ValueError(
+            f"Invalid --api-gateway-instance '{raw}': expected NAME:GATEWAY[,GATEWAY...][:PORT]"
+        )
+    name = parts[0].strip()
+    if not name:
+        raise ValueError(
+            f"Invalid --api-gateway-instance '{raw}': name cannot be empty"
+        )
+
+    gateway_ids = tuple(
+        gateway_raw.strip().upper()
+        for gateway_raw in parts[1].split(",")
+        if gateway_raw.strip()
+    )
+    if not gateway_ids:
+        raise ValueError(
+            f"Invalid --api-gateway-instance '{raw}': at least one gateway ID is required"
+        )
+    for gateway_id in gateway_ids:
+        if gateway_id not in allowed_gateways:
+            raise ValueError(
+                f"--api-gateway-instance '{raw}' references unknown gateway_id '{gateway_id}'"
+            )
+
+    port: int | None = None
+    if len(parts) == 3 and parts[2].strip():
+        try:
+            port = int(parts[2].strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid --api-gateway-instance '{raw}': PORT must be an integer"
+            ) from exc
+        if port <= 0:
+            raise ValueError(
+                f"Invalid --api-gateway-instance '{raw}': PORT must be > 0"
+            )
+    return name, gateway_ids, port
 
 
 def _parse_specs(args: argparse.Namespace) -> tuple[
@@ -1355,6 +1676,147 @@ def _build_market_data_gateway_spec(
     )
 
 
+def _build_api_gateway_specs(
+    args: argparse.Namespace,
+    gateways: list[GatewaySpec],
+) -> tuple[ApiGatewaySpec, ...]:
+    emit = any(
+        value is not None
+        for value in (
+            args.api_gateway_enabled,
+            args.api_gateway_host,
+            args.api_gateway_port,
+            args.api_gateway_swagger_enabled,
+            args.api_gateway_log_level,
+            args.api_gateway_stats_db,
+            args.api_gateway_generate_keys,
+            args.api_gateway_rate_limit_writes_per_second,
+            args.api_gateway_rate_limit_burst,
+            args.api_gateway_engine_auth_sec,
+            args.api_gateway_engine_reply_sec,
+            args.api_gateway_wait_ack_sec,
+        )
+    ) or bool(
+        args.api_gateway
+        or args.api_gateway_instance
+        or args.api_key
+        or args.api_gateway_readonly_key
+    )
+
+    if not emit:
+        return ()
+
+    allowed_gateways = {gateway.gateway_id for gateway in gateways}
+    parsed_instances = [
+        _parse_api_gateway_instance(raw, allowed_gateways)
+        for raw in args.api_gateway_instance
+    ]
+    if parsed_instances and args.api_key:
+        raise ValueError(
+            "--api-key is only supported for single API gateway generation; "
+            "use generated keys with --api-gateway-instance"
+        )
+
+    seen_names: set[str] = set()
+    seen_gateway_ids: dict[str, str] = {}
+    for name, gateway_ids, _port in parsed_instances:
+        if name in seen_names:
+            raise ValueError(f"duplicate --api-gateway-instance name '{name}'")
+        seen_names.add(name)
+        for gateway_id in gateway_ids:
+            existing = seen_gateway_ids.get(gateway_id)
+            if existing is not None:
+                raise ValueError(
+                    f"gateway_id '{gateway_id}' is assigned to both API gateway "
+                    f"instances '{existing}' and '{name}'"
+                )
+            seen_gateway_ids[gateway_id] = name
+
+    enabled = (
+        bool(args.api_gateway_enabled) if args.api_gateway_enabled is not None else True
+    )
+    swagger_enabled = (
+        bool(args.api_gateway_swagger_enabled)
+        if args.api_gateway_swagger_enabled is not None
+        else True
+    )
+    generate_keys = (
+        bool(args.api_gateway_generate_keys)
+        if args.api_gateway_generate_keys is not None
+        else True
+    )
+    credentials = _parse_api_credentials(
+        specs=args.api_key,
+        allowed_gateways=allowed_gateways,
+    )
+
+    host = str(args.api_gateway_host or DEFAULT_API_GATEWAY_HOST)
+    log_level = str(args.api_gateway_log_level or DEFAULT_API_GATEWAY_LOG_LEVEL)
+    stats_db = str(args.api_gateway_stats_db or DEFAULT_API_GATEWAY_STATS_DB)
+    generate_readonly_key = bool(args.api_gateway_readonly_key)
+    rate_limit_writes_per_second = int(
+        args.api_gateway_rate_limit_writes_per_second
+        or DEFAULT_API_GATEWAY_RATE_LIMIT_WRITES_PER_SECOND
+    )
+    rate_limit_burst = int(
+        args.api_gateway_rate_limit_burst or DEFAULT_API_GATEWAY_RATE_LIMIT_BURST
+    )
+    engine_auth_sec = float(
+        args.api_gateway_engine_auth_sec or DEFAULT_API_GATEWAY_ENGINE_AUTH_SEC
+    )
+    engine_reply_sec = float(
+        args.api_gateway_engine_reply_sec or DEFAULT_API_GATEWAY_ENGINE_REPLY_SEC
+    )
+    wait_ack_sec = float(
+        args.api_gateway_wait_ack_sec or DEFAULT_API_GATEWAY_WAIT_ACK_SEC
+    )
+
+    def make_spec(
+        *,
+        name: str,
+        port: int,
+        gateway_ids: tuple[str, ...] = (),
+        credentials: tuple[ApiCredentialSpec, ...] = (),
+    ) -> ApiGatewaySpec:
+        return ApiGatewaySpec(
+            name=name,
+            enabled=enabled,
+            host=host,
+            port=port,
+            swagger_enabled=swagger_enabled,
+            log_level=log_level,
+            stats_db=stats_db,
+            credentials=credentials,
+            gateway_ids=gateway_ids,
+            generate_keys=generate_keys,
+            generate_readonly_key=generate_readonly_key,
+            rate_limit_writes_per_second=rate_limit_writes_per_second,
+            rate_limit_burst=rate_limit_burst,
+            engine_auth_sec=engine_auth_sec,
+            engine_reply_sec=engine_reply_sec,
+            wait_ack_sec=wait_ack_sec,
+        )
+
+    base_port = int(args.api_gateway_port or DEFAULT_API_GATEWAY_PORT)
+    if parsed_instances:
+        return tuple(
+            make_spec(
+                name=name,
+                port=port if port is not None else base_port + index,
+                gateway_ids=gateway_ids,
+            )
+            for index, (name, gateway_ids, port) in enumerate(parsed_instances)
+        )
+
+    return (
+        make_spec(
+            name=str(args.api_gateway_name),
+            port=base_port,
+            credentials=credentials,
+        ),
+    )
+
+
 def _write_output(output_path: Path, content: str, force: bool) -> None:
     if output_path.exists() and not force:
         raise FileExistsError("Output file already exists")
@@ -1414,38 +1876,43 @@ def main() -> None:
         )
         raise SystemExit(2)
 
-    spec = ConfigSpec(
-        symbols=symbols,
-        gateways=gateways,
-        sessions_enabled=bool(args.sessions_enabled),
-        snapshot_interval_sec=float(args.snapshot_interval),
-        enforce_collars=not args.no_collars,
-        enforce_circuit_breakers=not args.no_circuit_breakers,
-        static_band_pct=args.static_band,
-        dynamic_band_pct=args.dynamic_band,
-        risk_levels=risk_levels,
-        cb_levels=cb_levels,
-        cb_window_ns=int(args.cb_window_ns),
-        mm_spread_ticks=int(args.mm_spread_ticks),
-        mm_min_qty=int(args.mm_min_qty),
-        enforce_mm_obligations=bool(args.enforce_mm_obligations),
-        emit_mm_defaults=has_mm_gateway,
-        tick_decimals=int(args.tick_decimals),
-        seed_last_prices=bool(args.seed_last_prices),
-        random_seed=args.seed,
-        seed_mm_mid_range=seed_mm_mid_range,
-        seed_last_prices_from_mm=bool(args.seed_last_prices_from_mm),
-        emit_schedule=_resolve_emit_schedule(args),
-        pre_open=str(args.pre_open),
-        opening_auction=str(args.opening_auction),
-        continuous=str(args.continuous),
-        closing_auction=str(args.closing_auction),
-        closing_end=str(args.closing_end),
-        symbol_overrides=symbol_overrides,
-        outstanding_shares=outstanding_shares,
-        post_trade_gateway=_build_post_trade_gateway_spec(args),
-        market_data_gateway=_build_market_data_gateway_spec(args),
-    )
+    try:
+        spec = ConfigSpec(
+            symbols=symbols,
+            gateways=gateways,
+            sessions_enabled=bool(args.sessions_enabled),
+            snapshot_interval_sec=float(args.snapshot_interval),
+            enforce_collars=not args.no_collars,
+            enforce_circuit_breakers=not args.no_circuit_breakers,
+            static_band_pct=args.static_band,
+            dynamic_band_pct=args.dynamic_band,
+            risk_levels=risk_levels,
+            cb_levels=cb_levels,
+            cb_window_ns=int(args.cb_window_ns),
+            mm_spread_ticks=int(args.mm_spread_ticks),
+            mm_min_qty=int(args.mm_min_qty),
+            enforce_mm_obligations=bool(args.enforce_mm_obligations),
+            emit_mm_defaults=has_mm_gateway,
+            tick_decimals=int(args.tick_decimals),
+            seed_last_prices=bool(args.seed_last_prices),
+            random_seed=args.seed,
+            seed_mm_mid_range=seed_mm_mid_range,
+            seed_last_prices_from_mm=bool(args.seed_last_prices_from_mm),
+            emit_schedule=_resolve_emit_schedule(args),
+            pre_open=str(args.pre_open),
+            opening_auction=str(args.opening_auction),
+            continuous=str(args.continuous),
+            closing_auction=str(args.closing_auction),
+            closing_end=str(args.closing_end),
+            symbol_overrides=symbol_overrides,
+            outstanding_shares=outstanding_shares,
+            post_trade_gateway=_build_post_trade_gateway_spec(args),
+            market_data_gateway=_build_market_data_gateway_spec(args),
+            api_gateways=_build_api_gateway_specs(args, gateways),
+        )
+    except ValueError as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
 
     output_path = Path(args.output) if args.output else None
     output_exists = bool(output_path and output_path.exists() and not args.force)

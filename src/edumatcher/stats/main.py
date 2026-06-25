@@ -162,6 +162,35 @@ CREATE TABLE IF NOT EXISTS trade_log (
     buy_gateway_id  TEXT,
     sell_gateway_id TEXT
 );
+
+CREATE TABLE IF NOT EXISTS order_events (
+    seq             INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts              TEXT NOT NULL,
+    event_type      TEXT NOT NULL,
+    order_id        TEXT NOT NULL,
+    gateway_id      TEXT NOT NULL,
+    symbol          TEXT NOT NULL,
+    side            TEXT,
+    order_type      TEXT,
+    tif             TEXT,
+    price           REAL,
+    quantity        INTEGER,
+    remaining_qty   INTEGER,
+    status          TEXT,
+    fill_price      REAL,
+    fill_qty        INTEGER,
+    trade_id        TEXT,
+    reason          TEXT,
+    client_order_id TEXT,
+    combo_parent_id TEXT,
+    oco_group_id    TEXT,
+    priority_reset  INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_oe_order_id ON order_events(order_id);
+CREATE INDEX IF NOT EXISTS idx_oe_gateway_ts ON order_events(gateway_id, ts);
+CREATE INDEX IF NOT EXISTS idx_oe_symbol_ts ON order_events(symbol, ts);
+CREATE INDEX IF NOT EXISTS idx_oe_type_ts ON order_events(event_type, ts);
 """
 
 UPSERT_DAILY = """
@@ -196,6 +225,14 @@ INSERT OR IGNORE INTO trade_log (ts, trade_id, symbol, price, quantity, buy_gate
 VALUES (?,?,?,?,?,?,?)
 """
 
+INSERT_ORDER_EVENT = """
+INSERT INTO order_events
+    (ts, event_type, order_id, gateway_id, symbol, side, order_type, tif, price,
+     quantity, remaining_qty, status, fill_price, fill_qty, trade_id, reason,
+     client_order_id, combo_parent_id, oco_group_id, priority_reset)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+"""
+
 
 def _open_db(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -219,9 +256,6 @@ class StatsProcess:
         # symbol → _DayAccum for current calendar date
         self._accum: dict[str, _DayAccum] = {}
 
-        # symbol → most-recent book snapshot (for 15-min snapshots and opening bid/ask)
-        self._last_book: dict[str, dict[str, Any]] = {}
-
         # symbol → last snapshot mid_price (for % change)
         self._last_snap_mid: dict[str, float] = {}
 
@@ -234,6 +268,17 @@ class StatsProcess:
             "book.",
             "system.eod",
             "system.symbols.STATS",
+            "order.ack.",
+            "order.fill.",
+            "order.amended.",
+            "order.cancelled.",
+            "order.expired.",
+            "combo.ack.",
+            "combo.status.",
+            "oco.ack.",
+            "oco.cancelled.",
+            "quote.ack.",
+            "quote.status.",
         )
         self.push = make_pusher(ENGINE_PULL_ADDR)
 
@@ -313,8 +358,6 @@ class StatsProcess:
 
     def _on_book(self, symbol: str, payload: dict[str, Any]) -> None:
         with self._lock:
-            self._last_book[symbol] = payload
-
             # Record opening bid/ask once per day
             acc = self._accum_for(symbol)
             bids = payload.get("bids", [])
@@ -376,6 +419,54 @@ class StatsProcess:
                 f"[STATS] EOD received — flushed {len(payload.get('books', []))} symbol(s)."
             )
 
+    def _on_order_event(self, topic: str, payload: dict[str, Any]) -> None:
+        """Persist one private order lifecycle event for history queries."""
+        parts = topic.split(".")
+        gateway_id = (
+            parts[-1] if len(parts) >= 3 else str(payload.get("gateway_id", ""))
+        )
+        event_name = _event_type_from_topic(topic, payload)
+        order_id = str(
+            payload.get("order_id")
+            or payload.get("combo_id")
+            or payload.get("oco_id")
+            or payload.get("quote_id")
+            or ""
+        )
+        if not order_id or not gateway_id:
+            return
+        ts = datetime.now(tz=timezone.utc).isoformat(timespec="milliseconds")
+        with self._lock, self._conn:
+            self._conn.execute(
+                INSERT_ORDER_EVENT,
+                (
+                    ts,
+                    event_name,
+                    order_id,
+                    gateway_id,
+                    str(payload.get("symbol", "")),
+                    payload.get("side"),
+                    payload.get("order_type"),
+                    payload.get("tif"),
+                    payload.get("price"),
+                    payload.get("quantity") or payload.get("qty"),
+                    payload.get("remaining_qty"),
+                    payload.get("status"),
+                    payload.get("fill_price"),
+                    payload.get("fill_qty"),
+                    payload.get("trade_id"),
+                    payload.get("reason"),
+                    payload.get("client_order_id"),
+                    payload.get("combo_parent_id"),
+                    payload.get("oco_group_id"),
+                    (
+                        int(bool(payload.get("priority_reset")))
+                        if "priority_reset" in payload
+                        else None
+                    ),
+                ),
+            )
+
     # ------------------------------------------------------------------
     # Main receive loop
     # ------------------------------------------------------------------
@@ -406,6 +497,8 @@ class StatsProcess:
                     self._on_eod(payload)
                 elif topic == "system.symbols.STATS":
                     self._on_startup_symbols(payload)
+                elif _is_order_event_topic(topic):
+                    self._on_order_event(topic, payload)
             except Exception as exc:
                 print(f"[STATS] WARNING: error handling {topic}: {exc}", flush=True)
 
@@ -438,6 +531,9 @@ class StatsProcess:
         while self._running:
             t.join(timeout=0.5)
 
+        # Wait for the receive thread to finish its current message before
+        # closing the database and sockets to avoid mid-transaction errors.
+        t.join(timeout=1.0)
         self._conn.close()
         self.sub.close()
         self.push.close()
@@ -445,6 +541,44 @@ class StatsProcess:
     def _stop(self) -> None:
         self._running = False
         print("\n[STATS] Stopped.")
+
+
+def _is_order_event_topic(topic: str) -> bool:
+    return topic.startswith(
+        (
+            "order.ack.",
+            "order.fill.",
+            "order.amended.",
+            "order.cancelled.",
+            "order.expired.",
+            "combo.ack.",
+            "combo.status.",
+            "oco.ack.",
+            "oco.cancelled.",
+            "quote.ack.",
+            "quote.status.",
+        )
+    )
+
+
+def _event_type_from_topic(topic: str, payload: dict[str, Any]) -> str:
+    if topic.startswith("order.ack."):
+        return "ACK" if payload.get("accepted") else "REJECT"
+    if topic.startswith("order.fill."):
+        return "FILL"
+    if topic.startswith("order.amended."):
+        return "AMEND"
+    if topic.startswith("order.cancelled."):
+        return "CANCEL"
+    if topic.startswith("order.expired."):
+        return "EXPIRE"
+    if topic.startswith("combo."):
+        return "COMBO"
+    if topic.startswith("oco."):
+        return "OCO"
+    if topic.startswith("quote."):
+        return "QUOTE"
+    return "EVENT"
 
 
 # ---------------------------------------------------------------------------

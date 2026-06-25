@@ -10,7 +10,7 @@ PUPPETER_EXECUTABLE_PATH ?= /Applications/Google Chrome.app/Contents/MacOS/Googl
 MERMAID_FILTER_FORMAT ?= pdf
 MERMAID_FILTER_WIDTH ?= 600
 
-.PHONY: docs pdf-docs clean really-clean serve 
+.PHONY: docs pdf-docs training-pdf clean really-clean serve check-latex-engine
 
 # Makefile itself as a dependency to ensure it is re-evaluated when changed
 # NOTE: This requires GNU Make 4.3+ and MacOS ships with vGNU Make 3.81 due to licensing issues
@@ -23,6 +23,10 @@ MERMAID_FILTER_WIDTH ?= 600
 # Get full path to bash
 SHELL := $(shell which bash)
 .SHELLFLAGS := -euo pipefail -c
+
+# LaTeX engine configuration (macOS TeX binaries commonly live under /Library/TeX/texbin)
+LATEX_ENGINE ?= xelatex
+TEXBIN_FALLBACK := /Library/TeX/texbin
 
 # Delete target files on error to prevent stale timestamps
 .DELETE_ON_ERROR:
@@ -265,13 +269,13 @@ $$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$($1_TEMPLATE) $$
 		{ print } \
 		END { if (!inserted) { print "Template placeholder %%__USER_GUIDE_CONTENT__%% not found" > "/dev/stderr"; exit 2 } }' \
 		$$($1_TEMPLATE) > $$($1_TEX)
-	@echo -e "$$(DARKYELLOW)  - Compiling $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(DARKYELLOW) with xelatex (2 passes for references/TOC)...$$(NC)"
-	@xelatex -interaction=nonstopmode -halt-on-error -output-directory $$(USER_GUIDE_BUILD_DIR) $$($1_TEX) \
+	@echo -e "$$(DARKYELLOW)  - Compiling $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(DARKYELLOW) with $$(BRIGHTCYAN)\"$(LATEX_ENGINE)\"$$(DARKYELLOW) (2 passes for references/TOC)...$$(NC)"
+	@PATH="$(PATH):$(TEXBIN_FALLBACK)" $(LATEX_ENGINE) -interaction=nonstopmode -halt-on-error -output-directory $$(USER_GUIDE_BUILD_DIR) $$($1_TEX) \
 		> $$($1_PDF_BUILT:.pdf=-xelatex-pass1.log) 2>&1 \
 		|| { echo -e "$$(RED)✗ xelatex pass 1 failed for $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(RED).$$(NC)" >&2; \
 		     echo -e "$$(RED)  Last 30 lines of $$($1_PDF_BUILT:.pdf=-xelatex-pass1.log):$$(NC)" >&2; \
 		     tail -30 $$($1_PDF_BUILT:.pdf=-xelatex-pass1.log) >&2; exit 1; }
-	@xelatex -interaction=nonstopmode -halt-on-error -output-directory $$(USER_GUIDE_BUILD_DIR) $$($1_TEX) \
+	@PATH="$(PATH):$(TEXBIN_FALLBACK)" $(LATEX_ENGINE) -interaction=nonstopmode -halt-on-error -output-directory $$(USER_GUIDE_BUILD_DIR) $$($1_TEX) \
 		> $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log) 2>&1 \
 		|| { echo -e "$$(RED)✗ xelatex pass 2 failed for $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(RED).$$(NC)" >&2; \
 		     echo -e "$$(RED)  Last 30 lines of $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log):$$(NC)" >&2; \
@@ -323,13 +327,13 @@ $$($1_PDF): $$(TRAINING_GUIDE_MD_SOURCES) $$(TRAINING_GUIDE_PDF_DEPS) $$($1_TEMP
 		{ print } \
 		END { if (!inserted) { print "Template placeholder %%__USER_GUIDE_CONTENT__%% not found" > "/dev/stderr"; exit 2 } }' \
 		$$($1_TEMPLATE) > $$($1_TEX)
-	@echo -e "$$(DARKYELLOW)  - Compiling $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$$(DARKYELLOW) with xelatex (2 passes for references/TOC)...$$(NC)"
-	@xelatex -interaction=nonstopmode -halt-on-error -output-directory $$(TRAINING_GUIDE_BUILD_DIR) $$($1_TEX) \
+	@echo -e "$$(DARKYELLOW)  - Compiling $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$$(DARKYELLOW) with $$(BRIGHTCYAN)\"$(LATEX_ENGINE)\"$$(DARKYELLOW) (2 passes for references/TOC)...$$(NC)"
+	@PATH="$(PATH):$(TEXBIN_FALLBACK)" $(LATEX_ENGINE) -interaction=nonstopmode -halt-on-error -output-directory $$(TRAINING_GUIDE_BUILD_DIR) $$($1_TEX) \
 		> $$($1_PDF_BUILT:.pdf=-xelatex-pass1.log) 2>&1 \
 		|| { echo -e "$$(RED)✗ xelatex pass 1 failed for $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$$(RED).$$(NC)" >&2; \
 		     echo -e "$$(RED)  Last 30 lines of $$($1_PDF_BUILT:.pdf=-xelatex-pass1.log):$$(NC)" >&2; \
 		     tail -30 $$($1_PDF_BUILT:.pdf=-xelatex-pass1.log) >&2; exit 1; }
-	@xelatex -interaction=nonstopmode -halt-on-error -output-directory $$(TRAINING_GUIDE_BUILD_DIR) $$($1_TEX) \
+	@PATH="$(PATH):$(TEXBIN_FALLBACK)" $(LATEX_ENGINE) -interaction=nonstopmode -halt-on-error -output-directory $$(TRAINING_GUIDE_BUILD_DIR) $$($1_TEX) \
 		> $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log) 2>&1 \
 		|| { echo -e "$$(RED)✗ xelatex pass 2 failed for $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$$(RED).$$(NC)" >&2; \
 		     echo -e "$$(RED)  Last 30 lines of $$($1_PDF_BUILT:.pdf=-xelatex-pass2.log):$$(NC)" >&2; \
@@ -369,14 +373,23 @@ $(NODE_MODULES_PATH):
 docs: $(DOC_STAMP) ## Build the HTML project documentation with MkDocs
 	@:
 
-pdf-docs:   ## Build the user guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
+check-latex-engine:
+	@if ! PATH="$(PATH):$(TEXBIN_FALLBACK)" command -v "$(LATEX_ENGINE)" >/dev/null 2>&1; then \
+		echo -e "$(RED)✗ LaTeX engine '$(LATEX_ENGINE)' not found in PATH.$(NC)" >&2; \
+		echo -e "$(RED)  Current PATH: $(PATH)$(NC)" >&2; \
+		echo -e "$(RED)  Expected fallback path: $(TEXBIN_FALLBACK)$(NC)" >&2; \
+		echo -e "$(RED)  Install/update TeX (e.g. MacTeX/BasicTeX) or run after upgrade completes.$(NC)" >&2; \
+		exit 1; \
+	fi
+
+pdf-docs: check-latex-engine  ## Build the user guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
 	@rm -rf $(USER_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm -rf $(DIST_DIR)/$(PROJECT)_user-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(USER_GUIDE_A4_PDF) $(USER_GUIDE_DARK_A4_PDF) $(USER_GUIDE_B5_PDF) $(USER_GUIDE_DARK_B5_PDF)
 	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user-guide-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)_*-$(VERSION).pdf
 	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user-guide-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
-training-pdf:   ## Build the training guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
+training-pdf: check-latex-engine  ## Build the training guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
 	@rm -rf $(TRAINING_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm -rf $(DIST_DIR)/$(PROJECT)_training-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(TRAINING_GUIDE_A4_PDF) $(TRAINING_GUIDE_DARK_A4_PDF) $(TRAINING_GUIDE_B5_PDF) $(TRAINING_GUIDE_DARK_B5_PDF)
