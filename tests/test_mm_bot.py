@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import pytest
@@ -1053,12 +1054,10 @@ class TestMMBotQlegsReconciliation:
         assert bot._pricer is not None
         bot._pricer.set_mid(100.0)
 
-        # Queue QLEGS response with different quote_id
-        sub.recv_queue.append(
-            _qlegs_msg([{"quote_id": "q-OTHER", "order_id": "x", "side": "BUY"}])
+        # QLEGS response with a different quote_id
+        bot._reconcile_qlegs(
+            {"legs": [{"quote_id": "q-OTHER", "order_id": "x", "side": "BUY"}]}
         )
-
-        bot._reconcile_qlegs()
 
         # Should have cleared local state and scheduled reissue
         assert bot._quote_id is None
@@ -1082,16 +1081,14 @@ class TestMMBotQlegsReconciliation:
         assert bot._pricer is not None
         bot._pricer.set_mid(100.0)
 
-        sub.recv_queue.append(
-            _qlegs_msg(
-                [
+        bot._reconcile_qlegs(
+            {
+                "legs": [
                     {"quote_id": "q-001", "order_id": "bid-OTHER", "side": "BUY"},
                     {"quote_id": "q-001", "order_id": "ask-OTHER", "side": "SELL"},
                 ]
-            )
+            }
         )
-
-        bot._reconcile_qlegs()
 
         assert bot._quote_id is None
         assert bot._reissue_at is not None
@@ -1244,15 +1241,47 @@ class TestMMBotDispatch:
         topics = [msg_decode(m)[0] for m in push.sent]
         assert "quote.new" in topics
 
+    def test_tick_heartbeat_recovers_stuck_reissuing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A dropped quote.ack must not strand the bot in REISSUING forever."""
+        bot, push, sub = self._ready_bot(monkeypatch)
+        # Simulate having sent a quote whose ack was lost.
+        bot._state = BotState.REISSUING
+        bot._quote_id = None
+        bot._reissue_at = None  # no pending reissue timer
+        bot._last_heartbeat = 0.0  # force heartbeat check
+        push.sent.clear()
+
+        bot._tick()
+
+        topics = [msg_decode(m)[0] for m in push.sent]
+        assert "quote.new" in topics
+
+    def test_tick_heartbeat_skips_when_reissue_pending(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Heartbeat must not fight a reissue that is already scheduled."""
+        bot, push, sub = self._ready_bot(monkeypatch)
+        bot._state = BotState.REISSUING
+        bot._quote_id = None
+        bot._reissue_at = time.monotonic() + 100.0  # pending, not yet due
+        bot._last_heartbeat = 0.0
+        push.sent.clear()
+
+        bot._tick()
+
+        topics = [msg_decode(m)[0] for m in push.sent]
+        assert "quote.new" not in topics
+
     def test_qlegs_reconcile_no_legs_but_quote_exists(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """QLEGS returns no legs but bot thinks it has a quote → reissue."""
         bot, push, sub = self._ready_bot(monkeypatch)
 
-        # Queue empty QLEGS response
-        sub.recv_queue.append(_qlegs_msg([]))
-        bot._reconcile_qlegs()
+        # Empty QLEGS response while we still believe we hold a quote
+        bot._reconcile_qlegs({"legs": []})
 
         assert bot._quote_id is None
         assert bot._reissue_at is not None
