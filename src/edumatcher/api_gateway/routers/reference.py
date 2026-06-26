@@ -107,8 +107,10 @@ async def status_summary(
 
 @router.get("/healthz", include_in_schema=False)
 async def healthz(request: Request) -> dict[str, Any]:
+    engine = request.app.state.engine
+    healthy = request.app.state.config.enabled and engine.is_running()
     return {
-        "ok": True,
+        "ok": healthy,
         "enabled": request.app.state.config.enabled,
-        "active_gateways": sorted(request.app.state.engine.active_gateways()),
+        "active_gateways": sorted(engine.active_gateways()),
     }

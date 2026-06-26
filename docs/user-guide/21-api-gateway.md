@@ -191,6 +191,7 @@ Base path: `/api/v1`.
 | `GET` | `/history/fills` | trading | Historical fills |
 | `GET` | `/history/trades` | any valid key | Public trade log |
 | `GET` | `/history/daily` | any valid key | Daily OHLCV rows |
+| `GET` | `/healthz` | none | Liveness probe (not in Swagger) |
 
 
 ### Submit order
@@ -228,7 +229,11 @@ Content-Type: application/json
 | `smp_action` | no | Self-match prevention action |
 
 Default write calls return immediately with `202 Accepted`. Add `?wait=ack` to
-wait for the matching engine ACK until the configured timeout.
+wait for the matching engine ACK until the configured timeout. The wait filters
+by `order_id` so concurrent requests on the same gateway receive their own ack.
+
+Submitting an order with a `client_order_id` that already exists in the session
+cache returns `409 Conflict`.
 
 
 ### Cancel, amend, and replace
@@ -328,12 +333,12 @@ Swagger exposure is configurable with `swagger_enabled`. Plain bearer keys in
 YAML are used for teaching and local labs; production deployments should put the
 gateway behind TLS and manage secrets with the surrounding platform.
 
-`?wait=ack` waits for the next matching engine topic for that gateway. For
-high-concurrency clients sharing one `gateway_id`, use the private `/events`
-WebSocket as the authoritative per-order outcome stream.
+`?wait=ack` waits for the engine event matching both the topic and the specific
+`order_id`. Concurrent requests sharing one `gateway_id` each resolve
+independently.
 
-`engine_reply_sec` and `wait_ack_sec` are applied from configuration. The
-engine authentication handshake currently uses a fixed 3 second timeout.
+`engine_auth_sec`, `engine_reply_sec`, and `wait_ack_sec` are all applied from
+configuration.
 
 The implementation keeps engine payloads close to the existing EduMatcher event
 model. Outbound WebSocket events are wrapped in a consistent envelope, but they
@@ -355,6 +360,7 @@ created and populated the configured database.
 2. Confirm each non-null `gateway_id` appears in only one API gateway entry
 3. Start `pm-engine`, `pm-stats`, then `pm-api-gateway --instance NAME`
 4. Open `/docs` if Swagger is enabled
-5. Test `GET /api/v1/status` with a bearer token
-6. Connect `/api/v1/events` before submitting orders if you want async outcomes
-7. Use `/history/*` only when `pm-stats` is running and writing `stats.db`
+5. Test `GET /api/v1/healthz` (no auth required) — returns `{"ok": true}` when the engine listener is running
+6. Test `GET /api/v1/status` with a bearer token
+7. Connect `/api/v1/events` before submitting orders if you want async outcomes
+8. Use `/history/*` only when `pm-stats` is running and writing `stats.db`

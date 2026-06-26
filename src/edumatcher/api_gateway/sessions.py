@@ -69,8 +69,9 @@ async def auth(
         description=credential.description,
     )
     if session.gateway_id is not None:
+        timeout = request.app.state.config.timeouts.engine_auth_sec
         accepted, reason = await request.app.state.engine.authenticate(
-            session.gateway_id
+            session.gateway_id, timeout=timeout
         )
         if not accepted:
             raise HTTPException(
