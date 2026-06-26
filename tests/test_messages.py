@@ -30,6 +30,14 @@ from edumatcher.models.message import (
     make_kill_switch_ack_msg,
     make_kill_switch_msg,
     make_depth_msg,
+    make_index_constituent_change_ack_msg,
+    make_index_constituent_change_msg,
+    make_index_corp_action_ack_msg,
+    make_index_corp_action_msg,
+    make_index_error_msg,
+    make_index_history_msg,
+    make_index_history_request_msg,
+    make_index_update_msg,
     make_order_amend_msg,
     make_order_cancel_msg,
     make_order_new_msg,
@@ -48,6 +56,110 @@ from edumatcher.models.message import (
     make_oco_order_msg,
     make_oco_cancel_msg,
 )
+
+
+class TestIndexMessages:
+    def test_make_index_update_msg(self) -> None:
+        topic, payload = _rt(
+            make_index_update_msg(
+                index_id="EDU100",
+                level=1048.73,
+                aggregate_cap=7_350_000_000_000.0,
+                divisor=7_007_100_000.0,
+                session_state="CONTINUOUS",
+                day_open=1042.10,
+                day_high=1056.30,
+                day_low=1040.05,
+            )
+        )
+        assert topic == "index.update"
+        assert payload["index_id"] == "EDU100"
+        assert payload["session_state"] == "CONTINUOUS"
+        assert payload["day_open"] == 1042.10
+
+    def test_make_index_history_request_msg(self) -> None:
+        topic, payload = _rt(
+            make_index_history_request_msg(
+                gateway_id="GW01",
+                index_id="EDU100",
+                from_ts=1000.0,
+                to_ts=2000.0,
+                types=["LEVEL", "EOD"],
+            )
+        )
+        assert topic == "index.history_request"
+        assert payload["gateway_id"] == "GW01"
+        assert payload["index_id"] == "EDU100"
+
+    def test_make_index_history_msg(self) -> None:
+        topic, payload = _rt(
+            make_index_history_msg(
+                gateway_id="GW01",
+                index_id="EDU100",
+                records=[{"type": "LEVEL", "timestamp": 1.0}],
+            )
+        )
+        assert topic == "index.history.GW01"
+        assert payload["index_id"] == "EDU100"
+        assert len(payload["records"]) == 1
+
+    def test_make_index_corp_action_msg(self) -> None:
+        topic, payload = _rt(
+            make_index_corp_action_msg(
+                action="SPLIT",
+                index_id="EDU100",
+                symbol="AAPL",
+                gateway_id="GW_ADMIN",
+                params={"ratio_numerator": 2, "ratio_denominator": 1},
+            )
+        )
+        assert topic == "index.corp_action"
+        assert payload["action"] == "SPLIT"
+        assert payload["ratio_numerator"] == 2
+
+    def test_make_index_constituent_change_msg(self) -> None:
+        topic, payload = _rt(
+            make_index_constituent_change_msg(
+                change_type="ADD",
+                index_id="EDU100",
+                symbol="AMZN",
+                gateway_id="GW_ADMIN",
+                shares_outstanding=10,
+                initial_price=195.0,
+            )
+        )
+        assert topic == "index.constituent_change"
+        assert payload["change_type"] == "ADD"
+        assert payload["symbol"] == "AMZN"
+
+    def test_make_index_ack_and_error_msgs(self) -> None:
+        topic1, payload1 = _rt(
+            make_index_corp_action_ack_msg(
+                gateway_id="GW_ADMIN",
+                accepted=True,
+                index_id="EDU100",
+                level=1000.0,
+                divisor=10.0,
+            )
+        )
+        assert topic1 == "index.corp_action_ack.GW_ADMIN"
+        assert payload1["accepted"] is True
+
+        topic2, payload2 = _rt(
+            make_index_constituent_change_ack_msg(
+                gateway_id="GW_ADMIN",
+                accepted=False,
+                reason="bad",
+                index_id="EDU100",
+            )
+        )
+        assert topic2 == "index.constituent_change_ack.GW_ADMIN"
+        assert payload2["accepted"] is False
+        assert payload2["reason"] == "bad"
+
+        topic3, payload3 = _rt(make_index_error_msg("GW_ADMIN", "oops"))
+        assert topic3 == "index.error.GW_ADMIN"
+        assert payload3["reason"] == "oops"
 
 
 def _rt(frames: list[bytes]) -> tuple[str, dict]:

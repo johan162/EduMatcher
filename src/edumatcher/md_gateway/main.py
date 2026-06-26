@@ -5,7 +5,11 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from edumatcher.config import ENGINE_CONFIG_FILE, ENGINE_PUB_ADDR
+from edumatcher.config import (
+    ENGINE_CONFIG_FILE,
+    ENGINE_PUB_ADDR,
+    INDEX_PUB_CONNECT_ADDR,
+)
 from edumatcher.engine.config_loader import load_engine_config
 from edumatcher.md_gateway.config import (
     MarketDataGatewayConfig,
@@ -31,6 +35,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=ENGINE_PUB_ADDR,
         help="Engine PUB socket address (default: tcp://127.0.0.1:5556)",
     )
+    parser.add_argument(
+        "--index-pub",
+        default=INDEX_PUB_CONNECT_ADDR,
+        help="Index PUB socket address (default: tcp://127.0.0.1:5558)",
+    )
     return parser
 
 
@@ -43,6 +52,7 @@ def _resolve_config(
     bind_address = str(args.bind) if args.bind else cfg.bind_address
     port = int(args.port) if args.port else cfg.port
     engine_pub_addr = str(args.engine_pub) if args.engine_pub else cfg.engine_pub_addr
+    index_pub_addr = str(args.index_pub) if args.index_pub else cfg.index_pub_addr
 
     known_symbols: set[str] = set()
     if cfg_path.exists():
@@ -61,6 +71,7 @@ def _resolve_config(
             bind_address=bind_address,
             port=port,
             engine_pub_addr=engine_pub_addr,
+            index_pub_addr=index_pub_addr,
             heartbeat_interval_sec=cfg.heartbeat_interval_sec,
             idle_timeout_sec=cfg.idle_timeout_sec,
             replay_window_sec=cfg.replay_window_sec,

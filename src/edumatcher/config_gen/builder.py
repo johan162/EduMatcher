@@ -23,6 +23,9 @@ from .defaults import (
     DEFAULT_API_GATEWAY_STATS_DB,
     DEFAULT_API_GATEWAY_SWAGGER_ENABLED,
     DEFAULT_API_GATEWAY_WAIT_ACK_SEC,
+    DEFAULT_INDEX_BASE_VALUE,
+    DEFAULT_INDEX_DATA_DIR,
+    DEFAULT_INDEX_PUBLISH_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS,
     DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC,
@@ -85,6 +88,7 @@ class ConfigSpec:
     post_trade_gateway: PostTradeGatewaySpec | None = None
     market_data_gateway: MarketDataGatewaySpec | None = None
     api_gateways: tuple[ApiGatewaySpec, ...] = ()
+    indices: tuple[IndexSpec, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -117,6 +121,17 @@ class ApiCredentialSpec:
     api_key: str
     gateway_id: str | None
     description: str = ""
+
+
+@dataclass(frozen=True)
+class IndexSpec:
+    id: str
+    description: str
+    constituents: tuple[str, ...]
+    base_value: float = DEFAULT_INDEX_BASE_VALUE
+    publish_interval_sec: float = DEFAULT_INDEX_PUBLISH_INTERVAL_SEC
+    history_file: str = ""  # empty → derived from id
+    state_file: str = ""  # empty → derived from id
 
 
 @dataclass(frozen=True)
@@ -170,6 +185,9 @@ class ConfigBuilder:
         if self.spec.api_gateways:
             cfg["api_gateways"] = self._build_api_gateways()
         cfg["symbols"] = self._build_symbols()
+
+        if self.spec.indices:
+            cfg["indices"] = self._build_indices()
 
         if self.spec.sessions_enabled and self.spec.emit_schedule:
             cfg["schedule"] = {
@@ -495,6 +513,28 @@ class ConfigBuilder:
             symbols[symbol] = payload
 
         return symbols
+
+    def _build_indices(self) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
+        for spec in self.spec.indices:
+            history_file = (
+                spec.history_file or f"{DEFAULT_INDEX_DATA_DIR}/{spec.id}_history.jsonl"
+            )
+            state_file = (
+                spec.state_file or f"{DEFAULT_INDEX_DATA_DIR}/{spec.id}_state.json"
+            )
+            result.append(
+                {
+                    "id": spec.id,
+                    "description": spec.description,
+                    "base_value": spec.base_value,
+                    "publish_interval_sec": spec.publish_interval_sec,
+                    "history_file": history_file,
+                    "state_file": state_file,
+                    "constituents": list(spec.constituents),
+                }
+            )
+        return result
 
     def _seeded_midpoint(self, tick_decimals: int) -> Decimal | None:
         if self.spec.seed_mm_mid_range is None:

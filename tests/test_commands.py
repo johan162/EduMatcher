@@ -38,6 +38,9 @@ from edumatcher.models.message import (
     make_orders_msg,
     make_quote_ack_msg,
     make_quote_bootstrap_msg,
+    make_index_history_msg,
+    make_index_corp_action_ack_msg,
+    make_index_constituent_change_ack_msg,
     make_session_schedule_msg,
     make_session_status_msg,
     make_symbol_halt_ack_msg,
@@ -375,6 +378,89 @@ class TestDataQueries:
         assert len(result) == 1
         assert result[0]["symbol"] == "AAPL"
         assert result[0]["quote_id"] == "SEED-MM_AAPL_01-AAPL-1"
+
+
+class TestIndexCommands:
+    def test_index_history_sends_request_to_index_channel(self) -> None:
+        client, push = _client(
+            recv_queue=_q(
+                make_index_history_msg(
+                    gateway_id="GW_ADMIN",
+                    index_id="EDU100",
+                    records=[{"type": "LEVEL", "timestamp": 1.0}],
+                )
+            )
+        )
+
+        result = client.index_history("edu100", from_ts=0.0, to_ts=10.0)
+
+        topic, payload = _last_sent(push)
+        assert topic == "index.history_request"
+        assert payload["gateway_id"] == "GW_ADMIN"
+        assert payload["index_id"] == "EDU100"
+        assert len(result["records"]) == 1
+
+    def test_index_corp_action_sends_and_receives_ack(self) -> None:
+        client, push = _client(
+            recv_queue=_q(
+                make_index_corp_action_ack_msg(
+                    gateway_id="GW_ADMIN",
+                    accepted=True,
+                    index_id="EDU100",
+                    level=1001.0,
+                    divisor=99.0,
+                )
+            )
+        )
+
+        result = client.index_corp_action(
+            "edu100",
+            action="split",
+            symbol="aapl",
+            ratio_numerator=2,
+            ratio_denominator=1,
+        )
+
+        topic, payload = _last_sent(push)
+        assert topic == "index.corp_action"
+        assert payload["index_id"] == "EDU100"
+        assert payload["symbol"] == "AAPL"
+        assert payload["action"] == "SPLIT"
+        assert result["accepted"] is True
+
+    def test_index_add_and_delist_constituent(self) -> None:
+        client, push = _client(
+            recv_queue=_q(
+                make_index_constituent_change_ack_msg(
+                    gateway_id="GW_ADMIN",
+                    accepted=True,
+                    index_id="EDU100",
+                ),
+                make_index_constituent_change_ack_msg(
+                    gateway_id="GW_ADMIN",
+                    accepted=True,
+                    index_id="EDU100",
+                ),
+            )
+        )
+
+        add_result = client.index_add_constituent(
+            "edu100",
+            "amzn",
+            shares_outstanding=10,
+            initial_price=195.0,
+        )
+        add_topic, add_payload = decode(push.sent[-1])
+        assert add_topic == "index.constituent_change"
+        assert add_payload["change_type"] == "ADD"
+        assert add_payload["symbol"] == "AMZN"
+        assert add_result["accepted"] is True
+
+        delist_result = client.index_delist("edu100", "amzn")
+        delist_topic, delist_payload = decode(push.sent[-1])
+        assert delist_topic == "index.constituent_change"
+        assert delist_payload["change_type"] == "DELIST"
+        assert delist_result["accepted"] is True
 
 
 # ---------------------------------------------------------------------------

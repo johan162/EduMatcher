@@ -14,6 +14,7 @@ from edumatcher.models.participant import ParticipantRole
 
 from edumatcher.config_gen.builder import ConfigBuilder, ConfigSpec
 from edumatcher.config_gen.builder import ApiCredentialSpec, ApiGatewaySpec
+from edumatcher.config_gen.builder import IndexSpec
 from edumatcher.config_gen.builder import MarketDataGatewaySpec
 from edumatcher.config_gen.builder import PostTradeGatewaySpec
 from edumatcher.config_gen.cb_spec import CbSpec, parse_cb_spec
@@ -28,6 +29,8 @@ from edumatcher.config_gen.defaults import (
     DEFAULT_API_GATEWAY_STATS_DB,
     DEFAULT_API_GATEWAY_WAIT_ACK_SEC,
     DEFAULT_CB_WINDOW_NS,
+    DEFAULT_INDEX_BASE_VALUE,
+    DEFAULT_INDEX_PUBLISH_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS,
     DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC,
@@ -571,6 +574,52 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--index",
+        action="append",
+        default=[],
+        metavar="ID[:DESCRIPTION]",
+        help=(
+            "Define an index (repeatable, up to 5). "
+            "ID is alphanumeric; DESCRIPTION is optional text after the first colon."
+        ),
+    )
+    parser.add_argument(
+        "--index-constituents",
+        action="append",
+        default=[],
+        metavar="ID:SYM[,SYM,...]",
+        help="Constituent symbols for an index. Can be repeated.",
+    )
+    parser.add_argument(
+        "--index-base-value",
+        action="append",
+        default=[],
+        metavar="ID:VALUE",
+        help="Override base_value for an index (default: 1000.0). Can be repeated.",
+    )
+    parser.add_argument(
+        "--index-interval",
+        action="append",
+        default=[],
+        metavar="ID:SECS",
+        help="Override publish_interval_sec for an index (default: 1.0). Can be repeated.",
+    )
+    parser.add_argument(
+        "--index-history-file",
+        action="append",
+        default=[],
+        metavar="ID:PATH",
+        help="Override history_file path for an index. Can be repeated.",
+    )
+    parser.add_argument(
+        "--index-state-file",
+        action="append",
+        default=[],
+        metavar="ID:PATH",
+        help="Override state_file path for an index. Can be repeated.",
+    )
+
+    parser.add_argument(
         "--output", default=None, metavar="FILE", help="Output file path."
     )
     parser.add_argument(
@@ -830,6 +879,28 @@ def _build_default_engine_field_comment_lines(config: dict[str, object]) -> list
             "  replay_window_sec: 30",
             "  max_symbols_per_client: 200",
             "  max_client_queue: 10000",
+            "",
+        ]
+    )
+
+    # indices
+    lines.extend(
+        [
+            "indices:",
+            "  - id: EDU100",
+            "    description: Broad technology benchmark",
+            "    base_value: 1000.0",
+            "    publish_interval_sec: 1.0",
+            "    history_file: data/indexes/EDU100_history.jsonl",
+            "    state_file: data/indexes/EDU100_state.json",
+            "    constituents: [AAPL, MSFT, TSLA]",
+            "  - id: EDUFIN",
+            "    description: Financial sector basket",
+            "    base_value: 1000.0",
+            "    publish_interval_sec: 1.0",
+            "    history_file: data/indexes/EDUFIN_history.jsonl",
+            "    state_file: data/indexes/EDUFIN_state.json",
+            "    constituents: [JPM, BAC, GS]",
             "",
         ]
     )
@@ -1191,6 +1262,30 @@ def _build_default_engine_field_comment_lines(config: dict[str, object]) -> list
             "closing_auction_end: 16:05",
             "  End of closing auction and completion of the trading session timeline.",
             "  Times are HH:MM in local server time and are applied in trading-day order.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "indices entries",
+            "" + "-" * 15,
+            "id:",
+            "  Alphanumeric index identifier used in messages, file names, and CALF subscriptions.",
+            "description:",
+            "  Human-readable label shown in operator output and diagnostics.",
+            "base_value: 1000.0",
+            "  Starting level that the divisor is calibrated to at launch.",
+            "publish_interval_sec: 1.0",
+            "  Throttle: minimum seconds between consecutive index.update broadcasts.",
+            "history_file: data/indexes/<ID>_history.jsonl",
+            "  Append-only JSONL file where pm-index records LEVEL, EOD, and CORP_ACTION entries.",
+            "state_file: data/indexes/<ID>_state.json",
+            "  JSON checkpoint file used to recover divisor and last prices across restarts.",
+            "constituents:",
+            "  Ordered list of symbol IDs included in this index; each must be configured in symbols.",
+            "  Each constituent symbol must have outstanding_shares set.",
+            "  Maximum 5 indices per exchange; maximum constituents per index limited by performance.",
             "",
         ]
     )
@@ -1817,6 +1912,152 @@ def _build_api_gateway_specs(
     )
 
 
+def _parse_index_specs(args: argparse.Namespace) -> tuple[IndexSpec, ...]:
+    """Parse all --index* flags and return a tuple of IndexSpec objects."""
+    if not args.index:
+        return ()
+
+    allowed_symbols = {s.upper() for s in args.symbols}
+
+    # ── --index ID[:DESCRIPTION] ────────────────────────────────────────────
+    index_defs: dict[str, str] = {}  # ordered: id -> description
+    for raw in args.index:
+        if ":" in raw:
+            idx_id_raw, description = raw.split(":", 1)
+        else:
+            idx_id_raw, description = raw, ""
+        idx_id = idx_id_raw.strip().upper()
+        if not idx_id:
+            raise ValueError(f"Invalid --index '{raw}': id cannot be empty")
+        if not idx_id.replace("_", "").replace("-", "").isalnum():
+            raise ValueError(
+                f"Invalid --index '{raw}': id must be alphanumeric "
+                "(letters, digits, hyphens, underscores)"
+            )
+        if idx_id in index_defs:
+            raise ValueError(f"Duplicate --index id '{idx_id}'")
+        index_defs[idx_id] = description.strip() or f"Index {idx_id}"
+
+    if len(index_defs) > 5:
+        raise ValueError("--index: maximum 5 indices per exchange")
+
+    # ── --index-constituents ID:SYM[,SYM,...] ───────────────────────────────
+    index_constituents: dict[str, list[str]] = {}
+    for raw in args.index_constituents:
+        if ":" not in raw:
+            raise ValueError(
+                f"Invalid --index-constituents '{raw}': expected ID:SYM[,SYM,...]"
+            )
+        idx_id_raw, syms_raw = raw.split(":", 1)
+        idx_id = idx_id_raw.strip().upper()
+        if idx_id not in index_defs:
+            raise ValueError(
+                f"--index-constituents references unknown index '{idx_id}'"
+            )
+        syms = [s.strip().upper() for s in syms_raw.split(",") if s.strip()]
+        if not syms:
+            raise ValueError(
+                f"--index-constituents '{raw}': at least one symbol required"
+            )
+        for sym in syms:
+            if sym not in allowed_symbols:
+                raise ValueError(
+                    f"--index-constituents '{raw}': symbol '{sym}' is not in --symbols"
+                )
+        index_constituents[idx_id] = syms
+
+    # ── --index-base-value ID:VALUE ──────────────────────────────────────────
+    index_base_values: dict[str, float] = {}
+    for raw in args.index_base_value:
+        if ":" not in raw:
+            raise ValueError(f"Invalid --index-base-value '{raw}': expected ID:VALUE")
+        idx_id_raw, val_raw = raw.split(":", 1)
+        idx_id = idx_id_raw.strip().upper()
+        if idx_id not in index_defs:
+            raise ValueError(f"--index-base-value references unknown index '{idx_id}'")
+        try:
+            value = float(val_raw.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"--index-base-value '{raw}': value must be numeric"
+            ) from exc
+        if value <= 0:
+            raise ValueError(f"--index-base-value '{raw}': value must be > 0")
+        index_base_values[idx_id] = value
+
+    # ── --index-interval ID:SECS ─────────────────────────────────────────────
+    index_intervals: dict[str, float] = {}
+    for raw in args.index_interval:
+        if ":" not in raw:
+            raise ValueError(f"Invalid --index-interval '{raw}': expected ID:SECS")
+        idx_id_raw, val_raw = raw.split(":", 1)
+        idx_id = idx_id_raw.strip().upper()
+        if idx_id not in index_defs:
+            raise ValueError(f"--index-interval references unknown index '{idx_id}'")
+        try:
+            value = float(val_raw.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"--index-interval '{raw}': value must be numeric"
+            ) from exc
+        if value <= 0:
+            raise ValueError(f"--index-interval '{raw}': value must be > 0")
+        index_intervals[idx_id] = value
+
+    # ── --index-history-file ID:PATH ─────────────────────────────────────────
+    index_history_files: dict[str, str] = {}
+    for raw in args.index_history_file:
+        if ":" not in raw:
+            raise ValueError(f"Invalid --index-history-file '{raw}': expected ID:PATH")
+        idx_id_raw, path_raw = raw.split(":", 1)
+        idx_id = idx_id_raw.strip().upper()
+        if idx_id not in index_defs:
+            raise ValueError(
+                f"--index-history-file references unknown index '{idx_id}'"
+            )
+        path = path_raw.strip()
+        if not path:
+            raise ValueError(f"--index-history-file '{raw}': path cannot be empty")
+        index_history_files[idx_id] = path
+
+    # ── --index-state-file ID:PATH ───────────────────────────────────────────
+    index_state_files: dict[str, str] = {}
+    for raw in args.index_state_file:
+        if ":" not in raw:
+            raise ValueError(f"Invalid --index-state-file '{raw}': expected ID:PATH")
+        idx_id_raw, path_raw = raw.split(":", 1)
+        idx_id = idx_id_raw.strip().upper()
+        if idx_id not in index_defs:
+            raise ValueError(f"--index-state-file references unknown index '{idx_id}'")
+        path = path_raw.strip()
+        if not path:
+            raise ValueError(f"--index-state-file '{raw}': path cannot be empty")
+        index_state_files[idx_id] = path
+
+    # ── Validate: every index must have at least one constituent ─────────────
+    for idx_id in index_defs:
+        if not index_constituents.get(idx_id):
+            raise ValueError(
+                f"Index '{idx_id}' has no constituents. "
+                f"Use --index-constituents {idx_id}:SYM[,SYM,...]"
+            )
+
+    return tuple(
+        IndexSpec(
+            id=idx_id,
+            description=index_defs[idx_id],
+            constituents=tuple(index_constituents[idx_id]),
+            base_value=index_base_values.get(idx_id, DEFAULT_INDEX_BASE_VALUE),
+            publish_interval_sec=index_intervals.get(
+                idx_id, DEFAULT_INDEX_PUBLISH_INTERVAL_SEC
+            ),
+            history_file=index_history_files.get(idx_id, ""),
+            state_file=index_state_files.get(idx_id, ""),
+        )
+        for idx_id in index_defs
+    )
+
+
 def _write_output(output_path: Path, content: str, force: bool) -> None:
     if output_path.exists() and not force:
         raise FileExistsError("Output file already exists")
@@ -1864,6 +2105,7 @@ def main() -> None:
             outstanding_shares,
             seed_mm_mid_range,
         ) = _parse_specs(args)
+        indices = _parse_index_specs(args)
     except ValueError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
@@ -1909,6 +2151,7 @@ def main() -> None:
             post_trade_gateway=_build_post_trade_gateway_spec(args),
             market_data_gateway=_build_market_data_gateway_spec(args),
             api_gateways=_build_api_gateway_specs(args, gateways),
+            indices=indices,
         )
     except ValueError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)

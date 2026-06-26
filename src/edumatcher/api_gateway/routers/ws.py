@@ -39,7 +39,10 @@ async def private_events(websocket: WebSocket) -> None:
         if gateway_id is None:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
-        accepted, reason = await websocket.app.state.engine.authenticate(gateway_id)
+        accepted, reason = await websocket.app.state.engine.authenticate(
+            gateway_id,
+            timeout=websocket.app.state.config.timeouts.engine_auth_sec,
+        )
         if not accepted:
             await websocket.send_json({"type": "error", "data": {"message": reason}})
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)

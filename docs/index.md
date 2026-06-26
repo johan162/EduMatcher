@@ -162,7 +162,7 @@ Prefer this mode if you want a ready-to-run Linux VM without installing Python
 or cloning this repository on your host machine.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.9.2 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.11.0 --snapshot
 ```
 
 More information:
@@ -257,7 +257,7 @@ On macOS, you can use the convenience launcher instead:
 `tools/launch_all.sh` uses `osascript` to open new Terminal windows, so it is
 macOS-specific rather than a generic background-process launcher.
 
-### Browse the docs
+### Browse the docs locally
 
 ```bash
 poetry run mkdocs serve
@@ -265,73 +265,10 @@ poetry run mkdocs serve
 ```
 
 
-## Reference Docs
+## For more information see
 
-### Ports used
-
-| Socket | Address | Purpose |
-|--------|---------|---------|
-| Engine PULL | `tcp://127.0.0.1:5555` | Receive orders from gateways |
-| Engine PUB  | `tcp://127.0.0.1:5556` | Broadcast all events to subscribers |
-| Drop-copy PUB | `tcp://127.0.0.1:5557` | Broadcast fill-only drop-copy events |
-
-
-
-## Console scripts
-
-| Command | Description |
-|---------|-------------|
-| `pm-engine`   | Matching engine — the core process that must start first |
-| `pm-gateway`  | User gateway (one per user) — accepts ALF commands on stdin ([ALF Protocol Reference](user-guide/90-app-alf-protocol.md)) |
-| `pm-viewer`   | Live order book display for a single symbol |
-| `pm-orders`   | Global order status monitor (all gateways, all symbols) |
-| `pm-audit`    | Event logger — records every message to a rotating log file |
-| `pm-clearing` | Trade settlement & P&L tracking |
-| `pm-stats`    | Market statistics recorder (SQLite) — OHLCV, VWAP, snapshots |
-| `pm-scheduler`| Session scheduler — drives auction/continuous phase transitions |
-| `pm-ticker`   | Scrolling market-data ticker fed by `data/stats.db` and live books |
-| `pm-board`    | Multi-symbol market board for demos or projections |
-| `pm-ai-trader`| Single AI bot gateway/trader |
-| `pm-ai-swarm` | Multi-agent AI trading swarm |
-
-
-
-## Data files
-
-Runtime files are created under your active data directory:
-
-- Installed default: `~/.local/share/edumatcher`
-- Source-checkout default: `<repo>/src/data/`
-- Override in either mode: `EDUMATCHER_DATA_DIR`
-
-| File | Content |
-|------|---------|
-| `gtc_orders.json` | Resting GTC orders — reloaded next trading day |
-| `gtc_combos.json` | Resting GTC combo parents and child-link state |
-| `book_stats.json` | Persisted per-symbol last-buy / last-sell context |
-| `audit.log` | Full audit trail (rotating, max 10 MB × 5 files) |
-| `clearing_report.csv` | Trade-by-trade settlement record |
-| `stats.db` | SQLite database: daily OHLCV, snapshots, and trade log |
-
-
-
-## Config directiry
-
-EduMatcher resolves the engine configuration file using this priority order:
-
-1. `--config` command-line flag on `pm-engine` / `pm-scheduler`
-2. `EDUMATCHER_CONFIG` environment variable
-3. Default location based on install mode
-
-Default configuration location:
-
-- Installed mode (`pipx install edumatcher`): `./engine_config.yaml` (current working directory)
-- Source-checkout mode (Poetry/dev): `<repo>/engine_config.yaml`
-
-Example:
-
-```bash
-export EDUMATCHER_CONFIG="$HOME/sessions/morning/engine_config.yaml"
-pm-engine --verbose
-```
+- [USer Guide - Getting Started](user-guide/00-getting-started.md) 
+- [USer Guide - Configuration](user-guide/01-configuration.md)
+- [USer Guide - Commands](user-guide/02-commands.md)
+- [USer Guide - Running the Engine](user-guide/03-running-the-engine.md)
 

@@ -197,6 +197,9 @@ pm-engine --verbose
 | **pm-clearing** | `pm-clearing` | P&L and trade settlement | No |
 | **pm-audit** | `pm-audit` | Full event log to disk | No |
 | **pm-ralf-gwy** | `pm-ralf-gwy` | External post-trade dissemination gateway (RALF) | No |
+| **pm-md-gwy** | `pm-md-gwy` | External market-data gateway (CALF) over TCP :5570 | No |
+| **pm-api-gateway** | `pm-api-gateway` | REST/WebSocket order-entry and market-data API gateway | No |
+| **pm-index** | `pm-index` | Real-time cap-weighted index calculation and dissemination | No |
 
 **Admin tools:**
 
@@ -212,6 +215,7 @@ pm-engine --verbose
 | **pm-setup** | `pm-setup` | Bootstrap working directory and runtime files | Recommended first run |
 | **pm-config-gen** | `pm-config-gen [options]` | Generate `engine_config.yaml` from CLI options | Optional |
 | **pm-stats-cli** | `pm-stats-cli <command> [options]` | Read-only query interface for `stats.db` | Optional |
+| **pm-index-cli** | `pm-index-cli <command> [options]` | Read-only query interface for index history JSONL files | Optional |
 
 **Optional AI trader tools:**
 
@@ -1190,6 +1194,190 @@ and [RALF Protocol Reference](93-app-ralf-protocol.md).
 
 
 
+## pm-index — Index Calculation Process
+
+Subscribes to trade events from the engine and maintains one or more configurable
+cap-weighted market indices in real time. Publishes live index values on a
+dedicated ZMQ PUB socket so `pm-md-gwy` can forward them to external subscribers
+over the CALF `INDEX` channel.
+
+```bash
+pm-index [--config engine_config.yaml] [--reset]
+```
+
+**Startup options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--config` / `-c` | `engine_config.yaml` | Path to engine config YAML containing the `indices:` section |
+| `--reset` | off | Delete persisted state files and reinitialise all indices from config |
+
+**Expected runtime input arguments:**
+
+None. `pm-index` is a long-running background process after startup.
+
+**Startup behaviour:**
+1. Reads all `indices:` entries from `engine_config.yaml`
+2. For each index: loads divisor and last prices from the state file if present, or initialises fresh from constituent reference prices and `base_value`
+3. Validates that every constituent symbol appears in `symbols:` with a positive `outstanding_shares`
+4. Writes an `INIT` history record for each index that starts without prior state
+5. Binds ZMQ PULL :5559 for operator commands and history requests
+6. Binds ZMQ PUB :5558 for broadcasting `index.update` messages
+7. Subscribes to engine PUB :5556 for `trade.executed`, `session.state`, and `system.eod`
+8. Enters the poll loop
+
+**Shutdown (Ctrl-C):**
+1. Flushes all pending JSONL history writes
+2. Closes ZMQ sockets
+
+**Messages subscribed** (SUB from :5556):
+
+| Topic | Purpose |
+|---|---|
+| `trade.executed` | Drives index recalculation for constituent symbols |
+| `session.state` | Tracks intraday OHLC reset points and triggers EOD finalisation on `CLOSED` |
+| `system.eod` | Alternate EOD trigger — writes final snapshot and OHLC record |
+
+**Messages received** (PULL :5559):
+
+| Topic | Purpose |
+|---|---|
+| `index.history_request` | Returns LEVEL and EOD records from the JSONL history file |
+| `index.corp_action` | Applies a stock split, cash dividend, or shares-issuance adjustment |
+| `index.constituent_change` | Adds or removes a constituent symbol from an index basket |
+
+**Messages published** (PUB :5558):
+
+| Topic | Purpose |
+|---|---|
+| `index.update` | Current index level, OHLC, aggregate cap, divisor, and session state |
+| `index.history.{GW_ID}` | History query response addressed to the requesting gateway |
+| `index.corp_action_ack.{GW_ID}` | Corporate action applied / rejected acknowledgement |
+| `index.constituent_change_ack.{GW_ID}` | Constituent add or delist accepted / rejected acknowledgement |
+| `index.error.{GW_ID}` | Generic error for malformed or rejected requests |
+
+**Persistence:**
+
+| File | Purpose |
+|---|---|
+| `data/indexes/<ID>_state.json` | Divisor, last prices, and intraday OHLC checkpoint — rewritten after each EOD and corporate action |
+| `data/indexes/<ID>_history.jsonl` | Append-only JSONL audit trail with `INIT`, `LEVEL`, `EOD`, `CORP_ACTION`, `ADD_CONSTITUENT`, and `DELIST` records |
+
+See [Market Index (pm-index)](22-index.md) for configuration details, calculation explanation, and corporate action procedures.
+
+
+
+## pm-api-gateway — REST/WebSocket API Gateway
+
+Exposes EduMatcher order entry, order management, reference data, history, and
+market data over REST/JSON and WebSocket. It is not a second matching engine —
+it translates HTTP and WebSocket requests into the same ZMQ messages used by the
+interactive `pm-gateway` terminal. Reads configuration from the `api_gateways:`
+section of `engine_config.yaml`.
+
+```bash
+pm-api-gateway [--config engine_config.yaml] [--instance NAME] [options]
+```
+
+**Startup options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--config PATH` | `EDUMATCHER_CONFIG` resolution | Path to `engine_config.yaml` |
+| `--instance NAME` | auto-selected when only one entry exists | Named `api_gateways` entry to run; required when more than one entry is configured |
+| `--host ADDR` | config value | Override HTTP bind address |
+| `--port PORT` | config value | Override HTTP listen port |
+| `--engine-host HOST` | config value | Override engine host for ZMQ connections (cross-host deployments) |
+| `--stats-db PATH` | config value | Path to `data/stats.db` for `/history/*` endpoints |
+| `--log-level LEVEL` | config value | `debug`, `info`, `warning`, or `error` |
+
+**Expected runtime input arguments:**
+
+No terminal input. External clients connect via HTTP or WebSocket.
+
+**Startup behaviour:**
+1. Reads the named `api_gateways.<NAME>` entry from `engine_config.yaml`
+2. Exits immediately if `enabled: false`
+3. Sends `system.gateway_connect` to the engine and waits for `system.gateway_auth` ACK
+4. Starts the uvicorn HTTP server and enters the request-serving loop
+
+**REST endpoints** (base path `/api/v1`):
+
+| Method | Path | Key type | Purpose |
+|---|---|---|---|
+| `POST` | `/orders` | trading | Submit an order |
+| `DELETE` | `/orders/{id}` | trading | Cancel an order |
+| `PATCH` | `/orders/{id}` | trading | Amend price and/or quantity |
+| `GET` | `/orders` | trading | List live orders |
+| `POST` | `/oco` | trading | Submit OCO pair |
+| `POST` | `/combos` | trading | Submit combo order |
+| `POST` | `/quotes` | trading | Submit two-sided quote |
+| `DELETE` | `/quotes/{symbol}` | trading | Cancel active quote |
+| `POST` | `/mass-cancel` | trading | Cancel all or symbol-scoped exposure |
+| `GET` | `/symbols` | any | Instrument metadata |
+| `GET` | `/session` | any | Current engine session state |
+| `GET` | `/positions` | trading | Net positions by symbol |
+| `GET` | `/history/orders` | trading | Historical order lifecycle events |
+| `GET` | `/history/fills` | trading | Historical fills |
+| `GET` | `/history/trades` | any | Public trade log from `pm-stats` |
+| `GET` | `/history/daily` | any | Daily OHLCV from `pm-stats` |
+| `GET` | `/market-data` | any | Live order book top-of-book via REST |
+
+**WebSocket endpoints:**
+
+| Path | Key type | Stream |
+|---|---|---|
+| `/events` | trading | Private fills, acks, expiries — filtered to the connected gateway |
+| `/market-data` | any | Public order book snapshots and trade events |
+
+**Authentication:**
+
+- REST: `Authorization: Bearer <api_key>` header
+- WebSocket: send `{"api_key": "<key>"}` as the first JSON message
+
+Trading keys (`gateway_id` set to a gateway ID) can reach order-entry endpoints
+and private event streams. Read-only keys (`gateway_id: null`) are limited to
+market-data and history endpoints.
+
+!!! tip
+    When `swagger_enabled: true` in config, browse `http://127.0.0.1:<PORT>/docs`
+    for interactive endpoint documentation and a live try-it UI.
+
+**Messages sent** (PUSH → :5555):
+
+| Topic | Purpose |
+|---|---|
+| `system.gateway_connect` | Engine authentication request (once at startup) |
+| `order.new` | Order submission |
+| `order.cancel` | Order cancellation |
+| `order.combo` | Combo submission |
+| `quote.new` | Quote submission |
+| `quote.cancel` | Quote cancellation |
+| `risk.kill_switch` | Mass cancel triggered by `/mass-cancel` |
+
+**Messages subscribed** (SUB from :5556):
+
+| Topic | Purpose |
+|---|---|
+| `system.gateway_auth.{GW_ID}` | Engine authentication reply |
+| `order.ack.{GW_ID}` | Order accepted or rejected |
+| `order.fill.{GW_ID}` | Partial or full fill |
+| `order.cancelled.{GW_ID}` | Cancel confirmation |
+| `order.expired.{GW_ID}` | TIF expiry |
+| `order.amended.{GW_ID}` | Amend confirmation |
+| `combo.ack.{GW_ID}` | Combo accepted or rejected |
+| `combo.status.{GW_ID}` | Combo lifecycle changes |
+| `quote.ack.{GW_ID}` | Quote accepted or rejected |
+| `quote.status.{GW_ID}` | Quote lifecycle changes |
+| `system.symbols.{GW_ID}` | Symbol list reply |
+| `book.{SYMBOL}` | Live book snapshots for the market-data WebSocket stream |
+| `trade.executed` | Trade events for the public market-data stream |
+| `session.state` | Session phase changes |
+
+See [API Gateway (REST/WebSocket)](21-api-gateway.md) for endpoint reference, authentication examples, Swagger access, and client code.
+
+
+
 ## pm-admin — Interactive Admin Console
 
 An interactive REPL for sending operational commands to a running engine without
@@ -1370,6 +1558,50 @@ on the runtime ZeroMQ sockets.
 
 For more details on the options see [Configuration Chapter](01-configuration.md#option-reference)
 
+
+
+## pm-index-cli — Index History Query Tool
+
+Reads index history JSONL files written by `pm-index` directly from disk and
+renders them as a table, JSON, or CSV. No running process is required.
+
+```bash
+pm-index-cli [--config engine_config.yaml] [--format table|json|csv] COMMAND [options]
+```
+
+**Startup options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--config PATH` / `-c PATH` | unset | Path to `engine_config.yaml`; auto-discovers history file paths and index IDs |
+| `--data-dir DIR` | `data/indexes` | Directory containing history files; used when `--config` is absent or an index is not in config |
+| `--format table\|json\|csv` | `table` | Output format |
+| `--no-header` | off | Suppress header row (CSV only) |
+
+**Expected runtime input arguments:**
+
+None.
+
+**Subcommands:**
+
+| Subcommand | Default limit | Purpose |
+|---|---|---|
+| `level` | 1,000 | Throttled LEVEL records — index value snapshots captured during trading |
+| `eod` | 365 | EOD records — one row per trading day with open/high/low/close |
+| `events` | 1,000 | Structural events: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST` |
+| `indices` | — | List configured indices from `engine_config.yaml` |
+
+All history subcommands share `--index ID` (repeatable), `--days N`,
+`--from DATE_OR_TS`, `--to DATE_OR_TS`, and `--limit N`. The `events`
+subcommand also accepts `--type TYPE` to filter to a specific event kind.
+
+Like `pm-stats-cli`, this is a read-only offline tool. It does not connect to
+any ZeroMQ socket.
+
+See [pm-index-cli in the commands reference](02-commands.md)
+for the full option reference, output column descriptions, and examples
+including CSV export and Python plotting.
+
 ## Order Lifecycle Message Flow
 
 The following diagram traces a single limit order from submission to full fill,
@@ -1411,7 +1643,6 @@ available as runnable scripts.
 | Process | Protocol | Purpose | Status |
 |---------|----------|---------|--------|
 | **pm-balf-gateway** | BALF | Binary order entry gateway for low-latency programmatic clients | Design proposal |
-| **pm-index** | — | Real-time index calculation service publishing index values on port 5558 | Design proposal |
 
 See the [BALF Protocol Reference](91-app-balf-protocol.md) for message specifications planned for future gateway implementations.
 
@@ -1436,4 +1667,7 @@ See [Market Data Feed (CALF)](20-market-data-feed.md) for operational usage and
 - [Drop Copy](13-drop-copy.md) — the engine's built-in :5557 drop-copy feed
 - [Post-Trade Dissemination](18-post-trade.md) — external RALF gateway usage
 - [RALF Protocol Reference](93-app-ralf-protocol.md) — official protocol appendix
+- [Market Data Feed (CALF)](20-market-data-feed.md) — external CALF gateway usage
+- [API Gateway (REST/WebSocket)](21-api-gateway.md) — REST/WebSocket gateway usage and endpoint reference
+- [Market Index (pm-index)](22-index.md) — index configuration, calculation, and corporate actions
 - [Market-Maker Bot](17-mm-bot.md) — autonomous quoting process for a single symbol

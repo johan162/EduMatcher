@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import threading
 from collections import defaultdict
+from dataclasses import dataclass, field
 from typing import Any
 
 import zmq
@@ -36,6 +37,14 @@ from edumatcher.models.order import Order
 from edumatcher.models.price import register_tick_decimals
 
 
+@dataclass
+class _PendingWait:
+    """A future waiting for a specific topic, optionally filtered by payload."""
+
+    future: asyncio.Future[dict[str, Any]]
+    match: dict[str, str] | None = field(default=None)
+
+
 class EngineClient:
     """Owns engine sockets, event fan-out, futures, and session caches."""
 
@@ -56,9 +65,7 @@ class EngineClient:
         self._caches: dict[str, SessionCaches] = defaultdict(SessionCaches)
         self._sinks: dict[str, set[asyncio.Queue[dict[str, Any]]]] = defaultdict(set)
         self._market_data_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
-        self._pending: dict[str, list[asyncio.Future[dict[str, Any]]]] = defaultdict(
-            list
-        )
+        self._pending: dict[str, list[_PendingWait]] = defaultdict(list)
 
     def start_listener(self) -> None:
         """Start the daemon thread that receives engine PUB events."""
@@ -79,10 +86,16 @@ class EngineClient:
     def active_gateways(self) -> set[str]:
         return set(self._authenticated)
 
+    def is_running(self) -> bool:
+        """Return True if the SUB reader thread is active."""
+        return self._running
+
     def send_disconnect(self, gateway_id: str, reason: str) -> None:
         self._push.send_multipart(make_gateway_disconnect_msg(gateway_id, reason))
 
-    async def authenticate(self, gateway_id: str) -> tuple[bool, str]:
+    async def authenticate(
+        self, gateway_id: str, timeout: float = 3.0
+    ) -> tuple[bool, str]:
         """Perform the engine gateway_connect handshake once per gateway id.
 
         Uses a per-gateway asyncio.Lock so that concurrent requests for the
@@ -102,7 +115,7 @@ class EngineClient:
             future = self._register_future(f"system.gateway_auth.{gateway_id}")
             self._push.send_multipart(make_gateway_connect_msg(gateway_id))
             try:
-                payload = await asyncio.wait_for(future, timeout=3.0)
+                payload = await asyncio.wait_for(future, timeout=timeout)
             except TimeoutError:
                 return False, "Engine authentication timed out"
             accepted = bool(payload.get("accepted", False))
@@ -112,13 +125,22 @@ class EngineClient:
                 self._push.send_multipart(make_symbols_request_msg(gateway_id))
             return accepted, reason
 
-    def _register_future(self, key: str) -> asyncio.Future[dict[str, Any]]:
+    def _register_future(
+        self, key: str, match: dict[str, str] | None = None
+    ) -> asyncio.Future[dict[str, Any]]:
         future: asyncio.Future[dict[str, Any]] = self._loop.create_future()
-        self._pending[key].append(future)
+        self._pending[key].append(_PendingWait(future=future, match=match))
         return future
 
     async def await_topic(self, key: str, timeout: float) -> dict[str, Any]:
-        future = self._register_future(key)
+        """Wait for the next event on *key* (any payload)."""
+        return await self.await_event(key, match=None, timeout=timeout)
+
+    async def await_event(
+        self, key: str, match: dict[str, str] | None, timeout: float
+    ) -> dict[str, Any]:
+        """Wait for an event on *key* whose payload matches *match* fields."""
+        future = self._register_future(key, match=match)
         try:
             return await asyncio.wait_for(future, timeout=timeout)
         except TimeoutError as exc:
@@ -127,19 +149,29 @@ class EngineClient:
             # never sends the matching topic.
             pending = self._pending.get(key)
             if pending is not None:
-                try:
-                    pending.remove(future)
-                except ValueError:
-                    pass
-                if not pending:
+                self._pending[key] = [w for w in pending if w.future is not future]
+                if not self._pending[key]:
                     del self._pending[key]
             raise TimeoutError(f"Timed out waiting for {key}") from exc
 
     def _resolve_pending(self, topic: str, payload: dict[str, Any]) -> None:
-        futures = self._pending.pop(topic, [])
-        for future in futures:
-            if not future.done():
-                future.set_result(payload)
+        waiters = self._pending.get(topic)
+        if not waiters:
+            return
+        remaining: list[_PendingWait] = []
+        for waiter in waiters:
+            if waiter.future.done():
+                continue
+            if waiter.match is not None and not all(
+                str(payload.get(k, "")) == v for k, v in waiter.match.items()
+            ):
+                remaining.append(waiter)
+            else:
+                waiter.future.set_result(payload)
+        if remaining:
+            self._pending[topic] = remaining
+        else:
+            del self._pending[topic]
 
     def _receive_loop(self) -> None:
         poller = zmq.Poller()

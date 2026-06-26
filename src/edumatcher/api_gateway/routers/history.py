@@ -47,7 +47,7 @@ def _validate_time_filters(
             validate_iso_ts(to_ts)
     except ValueError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=422,
             detail={"error": {"code": "VALIDATION", "message": str(exc)}},
         ) from exc
 

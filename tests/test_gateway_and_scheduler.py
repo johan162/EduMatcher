@@ -343,6 +343,25 @@ class TestGatewayHelpers:
         )
         assert gw._last_prices.get("AAPL") == 152.0
 
+    def test_handle_event_index_update_sets_default_index_id(self) -> None:
+        gw = _make_gateway()
+        gw._handle_event(
+            "index.update",
+            {
+                "index_id": "EDU100",
+                "level": 1025.0,
+                "session_state": "CONTINUOUS",
+            },
+        )
+        assert gw._default_index_id == "EDU100"
+        assert gw._last_index_update is not None
+
+    def test_parse_index_history_uses_index_socket(self) -> None:
+        gw = _make_gateway()
+        gw._default_index_id = "EDU100"
+        gw._parse_and_send("INDEX|HISTORY")
+        assert gw._index_push_sock.send_multipart.called
+
     def test_handle_event_quote_ack(self) -> None:
         gw = _make_gateway()
         gw._handle_event(

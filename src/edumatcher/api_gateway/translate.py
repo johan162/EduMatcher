@@ -16,7 +16,7 @@ from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
 from edumatcher.models.price import to_ticks
 
 
-def _wire(value: object) -> str:
+def wire_value(value: object) -> str:
     """Return the JSON/engine wire value for enum-like objects."""
     raw = getattr(value, "value", value)
     return str(raw)
@@ -60,7 +60,7 @@ def build_quote_payload(request: QuoteRequest, gateway_id: str) -> dict[str, Any
         "bid_qty": request.bid_qty,
         "ask_price": request.ask_price,
         "ask_qty": request.ask_qty,
-        "tif": _wire(request.tif),
+        "tif": wire_value(request.tif),
     }
     if request.quote_id:
         payload["quote_id"] = request.quote_id
@@ -69,8 +69,8 @@ def build_quote_payload(request: QuoteRequest, gateway_id: str) -> dict[str, Any
 
 def _oco_leg_to_payload(leg: OcoLegRequest) -> dict[str, Any]:
     payload: dict[str, Any] = {
-        "side": _wire(leg.side),
-        "order_type": _wire(leg.order_type),
+        "side": wire_value(leg.side),
+        "order_type": wire_value(leg.order_type),
     }
     if leg.price is not None:
         payload["price"] = leg.price
@@ -88,7 +88,7 @@ def build_oco_payload(request: OcoRequest, gateway_id: str) -> dict[str, Any]:
         "gateway_id": gateway_id,
         "symbol": request.symbol,
         "quantity": request.quantity,
-        "tif": _wire(request.tif),
+        "tif": wire_value(request.tif),
         "leg1": _oco_leg_to_payload(request.leg1),
         "leg2": _oco_leg_to_payload(request.leg2),
     }

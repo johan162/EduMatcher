@@ -24,3 +24,5 @@ def test_pm_config_gen_help_runs() -> None:
     assert "--api-gateway-instance" in result.stdout
     assert "--api-key" in result.stdout
     assert "--api-gateway-readonly-key" in result.stdout
+    assert "--index" in result.stdout
+    assert "--index-constituents" in result.stdout

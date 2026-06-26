@@ -203,6 +203,7 @@ ticks. If so, it cancels and reissues at the new mid.
 | Mid-price drift exceeds threshold | Cancel active quote, then reissue at new mid |
 | Quote rejected | Retry after delay |
 | Periodic heartbeat (no active quote) | Reissue |
+| Periodic QLEGS reconciliation mismatch | Clear local state and reissue |
 
 ### Reissue delay
 
@@ -216,6 +217,22 @@ When the bot is replacing an active quote, it first sends `quote.cancel` and
 waits up to `--cancel-timeout-sec` for lifecycle confirmation. If no
 confirmation arrives within that window, it forces a safe replacement by
 clearing local quote IDs and sending a fresh `quote.new`.
+
+### Self-healing against dropped messages
+
+ZMQ delivery is best-effort, so the bot is built to recover if an engine reply
+is ever lost:
+
+- **Dropped `quote.ack`** — after sending a quote the bot waits for the ack to
+  confirm it. If the ack never arrives, the heartbeat guard notices it holds no
+  live quote and, once a full `--heartbeat-interval-sec` has elapsed since the
+  last quote was sent (so an in-flight ack is never pre-empted), it reissues.
+- **Periodic QLEGS reconciliation** — every `--qlegs-reconcile-interval-sec` the
+  bot requests a fresh quote-leg snapshot (`QLEGS`). The request is
+  non-blocking: the reply is processed in the normal event loop, so fills and
+  status updates are never missed while the snapshot is outstanding. If the
+  snapshot shows no legs, a different `quote_id`, or different leg order IDs than
+  the bot is tracking, it clears its local state and reissues to converge.
 
 ---
 
@@ -243,10 +260,10 @@ When the exchange starts fresh (no existing book or trades), the bot needs an
 initial reference price. It resolves one using this priority:
 
 1. **QBOOT** — active quote from a previous session (restart recovery)
-2. **Book mid** — if another participant has already posted orders
-3. **Last trade** — from `trade.executed` events
-4. **Bootstrap quote** — inactive quote prices from QBOOT
-5. **Random range** — `--initial_min` to `--initial_max` (configurable)
+2. **Book mid / last trade** — the current book mid if another participant has
+   posted orders, otherwise the most recent `trade.executed` price
+3. **Bootstrap quote** — inactive quote prices from QBOOT
+4. **Random range** — `--initial_min` to `--initial_max` (configurable)
 
 If no source is available and no random range is configured, the bot exits with
 a clear error message.
@@ -325,6 +342,9 @@ The bot enforces pricing validity at startup:
 
 Defaulting rules:
 
+- An explicitly supplied `--gap` (in either the `--gap 0.10` or `--gap=0.10`
+  form) is always respected — it is only validated against the obligation,
+  never overridden.
 - If `--gap` is not provided and `mm_max_spread_ticks` is available, the bot
   defaults to half the max spread: `(mm_max_spread_ticks / 2) * tick_size`.
 - If no MM spread metadata is available, the bot uses the standard `0.10`
@@ -406,6 +426,7 @@ With `--verbose` (`-v`), additional debug lines appear:
 | `startup failed: no session.state` | Engine not running or scheduler not started | Start the engine and scheduler |
 | `quote REJECTED` | Gap or qty violates MM obligation policy | Reduce `--gap` / increase `--qty` or adjust gateway MM settings |
 | Bot quotes but prices look wrong | Tick size mismatch | Check symbol `tick_size` in engine config |
+| Bot stops quoting for a while, then resumes on its own | An engine reply (`quote.ack`/`quote.status`) was dropped | Expected self-healing; the heartbeat and QLEGS reconciliation recover automatically. Lower `--heartbeat-interval-sec` for faster recovery |
 
 ---
 

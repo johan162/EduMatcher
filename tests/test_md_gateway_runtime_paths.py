@@ -198,6 +198,54 @@ def test_poll_engine_events_all_topics(
     assert ("STATE", "STATE", "AAPL") in seen
 
 
+def test_poll_index_events_emits_idx(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    unit_gateway._sub_sock = _FakeSubscriber([])
+    unit_gateway._index_sub = _FakeSubscriber(
+        [
+            (
+                "index.update",
+                {
+                    "index_id": "EDU100",
+                    "level": 1042.5,
+                    "aggregate_cap": 123456789,
+                    "session_state": "CONTINUOUS",
+                    "day_open": 1030.0,
+                    "day_high": 1050.0,
+                    "day_low": 1025.0,
+                    "timestamp": 10.0,
+                },
+            )
+        ]
+    )
+    monkeypatch.setattr(gateway_mod, "decode", lambda payload: payload)
+
+    seen: list[tuple[str, str, str, dict[str, str]]] = []
+
+    def _capture(
+        msg_type: str,
+        ch: str,
+        sym: str,
+        payload_fields: dict[str, str],
+        ts_seconds: float,
+    ) -> None:
+        _ = ts_seconds
+        seen.append((msg_type, ch, sym, payload_fields))
+
+    monkeypatch.setattr(unit_gateway, "_emit_stream_event", _capture)
+
+    unit_gateway._poll_engine_events()
+
+    assert seen
+    msg_type, ch, sym, fields = seen[0]
+    assert msg_type == "IDX"
+    assert ch == "INDEX"
+    assert sym == "EDU100"
+    assert fields["LEVEL"] == "1042.5"
+
+
 def test_drop_idle_clients(unit_gateway: MarketDataGateway) -> None:
     auth_session, auth_peer = _make_session()
     auth_session.authenticated = True

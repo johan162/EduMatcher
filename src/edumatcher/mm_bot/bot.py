@@ -99,6 +99,7 @@ class MMBot:
         self._quoted_at_mid: float | None = None
         self._reissue_at: float | None = None
         self._last_heartbeat: float = 0.0
+        self._last_quote_sent_at: float = 0.0
         self._last_qlegs_reconcile: float = 0.0
         self._awaiting_cancel_for_reissue = False
 
@@ -303,12 +304,14 @@ class MMBot:
         """Resolve initial reference price (non-adopt). Returns True if resolved."""
         assert self._pricer is not None
 
-        # 1. Book-derived mid
+        # 1. Book- or trade-derived mid. Book updates and trade.executed events
+        #    received during startup waits already set the mid via the handlers,
+        #    so any existing mid covers both the book and last-trade fallbacks.
         if self._pricer.mid_price is not None:
-            self._debug(f"reference from book: {self._pricer.mid_price}")
+            self._debug(f"reference from book/trade: {self._pricer.mid_price}")
             return True
 
-        # 2. Check QBOOT for inactive quote prices as reference
+        # 2. QBOOT inactive quote prices as reference
         if boot_payload:
             quotes = boot_payload.get("quotes", [])
             for q in quotes:
@@ -321,7 +324,7 @@ class MMBot:
                         self._debug(f"reference from bootstrap quote: {mid}")
                         return True
 
-        # 4. Random bootstrap
+        # 3. Random bootstrap range
         if self._initial_min is not None and self._initial_max is not None:
             price = random.uniform(self._initial_min, self._initial_max)
             # Round to nearest tick
@@ -377,6 +380,7 @@ class MMBot:
         }
         self._send(make_quote_new_msg(quote_payload))
         self._quoted_at_mid = self._pricer.mid_price
+        self._last_quote_sent_at = time.monotonic()
         self._state = BotState.REISSUING
         self._debug(f"QUOTE sent bid={bid} ask={ask}")
 
@@ -384,6 +388,12 @@ class MMBot:
         """Send quote.cancel for current symbol."""
         self._send(make_quote_cancel_msg(self.gateway_id, self.symbol))
         self._debug("CANCEL sent")
+
+    def _clear_quote_state(self) -> None:
+        """Forget the locally tracked quote and its leg identifiers."""
+        self._quote_id = None
+        self._bid_order_id = None
+        self._ask_order_id = None
 
     def _cancel_and_reissue(self) -> None:
         """Replace active quote with a fresh one at current mid."""
@@ -451,9 +461,7 @@ class MMBot:
             if self._state not in (BotState.PAUSED, BotState.WAITING_FOR_SESSION):
                 delay = self._reissue_delay_sec if status != "CANCELLED" else 0.0
                 self._reissue_at = time.monotonic() + delay
-                self._quote_id = None
-                self._bid_order_id = None
-                self._ask_order_id = None
+                self._clear_quote_state()
                 self._awaiting_cancel_for_reissue = False
 
     def _handle_order_fill(self, payload: dict[str, Any]) -> None:
@@ -498,9 +506,7 @@ class MMBot:
             # Non-trading phase — cancel and pause
             if self._state in (BotState.QUOTING, BotState.REPRICING):
                 self._cancel_quote()
-                self._quote_id = None
-                self._bid_order_id = None
-                self._ask_order_id = None
+                self._clear_quote_state()
             self._state = BotState.PAUSED
             self._reissue_at = None
 
@@ -509,9 +515,7 @@ class MMBot:
         self._log("circuit breaker HALT")
         if self._state in (BotState.QUOTING, BotState.REPRICING, BotState.REISSUING):
             self._cancel_quote()
-            self._quote_id = None
-            self._bid_order_id = None
-            self._ask_order_id = None
+            self._clear_quote_state()
         self._state = BotState.PAUSED
         self._reissue_at = None
 
@@ -560,6 +564,8 @@ class MMBot:
             self._handle_circuit_breaker_halt()
         elif topic == f"circuit_breaker.resume.{self.symbol}":
             self._handle_circuit_breaker_resume()
+        elif topic == f"system.quote_legs.{self.gateway_id}":
+            self._reconcile_qlegs(payload)
 
     def _tick(self) -> None:
         """Periodic housekeeping — reissue timer, heartbeat, QLEGS."""
@@ -583,9 +589,7 @@ class MMBot:
                         self._log(
                             "cancel confirmation timeout — forcing quote replacement"
                         )
-                        self._quote_id = None
-                        self._bid_order_id = None
-                        self._ask_order_id = None
+                        self._clear_quote_state()
                         self._awaiting_cancel_for_reissue = False
                     self._cancel_and_reissue()
                 elif self._state == BotState.WAITING_FOR_SESSION:
@@ -593,12 +597,19 @@ class MMBot:
                 else:
                     self._state = BotState.WAITING_FOR_SESSION
 
-        # Heartbeat guard
+        # Heartbeat guard — recover if we are in an active state but hold no
+        # live quote and have no reissue already scheduled. This covers a
+        # dropped quote.ack that would otherwise strand the bot in REISSUING.
+        # Require a full heartbeat interval since the last quote send so we do
+        # not pre-empt an ack that is legitimately still in flight.
         if now - self._last_heartbeat >= self._heartbeat_interval_sec:
             self._last_heartbeat = now
             if (
-                self._state == BotState.QUOTING
+                self._state
+                in (BotState.QUOTING, BotState.REISSUING, BotState.REPRICING)
                 and self._quote_id is None
+                and self._reissue_at is None
+                and now - self._last_quote_sent_at >= self._heartbeat_interval_sec
                 and self._session_state in _QUOTING_SESSIONS
                 and self._pricer
                 and self._pricer.mid_price is not None
@@ -606,25 +617,30 @@ class MMBot:
                 self._log("heartbeat: no active quote — reissuing")
                 self._cancel_and_reissue()
 
-        # Periodic QLEGS reconciliation
+        # Periodic QLEGS reconciliation — request only (non-blocking). The
+        # reply is handled in _dispatch so steady-state fills/status events
+        # are never dropped while waiting for the snapshot.
         if now - self._last_qlegs_reconcile >= self._qlegs_reconcile_interval_sec:
             self._last_qlegs_reconcile = now
-            if self._state == BotState.QUOTING:
-                self._reconcile_qlegs()
+            if self._state == BotState.QUOTING and self._quote_id is not None:
+                self._send(
+                    make_quote_legs_request_msg(self.gateway_id, self.symbol, "ALL")
+                )
 
-    def _reconcile_qlegs(self) -> None:
-        """Send QLEGS and reconcile against local state."""
-        payload = self._request_qlegs()
-        if payload is None:
+    def _reconcile_qlegs(self, payload: dict[str, Any]) -> None:
+        """Reconcile a QLEGS snapshot against local quote state.
+
+        Only acts while actively quoting a tracked quote; a divergence
+        clears local state and schedules an immediate reissue.
+        """
+        if self._state != BotState.QUOTING or self._quote_id is None:
             return
 
         legs = payload.get("legs", [])
-        if not legs and self._quote_id is not None:
+        if not legs:
             # Engine says no legs but we think we have a quote
             self._log("QLEGS mismatch: no legs but local quote exists — reissuing")
-            self._quote_id = None
-            self._bid_order_id = None
-            self._ask_order_id = None
+            self._clear_quote_state()
             self._reissue_at = time.monotonic()
             return
 
@@ -635,9 +651,7 @@ class MMBot:
             leg_order_id = str(leg.get("order_id", ""))
             if leg_qid and self._quote_id and leg_qid != self._quote_id:
                 self._log("QLEGS mismatch: quote_id divergence — reissuing")
-                self._quote_id = None
-                self._bid_order_id = None
-                self._ask_order_id = None
+                self._clear_quote_state()
                 self._reissue_at = time.monotonic()
                 return
             if leg_order_id:
@@ -652,9 +666,7 @@ class MMBot:
             and expected_order_ids != seen_order_ids
         ):
             self._log("QLEGS mismatch: leg order_id divergence — reissuing")
-            self._quote_id = None
-            self._bid_order_id = None
-            self._ask_order_id = None
+            self._clear_quote_state()
             self._reissue_at = time.monotonic()
             return
 
@@ -723,9 +735,7 @@ class MMBot:
                 for leg in legs:
                     if str(leg.get("quote_id", "")) != self._quote_id:
                         self._log("startup QLEGS mismatch — clearing adopted state")
-                        self._quote_id = None
-                        self._bid_order_id = None
-                        self._ask_order_id = None
+                        self._clear_quote_state()
                         break
 
         # Step 6: Wait for session state
@@ -764,9 +774,12 @@ class MMBot:
         assert self._sub_sock is not None
         poller = zmq.Poller()
         poller.register(self._sub_sock, zmq.POLLIN)
-        poll_timeout_ms = max(
-            50, int(min(self._heartbeat_interval_sec, self._reissue_delay_sec) * 500)
+        # Poll at half the shortest timing interval so the reissue/heartbeat
+        # timers fire promptly, with a 50 ms floor to avoid a busy loop.
+        shortest_interval_sec = min(
+            self._heartbeat_interval_sec, self._reissue_delay_sec
         )
+        poll_timeout_ms = max(50, int(shortest_interval_sec * 1000 / 2))
 
         while self._running:
             socks = dict(poller.poll(timeout=poll_timeout_ms))

@@ -21,6 +21,7 @@ Topic conventions
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 # PERF improvement #6: Use orjson instead of stdlib json.
@@ -758,6 +759,168 @@ def make_dropcopy_fill_msg(
 ) -> list[bytes]:
     """Engine → backoffice: copy of fill activity for one participant."""
     return encode(f"dropcopy.fill.{gateway_id}", fill_payload)
+
+
+# ------------------------------------------------------------------
+# Index messages
+# ------------------------------------------------------------------
+
+
+def make_index_update_msg(
+    index_id: str,
+    level: float,
+    aggregate_cap: float,
+    divisor: float,
+    session_state: str,
+    day_open: float | None = None,
+    day_high: float | None = None,
+    day_low: float | None = None,
+) -> list[bytes]:
+    """pm-index → subscribers: current index level broadcast."""
+    payload: dict[str, Any] = {
+        "index_id": index_id,
+        "level": level,
+        "aggregate_cap": aggregate_cap,
+        "divisor": divisor,
+        "session_state": session_state,
+        "timestamp": time.time(),
+    }
+    if day_open is not None:
+        payload["day_open"] = day_open
+        payload["day_high"] = day_high
+        payload["day_low"] = day_low
+    return encode("index.update", payload)
+
+
+def make_index_history_request_msg(
+    gateway_id: str,
+    index_id: str,
+    from_ts: float,
+    to_ts: float,
+    types: list[str] | None = None,
+    max_records: int = 10_000,
+) -> list[bytes]:
+    """Gateway/operator → pm-index: request historical index records."""
+    return encode(
+        "index.history_request",
+        {
+            "gateway_id": gateway_id,
+            "index_id": index_id,
+            "from_ts": from_ts,
+            "to_ts": to_ts,
+            "types": types or ["LEVEL", "EOD"],
+            "max_records": max_records,
+        },
+    )
+
+
+def make_index_history_msg(
+    gateway_id: str,
+    index_id: str,
+    records: list[dict[str, Any]],
+    warnings: list[str] | None = None,
+) -> list[bytes]:
+    """pm-index → requestor: history response."""
+    payload: dict[str, Any] = {"index_id": index_id, "records": records}
+    if warnings:
+        payload["warnings"] = warnings
+    return encode(f"index.history.{gateway_id}", payload)
+
+
+def make_index_corp_action_msg(
+    action: str,
+    index_id: str,
+    symbol: str,
+    gateway_id: str,
+    params: dict[str, Any],
+) -> list[bytes]:
+    """Operator → pm-index: apply a corporate action."""
+    return encode(
+        "index.corp_action",
+        {
+            "action": action,
+            "index_id": index_id,
+            "symbol": symbol,
+            "gateway_id": gateway_id,
+            **params,
+        },
+    )
+
+
+def make_index_constituent_change_msg(
+    change_type: str,
+    index_id: str,
+    symbol: str,
+    gateway_id: str,
+    shares_outstanding: int | None = None,
+    initial_price: float | None = None,
+) -> list[bytes]:
+    """Operator → pm-index: add or delist a constituent."""
+    payload: dict[str, Any] = {
+        "change_type": change_type,
+        "index_id": index_id,
+        "symbol": symbol,
+        "gateway_id": gateway_id,
+    }
+    if shares_outstanding is not None:
+        payload["shares_outstanding"] = shares_outstanding
+    if initial_price is not None:
+        payload["initial_price"] = initial_price
+    return encode("index.constituent_change", payload)
+
+
+def make_index_corp_action_ack_msg(
+    gateway_id: str,
+    accepted: bool,
+    reason: str = "",
+    index_id: str = "",
+    level: float | None = None,
+    divisor: float | None = None,
+) -> list[bytes]:
+    """pm-index → requestor: corporate action ack."""
+    payload: dict[str, Any] = {
+        "accepted": accepted,
+        "reason": reason,
+        "timestamp": time.time(),
+    }
+    if index_id:
+        payload["index_id"] = index_id
+    if level is not None:
+        payload["level"] = level
+    if divisor is not None:
+        payload["divisor"] = divisor
+    return encode(f"index.corp_action_ack.{gateway_id}", payload)
+
+
+def make_index_constituent_change_ack_msg(
+    gateway_id: str,
+    accepted: bool,
+    reason: str = "",
+    index_id: str = "",
+    level: float | None = None,
+    divisor: float | None = None,
+) -> list[bytes]:
+    """pm-index → requestor: constituent change ack."""
+    payload: dict[str, Any] = {
+        "accepted": accepted,
+        "reason": reason,
+        "timestamp": time.time(),
+    }
+    if index_id:
+        payload["index_id"] = index_id
+    if level is not None:
+        payload["level"] = level
+    if divisor is not None:
+        payload["divisor"] = divisor
+    return encode(f"index.constituent_change_ack.{gateway_id}", payload)
+
+
+def make_index_error_msg(gateway_id: str, reason: str) -> list[bytes]:
+    """pm-index → requestor: generic index error reply."""
+    return encode(
+        f"index.error.{gateway_id}",
+        {"accepted": False, "reason": reason, "timestamp": time.time()},
+    )
 
 
 def make_depth_msg(symbol: str, depth: dict[str, Any]) -> list[bytes]:

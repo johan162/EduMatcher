@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from fastapi import HTTPException
 
 from edumatcher.api_gateway.caches import SessionCaches
 from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
@@ -33,17 +34,28 @@ class FakeEngine:
         self.calls: list[tuple[str, Any]] = []
         self.cache = SessionCaches()
 
-    async def authenticate(self, gateway_id: str) -> tuple[bool, str]:
+    async def authenticate(
+        self, gateway_id: str, timeout: float = 3.0
+    ) -> tuple[bool, str]:
         self.calls.append(("authenticate", gateway_id))
         return True, ""
 
     async def await_topic(self, topic: str, timeout: float) -> dict[str, Any]:
-        self.calls.append(("await_topic", (topic, timeout)))
+        return await self.await_event(topic, match=None, timeout=timeout)
+
+    async def await_event(
+        self, topic: str, match: dict[str, str] | None, timeout: float
+    ) -> dict[str, Any]:
+        self.calls.append(("await_event", (topic, match, timeout)))
         if topic.startswith("order.orders."):
             return {"orders": [{"order_id": "ORD1"}]}
         if topic.startswith("risk.kill_switch_ack."):
             return {"accepted": True, "cancelled_orders": 1, "cancelled_quotes": 0}
-        return {"accepted": True, "topic": topic}
+        return {
+            "accepted": True,
+            "topic": topic,
+            "order_id": match.get("order_id", "") if match else "",
+        }
 
     def get_caches(self, gateway_id: str) -> SessionCaches:
         self.calls.append(("get_caches", gateway_id))
@@ -101,10 +113,15 @@ class FakeEngine:
     def active_gateways(self) -> set[str]:
         return {"GW01"}
 
+    def is_running(self) -> bool:
+        return True
+
 
 class TimeoutEngine(FakeEngine):
-    async def await_topic(self, topic: str, timeout: float) -> dict[str, Any]:
-        _ = (topic, timeout)
+    async def await_event(
+        self, topic: str, match: dict[str, str] | None, timeout: float
+    ) -> dict[str, Any]:
+        _ = (topic, match, timeout)
         raise TimeoutError("no reply")
 
 
@@ -210,30 +227,31 @@ async def test_order_routes_send_engine_messages() -> None:
     listed = await orders.list_orders(request, session)
     engine.cache.orders["ORD1"] = {"order_id": "ORD1"}
     one = await orders.get_order("ORD1", request, session)
-    assert cancel["event"] is not None
+    assert cancel.event is not None
     assert amend["event"] is not None
     assert listed["orders"]
     assert one["order_id"] == "ORD1"
 
-    @pytest.mark.anyio
-    async def test_replace_order_and_error_paths() -> None:
-        request = fake_request(FakeEngine())
-        session = trading_session()
-        order_body = OrderRequest(
-            symbol="AAPL", side="BUY", order_type="LIMIT", quantity=10, price=150.0
+
+@pytest.mark.anyio
+async def test_replace_order_and_error_paths() -> None:
+    request = fake_request(FakeEngine())
+    session = trading_session()
+    order_body = OrderRequest(
+        symbol="AAPL", side="BUY", order_type="LIMIT", quantity=10, price=150.0
+    )
+    replaced = await orders.replace_order("OLD", order_body, request, session)
+    assert replaced.cancelled_order_id == "OLD"
+
+    with pytest.raises(Exception):
+        await orders.cancel_order(
+            "ORD1", fake_request(TimeoutEngine()), session, wait="ack"
         )
-        replaced = await orders.replace_order("OLD", order_body, request, session)
-        assert replaced.cancelled_order_id == "OLD"
 
-        with pytest.raises(Exception):
-            await orders.cancel_order(
-                "ORD1", fake_request(TimeoutEngine()), session, wait="ack"
-            )
-
-        rate_limited = limited_request()
-        await orders.cancel_order("ORD1", rate_limited, session)
-        with pytest.raises(Exception):
-            await orders.cancel_order("ORD2", rate_limited, session)
+    rate_limited = limited_request()
+    await orders.cancel_order("ORD1", rate_limited, session)
+    with pytest.raises(Exception):
+        await orders.cancel_order("ORD2", rate_limited, session)
 
 
 @pytest.mark.anyio
@@ -285,3 +303,55 @@ async def test_reference_routes() -> None:
     assert (await reference.positions(request, session))["positions"]
     assert (await reference.status_summary(request, session))["positions"]
     assert (await reference.healthz(request))["ok"] is True
+
+
+@pytest.mark.anyio
+async def test_duplicate_client_order_id_returns_409() -> None:
+    engine = FakeEngine()
+    engine.cache.orders["existing"] = {
+        "order_id": "existing",
+        "client_order_id": "dup-1",
+        "status": "NEW",
+    }
+    request = fake_request(engine)
+    session = trading_session()
+    body = OrderRequest(
+        symbol="AAPL",
+        side="BUY",
+        order_type="LIMIT",
+        quantity=10,
+        price=150.0,
+        client_order_id="dup-1",
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        await orders.submit_order(body, request, session)
+    assert exc_info.value.status_code == 409
+
+
+@pytest.mark.anyio
+async def test_list_orders_timeout_falls_back_to_cache() -> None:
+    engine = TimeoutEngine()
+    engine.cache.orders["ORD1"] = {"order_id": "ORD1", "status": "NEW"}
+    request = fake_request(engine)
+    session = trading_session()
+    result = await orders.list_orders(request, session)
+    assert result["orders"] == [{"order_id": "ORD1", "status": "NEW"}]
+
+
+@pytest.mark.anyio
+async def test_healthz_reports_unhealthy_when_not_running() -> None:
+    class StoppedEngine(FakeEngine):
+        def is_running(self) -> bool:
+            return False
+
+    request = SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(
+                engine=StoppedEngine(),
+                config=ApiGatewayConfig(),
+                rate_limiter=RateLimiter(100, 100),
+            )
+        )
+    )
+    result = await reference.healthz(request)
+    assert result["ok"] is False

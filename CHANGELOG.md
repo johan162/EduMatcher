@@ -1,3 +1,29 @@
+## [v0.11.0] - 2026-06-26
+
+Release Type: minor
+
+### 📋 Summary
+This release introduces index process tooling and improves operational robustness for the API Gateway and MM bot workflows. It also expands training and user-guide content for index and process usage.
+
+### ✨ Additions
+- Added `pm-index` process and `pm-index-cli` tool with supporting documentation
+
+### 🚀 Improvements
+- Improved API Gateway reliability and behavior across hardened runtime and route paths
+- Improved MM bot resilience to dropped `quote.ack` and missed status flows with self-healing reissue behavior
+
+### 🐛 Bug Fixes
+- Fixed MM bot reissue liveness gaps that could leave quoting stalled after dropped acknowledgement paths
+
+### 📚 Documentation
+- Added exchange index usage and configuration training material
+- Updated Getting Started and landing-page process guidance for clearer operator onboarding
+- Updated MM bot user-guide coverage for reconciliation and recovery behavior
+
+### 🛠 Internal
+- Added a script to clean up old GitHub Actions workflows
+
+
 ## [v0.10.1] - 2026-06-25
 
 Release Type: patch

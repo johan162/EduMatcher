@@ -27,7 +27,7 @@ from edumatcher.md_gateway.sequencer import SequenceAllocator
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.message import decode
 
-_ALLOWED_CHANNELS = frozenset({"TOP", "TRADE", "STATE"})
+_ALLOWED_CHANNELS = frozenset({"TOP", "TRADE", "STATE", "INDEX"})
 _MAX_LINE_BYTES = 4096
 _HELLO_TIMEOUT_SEC = 5
 
@@ -60,6 +60,7 @@ class MarketDataGateway:
             "circuit_breaker.halt.",
             "circuit_breaker.resume.",
         )
+        self._index_sub = make_subscriber(config.index_pub_addr, "index.")
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -111,6 +112,7 @@ class MarketDataGateway:
             self._server = None
 
         self._sub_sock.close()
+        self._index_sub.close()
 
     # ------------------------------------------------------------------
     # Network IO
@@ -398,6 +400,12 @@ class MarketDataGateway:
                 self._queue_line(session, "ERR", {"CODE": "INVALID_SYMBOL", "SYM": sym})
                 return
             if sym != "*" and self._known_symbols and sym not in self._known_symbols:
+                if not any(ch == "INDEX" for ch in channels):
+                    self._queue_line(
+                        session, "ERR", {"CODE": "INVALID_SYMBOL", "SYM": sym}
+                    )
+                    return
+            if any(ch == "INDEX" for ch in channels) and not sym:
                 self._queue_line(session, "ERR", {"CODE": "INVALID_SYMBOL", "SYM": sym})
                 return
 
@@ -449,6 +457,8 @@ class MarketDataGateway:
             fields.update(self._normaliser.top_snapshot_fields(sym))
         elif ch == "STATE":
             fields.update(self._normaliser.state_snapshot_fields(sym))
+        elif ch == "INDEX":
+            fields.update(self._normaliser.index_snapshot_fields(sym))
 
         self._queue_raw(session, build_line("SNAP", fields), is_market_data=True)
 
@@ -542,6 +552,16 @@ class MarketDataGateway:
                     state_fields,
                     now_seconds,
                 )
+
+        while self._index_sub.poll(timeout=0):
+            topic, payload = decode(self._index_sub.recv_multipart())
+            now_seconds = _extract_ts(payload)
+            if topic == "index.update":
+                index_id, fields = self._normaliser.normalise_index_update(payload)
+                if index_id:
+                    self._emit_stream_event(
+                        "IDX", "INDEX", index_id, fields, now_seconds
+                    )
 
     # ------------------------------------------------------------------
     # Maintenance

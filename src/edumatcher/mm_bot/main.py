@@ -112,7 +112,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> None:
     """Main entry point for pm-mm-bot."""
     cli_args = argv if argv is not None else sys.argv[1:]
-    gap_was_explicit = "--gap" in cli_args
+    # Detect both the "--gap 0.10" and "--gap=0.10" forms.
+    gap_was_explicit = any(
+        arg == "--gap" or arg.startswith("--gap=") for arg in cli_args
+    )
     args = _parse_args(argv)
 
     from edumatcher.mm_bot.pricer import QuotePricer
@@ -120,15 +123,21 @@ def main(argv: list[str] | None = None) -> None:
     # Validate bootstrap range
     QuotePricer.validate_bootstrap_range(args.initial_min, args.initial_max)
 
-    # Validate positive timeouts
-    if args.startup_session_timeout_sec <= 0:
-        print("ERROR: --startup-session-timeout-sec must be positive", file=sys.stderr)
-        raise SystemExit(1)
-    if args.bootstrap_timeout_sec <= 0:
-        print("ERROR: --bootstrap-timeout-sec must be positive", file=sys.stderr)
-        raise SystemExit(1)
-    if args.qlegs_reconcile_interval_sec <= 0:
-        print("ERROR: --qlegs-reconcile-interval-sec must be positive", file=sys.stderr)
+    # Validate positive timeouts and intervals
+    positive_checks = [
+        ("--startup-session-timeout-sec", args.startup_session_timeout_sec),
+        ("--bootstrap-timeout-sec", args.bootstrap_timeout_sec),
+        ("--cancel-timeout-sec", args.cancel_timeout_sec),
+        ("--shutdown-timeout-sec", args.shutdown_timeout_sec),
+        ("--heartbeat-interval-sec", args.heartbeat_interval_sec),
+        ("--qlegs-reconcile-interval-sec", args.qlegs_reconcile_interval_sec),
+    ]
+    for flag, value in positive_checks:
+        if value <= 0:
+            print(f"ERROR: {flag} must be positive", file=sys.stderr)
+            raise SystemExit(1)
+    if args.reissue_delay_ms < 0:
+        print("ERROR: --reissue-delay-ms must be non-negative", file=sys.stderr)
         raise SystemExit(1)
 
     symbol = args.symbol.upper()

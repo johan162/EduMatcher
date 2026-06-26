@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 import uvicorn
-from fastapi import WebSocketDisconnect, status
+from fastapi import HTTPException, WebSocketDisconnect, status
 
 from edumatcher.api_gateway import engine_client, main
 from edumatcher.api_gateway.config import ApiCredential, ApiGatewayConfig
@@ -212,7 +212,9 @@ async def test_create_app_lifespan(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.anyio
 async def test_auth_dependency_success_and_failures() -> None:
     class AuthEngine:
-        async def authenticate(self, gateway_id: str) -> tuple[bool, str]:
+        async def authenticate(
+            self, gateway_id: str, timeout: float = 3.0
+        ) -> tuple[bool, str]:
             if gateway_id == "BAD":
                 return False, "denied"
             return True, ""
@@ -222,7 +224,11 @@ async def test_auth_dependency_success_and_failures() -> None:
     )
     request = SimpleNamespace(
         app=SimpleNamespace(
-            state=SimpleNamespace(sessions=registry, engine=AuthEngine())
+            state=SimpleNamespace(
+                sessions=registry,
+                engine=AuthEngine(),
+                config=ApiGatewayConfig(),
+            )
         )
     )
     session = await auth(request, "Bearer good")
@@ -414,3 +420,83 @@ async def test_websocket_auth_controls_and_filtering() -> None:
 def test_message_builder_import() -> None:
     frames = make_gateway_auth_msg("GW01", True)
     assert frames[0] == b"system.gateway_auth.GW01"
+
+
+@pytest.mark.anyio
+async def test_await_event_filters_by_order_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify that await_event only resolves for a matching order_id."""
+    monkeypatch.setattr(engine_client, "make_pusher", lambda _addr: FakeSocket())
+    monkeypatch.setattr(
+        engine_client, "make_subscriber", lambda _addr, *_topics: FakeSocket()
+    )
+    client = EngineClient("pull", "pub", asyncio.get_running_loop())
+
+    # Pre-authenticate so we can skip the handshake
+    client._authenticated.add("GW01")
+
+    # Register a future waiting for a specific order_id
+    task = asyncio.create_task(
+        client.await_event("order.ack.GW01", match={"order_id": "ORD-A"}, timeout=2.0)
+    )
+    await asyncio.sleep(0)
+
+    # Deliver an ack for a DIFFERENT order — should NOT resolve the future
+    client._handle_event("order.ack.GW01", {"order_id": "ORD-B", "accepted": True})
+    await asyncio.sleep(0)
+    assert not task.done()
+
+    # Now deliver the matching one
+    client._handle_event("order.ack.GW01", {"order_id": "ORD-A", "accepted": True})
+    result = await task
+    assert result["order_id"] == "ORD-A"
+    client.stop_listener()
+
+
+@pytest.mark.anyio
+async def test_await_event_timeout_cleans_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify timed-out futures are removed from _pending."""
+    monkeypatch.setattr(engine_client, "make_pusher", lambda _addr: FakeSocket())
+    monkeypatch.setattr(
+        engine_client, "make_subscriber", lambda _addr, *_topics: FakeSocket()
+    )
+    client = EngineClient("pull", "pub", asyncio.get_running_loop())
+    client._authenticated.add("GW01")
+
+    with pytest.raises(TimeoutError):
+        await client.await_event(
+            "order.ack.GW01", match={"order_id": "NEVER"}, timeout=0.01
+        )
+
+    # _pending should be cleaned up
+    assert "order.ack.GW01" not in client._pending
+    client.stop_listener()
+
+
+@pytest.mark.anyio
+async def test_history_validation_rejects_bad_dates() -> None:
+    """Verify malformed date parameters return 422."""
+    from edumatcher.api_gateway.routers import history as hist_router
+
+    db_path = Path("/tmp/nonexist_test.db")
+    request = SimpleNamespace(
+        app=SimpleNamespace(
+            state=SimpleNamespace(config=ApiGatewayConfig(stats_db=db_path))
+        )
+    )
+    session = Session(api_key="key", gateway_id="GW01", description="")
+    with pytest.raises(HTTPException) as exc_info:
+        await hist_router.history_orders(
+            request,
+            session,
+            symbol=None,
+            event_type=None,
+            date="not-a-date",
+            from_ts=None,
+            to_ts=None,
+            limit=500,
+        )
+    assert exc_info.value.status_code == 422
