@@ -162,7 +162,7 @@ Prefer this mode if you want a ready-to-run Linux VM without installing Python
 or cloning this repository on your host machine.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.9.2 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.11.0 --snapshot
 ```
 
 More information:
