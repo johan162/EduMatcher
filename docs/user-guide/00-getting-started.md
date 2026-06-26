@@ -282,6 +282,8 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | `pm-ai-swarm` | Background | Multi-agent autonomous trading swarm | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
 | `pm-mm-bot` | Background | Autonomous market-maker quoting bot | [Processes](10-processes.md), [Market-Maker Bot](17-mm-bot.md) |
 | `pm-md-gwy` | Background | Market-data distribution gateway (CALF) | [Processes](10-processes.md#pm-md-gwy-calf-market-data-gateway), [Market Data Feed](20-market-data-feed.md), [CALF Protocol](92-app-calf-protocol.md) |
+| `pm-api-gateway` | Background | REST/WebSocket order-entry and market-data API gateway | [Processes](10-processes.md#pm-api-gateway--restapigateway), [API Gateway](21-api-gateway.md) |
+| `pm-index` | Background | Real-time cap-weighted index calculation and dissemination | [Processes](10-processes.md#pm-index--index-calculation-process), [Market Index](22-index.md) |
 
 ### CLI utilities (runnable)
 
@@ -289,6 +291,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 |---|---|---|
 | `pm-admin-cli` | Non-interactive admin commands for scripts | [Processes](10-processes.md), [Risk Controls](12-risk-controls.md) |
 | `pm-stats-cli` | Query `stats.db` without writing SQL | [Processes](10-processes.md#pm-stats-cli-statistics-query-cli), [Statistics and Reporting](16-statistics-and-reporting.md) |
+| `pm-index-cli` | Read-only query interface for index history files | [Processes](10-processes.md#pm-index-cli--index-history-query-tool), [Commands](02-commands.md), [Market Index](22-index.md#using-pm-index-cli-recommended) |
 | `pm-setup` |  Bootstrap local session directory and defaults | [Processes](10-processes.md), [Installation](00-getting-started.md#installation) |
 | `pm-config-gen` | Generate `engine_config.yaml` from CLI options | [Processes](10-processes.md), [Configuration generator](01-configuration.md#generate-configs-with-pm-config-gen) |
 
@@ -297,7 +300,6 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | Command | Interactivity | Purpose | More information |
 |---|---|---|---|
 | `pm-balf-gateway` | Background | Binary order-entry gateway (BALF) | [Processes planned section](10-processes.md#planned-processes), [BALF Protocol](91-app-balf-protocol.md) |
-| `pm-index` | Background | Real-time index calculation service | [Processes planned section](10-processes.md#planned-processes) |
 
 For startup order and a practical first-run sequence, see
 [Processes](10-processes.md#process-overview).
