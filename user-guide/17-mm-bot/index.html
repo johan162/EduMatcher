@@ -1517,6 +1517,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#self-healing-against-dropped-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Self-healing against dropped messages
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1818,6 +1829,34 @@
     
   
     API Gateway (REST/WebSocket)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../22-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Index (pm-index)
   
 
     
@@ -2816,6 +2855,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/25-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    25 — Market Index (pm-index)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3442,6 +3509,10 @@ ticks. If so, it cancels and reissues at the new mid.</p>
 <td>Periodic heartbeat (no active quote)</td>
 <td>Reissue</td>
 </tr>
+<tr>
+<td>Periodic QLEGS reconciliation mismatch</td>
+<td>Clear local state and reissue</td>
+</tr>
 </tbody>
 </table>
 <h3 id="reissue-delay">Reissue delay<a class="headerlink" href="#reissue-delay" title="Permanent link">&para;</a></h3>
@@ -3453,6 +3524,21 @@ each fill — resulting in exactly one reissue after the burst settles.</p>
 waits up to <code>--cancel-timeout-sec</code> for lifecycle confirmation. If no
 confirmation arrives within that window, it forces a safe replacement by
 clearing local quote IDs and sending a fresh <code>quote.new</code>.</p>
+<h3 id="self-healing-against-dropped-messages">Self-healing against dropped messages<a class="headerlink" href="#self-healing-against-dropped-messages" title="Permanent link">&para;</a></h3>
+<p>ZMQ delivery is best-effort, so the bot is built to recover if an engine reply
+is ever lost:</p>
+<ul>
+<li><strong>Dropped <code>quote.ack</code></strong> — after sending a quote the bot waits for the ack to
+  confirm it. If the ack never arrives, the heartbeat guard notices it holds no
+  live quote and, once a full <code>--heartbeat-interval-sec</code> has elapsed since the
+  last quote was sent (so an in-flight ack is never pre-empted), it reissues.</li>
+<li><strong>Periodic QLEGS reconciliation</strong> — every <code>--qlegs-reconcile-interval-sec</code> the
+  bot requests a fresh quote-leg snapshot (<code>QLEGS</code>). The request is
+  non-blocking: the reply is processed in the normal event loop, so fills and
+  status updates are never missed while the snapshot is outstanding. If the
+  snapshot shows no legs, a different <code>quote_id</code>, or different leg order IDs than
+  the bot is tracking, it clears its local state and reissues to converge.</li>
+</ul>
 <hr />
 <h2 id="session-state-handling">Session state handling<a class="headerlink" href="#session-state-handling" title="Permanent link">&para;</a></h2>
 <p>The bot respects the exchange session lifecycle:</p>
@@ -3498,8 +3584,8 @@ automatically.</p>
 initial reference price. It resolves one using this priority:</p>
 <ol>
 <li><strong>QBOOT</strong> — active quote from a previous session (restart recovery)</li>
-<li><strong>Book mid</strong> — if another participant has already posted orders</li>
-<li><strong>Last trade</strong> — from <code>trade.executed</code> events</li>
+<li><strong>Book mid / last trade</strong> — the current book mid if another participant has
+   posted orders, otherwise the most recent <code>trade.executed</code> price</li>
 <li><strong>Bootstrap quote</strong> — inactive quote prices from QBOOT</li>
 <li><strong>Random range</strong> — <code>--initial_min</code> to <code>--initial_max</code> (configurable)</li>
 </ol>
@@ -3648,6 +3734,9 @@ a clear error message.</p>
 </ul>
 <p>Defaulting rules:</p>
 <ul>
+<li>An explicitly supplied <code>--gap</code> (in either the <code>--gap 0.10</code> or <code>--gap=0.10</code>
+  form) is always respected — it is only validated against the obligation,
+  never overridden.</li>
 <li>If <code>--gap</code> is not provided and <code>mm_max_spread_ticks</code> is available, the bot
   defaults to half the max spread: <code>(mm_max_spread_ticks / 2) * tick_size</code>.</li>
 <li>If no MM spread metadata is available, the bot uses the standard <code>0.10</code>
@@ -3728,6 +3817,11 @@ a clear error message.</p>
 <td>Bot quotes but prices look wrong</td>
 <td>Tick size mismatch</td>
 <td>Check symbol <code>tick_size</code> in engine config</td>
+</tr>
+<tr>
+<td>Bot stops quoting for a while, then resumes on its own</td>
+<td>An engine reply (<code>quote.ack</code>/<code>quote.status</code>) was dropped</td>
+<td>Expected self-healing; the heartbeat and QLEGS reconciliation recover automatically. Lower <code>--heartbeat-interval-sec</code> for faster recovery</td>
 </tr>
 </tbody>
 </table>

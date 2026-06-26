@@ -1437,6 +1437,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pm-index-index-calculation-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-index — Index Calculation Process
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pm-api-gateway-restwebsocket-api-gateway" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-api-gateway — REST/WebSocket API Gateway
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#pm-admin-interactive-admin-console" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1474,6 +1496,17 @@
     <span class="md-ellipsis">
       
         pm-config-gen — Engine Config Generator
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pm-index-cli-index-history-query-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-index-cli — Index History Query Tool
       
     </span>
   </a>
@@ -1828,6 +1861,34 @@
     
   
     API Gateway (REST/WebSocket)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../22-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Index (pm-index)
   
 
     
@@ -2826,6 +2887,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/25-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    25 — Market Index (pm-index)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3568,6 +3657,24 @@ environment variable and the default.</p>
 <td>External post-trade dissemination gateway (RALF)</td>
 <td>No</td>
 </tr>
+<tr>
+<td><strong>pm-md-gwy</strong></td>
+<td><code>pm-md-gwy</code></td>
+<td>External market-data gateway (CALF) over TCP :5570</td>
+<td>No</td>
+</tr>
+<tr>
+<td><strong>pm-api-gateway</strong></td>
+<td><code>pm-api-gateway</code></td>
+<td>REST/WebSocket order-entry and market-data API gateway</td>
+<td>No</td>
+</tr>
+<tr>
+<td><strong>pm-index</strong></td>
+<td><code>pm-index</code></td>
+<td>Real-time cap-weighted index calculation and dissemination</td>
+<td>No</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Admin tools:</strong></p>
@@ -3622,6 +3729,12 @@ environment variable and the default.</p>
 <td><strong>pm-stats-cli</strong></td>
 <td><code>pm-stats-cli &lt;command&gt; [options]</code></td>
 <td>Read-only query interface for <code>stats.db</code></td>
+<td>Optional</td>
+</tr>
+<tr>
+<td><strong>pm-index-cli</strong></td>
+<td><code>pm-index-cli &lt;command&gt; [options]</code></td>
+<td>Read-only query interface for index history JSONL files</td>
 <td>Optional</td>
 </tr>
 </tbody>
@@ -5514,10 +5627,469 @@ RALF over TCP for clearing, drop-copy, and audit consumers.</p>
 </table>
 <p>For external usage and examples see <a href="../18-post-trade/">Post-Trade Dissemination</a>
 and <a href="../93-app-ralf-protocol/">RALF Protocol Reference</a>.</p>
+<h2 id="pm-index-index-calculation-process">pm-index — Index Calculation Process<a class="headerlink" href="#pm-index-index-calculation-process" title="Permanent link">&para;</a></h2>
+<p>Subscribes to trade events from the engine and maintains one or more configurable
+cap-weighted market indices in real time. Publishes live index values on a
+dedicated ZMQ PUB socket so <code>pm-md-gwy</code> can forward them to external subscribers
+over the CALF <code>INDEX</code> channel.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>pm-index<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--reset<span class="o">]</span>
+</code></pre></div>
+<p><strong>Startup options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--config</code> / <code>-c</code></td>
+<td><code>engine_config.yaml</code></td>
+<td>Path to engine config YAML containing the <code>indices:</code> section</td>
+</tr>
+<tr>
+<td><code>--reset</code></td>
+<td>off</td>
+<td>Delete persisted state files and reinitialise all indices from config</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Expected runtime input arguments:</strong></p>
+<p>None. <code>pm-index</code> is a long-running background process after startup.</p>
+<p><strong>Startup behaviour:</strong>
+1. Reads all <code>indices:</code> entries from <code>engine_config.yaml</code>
+2. For each index: loads divisor and last prices from the state file if present, or initialises fresh from constituent reference prices and <code>base_value</code>
+3. Validates that every constituent symbol appears in <code>symbols:</code> with a positive <code>outstanding_shares</code>
+4. Writes an <code>INIT</code> history record for each index that starts without prior state
+5. Binds ZMQ PULL :5559 for operator commands and history requests
+6. Binds ZMQ PUB :5558 for broadcasting <code>index.update</code> messages
+7. Subscribes to engine PUB :5556 for <code>trade.executed</code>, <code>session.state</code>, and <code>system.eod</code>
+8. Enters the poll loop</p>
+<p><strong>Shutdown (Ctrl-C):</strong>
+1. Flushes all pending JSONL history writes
+2. Closes ZMQ sockets</p>
+<p><strong>Messages subscribed</strong> (SUB from :5556):</p>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>trade.executed</code></td>
+<td>Drives index recalculation for constituent symbols</td>
+</tr>
+<tr>
+<td><code>session.state</code></td>
+<td>Tracks intraday OHLC reset points and triggers EOD finalisation on <code>CLOSED</code></td>
+</tr>
+<tr>
+<td><code>system.eod</code></td>
+<td>Alternate EOD trigger — writes final snapshot and OHLC record</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Messages received</strong> (PULL :5559):</p>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>index.history_request</code></td>
+<td>Returns LEVEL and EOD records from the JSONL history file</td>
+</tr>
+<tr>
+<td><code>index.corp_action</code></td>
+<td>Applies a stock split, cash dividend, or shares-issuance adjustment</td>
+</tr>
+<tr>
+<td><code>index.constituent_change</code></td>
+<td>Adds or removes a constituent symbol from an index basket</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Messages published</strong> (PUB :5558):</p>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>index.update</code></td>
+<td>Current index level, OHLC, aggregate cap, divisor, and session state</td>
+</tr>
+<tr>
+<td><code>index.history.{GW_ID}</code></td>
+<td>History query response addressed to the requesting gateway</td>
+</tr>
+<tr>
+<td><code>index.corp_action_ack.{GW_ID}</code></td>
+<td>Corporate action applied / rejected acknowledgement</td>
+</tr>
+<tr>
+<td><code>index.constituent_change_ack.{GW_ID}</code></td>
+<td>Constituent add or delist accepted / rejected acknowledgement</td>
+</tr>
+<tr>
+<td><code>index.error.{GW_ID}</code></td>
+<td>Generic error for malformed or rejected requests</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Persistence:</strong></p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data/indexes/&lt;ID&gt;_state.json</code></td>
+<td>Divisor, last prices, and intraday OHLC checkpoint — rewritten after each EOD and corporate action</td>
+</tr>
+<tr>
+<td><code>data/indexes/&lt;ID&gt;_history.jsonl</code></td>
+<td>Append-only JSONL audit trail with <code>INIT</code>, <code>LEVEL</code>, <code>EOD</code>, <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, and <code>DELIST</code> records</td>
+</tr>
+</tbody>
+</table>
+<p>See <a href="../22-index/">Market Index (pm-index)</a> for configuration details, calculation explanation, and corporate action procedures.</p>
+<h2 id="pm-api-gateway-restwebsocket-api-gateway">pm-api-gateway — REST/WebSocket API Gateway<a class="headerlink" href="#pm-api-gateway-restwebsocket-api-gateway" title="Permanent link">&para;</a></h2>
+<p>Exposes EduMatcher order entry, order management, reference data, history, and
+market data over REST/JSON and WebSocket. It is not a second matching engine —
+it translates HTTP and WebSocket requests into the same ZMQ messages used by the
+interactive <code>pm-gateway</code> terminal. Reads configuration from the <code>api_gateways:</code>
+section of <code>engine_config.yaml</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>pm-api-gateway<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--instance<span class="w"> </span>NAME<span class="o">]</span><span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</code></pre></div>
+<p><strong>Startup options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--config PATH</code></td>
+<td><code>EDUMATCHER_CONFIG</code> resolution</td>
+<td>Path to <code>engine_config.yaml</code></td>
+</tr>
+<tr>
+<td><code>--instance NAME</code></td>
+<td>auto-selected when only one entry exists</td>
+<td>Named <code>api_gateways</code> entry to run; required when more than one entry is configured</td>
+</tr>
+<tr>
+<td><code>--host ADDR</code></td>
+<td>config value</td>
+<td>Override HTTP bind address</td>
+</tr>
+<tr>
+<td><code>--port PORT</code></td>
+<td>config value</td>
+<td>Override HTTP listen port</td>
+</tr>
+<tr>
+<td><code>--engine-host HOST</code></td>
+<td>config value</td>
+<td>Override engine host for ZMQ connections (cross-host deployments)</td>
+</tr>
+<tr>
+<td><code>--stats-db PATH</code></td>
+<td>config value</td>
+<td>Path to <code>data/stats.db</code> for <code>/history/*</code> endpoints</td>
+</tr>
+<tr>
+<td><code>--log-level LEVEL</code></td>
+<td>config value</td>
+<td><code>debug</code>, <code>info</code>, <code>warning</code>, or <code>error</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Expected runtime input arguments:</strong></p>
+<p>No terminal input. External clients connect via HTTP or WebSocket.</p>
+<p><strong>Startup behaviour:</strong>
+1. Reads the named <code>api_gateways.&lt;NAME&gt;</code> entry from <code>engine_config.yaml</code>
+2. Exits immediately if <code>enabled: false</code>
+3. Sends <code>system.gateway_connect</code> to the engine and waits for <code>system.gateway_auth</code> ACK
+4. Starts the uvicorn HTTP server and enters the request-serving loop</p>
+<p><strong>REST endpoints</strong> (base path <code>/api/v1</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Key type</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/orders</code></td>
+<td>trading</td>
+<td>Submit an order</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/orders/{id}</code></td>
+<td>trading</td>
+<td>Cancel an order</td>
+</tr>
+<tr>
+<td><code>PATCH</code></td>
+<td><code>/orders/{id}</code></td>
+<td>trading</td>
+<td>Amend price and/or quantity</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/orders</code></td>
+<td>trading</td>
+<td>List live orders</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/oco</code></td>
+<td>trading</td>
+<td>Submit OCO pair</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/combos</code></td>
+<td>trading</td>
+<td>Submit combo order</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/quotes</code></td>
+<td>trading</td>
+<td>Submit two-sided quote</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/quotes/{symbol}</code></td>
+<td>trading</td>
+<td>Cancel active quote</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/mass-cancel</code></td>
+<td>trading</td>
+<td>Cancel all or symbol-scoped exposure</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/symbols</code></td>
+<td>any</td>
+<td>Instrument metadata</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/session</code></td>
+<td>any</td>
+<td>Current engine session state</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/positions</code></td>
+<td>trading</td>
+<td>Net positions by symbol</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/history/orders</code></td>
+<td>trading</td>
+<td>Historical order lifecycle events</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/history/fills</code></td>
+<td>trading</td>
+<td>Historical fills</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/history/trades</code></td>
+<td>any</td>
+<td>Public trade log from <code>pm-stats</code></td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/history/daily</code></td>
+<td>any</td>
+<td>Daily OHLCV from <code>pm-stats</code></td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/market-data</code></td>
+<td>any</td>
+<td>Live order book top-of-book via REST</td>
+</tr>
+</tbody>
+</table>
+<p><strong>WebSocket endpoints:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Key type</th>
+<th>Stream</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/events</code></td>
+<td>trading</td>
+<td>Private fills, acks, expiries — filtered to the connected gateway</td>
+</tr>
+<tr>
+<td><code>/market-data</code></td>
+<td>any</td>
+<td>Public order book snapshots and trade events</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Authentication:</strong></p>
+<ul>
+<li>REST: <code>Authorization: Bearer &lt;api_key&gt;</code> header</li>
+<li>WebSocket: send <code>{"api_key": "&lt;key&gt;"}</code> as the first JSON message</li>
+</ul>
+<p>Trading keys (<code>gateway_id</code> set to a gateway ID) can reach order-entry endpoints
+and private event streams. Read-only keys (<code>gateway_id: null</code>) are limited to
+market-data and history endpoints.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>When <code>swagger_enabled: true</code> in config, browse <code>http://127.0.0.1:&lt;PORT&gt;/docs</code>
+for interactive endpoint documentation and a live try-it UI.</p>
+</div>
+<p><strong>Messages sent</strong> (PUSH → :5555):</p>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>system.gateway_connect</code></td>
+<td>Engine authentication request (once at startup)</td>
+</tr>
+<tr>
+<td><code>order.new</code></td>
+<td>Order submission</td>
+</tr>
+<tr>
+<td><code>order.cancel</code></td>
+<td>Order cancellation</td>
+</tr>
+<tr>
+<td><code>order.combo</code></td>
+<td>Combo submission</td>
+</tr>
+<tr>
+<td><code>quote.new</code></td>
+<td>Quote submission</td>
+</tr>
+<tr>
+<td><code>quote.cancel</code></td>
+<td>Quote cancellation</td>
+</tr>
+<tr>
+<td><code>risk.kill_switch</code></td>
+<td>Mass cancel triggered by <code>/mass-cancel</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Messages subscribed</strong> (SUB from :5556):</p>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>system.gateway_auth.{GW_ID}</code></td>
+<td>Engine authentication reply</td>
+</tr>
+<tr>
+<td><code>order.ack.{GW_ID}</code></td>
+<td>Order accepted or rejected</td>
+</tr>
+<tr>
+<td><code>order.fill.{GW_ID}</code></td>
+<td>Partial or full fill</td>
+</tr>
+<tr>
+<td><code>order.cancelled.{GW_ID}</code></td>
+<td>Cancel confirmation</td>
+</tr>
+<tr>
+<td><code>order.expired.{GW_ID}</code></td>
+<td>TIF expiry</td>
+</tr>
+<tr>
+<td><code>order.amended.{GW_ID}</code></td>
+<td>Amend confirmation</td>
+</tr>
+<tr>
+<td><code>combo.ack.{GW_ID}</code></td>
+<td>Combo accepted or rejected</td>
+</tr>
+<tr>
+<td><code>combo.status.{GW_ID}</code></td>
+<td>Combo lifecycle changes</td>
+</tr>
+<tr>
+<td><code>quote.ack.{GW_ID}</code></td>
+<td>Quote accepted or rejected</td>
+</tr>
+<tr>
+<td><code>quote.status.{GW_ID}</code></td>
+<td>Quote lifecycle changes</td>
+</tr>
+<tr>
+<td><code>system.symbols.{GW_ID}</code></td>
+<td>Symbol list reply</td>
+</tr>
+<tr>
+<td><code>book.{SYMBOL}</code></td>
+<td>Live book snapshots for the market-data WebSocket stream</td>
+</tr>
+<tr>
+<td><code>trade.executed</code></td>
+<td>Trade events for the public market-data stream</td>
+</tr>
+<tr>
+<td><code>session.state</code></td>
+<td>Session phase changes</td>
+</tr>
+</tbody>
+</table>
+<p>See <a href="../21-api-gateway/">API Gateway (REST/WebSocket)</a> for endpoint reference, authentication examples, Swagger access, and client code.</p>
 <h2 id="pm-admin-interactive-admin-console">pm-admin — Interactive Admin Console<a class="headerlink" href="#pm-admin-interactive-admin-console" title="Permanent link">&para;</a></h2>
 <p>An interactive REPL for sending operational commands to a running engine without
 needing a full gateway session.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>pm-admin<span class="w"> </span>--id<span class="w"> </span>&lt;ADMIN_GW_ID&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-admin<span class="w"> </span>--id<span class="w"> </span>&lt;ADMIN_GW_ID&gt;
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -5599,7 +6171,7 @@ needing a full gateway session.</p>
 <h2 id="pm-admin-cli-cli-admin-commands">pm-admin-cli — CLI Admin Commands<a class="headerlink" href="#pm-admin-cli-cli-admin-commands" title="Permanent link">&para;</a></h2>
 <p>A non-interactive alternative to <code>pm-admin</code> for scripting or single-shot
 operational commands.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>pm-admin-cli<span class="w"> </span>&lt;command&gt;<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-admin-cli<span class="w"> </span>&lt;command&gt;<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p>Each invocation sends one command to the engine, waits for an acknowledgement,
 prints the result, and exits. Suitable for shell scripts and CI automation.</p>
@@ -5747,7 +6319,7 @@ prints the result, and exits. Suitable for shell scripts and CI automation.</p>
 </table>
 <h2 id="pm-setup-session-bootstrap-tool">pm-setup — Session Bootstrap Tool<a class="headerlink" href="#pm-setup-session-bootstrap-tool" title="Permanent link">&para;</a></h2>
 <p>Bootstraps a runnable EduMatcher session directory with sensible defaults.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-setup
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-setup
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -5792,7 +6364,7 @@ runtime message bus.</p>
 <h2 id="pm-config-gen-engine-config-generator">pm-config-gen — Engine Config Generator<a class="headerlink" href="#pm-config-gen-engine-config-generator" title="Permanent link">&para;</a></h2>
 <p>Generates an <code>engine_config.yaml</code> from explicit CLI parameters so environments
 can be recreated without manual YAML editing.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-config-gen<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>--sessions-enabled<span class="w"> </span>--output<span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>pm-config-gen<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span>--sessions-enabled<span class="w"> </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>
@@ -5974,6 +6546,85 @@ can be recreated without manual YAML editing.</p>
 <p>Like <code>pm-setup</code>, this is a local tooling command and does not subscribe/publish
 on the runtime ZeroMQ sockets.</p>
 <p>For more details on the options see <a href="../01-configuration/#option-reference">Configuration Chapter</a></p>
+<h2 id="pm-index-cli-index-history-query-tool">pm-index-cli — Index History Query Tool<a class="headerlink" href="#pm-index-cli-index-history-query-tool" title="Permanent link">&para;</a></h2>
+<p>Reads index history JSONL files written by <code>pm-index</code> directly from disk and
+renders them as a table, JSON, or CSV. No running process is required.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>pm-index-cli<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="p">|</span>csv<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</code></pre></div>
+<p><strong>Startup options:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--config PATH</code> / <code>-c PATH</code></td>
+<td>unset</td>
+<td>Path to <code>engine_config.yaml</code>; auto-discovers history file paths and index IDs</td>
+</tr>
+<tr>
+<td><code>--data-dir DIR</code></td>
+<td><code>data/indexes</code></td>
+<td>Directory containing history files; used when <code>--config</code> is absent or an index is not in config</td>
+</tr>
+<tr>
+<td><code>--format table\|json\|csv</code></td>
+<td><code>table</code></td>
+<td>Output format</td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>off</td>
+<td>Suppress header row (CSV only)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Expected runtime input arguments:</strong></p>
+<p>None.</p>
+<p><strong>Subcommands:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Subcommand</th>
+<th>Default limit</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>level</code></td>
+<td>1,000</td>
+<td>Throttled LEVEL records — index value snapshots captured during trading</td>
+</tr>
+<tr>
+<td><code>eod</code></td>
+<td>365</td>
+<td>EOD records — one row per trading day with open/high/low/close</td>
+</tr>
+<tr>
+<td><code>events</code></td>
+<td>1,000</td>
+<td>Structural events: <code>INIT</code>, <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, <code>DELIST</code></td>
+</tr>
+<tr>
+<td><code>indices</code></td>
+<td>—</td>
+<td>List configured indices from <code>engine_config.yaml</code></td>
+</tr>
+</tbody>
+</table>
+<p>All history subcommands share <code>--index ID</code> (repeatable), <code>--days N</code>,
+<code>--from DATE_OR_TS</code>, <code>--to DATE_OR_TS</code>, and <code>--limit N</code>. The <code>events</code>
+subcommand also accepts <code>--type TYPE</code> to filter to a specific event kind.</p>
+<p>Like <code>pm-stats-cli</code>, this is a read-only offline tool. It does not connect to
+any ZeroMQ socket.</p>
+<p>See <a href="../02-commands/">pm-index-cli in the commands reference</a>
+for the full option reference, output column descriptions, and examples
+including CSV export and Python plotting.</p>
 <h2 id="order-lifecycle-message-flow">Order Lifecycle Message Flow<a class="headerlink" href="#order-lifecycle-message-flow" title="Permanent link">&para;</a></h2>
 <p>The following diagram traces a single limit order from submission to full fill,
 showing which process sends each message and on which socket:</p>
@@ -6018,12 +6669,6 @@ available as runnable scripts.</p>
 <td>Binary order entry gateway for low-latency programmatic clients</td>
 <td>Design proposal</td>
 </tr>
-<tr>
-<td><strong>pm-index</strong></td>
-<td>—</td>
-<td>Real-time index calculation service publishing index values on port 5558</td>
-<td>Design proposal</td>
-</tr>
 </tbody>
 </table>
 <p>See the <a href="../91-app-balf-protocol/">BALF Protocol Reference</a> for message specifications planned for future gateway implementations.</p>
@@ -6046,6 +6691,9 @@ CALF/TCP. It consumes engine PUB topics and exposes sequence-aware streams for:<
 <li><a href="../13-drop-copy/">Drop Copy</a> — the engine's built-in :5557 drop-copy feed</li>
 <li><a href="../18-post-trade/">Post-Trade Dissemination</a> — external RALF gateway usage</li>
 <li><a href="../93-app-ralf-protocol/">RALF Protocol Reference</a> — official protocol appendix</li>
+<li><a href="../20-market-data-feed/">Market Data Feed (CALF)</a> — external CALF gateway usage</li>
+<li><a href="../21-api-gateway/">API Gateway (REST/WebSocket)</a> — REST/WebSocket gateway usage and endpoint reference</li>
+<li><a href="../22-index/">Market Index (pm-index)</a> — index configuration, calculation, and corporate actions</li>
 <li><a href="../17-mm-bot/">Market-Maker Bot</a> — autonomous quoting process for a single symbol</li>
 </ul>
 

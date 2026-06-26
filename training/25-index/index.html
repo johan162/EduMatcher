@@ -12,13 +12,13 @@
         <meta name="author" content="Johan Persson <johan162@gmail.com>">
       
       
-        <link rel="canonical" href="https://github.com/johan162/EduMatcher/training/24-api-gwy/">
+        <link rel="canonical" href="https://github.com/johan162/EduMatcher/training/25-index/">
       
       
-        <link rel="prev" href="../23-calf/">
+        <link rel="prev" href="../24-api-gwy/">
       
       
-        <link rel="next" href="../25-index/">
+        <link rel="next" href="../../architecture/01-architecture/">
       
       
         
@@ -29,7 +29,7 @@
     
     
       
-        <title>24 — API Gateway (REST/WebSocket) - EduMatcher — Educational Trading System</title>
+        <title>25 — Market Index (pm-index) - EduMatcher — Educational Trading System</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#api-gateway-restwebsocket-training" class="md-skip">
+        <a href="#market-index-pm-index" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              24 — API Gateway (REST/WebSocket)
+              25 — Market Index (pm-index)
             
           </span>
         </div>
@@ -2391,6 +2391,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../24-api-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    24 — API Gateway (REST/WebSocket)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -2410,7 +2438,7 @@
   <span class="md-ellipsis">
     
   
-    24 — API Gateway (REST/WebSocket)
+    25 — Market Index (pm-index)
   
 
     
@@ -2428,7 +2456,7 @@
   <span class="md-ellipsis">
     
   
-    24 — API Gateway (REST/WebSocket)
+    25 — Market Index (pm-index)
   
 
     
@@ -2484,13 +2512,41 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Background">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cap-weighted-formula" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cap-weighted formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-processes-and-ports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key processes and ports
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-1-generate-a-single-api-gateway-config" class="md-nav__link">
+  <a href="#exercise-1-configure-an-index" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 1: Generate a Single API Gateway Config
+        Exercise 1: Configure an Index
       
     </span>
   </a>
@@ -2498,10 +2554,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-2-start-the-api-gateway-process" class="md-nav__link">
+  <a href="#exercise-2-start-pm-index" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 2: Start the API Gateway Process
+        Exercise 2: Start pm-index
       
     </span>
   </a>
@@ -2509,10 +2565,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-3-explore-swagger-with-a-bearer-key" class="md-nav__link">
+  <a href="#exercise-3-query-the-live-index-level" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 3: Explore Swagger with a Bearer Key
+        Exercise 3: Query the Live Index Level
       
     </span>
   </a>
@@ -2520,10 +2576,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-4-submit-and-cancel-an-order-over-rest" class="md-nav__link">
+  <a href="#exercise-4-watch-the-index-move" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 4: Submit and Cancel an Order over REST
+        Exercise 4: Watch the Index Move
       
     </span>
   </a>
@@ -2531,10 +2587,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-5-use-the-python-rest-example" class="md-nav__link">
+  <a href="#exercise-5-apply-a-stock-split" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 5: Use the Python REST Example
+        Exercise 5: Apply a Stock Split
       
     </span>
   </a>
@@ -2542,10 +2598,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-6-use-the-c-rest-example" class="md-nav__link">
+  <a href="#exercise-6-apply-a-cash-dividend" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 6: Use the C REST Example
+        Exercise 6: Apply a Cash Dividend
       
     </span>
   </a>
@@ -2553,10 +2609,160 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-7-observe-websocket-events" class="md-nav__link">
+  <a href="#exercise-7-add-and-remove-a-constituent" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 7: Observe WebSocket Events
+        Exercise 7: Add and Remove a Constituent
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exercise 7: Add and Remove a Constituent">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#add-amzn-to-the-index" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Add AMZN to the index
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#remove-tsla-from-the-index" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Remove TSLA from the index
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-8-query-history-with-pm-index-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 8: Query History with pm-index-cli
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exercise 8: Query History with pm-index-cli">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list-configured-indices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        List configured indices
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-recent-intraday-snapshots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View recent intraday snapshots
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-eod-records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View EOD records
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#view-all-structural-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View all structural events
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-9-export-and-analyse-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 9: Export and Analyse Data
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exercise 9: Export and Analyse Data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#export-eod-data-to-csv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Export EOD data to CSV
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#export-intraday-data-to-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Export intraday data to JSON
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#date-range-query" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Date-range query
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-10-two-indices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 10: Two Indices
       
     </span>
   </a>
@@ -2564,10 +2770,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-8-configure-multiple-logical-api-gateways" class="md-nav__link">
+  <a href="#exercise-11-history-query-via-the-gateway" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 8: Configure Multiple Logical API Gateways
+        Exercise 11: History Query via the Gateway
       
     </span>
   </a>
@@ -2575,10 +2781,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#support-libraries-and-example-clients" class="md-nav__link">
+  <a href="#summary" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Support Libraries and Example Clients
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See Also
       
     </span>
   </a>
@@ -2589,34 +2806,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../25-index/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    25 — Market Index (pm-index)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -3021,230 +3210,424 @@
   
 
 
-<h1 id="api-gateway-restwebsocket-training">API Gateway REST/WebSocket Training<a class="headerlink" href="#api-gateway-restwebsocket-training" title="Permanent link">&para;</a></h1>
+<h1 id="market-index-pm-index">Market Index (<code>pm-index</code>)<a class="headerlink" href="#market-index-pm-index" title="Permanent link">&para;</a></h1>
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
-<p>Train on configuring and using <code>pm-api-gateway</code> for REST order entry,
-Swagger/OpenAPI exploration, WebSocket event handling, and multi-process logical
-separation.</p>
+<p>Configure and operate the <code>pm-index</code> calculation process, observe a
+cap-weighted index updating in real time, apply corporate actions without
+disrupting the index level, and analyse historical data offline with
+<code>pm-index-cli</code>.</p>
 <p>You will practice:</p>
 <ul>
-<li>generating <code>api_gateways</code> config with bearer credentials</li>
-<li>starting a named API gateway process</li>
-<li>using REST endpoints with trading and read-only keys</li>
-<li>receiving private and market-data events over WebSocket</li>
-<li>splitting API gateway processes by ALF <code>gateway_id</code></li>
+<li>generating an index config with <code>pm-config-gen</code></li>
+<li>starting <code>pm-index</code> and verifying initialisation</li>
+<li>querying the live index level through the <code>INDEX</code> gateway command</li>
+<li>watching the index move as trades execute</li>
+<li>applying a stock split and a cash dividend corporate action</li>
+<li>adding and removing index constituents without restarting</li>
+<li>querying level, EOD, and event history with <code>pm-index-cli</code></li>
+<li>exporting history to CSV and JSON for offline analysis</li>
 </ul>
 <hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
-<li>Chapters 01-23 completed.</li>
-<li>Engine and stats commands available from the current environment.</li>
-<li>REST examples available in <code>docs/examples/REST</code>.</li>
-<li>A terminal for <code>pm-engine</code>, one for <code>pm-stats</code>, one for <code>pm-api-gateway</code>, and one or more client terminals.</li>
+<li>Chapters 01–03 completed (engine running, at least one gateway, a few trades).</li>
+<li>Every constituent symbol must have <code>outstanding_shares</code> set in <code>symbols:</code>.</li>
 </ul>
-<p>Recommended startup order:</p>
+<p>Recommended startup order for this chapter:</p>
 <ol>
-<li>Generate <code>engine_config.yaml</code>.</li>
-<li>Start <code>pm-engine --verbose --config engine_config.yaml</code>.</li>
-<li>Start <code>pm-stats --config engine_config.yaml</code>.</li>
-<li>Start <code>pm-api-gateway --config engine_config.yaml --instance desk</code>.</li>
+<li>Generate <code>engine_config.yaml</code> (Exercise 1).</li>
+<li>Start <code>pm-engine</code>.</li>
+<li>Start <code>pm-index</code>.</li>
+<li>Connect two gateway terminals (one TRADER, one ADMIN).</li>
 </ol>
 <hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
-<p><code>pm-api-gateway</code> is an HTTP and WebSocket wrapper around the matching engine. It
-uses bearer tokens from <code>api_gateways.&lt;NAME&gt;.credentials</code>. A credential with a
-non-null <code>gateway_id</code> can submit and manage orders for that ALF gateway. A
-credential with <code>gateway_id: null</code> is read-only and can use status, reference,
-market-data, history, and public WebSocket paths.</p>
-<p>Multiple API gateway processes are configured with top-level <code>api_gateways</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">api_gateways</span><span class="p">:</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">desk</span><span class="p">:</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8080</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nt">credentials</span><span class="p">:</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">key-trader-demo</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER01</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="nt">algos</span><span class="p">:</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8081</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="nt">credentials</span><span class="p">:</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">key-algo-demo</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">        </span><span class="nt">gateway_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ALGO01</span>
+<p><code>pm-index</code> is a <strong>standalone</strong> process — it never sends commands to the engine.
+It subscribes to trade events published by <code>pm-engine</code> on port 5556 and
+recomputes configured indices in real time.</p>
+<h3 id="cap-weighted-formula">Cap-weighted formula<a class="headerlink" href="#cap-weighted-formula" title="Permanent link">&para;</a></h3>
+<p>Each index level is:</p>
+<div class="arithmatex">\[
+\text{level} = \frac{\sum_{\text{sym}} \text{last\_price(sym)} \times \text{outstanding\_shares(sym)}}{\text{divisor}}
+\]</div>
+<p>The divisor is chosen at first launch so the level equals <code>base_value</code>. It
+changes only when a corporate action alters share structures. This keeps the
+index level <strong>continuous</strong> across structural events.</p>
+<h3 id="key-processes-and-ports">Key processes and ports<a class="headerlink" href="#key-processes-and-ports" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-engine  PUB :5556  ──► pm-index  PUB :5558  ──► pm-md-gwy  ──► CALF clients
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                                    PULL :5559  ◄── ADMIN gateways
 </code></pre></div>
-<p>A non-null <code>gateway_id</code> may appear in only one <code>api_gateways</code> entry. This keeps
-private session and event state owned by one API gateway process. Read-only
-<code>gateway_id: null</code> credentials may appear in multiple entries.</p>
+<p>ADMIN gateways send corporate-action and history-request commands to <code>pm-index</code>
+on the PULL socket (port 5559).</p>
 <hr />
-<h2 id="exercise-1-generate-a-single-api-gateway-config">Exercise 1: Generate a Single API Gateway Config<a class="headerlink" href="#exercise-1-generate-a-single-api-gateway-config" title="Permanent link">&para;</a></h2>
-<p>Generate a local lab config with trading keys and one read-only dashboard key:</p>
+<h2 id="exercise-1-configure-an-index">Exercise 1: Configure an Index<a class="headerlink" href="#exercise-1-configure-an-index" title="Permanent link">&para;</a></h2>
+<p>Generate a complete config with one index, three constituents, and outstanding
+shares:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>TRADER02<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>AAPL:15400000000<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>MSFT:7430000000<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span>--api-gateway<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span>--api-gateway-name<span class="w"> </span>desk<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span>--api-gateway-readonly-key<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span>--api-gateway-host<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">  </span>--api-gateway-port<span class="w"> </span><span class="m">8080</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">  </span>--seed<span class="w"> </span><span class="m">20260624</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>AAPL:15000000000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>MSFT:7400000000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>TSLA:3200000000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span>--seed<span class="w"> </span><span class="m">20260625</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span>--index<span class="w"> </span>EDU100:<span class="s2">&quot;EduMatcher broad index&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">  </span>--index-constituents<span class="w"> </span>EDU100:AAPL,MSFT,TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
-<p>Inspect the generated section:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>grep<span class="w"> </span>-A40<span class="w"> </span><span class="s1">&#39;^api_gateways:&#39;</span><span class="w"> </span>engine_config.yaml
+<p>Open <code>engine_config.yaml</code> and locate the <code>indices:</code> block. It should look like:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">indices</span><span class="p">:</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EDU100</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;EduMatcher</span><span class="nv"> </span><span class="s">broad</span><span class="nv"> </span><span class="s">index&quot;</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nt">base_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000.0</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="nt">publish_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="nt">history_file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/indexes/EDU100_history.jsonl</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="nt">state_file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data/indexes/EDU100_state.json</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">    </span><span class="nt">constituents</span><span class="p">:</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AAPL</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MSFT</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TSLA</span>
 </code></pre></div>
-<p>Expected behavior:</p>
-<ul>
-<li>top-level <code>api_gateways:</code> exists</li>
-<li><code>desk:</code> has <code>port: 8080</code></li>
-<li>generated credentials exist for <code>TRADER01</code>, <code>TRADER02</code>, <code>OPS01</code>, and one read-only key</li>
-</ul>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can identify one trading key and one read-only key in the config.</p>
+<div class="admonition note">
+<p class="admonition-title">Outstanding shares</p>
+<p>Every constituent must have <code>outstanding_shares</code> set in <code>symbols:</code>.
+The default <code>pm-config-gen</code> behaviour adds this from <code>--outstanding-shares</code>.
+Without it <code>pm-index</code> will refuse to start.</p>
+</div>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>engine_config.yaml</code> contains a valid <code>indices:</code> block with all three symbols.</p>
 <hr />
-<h2 id="exercise-2-start-the-api-gateway-process">Exercise 2: Start the API Gateway Process<a class="headerlink" href="#exercise-2-start-the-api-gateway-process" title="Permanent link">&para;</a></h2>
-<p>Start the core processes with the generated config:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-engine<span class="w"> </span>--verbose<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-stats<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>pm-api-gateway<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
+<h2 id="exercise-2-start-pm-index">Exercise 2: Start <code>pm-index</code><a class="headerlink" href="#exercise-2-start-pm-index" title="Permanent link">&para;</a></h2>
+<p>In a dedicated terminal, start the index calculation process:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-index<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
 </code></pre></div>
-<p>If the config contains only one <code>api_gateways</code> entry, <code>--instance</code> can be omitted.
-Use it anyway in labs so the selected process is explicit.</p>
-<p>Expected behavior:</p>
-<ul>
-<li><code>pm-api-gateway</code> binds to <code>127.0.0.1:8080</code></li>
-<li>startup fails if <code>api_gateways.desk.enabled</code> is <code>false</code></li>
-<li>startup fails if the same non-null <code>gateway_id</code> is assigned to two named entries</li>
-</ul>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: <code>GET /api/v1/status</code> is reachable once the process is running.</p>
+<p>Expected startup output:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[INFO] pm-index starting — 1 index configured
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>[INFO] EDU100: No state file found — initialising from config
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>[INFO] EDU100: divisor=7007100000.000 level=1000.00 (base_value)  constituents=AAPL,MSFT,TSLA
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>[INFO] pm-index ready — subscribing to pm-engine on tcp://127.0.0.1:5556
+</code></pre></div>
+<p>The <code>INIT</code> record has been written to <code>data/indexes/EDU100_history.jsonl</code>.
+Verify:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>cat<span class="w"> </span>data/indexes/EDU100_history.jsonl
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;INIT&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="err">...</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;index_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EDU100&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;base_value&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1000.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;divisor&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">7007100000.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;constituents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;MSFT&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;TSLA&quot;</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;level&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1000.0</span><span class="p">}</span>
+</code></pre></div>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-index</code> running, INIT record visible in history file.</p>
 <hr />
-<h2 id="exercise-3-explore-swagger-with-a-bearer-key">Exercise 3: Explore Swagger with a Bearer Key<a class="headerlink" href="#exercise-3-explore-swagger-with-a-bearer-key" title="Permanent link">&para;</a></h2>
-<p>Open Swagger in a browser:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>http://127.0.0.1:8080/docs
+<h2 id="exercise-3-query-the-live-index-level">Exercise 3: Query the Live Index Level<a class="headerlink" href="#exercise-3-query-the-live-index-level" title="Permanent link">&para;</a></h2>
+<p>Connect your TRADER01 gateway and run the <code>INDEX</code> command:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>TRADER01&gt; INDEX
 </code></pre></div>
-<p>Use the Authorize control and paste a generated bearer token. Then run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">&#39;Authorization: Bearer key-trader-demo&#39;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/status
+<p>Expected response (level will depend on seeded prices):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[10:00:01.042] EDU100  1000.00  +0.00  +0.00%  O=-- H=-- L=--  PRE_OPEN
 </code></pre></div>
-<p>Replace <code>key-trader-demo</code> with a key from your generated config.</p>
-<p>Try the same request with a read-only key, then try a write endpoint with the
-read-only key.</p>
-<p>Expected behavior:</p>
-<ul>
-<li>status works for trading and read-only keys</li>
-<li>order entry rejects a read-only key</li>
-<li>Swagger lists the same route shapes exposed by <code>/openapi.json</code></li>
-</ul>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can authenticate in Swagger and explain which key is allowed to submit orders.</p>
+<p>Fields shown:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Timestamp</td>
+<td>UTC time of the reading</td>
+</tr>
+<tr>
+<td>Index ID</td>
+<td><code>EDU100</code></td>
+</tr>
+<tr>
+<td>Level</td>
+<td>Current calculated level</td>
+</tr>
+<tr>
+<td>Change / %</td>
+<td>Change from day open (empty before first open)</td>
+</tr>
+<tr>
+<td>O / H / L</td>
+<td>Day open, high, low (empty before continuous trading begins)</td>
+</tr>
+<tr>
+<td>Session state</td>
+<td>Current engine session state</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>INDEX</code> command works from any gateway role (TRADER, ADMIN, or read-only).</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>INDEX</code> command returns a level for <code>EDU100</code>.</p>
 <hr />
-<h2 id="exercise-4-submit-and-cancel-an-order-over-rest">Exercise 4: Submit and Cancel an Order over REST<a class="headerlink" href="#exercise-4-submit-and-cancel-an-order-over-rest" title="Permanent link">&para;</a></h2>
-<p>Submit a limit order with a trading key:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/orders<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">&#39;Authorization: Bearer key-trader-demo&#39;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">&#39;Content-Type: application/json&#39;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="s1">    &quot;symbol&quot;: &quot;AAPL&quot;,</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="s1">    &quot;side&quot;: &quot;BUY&quot;,</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="s1">    &quot;order_type&quot;: &quot;LIMIT&quot;,</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="s1">    &quot;quantity&quot;: 100,</span>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="s1">    &quot;price&quot;: 209.50,</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="s1">    &quot;time_in_force&quot;: &quot;DAY&quot;</span>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="s1">  }&#39;</span>
+<h2 id="exercise-4-watch-the-index-move">Exercise 4: Watch the Index Move<a class="headerlink" href="#exercise-4-watch-the-index-move" title="Permanent link">&para;</a></h2>
+<p>Start the engine session and execute a few trades:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>OPS01&gt; SESSION|ACTION=START
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=500
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>TRADER01&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=300
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>TRADER01&gt; NEW|SYM=TSLA|SIDE=SELL|TYPE=MARKET|QTY=200
 </code></pre></div>
-<p>Capture the returned <code>order_id</code>, then cancel it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>DELETE<span class="w"> </span>http://127.0.0.1:8080/api/v1/orders/ORDER_ID<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">&#39;Authorization: Bearer key-trader-demo&#39;</span>
+<p>After each fill, query the index again:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>TRADER01&gt; INDEX
 </code></pre></div>
-<p>Expected behavior:</p>
-<ul>
-<li>the submit call returns an accepted response or an engine validation error</li>
-<li>a valid cancel request targets the authenticated credential's <code>gateway_id</code></li>
-<li>read-only keys cannot submit or cancel orders</li>
-</ul>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can submit an order and observe its cancel path or explain the engine-side validation error.</p>
+<p>Observe the level changing as trades update the constituent prices. The index is
+recalculated on every trade but published at most once per second (the
+<code>publish_interval_sec</code> throttle).</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Run <code>INDEX</code> several times in quick succession to see the throttle in action —
+the level updates, but the published timestamp advances at most once per second.</p>
+</div>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> index level changed after trades; querying <code>INDEX</code> shows the new value.</p>
 <hr />
-<h2 id="exercise-5-use-the-python-rest-example">Exercise 5: Use the Python REST Example<a class="headerlink" href="#exercise-5-use-the-python-rest-example" title="Permanent link">&para;</a></h2>
-<p>From the REST example directory, run the Python client or adapt it with the key
-and port from your config:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/python
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nv">EDUMATCHER_API_URL</span><span class="o">=</span>http://127.0.0.1:8080<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="nv">EDUMATCHER_API_KEY</span><span class="o">=</span>key-trader-demo<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>python3<span class="w"> </span>demo_info.py
+<h2 id="exercise-5-apply-a-stock-split">Exercise 5: Apply a Stock Split<a class="headerlink" href="#exercise-5-apply-a-stock-split" title="Permanent link">&para;</a></h2>
+<p>Suppose AAPL announces a 2-for-1 stock split. Without adjustment, the index
+would drop by ~50% when AAPL's price halves — which is wrong because no value
+was destroyed.</p>
+<p>Apply the split from your ADMIN gateway:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>OPS01&gt; CORP_ACTION|INDEX=EDU100|SYM=AAPL|ACTION=SPLIT|NUM=2|DEN=1
 </code></pre></div>
-<p>Use the example source as a reference for adding status, order-entry, and cancel
-calls to a test harness.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: the Python client reaches the gateway and sends authenticated requests.</p>
+<p>Expected response:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[OK] CORP_ACTION applied: AAPL SPLIT 2:1 — divisor adjusted, index level preserved
+</code></pre></div>
+<p>Query the index immediately after:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>OPS01&gt; INDEX
+</code></pre></div>
+<p>The level should be <strong>unchanged</strong> (or differ by only rounding). Now check that
+the divisor was adjusted in the history file:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>grep<span class="w"> </span>CORP_ACTION<span class="w"> </span>data/indexes/EDU100_history.jsonl<span class="w"> </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>json.tool
+</code></pre></div>
+<p>You should see <code>old_divisor</code> and <code>new_divisor</code> in the record, with
+<code>new_divisor</code> approximately half of <code>old_divisor</code> (AAPL's share count doubled,
+so the aggregate cap doubled, so the divisor was adjusted upward to match).</p>
+<div class="admonition important">
+<p class="admonition-title">Apply during PRE_OPEN</p>
+<p>Applying a corporate action mid-session means one more trade at the old
+price may be processed before the divisor update. Best practice is to apply
+all corporate actions during <code>PRE_OPEN</code>.</p>
+</div>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> index level unchanged after split; <code>CORP_ACTION</code> record written to history.</p>
 <hr />
-<h2 id="exercise-6-use-the-c-rest-example">Exercise 6: Use the C REST Example<a class="headerlink" href="#exercise-6-use-the-c-rest-example" title="Permanent link">&para;</a></h2>
-<p>Build and run the C example from the REST example directory:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/c
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>make
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="nv">EDUMATCHER_API_KEY</span><span class="o">=</span>key-trader-demo<span class="w"> </span>./demo_info
+<h2 id="exercise-6-apply-a-cash-dividend">Exercise 6: Apply a Cash Dividend<a class="headerlink" href="#exercise-6-apply-a-cash-dividend" title="Permanent link">&para;</a></h2>
+<p>Apply a $2.50 cash dividend for MSFT:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>OPS01&gt; CORP_ACTION|INDEX=EDU100|SYM=MSFT|ACTION=CASH_DIVIDEND|DIV=2.50
 </code></pre></div>
-<p>Expected behavior:</p>
-<ul>
-<li>the client sends an Authorization header</li>
-<li>status or order-entry responses are printed as JSON</li>
-<li>connection errors identify an unavailable gateway process or wrong port</li>
-</ul>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: the C example can call the running API gateway with a configured key.</p>
+<p>A cash dividend reduces the effective price by the dividend amount. The divisor
+is adjusted to compensate so the index level is preserved.</p>
+<p>Verify the level before and after:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>OPS01&gt; INDEX        (before)
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>OPS01&gt; CORP_ACTION|INDEX=EDU100|SYM=MSFT|ACTION=CASH_DIVIDEND|DIV=2.50
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>OPS01&gt; INDEX        (after)
+</code></pre></div>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> index level preserved across dividend adjustment.</p>
 <hr />
-<h2 id="exercise-7-observe-websocket-events">Exercise 7: Observe WebSocket Events<a class="headerlink" href="#exercise-7-observe-websocket-events" title="Permanent link">&para;</a></h2>
-<p>Connect to private events before submitting new orders:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>websockets<span class="w"> </span>ws://127.0.0.1:8080/api/v1/events<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">&#39;Authorization: Bearer key-trader-demo&#39;</span>
+<h2 id="exercise-7-add-and-remove-a-constituent">Exercise 7: Add and Remove a Constituent<a class="headerlink" href="#exercise-7-add-and-remove-a-constituent" title="Permanent link">&para;</a></h2>
+<h3 id="add-amzn-to-the-index">Add AMZN to the index<a class="headerlink" href="#add-amzn-to-the-index" title="Permanent link">&para;</a></h3>
+<p>Adding a constituent adjusts the divisor so the level does not jump at the
+moment of addition. You must supply the new shares and a reference price:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>OPS01&gt; CORP_ACTION|INDEX=EDU100|SYM=AMZN|ACTION=ADD|SHARES=10500000000|PRICE=195.00
 </code></pre></div>
-<p>In another terminal, submit or cancel an order with the same key. Observe the
-private event stream.</p>
-<p>Then connect to a public market-data WebSocket with a read-only key, if enabled
-in your local route set:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>websockets<span class="w"> </span>ws://127.0.0.1:8080/api/v1/market-data<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span>-H<span class="w"> </span><span class="s1">&#39;Authorization: Bearer key-readonly-demo&#39;</span>
+<p>Check that AMZN now appears when you run <code>INDEX</code>. It may take a few trades before
+AMZN's price updates from the seeded reference.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>OPS01&gt; INDEX
 </code></pre></div>
-<p>Expected behavior:</p>
-<ul>
-<li>private events correspond to the authenticated trading gateway</li>
-<li>public market-data access does not require a non-null <code>gateway_id</code></li>
-<li>stale or unknown bearer keys are rejected</li>
-</ul>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain when to use REST responses versus WebSocket events for order outcomes.</p>
+<h3 id="remove-tsla-from-the-index">Remove TSLA from the index<a class="headerlink" href="#remove-tsla-from-the-index" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>OPS01&gt; CORP_ACTION|INDEX=EDU100|SYM=TSLA|ACTION=DELIST
+</code></pre></div>
+<p>Expected response:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>[OK] CORP_ACTION applied: TSLA DELIST — divisor adjusted, index level preserved
+</code></pre></div>
+<p>Run <code>INDEX</code> again and confirm TSLA no longer appears in the constituent listing.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> AMZN added and TSLA removed without visible discontinuity in the index level.</p>
 <hr />
-<h2 id="exercise-8-configure-multiple-logical-api-gateways">Exercise 8: Configure Multiple Logical API Gateways<a class="headerlink" href="#exercise-8-configure-multiple-logical-api-gateways" title="Permanent link">&para;</a></h2>
-<p>Generate two API gateway process configs, one for desk trading and one for
-algorithmic trading:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>ALGO01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>desk:TRADER01:8080<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>algos:ALGO01:8081<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">  </span>--seed<span class="w"> </span><span class="m">20260624</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
+<h2 id="exercise-8-query-history-with-pm-index-cli">Exercise 8: Query History with <code>pm-index-cli</code><a class="headerlink" href="#exercise-8-query-history-with-pm-index-cli" title="Permanent link">&para;</a></h2>
+<p><code>pm-index-cli</code> reads history files directly from disk — <code>pm-index</code> does <strong>not</strong>
+need to be running.</p>
+<h3 id="list-configured-indices">List configured indices<a class="headerlink" href="#list-configured-indices" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>indices
 </code></pre></div>
-<p>Start each named process in a separate terminal:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-api-gateway<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>pm-api-gateway<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>algos
+<h3 id="view-recent-intraday-snapshots">View recent intraday snapshots<a class="headerlink" href="#view-recent-intraday-snapshots" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>level<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--days<span class="w"> </span><span class="m">1</span>
 </code></pre></div>
-<p>Try an invalid duplicate assignment:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>desk:TRADER01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>algos:TRADER01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">  </span>--dry-run
+<p>Sample table output:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>ts                  | index_id | level   | session_state | aggregate_cap       | divisor
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>--------------------+----------+---------+---------------+---------------------+--------------
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>2026-06-25T10:00:01 | EDU100   | 1000.00 | PRE_OPEN      | 7007100000000.00    | 7007100000.0
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a>2026-06-25T10:01:23 | EDU100   | 1034.82 | CONTINUOUS    | 7251000000000.00    | 7007100000.0
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>...
 </code></pre></div>
-<p>Expected behavior:</p>
-<ul>
-<li><code>desk</code> listens on <code>8080</code> and owns <code>TRADER01</code></li>
-<li><code>algos</code> listens on <code>8081</code> and owns <code>ALGO01</code></li>
-<li>duplicate non-null <code>gateway_id</code> assignment is rejected before runtime</li>
-</ul>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can run two API gateway processes and explain why a write-capable gateway ID is globally unique across them.</p>
+<h3 id="view-eod-records">View EOD records<a class="headerlink" href="#view-eod-records" title="Permanent link">&para;</a></h3>
+<p>At the end of the session <code>pm-index</code> writes one EOD record. Query all EOD
+records (table format):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>eod
+</code></pre></div>
+<h3 id="view-all-structural-events">View all structural events<a class="headerlink" href="#view-all-structural-events" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>events<span class="w"> </span>--index<span class="w"> </span>EDU100
+</code></pre></div>
+<p>This shows <code>INIT</code>, <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, and <code>DELIST</code> records.
+You should see the split, dividend, add, and delist from earlier exercises.</p>
+<p>Filter to only corporate actions:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>events<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--type<span class="w"> </span>CORP_ACTION
+</code></pre></div>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-index-cli</code> returns level, EOD, and event records.</p>
 <hr />
-<h2 id="support-libraries-and-example-clients">Support Libraries and Example Clients<a class="headerlink" href="#support-libraries-and-example-clients" title="Permanent link">&para;</a></h2>
-<p>Reference examples used in this training chapter:</p>
+<h2 id="exercise-9-export-and-analyse-data">Exercise 9: Export and Analyse Data<a class="headerlink" href="#exercise-9-export-and-analyse-data" title="Permanent link">&para;</a></h2>
+<h3 id="export-eod-data-to-csv">Export EOD data to CSV<a class="headerlink" href="#export-eod-data-to-csv" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>eod<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>&gt;<span class="w"> </span>edu100_eod.csv
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>cat<span class="w"> </span>edu100_eod.csv
+</code></pre></div>
+<h3 id="export-intraday-data-to-json">Export intraday data to JSON<a class="headerlink" href="#export-intraday-data-to-json" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>level<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="s2">import json, sys</span>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="s2">rows = json.load(sys.stdin)</span>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="s2">print(f&#39;{len(rows)} snapshots&#39;)</span>
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="s2">if rows:</span>
+<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="s2">    print(f&#39;First: {rows[0][\&quot;ts\&quot;]}  level={rows[0][\&quot;level\&quot;]}&#39;)</span>
+<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a><span class="s2">    print(f&#39;Last:  {rows[-1][\&quot;ts\&quot;]}  level={rows[-1][\&quot;level\&quot;]}&#39;)</span>
+<a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a><span class="s2">&quot;</span>
+</code></pre></div>
+<h3 id="date-range-query">Date-range query<a class="headerlink" href="#date-range-query" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>level<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="w">  </span>--index<span class="w"> </span>EDU100<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-06-25<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="w">  </span>--to<span class="w"> </span><span class="m">2026</span>-06-25<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="w">  </span>--limit<span class="w"> </span><span class="m">500</span>
+</code></pre></div>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> CSV and JSON exports contain the expected data.</p>
+<hr />
+<h2 id="exercise-10-two-indices">Exercise 10: Two Indices<a class="headerlink" href="#exercise-10-two-indices" title="Permanent link">&para;</a></h2>
+<p>Configure a second, narrower index alongside <code>EDU100</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>AAPL:15000000000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>MSFT:7400000000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a><span class="w">  </span>--outstanding-shares<span class="w"> </span>TSLA:3200000000<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a><span class="w">  </span>--sessions-enabled<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a><span class="w">  </span>--seed<span class="w"> </span><span class="m">20260625</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a><span class="w">  </span>--index<span class="w"> </span>EDU100:<span class="s2">&quot;EduMatcher broad index&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a><span class="w">  </span>--index-constituents<span class="w"> </span>EDU100:AAPL,MSFT,TSLA<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a><span class="w">  </span>--index<span class="w"> </span>TECH2:<span class="s2">&quot;Technology pair&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a><span class="w">  </span>--index-constituents<span class="w"> </span>TECH2:AAPL,MSFT<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a><span class="w">  </span>--index-base-value<span class="w"> </span>TECH2:500.0<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a><span class="w">  </span>--index-interval<span class="w"> </span>TECH2:2.0<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-30-15" name="__codelineno-30-15" href="#__codelineno-30-15"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
+</code></pre></div>
+<p>Restart <code>pm-index</code> with <code>--reset</code> to clear state and re-initialise:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>pm-index<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--reset
+</code></pre></div>
+<div class="admonition warning">
+<p class="admonition-title"><code>--reset</code> discards divisors</p>
+<p><code>--reset</code> removes all state files. The divisors for both indices are
+recomputed from scratch using current reference prices. Use only when
+you intentionally want a clean slate.</p>
+</div>
+<p>Run <code>INDEX</code> in the TRADER terminal to see both indices:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>TRADER01&gt; INDEX
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>[10:00:01.100] EDU100   1000.00  +0.00  +0.00%  PRE_OPEN
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>[10:00:01.100] TECH2     500.00  +0.00  +0.00%  PRE_OPEN
+</code></pre></div>
+<p>Use <code>pm-index-cli</code> to list both:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>indices
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>level<span class="w"> </span>--days<span class="w"> </span><span class="m">1</span>
+</code></pre></div>
+<p>With no <code>--index</code> filter, all configured indices are queried.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> both <code>EDU100</code> and <code>TECH2</code> reported by <code>INDEX</code> command and <code>pm-index-cli</code>.</p>
+<hr />
+<h2 id="exercise-11-history-query-via-the-gateway">Exercise 11: History Query via the Gateway<a class="headerlink" href="#exercise-11-history-query-via-the-gateway" title="Permanent link">&para;</a></h2>
+<p><code>pm-index</code> also accepts history requests directly through the ADMIN gateway.
+These go over the PULL socket (port 5559) and return records inline:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>OPS01&gt; INDEX|HISTORY
+</code></pre></div>
+<p>Returns the last 30 days of LEVEL and EOD records.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>OPS01&gt; INDEX|HISTORY|FROM=2026-06-25|TO=2026-06-25
+</code></pre></div>
+<p>Returns records within the specified date range, newest last.</p>
+<div class="admonition tip">
+<p class="admonition-title">Gateway vs <code>pm-index-cli</code></p>
+<p>The gateway <code>INDEX|HISTORY</code> command is convenient for quick lookups in the
+operator terminal. For richer filtering, multi-index queries, CSV/JSON export,
+or scripting workflows, use <code>pm-index-cli</code> instead — it reads files directly
+without going through the network.</p>
+</div>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>INDEX|HISTORY</code> returns records; date-range filter works.</p>
+<hr />
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>Command / file</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Start index process</td>
+<td><code>pm-index --config engine_config.yaml</code></td>
+</tr>
+<tr>
+<td>Re-initialise from scratch</td>
+<td><code>pm-index --reset</code></td>
+</tr>
+<tr>
+<td>Live level query</td>
+<td><code>INDEX</code> (any gateway)</td>
+</tr>
+<tr>
+<td>History query (gateway)</td>
+<td><code>INDEX\|HISTORY</code>, <code>INDEX\|HISTORY\|FROM=…\|TO=…</code></td>
+</tr>
+<tr>
+<td>Stock split</td>
+<td><code>CORP_ACTION\|INDEX=…\|SYM=…\|ACTION=SPLIT\|NUM=…\|DEN=…</code></td>
+</tr>
+<tr>
+<td>Cash dividend</td>
+<td><code>CORP_ACTION\|INDEX=…\|SYM=…\|ACTION=CASH_DIVIDEND\|DIV=…</code></td>
+</tr>
+<tr>
+<td>Shares issuance</td>
+<td><code>CORP_ACTION\|INDEX=…\|SYM=…\|ACTION=SHARES_ISSUANCE\|SHARES=…</code></td>
+</tr>
+<tr>
+<td>Add constituent</td>
+<td><code>CORP_ACTION\|INDEX=…\|SYM=…\|ACTION=ADD\|SHARES=…\|PRICE=…</code></td>
+</tr>
+<tr>
+<td>Remove constituent</td>
+<td><code>CORP_ACTION\|INDEX=…\|SYM=…\|ACTION=DELIST</code></td>
+</tr>
+<tr>
+<td>List configured indices</td>
+<td><code>pm-index-cli --config … indices</code></td>
+</tr>
+<tr>
+<td>Intraday snapshots</td>
+<td><code>pm-index-cli --config … level --index ID --days N</code></td>
+</tr>
+<tr>
+<td>EOD records</td>
+<td><code>pm-index-cli --config … eod</code></td>
+</tr>
+<tr>
+<td>Structural events</td>
+<td><code>pm-index-cli --config … events [--type TYPE]</code></td>
+</tr>
+<tr>
+<td>CSV export</td>
+<td><code>pm-index-cli --config … eod --format csv &gt; out.csv</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
-<li><code>docs/examples/REST/python</code></li>
-<li><code>docs/examples/REST/c</code></li>
+<li><a href="../../user-guide/22-index/">Market Index — User Guide</a> — full reference for config fields, formulas, and history record types</li>
+<li><a href="../../user-guide/02-commands/">pm-index-cli reference</a> — all subcommands, column descriptions, and output-format options</li>
+<li><a href="../../user-guide/01-configuration/#configuring-pm-index">Engine Configuration</a> — <code>indices:</code> YAML field reference</li>
+<li><a href="../../user-guide/10-processes/#pm-index--index-calculation-process">Process Reference — pm-index</a> — socket layout and message types</li>
 </ul>
-<p>Use these examples as small integration clients when building course labs,
-smoke tests, or external adapter prototypes.</p>
 
 
 

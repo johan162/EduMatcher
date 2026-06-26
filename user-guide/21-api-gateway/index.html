@@ -18,7 +18,7 @@
         <link rel="prev" href="../20-market-data-feed/">
       
       
-        <link rel="next" href="../80-examples/">
+        <link rel="next" href="../22-index/">
       
       
         
@@ -1616,6 +1616,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../22-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Index (pm-index)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../80-examples/" class="md-nav__link">
         
   
@@ -2594,6 +2622,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/25-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    25 — Market Index (pm-index)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3338,6 +3394,12 @@ cannot submit, cancel, or inspect private orders.</p>
 <td>any valid key</td>
 <td>Daily OHLCV rows</td>
 </tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/healthz</code></td>
+<td>none</td>
+<td>Liveness probe (not in Swagger)</td>
+</tr>
 </tbody>
 </table>
 <h3 id="submit-order">Submit order<a class="headerlink" href="#submit-order" title="Permanent link">&para;</a></h3>
@@ -3418,7 +3480,10 @@ cannot submit, cancel, or inspect private orders.</p>
 </tbody>
 </table>
 <p>Default write calls return immediately with <code>202 Accepted</code>. Add <code>?wait=ack</code> to
-wait for the matching engine ACK until the configured timeout.</p>
+wait for the matching engine ACK until the configured timeout. The wait filters
+by <code>order_id</code> so concurrent requests on the same gateway receive their own ack.</p>
+<p>Submitting an order with a <code>client_order_id</code> that already exists in the session
+cache returns <code>409 Conflict</code>.</p>
 <h3 id="cancel-amend-and-replace">Cancel, amend, and replace<a class="headerlink" href="#cancel-amend-and-replace" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -3539,11 +3604,11 @@ or use <code>gateway_id: null</code> for read-only dashboard credentials.</p>
 <p>Swagger exposure is configurable with <code>swagger_enabled</code>. Plain bearer keys in
 YAML are used for teaching and local labs; production deployments should put the
 gateway behind TLS and manage secrets with the surrounding platform.</p>
-<p><code>?wait=ack</code> waits for the next matching engine topic for that gateway. For
-high-concurrency clients sharing one <code>gateway_id</code>, use the private <code>/events</code>
-WebSocket as the authoritative per-order outcome stream.</p>
-<p><code>engine_reply_sec</code> and <code>wait_ack_sec</code> are applied from configuration. The
-engine authentication handshake currently uses a fixed 3 second timeout.</p>
+<p><code>?wait=ack</code> waits for the engine event matching both the topic and the specific
+<code>order_id</code>. Concurrent requests sharing one <code>gateway_id</code> each resolve
+independently.</p>
+<p><code>engine_auth_sec</code>, <code>engine_reply_sec</code>, and <code>wait_ack_sec</code> are all applied from
+configuration.</p>
 <p>The implementation keeps engine payloads close to the existing EduMatcher event
 model. Outbound WebSocket events are wrapped in a consistent envelope, but they
 do not attempt broad tick-to-display price rewriting beyond the payloads already
@@ -3560,6 +3625,7 @@ created and populated the configured database.</p>
 <li>Confirm each non-null <code>gateway_id</code> appears in only one API gateway entry</li>
 <li>Start <code>pm-engine</code>, <code>pm-stats</code>, then <code>pm-api-gateway --instance NAME</code></li>
 <li>Open <code>/docs</code> if Swagger is enabled</li>
+<li>Test <code>GET /api/v1/healthz</code> (no auth required) — returns <code>{"ok": true}</code> when the engine listener is running</li>
 <li>Test <code>GET /api/v1/status</code> with a bearer token</li>
 <li>Connect <code>/api/v1/events</code> before submitting orders if you want async outcomes</li>
 <li>Use <code>/history/*</code> only when <code>pm-stats</code> is running and writing <code>stats.db</code></li>

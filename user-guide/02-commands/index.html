@@ -1230,6 +1230,89 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pm-index-cli-index-history-query-tool" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pm-index-cli — Index History Query Tool
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="pm-index-cli — Index History Query Tool">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#global-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#subcommands_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Subcommands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#output-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output columns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#no-row-behaviour" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        No-row behaviour
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plotting-example-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plotting example (Python)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#exchangecommandclient" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1967,6 +2050,34 @@
     
   
     API Gateway (REST/WebSocket)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../22-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Market Index (pm-index)
   
 
     
@@ -2952,6 +3063,34 @@
     
   
     24 — API Gateway (REST/WebSocket)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/25-index/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    25 — Market Index (pm-index)
   
 
     
@@ -4029,10 +4168,338 @@ entire engine session.</p>
 <a id="__codelineno-38-14" name="__codelineno-38-14" href="#__codelineno-38-14"></a><span class="c1"># Reopen AAPL when satisfied</span>
 <a id="__codelineno-38-15" name="__codelineno-38-15" href="#__codelineno-38-15"></a>pm-admin-cli<span class="w"> </span><span class="nv">$ID</span><span class="w"> </span>resume-sym<span class="w"> </span>--sym<span class="w"> </span>AAPL
 </code></pre></div>
+<h2 id="pm-index-cli-index-history-query-tool"><code>pm-index-cli</code> — Index History Query Tool<a class="headerlink" href="#pm-index-cli-index-history-query-tool" title="Permanent link">&para;</a></h2>
+<p><code>pm-index-cli</code> is a read-only command-line tool for querying index history
+files written by <code>pm-index</code>. It reads JSONL files directly from disk — no
+running <code>pm-index</code> process is required.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>pm-index-cli<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--data-dir<span class="w"> </span>DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>table<span class="p">|</span>json<span class="p">|</span>csv<span class="o">]</span><span class="w"> </span><span class="o">[</span>--no-header<span class="o">]</span><span class="w"> </span>COMMAND<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+</code></pre></div>
+<h3 id="global-options">Global options<a class="headerlink" href="#global-options" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--config PATH</code> / <code>-c PATH</code></td>
+<td>unset</td>
+<td>Path to <code>engine_config.yaml</code>; used to discover history file paths and index IDs automatically</td>
+</tr>
+<tr>
+<td><code>--data-dir DIR</code></td>
+<td><code>data/indexes</code></td>
+<td>Directory containing history JSONL files; used when <code>--config</code> is not given or an index is not in config</td>
+</tr>
+<tr>
+<td><code>--format table\|json\|csv</code></td>
+<td><code>table</code></td>
+<td>Output format</td>
+</tr>
+<tr>
+<td><code>--no-header</code></td>
+<td>off</td>
+<td>Suppress header row (CSV only)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="subcommands_1">Subcommands<a class="headerlink" href="#subcommands_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Subcommand</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>level</code></td>
+<td>Throttled LEVEL records — index value snapshots captured during trading</td>
+</tr>
+<tr>
+<td><code>eod</code></td>
+<td>EOD records — one row per trading day with open/high/low/close</td>
+</tr>
+<tr>
+<td><code>events</code></td>
+<td>Structural events: <code>INIT</code>, <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, <code>DELIST</code></td>
+</tr>
+<tr>
+<td><code>indices</code></td>
+<td>List configured indices from <code>engine_config.yaml</code></td>
+</tr>
+</tbody>
+</table>
+<p>All history subcommands (<code>level</code>, <code>eod</code>, <code>events</code>) share the same set of
+per-index and time-range options:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--index ID</code> / <code>-i ID</code></td>
+<td>Index ID to query (repeatable); defaults to all configured indices when <code>--config</code> is given</td>
+</tr>
+<tr>
+<td><code>--days N</code></td>
+<td>Return records from the last N days (mutually exclusive with <code>--from</code>)</td>
+</tr>
+<tr>
+<td><code>--from DATE_OR_TS</code></td>
+<td>Start of time range: <code>YYYY-MM-DD</code> or ISO-8601 (mutually exclusive with <code>--days</code>)</td>
+</tr>
+<tr>
+<td><code>--to DATE_OR_TS</code></td>
+<td>End of time range: <code>YYYY-MM-DD</code> or ISO-8601 (default: now)</td>
+</tr>
+<tr>
+<td><code>--limit N</code></td>
+<td>Maximum rows per index</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>events</code> subcommand also accepts:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--type TYPE</code> / <code>-t TYPE</code></td>
+<td>Filter to one event type (repeatable): <code>INIT</code>, <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, <code>DELIST</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="output-columns">Output columns<a class="headerlink" href="#output-columns" title="Permanent link">&para;</a></h3>
+<p><strong><code>level</code> subcommand:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ts</code></td>
+<td>UTC timestamp (<code>YYYY-MM-DDTHH:MM:SS</code>)</td>
+</tr>
+<tr>
+<td><code>index_id</code></td>
+<td>Index identifier</td>
+</tr>
+<tr>
+<td><code>level</code></td>
+<td>Index level at this snapshot</td>
+</tr>
+<tr>
+<td><code>session_state</code></td>
+<td>Session state at time of snapshot</td>
+</tr>
+<tr>
+<td><code>aggregate_cap</code></td>
+<td>Aggregate market capitalisation (sum of price × shares for all constituents)</td>
+</tr>
+<tr>
+<td><code>divisor</code></td>
+<td>Current divisor</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>eod</code> subcommand:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>date</code></td>
+<td>Calendar date (<code>YYYY-MM-DD</code>)</td>
+</tr>
+<tr>
+<td><code>index_id</code></td>
+<td>Index identifier</td>
+</tr>
+<tr>
+<td><code>open</code></td>
+<td>Day-open index level</td>
+</tr>
+<tr>
+<td><code>high</code></td>
+<td>Day-high index level</td>
+</tr>
+<tr>
+<td><code>low</code></td>
+<td>Day-low index level</td>
+</tr>
+<tr>
+<td><code>close</code></td>
+<td>Closing index level</td>
+</tr>
+<tr>
+<td><code>level</code></td>
+<td>Final level at EOD write time (same as <code>close</code>)</td>
+</tr>
+<tr>
+<td><code>aggregate_cap</code></td>
+<td>Aggregate market cap at session close</td>
+</tr>
+<tr>
+<td><code>divisor</code></td>
+<td>Divisor at session close</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>events</code> subcommand:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ts</code></td>
+<td>UTC timestamp</td>
+</tr>
+<tr>
+<td><code>index_id</code></td>
+<td>Index identifier</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>Event type: <code>INIT</code>, <code>CORP_ACTION</code>, <code>ADD_CONSTITUENT</code>, or <code>DELIST</code></td>
+</tr>
+<tr>
+<td><code>symbol</code></td>
+<td>Affected symbol (empty for <code>INIT</code>)</td>
+</tr>
+<tr>
+<td><code>detail</code></td>
+<td>Human-readable summary (e.g. <code>SPLIT 2:1</code>, <code>ref_price=195.0</code>)</td>
+</tr>
+<tr>
+<td><code>old_divisor</code></td>
+<td>Divisor before adjustment (empty for <code>INIT</code>)</td>
+</tr>
+<tr>
+<td><code>new_divisor</code></td>
+<td>Divisor after adjustment (empty for <code>INIT</code>)</td>
+</tr>
+<tr>
+<td><code>level</code></td>
+<td>Index level after the event</td>
+</tr>
+</tbody>
+</table>
+<h3 id="examples">Examples<a class="headerlink" href="#examples" title="Permanent link">&para;</a></h3>
+<p><strong>Current day's live index snapshots:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>level<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--days<span class="w"> </span><span class="m">1</span>
+</code></pre></div>
+<p><strong>All EOD records for two indices (table format):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>eod<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--index<span class="w"> </span>TECH2
+</code></pre></div>
+<p><strong>EOD records as CSV for spreadsheet import:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>eod<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>&gt;<span class="w"> </span>index_history.csv
+</code></pre></div>
+<p><strong>EOD records as JSON for scripting:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>eod<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-43-2" name="__codelineno-43-2" href="#__codelineno-43-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import json,sys; [print(r[&#39;date&#39;], r[&#39;close&#39;]) for r in json.load(sys.stdin)]&quot;</span>
+</code></pre></div>
+<p><strong>Corporate actions and constituent changes in the last 30 days:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>events<span class="w"> </span>--days<span class="w"> </span><span class="m">30</span>
+</code></pre></div>
+<p><strong>Only stock-split events, all time:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>events<span class="w"> </span>--type<span class="w"> </span>CORP_ACTION<span class="w"> </span>--index<span class="w"> </span>EDU100
+</code></pre></div>
+<p><strong>60-day intraday snapshots in a date range for analysis:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a>pm-index-cli<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-46-2" name="__codelineno-46-2" href="#__codelineno-46-2"></a><span class="w">  </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-46-3" name="__codelineno-46-3" href="#__codelineno-46-3"></a><span class="w">  </span>--format<span class="w"> </span>csv<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-46-4" name="__codelineno-46-4" href="#__codelineno-46-4"></a><span class="w">  </span>level<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-46-5" name="__codelineno-46-5" href="#__codelineno-46-5"></a><span class="w">  </span>--index<span class="w"> </span>EDU100<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-46-6" name="__codelineno-46-6" href="#__codelineno-46-6"></a><span class="w">  </span>--from<span class="w"> </span><span class="m">2026</span>-05-01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-46-7" name="__codelineno-46-7" href="#__codelineno-46-7"></a><span class="w">  </span>--to<span class="w"> </span><span class="m">2026</span>-06-25<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-46-8" name="__codelineno-46-8" href="#__codelineno-46-8"></a><span class="w">  </span>--limit<span class="w"> </span><span class="m">50000</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-46-9" name="__codelineno-46-9" href="#__codelineno-46-9"></a><span class="w">  </span>&gt;<span class="w"> </span>idu100_intraday.csv
+</code></pre></div>
+<p><strong>List all configured indices:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>indices
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>id     | description              | history_file                            | state_file                           | constituents
+<a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a>-------+--------------------------+-----------------------------------------+--------------------------------------+----------------
+<a id="__codelineno-48-3" name="__codelineno-48-3" href="#__codelineno-48-3"></a>EDU100 | EduMatcher broad index   | data/indexes/EDU100_history.jsonl       | data/indexes/EDU100_state.json       | AAPL,MSFT,TSLA
+<a id="__codelineno-48-4" name="__codelineno-48-4" href="#__codelineno-48-4"></a>TECH2  | Technology pair          | data/indexes/TECH2_history.jsonl        | data/indexes/TECH2_state.json        | AAPL,MSFT
+</code></pre></div>
+<p><strong>Without a config file (direct path):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a>pm-index-cli<span class="w"> </span>--format<span class="w"> </span>table<span class="w"> </span>level<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-49-2" name="__codelineno-49-2" href="#__codelineno-49-2"></a><span class="w">  </span>--index<span class="w"> </span>EDU100<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-49-3" name="__codelineno-49-3" href="#__codelineno-49-3"></a><span class="w">  </span>--data-dir<span class="w"> </span>/var/edumatcher/indexes<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-49-4" name="__codelineno-49-4" href="#__codelineno-49-4"></a><span class="w">  </span>--days<span class="w"> </span><span class="m">7</span>
+</code></pre></div>
+<h3 id="no-row-behaviour">No-row behaviour<a class="headerlink" href="#no-row-behaviour" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Format</th>
+<th>Output when no rows match</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>table</code></td>
+<td><code>No rows found.</code></td>
+</tr>
+<tr>
+<td><code>json</code></td>
+<td><code>[]</code></td>
+</tr>
+<tr>
+<td><code>csv</code></td>
+<td>Header row only (unless <code>--no-header</code>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="plotting-example-python">Plotting example (Python)<a class="headerlink" href="#plotting-example-python" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">subprocess</span><span class="o">,</span><span class="w"> </span><span class="nn">json</span><span class="o">,</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<a id="__codelineno-50-2" name="__codelineno-50-2" href="#__codelineno-50-2"></a>
+<a id="__codelineno-50-3" name="__codelineno-50-3" href="#__codelineno-50-3"></a><span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span>
+<a id="__codelineno-50-4" name="__codelineno-50-4" href="#__codelineno-50-4"></a>    <span class="n">subprocess</span><span class="o">.</span><span class="n">check_output</span><span class="p">([</span>
+<a id="__codelineno-50-5" name="__codelineno-50-5" href="#__codelineno-50-5"></a>        <span class="s2">&quot;pm-index-cli&quot;</span><span class="p">,</span> <span class="s2">&quot;--config&quot;</span><span class="p">,</span> <span class="s2">&quot;engine_config.yaml&quot;</span><span class="p">,</span>
+<a id="__codelineno-50-6" name="__codelineno-50-6" href="#__codelineno-50-6"></a>        <span class="s2">&quot;--format&quot;</span><span class="p">,</span> <span class="s2">&quot;json&quot;</span><span class="p">,</span>
+<a id="__codelineno-50-7" name="__codelineno-50-7" href="#__codelineno-50-7"></a>        <span class="s2">&quot;eod&quot;</span><span class="p">,</span> <span class="s2">&quot;--index&quot;</span><span class="p">,</span> <span class="s2">&quot;EDU100&quot;</span><span class="p">,</span>
+<a id="__codelineno-50-8" name="__codelineno-50-8" href="#__codelineno-50-8"></a>    <span class="p">])</span>
+<a id="__codelineno-50-9" name="__codelineno-50-9" href="#__codelineno-50-9"></a><span class="p">)</span>
+<a id="__codelineno-50-10" name="__codelineno-50-10" href="#__codelineno-50-10"></a>
+<a id="__codelineno-50-11" name="__codelineno-50-11" href="#__codelineno-50-11"></a><span class="n">dates</span>  <span class="o">=</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">]</span>  <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
+<a id="__codelineno-50-12" name="__codelineno-50-12" href="#__codelineno-50-12"></a><span class="n">closes</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span><span class="p">[</span><span class="s2">&quot;close&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">data</span><span class="p">]</span>
+<a id="__codelineno-50-13" name="__codelineno-50-13" href="#__codelineno-50-13"></a>
+<a id="__codelineno-50-14" name="__codelineno-50-14" href="#__codelineno-50-14"></a><span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
+<a id="__codelineno-50-15" name="__codelineno-50-15" href="#__codelineno-50-15"></a><span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">dates</span><span class="p">,</span> <span class="n">closes</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s2">&quot;o&quot;</span><span class="p">)</span>
+<a id="__codelineno-50-16" name="__codelineno-50-16" href="#__codelineno-50-16"></a><span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;EDU100 — daily closing level&quot;</span><span class="p">)</span>
+<a id="__codelineno-50-17" name="__codelineno-50-17" href="#__codelineno-50-17"></a><span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;Index level&quot;</span><span class="p">)</span>
+<a id="__codelineno-50-18" name="__codelineno-50-18" href="#__codelineno-50-18"></a><span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">rotation</span><span class="o">=</span><span class="mi">45</span><span class="p">)</span>
+<a id="__codelineno-50-19" name="__codelineno-50-19" href="#__codelineno-50-19"></a><span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+<a id="__codelineno-50-20" name="__codelineno-50-20" href="#__codelineno-50-20"></a><span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="s2">&quot;edu100_history.png&quot;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">150</span><span class="p">)</span>
+</code></pre></div>
 <h2 id="exchangecommandclient"><code>ExchangeCommandClient</code><a class="headerlink" href="#exchangecommandclient" title="Permanent link">&para;</a></h2>
 <p><code>ExchangeCommandClient</code> lives in <code>src/edumatcher/commands/client.py</code> and is
 importable as:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">edumatcher.commands</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExchangeCommandClient</span><span class="p">,</span> <span class="n">CommandTimeoutError</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">edumatcher.commands</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExchangeCommandClient</span><span class="p">,</span> <span class="n">CommandTimeoutError</span>
 </code></pre></div>
 <p>Each command method sends a two-frame ZMQ multipart message over the PUSH
 socket and blocks on the SUB socket until the matching ack topic arrives or
@@ -4072,27 +4539,27 @@ sockets are closed on exit.</p>
 </tbody>
 </table>
 <h3 id="usage-example">Usage example<a class="headerlink" href="#usage-example" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">edumatcher.commands</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExchangeCommandClient</span><span class="p">,</span> <span class="n">CommandTimeoutError</span>
-<a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a>
-<a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a><span class="k">with</span> <span class="n">ExchangeCommandClient</span><span class="p">(</span><span class="s2">&quot;GW_ADMIN&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
-<a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a>    <span class="n">auth</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
-<a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">auth</span><span class="p">[</span><span class="s2">&quot;accepted&quot;</span><span class="p">]:</span>
-<a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a>        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Auth failed: </span><span class="si">{</span><span class="n">auth</span><span class="p">[</span><span class="s1">&#39;reason&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a>
-<a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a>    <span class="c1"># ADMIN: halt, inspect, then resume</span>
-<a id="__codelineno-40-9" name="__codelineno-40-9" href="#__codelineno-40-9"></a>    <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-40-10" name="__codelineno-40-10" href="#__codelineno-40-10"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">halt_all</span><span class="p">()</span>
-<a id="__codelineno-40-11" name="__codelineno-40-11" href="#__codelineno-40-11"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Halted </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;halted_symbols&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> symbols, &quot;</span>
-<a id="__codelineno-40-12" name="__codelineno-40-12" href="#__codelineno-40-12"></a>              <span class="sa">f</span><span class="s2">&quot;cancelled </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;cancelled_quotes&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> quote legs&quot;</span><span class="p">)</span>
-<a id="__codelineno-40-13" name="__codelineno-40-13" href="#__codelineno-40-13"></a>
-<a id="__codelineno-40-14" name="__codelineno-40-14" href="#__codelineno-40-14"></a>        <span class="n">orders</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">order_list</span><span class="p">(</span><span class="s2">&quot;TRADER01&quot;</span><span class="p">)</span>
-<a id="__codelineno-40-15" name="__codelineno-40-15" href="#__codelineno-40-15"></a>        <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">orders</span><span class="p">:</span>
-<a id="__codelineno-40-16" name="__codelineno-40-16" href="#__codelineno-40-16"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">][:</span><span class="mi">8</span><span class="p">]</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;symbol&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;side&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">  qty=</span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;remaining_qty&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-40-17" name="__codelineno-40-17" href="#__codelineno-40-17"></a>
-<a id="__codelineno-40-18" name="__codelineno-40-18" href="#__codelineno-40-18"></a>        <span class="n">client</span><span class="o">.</span><span class="n">resume_all</span><span class="p">()</span>
-<a id="__codelineno-40-19" name="__codelineno-40-19" href="#__codelineno-40-19"></a>    <span class="k">except</span> <span class="n">CommandTimeoutError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-<a id="__codelineno-40-20" name="__codelineno-40-20" href="#__codelineno-40-20"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Engine did not respond: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-40-21" name="__codelineno-40-21" href="#__codelineno-40-21"></a><span class="c1"># Sockets are closed automatically when the with-block exits.</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-52-1" name="__codelineno-52-1" href="#__codelineno-52-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">edumatcher.commands</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExchangeCommandClient</span><span class="p">,</span> <span class="n">CommandTimeoutError</span>
+<a id="__codelineno-52-2" name="__codelineno-52-2" href="#__codelineno-52-2"></a>
+<a id="__codelineno-52-3" name="__codelineno-52-3" href="#__codelineno-52-3"></a><span class="k">with</span> <span class="n">ExchangeCommandClient</span><span class="p">(</span><span class="s2">&quot;GW_ADMIN&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+<a id="__codelineno-52-4" name="__codelineno-52-4" href="#__codelineno-52-4"></a>    <span class="n">auth</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
+<a id="__codelineno-52-5" name="__codelineno-52-5" href="#__codelineno-52-5"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">auth</span><span class="p">[</span><span class="s2">&quot;accepted&quot;</span><span class="p">]:</span>
+<a id="__codelineno-52-6" name="__codelineno-52-6" href="#__codelineno-52-6"></a>        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Auth failed: </span><span class="si">{</span><span class="n">auth</span><span class="p">[</span><span class="s1">&#39;reason&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-52-7" name="__codelineno-52-7" href="#__codelineno-52-7"></a>
+<a id="__codelineno-52-8" name="__codelineno-52-8" href="#__codelineno-52-8"></a>    <span class="c1"># ADMIN: halt, inspect, then resume</span>
+<a id="__codelineno-52-9" name="__codelineno-52-9" href="#__codelineno-52-9"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-52-10" name="__codelineno-52-10" href="#__codelineno-52-10"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">halt_all</span><span class="p">()</span>
+<a id="__codelineno-52-11" name="__codelineno-52-11" href="#__codelineno-52-11"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Halted </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;halted_symbols&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> symbols, &quot;</span>
+<a id="__codelineno-52-12" name="__codelineno-52-12" href="#__codelineno-52-12"></a>              <span class="sa">f</span><span class="s2">&quot;cancelled </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;cancelled_quotes&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> quote legs&quot;</span><span class="p">)</span>
+<a id="__codelineno-52-13" name="__codelineno-52-13" href="#__codelineno-52-13"></a>
+<a id="__codelineno-52-14" name="__codelineno-52-14" href="#__codelineno-52-14"></a>        <span class="n">orders</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">order_list</span><span class="p">(</span><span class="s2">&quot;TRADER01&quot;</span><span class="p">)</span>
+<a id="__codelineno-52-15" name="__codelineno-52-15" href="#__codelineno-52-15"></a>        <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">orders</span><span class="p">:</span>
+<a id="__codelineno-52-16" name="__codelineno-52-16" href="#__codelineno-52-16"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">][:</span><span class="mi">8</span><span class="p">]</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;symbol&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;side&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">  qty=</span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;remaining_qty&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-52-17" name="__codelineno-52-17" href="#__codelineno-52-17"></a>
+<a id="__codelineno-52-18" name="__codelineno-52-18" href="#__codelineno-52-18"></a>        <span class="n">client</span><span class="o">.</span><span class="n">resume_all</span><span class="p">()</span>
+<a id="__codelineno-52-19" name="__codelineno-52-19" href="#__codelineno-52-19"></a>    <span class="k">except</span> <span class="n">CommandTimeoutError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+<a id="__codelineno-52-20" name="__codelineno-52-20" href="#__codelineno-52-20"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Engine did not respond: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-52-21" name="__codelineno-52-21" href="#__codelineno-52-21"></a><span class="c1"># Sockets are closed automatically when the with-block exits.</span>
 </code></pre></div>
 <h2 id="command-reference">Command reference<a class="headerlink" href="#command-reference" title="Permanent link">&para;</a></h2>
 <table>
@@ -4252,20 +4719,20 @@ signing.</p>
 </div>
 <h2 id="command-details">Command details<a class="headerlink" href="#command-details" title="Permanent link">&para;</a></h2>
 <h3 id="halt_all-exchange-wide-circuit-breaker-halt"><code>halt_all</code> — Exchange-wide circuit-breaker halt<a class="headerlink" href="#halt_all-exchange-wide-circuit-breaker-halt" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>Frame 0:  b&quot;risk.circuit_breaker_halt_all&quot;
-<a id="__codelineno-41-2" name="__codelineno-41-2" href="#__codelineno-41-2"></a>Frame 1:  {&quot;gateway_id&quot;: &quot;GW_ADMIN&quot;}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-53-1" name="__codelineno-53-1" href="#__codelineno-53-1"></a>Frame 0:  b&quot;risk.circuit_breaker_halt_all&quot;
+<a id="__codelineno-53-2" name="__codelineno-53-2" href="#__codelineno-53-2"></a>Frame 1:  {&quot;gateway_id&quot;: &quot;GW_ADMIN&quot;}
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ExchangeCommandClient</span><span class="p">(</span><span class="s2">&quot;GW_ADMIN&quot;</span><span class="p">)</span>
-<a id="__codelineno-42-2" name="__codelineno-42-2" href="#__codelineno-42-2"></a><span class="n">client</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
-<a id="__codelineno-42-3" name="__codelineno-42-3" href="#__codelineno-42-3"></a>
-<a id="__codelineno-42-4" name="__codelineno-42-4" href="#__codelineno-42-4"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">halt_all</span><span class="p">()</span>
-<a id="__codelineno-42-5" name="__codelineno-42-5" href="#__codelineno-42-5"></a><span class="c1"># result = {</span>
-<a id="__codelineno-42-6" name="__codelineno-42-6" href="#__codelineno-42-6"></a><span class="c1">#   &quot;accepted&quot;: True,</span>
-<a id="__codelineno-42-7" name="__codelineno-42-7" href="#__codelineno-42-7"></a><span class="c1">#   &quot;reason&quot;: &quot;&quot;,</span>
-<a id="__codelineno-42-8" name="__codelineno-42-8" href="#__codelineno-42-8"></a><span class="c1">#   &quot;halted_symbols&quot;: 4,</span>
-<a id="__codelineno-42-9" name="__codelineno-42-9" href="#__codelineno-42-9"></a><span class="c1">#   &quot;cancelled_quotes&quot;: 12</span>
-<a id="__codelineno-42-10" name="__codelineno-42-10" href="#__codelineno-42-10"></a><span class="c1"># }</span>
-<a id="__codelineno-42-11" name="__codelineno-42-11" href="#__codelineno-42-11"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Halted </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;halted_symbols&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> symbols, cancelled </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;cancelled_quotes&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> quote legs&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-54-1" name="__codelineno-54-1" href="#__codelineno-54-1"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ExchangeCommandClient</span><span class="p">(</span><span class="s2">&quot;GW_ADMIN&quot;</span><span class="p">)</span>
+<a id="__codelineno-54-2" name="__codelineno-54-2" href="#__codelineno-54-2"></a><span class="n">client</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
+<a id="__codelineno-54-3" name="__codelineno-54-3" href="#__codelineno-54-3"></a>
+<a id="__codelineno-54-4" name="__codelineno-54-4" href="#__codelineno-54-4"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">halt_all</span><span class="p">()</span>
+<a id="__codelineno-54-5" name="__codelineno-54-5" href="#__codelineno-54-5"></a><span class="c1"># result = {</span>
+<a id="__codelineno-54-6" name="__codelineno-54-6" href="#__codelineno-54-6"></a><span class="c1">#   &quot;accepted&quot;: True,</span>
+<a id="__codelineno-54-7" name="__codelineno-54-7" href="#__codelineno-54-7"></a><span class="c1">#   &quot;reason&quot;: &quot;&quot;,</span>
+<a id="__codelineno-54-8" name="__codelineno-54-8" href="#__codelineno-54-8"></a><span class="c1">#   &quot;halted_symbols&quot;: 4,</span>
+<a id="__codelineno-54-9" name="__codelineno-54-9" href="#__codelineno-54-9"></a><span class="c1">#   &quot;cancelled_quotes&quot;: 12</span>
+<a id="__codelineno-54-10" name="__codelineno-54-10" href="#__codelineno-54-10"></a><span class="c1"># }</span>
+<a id="__codelineno-54-11" name="__codelineno-54-11" href="#__codelineno-54-11"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Halted </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;halted_symbols&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> symbols, cancelled </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;cancelled_quotes&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> quote legs&quot;</span><span class="p">)</span>
 </code></pre></div>
 <p>The engine sets every known symbol to <code>HALTED</code> with <code>resumption_mode = MANUAL</code>.
 No timer is set — the halt is permanent until <code>resume_all()</code> is called or the
@@ -4277,32 +4744,32 @@ session transitions to <code>CLOSED</code>.</p>
 <li>Quote submission is rejected.</li>
 </ul>
 <h3 id="resume_all-lift-the-exchange-wide-halt"><code>resume_all</code> — Lift the exchange-wide halt<a class="headerlink" href="#resume_all-lift-the-exchange-wide-halt" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>Frame 0:  b&quot;risk.circuit_breaker_resume_all&quot;
-<a id="__codelineno-43-2" name="__codelineno-43-2" href="#__codelineno-43-2"></a>Frame 1:  {&quot;gateway_id&quot;: &quot;GW_ADMIN&quot;}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-55-1" name="__codelineno-55-1" href="#__codelineno-55-1"></a>Frame 0:  b&quot;risk.circuit_breaker_resume_all&quot;
+<a id="__codelineno-55-2" name="__codelineno-55-2" href="#__codelineno-55-2"></a>Frame 1:  {&quot;gateway_id&quot;: &quot;GW_ADMIN&quot;}
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">resume_all</span><span class="p">()</span>
-<a id="__codelineno-44-2" name="__codelineno-44-2" href="#__codelineno-44-2"></a><span class="c1"># result = {</span>
-<a id="__codelineno-44-3" name="__codelineno-44-3" href="#__codelineno-44-3"></a><span class="c1">#   &quot;accepted&quot;: True,</span>
-<a id="__codelineno-44-4" name="__codelineno-44-4" href="#__codelineno-44-4"></a><span class="c1">#   &quot;reason&quot;: &quot;&quot;,</span>
-<a id="__codelineno-44-5" name="__codelineno-44-5" href="#__codelineno-44-5"></a><span class="c1">#   &quot;resumed_symbols&quot;: 4</span>
-<a id="__codelineno-44-6" name="__codelineno-44-6" href="#__codelineno-44-6"></a><span class="c1"># }</span>
-<a id="__codelineno-44-7" name="__codelineno-44-7" href="#__codelineno-44-7"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Resumed </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;resumed_symbols&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> symbols&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-56-1" name="__codelineno-56-1" href="#__codelineno-56-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">resume_all</span><span class="p">()</span>
+<a id="__codelineno-56-2" name="__codelineno-56-2" href="#__codelineno-56-2"></a><span class="c1"># result = {</span>
+<a id="__codelineno-56-3" name="__codelineno-56-3" href="#__codelineno-56-3"></a><span class="c1">#   &quot;accepted&quot;: True,</span>
+<a id="__codelineno-56-4" name="__codelineno-56-4" href="#__codelineno-56-4"></a><span class="c1">#   &quot;reason&quot;: &quot;&quot;,</span>
+<a id="__codelineno-56-5" name="__codelineno-56-5" href="#__codelineno-56-5"></a><span class="c1">#   &quot;resumed_symbols&quot;: 4</span>
+<a id="__codelineno-56-6" name="__codelineno-56-6" href="#__codelineno-56-6"></a><span class="c1"># }</span>
+<a id="__codelineno-56-7" name="__codelineno-56-7" href="#__codelineno-56-7"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Resumed </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;resumed_symbols&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> symbols&quot;</span><span class="p">)</span>
 </code></pre></div>
 <p>For each previously halted symbol the engine publishes
 <code>circuit_breaker.resume.&lt;SYMBOL&gt;</code> with <code>mode = "MANUAL"</code>.  Normal order flow
 and MM quote obligations resume immediately after the ack is received.</p>
 <h3 id="kill_switch-cancel-all-exposure-for-a-gateway"><code>kill_switch</code> — Cancel all exposure for a gateway<a class="headerlink" href="#kill_switch-cancel-all-exposure-for-a-gateway" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>Frame 0:  b&quot;risk.kill_switch&quot;
-<a id="__codelineno-45-2" name="__codelineno-45-2" href="#__codelineno-45-2"></a>Frame 1:  {&quot;gateway_id&quot;: &quot;TRADER01&quot;, &quot;symbol&quot;: &quot;&quot;}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-57-1" name="__codelineno-57-1" href="#__codelineno-57-1"></a>Frame 0:  b&quot;risk.kill_switch&quot;
+<a id="__codelineno-57-2" name="__codelineno-57-2" href="#__codelineno-57-2"></a>Frame 1:  {&quot;gateway_id&quot;: &quot;TRADER01&quot;, &quot;symbol&quot;: &quot;&quot;}
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a><span class="c1"># Cancel everything for TRADER01</span>
-<a id="__codelineno-46-2" name="__codelineno-46-2" href="#__codelineno-46-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">kill_switch</span><span class="p">(</span><span class="s2">&quot;TRADER01&quot;</span><span class="p">)</span>
-<a id="__codelineno-46-3" name="__codelineno-46-3" href="#__codelineno-46-3"></a><span class="c1"># result = {</span>
-<a id="__codelineno-46-4" name="__codelineno-46-4" href="#__codelineno-46-4"></a><span class="c1">#   &quot;accepted&quot;: True,</span>
-<a id="__codelineno-46-5" name="__codelineno-46-5" href="#__codelineno-46-5"></a><span class="c1">#   &quot;reason&quot;: &quot;&quot;,</span>
-<a id="__codelineno-46-6" name="__codelineno-46-6" href="#__codelineno-46-6"></a><span class="c1">#   &quot;cancelled_orders&quot;: 7,</span>
-<a id="__codelineno-46-7" name="__codelineno-46-7" href="#__codelineno-46-7"></a><span class="c1">#   &quot;cancelled_quotes&quot;: 0</span>
-<a id="__codelineno-46-8" name="__codelineno-46-8" href="#__codelineno-46-8"></a><span class="c1"># }</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-58-1" name="__codelineno-58-1" href="#__codelineno-58-1"></a><span class="c1"># Cancel everything for TRADER01</span>
+<a id="__codelineno-58-2" name="__codelineno-58-2" href="#__codelineno-58-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">kill_switch</span><span class="p">(</span><span class="s2">&quot;TRADER01&quot;</span><span class="p">)</span>
+<a id="__codelineno-58-3" name="__codelineno-58-3" href="#__codelineno-58-3"></a><span class="c1"># result = {</span>
+<a id="__codelineno-58-4" name="__codelineno-58-4" href="#__codelineno-58-4"></a><span class="c1">#   &quot;accepted&quot;: True,</span>
+<a id="__codelineno-58-5" name="__codelineno-58-5" href="#__codelineno-58-5"></a><span class="c1">#   &quot;reason&quot;: &quot;&quot;,</span>
+<a id="__codelineno-58-6" name="__codelineno-58-6" href="#__codelineno-58-6"></a><span class="c1">#   &quot;cancelled_orders&quot;: 7,</span>
+<a id="__codelineno-58-7" name="__codelineno-58-7" href="#__codelineno-58-7"></a><span class="c1">#   &quot;cancelled_quotes&quot;: 0</span>
+<a id="__codelineno-58-8" name="__codelineno-58-8" href="#__codelineno-58-8"></a><span class="c1"># }</span>
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Kill switch does not halt the gateway</p>
@@ -4312,29 +4779,29 @@ nothing is halted.  To prevent the gateway from submitting new orders, follow
 up with <code>gateway_kick()</code>.</p>
 </div>
 <h3 id="mass_cancel-cancel-exposure-for-one-symbol"><code>mass_cancel</code> — Cancel exposure for one symbol<a class="headerlink" href="#mass_cancel-cancel-exposure-for-one-symbol" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>Frame 0:  b&quot;risk.kill_switch&quot;
-<a id="__codelineno-47-2" name="__codelineno-47-2" href="#__codelineno-47-2"></a>Frame 1:  {&quot;gateway_id&quot;: &quot;TRADER01&quot;, &quot;symbol&quot;: &quot;AAPL&quot;}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-59-1" name="__codelineno-59-1" href="#__codelineno-59-1"></a>Frame 0:  b&quot;risk.kill_switch&quot;
+<a id="__codelineno-59-2" name="__codelineno-59-2" href="#__codelineno-59-2"></a>Frame 1:  {&quot;gateway_id&quot;: &quot;TRADER01&quot;, &quot;symbol&quot;: &quot;AAPL&quot;}
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">mass_cancel</span><span class="p">(</span><span class="s2">&quot;TRADER01&quot;</span><span class="p">,</span> <span class="s2">&quot;AAPL&quot;</span><span class="p">)</span>
-<a id="__codelineno-48-2" name="__codelineno-48-2" href="#__codelineno-48-2"></a><span class="c1"># result = {&quot;accepted&quot;: True, &quot;cancelled_orders&quot;: 3, &quot;cancelled_quotes&quot;: 2}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-60-1" name="__codelineno-60-1" href="#__codelineno-60-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">mass_cancel</span><span class="p">(</span><span class="s2">&quot;TRADER01&quot;</span><span class="p">,</span> <span class="s2">&quot;AAPL&quot;</span><span class="p">)</span>
+<a id="__codelineno-60-2" name="__codelineno-60-2" href="#__codelineno-60-2"></a><span class="c1"># result = {&quot;accepted&quot;: True, &quot;cancelled_orders&quot;: 3, &quot;cancelled_quotes&quot;: 2}</span>
 </code></pre></div>
 <p>Identical to <code>kill_switch</code> with a symbol argument.  Only orders and quotes
 for <code>TRADER01</code> on <code>AAPL</code> are affected.</p>
 <h3 id="quote_cancel-cancel-a-market-makers-quote-for-one-symbol"><code>quote_cancel</code> — Cancel a market-maker's quote for one symbol<a class="headerlink" href="#quote_cancel-cancel-a-market-makers-quote-for-one-symbol" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a>Frame 0:  b&quot;quote.cancel&quot;
-<a id="__codelineno-49-2" name="__codelineno-49-2" href="#__codelineno-49-2"></a>Frame 1:  {&quot;gateway_id&quot;: &quot;MM01&quot;, &quot;symbol&quot;: &quot;AAPL&quot;}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-61-1" name="__codelineno-61-1" href="#__codelineno-61-1"></a>Frame 0:  b&quot;quote.cancel&quot;
+<a id="__codelineno-61-2" name="__codelineno-61-2" href="#__codelineno-61-2"></a>Frame 1:  {&quot;gateway_id&quot;: &quot;MM01&quot;, &quot;symbol&quot;: &quot;AAPL&quot;}
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">quote_cancel</span><span class="p">(</span><span class="s2">&quot;MM01&quot;</span><span class="p">,</span> <span class="s2">&quot;AAPL&quot;</span><span class="p">)</span>
-<a id="__codelineno-50-2" name="__codelineno-50-2" href="#__codelineno-50-2"></a><span class="c1"># result = {&quot;accepted&quot;: True, &quot;quote_id&quot;: &quot;MM01-AAPL-...&quot;}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-62-1" name="__codelineno-62-1" href="#__codelineno-62-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">quote_cancel</span><span class="p">(</span><span class="s2">&quot;MM01&quot;</span><span class="p">,</span> <span class="s2">&quot;AAPL&quot;</span><span class="p">)</span>
+<a id="__codelineno-62-2" name="__codelineno-62-2" href="#__codelineno-62-2"></a><span class="c1"># result = {&quot;accepted&quot;: True, &quot;quote_id&quot;: &quot;MM01-AAPL-...&quot;}</span>
 </code></pre></div>
 <p>Cancels both the bid and ask legs of the active quote.  Resting limit orders
 submitted outside the quote mechanism are unaffected.  Use <code>mass_cancel</code> to
 also remove non-quote limit orders.</p>
 <h3 id="gateway_kick-forcefully-disconnect-a-gateway"><code>gateway_kick</code> — Forcefully disconnect a gateway<a class="headerlink" href="#gateway_kick-forcefully-disconnect-a-gateway" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a>Frame 0:  b&quot;system.gateway_disconnect&quot;
-<a id="__codelineno-51-2" name="__codelineno-51-2" href="#__codelineno-51-2"></a>Frame 1:  {&quot;gateway_id&quot;: &quot;TRADER01&quot;, &quot;reason&quot;: &quot;Compliance hold&quot;}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-63-1" name="__codelineno-63-1" href="#__codelineno-63-1"></a>Frame 0:  b&quot;system.gateway_disconnect&quot;
+<a id="__codelineno-63-2" name="__codelineno-63-2" href="#__codelineno-63-2"></a>Frame 1:  {&quot;gateway_id&quot;: &quot;TRADER01&quot;, &quot;reason&quot;: &quot;Compliance hold&quot;}
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-52-1" name="__codelineno-52-1" href="#__codelineno-52-1"></a><span class="n">client</span><span class="o">.</span><span class="n">gateway_kick</span><span class="p">(</span><span class="s2">&quot;TRADER01&quot;</span><span class="p">,</span> <span class="n">reason</span><span class="o">=</span><span class="s2">&quot;Compliance hold&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-64-1" name="__codelineno-64-1" href="#__codelineno-64-1"></a><span class="n">client</span><span class="o">.</span><span class="n">gateway_kick</span><span class="p">(</span><span class="s2">&quot;TRADER01&quot;</span><span class="p">,</span> <span class="n">reason</span><span class="o">=</span><span class="s2">&quot;Compliance hold&quot;</span><span class="p">)</span>
 </code></pre></div>
 <p>The engine applies the gateway's configured <code>disconnect_behaviour</code>:</p>
 <table>
@@ -4361,22 +4828,22 @@ also remove non-quote limit orders.</p>
 </table>
 <p>No ack is published.  Verify the effect with <code>order_list("TRADER01")</code>.</p>
 <h3 id="book_depth-l1-l2-order-book-snapshot"><code>book_depth</code> — L1 / L2 order-book snapshot<a class="headerlink" href="#book_depth-l1-l2-order-book-snapshot" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-53-1" name="__codelineno-53-1" href="#__codelineno-53-1"></a>Frame 0:  b&quot;book.snapshot_request&quot;
-<a id="__codelineno-53-2" name="__codelineno-53-2" href="#__codelineno-53-2"></a>Frame 1:  {&quot;symbol&quot;: &quot;AAPL&quot;}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-65-1" name="__codelineno-65-1" href="#__codelineno-65-1"></a>Frame 0:  b&quot;book.snapshot_request&quot;
+<a id="__codelineno-65-2" name="__codelineno-65-2" href="#__codelineno-65-2"></a>Frame 1:  {&quot;symbol&quot;: &quot;AAPL&quot;}
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-54-1" name="__codelineno-54-1" href="#__codelineno-54-1"></a><span class="n">book</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">book_depth</span><span class="p">(</span><span class="s2">&quot;AAPL&quot;</span><span class="p">)</span>
-<a id="__codelineno-54-2" name="__codelineno-54-2" href="#__codelineno-54-2"></a><span class="c1"># book = {</span>
-<a id="__codelineno-54-3" name="__codelineno-54-3" href="#__codelineno-54-3"></a><span class="c1">#   &quot;symbol&quot;: &quot;AAPL&quot;,</span>
-<a id="__codelineno-54-4" name="__codelineno-54-4" href="#__codelineno-54-4"></a><span class="c1">#   &quot;bids&quot;: [{&quot;price&quot;: 149.50, &quot;qty&quot;: 300, &quot;count&quot;: 2}, ...],</span>
-<a id="__codelineno-54-5" name="__codelineno-54-5" href="#__codelineno-54-5"></a><span class="c1">#   &quot;asks&quot;: [{&quot;price&quot;: 150.00, &quot;qty&quot;: 100, &quot;count&quot;: 1}, ...],</span>
-<a id="__codelineno-54-6" name="__codelineno-54-6" href="#__codelineno-54-6"></a><span class="c1">#   &quot;last_price&quot;: 149.75,</span>
-<a id="__codelineno-54-7" name="__codelineno-54-7" href="#__codelineno-54-7"></a><span class="c1">#   &quot;last_qty&quot;: 200,</span>
-<a id="__codelineno-54-8" name="__codelineno-54-8" href="#__codelineno-54-8"></a><span class="c1">#   &quot;recent_trades&quot;: [...]</span>
-<a id="__codelineno-54-9" name="__codelineno-54-9" href="#__codelineno-54-9"></a><span class="c1"># }</span>
-<a id="__codelineno-54-10" name="__codelineno-54-10" href="#__codelineno-54-10"></a>
-<a id="__codelineno-54-11" name="__codelineno-54-11" href="#__codelineno-54-11"></a><span class="n">best_bid</span> <span class="o">=</span> <span class="n">book</span><span class="p">[</span><span class="s2">&quot;bids&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">book</span><span class="p">[</span><span class="s2">&quot;bids&quot;</span><span class="p">]</span> <span class="k">else</span> <span class="kc">None</span>
-<a id="__codelineno-54-12" name="__codelineno-54-12" href="#__codelineno-54-12"></a><span class="n">best_ask</span> <span class="o">=</span> <span class="n">book</span><span class="p">[</span><span class="s2">&quot;asks&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">book</span><span class="p">[</span><span class="s2">&quot;asks&quot;</span><span class="p">]</span> <span class="k">else</span> <span class="kc">None</span>
-<a id="__codelineno-54-13" name="__codelineno-54-13" href="#__codelineno-54-13"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;AAPL  </span><span class="si">{</span><span class="n">best_bid</span><span class="p">[</span><span class="s1">&#39;price&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> x </span><span class="si">{</span><span class="n">best_bid</span><span class="p">[</span><span class="s1">&#39;qty&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">  /  </span><span class="si">{</span><span class="n">best_ask</span><span class="p">[</span><span class="s1">&#39;price&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> x </span><span class="si">{</span><span class="n">best_ask</span><span class="p">[</span><span class="s1">&#39;qty&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-66-1" name="__codelineno-66-1" href="#__codelineno-66-1"></a><span class="n">book</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">book_depth</span><span class="p">(</span><span class="s2">&quot;AAPL&quot;</span><span class="p">)</span>
+<a id="__codelineno-66-2" name="__codelineno-66-2" href="#__codelineno-66-2"></a><span class="c1"># book = {</span>
+<a id="__codelineno-66-3" name="__codelineno-66-3" href="#__codelineno-66-3"></a><span class="c1">#   &quot;symbol&quot;: &quot;AAPL&quot;,</span>
+<a id="__codelineno-66-4" name="__codelineno-66-4" href="#__codelineno-66-4"></a><span class="c1">#   &quot;bids&quot;: [{&quot;price&quot;: 149.50, &quot;qty&quot;: 300, &quot;count&quot;: 2}, ...],</span>
+<a id="__codelineno-66-5" name="__codelineno-66-5" href="#__codelineno-66-5"></a><span class="c1">#   &quot;asks&quot;: [{&quot;price&quot;: 150.00, &quot;qty&quot;: 100, &quot;count&quot;: 1}, ...],</span>
+<a id="__codelineno-66-6" name="__codelineno-66-6" href="#__codelineno-66-6"></a><span class="c1">#   &quot;last_price&quot;: 149.75,</span>
+<a id="__codelineno-66-7" name="__codelineno-66-7" href="#__codelineno-66-7"></a><span class="c1">#   &quot;last_qty&quot;: 200,</span>
+<a id="__codelineno-66-8" name="__codelineno-66-8" href="#__codelineno-66-8"></a><span class="c1">#   &quot;recent_trades&quot;: [...]</span>
+<a id="__codelineno-66-9" name="__codelineno-66-9" href="#__codelineno-66-9"></a><span class="c1"># }</span>
+<a id="__codelineno-66-10" name="__codelineno-66-10" href="#__codelineno-66-10"></a>
+<a id="__codelineno-66-11" name="__codelineno-66-11" href="#__codelineno-66-11"></a><span class="n">best_bid</span> <span class="o">=</span> <span class="n">book</span><span class="p">[</span><span class="s2">&quot;bids&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">book</span><span class="p">[</span><span class="s2">&quot;bids&quot;</span><span class="p">]</span> <span class="k">else</span> <span class="kc">None</span>
+<a id="__codelineno-66-12" name="__codelineno-66-12" href="#__codelineno-66-12"></a><span class="n">best_ask</span> <span class="o">=</span> <span class="n">book</span><span class="p">[</span><span class="s2">&quot;asks&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">book</span><span class="p">[</span><span class="s2">&quot;asks&quot;</span><span class="p">]</span> <span class="k">else</span> <span class="kc">None</span>
+<a id="__codelineno-66-13" name="__codelineno-66-13" href="#__codelineno-66-13"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;AAPL  </span><span class="si">{</span><span class="n">best_bid</span><span class="p">[</span><span class="s1">&#39;price&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> x </span><span class="si">{</span><span class="n">best_bid</span><span class="p">[</span><span class="s1">&#39;qty&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">  /  </span><span class="si">{</span><span class="n">best_ask</span><span class="p">[</span><span class="s1">&#39;price&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> x </span><span class="si">{</span><span class="n">best_ask</span><span class="p">[</span><span class="s1">&#39;qty&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div>
 <p>Returns the same payload as the live <code>book.{SYMBOL}</code> subscription but on demand
 rather than waiting for the next change.  Useful for a one-shot dashboard or
@@ -4388,33 +4855,33 @@ a pre-trade sanity check.</p>
 new snapshot after every state-changing event.</p>
 </div>
 <h3 id="order_list-inspect-a-gateways-resting-orders"><code>order_list</code> — Inspect a gateway's resting orders<a class="headerlink" href="#order_list-inspect-a-gateways-resting-orders" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-55-1" name="__codelineno-55-1" href="#__codelineno-55-1"></a>Frame 0:  b&quot;order.orders_request&quot;
-<a id="__codelineno-55-2" name="__codelineno-55-2" href="#__codelineno-55-2"></a>Frame 1:  {&quot;gateway_id&quot;: &quot;TRADER01&quot;}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-67-1" name="__codelineno-67-1" href="#__codelineno-67-1"></a>Frame 0:  b&quot;order.orders_request&quot;
+<a id="__codelineno-67-2" name="__codelineno-67-2" href="#__codelineno-67-2"></a>Frame 1:  {&quot;gateway_id&quot;: &quot;TRADER01&quot;}
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-56-1" name="__codelineno-56-1" href="#__codelineno-56-1"></a><span class="n">orders</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">order_list</span><span class="p">(</span><span class="s2">&quot;TRADER01&quot;</span><span class="p">)</span>
-<a id="__codelineno-56-2" name="__codelineno-56-2" href="#__codelineno-56-2"></a><span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">orders</span><span class="p">:</span>
-<a id="__codelineno-56-3" name="__codelineno-56-3" href="#__codelineno-56-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">][:</span><span class="mi">8</span><span class="p">]</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;symbol&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;side&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;order_type&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">  &quot;</span>
-<a id="__codelineno-56-4" name="__codelineno-56-4" href="#__codelineno-56-4"></a>          <span class="sa">f</span><span class="s2">&quot;qty=</span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;remaining_qty&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;quantity&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">  price=</span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;price&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-68-1" name="__codelineno-68-1" href="#__codelineno-68-1"></a><span class="n">orders</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">order_list</span><span class="p">(</span><span class="s2">&quot;TRADER01&quot;</span><span class="p">)</span>
+<a id="__codelineno-68-2" name="__codelineno-68-2" href="#__codelineno-68-2"></a><span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">orders</span><span class="p">:</span>
+<a id="__codelineno-68-3" name="__codelineno-68-3" href="#__codelineno-68-3"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;id&#39;</span><span class="p">][:</span><span class="mi">8</span><span class="p">]</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;symbol&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;side&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;order_type&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">  &quot;</span>
+<a id="__codelineno-68-4" name="__codelineno-68-4" href="#__codelineno-68-4"></a>          <span class="sa">f</span><span class="s2">&quot;qty=</span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;remaining_qty&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;quantity&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">  price=</span><span class="si">{</span><span class="n">o</span><span class="p">[</span><span class="s1">&#39;price&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 </code></pre></div>
 <p>Returns all resting (unfilled, non-cancelled) orders across all symbols for the
 target gateway.  Useful for confirming that a <code>kill_switch</code> or <code>mass_cancel</code>
 took effect.</p>
 <h3 id="symbol_list-discover-configured-instruments"><code>symbol_list</code> — Discover configured instruments<a class="headerlink" href="#symbol_list-discover-configured-instruments" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-57-1" name="__codelineno-57-1" href="#__codelineno-57-1"></a>Frame 0:  b&quot;system.symbols_request&quot;
-<a id="__codelineno-57-2" name="__codelineno-57-2" href="#__codelineno-57-2"></a>Frame 1:  {&quot;gateway_id&quot;: &quot;GW_ADMIN&quot;}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-69-1" name="__codelineno-69-1" href="#__codelineno-69-1"></a>Frame 0:  b&quot;system.symbols_request&quot;
+<a id="__codelineno-69-2" name="__codelineno-69-2" href="#__codelineno-69-2"></a>Frame 1:  {&quot;gateway_id&quot;: &quot;GW_ADMIN&quot;}
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-58-1" name="__codelineno-58-1" href="#__codelineno-58-1"></a><span class="n">symbols</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">symbol_list</span><span class="p">()</span>
-<a id="__codelineno-58-2" name="__codelineno-58-2" href="#__codelineno-58-2"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Configured symbols:&quot;</span><span class="p">,</span> <span class="n">symbols</span><span class="p">)</span>
-<a id="__codelineno-58-3" name="__codelineno-58-3" href="#__codelineno-58-3"></a><span class="c1"># [&quot;AAPL&quot;, &quot;MSFT&quot;, &quot;TSLA&quot;, &quot;GOOG&quot;]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-70-1" name="__codelineno-70-1" href="#__codelineno-70-1"></a><span class="n">symbols</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">symbol_list</span><span class="p">()</span>
+<a id="__codelineno-70-2" name="__codelineno-70-2" href="#__codelineno-70-2"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Configured symbols:&quot;</span><span class="p">,</span> <span class="n">symbols</span><span class="p">)</span>
+<a id="__codelineno-70-3" name="__codelineno-70-3" href="#__codelineno-70-3"></a><span class="c1"># [&quot;AAPL&quot;, &quot;MSFT&quot;, &quot;TSLA&quot;, &quot;GOOG&quot;]</span>
 </code></pre></div>
 <p>Returns the list of symbols the engine was started with.  Useful at startup to
 drive iteration over all instruments (e.g. request a book snapshot for each).</p>
 <h3 id="session_advance-manually-drive-the-trading-day"><code>session_advance</code> — Manually drive the trading day<a class="headerlink" href="#session_advance-manually-drive-the-trading-day" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-59-1" name="__codelineno-59-1" href="#__codelineno-59-1"></a>Frame 0:  b&quot;session.transition&quot;
-<a id="__codelineno-59-2" name="__codelineno-59-2" href="#__codelineno-59-2"></a>Frame 1:  {&quot;to_state&quot;: &quot;CONTINUOUS&quot;}
+<div class="highlight"><pre><span></span><code><a id="__codelineno-71-1" name="__codelineno-71-1" href="#__codelineno-71-1"></a>Frame 0:  b&quot;session.transition&quot;
+<a id="__codelineno-71-2" name="__codelineno-71-2" href="#__codelineno-71-2"></a>Frame 1:  {&quot;to_state&quot;: &quot;CONTINUOUS&quot;}
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-60-1" name="__codelineno-60-1" href="#__codelineno-60-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">session_advance</span><span class="p">(</span><span class="s2">&quot;CONTINUOUS&quot;</span><span class="p">)</span>
-<a id="__codelineno-60-2" name="__codelineno-60-2" href="#__codelineno-60-2"></a><span class="c1"># result = {&quot;state&quot;: &quot;CONTINUOUS&quot;, &quot;prev_state&quot;: &quot;OPENING_AUCTION&quot;}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-72-1" name="__codelineno-72-1" href="#__codelineno-72-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">session_advance</span><span class="p">(</span><span class="s2">&quot;CONTINUOUS&quot;</span><span class="p">)</span>
+<a id="__codelineno-72-2" name="__codelineno-72-2" href="#__codelineno-72-2"></a><span class="c1"># result = {&quot;state&quot;: &quot;CONTINUOUS&quot;, &quot;prev_state&quot;: &quot;OPENING_AUCTION&quot;}</span>
 </code></pre></div>
 <p>Valid state transitions:</p>
 <pre class="mermaid"><code>stateDiagram-v2
@@ -4430,44 +4897,44 @@ verify the transition succeeded by checking <code>result["state"]</code>.</p>
 <h2 id="full-admin-operator-workflow">Full ADMIN operator workflow<a class="headerlink" href="#full-admin-operator-workflow" title="Permanent link">&para;</a></h2>
 <p>The example below shows a complete emergency halt-and-resume sequence using
 the command client:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-61-1" name="__codelineno-61-1" href="#__codelineno-61-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">edumatcher.commands</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExchangeCommandClient</span><span class="p">,</span> <span class="n">CommandTimeoutError</span>
-<a id="__codelineno-61-2" name="__codelineno-61-2" href="#__codelineno-61-2"></a>
-<a id="__codelineno-61-3" name="__codelineno-61-3" href="#__codelineno-61-3"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ExchangeCommandClient</span><span class="p">(</span><span class="s2">&quot;GW_ADMIN&quot;</span><span class="p">)</span>
-<a id="__codelineno-61-4" name="__codelineno-61-4" href="#__codelineno-61-4"></a>
-<a id="__codelineno-61-5" name="__codelineno-61-5" href="#__codelineno-61-5"></a><span class="c1"># 1. Connect</span>
-<a id="__codelineno-61-6" name="__codelineno-61-6" href="#__codelineno-61-6"></a><span class="n">auth</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
-<a id="__codelineno-61-7" name="__codelineno-61-7" href="#__codelineno-61-7"></a><span class="k">assert</span> <span class="n">auth</span><span class="p">[</span><span class="s2">&quot;accepted&quot;</span><span class="p">],</span> <span class="sa">f</span><span class="s2">&quot;Auth failed: </span><span class="si">{</span><span class="n">auth</span><span class="p">[</span><span class="s1">&#39;reason&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
-<a id="__codelineno-61-8" name="__codelineno-61-8" href="#__codelineno-61-8"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Connected as ADMIN&quot;</span><span class="p">)</span>
-<a id="__codelineno-61-9" name="__codelineno-61-9" href="#__codelineno-61-9"></a>
-<a id="__codelineno-61-10" name="__codelineno-61-10" href="#__codelineno-61-10"></a><span class="c1"># 2. Inspect the market before halting</span>
-<a id="__codelineno-61-11" name="__codelineno-61-11" href="#__codelineno-61-11"></a><span class="n">symbols</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">symbol_list</span><span class="p">()</span>
-<a id="__codelineno-61-12" name="__codelineno-61-12" href="#__codelineno-61-12"></a><span class="k">for</span> <span class="n">sym</span> <span class="ow">in</span> <span class="n">symbols</span><span class="p">:</span>
-<a id="__codelineno-61-13" name="__codelineno-61-13" href="#__codelineno-61-13"></a>    <span class="n">book</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">book_depth</span><span class="p">(</span><span class="n">sym</span><span class="p">)</span>
-<a id="__codelineno-61-14" name="__codelineno-61-14" href="#__codelineno-61-14"></a>    <span class="n">bids</span> <span class="o">=</span> <span class="n">book</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;bids&quot;</span><span class="p">,</span> <span class="p">[])</span>
-<a id="__codelineno-61-15" name="__codelineno-61-15" href="#__codelineno-61-15"></a>    <span class="n">asks</span> <span class="o">=</span> <span class="n">book</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;asks&quot;</span><span class="p">,</span> <span class="p">[])</span>
-<a id="__codelineno-61-16" name="__codelineno-61-16" href="#__codelineno-61-16"></a>    <span class="n">bid_str</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">bids</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;price&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> x </span><span class="si">{</span><span class="n">bids</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;qty&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">bids</span> <span class="k">else</span> <span class="s2">&quot;—&quot;</span>
-<a id="__codelineno-61-17" name="__codelineno-61-17" href="#__codelineno-61-17"></a>    <span class="n">ask_str</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">asks</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;price&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> x </span><span class="si">{</span><span class="n">asks</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;qty&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">asks</span> <span class="k">else</span> <span class="s2">&quot;—&quot;</span>
-<a id="__codelineno-61-18" name="__codelineno-61-18" href="#__codelineno-61-18"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">sym</span><span class="si">:</span><span class="s2">6</span><span class="si">}</span><span class="s2">  bid=</span><span class="si">{</span><span class="n">bid_str</span><span class="si">}</span><span class="s2">  ask=</span><span class="si">{</span><span class="n">ask_str</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-61-19" name="__codelineno-61-19" href="#__codelineno-61-19"></a>
-<a id="__codelineno-61-20" name="__codelineno-61-20" href="#__codelineno-61-20"></a><span class="c1"># 3. Halt all trading (e.g. technology incident detected)</span>
-<a id="__codelineno-61-21" name="__codelineno-61-21" href="#__codelineno-61-21"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">halt_all</span><span class="p">()</span>
-<a id="__codelineno-61-22" name="__codelineno-61-22" href="#__codelineno-61-22"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;HALT: </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;halted_symbols&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> symbols halted, &quot;</span>
-<a id="__codelineno-61-23" name="__codelineno-61-23" href="#__codelineno-61-23"></a>      <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;cancelled_quotes&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> quotes cancelled&quot;</span><span class="p">)</span>
-<a id="__codelineno-61-24" name="__codelineno-61-24" href="#__codelineno-61-24"></a>
-<a id="__codelineno-61-25" name="__codelineno-61-25" href="#__codelineno-61-25"></a><span class="c1"># 4. Cancel all exposure for the affected participant</span>
-<a id="__codelineno-61-26" name="__codelineno-61-26" href="#__codelineno-61-26"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">kill_switch</span><span class="p">(</span><span class="s2">&quot;TRADER01&quot;</span><span class="p">)</span>
-<a id="__codelineno-61-27" name="__codelineno-61-27" href="#__codelineno-61-27"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Kill switch TRADER01: </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;cancelled_orders&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> orders cancelled&quot;</span><span class="p">)</span>
-<a id="__codelineno-61-28" name="__codelineno-61-28" href="#__codelineno-61-28"></a>
-<a id="__codelineno-61-29" name="__codelineno-61-29" href="#__codelineno-61-29"></a><span class="c1"># 5. Kick the affected gateway</span>
-<a id="__codelineno-61-30" name="__codelineno-61-30" href="#__codelineno-61-30"></a><span class="n">client</span><span class="o">.</span><span class="n">gateway_kick</span><span class="p">(</span><span class="s2">&quot;TRADER01&quot;</span><span class="p">,</span> <span class="n">reason</span><span class="o">=</span><span class="s2">&quot;Compliance review&quot;</span><span class="p">)</span>
-<a id="__codelineno-61-31" name="__codelineno-61-31" href="#__codelineno-61-31"></a>
-<a id="__codelineno-61-32" name="__codelineno-61-32" href="#__codelineno-61-32"></a><span class="c1"># 6. Verify TRADER01 has no remaining orders</span>
-<a id="__codelineno-61-33" name="__codelineno-61-33" href="#__codelineno-61-33"></a><span class="n">remaining</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">order_list</span><span class="p">(</span><span class="s2">&quot;TRADER01&quot;</span><span class="p">)</span>
-<a id="__codelineno-61-34" name="__codelineno-61-34" href="#__codelineno-61-34"></a><span class="k">assert</span> <span class="ow">not</span> <span class="n">remaining</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Unexpected orders: </span><span class="si">{</span><span class="n">remaining</span><span class="si">}</span><span class="s2">&quot;</span>
-<a id="__codelineno-61-35" name="__codelineno-61-35" href="#__codelineno-61-35"></a>
-<a id="__codelineno-61-36" name="__codelineno-61-36" href="#__codelineno-61-36"></a><span class="c1"># 7. Resume when the all-clear is given</span>
-<a id="__codelineno-61-37" name="__codelineno-61-37" href="#__codelineno-61-37"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">resume_all</span><span class="p">()</span>
-<a id="__codelineno-61-38" name="__codelineno-61-38" href="#__codelineno-61-38"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;RESUME: </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;resumed_symbols&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> symbols resumed&quot;</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-73-1" name="__codelineno-73-1" href="#__codelineno-73-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">edumatcher.commands</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExchangeCommandClient</span><span class="p">,</span> <span class="n">CommandTimeoutError</span>
+<a id="__codelineno-73-2" name="__codelineno-73-2" href="#__codelineno-73-2"></a>
+<a id="__codelineno-73-3" name="__codelineno-73-3" href="#__codelineno-73-3"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ExchangeCommandClient</span><span class="p">(</span><span class="s2">&quot;GW_ADMIN&quot;</span><span class="p">)</span>
+<a id="__codelineno-73-4" name="__codelineno-73-4" href="#__codelineno-73-4"></a>
+<a id="__codelineno-73-5" name="__codelineno-73-5" href="#__codelineno-73-5"></a><span class="c1"># 1. Connect</span>
+<a id="__codelineno-73-6" name="__codelineno-73-6" href="#__codelineno-73-6"></a><span class="n">auth</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
+<a id="__codelineno-73-7" name="__codelineno-73-7" href="#__codelineno-73-7"></a><span class="k">assert</span> <span class="n">auth</span><span class="p">[</span><span class="s2">&quot;accepted&quot;</span><span class="p">],</span> <span class="sa">f</span><span class="s2">&quot;Auth failed: </span><span class="si">{</span><span class="n">auth</span><span class="p">[</span><span class="s1">&#39;reason&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-73-8" name="__codelineno-73-8" href="#__codelineno-73-8"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Connected as ADMIN&quot;</span><span class="p">)</span>
+<a id="__codelineno-73-9" name="__codelineno-73-9" href="#__codelineno-73-9"></a>
+<a id="__codelineno-73-10" name="__codelineno-73-10" href="#__codelineno-73-10"></a><span class="c1"># 2. Inspect the market before halting</span>
+<a id="__codelineno-73-11" name="__codelineno-73-11" href="#__codelineno-73-11"></a><span class="n">symbols</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">symbol_list</span><span class="p">()</span>
+<a id="__codelineno-73-12" name="__codelineno-73-12" href="#__codelineno-73-12"></a><span class="k">for</span> <span class="n">sym</span> <span class="ow">in</span> <span class="n">symbols</span><span class="p">:</span>
+<a id="__codelineno-73-13" name="__codelineno-73-13" href="#__codelineno-73-13"></a>    <span class="n">book</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">book_depth</span><span class="p">(</span><span class="n">sym</span><span class="p">)</span>
+<a id="__codelineno-73-14" name="__codelineno-73-14" href="#__codelineno-73-14"></a>    <span class="n">bids</span> <span class="o">=</span> <span class="n">book</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;bids&quot;</span><span class="p">,</span> <span class="p">[])</span>
+<a id="__codelineno-73-15" name="__codelineno-73-15" href="#__codelineno-73-15"></a>    <span class="n">asks</span> <span class="o">=</span> <span class="n">book</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;asks&quot;</span><span class="p">,</span> <span class="p">[])</span>
+<a id="__codelineno-73-16" name="__codelineno-73-16" href="#__codelineno-73-16"></a>    <span class="n">bid_str</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">bids</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;price&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> x </span><span class="si">{</span><span class="n">bids</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;qty&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">bids</span> <span class="k">else</span> <span class="s2">&quot;—&quot;</span>
+<a id="__codelineno-73-17" name="__codelineno-73-17" href="#__codelineno-73-17"></a>    <span class="n">ask_str</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">asks</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;price&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> x </span><span class="si">{</span><span class="n">asks</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="s1">&#39;qty&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="n">asks</span> <span class="k">else</span> <span class="s2">&quot;—&quot;</span>
+<a id="__codelineno-73-18" name="__codelineno-73-18" href="#__codelineno-73-18"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">sym</span><span class="si">:</span><span class="s2">6</span><span class="si">}</span><span class="s2">  bid=</span><span class="si">{</span><span class="n">bid_str</span><span class="si">}</span><span class="s2">  ask=</span><span class="si">{</span><span class="n">ask_str</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-73-19" name="__codelineno-73-19" href="#__codelineno-73-19"></a>
+<a id="__codelineno-73-20" name="__codelineno-73-20" href="#__codelineno-73-20"></a><span class="c1"># 3. Halt all trading (e.g. technology incident detected)</span>
+<a id="__codelineno-73-21" name="__codelineno-73-21" href="#__codelineno-73-21"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">halt_all</span><span class="p">()</span>
+<a id="__codelineno-73-22" name="__codelineno-73-22" href="#__codelineno-73-22"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;HALT: </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;halted_symbols&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> symbols halted, &quot;</span>
+<a id="__codelineno-73-23" name="__codelineno-73-23" href="#__codelineno-73-23"></a>      <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;cancelled_quotes&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> quotes cancelled&quot;</span><span class="p">)</span>
+<a id="__codelineno-73-24" name="__codelineno-73-24" href="#__codelineno-73-24"></a>
+<a id="__codelineno-73-25" name="__codelineno-73-25" href="#__codelineno-73-25"></a><span class="c1"># 4. Cancel all exposure for the affected participant</span>
+<a id="__codelineno-73-26" name="__codelineno-73-26" href="#__codelineno-73-26"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">kill_switch</span><span class="p">(</span><span class="s2">&quot;TRADER01&quot;</span><span class="p">)</span>
+<a id="__codelineno-73-27" name="__codelineno-73-27" href="#__codelineno-73-27"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Kill switch TRADER01: </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;cancelled_orders&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> orders cancelled&quot;</span><span class="p">)</span>
+<a id="__codelineno-73-28" name="__codelineno-73-28" href="#__codelineno-73-28"></a>
+<a id="__codelineno-73-29" name="__codelineno-73-29" href="#__codelineno-73-29"></a><span class="c1"># 5. Kick the affected gateway</span>
+<a id="__codelineno-73-30" name="__codelineno-73-30" href="#__codelineno-73-30"></a><span class="n">client</span><span class="o">.</span><span class="n">gateway_kick</span><span class="p">(</span><span class="s2">&quot;TRADER01&quot;</span><span class="p">,</span> <span class="n">reason</span><span class="o">=</span><span class="s2">&quot;Compliance review&quot;</span><span class="p">)</span>
+<a id="__codelineno-73-31" name="__codelineno-73-31" href="#__codelineno-73-31"></a>
+<a id="__codelineno-73-32" name="__codelineno-73-32" href="#__codelineno-73-32"></a><span class="c1"># 6. Verify TRADER01 has no remaining orders</span>
+<a id="__codelineno-73-33" name="__codelineno-73-33" href="#__codelineno-73-33"></a><span class="n">remaining</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">order_list</span><span class="p">(</span><span class="s2">&quot;TRADER01&quot;</span><span class="p">)</span>
+<a id="__codelineno-73-34" name="__codelineno-73-34" href="#__codelineno-73-34"></a><span class="k">assert</span> <span class="ow">not</span> <span class="n">remaining</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;Unexpected orders: </span><span class="si">{</span><span class="n">remaining</span><span class="si">}</span><span class="s2">&quot;</span>
+<a id="__codelineno-73-35" name="__codelineno-73-35" href="#__codelineno-73-35"></a>
+<a id="__codelineno-73-36" name="__codelineno-73-36" href="#__codelineno-73-36"></a><span class="c1"># 7. Resume when the all-clear is given</span>
+<a id="__codelineno-73-37" name="__codelineno-73-37" href="#__codelineno-73-37"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">resume_all</span><span class="p">()</span>
+<a id="__codelineno-73-38" name="__codelineno-73-38" href="#__codelineno-73-38"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;RESUME: </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;resumed_symbols&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> symbols resumed&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="extending-the-framework">Extending the framework<a class="headerlink" href="#extending-the-framework" title="Permanent link">&para;</a></h2>
 <p>To add a new command:</p>
