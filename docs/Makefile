@@ -492,7 +492,7 @@ serve: docs ## Serve the project documentation locally with MkDocs
 
 mp-bump: ## Bump the version for the documented multipass bootstrap sctip to the current project version
 	@echo -e "$(DARKYELLOW)- Bumping multipass bootstrap script version to $(BRIGHTCYAN)$(VERSION)$(DARKYELLOW)...$(NC)"
-	@sed -E -i '' "s/(--version[[:space:]]+)[0-9]+\.[0-9]+\.[0-9]+/\1${VERSION}/g" docs/**/*.md
+	@sed -E -i '' "s/(--version[[:space:]]+)[0-9]+\.[0-9]+\.[0-9]+/\1${VERSION}/g" ./**/*.md *.md ../README.md
 	@echo -e "$(GREEN)✓ All multipass bootstrap scripts version updated to $(BRIGHTCYAN)$(VERSION)$(GREEN)$(NC)"
 
 

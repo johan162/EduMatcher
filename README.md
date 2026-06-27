@@ -126,7 +126,7 @@ pm-engine --verbose
 #### Bootstrap with one command
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.11.0 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.12.0 --snapshot
 ```
 
 This command downloads the VM setup scripts, launches a Multipass VM,
