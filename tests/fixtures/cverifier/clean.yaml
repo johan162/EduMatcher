@@ -1,0 +1,67 @@
+symbols:
+  AAPL:
+    tick_decimals: 2
+    last_buy_price: 150.00
+    last_sell_price: 151.00
+    outstanding_shares: 1000000
+    market_maker_quotes:
+      - gateway_id: MM01
+        bid_price: 149.95
+        ask_price: 150.05
+        bid_qty: 100
+        ask_qty: 100
+  MSFT:
+    tick_decimals: 2
+    last_buy_price: 300.00
+    last_sell_price: 301.00
+    outstanding_shares: 500000
+    market_maker_quotes:
+      - gateway_id: MM01
+        bid_price: 299.95
+        ask_price: 300.05
+        bid_qty: 100
+        ask_qty: 100
+
+gateways:
+  alf:
+    - id: TRADER01
+      role: TRADER
+      disconnect_behaviour: CANCEL_ALL
+    - id: MM01
+      role: MARKET_MAKER
+      disconnect_behaviour: CANCEL_QUOTES_ONLY
+    - id: OPS01
+      role: ADMIN
+      disconnect_behaviour: LEAVE_ALL
+
+risk_controls:
+  default_level: DEFAULT
+  levels:
+    DEFAULT:
+      collar:
+        static_band_pct: 0.20
+        dynamic_band_pct: 0.02
+
+circuit_breaker_defaults:
+  levels:
+    L1:
+      price_shift_pct: 0.07
+      halt_duration_ns: 300000000000
+      resumption_mode: AUCTION
+    L2:
+      price_shift_pct: 0.13
+      halt_duration_ns: 900000000000
+      resumption_mode: AUCTION
+    L3:
+      price_shift_pct: 0.20
+      halt_duration_ns: null
+      resumption_mode: AUCTION
+
+mm_obligation_defaults:
+  enforce_mm_obligation: true
+  mm_max_spread_ticks: 10
+  mm_min_qty: 100
+
+enforce_collars: true
+enforce_circuit_breakers: true
+sessions_enabled: false

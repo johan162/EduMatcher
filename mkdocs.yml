@@ -109,6 +109,7 @@ nav:
     - Market Data Feed (CALF): user-guide/20-market-data-feed.md
     - API Gateway (REST/WebSocket): user-guide/21-api-gateway.md
     - Market Index (pm-index): user-guide/22-index.md
+    - Config Verifier (pm-cverifier): user-guide/23-config-verifier.md
     - Protocol Support Library Examples: user-guide/80-examples.md
     - Example Engine Configs: user-guide/81-example-configs.md
     - Known Limitations & Bugs: user-guide/89-known-limitations-bugs.md

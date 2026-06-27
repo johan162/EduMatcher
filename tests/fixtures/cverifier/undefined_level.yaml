@@ -1,0 +1,16 @@
+symbols:
+  TSLA:
+    tick_decimals: 2
+    last_buy_price: 200.00
+    level: STRICT
+
+gateways:
+  alf:
+    - id: TRADER01
+      role: TRADER
+
+risk_controls:
+  levels:
+    DEFAULT:
+      collar:
+        static_band_pct: 0.20

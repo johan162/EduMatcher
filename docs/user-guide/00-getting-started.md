@@ -290,6 +290,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | Command |  Purpose | More information |
 |---|---|---|
 | `pm-admin-cli` | Non-interactive admin commands for scripts | [Processes](10-processes.md), [Risk Controls](12-risk-controls.md) |
+| `pm-cverifier` | Validate `engine_config.yaml` before runtime (YAML, schema, semantic, completeness checks) | [Processes](10-processes.md), [Configuration](01-configuration.md), [Config Verifier](23-config-verifier.md) |
 | `pm-stats-cli` | Query `stats.db` without writing SQL | [Processes](10-processes.md#pm-stats-cli-statistics-query-cli), [Statistics and Reporting](16-statistics-and-reporting.md) |
 | `pm-index-cli` | Read-only query interface for index history files | [Processes](10-processes.md#pm-index-cli--index-history-query-tool), [Commands](02-commands.md), [Market Index](22-index.md#using-pm-index-cli-recommended) |
 | `pm-setup` |  Bootstrap local session directory and defaults | [Processes](10-processes.md), [Installation](00-getting-started.md#installation) |

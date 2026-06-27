@@ -1,0 +1,12 @@
+symbols:
+  AAPL:
+    tick_decimals: 2
+    last_buy_price: 150.00
+    last_sell_price: 151.00
+
+gateways:
+  alf:
+    - id: TRADER01
+      role: TRADER
+    - id: MM01
+      role: MARKET_MAKER

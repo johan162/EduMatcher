@@ -207,6 +207,7 @@ pm-engine --verbose
 |---------|---------|------|-----------|
 | **pm-admin** | `pm-admin` | Interactive admin console | No |
 | **pm-admin-cli** | `pm-admin-cli <command>` | One-shot CLI admin commands | No |
+| **pm-cverifier** | `pm-cverifier [options] <config>` | Validate `engine_config.yaml` (YAML, schema, semantic, completeness checks) | No |
 
 **Setup and configuration tools:**
 

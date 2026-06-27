@@ -92,6 +92,34 @@ Use it when:
 - you want consistent defaults and validation hints
 - you need repeatable config generation in scripts
 
+
+## Verify Configs with `pm-cverifier`
+
+Before starting the engine with a hand-written or generated config, run
+`pm-cverifier` to get a deep, actionable report on every problem the config
+contains — not just the first one the engine would encounter.
+
+```bash
+# human-readable report
+pm-cverifier engine_config.yaml
+
+# CI-friendly: fail on any warning, output JSON
+pm-cverifier --strict --format json engine_config.yaml
+```
+
+`pm-cverifier` is **read-only** and safe to run at any time.  It reports:
+
+- every YAML syntax or schema error that would prevent the engine from starting
+- semantic inconsistencies (e.g. sessions enabled but no schedule, MM gateway
+  without seed quotes, index constituent not in `symbols`)
+- completeness advisories (e.g. no reference prices, MM obligations not enforced)
+- a plain-English **Risk Summary** showing what collars, circuit breakers, and
+  gateways are actually active
+
+For a full description of all check codes and CLI options, see
+[Config Verifier (pm-cverifier)](23-config-verifier.md).
+
+
 ### Quick start
 
 Installed mode:

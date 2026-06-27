@@ -13,6 +13,7 @@ This directory is a lightweight workspace for design ideas across **EduMatcher**
 - `EduMatcher-Session-gwy-command.md`
 - `EduMatcher-Index.md`
 - `EduMatcher-index-cb.md`
+- `EduMatcher-Config-Verifier.md`
 - `EduMatcher-Stat-commands.md`
 - `EduMatcher-Cross-host-connection.md`
 - `EduMatcher-Post-Trade-Dissemination-Gateway.md`
