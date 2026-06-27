@@ -429,6 +429,9 @@ else
     print_warning "docs directory not found; skipping User Guide PDF build"
 fi
 
+# Clean up any previous PDF artifacts
+run_command "make -C docs clean" "Cleaning previous PDF artifacts"
+
 if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ] && [ "$BUILD_USER_GUIDE_PDF" = true ]; then
     run_parallel_commands \
         "make -C docs-exchange-intro -j4" \
