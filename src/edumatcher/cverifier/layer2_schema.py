@@ -1,0 +1,670 @@
+"""Layer 2 — Schema validation: required fields, correct types, value ranges (S001–S042)."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from edumatcher.cverifier.models import CheckResult, Severity
+
+_VALID_ROLES = {"TRADER", "MARKET_MAKER", "ADMIN"}
+_VALID_DISCONNECT = {"CANCEL_ALL", "CANCEL_QUOTES_ONLY", "LEAVE_ALL"}
+_VALID_RESUMPTION = {"AUCTION", "CONTINUOUS"}
+_VALID_TIF = {"DAY", "GTC"}
+
+
+def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
+    """Run Layer 2 schema checks against the raw YAML dict."""
+    results: list[CheckResult] = []
+    _check_top_level(raw, results)
+    if any(r.severity is Severity.ERROR for r in results):
+        # No point checking symbols/gateways if top-level structure is missing
+        return results
+    _check_symbols(raw, results)
+    _check_gateways(raw, results)
+    _check_cb_defaults(raw, results)
+    _check_risk_controls(raw, results)
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Top-level required keys
+# ---------------------------------------------------------------------------
+
+
+def _check_top_level(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    symbols = raw.get("symbols")
+    if not isinstance(symbols, dict):
+        results.append(
+            CheckResult(
+                code="S001",
+                severity=Severity.ERROR,
+                message="'symbols' is required and must be a mapping.",
+                suggestion="Add at least one symbol entry under 'symbols:'.",
+                path="symbols",
+            )
+        )
+    elif not symbols:
+        results.append(
+            CheckResult(
+                code="S004",
+                severity=Severity.ERROR,
+                message="'symbols' contains no entries.",
+                suggestion="Add at least one symbol (e.g. AAPL) with tick_decimals.",
+                path="symbols",
+            )
+        )
+
+    gateways = raw.get("gateways")
+    if not isinstance(gateways, dict):
+        results.append(
+            CheckResult(
+                code="S002",
+                severity=Severity.ERROR,
+                message="'gateways' is required and must be a mapping containing a 'gateways.alf' list.",
+                suggestion="Add a 'gateways:' section with an 'alf:' list.",
+                path="gateways",
+            )
+        )
+        return
+
+    alf = gateways.get("alf")
+    if not isinstance(alf, list):
+        results.append(
+            CheckResult(
+                code="S003",
+                severity=Severity.ERROR,
+                message="'gateways.alf' must be a list of gateway entries.",
+                suggestion=(
+                    "Add a list under 'gateways.alf:'. "
+                    "See the configuration guide for the required fields."
+                ),
+                path="gateways.alf",
+            )
+        )
+    elif not alf:
+        results.append(
+            CheckResult(
+                code="S005",
+                severity=Severity.ERROR,
+                message="'gateways.alf' contains no gateway entries.",
+                suggestion="Add at least one gateway with an id and role.",
+                path="gateways.alf",
+            )
+        )
+
+
+# ---------------------------------------------------------------------------
+# Symbol validation
+# ---------------------------------------------------------------------------
+
+
+def _check_symbols(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    symbols = raw.get("symbols", {})
+    if not isinstance(symbols, dict):
+        return
+
+    defined_levels = _get_defined_risk_levels(raw)
+
+    for sym_raw, cfg in symbols.items():
+        sym = str(sym_raw).upper()
+        if not isinstance(cfg, dict):
+            cfg = {}
+
+        _check_symbol_tick_decimals(sym, cfg, results)
+        _check_symbol_prices(sym, cfg, results)
+        _check_symbol_outstanding_shares(sym, cfg, results)
+        _check_symbol_level(sym, cfg, defined_levels, results)
+        _check_symbol_mm_quotes(sym, cfg, results)
+
+
+def _check_symbol_tick_decimals(
+    sym: str, cfg: dict[str, Any], results: list[CheckResult]
+) -> None:
+    td = cfg.get("tick_decimals", 2)
+    try:
+        td_int = int(td)
+        if not (0 <= td_int <= 8):
+            raise ValueError("out of range")
+    except (TypeError, ValueError):
+        results.append(
+            CheckResult(
+                code="S010",
+                severity=Severity.ERROR,
+                message=(
+                    f"Symbol '{sym}': tick_decimals must be an integer between 0 and 8. "
+                    f"Got '{td}'."
+                ),
+                suggestion=(
+                    "Common values are 2 (dollars/cents) or 0 (integer ticks).\n"
+                    f"    symbols:\n      {sym}:\n        tick_decimals: 2"
+                ),
+                path=f"symbols.{sym}.tick_decimals",
+            )
+        )
+
+
+def _check_symbol_prices(
+    sym: str, cfg: dict[str, Any], results: list[CheckResult]
+) -> None:
+    for price_field in ("last_buy_price", "last_sell_price"):
+        val = cfg.get(price_field)
+        if val is not None:
+            try:
+                float(val)
+            except (TypeError, ValueError):
+                results.append(
+                    CheckResult(
+                        code="S011",
+                        severity=Severity.ERROR,
+                        message=(
+                            f"Symbol '{sym}': {price_field} must be numeric. Got '{val}'."
+                        ),
+                        suggestion="Set to a positive number or omit entirely.",
+                        path=f"symbols.{sym}.{price_field}",
+                    )
+                )
+
+
+def _check_symbol_outstanding_shares(
+    sym: str, cfg: dict[str, Any], results: list[CheckResult]
+) -> None:
+    val = cfg.get("outstanding_shares")
+    if val is not None:
+        try:
+            v = int(val)
+            if v <= 0:
+                raise ValueError("must be positive")
+        except (TypeError, ValueError):
+            results.append(
+                CheckResult(
+                    code="S012",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"Symbol '{sym}': outstanding_shares must be a positive integer. "
+                        f"Got '{val}'."
+                    ),
+                    suggestion="This field is required for index constituents.",
+                    path=f"symbols.{sym}.outstanding_shares",
+                )
+            )
+
+
+def _check_symbol_level(
+    sym: str,
+    cfg: dict[str, Any],
+    defined_levels: set[str],
+    results: list[CheckResult],
+) -> None:
+    level_raw = cfg.get("level")
+    if level_raw is not None and defined_levels:
+        level = str(level_raw).strip().upper()
+        if level not in defined_levels:
+            defined_str = ", ".join(sorted(defined_levels)) or "(none)"
+            results.append(
+                CheckResult(
+                    code="S013",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"Symbol '{sym}': level '{level}' is not defined in "
+                        f"risk_controls.levels. Defined levels are: {defined_str}."
+                    ),
+                    suggestion=(
+                        f"Either add '{level}' to risk_controls.levels or change "
+                        f"the symbol's level to an existing one."
+                    ),
+                    path=f"symbols.{sym}.level",
+                )
+            )
+    elif level_raw is not None and not defined_levels:
+        level = str(level_raw).strip().upper()
+        results.append(
+            CheckResult(
+                code="S013",
+                severity=Severity.ERROR,
+                message=(
+                    f"Symbol '{sym}': level '{level}' is not defined in "
+                    f"risk_controls.levels. No risk_controls.levels are defined."
+                ),
+                suggestion=(
+                    "Add risk_controls.levels to the config or remove the level field."
+                ),
+                path=f"symbols.{sym}.level",
+            )
+        )
+
+
+def _check_symbol_mm_quotes(
+    sym: str, cfg: dict[str, Any], results: list[CheckResult]
+) -> None:
+    mm_quotes = cfg.get("market_maker_quotes")
+    if mm_quotes is None:
+        return
+    if not isinstance(mm_quotes, list):
+        return
+    for i, quote in enumerate(mm_quotes):
+        if not isinstance(quote, dict):
+            continue
+        # Required fields
+        for required in ("gateway_id", "bid_price", "ask_price", "bid_qty", "ask_qty"):
+            if required not in quote:
+                results.append(
+                    CheckResult(
+                        code="S014",
+                        severity=Severity.ERROR,
+                        message=(
+                            f"Symbol '{sym}': market_maker_quotes[{i}] is missing '{required}'."
+                        ),
+                        suggestion=(
+                            "Each quote seed requires gateway_id, bid_price, ask_price, "
+                            "bid_qty, and ask_qty."
+                        ),
+                        path=f"symbols.{sym}.market_maker_quotes[{i}]",
+                    )
+                )
+        # Bid/ask crossing
+        bid = quote.get("bid_price")
+        ask = quote.get("ask_price")
+        if bid is not None and ask is not None:
+            try:
+                if float(bid) >= float(ask):
+                    results.append(
+                        CheckResult(
+                            code="S015",
+                            severity=Severity.ERROR,
+                            message=(
+                                f"Symbol '{sym}': market_maker_quotes[{i}] has "
+                                f"bid_price ({bid}) >= ask_price ({ask}). "
+                                "The bid must be strictly less than the ask."
+                            ),
+                            suggestion=(
+                                "Swap the values or correct the prices:\n"
+                                f"    symbols:\n      {sym}:\n        market_maker_quotes:\n"
+                                f"          - gateway_id: ...\n"
+                                f"            bid_price: {ask}\n"
+                                f"            ask_price: {bid}"
+                            ),
+                            path=f"symbols.{sym}.market_maker_quotes[{i}]",
+                        )
+                    )
+            except (TypeError, ValueError):
+                pass
+
+        _check_mm_quote_validity(sym, i, quote, results)
+
+
+def _check_mm_quote_validity(
+    sym: str, i: int, quote: dict[str, Any], results: list[CheckResult]
+) -> None:
+    """S016 — prices/quantities/tif that the engine would reject at startup."""
+    problems: list[str] = []
+
+    for price_field in ("bid_price", "ask_price"):
+        val = quote.get(price_field)
+        if val is None:
+            continue
+        try:
+            float(val)
+        except (TypeError, ValueError):
+            problems.append(f"{price_field} must be numeric (got '{val}')")
+
+    for qty_field in ("bid_qty", "ask_qty"):
+        val = quote.get(qty_field)
+        if val is None:
+            continue
+        try:
+            qty = int(val)
+        except (TypeError, ValueError):
+            problems.append(f"{qty_field} must be a positive integer (got '{val}')")
+            continue
+        if qty <= 0:
+            problems.append(f"{qty_field} must be positive (got {qty})")
+
+    tif = quote.get("tif")
+    if tif is not None and str(tif).upper() not in _VALID_TIF:
+        problems.append(
+            f"tif '{tif}' is not valid (use {' or '.join(sorted(_VALID_TIF))})"
+        )
+
+    if problems:
+        results.append(
+            CheckResult(
+                code="S016",
+                severity=Severity.ERROR,
+                message=(
+                    f"Symbol '{sym}': market_maker_quotes[{i}] is invalid: "
+                    + "; ".join(problems)
+                    + "."
+                ),
+                suggestion=(
+                    "The engine rejects this seed at startup. "
+                    "Quantities must be positive integers, prices numeric, "
+                    "and tif one of DAY or GTC."
+                ),
+                path=f"symbols.{sym}.market_maker_quotes[{i}]",
+            )
+        )
+
+
+# ---------------------------------------------------------------------------
+# Gateway validation
+# ---------------------------------------------------------------------------
+
+
+def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    gateways = raw.get("gateways", {})
+    if not isinstance(gateways, dict):
+        return
+    alf = gateways.get("alf", [])
+    if not isinstance(alf, list):
+        return
+
+    seen_ids: dict[str, int] = {}
+    for n, gw in enumerate(alf):
+        if not isinstance(gw, dict):
+            continue
+        gw_id = gw.get("id")
+        if not gw_id or not isinstance(gw_id, str) or not str(gw_id).strip():
+            results.append(
+                CheckResult(
+                    code="S020",
+                    severity=Severity.ERROR,
+                    message=f"gateways.alf[{n}] has no 'id' field.",
+                    suggestion="Every gateway must have a unique alphanumeric id.",
+                    path=f"gateways.alf[{n}]",
+                )
+            )
+            continue
+        gw_id = str(gw_id).strip().upper()
+        if gw_id in seen_ids:
+            results.append(
+                CheckResult(
+                    code="S021",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"Duplicate gateway id '{gw_id}' at gateways.alf[{n}] "
+                        f"and gateways.alf[{seen_ids[gw_id]}]."
+                    ),
+                    suggestion="Each gateway must have a unique id.",
+                    path=f"gateways.alf[{n}].id",
+                )
+            )
+        else:
+            seen_ids[gw_id] = n
+
+        role = gw.get("role", "TRADER")
+        if str(role).upper() not in _VALID_ROLES:
+            results.append(
+                CheckResult(
+                    code="S022",
+                    severity=Severity.ERROR,
+                    message=(f"Gateway '{gw_id}': role '{role}' is not valid."),
+                    suggestion=f"Accepted values: {', '.join(sorted(_VALID_ROLES))}.",
+                    path=f"gateways.alf[{n}].role",
+                )
+            )
+
+        disconnect = gw.get("disconnect_behaviour")
+        if disconnect is not None and str(disconnect).upper() not in _VALID_DISCONNECT:
+            results.append(
+                CheckResult(
+                    code="S023",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"Gateway '{gw_id}': disconnect_behaviour '{disconnect}' is not valid."
+                    ),
+                    suggestion=(
+                        f"Accepted values: {', '.join(sorted(_VALID_DISCONNECT))}."
+                    ),
+                    path=f"gateways.alf[{n}].disconnect_behaviour",
+                )
+            )
+
+
+# ---------------------------------------------------------------------------
+# Circuit breaker defaults
+# ---------------------------------------------------------------------------
+
+
+def _check_cb_defaults(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    cb = raw.get("circuit_breaker_defaults")
+    if cb is None:
+        return
+    if not isinstance(cb, dict):
+        results.append(
+            CheckResult(
+                code="S030",
+                severity=Severity.ERROR,
+                message="'circuit_breaker_defaults' must be a mapping.",
+                suggestion="Change circuit_breaker_defaults to a mapping with a 'levels:' key.",
+                path="circuit_breaker_defaults",
+            )
+        )
+        return
+
+    levels = cb.get("levels")
+    if levels is None:
+        return
+    if not isinstance(levels, dict):
+        results.append(
+            CheckResult(
+                code="S030",
+                severity=Severity.ERROR,
+                message="'circuit_breaker_defaults.levels' must be a mapping.",
+                suggestion=(
+                    "Each key is a level name (e.g. L1) and each value must have price_shift_pct."
+                ),
+                path="circuit_breaker_defaults.levels",
+            )
+        )
+        return
+
+    thresholds: list[tuple[str, float]] = []
+    for name, level_cfg in levels.items():
+        if not isinstance(level_cfg, dict):
+            continue
+        psp = level_cfg.get("price_shift_pct")
+        if psp is None:
+            results.append(
+                CheckResult(
+                    code="S031",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"circuit_breaker_defaults.levels.{name}: "
+                        "price_shift_pct is required."
+                    ),
+                    suggestion="Must be a float in (0, 1), e.g. 0.07 for 7%.",
+                    path=f"circuit_breaker_defaults.levels.{name}.price_shift_pct",
+                )
+            )
+        else:
+            try:
+                psp_f = float(psp)
+                if not (0 < psp_f < 1):
+                    raise ValueError("out of range")
+                thresholds.append((str(name), psp_f))
+            except (TypeError, ValueError):
+                results.append(
+                    CheckResult(
+                        code="S032",
+                        severity=Severity.ERROR,
+                        message=(
+                            f"circuit_breaker_defaults.levels.{name}: "
+                            f"price_shift_pct {psp} is outside (0, 1)."
+                        ),
+                        suggestion="Set a fraction such as 0.07 for 7%.",
+                        path=f"circuit_breaker_defaults.levels.{name}.price_shift_pct",
+                    )
+                )
+
+        hd = level_cfg.get("halt_duration_ns")
+        if hd is not None:
+            try:
+                hd_i = int(hd)
+                if hd_i <= 0:
+                    raise ValueError("must be positive")
+            except (TypeError, ValueError):
+                results.append(
+                    CheckResult(
+                        code="S033",
+                        severity=Severity.ERROR,
+                        message=(
+                            f"circuit_breaker_defaults.levels.{name}: "
+                            f"halt_duration_ns must be a positive integer or null. Got '{hd}'."
+                        ),
+                        suggestion="Use nanoseconds (e.g. 300000000000 for 5 minutes).",
+                        path=f"circuit_breaker_defaults.levels.{name}.halt_duration_ns",
+                    )
+                )
+
+        rm = level_cfg.get("resumption_mode")
+        if rm is not None and str(rm).upper() not in _VALID_RESUMPTION:
+            results.append(
+                CheckResult(
+                    code="S034",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"circuit_breaker_defaults.levels.{name}: "
+                        f"resumption_mode '{rm}' is not valid."
+                    ),
+                    suggestion="Use AUCTION or CONTINUOUS.",
+                    path=f"circuit_breaker_defaults.levels.{name}.resumption_mode",
+                )
+            )
+
+    # Warn if thresholds are not strictly increasing
+    if len(thresholds) >= 2:
+        sorted_by_pct = sorted(thresholds, key=lambda x: x[1])
+        if [n for n, _ in thresholds] != [n for n, _ in sorted_by_pct]:
+            detail = ", ".join(f"{n}={v:.0%}" for n, v in thresholds)
+            results.append(
+                CheckResult(
+                    code="M014",
+                    severity=Severity.WARN,
+                    message=(
+                        "circuit_breaker_defaults levels are not in ascending order of "
+                        f"price_shift_pct: {detail}."
+                    ),
+                    suggestion="Reorder the levels from smallest to largest threshold.",
+                    path="circuit_breaker_defaults.levels",
+                )
+            )
+
+
+# ---------------------------------------------------------------------------
+# Risk controls
+# ---------------------------------------------------------------------------
+
+
+def _check_risk_controls(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    rc = raw.get("risk_controls")
+    if rc is None:
+        return
+    if not isinstance(rc, dict):
+        return
+
+    defined_levels = _get_defined_risk_levels(raw)
+
+    default_level = rc.get("default_level")
+    if default_level is not None and defined_levels:
+        dl = str(default_level).strip().upper()
+        if dl not in defined_levels:
+            results.append(
+                CheckResult(
+                    code="S040",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"risk_controls.default_level '{default_level}' is not defined "
+                        f"in risk_controls.levels."
+                    ),
+                    suggestion=(
+                        "Add it or change default_level to a name that exists: "
+                        + ", ".join(sorted(defined_levels))
+                    ),
+                    path="risk_controls.default_level",
+                )
+            )
+
+    levels = rc.get("levels", {})
+    if not isinstance(levels, dict):
+        return
+
+    for level_name, level_cfg in levels.items():
+        if not isinstance(level_cfg, dict):
+            continue
+
+        # S035: CB should not be in risk_controls.levels
+        if "circuit_breaker" in level_cfg:
+            results.append(
+                CheckResult(
+                    code="S035",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"risk_controls.levels.{level_name}: circuit_breaker is no longer "
+                        "supported here."
+                    ),
+                    suggestion=(
+                        "Move it to the top-level circuit_breaker_defaults section."
+                    ),
+                    path=f"risk_controls.levels.{level_name}.circuit_breaker",
+                )
+            )
+
+        collar = level_cfg.get("collar")
+        if not isinstance(collar, dict):
+            continue
+
+        sbp = collar.get("static_band_pct")
+        if sbp is not None:
+            try:
+                sbp_f = float(sbp)
+                if not (0 < sbp_f < 1):
+                    raise ValueError("out of range")
+            except (TypeError, ValueError):
+                results.append(
+                    CheckResult(
+                        code="S041",
+                        severity=Severity.ERROR,
+                        message=(
+                            f"risk_controls.levels.{level_name}.collar.static_band_pct "
+                            f"{sbp} is outside (0, 1)."
+                        ),
+                        suggestion="A typical value is 0.20 (20%).",
+                        path=f"risk_controls.levels.{level_name}.collar.static_band_pct",
+                    )
+                )
+
+        dbp = collar.get("dynamic_band_pct")
+        if dbp is not None:
+            try:
+                dbp_f = float(dbp)
+                if not (0 < dbp_f < 1):
+                    raise ValueError("out of range")
+            except (TypeError, ValueError):
+                results.append(
+                    CheckResult(
+                        code="S042",
+                        severity=Severity.ERROR,
+                        message=(
+                            f"risk_controls.levels.{level_name}.collar.dynamic_band_pct "
+                            f"{dbp} is outside (0, 1)."
+                        ),
+                        suggestion="A typical value is 0.02 (2%).",
+                        path=f"risk_controls.levels.{level_name}.collar.dynamic_band_pct",
+                    )
+                )
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _get_defined_risk_levels(raw: dict[str, Any]) -> set[str]:
+    rc = raw.get("risk_controls")
+    if not isinstance(rc, dict):
+        return set()
+    levels = rc.get("levels")
+    if not isinstance(levels, dict):
+        return set()
+    return {str(k).strip().upper() for k in levels}

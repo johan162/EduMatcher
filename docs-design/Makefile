@@ -206,6 +206,7 @@ $(eval $(call DEFINE_DESIGN_DOC_VARS,TICK_MIGRATION_PLAN,EduMatcher-Tick_Migrati
 $(eval $(call DEFINE_DESIGN_DOC_VARS,MARKET_DATA_PROTOCOL,EduMatcher-Market_Data_Protocol,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,SESSION_GWY_COMMAND,EduMatcher-Session-gwy-command,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,INDEX_DESIGN,EduMatcher-Index,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,INDEX_DB_DESIGN,EduMatcher-index-cb,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,CROSS_HOST_CONNECTION,EduMatcher-Cross-host-connection,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,STAT_COMMANDS,EduMatcher-Stat-commands,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,CONFIG_GENERATOR,EduMatcher-config-generator,,))
@@ -215,6 +216,7 @@ $(eval $(call DEFINE_DESIGN_DOC_VARS,API_GATEWAY_V2,EduMatcher-ALF-API-Gwy2,,))
 
 $(eval $(call DEFINE_DESIGN_DOC_VARS,REQUIREMENTS,EduMatcher-Requirements,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,MM_BOTS,EduMatcher-MM-bots,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,CONFIG_VERIFIER,EduMatcher-Config-Verifier,,))
 
 
 # ============================================================================================
@@ -228,6 +230,7 @@ $(eval $(call DESIGN_DOC_PDF_RULE,TICK_MIGRATION_PLAN,"EduMatcher-Tick_Migration
 $(eval $(call DESIGN_DOC_PDF_RULE,MARKET_DATA_PROTOCOL,"EduMatcher-Market_Data_Protocol"))
 $(eval $(call DESIGN_DOC_PDF_RULE,SESSION_GWY_COMMAND,"EduMatcher-Session-gwy-command"))
 $(eval $(call DESIGN_DOC_PDF_RULE,INDEX_DESIGN,"EduMatcher-Index"))
+$(eval $(call DESIGN_DOC_PDF_RULE,INDEX_DB_DESIGN,"EduMatcher-index-cb"))
 $(eval $(call DESIGN_DOC_PDF_RULE,CROSS_HOST_CONNECTION,"EduMatcher-Cross-host-connection"))
 $(eval $(call DESIGN_DOC_PDF_RULE,STAT_COMMANDS,"EduMatcher-Stat-commands"))
 $(eval $(call DESIGN_DOC_PDF_RULE,CONFIG_GENERATOR,"EduMatcher-config-generator"))
@@ -237,12 +240,15 @@ $(eval $(call DESIGN_DOC_PDF_RULE,API_GATEWAY_V2,"EduMatcher-ALF-API-Gwy2"))
 
 $(eval $(call DESIGN_DOC_PDF_RULE,REQUIREMENTS,"EduMatcher-Requirements"))
 $(eval $(call DESIGN_DOC_PDF_RULE,MM_BOTS,"EduMatcher-MM-bots"))
+$(eval $(call DESIGN_DOC_PDF_RULE,CONFIG_VERIFIER,"EduMatcher-Config-Verifier"))
 
 
 PDF_DESIGN_DOCS := $(BALF_PROPOSAL_PDF) $(FEATURE_IMPLEMENTATION_PDF) $(MM_QUOTES_IMPLEMENTATION_PDF) \
 $(TICK_MIGRATION_PLAN_PDF) $(MARKET_DATA_PROTOCOL_PDF) $(SESSION_GWY_COMMAND_PDF) $(INDEX_DESIGN_PDF) \
+$(INDEX_DB_DESIGN_PDF) \
 $(CROSS_HOST_CONNECTION_PDF) $(STAT_COMMANDS_PDF) $(CONFIG_GENERATOR_PDF) $(MM_QUOTE_IDENTIFICATION_PDF) \
-$(MM_BOTS_PDF) $(POST_TRADE_DISSEMINATION_GATEWAY_PDF) $(API_GATEWAY_V2_PDF)
+$(MM_BOTS_PDF) $(POST_TRADE_DISSEMINATION_GATEWAY_PDF) $(API_GATEWAY_V2_PDF) \
+$(CONFIG_VERIFIER_PDF)
 
 help: ## Show this help message
 	@echo -e "$(DARKYELLOW)OneSelect - Makefile Targets$(NC)"

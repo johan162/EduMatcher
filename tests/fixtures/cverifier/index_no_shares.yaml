@@ -1,0 +1,22 @@
+symbols:
+  AAPL:
+    tick_decimals: 2
+    last_buy_price: 150.00
+  MSFT:
+    tick_decimals: 2
+    last_buy_price: 300.00
+
+gateways:
+  alf:
+    - id: TRADER01
+      role: TRADER
+    - id: OPS01
+      role: ADMIN
+
+indices:
+  - id: EDU100
+    description: Test index
+    base_value: 1000.0
+    constituents:
+      - AAPL
+      - MSFT

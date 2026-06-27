@@ -1,0 +1,11 @@
+symbols:
+  AAPL:
+    tick_decimals: 2
+    last_buy_price: 150.00
+
+gateways:
+  alf:
+    - id: MM01
+      role: MARKET_MAKER
+    - id: OPS01
+      role: ADMIN

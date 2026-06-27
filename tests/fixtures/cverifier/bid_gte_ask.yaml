@@ -1,0 +1,18 @@
+symbols:
+  AAPL:
+    tick_decimals: 2
+    last_buy_price: 150.00
+    last_sell_price: 151.00
+    market_maker_quotes:
+      - gateway_id: MM01
+        bid_price: 155.00
+        ask_price: 154.50
+        bid_qty: 100
+        ask_qty: 100
+
+gateways:
+  alf:
+    - id: MM01
+      role: MARKET_MAKER
+    - id: OPS01
+      role: ADMIN
