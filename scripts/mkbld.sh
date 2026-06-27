@@ -485,7 +485,7 @@ if [ "$DRY_RUN" = false ]; then
     echo ""
     echo "📦 Artifacts:"
     if [ -d "dist" ] && [ "$(ls -A dist)" ]; then
-        for file in dist/*; do
+        for file in dist/* docs/dist/*; do
             if [ -f "$file" ]; then
                 FILENAME=$(basename "$file")
                 SIZE=$(ls -lh "$file" | awk '{print $5}')
