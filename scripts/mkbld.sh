@@ -456,6 +456,9 @@ fi
 print_sub_step "Generating HTML version of User Guide for site/ ..."
 run_command "make -C docs docs" "Building HTML docs with Makefile"
 
+# Step 4.7: Bump the multipass bootstrap script version in the docs to match the current project version
+print_sub_step "Bumping multipass bootstrap script version in docs to match project version ${VERSION}"
+run_command "make -C docs mp-bump" "Bumping multipass bootstrap script version in docs"
 
 
 # =======================================
