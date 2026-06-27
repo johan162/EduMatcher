@@ -1,3 +1,20 @@
+## [v0.12.0] - 2026-06-27
+
+Release Type: minor
+
+### 📋 Summary
+This release introduces the new `pm-cverifier` command-line tool for validating exchange configuration files through layered checks and actionable output. It also refreshes VM bootstrap versioning and extends design documentation for configuration verification and index-controlled circuit-breaker behavior.
+
+### ✨ Additions
+- Added `pm-cverifier` CLI tooling with layered YAML, schema, semantic, and completeness validation
+
+### 📚 Documentation
+- Added user-guide and process documentation for running configuration verification workflows
+- Added index-controlled circuit-breaker design documentation in the design docs set
+
+### 🛠 Internal
+- Improved build and release workflow by adding `mp-bump` execution to `mkbld.sh` to keep Multipass bootstrap version in sync with latest release.
+
 ## [v0.11.0] - 2026-06-26
 
 Release Type: minor
