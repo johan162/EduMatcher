@@ -1,4 +1,4 @@
-Version: 0.1.0
+Version: 1.0.0
 
 Date: 2026-06-27
 
