@@ -15,6 +15,60 @@
 
 
 
+## Message Summary
+
+Quick index of all defined message topics with publisher and purpose.
+
+| Topic | Published by | Short description |
+|---|---|---|
+| `system.gateway_connect` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by an ALF gateway at startup to authenticate its gateway ID against `engine_config.yaml`. |
+| `order.new` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to submit a new order for matching. |
+| `order.cancel` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to cancel a resting order. |
+| `order.amend` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to amend the price and/or quantity of a resting order. |
+| `quote.new` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a market-maker gateway to submit or replace a two-sided quote. |
+| `quote.ack.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Acknowledgement of a `quote.new` submission. |
+| `quote.status.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Published when the quote's lifecycle state changes (e.g. |
+| `quote.cancel` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Cancel the active quote for one symbol. |
+| `order.oco` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Links two existing resting orders into an OCO pair. |
+| `order.oco_cancel` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Cancel both legs of an OCO pair. |
+| `oco.ack.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Acknowledgement of an `order.oco` request. |
+| `oco.cancelled.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Notifies the gateway when the engine cancels the sibling leg of an OCO pair (because the other leg filled or was cancelled). |
+| `risk.kill_switch` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Cancels all resting orders and quotes for the specified gateway. |
+| `risk.symbol_halt` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Operator command to halt a single symbol. |
+| `risk.symbol_resume` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Resume trading on a single previously halted symbol. |
+| `risk.cancel_symbol` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Cancel all resting orders and quotes on a single symbol across all gateways. |
+| `risk.circuit_breaker_halt_all` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Administrative global halt request. |
+| `risk.circuit_breaker_resume_all` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Administrative global resume request. |
+| `system.gateway_disconnect` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Graceful disconnect notice from gateway to engine. |
+| `order.combo` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to submit a combo (multi-leg) order. |
+| `order.combo_cancel` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to cancel a combo and all its child legs. |
+| `order.ack.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Acknowledgement of an `order.new` submission. |
+| `order.fill.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Notifies a gateway (and the order monitor) of a partial or full fill. |
+| `order.cancelled.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Confirms a cancel request or a Self-Match Prevention (SMP) forced cancellation. |
+| `order.amended.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Confirms a successful order amendment. |
+| `order.expired.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Published during engine shutdown for every resting `DAY` order that did not fill. |
+| `order.orders.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Response to an `order.orders_request` from a gateway; delivers the full current order list. |
+| `combo.ack.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Acknowledgement of a combo order submission. |
+| `combo.status.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Published when a combo transitions between lifecycle states. |
+| `trade.executed` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Published once per matched trade pair. |
+| `book.{SYMBOL}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Full order-book snapshot published after every state change for the named symbol. |
+| `depth.{SYMBOL}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Published alongside `book.{SYMBOL}` after every state change (same throttle). |
+| `book.snapshot_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the current book snapshot for a symbol (used by viewers on startup to avoid waiting for the next update). |
+| `system.symbols_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the list of configured symbols from the engine. |
+| `order.orders_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the current order list for a specific gateway. |
+| `system.quote_bootstrap_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Request active quote bootstrap state for a gateway. |
+| `system.session_state_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the current session state and whether session enforcement is enabled. |
+| `system.session_schedule_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the configured session schedule (the times the scheduler will send phase transitions). |
+| `system.gateways_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the list of configured gateways and their connection status. |
+| `system.volume_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests cumulative traded volume for all symbols in the current session. |
+| `system.halt_status_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests a snapshot of all symbols that are currently halted. |
+| `session.state` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Broadcast whenever the engine transitions between session phases (for example, OPENING_AUCTION to CONTINUOUS). |
+| `auction.result.{SYMBOL}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Broadcast once per symbol after an auction uncross completes and reports equilibrium outcome. |
+| `system.eod` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Broadcast by the engine at shutdown before sockets are closed. |
+| `circuit_breaker.halt.{SYMBOL}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Broadcasts symbol-level protection state so strategies and UIs can react immediately to trading halts/resumptions. |
+| `circuit_breaker.resume.{SYMBOL}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Broadcasts symbol-level protection state so strategies and UIs can react immediately to trading halts/resumptions. |
+| `session.transition` | pm-scheduler (PUSH -> engine on :5555) | Sent by the `pm-scheduler` process to request a session-phase transition. |
+
 ## Background — Messages in a Bus System
 
 ### What is a message?
@@ -178,6 +232,9 @@ flowchart LR
 
 ### `system.gateway_connect`
 
+**Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+
 Sent by an ALF gateway at startup to authenticate its gateway ID against
 `engine_config.yaml`.
 
@@ -215,6 +272,9 @@ When `accepted=false`, the gateway must terminate and MUST NOT submit orders.
 
 ### `order.new`
 
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+
 Sent by a gateway to submit a new order for matching.
 
 | Field | Type | Description |
@@ -235,6 +295,7 @@ Sent by a gateway to submit a new order for matching.
 | `displayed_qty` | integer \| null | Current visible slice (ICEBERG) |
 | `trail_offset` | float \| null | Offset from best price for `TRAILING_STOP` orders |
 | `smp_action` | string | Self-match prevention: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` |
+| `client_tag` | string \| absent | Optional client-supplied tag echoed back on every lifecycle event for this order (ack, fill, cancelled, expired). When present, subscribers can map events back to their submission without a FIFO scheme. |
 
 **Valid field combinations by order type:**
 
@@ -253,6 +314,9 @@ Sent by a gateway to submit a new order for matching.
 
 ### `order.cancel`
 
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+
 Sent by a gateway to cancel a resting order.
 
 | Field | Type | Description |
@@ -263,6 +327,9 @@ Sent by a gateway to cancel a resting order.
 
 
 ### `order.amend`
+
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Sent by a gateway to amend the price and/or quantity of a resting order.
 
@@ -286,6 +353,9 @@ At least one of `price` or `qty` must be present.
 
 ### `quote.new`
 
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+
 Sent by a market-maker gateway to submit or replace a two-sided quote.
 Role requirements and MM obligation controls are documented in
 [Configuration - Role Privileges](01-configuration.md#role-privileges).
@@ -308,6 +378,9 @@ Replies:
 
 ### `quote.ack.{GW_ID}`
 
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
+
 Acknowledgement of a `quote.new` submission.
 
 | Field | Type | Description |
@@ -319,6 +392,9 @@ Acknowledgement of a `quote.new` submission.
 | `ask_order_id` | string (UUID) | Order ID of the ask leg *(present when accepted)* |
 
 ### `quote.status.{GW_ID}`
+
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
 
 Published when the quote's lifecycle state changes (e.g. a fill inactivates the quote or a cancel removes it).
 
@@ -339,6 +415,9 @@ Published when the quote's lifecycle state changes (e.g. a fill inactivates the 
 
 ### `quote.cancel`
 
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+
 Cancel the active quote for one symbol.
 
 | Field | Type | Description |
@@ -353,6 +432,9 @@ Cancel the active quote for one symbol.
 A **One-Cancels-Other (OCO)** pair links two resting orders so that when one fills or is cancelled the other is automatically cancelled by the engine.
 
 ### `order.oco`
+
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Links two existing resting orders into an OCO pair.
 
@@ -369,6 +451,9 @@ Both orders must already be resting on the book and must belong to the same gate
 
 ### `order.oco_cancel`
 
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+
 Cancel both legs of an OCO pair.
 
 | Field | Type | Description |
@@ -377,6 +462,9 @@ Cancel both legs of an OCO pair.
 | `gateway_id` | string | Gateway that owns the pair |
 
 ### `oco.ack.{GW_ID}`
+
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
 
 Acknowledgement of an `order.oco` request.
 
@@ -389,6 +477,9 @@ Acknowledgement of an `order.oco` request.
 | `order_id_2` | string (UUID) | Second leg order ID *(present when accepted)* |
 
 ### `oco.cancelled.{GW_ID}`
+
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
 
 Notifies the gateway when the engine cancels the sibling leg of an OCO pair (because the other leg filled or was cancelled).
 
@@ -403,6 +494,9 @@ Notifies the gateway when the engine cancels the sibling leg of an OCO pair (bec
 ## Risk control messages (gateway → engine)
 
 ### `risk.kill_switch`
+
+**Motivation:** Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Cancels all resting orders and quotes for the specified gateway. Does not halt the symbol; trading continues normally for other participants.
 
@@ -420,6 +514,9 @@ Cancels all resting orders and quotes for the specified gateway. Does not halt t
 | `cancelled_quotes` | integer | Number of quote legs cancelled |
 
 ### `risk.symbol_halt`
+
+**Motivation:** Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Operator command to halt a single symbol. Any authenticated connected gateway may send this; no ADMIN role is required.
 
@@ -440,6 +537,9 @@ The engine also publishes `circuit_breaker.halt.{SYMBOL}` with `resumption_mode 
 
 ### `risk.symbol_resume`
 
+**Motivation:** Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+
 Resume trading on a single previously halted symbol.
 
 | Field | Type | Description |
@@ -458,6 +558,9 @@ The engine publishes `circuit_breaker.resume.{SYMBOL}` with `mode = "MANUAL"` wh
 
 ### `risk.cancel_symbol`
 
+**Motivation:** Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+
 Cancel all resting orders and quotes on a single symbol across all gateways. The symbol remains active; only resting interest is cleared.
 
 | Field | Type | Description |
@@ -475,6 +578,9 @@ Cancel all resting orders and quotes on a single symbol across all gateways. The
 | `cancelled_quotes` | integer | Number of quote legs cancelled |
 
 ### `risk.circuit_breaker_halt_all`
+
+**Motivation:** Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Administrative global halt request. This sets all known symbols to halted.
 Only gateways configured with `role: ADMIN` are authorized.
@@ -508,6 +614,9 @@ Ack payload fields:
 
 
 ### `risk.circuit_breaker_resume_all`
+
+**Motivation:** Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Administrative global resume request. Clears the halt on every symbol that was
 halted by a preceding `risk.circuit_breaker_halt_all`.
@@ -623,6 +732,9 @@ symbols. Market-maker quote obligations are enforced again immediately.
 
 ### `system.gateway_disconnect`
 
+**Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+
 Graceful disconnect notice from gateway to engine.
 
 | Field | Type | Description |
@@ -633,6 +745,9 @@ Graceful disconnect notice from gateway to engine.
 
 
 ### `order.combo`
+
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Sent by a gateway to submit a combo (multi-leg) order.
 
@@ -650,6 +765,9 @@ Sent by a gateway to submit a combo (multi-leg) order.
 
 
 ### `order.combo_cancel`
+
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Sent by a gateway to cancel a combo and all its child legs.
 
@@ -688,6 +806,9 @@ sequenceDiagram
 
 ### `order.ack.{GW_ID}`
 
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
+
 Acknowledgement of an `order.new` submission.  
 Subscribed to by the originating gateway and the order monitor.
 
@@ -702,6 +823,7 @@ Subscribed to by the originating gateway and the order monitor.
 | `tif` | string | Time-in-force *(present when accepted)* |
 | `qty` | integer | Original quantity *(present when accepted)* |
 | `price` | float \| null | Limit price *(present when accepted)* |
+| `client_tag` | string \| absent | Echoed from `order.new` when the field was set |
 
 !!! note "Rejection reasons"
     Common rejection reasons: `"Symbol not configured: XYZ"`, `"Insufficient liquidity"` (FOK), `"Order not found"` (cancel), `"Gateway not configured: TRADER99"`, `"Gateway not connected: TRADER01"`.
@@ -709,6 +831,9 @@ Subscribed to by the originating gateway and the order monitor.
 
 
 ### `order.fill.{GW_ID}`
+
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
 
 Notifies a gateway (and the order monitor) of a partial or full fill.  
 Both the aggressor and the resting counterparty receive their own `order.fill` message.
@@ -726,20 +851,28 @@ Both the aggressor and the resting counterparty receive their own `order.fill` m
 | `tif` | string | Time-in-force |
 | `qty` | integer | Original quantity |
 | `price` | float \| null | Limit price |
+| `client_tag` | string \| absent | Echoed from `order.new` when the field was set |
 
 
 
 ### `order.cancelled.{GW_ID}`
+
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
 
 Confirms a cancel request or a Self-Match Prevention (SMP) forced cancellation.
 
 | Field | Type | Description |
 |---|---|---|
 | `order_id` | string (UUID) | Cancelled order |
+| `client_tag` | string \| absent | Echoed from the original `order.new` when the field was set |
 
 
 
 ### `order.amended.{GW_ID}`
+
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
 
 Confirms a successful order amendment.
 
@@ -755,15 +888,22 @@ Confirms a successful order amendment.
 
 ### `order.expired.{GW_ID}`
 
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
+
 Published during engine shutdown for every resting `DAY` order that did not fill.
 
 | Field | Type | Description |
 |---|---|---|
 | `order_id` | string (UUID) | Expired order |
+| `client_tag` | string \| absent | Echoed from the original `order.new` when the field was set |
 
 
 
 ### `order.orders.{GW_ID}`
+
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
 
 Response to an `order.orders_request` from a gateway; delivers the full current order list.
 
@@ -776,6 +916,9 @@ Response to an `order.orders_request` from a gateway; delivers the full current 
 ## Combo events (engine → subscribers)
 
 ### `combo.ack.{GW_ID}`
+
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
 
 Acknowledgement of a combo order submission.
 
@@ -792,6 +935,9 @@ Acknowledgement of a combo order submission.
 
 
 ### `combo.status.{GW_ID}`
+
+**Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
 
 Published when a combo transitions between lifecycle states.
 
@@ -817,6 +963,9 @@ Published when a combo transitions between lifecycle states.
 
 ### `trade.executed`
 
+**Motivation:** Distributes real-time market state needed for pricing, strategy, monitoring, and post-trade analytics.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
+
 Published once per matched trade pair. Consumed by clearing, audit, and statistics processes.
 
 | Field | Type | Description |
@@ -837,6 +986,9 @@ Published once per matched trade pair. Consumed by clearing, audit, and statisti
 
 ### `book.{SYMBOL}`
 
+**Motivation:** Distributes real-time market state needed for pricing, strategy, monitoring, and post-trade analytics.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
+
 Full order-book snapshot published after every state change for the named symbol.  
 Consumed by order-book viewers and the statistics process.
 
@@ -853,11 +1005,39 @@ Consumed by order-book viewers and the statistics process.
 
 
 
+### `depth.{SYMBOL}`
+
+**Motivation:** Distributes real-time market state needed for pricing, strategy, monitoring, and post-trade analytics.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
+
+Published alongside `book.{SYMBOL}` after every state change (same throttle).  
+Contains depth and imbalance metrics computed within ±100 ticks of the last trade.  
+Absent (not published) until at least one trade has occurred for the symbol.
+
+| Field | Type | Description |
+|---|---|---|
+| `symbol` | string | Instrument ticker |
+| `mid_price_ticks` | integer | Last trade price in **integer ticks** |
+| `mid_price` | float | Last trade price as a **float display price** (same units as `book.{SYMBOL}`) |
+| `tolerance_ticks` | integer | Window width used (currently 100 ticks each side) |
+| `bid_depth` | integer | Total resting bid quantity within the window |
+| `ask_depth` | integer | Total resting ask quantity within the window |
+| `imbalance` | float | `(bid_depth − ask_depth) / (bid_depth + ask_depth)` ∈ [−1, +1]; positive = more bids |
+| `microprice` | float | Imbalance-weighted midprice: `(best_bid+best_ask)/2 + imbalance×spread/2`; falls back to `mid_price` when no resting orders |
+| `cost_to_move` | integer | Same as `bid_depth` (reserved for future asymmetric depth) |
+
+Subscribe with prefix `depth.` to receive updates for all symbols.
+
+
+
 ## Request / response (gateway → engine, point-to-point)
 
 These messages travel over the PUSH/PULL channel (port 5555) and the reply is published on the PUB socket filtered by `{GW_ID}`.
 
 ### `book.snapshot_request`
+
+**Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Requests the current book snapshot for a symbol (used by viewers on startup to avoid waiting for the next update).
 
@@ -870,6 +1050,9 @@ Requests the current book snapshot for a symbol (used by viewers on startup to a
 
 
 ### `system.symbols_request`
+
+**Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Requests the list of configured symbols from the engine.
 Used by gateways on connect and by the statistics process at startup to discover
@@ -892,10 +1075,14 @@ When present, each `symbol_meta.{SYMBOL}` entry may include:
 - `enforce_mm_obligation` (bool): effective MM obligation enforcement for this gateway/symbol
 - `mm_max_spread_ticks` (int): effective max MM spread in ticks
 - `mm_min_qty` (int): effective minimum MM quote quantity
+- `prev_close` (float \| absent): last traded price from the previous session, in display price units. Present only when a previous session's book stats have been persisted (not available on a fresh engine with no prior data).
 
 
 
 ### `order.orders_request`
+
+**Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Requests the current order list for a specific gateway.
 
@@ -906,6 +1093,9 @@ Requests the current order list for a specific gateway.
 **Reply:** `order.orders.{GW_ID}` — see above.
 
 ### `system.quote_bootstrap_request`
+
+**Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Request active quote bootstrap state for a gateway. This is useful for market-
 maker startup/reconnect flows to discover currently active quote slots (for
@@ -935,6 +1125,9 @@ Each element in `quotes` includes:
 
 ### `system.session_state_request`
 
+**Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+
 Requests the current session state and whether session enforcement is enabled.
 
 | Field | Type | Description |
@@ -952,6 +1145,9 @@ Requests the current session state and whether session enforcement is enabled.
 
 ### `system.session_schedule_request`
 
+**Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+
 Requests the configured session schedule (the times the scheduler will send phase transitions).
 
 | Field | Type | Description |
@@ -968,6 +1164,9 @@ Requests the configured session schedule (the times the scheduler will send phas
 
 
 ### `system.gateways_request`
+
+**Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Requests the list of configured gateways and their connection status.
 
@@ -994,7 +1193,40 @@ Each gateway entry:
 
 ### `system.volume_request`
 
+**Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+
 Requests cumulative traded volume for all symbols in the current session.
+
+
+
+### `system.halt_status_request`
+
+**Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+
+Requests a snapshot of all symbols that are currently halted. Useful for any
+process that connects or reconnects mid-session and cannot know the halt state
+from edge events alone.
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Requesting gateway or process identifier |
+
+**Reply:** `system.halt_status.{GW_ID}`
+
+| Field | Type | Description |
+|---|---|---|
+| `halted` | array of objects | One entry per currently halted symbol; empty array = no halts active |
+
+Each entry in `halted`:
+
+| Field | Type | Description |
+|---|---|---|
+| `symbol` | string | Halted instrument ticker |
+| `resume_at_ns` | integer \| null | Engine nanosecond timestamp when the halt auto-expires; `null` for manual halts |
+| `level` | string \| null | CB ladder level that triggered the halt (`"L1"`, `"L2"`, `"L3"`, `"ADMIN_ALL"`) or `null` if not available |
+| `resumption_mode` | string \| null | `"AUCTION"`, `"CONTINUOUS"`, or `"MANUAL"` |
 
 | Field | Type | Description |
 |---|---|---|
@@ -1023,6 +1255,9 @@ Each per-symbol entry in `symbols`:
 
 ### `session.state`
 
+**Motivation:** Publishes venue/session lifecycle transitions that gate trading behavior and downstream workflows.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
+
 Broadcast whenever the engine transitions between session phases (e.g.
 from OPENING_AUCTION to CONTINUOUS).  Consumed by gateways, monitors,
 and the statistics process to know what trading mode is currently active.
@@ -1035,6 +1270,9 @@ and the statistics process to know what trading mode is currently active.
 
 
 ### `auction.result.{SYMBOL}`
+
+**Motivation:** Publishes venue/session lifecycle transitions that gate trading behavior and downstream workflows.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
 
 Broadcast once per symbol after an auction uncross completes (i.e. when
 transitioning out of OPENING_AUCTION or CLOSING_AUCTION).  Reports the
@@ -1053,6 +1291,9 @@ equilibrium price, quantity matched, and any imbalance.
 
 ### `system.eod`
 
+**Motivation:** Publishes venue/session lifecycle transitions that gate trading behavior and downstream workflows.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
+
 Broadcast by the engine at shutdown before sockets are closed.  
 Consumed by the statistics process to record end-of-day closing bid/ask prices.
 
@@ -1068,6 +1309,9 @@ These events are published on PUB :5556 whenever a symbol halts or resumes, rega
 
 ### `circuit_breaker.halt.{SYMBOL}`
 
+**Motivation:** Broadcasts symbol-level protection state so strategies and UIs can react immediately to trading halts/resumptions.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
+
 | Field | Type | Description |
 |---|---|---|
 | `symbol` | string | Halted instrument ticker |
@@ -1079,6 +1323,9 @@ These events are published on PUB :5556 whenever a symbol halts or resumes, rega
 
 ### `circuit_breaker.resume.{SYMBOL}`
 
+**Motivation:** Broadcasts symbol-level protection state so strategies and UIs can react immediately to trading halts/resumptions.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
+
 | Field | Type | Description |
 |---|---|---|
 | `symbol` | string | Resumed instrument ticker |
@@ -1089,6 +1336,9 @@ These events are published on PUB :5556 whenever a symbol halts or resumes, rega
 ## Session messages (scheduler → engine)
 
 ### `session.transition`
+
+**Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+**Published by:** pm-scheduler (PUSH -> engine on :5555)
 
 Sent by the `pm-scheduler` process to request a session-phase transition.
 Travels over the PUSH/PULL channel (port 5555), same as order messages.
@@ -1109,11 +1359,12 @@ event confirming the new phase.
 | Subscriber | Topics subscribed |
 |---|---|
 | Gateway | `order.ack.{GW}`, `order.fill.{GW}`, `order.amended.{GW}`, `order.cancelled.{GW}`, `order.expired.{GW}`, `order.orders.{GW}`, `combo.ack.{GW}`, `combo.status.{GW}`, `oco.ack.{GW}`, `oco.cancelled.{GW}`, `quote.ack.{GW}`, `quote.status.{GW}`, `risk.kill_switch_ack.{GW}`, `system.symbols.{GW}`, `system.quote_bootstrap.{GW}`, `system.gateway_auth.{GW}`, `trade.executed` |
-| Order-book viewer | `book.{SYMBOL}`, `session.state` |
+| Order-book viewer | `book.{SYMBOL}`, `depth.{SYMBOL}`, `session.state` |
 | Order monitor | `order.` (prefix — all order events), `combo.`, `session.state` |
 | Clearing | `trade.executed` |
 | Audit | *(empty filter — receives everything)* |
 | Statistics | `trade.`, `book.`, `system.eod`, `system.symbols.STATS`, `session.state`, `auction.result.` |
+| AI trader / bot | `session.state`, `circuit_breaker.halt.`, `circuit_breaker.resume.`, `book.`, `depth.`, `trade.executed`, `order.ack.{GW}`, `order.fill.{GW}`, `order.cancelled.{GW}`, `order.expired.{GW}`, `system.symbols.{GW}`, `system.gateway_auth.{GW}`, `system.halt_status.{GW}`, `system.eod` |
 
 ## See also
 

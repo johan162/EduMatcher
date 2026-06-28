@@ -160,6 +160,8 @@ def make_ack_msg(
                 "price": order.get("price"),
             }
         )
+        if order.get("client_tag") is not None:
+            payload["client_tag"] = order["client_tag"]
     return encode(topic, payload)
 
 
@@ -191,17 +193,33 @@ def make_fill_msg(
                 "price": order.get("price"),
             }
         )
+        if order.get("client_tag") is not None:
+            payload["client_tag"] = order["client_tag"]
     return encode(topic, payload)
 
 
-def make_cancelled_msg(gateway_id: str, order_id: str) -> list[bytes]:
+def make_cancelled_msg(
+    gateway_id: str,
+    order_id: str,
+    client_tag: str | None = None,
+) -> list[bytes]:
     topic = f"order.cancelled.{gateway_id}"
-    return encode(topic, {"order_id": order_id})
+    payload: dict[str, Any] = {"order_id": order_id}
+    if client_tag is not None:
+        payload["client_tag"] = client_tag
+    return encode(topic, payload)
 
 
-def make_expired_msg(gateway_id: str, order_id: str) -> list[bytes]:
+def make_expired_msg(
+    gateway_id: str,
+    order_id: str,
+    client_tag: str | None = None,
+) -> list[bytes]:
     topic = f"order.expired.{gateway_id}"
-    return encode(topic, {"order_id": order_id})
+    payload: dict[str, Any] = {"order_id": order_id}
+    if client_tag is not None:
+        payload["client_tag"] = client_tag
+    return encode(topic, payload)
 
 
 def make_trade_msg(trade_dict: dict[str, Any]) -> list[bytes]:
@@ -759,6 +777,31 @@ def make_dropcopy_fill_msg(
 ) -> list[bytes]:
     """Engine → backoffice: copy of fill activity for one participant."""
     return encode(f"dropcopy.fill.{gateway_id}", fill_payload)
+
+
+# ---------------------------------------------------------------------------
+# Halt-status snapshot (request / reply)
+# ---------------------------------------------------------------------------
+
+
+def make_halt_status_request_msg(gateway_id: str) -> list[bytes]:
+    """Any process → engine: request current halt state for all symbols."""
+    return encode("system.halt_status_request", {"gateway_id": gateway_id})
+
+
+def make_halt_status_msg(
+    gateway_id: str,
+    halted: list[dict[str, Any]],
+) -> list[bytes]:
+    """Engine → requester: snapshot of currently halted symbols.
+
+    Each entry in *halted* has:
+      ``symbol`` (str), ``resume_at_ns`` (int | None),
+      ``level`` (str | None), ``resumption_mode`` (str | None).
+    An empty list means no symbols are currently halted.
+    """
+    topic = f"system.halt_status.{gateway_id}"
+    return encode(topic, {"halted": halted})
 
 
 # ------------------------------------------------------------------

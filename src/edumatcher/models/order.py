@@ -137,6 +137,11 @@ class Order:
     origin: OrderOrigin = OrderOrigin.ORDER
     quote_id: Optional[str] = None
 
+    # Client-supplied order tag — echoed back on every lifecycle event
+    # (ack, fill, cancelled, expired) so subscribers can correlate without
+    # a FIFO matching scheme.  Optional; ignored when absent.
+    client_tag: Optional[str] = None
+
     # ------------------------------------------------------------------
     # Factory
     # ------------------------------------------------------------------
@@ -203,6 +208,7 @@ class Order:
             "leg_index": self.leg_index,
             "origin": self.origin.value,
             "quote_id": self.quote_id,
+            "client_tag": self.client_tag,
         }
 
     @classmethod
@@ -237,4 +243,5 @@ class Order:
         o.leg_index = d.get("leg_index")
         o.origin = _ORIGIN_MAP.get(d.get("origin", "ORDER"), OrderOrigin.ORDER)
         o.quote_id = d.get("quote_id")
+        o.client_tag = d.get("client_tag")
         return o

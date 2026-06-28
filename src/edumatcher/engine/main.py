@@ -85,6 +85,7 @@ from edumatcher.models.message import (
     make_session_schedule_msg,
     make_gateways_msg,
     make_volume_msg,
+    make_halt_status_msg,
 )
 from edumatcher.models.participant import (
     DisconnectBehaviour,
@@ -142,6 +143,9 @@ class Engine:
 
         # Halt state — keyed by symbol; True means halted (circuit breaker fired)
         self._halted_symbols: dict[str, bool] = {}
+        # Persisted book stats — loaded once during _load_config and kept for
+        # _handle_symbols_request so prev_close is available without re-reading
+        self._book_stats: dict[str, dict[str, Any]] = {}
         # Price collar configs — keyed by symbol; populated in _load_config()
         self._collars: dict[str, Any] = {}  # values: CollarConfig
         # Circuit breaker states — keyed by symbol; populated in _load_config()
@@ -325,6 +329,7 @@ class Engine:
 
         # Restore persisted stats first so config seeds only fill gaps
         stats = load_book_stats(BOOK_STATS_FILE)
+        self._book_stats = stats
         for sym, sym_cfg in self._engine_config.symbols.items():
             book = self._book(sym)
             persisted = stats.get(sym, {})
@@ -757,6 +762,7 @@ class Engine:
                         "tif": _tif_v,
                         "qty": order.quantity,
                         "price": _price_v,
+                        "client_tag": order.client_tag,
                     }
                 ),
             ]
@@ -839,6 +845,7 @@ class Engine:
                                             else None
                                         )
                                     ),
+                                    "client_tag": evt.client_tag,
                                 }
                             ),
                         ]
@@ -889,7 +896,7 @@ class Engine:
                     [
                         _tc.get(f"cancel.{evt.gateway_id}")
                         or f"order.cancelled.{evt.gateway_id}".encode(),
-                        dumps({"order_id": evt.id}),
+                        dumps({"order_id": evt.id, "client_tag": evt.client_tag}),
                     ]
                 )
                 if evt.combo_parent_id:
@@ -955,6 +962,11 @@ class Engine:
                 if mm_min_qty is not None:
                     meta["mm_min_qty"] = mm_min_qty
 
+            # Previous-close reference price (float display price)
+            prev_close = self._book_stats.get(symbol, {}).get("prev_close")
+            if prev_close is not None:
+                meta["prev_close"] = prev_close
+
             symbol_meta[symbol] = meta
 
         self.pub_sock.send_multipart(
@@ -971,6 +983,22 @@ class Engine:
                 self._sessions_enabled,
             )
         )
+
+    def _handle_halt_status_request(self, payload: dict[str, Any]) -> None:
+        """Reply with a snapshot of all currently halted symbols."""
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        halted: list[dict[str, Any]] = []
+        for symbol, is_halted in self._halted_symbols.items():
+            if not is_halted:
+                continue
+            entry: dict[str, Any] = {"symbol": symbol}
+            cb = self._circuit_breakers.get(symbol)
+            if cb and cb.halted:
+                entry["resume_at_ns"] = cb.resume_at_ns
+                entry["level"] = cb.triggered_level
+                entry["resumption_mode"] = cb.active_resumption_mode
+            halted.append(entry)
+        self.pub_sock.send_multipart(make_halt_status_msg(gateway_id, halted))
 
     def _handle_session_schedule_request(self, payload: dict[str, Any]) -> None:
         """Return the session schedule configuration from the loaded engine config."""
@@ -2779,7 +2807,11 @@ class Engine:
 
         if cancelled:
             self._order_symbol.pop(order_id, None)
-            self.pub_sock.send_multipart(make_cancelled_msg(gateway_id, order_id))
+            self.pub_sock.send_multipart(
+                make_cancelled_msg(
+                    gateway_id, order_id, client_tag=cancelled.client_tag
+                )
+            )
             self._mark_dirty(cancelled.symbol)
             if self.verbose:
                 print(f"[ENGINE] CANCELLED {order_id[:8]}")
@@ -2905,7 +2937,9 @@ class Engine:
                     # Expire DAY orders
                     order.status = OrderStatus.EXPIRED
                     self.pub_sock.send_multipart(
-                        make_expired_msg(order.gateway_id, order.id)
+                        make_expired_msg(
+                            order.gateway_id, order.id, client_tag=order.client_tag
+                        )
                     )
                     # If this was a combo child, cascade-cancel sibling legs
                     if order.combo_parent_id:
@@ -3031,6 +3065,8 @@ class Engine:
                         self._handle_gateways_request(payload)
                     elif topic == "system.volume_request":
                         self._handle_volume_request(payload)
+                    elif topic == "system.halt_status_request":
+                        self._handle_halt_status_request(payload)
                 except Exception as exc:
                     print(f"[ENGINE] Error processing {topic}: {exc}", file=sys.stderr)
             # Throttled snapshot publish — runs every poll tick (max 200ms)

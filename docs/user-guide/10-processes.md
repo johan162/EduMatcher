@@ -1128,6 +1128,7 @@ must be pre-registered in `engine_config.yaml` with `role: MARKET_MAKER`.
 | `system.quote_bootstrap.{GW_ID}` | Bootstrap snapshot with active quote state |
 | `system.quote_legs.{GW_ID}` | Quote-leg reconciliation reply |
 | `book.{SYMBOL}` | Book updates — drives mid-price tracking and drift detection |
+| `depth.{SYMBOL}` | Depth / imbalance metrics (microprice, mid_price) for the assigned symbol |
 | `trade.executed` | Trade events — fallback reference price source |
 | `order.fill.{GW_ID}` | Fill notifications on quote legs |
 | `order.cancelled.{GW_ID}` | Cancel confirmations for quote legs |

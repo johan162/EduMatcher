@@ -1,6 +1,6 @@
 """
 GTC order persistence — save/load resting GTC orders across trading days.
-Book stats persistence — save/load per-symbol last buy/sell prices.
+Book stats persistence — save/load per-symbol last buy/sell prices and prev_close.
 
 File format: JSON array of Order.to_dict() entries (GTC orders).
              JSON object keyed by symbol (book stats).
@@ -16,6 +16,7 @@ from pathlib import Path
 
 from edumatcher.models.combo import ComboOrder, ComboStatus
 from edumatcher.models.order import Order, OrderStatus, TIF
+from edumatcher.models.price import from_ticks
 
 
 def save_gtc_orders(orders: list[Order], path: Path) -> None:
@@ -53,12 +54,18 @@ def save_book_stats(
     books: dict[str, Any],  # dict[symbol, OrderBook]
     path: Path,
 ) -> None:
-    """Persist per-symbol last_buy_price / last_sell_price."""
+    """Persist per-symbol last_buy_price / last_sell_price / prev_close."""
     stats: dict[str, dict[str, Any]] = {}
     for symbol, book in books.items():
+        prev_close = (
+            from_ticks(book.last_trade_price, symbol)
+            if book.last_trade_price is not None
+            else None
+        )
         stats[symbol] = {
             "last_buy_price": book.last_buy_price,
             "last_sell_price": book.last_sell_price,
+            "prev_close": prev_close,
         }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(stats, indent=2))
