@@ -988,9 +988,27 @@ pm-ai-trader --id AI01 [options]
 
 None.
 
+**Connect / restart handshake:**
+
+On every startup (or reconnect) the bot performs the following initialization
+sequence before it begins submitting orders:
+
+1. Send `gateway_connect`; wait for `system.gateway_auth.<ID>`.
+2. Send `system.symbols_request`; receive `system.symbols.<ID>` to populate
+   the symbol universe and resolve per-symbol `tick_size` and `prev_close`.
+3. Send `system.halt_status_request`; receive `system.halt_status.<ID>` to
+   seed the per-symbol halt flags so the bot never submits into a halted symbol.
+4. Send `system.position_request`; receive `system.position_snapshot.<ID>` to
+   re-seed per-symbol net position and average cost from the engine's ledger.
+   This ensures risk guards (position cap, drawdown guard) are accurate even
+   when the bot restarts while the engine is still running.
+
+Steps 3 and 4 are idempotent: if the engine returns an empty list the bot
+simply starts from a flat / unhalt state, which is correct for a fresh session.
 
 
-## pm-ai-swarm — Multi-Bot Launcher
+
+
 
 Launches and supervises multiple `pm-ai-trader` bots as a coordinated swarm.
 

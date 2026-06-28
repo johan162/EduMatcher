@@ -86,6 +86,7 @@ from edumatcher.models.message import (
     make_gateways_msg,
     make_volume_msg,
     make_halt_status_msg,
+    make_position_snapshot_msg,
 )
 from edumatcher.models.participant import (
     DisconnectBehaviour,
@@ -180,6 +181,12 @@ class Engine:
             {}
         )  # oco_group_id → [order_id_1, order_id_2]
         self._order_to_oco: dict[str, str] = {}  # order_id → oco_group_id
+
+        # Per-gateway position ledger — updated on every fill; keyed by
+        # uppercase gateway_id → symbol → value.  Allows bots to resync
+        # inventory state after a restart via system.position_request.
+        self._gateway_positions: dict[str, dict[str, int]] = {}
+        self._gateway_avg_cost: dict[str, dict[str, float]] = {}
 
         # Session state (auction / continuous matching)
         self._sessions_enabled: bool = False
@@ -906,7 +913,7 @@ class Engine:
                 if self.verbose:
                     print(f"[ENGINE] SMP CANCEL {evt.id[:8]} ({evt.gateway_id})")
 
-        # Publish trades
+        # Publish trades and update per-gateway position ledger
         for trade in trades:
             if self.verbose:
                 print(
@@ -914,6 +921,17 @@ class Engine:
                     f"qty={trade.quantity} @{trade.price}"
                 )
             _ptrade(trade)
+            _trade_price = from_ticks(trade.price, trade.symbol)
+            self._update_position(
+                trade.buy_gateway_id, trade.symbol, "BUY", trade.quantity, _trade_price
+            )
+            self._update_position(
+                trade.sell_gateway_id,
+                trade.symbol,
+                "SELL",
+                trade.quantity,
+                _trade_price,
+            )
 
         # Mark book dirty; snapshot will be published on next throttle tick
         self._dirty_symbols.add(order.symbol)
@@ -983,6 +1001,79 @@ class Engine:
                 self._sessions_enabled,
             )
         )
+
+    def _update_position(
+        self,
+        gateway_id: str,
+        symbol: str,
+        side_str: str,
+        fill_qty: int,
+        fill_price: float,
+    ) -> None:
+        """Update per-gateway position ledger after a fill.
+
+        Maintains a signed net quantity per symbol and a VWAP average cost
+        that resets to the fill price whenever the position crosses zero.
+        """
+        gw = gateway_id.upper()
+        gw_pos = self._gateway_positions.setdefault(gw, {})
+        gw_cost = self._gateway_avg_cost.setdefault(gw, {})
+
+        pos = gw_pos.get(symbol, 0)
+        cost = gw_cost.get(symbol, 0.0)
+
+        if side_str == "BUY":
+            new_pos = pos + fill_qty
+            if pos >= 0:
+                # Opening or adding to a long position
+                new_cost = (cost * pos + fill_price * fill_qty) / new_pos
+            elif new_pos < 0:
+                # Reducing a short, still net short: avg_cost unchanged
+                new_cost = cost
+            elif new_pos == 0:
+                # Closed the short exactly flat
+                new_cost = 0.0
+            else:
+                # Crossed from short to long: reset cost to fill price
+                new_cost = fill_price
+        else:  # SELL
+            new_pos = pos - fill_qty
+            if pos <= 0:
+                # Opening or adding to a short position
+                abs_new = abs(new_pos)
+                new_cost = (cost * abs(pos) + fill_price * fill_qty) / abs_new
+            elif new_pos > 0:
+                # Reducing a long, still net long: avg_cost unchanged
+                new_cost = cost
+            elif new_pos == 0:
+                # Closed the long exactly flat
+                new_cost = 0.0
+            else:
+                # Crossed from long to short: reset cost to fill price
+                new_cost = fill_price
+
+        gw_pos[symbol] = new_pos
+        gw_cost[symbol] = new_cost if new_pos != 0 else 0.0
+
+    def _handle_position_request(self, payload: dict[str, Any]) -> None:
+        """Reply with a per-symbol position snapshot for the requesting gateway."""
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        ok, _ = self._gateway_status(gateway_id)
+        if not ok:
+            self.pub_sock.send_multipart(make_position_snapshot_msg(gateway_id, []))
+            return
+        gw_pos = self._gateway_positions.get(gateway_id, {})
+        gw_cost = self._gateway_avg_cost.get(gateway_id, {})
+        positions = [
+            {
+                "symbol": sym,
+                "net_qty": qty,
+                "avg_cost": gw_cost.get(sym, 0.0),
+            }
+            for sym, qty in gw_pos.items()
+            if qty != 0
+        ]
+        self.pub_sock.send_multipart(make_position_snapshot_msg(gateway_id, positions))
 
     def _handle_halt_status_request(self, payload: dict[str, Any]) -> None:
         """Reply with a snapshot of all currently halted symbols."""
@@ -3067,6 +3158,8 @@ class Engine:
                         self._handle_volume_request(payload)
                     elif topic == "system.halt_status_request":
                         self._handle_halt_status_request(payload)
+                    elif topic == "system.position_request":
+                        self._handle_position_request(payload)
                 except Exception as exc:
                     print(f"[ENGINE] Error processing {topic}: {exc}", file=sys.stderr)
             # Throttled snapshot publish — runs every poll tick (max 200ms)

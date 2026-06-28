@@ -804,6 +804,30 @@ def make_halt_status_msg(
     return encode(topic, {"halted": halted})
 
 
+def make_position_request_msg(gateway_id: str) -> list[bytes]:
+    """Any process → engine: request current position snapshot for *gateway_id*.
+
+    The engine replies on ``system.position_snapshot.<GW_ID>``.
+    """
+    return encode("system.position_request", {"gateway_id": gateway_id})
+
+
+def make_position_snapshot_msg(
+    gateway_id: str,
+    positions: list[dict[str, Any]],
+) -> list[bytes]:
+    """Engine → requester: per-symbol position snapshot for *gateway_id*.
+
+    Each entry in *positions* has:
+      ``symbol`` (str), ``net_qty`` (int, positive = long / negative = short),
+      ``avg_cost`` (float display price, 0.0 if flat).
+    Only symbols with a non-zero net position are included.
+    An empty list means the gateway is flat across all symbols.
+    """
+    topic = f"system.position_snapshot.{gateway_id}"
+    return encode(topic, {"positions": positions})
+
+
 # ------------------------------------------------------------------
 # Index messages
 # ------------------------------------------------------------------

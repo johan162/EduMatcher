@@ -62,6 +62,7 @@ Quick index of all defined message topics with publisher and purpose.
 | `system.gateways_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the list of configured gateways and their connection status. |
 | `system.volume_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests cumulative traded volume for all symbols in the current session. |
 | `system.halt_status_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests a snapshot of all symbols that are currently halted. |
+| `system.position_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests a per-symbol position snapshot (net qty and average cost) for a specific gateway. |
 | `session.state` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Broadcast whenever the engine transitions between session phases (for example, OPENING_AUCTION to CONTINUOUS). |
 | `auction.result.{SYMBOL}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Broadcast once per symbol after an auction uncross completes and reports equilibrium outcome. |
 | `system.eod` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Broadcast by the engine at shutdown before sockets are closed. |
@@ -1251,7 +1252,47 @@ Each per-symbol entry in `symbols`:
 
 
 
-## System messages (engine → all subscribers)
+### `system.position_request`
+
+**Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+
+Requests a snapshot of the per-symbol position held by the engine for a
+specific gateway.  The engine derives positions by tracking every fill
+from the moment the engine process started.  This is primarily used by
+AI bots and other automated traders to re-seed their internal risk state
+after a restart or reconnect, so they do not begin trading with a stale
+(zero) position when the engine still holds resting orders or recorded
+fills for that gateway.
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Requesting gateway identifier |
+
+**Reply:** `system.position_snapshot.{GW_ID}`
+
+| Field | Type | Description |
+|---|---|---|
+| `positions` | array of objects | One entry per symbol with a non-zero net position; empty array = gateway is flat |
+
+Each entry in `positions`:
+
+| Field | Type | Description |
+|---|---|---|
+| `symbol` | string | Instrument ticker |
+| `net_qty` | integer | Signed net position: positive = net long, negative = net short |
+| `avg_cost` | float | Volume-weighted average fill price (display price units); `0.0` when flat |
+
+!!! note "Engine lifetime scope"
+    The position ledger resets when the engine process restarts — it is not
+    persisted to disk.  Only fills that occurred *during the current engine
+    session* are counted.  After an engine restart both the engine and the
+    bot start from a genuinely flat position, so no resync is needed.
+    The resync use case is a *bot* restart while the *engine* keeps running.
+
+
+
+
 
 ### `session.state`
 
@@ -1364,7 +1405,7 @@ event confirming the new phase.
 | Clearing | `trade.executed` |
 | Audit | *(empty filter — receives everything)* |
 | Statistics | `trade.`, `book.`, `system.eod`, `system.symbols.STATS`, `session.state`, `auction.result.` |
-| AI trader / bot | `session.state`, `circuit_breaker.halt.`, `circuit_breaker.resume.`, `book.`, `depth.`, `trade.executed`, `order.ack.{GW}`, `order.fill.{GW}`, `order.cancelled.{GW}`, `order.expired.{GW}`, `system.symbols.{GW}`, `system.gateway_auth.{GW}`, `system.halt_status.{GW}`, `system.eod` |
+| AI trader / bot | `session.state`, `circuit_breaker.halt.`, `circuit_breaker.resume.`, `book.`, `depth.`, `trade.executed`, `order.ack.{GW}`, `order.fill.{GW}`, `order.cancelled.{GW}`, `order.expired.{GW}`, `system.symbols.{GW}`, `system.gateway_auth.{GW}`, `system.halt_status.{GW}`, `system.position_snapshot.{GW}`, `system.eod` |
 
 ## See also
 
