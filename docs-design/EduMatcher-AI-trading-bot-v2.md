@@ -4,7 +4,7 @@ Date: 2026-06-28
 
 Status: Design Proposal — Ready for Implementation
 
-# EduMatcher — Intelligent AI Trading Bot  (`pm-ai-trader`, `pm-ai-swarm`)
+# EduMatcher — Intelligent AI Trading Bot 
 
 ## Table of Contents
 
@@ -143,7 +143,12 @@ a concrete failure mode that naive implementations produce.
 | Coverage-weighted symbol selection | Predictable static assignment leaves symbols uncovered during low-activity periods | Some symbols never receive attention in dynamic markets |
 | Fill quality self-monitoring | Ignoring fill quality prevents the bot from detecting when it is systematically wrong-sided | Adverse fill accumulation without adaptation |
 
+### 2.1 Python entrypoint
 
+| Name | Description  | 
+|---|---| 
+| `pm-ai-trader` | Main process entry |
+| `pm-ai-swarm` | Coordinate a swarm of AI traders |
 
 ## 3. Architecture Overview
 
