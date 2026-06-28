@@ -9,7 +9,7 @@ Status: Design Proposal — Ready for Implementation
 ## Table of Contents
 
 1. [Purpose and Design Philosophy](#1-purpose-and-design-philosophy)
-2. [What v1 Got Wrong](#2-what-v1-got-wrong)
+2. [Design Requirements](#2-design-requirements)
 3. [Architecture Overview](#3-architecture-overview)
 4. [Market State Layer](#4-market-state-layer)
    - 4.1 Per-Symbol Market State
@@ -79,12 +79,12 @@ Status: Design Proposal — Ready for Implementation
 
 ### 1.1 Goal
 
-`pm-ai-trader` v2 is a **genuine agent** — an autonomous participant that
+`pm-ai-trader` is a **genuine agent** — an autonomous participant that
 observes a stream of market events, maintains a coherent internal model of the
 exchange state, makes signal-driven decisions, manages its own order lifecycle,
 and adapts its behavior in response to outcomes and market conditions.
 
-A swarm of v2 bots should produce a synthetic market that:
+A swarm of bots should produce a synthetic market that:
 
 - Has credible price discovery for every active symbol
 - Shows realistic microstructure patterns: spread fluctuation, depth variation,
@@ -124,29 +124,30 @@ existing ZeroMQ bus. No shared state, no inter-bot coordination.
 
 
 
-## 2. What v1 Got Wrong
+## 2. Design Requirements
 
-The v1 implementation was a stochastic order generator, not an agent. The
-following table documents the key failures that drove this redesign.
+`pm-ai-trader` must be a genuine **trading agent**, not a stochastic order
+generator. The following requirements drive the architecture; each is linked to
+a concrete failure mode that naive implementations produce.
 
-| Failure | v1 Behavior | Impact |
-|---------|------------|--------|
-| Random side selection | 50/50 BUY/SELL with no signal | Produces symmetric noise; no price discovery |
-| No order lifecycle management | Submits orders and forgets them | Order stacking; unrealistic book depth; position tracking drift |
-| Symbol-blind portfolio | One primary symbol per bot, round-robin | 50 bots on 100 symbols leaves half the exchange silent |
-| Static profile parameters | Fixed at startup, never adapted | Bots behave identically across calm and volatile markets |
-| No session awareness | Same behavior in auction, continuous, and halt | Submits limit orders during auctions; no ATO/ATC participation |
-| Fixed tick size in profile | `0.01` hardcoded for all symbols | Wrong prices on symbols with different tick decimals |
-| No book depth signal | Uses only `best_bid` / `best_ask` | Ignores imbalance, depth, and microprice |
-| Passive offset in ticks ignores symbol | Same tick offset for $10 and $500 stocks | Placement is relatively far or near depending on price scale |
-| Swarm assigns one symbol per bot | `assign_primary_symbols` is round-robin | Predictable, not adaptive, and leaves symbols uncovered |
-| No self-monitoring | Tracks submit/fill counts but ignores fill quality | Cannot detect when the bot is systematically wrong-sided |
+| Requirement | Rationale | Failure mode if violated |
+|---|---|---|
+| Signal-driven side selection | Random 50/50 buy/sell produces symmetric noise with no price discovery | Prices perform a pure random walk; no spread pressure or autocorrelation |
+| Active order lifecycle management | A bot that submits and forgets accumulates stacking resting orders and loses track of its position | Unrealistic book depth; position tracking drift; runaway order exposure |
+| Multi-symbol portfolio coverage | Assigning one symbol per bot by round-robin leaves much of the exchange silent | Half the symbols trade zero volume in a large swarm |
+| Adaptive profile parameters | Static parameters produce identical behavior across calm and volatile markets | Bots over-trade during volatile sessions; under-trade during quiet ones |
+| Session phase awareness | Auction and halt phases require different order types and constraints | DAY orders submitted during auctions are rejected; no ATO/ATC participation |
+| Symbol-specific tick size | Tick size varies by symbol; a hardcoded `0.01` default generates invalid prices on many instruments | Orders rejected for price precision violations |
+| Book depth and imbalance as inputs | Best bid/ask alone discards microprice, book imbalance, and depth signals | Poor price placement on skewed books; degraded signal quality |
+| Relative price offset | A fixed tick offset is relatively far on low-price symbols and near on high-price symbols | Placement quality degrades with price scale |
+| Coverage-weighted symbol selection | Predictable static assignment leaves symbols uncovered during low-activity periods | Some symbols never receive attention in dynamic markets |
+| Fill quality self-monitoring | Ignoring fill quality prevents the bot from detecting when it is systematically wrong-sided | Adverse fill accumulation without adaptation |
 
 
 
 ## 3. Architecture Overview
 
-The v2 bot is structured as a set of cooperating components within a single
+The bot is structured as a set of cooperating components within a single
 process. All state is in-memory per process. Components share no state across
 processes.
   
@@ -386,8 +387,9 @@ The directional score is converted to a BUY probability:
 
 $$P(\text{BUY}) = \frac{1 + s \cdot \text{signal\_strength}}{2}$$
 
-`signal_strength` is a profile knob $\in [0.0, 1.0]$. At `0.0` it degenerates
-to 50/50 (v1 behavior). At `1.0` a score of $+1.0$ always buys.
+`signal_strength` is a profile knob $\in [0.0, 1.0]$. At `0.0` the bot buys
+and sells with equal probability regardless of the signal. At `1.0` a score of
+$+1.0$ always buys.
 
 Side is then sampled from this probability. This preserves randomness (which is
 realistic — not all of any agent's flow is directional) while introducing a
@@ -468,9 +470,8 @@ wider than usual.
 **Final price rounding:**
 
 All prices are rounded to the nearest tick using the resolved `tick_size`
-(§4.4). This replaces the v1 behaviour where tick size was a hardcoded profile
-constant; v2 uses the §4.4 precedence so the value can become symbol-specific
-once the engine publishes tick metadata.
+(§4.4), making placement symbol-specific when the engine publishes tick
+metadata.
 
 **Self-trade prevention:**
 
@@ -487,8 +488,8 @@ position cap. Valid values mirror the engine enum exactly: `NONE`,
 
 ### 6.4 Size Construction
 
-Size is drawn from the profile distribution (unchanged from v1) but additionally
-**scaled by a volatility multiplier**:
+Size is drawn from the profile distribution and additionally **scaled by a
+volatility multiplier**:
 
 $$\text{size} = \text{base\_size} \times \text{clip}\left(\frac{\text{vol\_target}}{\text{vol\_ema} + \epsilon},\ \text{min\_vol\_mult},\ \text{max\_vol\_mult}\right)$$
 
@@ -504,8 +505,10 @@ Profile fields:
 
 ## 7. Order Lifecycle Manager
 
-This is the most critical component missing from v1. The OLM tracks all live
-orders submitted by the bot and actively manages their fate.
+The OLM tracks all live orders submitted by the bot and actively manages their
+fate. Without it, a bot accumulates unmanaged resting orders at stale prices
+across every symbol — an unrealistic position that distorts book depth and
+makes position tracking unreliable.
 
 ### 7.1 Order Book per Symbol
 
@@ -566,8 +569,8 @@ the concurrent limit.
 
 The bot will not submit a new order for symbol S if it already has
 `max_concurrent_orders` orders live for that symbol. This caps book exposure and
-prevents the v1 stacking problem where a bot could accumulate dozens of resting
-orders at different price levels.
+prevents order stacking, where unconstrained submission would accumulate dozens
+of resting orders at different price levels.
 
 ```
 max_concurrent_orders: int   # per symbol, default 2
@@ -1172,21 +1175,22 @@ Enable it via profile or CLI for risk-sensitive scenarios.
 
 ### 13.3 Reject Breaker
 
-Inherited from v1, improved:
+The reject breaker tracks order rejections in a rolling window and applies a
+progressive cooldown when the rejection rate is too high:
 
-- Rolling window reject count (unchanged)
-- **Progressive cooldown**: first trip = 5s, second trip = 15s, third trip = 60s
+- Rolling window reject count per `reset_window_sec`
+- **Progressive cooldown**: first trip = 5 s, second trip = 15 s, third trip = 60 s
 - After three trips within `reset_window_sec`, the bot logs a critical warning
   and exits cleanly (prevents runaway invalid order flows)
 
 ### 13.4 Stale Data Gate
 
-Unchanged semantics from v1, but improved logic:
+The stale data gate suppresses order submission for any symbol whose market
+data has not been updated within `stale_data_sec`. The check is per-symbol:
 
-- Check is per symbol, not global
-- If a symbol has no data and other symbols do, skip only that symbol rather
-  than pausing globally
-- If all symbols are stale for >30s, log a warning about possible engine
+- If a symbol has no recent data but other symbols do, skip only that symbol
+  rather than pausing all trading globally
+- If all symbols are stale for >30 s, log a warning about a possible engine
   disconnection
 
 
@@ -1668,21 +1672,22 @@ builds on the previous and produces testable, deployable bot behavior.
 
 ### M1 — Order lifecycle + signal-driven side (2–3 days)
 
-Resolves the two highest-impact v1 defects.
+Implements the market state layer, signal engine, and order lifecycle manager —
+the three components most critical to realistic agent behavior.
 
 - Implement `market_state.py` with microprice, imbalance, momentum EMA, vol EMA
 - Implement `signal_engine.py` with directional score and side sampling
 - Implement `lifecycle.py` OLM with stale-price cancel and max-concurrent limit
-- Update `bot.py` to wire these components while keeping remaining v1 behavior
-- Update tests for new components; extend existing bot integration tests
+- Implement `bot.py` event loop wiring all new components
+- Write unit tests for all new components; write bot integration tests
 
-### M2 — Session awareness + profile system v2 (2–3 days)
+### M2 — Session awareness + profile system (2–3 days)
 
 Enables correct auction behavior and YAML-driven profiles.
 
 - Implement `session.py` with phase tracking and policy overrides
 - Implement ATO/ATC order submission in `decision_engine.py`
-- Implement `personality.py` v2 with YAML loader and validation
+- Implement `personality.py` with YAML loader and validation
 - Built-in archetypes replace current presets
 - Update swarm to pass `--profile-file` and `--composition`
 
