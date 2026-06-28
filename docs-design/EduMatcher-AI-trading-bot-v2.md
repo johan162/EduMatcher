@@ -801,6 +801,56 @@ deterministic test runs.
 
 ### 11.1 Profile Layers
 
+#### Storage model
+
+There are three kinds of profiles and each is stored differently:
+
+| Kind | Where stored | How referenced |
+|---|---|---|
+| **Built-in archetype** | Compiled into `personality.py` as Python dataclasses (`_PRESET_PROFILES` dict). No files needed. | `--profile <name>` (e.g. `--profile trend-follower`) |
+| **Named preset** | Also compiled into `personality.py` as Python dataclasses. No files needed. | `--preset <name>` (e.g. `--preset scalper`) |
+| **Custom YAML profile** | A `.yaml` file anywhere on the filesystem supplied by the operator. | `--profile-file <path>` |
+
+**Built-in archetypes and named presets** are always available regardless of working directory or filesystem layout. They are part of the installed package.
+
+**Custom YAML profiles** are resolved as follows:
+
+1. If the path given to `--profile-file` is **absolute**, it is used as-is.
+2. If the path is **relative**, it is resolved against the process's working directory at startup (`os.getcwd()`).
+3. If the file does not exist or fails schema validation, the bot exits immediately with a clear error **before** it connects to the engine.
+
+There is no default search path. The operator must provide the exact path.
+
+**Swarm profile directory.** When `pm-ai-swarm --profiles cycle1,cycle2,...` cycles through named profiles, each name is first checked against the built-in archetype and preset dictionaries. If not found there and `--profile-dir <dir>` is provided, the name is resolved as `<dir>/<name>.yaml`. If `--profile-dir` is omitted and the name is not built-in, the swarm launcher raises an error at startup before launching any bots.
+
+A typical team working directory layout looks like this:
+
+```
+classroom/
+  engine_config.yaml
+  profiles/
+    patient-value-buyer.yaml
+    aggressive-scalper.yaml
+    noise-background.yaml
+```
+
+Starting a swarm from `classroom/`:
+
+```bash
+pm-ai-swarm --count 15 \
+  --profile-dir profiles \
+  --profiles patient-value-buyer,aggressive-scalper,noise-background \
+  --symbols AAPL,MSFT
+```
+
+Or passing a single custom profile to one bot:
+
+```bash
+pm-ai-trader --id AI01 --profile-file profiles/patient-value-buyer.yaml
+```
+
+#### Profile layers
+
 Profiles are structured in three layers:
 
 1. **Archetype** — selects a built-in behavioral template (signal weights, base
@@ -824,7 +874,14 @@ profiles for classroom scenarios without writing Python code.
 
 ### 11.3 Custom YAML Profiles
 
-A profile file overrides any knob or bound:
+A custom profile is a single `.yaml` file. It must begin with an `archetype`
+key (naming a built-in archetype to use as the base) and may then override any
+knob or set adaptation bounds. A file with an unknown key or an out-of-range
+value is rejected at startup before the bot connects.
+
+Pass the file to the bot with `--profile-file <path>` (see §11.1 for path
+resolution rules). The `archetype` field is the only required key; all other
+fields are optional and fall back to the archetype's defaults.
 
 ```yaml
 # profile: patient-value-buyer.yaml
