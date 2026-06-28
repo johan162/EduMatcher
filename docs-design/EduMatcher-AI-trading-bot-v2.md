@@ -4,7 +4,7 @@ Date: 2026-06-28
 
 Status: Design Proposal — Ready for Implementation
 
-# EduMatcher — Intelligent AI Trading Bot v2 (`pm-ai-trader`, `pm-ai-swarm`)
+# EduMatcher — Intelligent AI Trading Bot  (`pm-ai-trader`, `pm-ai-swarm`)
 
 ## Table of Contents
 
@@ -43,13 +43,13 @@ Status: Design Proposal — Ready for Implementation
     - 10.1 Fill Quality Metrics
     - 10.2 Adaptive Knob Adjustment
     - 10.3 Bounds and Reset
-11. [Personality Profile System v2](#11-personality-profile-system-v2)
+11. [Personality Profile System ](#11-personality-profile-system-)
     - 11.1 Profile Layers
     - 11.2 Built-in Archetypes
     - 11.3 Custom YAML Profiles
     - 11.4 Full Profile Schema
     - 11.5 High-Level Personality Presets
-12. [Swarm Architecture v2](#12-swarm-architecture-v2)
+12. [Swarm Architecture ](#12-swarm-architecture-)
     - 12.1 Coverage Pools
     - 12.2 Swarm Composition
     - 12.3 Launch Stagger
@@ -60,8 +60,8 @@ Status: Design Proposal — Ready for Implementation
     - 13.4 Stale Data Gate
 14. [ZeroMQ Message Contracts](#14-zeromq-message-contracts)
 15. [CLI and Configuration](#15-cli-and-configuration)
-    - 15.1 pm-ai-trader v2 CLI
-    - 15.2 pm-ai-swarm v2 CLI
+    - 15.1 pm-ai-trader  CLI
+    - 15.2 pm-ai-swarm  CLI
     - 15.3 Engine Config Requirements for Bot Authentication
 16. [Module Design and File Layout](#16-module-design-and-file-layout)
 17. [Determinism and Reproducibility](#17-determinism-and-reproducibility)
@@ -588,7 +588,7 @@ other for that `order_id`. Position and exposure are updated **only** from
 `order.fill` events — never from the optimistic CANCEL_PENDING transition — so a
 losing cancel/fill race cannot double-count.
 
-**DAY/auction expiry.** v2 orders are `DAY` (or auction TIF). At end of day the
+**DAY/auction expiry.**  orders are `DAY` (or auction TIF). At end of day the
 engine emits `order.expired.<GW_ID>`; the OLM removes the order and frees its
 concurrent slot. Orders are never assumed cancelled without a confirming event.
 
@@ -797,7 +797,7 @@ deterministic test runs.
 
 
 
-## 11. Personality Profile System v2
+## 11. Personality Profile System
 
 ### 11.1 Profile Layers
 
@@ -1123,7 +1123,7 @@ more `cautious-follower`).
 
 
 
-## 12. Swarm Architecture v2
+## 12. Swarm Architecture
 
 ### 12.1 Coverage Pools
 
@@ -1347,7 +1347,7 @@ back to `tick_size = 0.01` only when the engine was started without a config.
 
 ## 15. CLI and Configuration
 
-### 15.1 pm-ai-trader v2 CLI
+### 15.1 pm-ai-trader  CLI
 
 ```
 pm-ai-trader [OPTIONS]
@@ -1387,7 +1387,7 @@ Connectivity:
   --engine-pub      Override ENGINE_PUB_ADDR
 ```
 
-### 15.2 pm-ai-swarm v2 CLI
+### 15.2 pm-ai-swarm  CLI
 
 ```
 pm-ai-swarm [OPTIONS]
@@ -1647,7 +1647,7 @@ tighter cap is configured.
 
 ### 18.2 Qualitative Market Patterns
 
-A well-calibrated v2 swarm should produce:
+A well-calibrated  swarm should produce:
 
 **Price discovery** — prices fluctuate continuously. Short-horizon momentum
 emerges naturally from trend-followers, damped by contrarians. Prices do not
@@ -1770,7 +1770,7 @@ Adds online learning and enhanced risk controls.
 
 ## 21. Acceptance Criteria
 
-A v2 implementation is considered complete when all of the following pass:
+A  implementation is considered complete when all of the following pass:
 
 | # | Criterion | How verified |
 |---|---|---|
