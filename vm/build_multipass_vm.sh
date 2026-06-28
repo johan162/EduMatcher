@@ -17,7 +17,7 @@ VM_NAME="edumatcher-vm"
 VM_IMAGE="lts"
 VM_CPUS="2"
 VM_MEMORY="3G"
-VM_DISK="10G"
+VM_DISK="8G"
 CREATE_SNAPSHOT="true"
 SNAPSHOT_NAME="clean-runtime"
 
@@ -121,7 +121,7 @@ EOF
 # --image lts
 # --cpus 2
 # --memory 3G
-# --disk 10G
+# --disk 8G
 
 if ! multipass launch "$VM_IMAGE" \
   --name "$VM_NAME" \
