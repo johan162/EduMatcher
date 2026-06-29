@@ -71,7 +71,7 @@ for every match. They are required for realistic risk control and add measurable
 
 ## Documentation
 
-Main documentation site [EduMatcher Documentation](https://johan162.github.io/edumatcher/) that among other things includes:
+Main documentation site [EduMatcher Documentation](https://johan162.github.io/EduMatcher/) that among other things includes:
 
 - **Installation Guide**: how to get up and running with EduMatcher
 - **User Guide**: step-by-step instructions for installation, configuration, and running EduMatcher
