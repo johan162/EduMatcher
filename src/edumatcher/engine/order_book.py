@@ -140,7 +140,8 @@ class OrderBook:
         )
         self.recent_trades: deque[Trade] = deque(maxlen=20)
 
-        # Daily cumulative stats — reset at EOD / engine restart
+        # Daily cumulative stats — reset only on engine restart (new OrderBook instance).
+        # pm-stats owns EOD aggregation; these counters are session-only.
         self.daily_qty: int = 0
         self.daily_value: float = 0.0
         self.daily_trades: int = 0
@@ -1179,3 +1180,16 @@ class OrderBook:
         if not self._trailing_stops and not self._buy_stops and not self._sell_stops:
             self._has_stops = False
         return triggered
+
+    def trigger_stops(self, now: int) -> list[Order]:
+        """Return all stop and trailing-stop orders triggered at the current
+        ``last_trade_price``.  Returns an empty list if no stops are registered.
+
+        Public wrapper around the private ``_check_stops`` /
+        ``_check_trailing_stops`` pair so callers outside the class (e.g.
+        ``Engine._run_uncross``) can trigger stops without pyright
+        ``reportPrivateUsage`` violations.
+        """
+        if not self._has_stops:
+            return []
+        return self._check_stops(now) + self._check_trailing_stops(now)

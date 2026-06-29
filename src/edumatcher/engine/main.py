@@ -519,7 +519,10 @@ class Engine:
                 continue
             order.status = OrderStatus.NEW
             book = self._book(order.symbol)
-            book.process(order)
+            # match=False: restore resting state only; do not replay execution.
+            # Two crossed GTC orders saved from an auction phase would otherwise
+            # silently match with no fill events or position updates.
+            book.process(order, match=False)
             self._order_symbol[order.id] = order.symbol
             if self.verbose:
                 print(f"[ENGINE] Restored GTC order {order.id} ({order.symbol})")
@@ -723,6 +726,14 @@ class Engine:
         # single-threaded.  Eliminates a mutex acquire+release per order.
         now = _time_ns()
 
+        # NOTE: accepted=True is published here, BEFORE book.process() runs.
+        # This is the "gateway ACK" — it confirms the engine accepted the order
+        # for processing (symbol valid, session open, gateway authenticated).
+        # For MARKET, FOK, and IOC orders that the book subsequently rejects
+        # (e.g. FOK with insufficient liquidity), a second accepted=False ACK
+        # follows in the events loop below.  Clients must treat the second ACK
+        # as authoritative for these order types.
+        #
         # PERF A: Inline ack message — bypass make_ack_msg() entirely.
         #
         # make_ack_msg() allocates a base dict, conditionally merges order
@@ -1443,7 +1454,7 @@ class Engine:
             cb.deactivate()
             self._halted_symbols[symbol] = False
             if _resumption_mode == "AUCTION":
-                self._run_uncross(from_state=self._session_state, symbol_filter=symbol)
+                self._run_uncross(symbol_filter=symbol)
             self.pub_sock.send_multipart(
                 encode(
                     f"circuit_breaker.resume.{symbol}",
@@ -2447,7 +2458,7 @@ class Engine:
             is_matching_enabled(to_state) or to_state == SessionState.CLOSED
         )
         if needs_uncross:
-            self._run_uncross(from_state)
+            self._run_uncross()
 
         # --- Expire auction-only orders when their window closes ---
         if from_state == SessionState.OPENING_AUCTION:
@@ -2488,15 +2499,12 @@ class Engine:
 
     def _run_uncross(
         self,
-        from_state: SessionState,
         symbol_filter: str | None = None,
     ) -> None:
         """Run the equilibrium-price uncrossing on every (or one) symbol book.
 
         Parameters
         ----------
-        from_state    : The session state from which the uncross is triggered
-                        (currently unused in the body, kept for call-site clarity).
         symbol_filter : When provided, only uncross this specific symbol.
                         Used by ``_flush_circuit_breakers()`` for per-symbol
                         resumption auctions.
@@ -2527,8 +2535,68 @@ class Engine:
 
                 for trade in trades:
                     self._publish_trade(trade)
+                    _tp = from_ticks(trade.price, symbol)
+                    self._update_position(
+                        trade.buy_gateway_id, symbol, "BUY", trade.quantity, _tp
+                    )
+                    self._update_position(
+                        trade.sell_gateway_id, symbol, "SELL", trade.quantity, _tp
+                    )
 
-                self._mark_dirty(symbol)
+            # Trigger stop and trailing-stop orders whose stop price is now
+            # reached by the equilibrium price.  execute_uncross() sets
+            # last_trade_price but does not call _check_stops(); without this
+            # block, auction-phase stop orders never fire at uncross time.
+            if trades:
+                now_stop = now_ns()
+                triggered = book.trigger_stops(now_stop)
+                for stop_order in triggered:
+                    sub_trades, sub_events = book.process(stop_order, now=now_stop)
+                    published_stop_ids: set[str] = set()
+                    for sub_evt in sub_events:
+                        if sub_evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
+                            if sub_evt.id not in published_stop_ids:
+                                published_stop_ids.add(sub_evt.id)
+                                self.pub_sock.send_multipart(
+                                    make_fill_msg(
+                                        sub_evt.gateway_id,
+                                        sub_evt.id,
+                                        fill_qty=sub_evt.quantity
+                                        - sub_evt.remaining_qty,
+                                        fill_price=(
+                                            from_ticks(book.last_trade_price, symbol)
+                                            if book.last_trade_price is not None
+                                            else 0.0
+                                        ),
+                                        remaining_qty=sub_evt.remaining_qty,
+                                        status=sub_evt.status.value,
+                                        order=sub_evt.to_dict(),
+                                    )
+                                )
+                                if sub_evt.combo_parent_id:
+                                    self._check_combo_after_child_event(sub_evt)
+                                if (
+                                    sub_evt.status == OrderStatus.FILLED
+                                    and sub_evt.oco_group_id
+                                ):
+                                    self._check_oco_after_event(sub_evt)
+                    for sub_trade in sub_trades:
+                        self._publish_trade(sub_trade)
+                        _stp = from_ticks(sub_trade.price, symbol)
+                        self._update_position(
+                            sub_trade.buy_gateway_id,
+                            symbol,
+                            "BUY",
+                            sub_trade.quantity,
+                            _stp,
+                        )
+                        self._update_position(
+                            sub_trade.sell_gateway_id,
+                            symbol,
+                            "SELL",
+                            sub_trade.quantity,
+                            _stp,
+                        )
 
                 if self.verbose:
                     print(
@@ -3092,8 +3160,12 @@ class Engine:
 
         print(f"[ENGINE] Listening on PULL={ENGINE_PULL_ADDR}  PUB={ENGINE_PUB_ADDR}")
 
-        signal.signal(signal.SIGINT, lambda *_: self._shutdown())
-        signal.signal(signal.SIGTERM, lambda *_: self._shutdown())
+        # Signal handlers only set the stop flag.  Calling _shutdown() directly
+        # from a signal handler is unsafe: the handler can interrupt mid-message
+        # (e.g. inside _handle_new_order) and close pub_sock while the handler
+        # still holds references, causing unhandled ZMQErrors in _flush_snapshots.
+        signal.signal(signal.SIGINT, lambda *_: setattr(self, "_running", False))
+        signal.signal(signal.SIGTERM, lambda *_: setattr(self, "_running", False))
 
         while self._running:
             try:
@@ -3166,6 +3238,8 @@ class Engine:
             self._flush_snapshots()
             # Check circuit breaker timers — resume halted symbols
             self._flush_circuit_breakers()
+
+        self._shutdown()
 
 
 def main() -> None:
