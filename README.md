@@ -114,12 +114,12 @@ pm-engine --verbose
 
 #### Requirements
 
-| Requirement | Notes |
-|---|---|
-| Multipass | A lightweight VM manager. Install from [multipass.run](https://multipass.run/install) |
-| curl | Used to download the VM bootstrap script |
-| Internet access | Required for downloading scripts and PyPI packages |
-| Host resources | Recommended minimum: 2 vCPU, 3 GB RAM, 10 GB disk |
+| Requirement     | Notes                                                                                 |
+|-----------------|---------------------------------------------------------------------------------------|
+| Multipass       | A lightweight VM manager. Install from [multipass.run](https://multipass.run/install) |
+| curl            | Used to download the VM bootstrap script                                              |
+| Internet access | Required for downloading scripts and PyPI packages                                    |
+| Host resources  | Recommended minimum: 2 vCPU, 3 GB RAM, 10 GB disk                                     |
 
 
 #### Bootstrap with one command
