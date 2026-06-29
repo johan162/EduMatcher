@@ -140,7 +140,8 @@ class OrderBook:
         )
         self.recent_trades: deque[Trade] = deque(maxlen=20)
 
-        # Daily cumulative stats — reset at EOD / engine restart
+        # Daily cumulative stats — reset only on engine restart (new OrderBook instance).
+        # pm-stats owns EOD aggregation; these counters are session-only.
         self.daily_qty: int = 0
         self.daily_value: float = 0.0
         self.daily_trades: int = 0
@@ -435,9 +436,10 @@ class OrderBook:
         Returns
         -------
         A dict with keys:
-          ``symbol``, ``mid_price_ticks``, ``tolerance_ticks``,
+          ``symbol``, ``mid_price_ticks``, ``mid_price``, ``tolerance_ticks``,
           ``bid_depth`` (total qty), ``ask_depth`` (total qty),
           ``imbalance`` (float in [-1, 1]; positive = more bids),
+          ``microprice`` (imbalance-weighted midprice as a float price),
           ``cost_to_move`` (same as bid_depth for now).
 
         Returns an *empty dict* if no trades have occurred yet (no meaningful
@@ -453,14 +455,39 @@ class OrderBook:
         bid_depth = sum(qty for px, qty in self._bid_qty.items() if lower <= px <= mid)
         ask_depth = sum(qty for px, qty in self._ask_qty.items() if mid <= px <= upper)
         total = bid_depth + ask_depth
+        imbalance = (bid_depth - ask_depth) / total if total > 0 else 0.0
+
+        mid_price = from_ticks(mid, self.symbol)
+
+        # Compute microprice from best bid/ask if available; fall back to mid.
+        best_bid_ticks = (
+            max(px for px, qty in self._bid_qty.items() if qty > 0)
+            if any(qty > 0 for qty in self._bid_qty.values())
+            else None
+        )
+        best_ask_ticks = (
+            min(px for px, qty in self._ask_qty.items() if qty > 0)
+            if any(qty > 0 for qty in self._ask_qty.values())
+            else None
+        )
+        if best_bid_ticks is not None and best_ask_ticks is not None:
+            bid_price = from_ticks(best_bid_ticks, self.symbol)
+            ask_price = from_ticks(best_ask_ticks, self.symbol)
+            spread = ask_price - bid_price
+            top_mid = (bid_price + ask_price) / 2
+            microprice = top_mid + imbalance * spread / 2
+        else:
+            microprice = mid_price
 
         return {
             "symbol": self.symbol,
             "mid_price_ticks": mid,
+            "mid_price": mid_price,
             "tolerance_ticks": tolerance_ticks,
             "bid_depth": bid_depth,
             "ask_depth": ask_depth,
-            "imbalance": (bid_depth - ask_depth) / total if total > 0 else 0.0,
+            "imbalance": imbalance,
+            "microprice": microprice,
             "cost_to_move": bid_depth,
         }
 
@@ -1153,3 +1180,16 @@ class OrderBook:
         if not self._trailing_stops and not self._buy_stops and not self._sell_stops:
             self._has_stops = False
         return triggered
+
+    def trigger_stops(self, now: int) -> list[Order]:
+        """Return all stop and trailing-stop orders triggered at the current
+        ``last_trade_price``.  Returns an empty list if no stops are registered.
+
+        Public wrapper around the private ``_check_stops`` /
+        ``_check_trailing_stops`` pair so callers outside the class (e.g.
+        ``Engine._run_uncross``) can trigger stops without pyright
+        ``reportPrivateUsage`` violations.
+        """
+        if not self._has_stops:
+            return []
+        return self._check_stops(now) + self._check_trailing_stops(now)

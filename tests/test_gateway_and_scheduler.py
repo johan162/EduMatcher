@@ -513,22 +513,28 @@ class TestGatewayUpdatePosition:
         assert pos["avg_cost"] == pytest.approx(105.0)
 
     def test_print_positions_with_active(self) -> None:
+        from edumatcher.gateway.display import print_positions
+
         gw = _make_gateway()
         gw._update_position("AAPL", "BUY", 100, 100.0)
         gw._last_prices["AAPL"] = 105.0
         # Should not raise
-        gw._print_positions()
+        print_positions(gw._positions, gw._last_prices)
 
     def test_print_positions_with_flat_realized(self) -> None:
+        from edumatcher.gateway.display import print_positions
+
         gw = _make_gateway()
         gw._update_position("AAPL", "BUY", 100, 100.0)
         gw._update_position("AAPL", "SELL", 100, 110.0)
         # position is flat but realized_pnl != 0
-        gw._print_positions()
+        print_positions(gw._positions, gw._last_prices)
 
     def test_print_positions_empty(self) -> None:
+        from edumatcher.gateway.display import print_positions
+
         gw = _make_gateway()
-        gw._print_positions()
+        print_positions(gw._positions, gw._last_prices)
 
 
 # ---------------------------------------------------------------------------
@@ -1175,3 +1181,815 @@ class TestGatewaySendComboLegError:
             "|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.00|LEG0.TYPE=LIMIT"
         )
         gw.push_sock.send_multipart.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# New completer coverage: QUOTE, QUOTE_CANCEL, KILL, INDEX branches
+# ---------------------------------------------------------------------------
+
+
+class TestGatewayCompleterNewBranches:
+    def _completer(self):
+        from edumatcher.gateway.main import GatewayCompleter
+
+        return GatewayCompleter(known_symbols=["AAPL", "MSFT"])
+
+    def _doc(self, text):
+        from prompt_toolkit.document import Document
+
+        return Document(text)
+
+    def test_quote_field_completions(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("QUOTE|"), None))
+        texts = [r.text for r in results]
+        assert "SYM=" in texts
+        assert "BID=" in texts
+        assert "ASK=" in texts
+        assert "BID_QTY=" in texts
+        assert "ASK_QTY=" in texts
+        assert "TIF=" in texts
+        assert "QUOTE_ID=" in texts
+
+    def test_quote_field_completions_deduplicates(self) -> None:
+        # SYM already entered — should not appear again
+        c = self._completer()
+        results = list(c.get_completions(self._doc("QUOTE|SYM=AAPL|"), None))
+        texts = [r.text for r in results]
+        assert "SYM=" not in texts
+        assert "BID=" in texts
+
+    def test_quote_cancel_field_completions(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("QUOTE_CANCEL|"), None))
+        texts = [r.text for r in results]
+        assert "SYM=" in texts
+
+    def test_quote_cancel_sym_already_entered(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("QUOTE_CANCEL|SYM=AAPL|"), None))
+        texts = [r.text for r in results]
+        assert "SYM=" not in texts
+
+    def test_kill_field_completions(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("KILL|"), None))
+        texts = [r.text for r in results]
+        assert "SYM=" in texts
+
+    def test_kill_sym_already_entered(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("KILL|SYM=AAPL|"), None))
+        texts = [r.text for r in results]
+        assert "SYM=" not in texts
+
+    def test_index_suggests_history_first(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("INDEX|"), None))
+        texts = [r.text for r in results]
+        assert "HISTORY" in texts
+
+    def test_index_after_history_suggests_kv_fields(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("INDEX|HISTORY|"), None))
+        texts = [r.text for r in results]
+        assert "INDEX=" in texts
+        assert "FROM=" in texts
+        assert "TO=" in texts
+
+    def test_index_after_history_deduplicates(self) -> None:
+        c = self._completer()
+        results = list(
+            c.get_completions(self._doc("INDEX|HISTORY|FROM=2024-01-01|"), None)
+        )
+        texts = [r.text for r in results]
+        assert "FROM=" not in texts
+        assert "TO=" in texts
+
+    def test_smp_value_completions(self) -> None:
+        c = self._completer()
+        results = list(
+            c.get_completions(
+                self._doc("NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|SMP="),
+                None,
+            )
+        )
+        texts = [r.text for r in results]
+        assert "NONE" in texts
+        assert "CANCEL_AGGRESSOR" in texts
+
+
+# ---------------------------------------------------------------------------
+# order.orders: update existing entry
+# ---------------------------------------------------------------------------
+
+
+class TestOrderOrdersUpdatesExisting:
+    def test_updates_existing_order_status(self) -> None:
+        import time as _time
+
+        gw = _make_gateway()
+        # Pre-populate with PENDING status (as if we just sent the order)
+        gw.order_cache["ORD-999"] = {
+            "id": "ORD-999",
+            "symbol": "AAPL",
+            "side": "BUY",
+            "type": "LIMIT",
+            "tif": "DAY",
+            "qty": 100,
+            "remaining": 100,
+            "price": 150.0,
+            "status": "PENDING",
+            "time": "10:00:00",
+        }
+        # Engine snapshot arrives with updated state
+        gw._handle_event(
+            "order.orders.GW01",
+            {
+                "orders": [
+                    {
+                        "id": "ORD-999",
+                        "symbol": "AAPL",
+                        "side": "BUY",
+                        "order_type": "LIMIT",
+                        "tif": "DAY",
+                        "quantity": 100,
+                        "remaining_qty": 40,
+                        "price": 150.0,
+                        "status": "PARTIAL",
+                        "timestamp": _time.time(),
+                    }
+                ]
+            },
+        )
+        assert gw.order_cache["ORD-999"]["status"] == "PARTIAL"
+        assert gw.order_cache["ORD-999"]["remaining"] == 40
+        # 'time' should be preserved from the original insertion
+        assert gw.order_cache["ORD-999"]["time"] == "10:00:00"
+
+    def test_skips_entry_with_no_id(self) -> None:
+        gw = _make_gateway()
+        # Should not raise even if 'id' is absent
+        gw._handle_event(
+            "order.orders.GW01",
+            {"orders": [{"symbol": "AAPL", "status": "NEW"}]},
+        )
+
+
+# ---------------------------------------------------------------------------
+# order.amended: None-safety
+# ---------------------------------------------------------------------------
+
+
+class TestOrderAmendedNoneSafety:
+    def test_amended_partial_payload_does_not_corrupt_cache(self) -> None:
+        gw = _make_gateway()
+        gw.order_cache["ORD-A1"] = {
+            "price": 100.0,
+            "qty": 100,
+            "remaining": 100,
+        }
+        # Only price is in payload; qty and remaining_qty absent
+        gw._handle_event(
+            "order.amended.GW01",
+            {"order_id": "ORD-A1", "price": 105.0, "priority_reset": False},
+        )
+        assert gw.order_cache["ORD-A1"]["price"] == 105.0
+        # remaining should NOT have been overwritten with None
+        assert gw.order_cache["ORD-A1"]["remaining"] == 100
+
+    def test_amended_all_fields_present(self) -> None:
+        gw = _make_gateway()
+        gw.order_cache["ORD-A2"] = {
+            "price": 100.0,
+            "qty": 200,
+            "remaining": 200,
+        }
+        gw._handle_event(
+            "order.amended.GW01",
+            {
+                "order_id": "ORD-A2",
+                "price": 110.0,
+                "qty": 150,
+                "remaining_qty": 150,
+                "priority_reset": True,
+            },
+        )
+        assert gw.order_cache["ORD-A2"]["price"] == 110.0
+        assert gw.order_cache["ORD-A2"]["qty"] == 150
+        assert gw.order_cache["ORD-A2"]["remaining"] == 150
+
+
+# ---------------------------------------------------------------------------
+# _authenticated flag
+# ---------------------------------------------------------------------------
+
+
+class TestGatewayAuthenticatedFlag:
+    def test_authenticated_flag_starts_false(self) -> None:
+        gw = _make_gateway()
+        assert gw._authenticated is False
+
+    def test_status_shows_not_authenticated_before_run(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send("STATUS")
+        # Should not raise; flag is False → "no" in table
+
+
+# ---------------------------------------------------------------------------
+# stop_price stored in order_cache
+# ---------------------------------------------------------------------------
+
+
+class TestOrderCacheStopPrice:
+    def test_stop_order_records_stop_price(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send("NEW|SYM=AAPL|SIDE=BUY|TYPE=STOP|QTY=100|STOP=148.00")
+        cached = next(
+            (v for v in gw.order_cache.values() if v.get("type") == "STOP"), None
+        )
+        assert cached is not None
+        assert cached["stop_price"] == 148.0
+
+    def test_stop_limit_order_records_both_prices(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send(
+            "NEW|SYM=AAPL|SIDE=BUY|TYPE=STOP_LIMIT|QTY=100|STOP=148.00|PRICE=147.50"
+        )
+        cached = next(
+            (v for v in gw.order_cache.values() if v.get("type") == "STOP_LIMIT"),
+            None,
+        )
+        assert cached is not None
+        assert cached["stop_price"] == 148.0
+        assert cached["price"] == 147.5
+
+
+# ---------------------------------------------------------------------------
+# _print_quote_legs display paths
+# ---------------------------------------------------------------------------
+
+
+class TestPrintQuoteLegs:
+    def _gw_with_legs(self):
+        gw = _make_gateway()
+        gw._handle_event(
+            "quote.ack.GW01",
+            {
+                "quote_id": "Q-PRINT",
+                "accepted": True,
+                "bid_order_id": "BID-PRINT",
+                "ask_order_id": "ASK-PRINT",
+            },
+        )
+        return gw
+
+    def test_print_all_legs(self) -> None:
+        gw = self._gw_with_legs()
+        gw._parse_and_send("QLEGS|SHOW=ALL")  # Should not raise
+
+    def test_print_active_legs(self) -> None:
+        gw = self._gw_with_legs()
+        gw._parse_and_send("QLEGS|SHOW=ACTIVE")
+
+    def test_print_recent_legs(self) -> None:
+        gw = self._gw_with_legs()
+        gw._parse_and_send("QLEGS|SHOW=RECENT")
+
+    def test_print_legs_filtered_by_symbol(self) -> None:
+        gw = self._gw_with_legs()
+        gw._parse_and_send("QLEGS|SYM=MSFT|SHOW=ALL")  # no legs → "No quote legs" msg
+
+    def test_print_legs_no_legs_at_all(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send("QLEGS|SHOW=ALL")  # empty cache — prints "No quote legs"
+
+
+# ---------------------------------------------------------------------------
+# _print_quote_bootstrap display
+# ---------------------------------------------------------------------------
+
+
+class TestPrintQuoteBootstrap:
+    def test_qboot_sends_request(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send("QBOOT|SYM=AAPL")
+        assert gw.push_sock.send_multipart.called
+
+    def test_qboot_no_sym_also_sends(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send("QBOOT")
+        assert gw.push_sock.send_multipart.called
+
+    def test_handle_event_quote_bootstrap_empty(self) -> None:
+        gw = _make_gateway()
+        gw._handle_event("system.quote_bootstrap.GW01", {"quotes": []})
+
+    def test_handle_event_quote_bootstrap_with_data(self) -> None:
+        gw = _make_gateway()
+        gw._handle_event(
+            "system.quote_bootstrap.GW01",
+            {
+                "quotes": [
+                    {
+                        "quote_id": "Q1",
+                        "symbol": "AAPL",
+                        "state": "ACTIVE",
+                        "bid_price": 149.5,
+                        "ask_price": 150.5,
+                        "bid_remaining_qty": 500,
+                        "ask_remaining_qty": 500,
+                    }
+                ]
+            },
+        )
+
+    def test_handle_event_quote_bootstrap_malformed(self) -> None:
+        gw = _make_gateway()
+        gw._handle_event("system.quote_bootstrap.GW01", {"quotes": "not-a-list"})
+
+
+# ---------------------------------------------------------------------------
+# _print_current_index and _print_index_history
+# ---------------------------------------------------------------------------
+
+
+class TestIndexDisplay:
+    def test_index_command_no_data(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send("INDEX")  # No data yet — prints "No index data"
+
+    def test_index_command_with_data(self) -> None:
+        import time as _time
+
+        gw = _make_gateway()
+        gw._last_index_update = {
+            "index_id": "EDU100",
+            "level": 1050.0,
+            "session_state": "CONTINUOUS",
+            "timestamp": _time.time(),
+            "day_open": 1000.0,
+            "day_high": 1060.0,
+            "day_low": 995.0,
+        }
+        gw._parse_and_send("INDEX")  # Should print level with change %
+
+    def test_index_command_no_day_open(self) -> None:
+        import time as _time
+
+        gw = _make_gateway()
+        gw._last_index_update = {
+            "index_id": "EDU100",
+            "level": 1050.0,
+            "session_state": "CONTINUOUS",
+            "timestamp": _time.time(),
+        }
+        gw._parse_and_send("INDEX")  # No day_open — no change % shown
+
+    def test_index_history_command_no_default_id(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send("INDEX|HISTORY")  # No default index_id → error msg
+
+    def test_index_history_command_with_default_id(self) -> None:
+        gw = _make_gateway()
+        gw._default_index_id = "EDU100"
+        gw._parse_and_send("INDEX|HISTORY")
+        assert gw._index_push_sock.send_multipart.called
+
+    def test_index_history_command_with_explicit_id_and_dates(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send("INDEX|HISTORY|INDEX=EDU100|FROM=2024-01-01|TO=2024-06-30")
+        assert gw._index_push_sock.send_multipart.called
+
+    def test_index_history_bad_date_falls_back_to_default(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send("INDEX|HISTORY|INDEX=EDU100|FROM=NOTADATE")
+        # Bad date → falls back to 30-day default window
+        assert gw._index_push_sock.send_multipart.called
+
+    def test_handle_event_index_history_empty(self) -> None:
+        gw = _make_gateway()
+        gw._handle_event("index.history.GW01", {"records": []})
+
+    def test_handle_event_index_history_with_records(self) -> None:
+        import time as _time
+
+        gw = _make_gateway()
+        gw._handle_event(
+            "index.history.GW01",
+            {
+                "records": [
+                    {
+                        "type": "LEVEL",
+                        "timestamp": _time.time(),
+                        "level": 1025.5,
+                        "session_state": "CONTINUOUS",
+                    },
+                    {
+                        "type": "EOD",
+                        "timestamp": _time.time(),
+                        "level": 1030.0,
+                        "session_state": "CLOSED",
+                    },
+                ]
+            },
+        )
+
+    def test_handle_event_index_history_malformed(self) -> None:
+        gw = _make_gateway()
+        gw._handle_event("index.history.GW01", {"records": "not-a-list"})
+
+    def test_handle_event_index_error(self) -> None:
+        gw = _make_gateway()
+        gw._handle_event("index.error.GW01", {"reason": "unknown index"})
+
+
+# ---------------------------------------------------------------------------
+# Quote ACK rejected path
+# ---------------------------------------------------------------------------
+
+
+class TestQuoteAckRejected:
+    def test_quote_ack_rejected_prints_reason(self) -> None:
+        gw = _make_gateway()
+        gw._handle_event(
+            "quote.ack.GW01",
+            {"quote_id": "Q-REJ", "accepted": False, "reason": "spread too wide"},
+        )
+        # Should not raise; quote_leg_cache unchanged
+        assert "Q-REJ" not in gw.quote_leg_cache
+
+
+# ---------------------------------------------------------------------------
+# _record_fill_for_quote_leg: new quote leg created from fill (no prior ack)
+# ---------------------------------------------------------------------------
+
+
+class TestRecordFillForQuoteLegNewEntry:
+    def test_fill_creates_new_quote_leg_if_not_in_cache(self) -> None:
+        gw = _make_gateway()
+        # Simulate a fill for an order_id that was never ACK'd (e.g. reconnect)
+        gw._quote_id_by_order_id["ORPHAN-001"] = "Q-ORPHAN"
+        gw._handle_event(
+            "order.fill.GW01",
+            {
+                "order_id": "ORPHAN-001",
+                "fill_qty": 50,
+                "fill_price": 150.0,
+                "remaining_qty": 50,
+                "status": "PARTIAL",
+                "symbol": "AAPL",
+                "side": "BUY",
+                "qty": 100,
+            },
+        )
+        assert "ORPHAN-001" in gw.quote_leg_cache
+        assert gw.quote_leg_cache["ORPHAN-001"]["filled"] == 50
+
+
+# ---------------------------------------------------------------------------
+# kill_switch_ack rejected path
+# ---------------------------------------------------------------------------
+
+
+class TestKillSwitchAckRejected:
+    def test_kill_switch_ack_rejected(self) -> None:
+        gw = _make_gateway()
+        gw._handle_event(
+            "risk.kill_switch_ack.GW01",
+            {"accepted": False, "reason": "not allowed"},
+        )  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# _parse_date helper
+# ---------------------------------------------------------------------------
+
+
+class TestParseDate:
+    def test_none_returns_none(self) -> None:
+        from edumatcher.gateway.main import Gateway
+
+        assert Gateway._parse_date(None) is None
+
+    def test_empty_string_returns_none(self) -> None:
+        from edumatcher.gateway.main import Gateway
+
+        assert Gateway._parse_date("") is None
+
+    def test_invalid_format_returns_none(self) -> None:
+        from edumatcher.gateway.main import Gateway
+
+        assert Gateway._parse_date("not-a-date") is None
+
+    def test_valid_date_returns_float(self) -> None:
+        from edumatcher.gateway.main import Gateway
+
+        result = Gateway._parse_date("2024-01-15")
+        assert isinstance(result, float)
+        assert result > 0
+
+
+# ---------------------------------------------------------------------------
+# _send_quote validation
+# ---------------------------------------------------------------------------
+
+
+class TestSendQuoteValidation:
+    def test_quote_zero_bid_qty_rejected(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send("QUOTE|SYM=AAPL|BID=149.50|ASK=150.50|BID_QTY=0|ASK_QTY=100")
+        gw.push_sock.send_multipart.assert_not_called()
+
+    def test_quote_bid_ge_ask_rejected(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send(
+            "QUOTE|SYM=AAPL|BID=150.50|ASK=150.50|BID_QTY=100|ASK_QTY=100"
+        )
+        gw.push_sock.send_multipart.assert_not_called()
+
+    def test_quote_missing_bid_rejected(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send("QUOTE|SYM=AAPL|ASK=150.50|BID_QTY=100|ASK_QTY=100")
+        gw.push_sock.send_multipart.assert_not_called()
+
+    def test_quote_with_quote_id(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send(
+            "QUOTE|SYM=AAPL|BID=149.50|ASK=150.50|BID_QTY=100|ASK_QTY=100|QUOTE_ID=Q99"
+        )
+        assert gw.push_sock.send_multipart.called
+
+
+# ---------------------------------------------------------------------------
+# _print_symbols_table via handle_event (symbols with no meta)
+# ---------------------------------------------------------------------------
+
+
+class TestSymbolsNoMeta:
+    def test_handle_event_symbols_no_meta(self) -> None:
+        gw = _make_gateway()
+        # No symbol_meta key at all → should use empty dict fallback
+        gw._handle_event("system.symbols.GW01", {"symbols": ["AAPL", "MSFT"]})
+        assert "AAPL" in gw._known_symbols
+
+
+# ---------------------------------------------------------------------------
+# Targeted coverage: completer value/field branches + misc event paths
+# ---------------------------------------------------------------------------
+
+
+class TestCompleterValueBranches:
+    """Hit the specific value-completion elif branches that were uncovered."""
+
+    def _completer(self):
+        from edumatcher.gateway.main import GatewayCompleter
+
+        return GatewayCompleter(known_symbols=["AAPL", "MSFT"])
+
+    def _doc(self, text):
+        from prompt_toolkit.document import Document
+
+        return Document(text)
+
+    # ---- top-level partial command (lines 219-223) ----
+    def test_partial_toplevel_command_completes(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("NE"), None))
+        texts = [r.text for r in results]
+        assert "NEW" in texts
+
+    def test_partial_toplevel_command_q(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("Q"), None))
+        texts = [r.text for r in results]
+        assert any(t.startswith("Q") for t in texts)
+
+    # ---- SIDE= value completion (line 238) ----
+    def test_side_value_completion(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("NEW|SIDE="), None))
+        texts = [r.text for r in results]
+        assert "BUY" in texts
+        assert "SELL" in texts
+
+    # ---- TYPE= (no leg prefix) value completion (line 242) ----
+    def test_type_value_completion(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("NEW|TYPE="), None))
+        texts = [r.text for r in results]
+        assert "LIMIT" in texts
+        assert "COMBO" in texts
+        assert "OCO" in texts
+
+    # ---- LEG{i}.TYPE= value completion (line 244) ----
+    def test_leg_type_value_completion(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("NEW|TYPE=COMBO|LEG0.TYPE="), None))
+        texts = [r.text for r in results]
+        assert "LIMIT" in texts
+        assert "STOP" in texts
+
+    # ---- TIF= value completion (line 249) ----
+    def test_tif_value_completion(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("NEW|TIF="), None))
+        texts = [r.text for r in results]
+        assert "DAY" in texts
+        assert "GTC" in texts
+
+    # ---- SMP= value completion (line 273) ----
+    def test_smp_via_leg_value_completion(self) -> None:
+        c = self._completer()
+        # "LEG0.SMP=" — field == "SMP" branch
+        results = list(c.get_completions(self._doc("NEW|TYPE=COMBO|LEG0.SMP="), None))
+        texts = [r.text for r in results]
+        assert "NONE" in texts
+
+    # ---- else branch: unknown field → empty candidates + for loop (283-285) ----
+    def test_status_pipe_no_completions(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("STATUS|"), None))
+        # STATUS has no field completions → empty list
+        assert results == []
+
+    # ---- CANCEL field completions (301-305) ----
+    def test_cancel_field_completions(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("CANCEL|"), None))
+        texts = [r.text for r in results]
+        assert "ID=" in texts
+        assert "COMBO_ID=" in texts
+        assert "OCO_ID=" in texts
+
+    # ---- QLEGS field completions (307-311) ----
+    def test_qlegs_field_completions_initial(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("QLEGS|"), None))
+        texts = [r.text for r in results]
+        assert "SYM=" in texts
+        assert "SHOW=" in texts
+
+    # ---- QBOOT field completion (line 313) ----
+    def test_qboot_field_completion(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("QBOOT|"), None))
+        texts = [r.text for r in results]
+        assert "SYM=" in texts
+
+    # ---- INDEX|HISTORY key-value fields (line 343) ----
+    def test_index_history_kv_completions(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("INDEX|HISTORY|"), None))
+        texts = [r.text for r in results]
+        assert "INDEX=" in texts
+        assert "FROM=" in texts
+        assert "TO=" in texts
+
+    # ---- _oco_completions (385-401) via NEW|TYPE=OCO ----
+    def test_oco_field_completions(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("NEW|TYPE=OCO|"), None))
+        texts = [r.text for r in results]
+        assert "OCO_ID=" in texts
+        assert "SYM=" in texts
+        assert "LEG1_SIDE=" in texts
+
+    def test_oco_field_completions_deduplicates(self) -> None:
+        c = self._completer()
+        results = list(c.get_completions(self._doc("NEW|TYPE=OCO|OCO_ID=MYOCO|"), None))
+        texts = [r.text for r in results]
+        assert "OCO_ID=" not in texts
+        assert "SYM=" in texts
+
+
+class TestOrderCancelledQuoteLeg:
+    """Line 866-868: order.cancelled when the ID is also in quote_leg_cache."""
+
+    def test_cancelled_clears_quote_leg_too(self) -> None:
+        gw = _make_gateway()
+        order_id = "ORD-Q99"
+        gw.order_cache[order_id] = {"status": "NEW"}
+        gw.quote_leg_cache[order_id] = {
+            "status": "NEW",
+            "remaining": 100,
+            "last_event_time": "10:00:00",
+        }
+        gw._handle_event("order.cancelled.GW01", {"order_id": order_id})
+        assert gw.order_cache[order_id]["status"] == "CANCELLED"
+        assert gw.quote_leg_cache[order_id]["status"] == "CANCELLED"
+        assert gw.quote_leg_cache[order_id]["remaining"] == 0
+
+
+class TestQuoteAckBidAlreadyInCache:
+    """Lines 930-931: quote.ack when bid/ask order IDs are already in quote_leg_cache."""
+
+    def test_quote_ack_updates_existing_leg_in_cache(self) -> None:
+        gw = _make_gateway()
+        # Pre-populate (e.g. from order.orders bootstrap)
+        gw.quote_leg_cache["BID-PRELOADED"] = {
+            "quote_id": "OLD_Q",
+            "leg_side": "?",
+            "symbol": "AAPL",
+        }
+        gw._handle_event(
+            "quote.ack.GW01",
+            {
+                "quote_id": "NEW_Q",
+                "accepted": True,
+                "bid_order_id": "BID-PRELOADED",
+                "ask_order_id": "ASK-NEW",
+            },
+        )
+        # Existing entry should have quote_id and leg_side updated
+        assert gw.quote_leg_cache["BID-PRELOADED"]["quote_id"] == "NEW_Q"
+        assert gw.quote_leg_cache["BID-PRELOADED"]["leg_side"] == "BUY"
+
+
+class TestQuoteStatusWithReason:
+    """Line 1037-1038: quote.status where reason is non-empty."""
+
+    def test_quote_status_with_reason_string(self) -> None:
+        gw = _make_gateway()
+        gw._handle_event(
+            "quote.status.GW01",
+            {"quote_id": "Q-R", "status": "CANCELLED", "reason": "kill switch"},
+        )  # should not raise
+
+
+class TestQuoteCancelMissingSym:
+    """Line 1302-1303: QUOTE_CANCEL without SYM= prints error."""
+
+    def test_quote_cancel_missing_sym(self) -> None:
+        gw = _make_gateway()
+        gw._parse_and_send("QUOTE_CANCEL")
+        gw.push_sock.send_multipart.assert_not_called()
+
+
+class TestIndexDisplayEdgeCases:
+    """Lines 1691, 1742: _print_current_index and _print_index_history with missing ts."""
+
+    def test_index_no_timestamp_uses_now(self) -> None:
+        gw = _make_gateway()
+        # No 'timestamp' key → else branch in _print_current_index
+        gw._last_index_update = {
+            "index_id": "EDU100",
+            "level": 1000.0,
+            "session_state": "CONTINUOUS",
+            # no 'timestamp'
+            "day_open": 980.0,
+            "day_high": 1010.0,
+            "day_low": 975.0,
+        }
+        gw._parse_and_send("INDEX")  # should not raise
+
+    def test_index_history_record_no_timestamp(self) -> None:
+        gw = _make_gateway()
+        # Record with no timestamp → ts_txt = "?"
+        gw._handle_event(
+            "index.history.GW01",
+            {
+                "records": [
+                    {"type": "LEVEL", "level": 1000.0, "session_state": "CONTINUOUS"}
+                ]
+            },
+        )
+
+    def test_index_history_record_no_level(self) -> None:
+        import time as _time
+
+        gw = _make_gateway()
+        # Record with no level → level_txt = "-"
+        gw._handle_event(
+            "index.history.GW01",
+            {
+                "records": [
+                    {
+                        "type": "LEVEL",
+                        "timestamp": _time.time(),
+                        "session_state": "CONTINUOUS",
+                        # no 'level'
+                    }
+                ]
+            },
+        )
+
+
+class TestSymbolsTableNonBoolMeta:
+    """Lines 780-803: _print_symbols_table when enforce_mm is not a bool."""
+
+    def test_symbols_with_non_bool_enforce_mm(self) -> None:
+        gw = _make_gateway()
+        payload = {
+            "symbols": ["AAPL"],
+            "symbol_meta": {
+                "AAPL": {
+                    "tick_size": 0.01,
+                    "enforce_mm_obligation": "yes",  # not a bool → "—" in table
+                    "mm_max_spread_ticks": None,
+                    "mm_min_qty": None,
+                }
+            },
+        }
+        gw._handle_event("system.symbols.GW01", payload)
+        assert "AAPL" in gw._known_symbols

@@ -429,6 +429,9 @@ else
     print_warning "docs directory not found; skipping User Guide PDF build"
 fi
 
+# Clean up any previous PDF artifacts
+run_command "make -C docs clean" "Cleaning previous PDF artifacts"
+
 if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ] && [ "$BUILD_USER_GUIDE_PDF" = true ]; then
     run_parallel_commands \
         "make -C docs-exchange-intro -j4" \
@@ -482,7 +485,7 @@ if [ "$DRY_RUN" = false ]; then
     echo ""
     echo "📦 Artifacts:"
     if [ -d "dist" ] && [ "$(ls -A dist)" ]; then
-        for file in dist/*; do
+        for file in dist/* docs/dist/*; do
             if [ -f "$file" ]; then
                 FILENAME=$(basename "$file")
                 SIZE=$(ls -lh "$file" | awk '{print $5}')

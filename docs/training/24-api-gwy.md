@@ -164,7 +164,7 @@ curl -X POST http://127.0.0.1:8080/api/v1/orders \
     "order_type": "LIMIT",
     "quantity": 100,
     "price": 209.50,
-    "time_in_force": "DAY"
+    "tif": "DAY"
   }'
 ```
 
@@ -229,19 +229,32 @@ Expected behavior:
 Connect to private events before submitting new orders:
 
 ```bash
-python3 -m websockets ws://127.0.0.1:8080/api/v1/events \
-  -H 'Authorization: Bearer key-trader-demo'
+python3 -m websockets ws://127.0.0.1:8080/api/v1/events
+```
+
+Once connected, the CLI waits for you to type. Send the authentication message
+as your first input, then press Enter:
+
+```text
+> {"api_key": "key-trader-demo"}
+< {"type": "authenticated", "gateway_id": "TRADER01"}
 ```
 
 In another terminal, submit or cancel an order with the same key. Observe the
 private event stream.
 
-Then connect to a public market-data WebSocket with a read-only key, if enabled
-in your local route set:
+Then connect to a public market-data WebSocket with a read-only key:
 
 ```bash
-python3 -m websockets ws://127.0.0.1:8080/api/v1/market-data \
-  -H 'Authorization: Bearer key-readonly-demo'
+python3 -m websockets ws://127.0.0.1:8080/api/v1/market-data
+```
+
+After authentication, send a subscription control message:
+
+```text
+> {"api_key": "key-readonly-demo"}
+< {"type": "authenticated"}
+> {"action": "subscribe", "symbols": ["AAPL"], "channels": ["book", "trades"]}
 ```
 
 Expected behavior:
@@ -251,6 +264,60 @@ Expected behavior:
 - stale or unknown bearer keys are rejected
 
 :material-checkbox-blank-outline: Checkpoint: you can explain when to use REST responses versus WebSocket events for order outcomes.
+
+---
+
+## Exercise 9: Write a Python CLI Client for LIMIT Order Entry
+
+Use the `ApiGatewayClient` library from `docs/examples/REST/python` to write a
+small script that submits a LIMIT order and prints the engine response.
+
+```python
+import argparse, json, os, sys
+sys.path.insert(0, "docs/examples/REST/python")
+from api_gateway_client import ApiGatewayClient
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--side",   required=True, choices=["BUY", "SELL"])
+parser.add_argument("--symbol", required=True)
+parser.add_argument("--qty",    required=True, type=int)
+parser.add_argument("--price",  required=True, type=float)
+parser.add_argument("--wait-ack", action="store_true")
+args = parser.parse_args()
+
+client = ApiGatewayClient(
+    os.environ.get("EDUMATCHER_API_URL", "http://127.0.0.1:8080"),
+    os.environ.get("EDUMATCHER_API_KEY", "key-trader-demo"),
+)
+path = "/api/v1/orders" + ("?wait=ack" if args.wait_ack else "")
+result = client.post_json(path, {
+    "symbol": args.symbol.upper(),
+    "side":   args.side,
+    "order_type": "LIMIT",
+    "quantity": args.qty,
+    "price":  args.price,
+})
+print(json.dumps(result, indent=2))
+```
+
+Run it from the repo root:
+
+```bash
+python3 limit_order.py --side BUY --symbol AAPL --qty 100 --price 209.50
+python3 limit_order.py --side BUY --symbol AAPL --qty 100 --price 209.50 --wait-ack
+```
+
+Expected behavior:
+
+- without `--wait-ack`: `status` is `PENDING` and `event` is null
+- with `--wait-ack`: `status` is `ACKED` and `event` contains the engine response
+- sending a read-only key returns `403 READ_ONLY`
+- omitting `--price` returns `400 VALIDATION` because `LIMIT` requires `price`
+
+A fully documented `MARKET` order version that follows the same pattern is
+available at `docs/examples/REST/python/submit_market_order.py`.
+
+:material-checkbox-blank-outline: Checkpoint: your script prints `order_id` and `status` from a live gateway.
 
 ---
 

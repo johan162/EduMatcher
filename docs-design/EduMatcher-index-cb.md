@@ -1,6 +1,6 @@
-Version: 0.3.0
+Version: 0.4.0
 
-Date: 2026-06-27
+Date: 2026-06-29
 
 Status: Design and Research Proposal
 
@@ -57,11 +57,13 @@ operators and students encounter the same pattern in both places.
 | Aspect | Symbol circuit breaker | Index circuit breaker |
 |--------|----------------------|----------------------|
 | Trigger | Absolute price move from rolling reference | Percentage move from session-open reference |
+| Reference window | Rolling `reference_window_ns` (default 5 min) | Fixed session-open value; resets each trading day |
 | Levels | L1 / L2 / L3 with configurable thresholds | L1 / L2 / L3 with configurable thresholds |
 | Cooldown | `halt_duration_ns` (null = rest-of-day) | `cooldown_minutes` (-1 = rest-of-day) |
 | Resumption | `AUCTION` or `CONTINUOUS` | `AUCTION` (default) |
 | Halt scope | One symbol | All symbols on the exchange |
 | Configuration location | `symbols.<SYM>.circuit_breaker` | `indices[n].circuit_breaker` |
+| ZMQ event fields | `trigger_price`, `reference_price` | `current_value`, `reference_value` |
 | ZMQ topics | `circuit_breaker.halt.{SYM}` / `circuit_breaker.resume.{SYM}` | `circuit_breaker.halt.index.{ID}` / `circuit_breaker.resume.index.{ID}` |
 
 The key difference is scope. A symbol breaker halts exactly one instrument.
@@ -136,6 +138,15 @@ explicitly restarts the session or the next trading day begins.
 
 `cooldown_minutes: 0` is **not valid**. Use `-1` for rest-of-day.
 
+The engine converts `cooldown_minutes` to nanoseconds internally:
+`cooldown_ns = cooldown_minutes × 60 × 1_000_000_000`. This conversion is applied
+in the engine's `index.circuit_breaker_fire` handler, not in the YAML config loader.
+
+Setting `price_move_pct` to a value close to `1.0` (e.g. `0.99`) effectively
+disables that level without removing it from the configuration. This is the
+recommended workaround for operators who want only downward-move protection at a
+given level (see §4.3).
+
 
 
 ## 4. Trigger Evaluation
@@ -156,6 +167,12 @@ The check runs in `pm-index` on every computed index update before the value is
 published. When the condition is met, `pm-index` sends an
 `index.circuit_breaker_fire` command to the engine pull socket, which the engine
 handles atomically before processing the next order.
+
+> **Implementation note — propagation lag:** The fire command is queued behind
+> any orders already in the engine PULL socket at the moment pm-index detects
+> the threshold crossing. A small number of fills may execute during this window.
+> This is an inherent property of the async ZMQ architecture and is acceptable
+> for an educational exchange. The halt is not instantaneous.
 
 ### 4.2 Numeric example
 
@@ -190,8 +207,17 @@ it is the highest level crossed.
 The formula uses `abs()`, so the breaker fires on both sharp upward and downward
 moves. This is a simplification over real-world practice where most market-wide
 breakers only trigger on downward moves. Operators who want downward-only
-behavior can achieve it by setting very high upward thresholds (for example 99%)
-but that is a workaround. A future revision may add a `direction` field.
+behavior can achieve it by setting `price_move_pct: 0.99` for the upward direction
+(see §3.2), but that is a workaround. A future revision may add a `direction` field.
+
+The signed `move_pct` value carried in the fire command and halt event is:
+
+```text
+move_pct = (current_index_value - reference_value) / reference_value
+```
+
+A drop from 1000.0 to 928.0 gives `move_pct = −0.072`. A rise to 1072.0 gives
+`move_pct = +0.072`. Both trigger L1 because `abs(move_pct) >= 0.07`.
 
 ### 4.4 Reference value
 
@@ -200,7 +226,11 @@ The reference value is set once per trading day:
 - **Normal days:** `pm-index` uses the previous trading day's closing index
   value, recorded in the index state file at `system.eod`.
 - **First day of operation** (no prior state file): `pm-index` uses the first
-  computed index value at session `CONTINUOUS` entry as the opening reference.
+  index level computed from the constituent `reference_prices` loaded at startup
+  (before any trade updates arrive) as the session reference. This is the
+  divisor-based level calculated from the initial `reference_prices` in the
+  runtime config, typically equal to `base_value` (1000.0) when constituents
+  are priced at par.
 - The reference stays fixed for the rest of the trading day and is never
   recalculated mid-session, even if the breaker fires and resumes.
 - On `system.eod`, `pm-index` writes the current index value as the closing
@@ -209,6 +239,15 @@ The reference value is set once per trading day:
 Using the previous close aligns with real-world practice (NYSE S&P 500
 breakers are measured from the prior day's closing value) and means the
 reference is known before the first order arrives.
+
+**Mid-session restart:** If `pm-index` restarts during a trading day (before
+`system.eod`), it reloads the state file, which records the prior-day closing
+value as the reference. It does not attempt to reconstruct an intraday opening
+reference. Intraday moves that already occurred before the restart are therefore
+not reflected in the threshold calculation — the effective measurement window
+resets to the prior close. This is a known limitation; operators should be aware
+that a mid-session restart may make the index CB less sensitive for the remainder
+of the session.
 
 
 
@@ -227,8 +266,9 @@ When a level fires with a positive `cooldown_minutes` value:
 5. On resume, the engine runs an auction uncross for each symbol (resumption mode
    `AUCTION`) and then publishes `circuit_breaker.resume.index.{ID}`.
 
-If a higher level fires while the exchange is already halted (for example because
-a recovery rally reversed sharply):
+If, after a timed automatic resume, the auction or subsequent continuous matching
+produces fills that push the index to a higher threshold level, that level fires
+immediately:
 
 - The higher level wins.
 - Its cooldown replaces the active timer.
@@ -244,9 +284,8 @@ When a level fires with `cooldown_minutes: -1`:
 
 | Resume path | How it works |
 |-------------|--------------|
-| **Admin command** | Operator sends `INDEX RESUME {ID}` to a gateway with `ADMIN` role. The engine lifts the index CB halt for all symbols and runs the auction uncross. |
-| **Next trading day** | `system.eod` resets all halt state. The exchange opens normally the following day. |
-| **Process restart** | Restarting the engine clears in-memory halt state. The exchange comes up with no active halts. Use this only in exceptional circumstances since it bypasses the normal audit trail. |
+| **Admin command** | Operator sends `INDEX RESUME {ID}` to a gateway with `ADMIN` role. The engine lifts the index CB halt for all symbols, runs the auction uncross, and publishes `circuit_breaker.resume.index.{ID}` with `resumed_by: "admin_command"`. |
+| **Next trading day** | The session transitions to `CLOSED`, which clears all halt state (see §5.4). The exchange opens normally the following day, with `resumed_by: "session_end"` published at close. |
 
 The `INDEX RESUME {ID}` admin command is a new command. It is analogous to the
 existing per-symbol `HALT RESUME {SYM}` command but operates exchange-wide in
@@ -266,6 +305,28 @@ When the session transitions to `CLOSED`, any active index CB halt state is
 cleared. This prevents a stale halt from leaking into the next session. The
 behavior mirrors FR-RISK-007 for symbol circuit breakers.
 
+**Implementation note:** The existing EOD reset loop in the engine iterates
+`self._circuit_breakers` (symbol CB state objects). The index CB halt structure
+will be a separate in-memory collection and must be explicitly cleared in the
+same `CLOSED` transition block.
+
+
+### 5.5 Interaction with `risk.circuit_breaker_resume_all`
+
+The existing admin command `risk.circuit_breaker_resume_all` resumes all symbols
+globally. If this command is issued while an index CB halt is active, the engine
+must **not** release symbols that are solely halted by the index CB. The rules
+are:
+
+- `risk.circuit_breaker_resume_all` clears only `SYMBOL_CB` halt state. Symbols
+  with halt source `INDEX_CB` or `BOTH` are not released.
+- To lift an index CB halt, the operator must use `INDEX RESUME {ID}` or wait
+  for the timed cooldown to expire.
+
+Without this restriction, pm-index would detect that the index is still beyond
+its threshold and immediately re-fire the CB on the next index update, creating
+a halt/resume flip-flop.
+
 
 
 ## 6. Event Flow and Integration
@@ -278,7 +339,7 @@ flowchart LR
     IDX["pm-index\nSUB :5556\nPUSH → engine :5555"]
     GWY["Gateways\nand clients"]
 
-    ENG -->|"trade.executed\nsession.state"| IDX
+    ENG -->|"trade.executed\nsession.state\ncircuit_breaker.halt.index.*\ncircuit_breaker.resume.index.*"| IDX
     IDX -->|"index.circuit_breaker_fire\n(PUSH → engine :5555)"| ENG
     ENG -->|"circuit_breaker.halt.index.ID\ncircuit_breaker.resume.index.ID"| GWY
 ```
@@ -290,6 +351,20 @@ halt event on the PUB socket to all subscribers.
 
 This keeps the engine as the single authoritative source for halt state. `pm-index`
 never directly modifies any symbol state; it only sends a request to the engine.
+
+**PUSH socket requirement:** `pm-index` currently only creates a subscriber, a
+puller, and a publisher socket. Sending `index.circuit_breaker_fire` requires
+adding a PUSH socket connecting to the engine PULL address (port 5555) in
+`IndexProcess.__init__()`. See §8.4 for the full implementation note.
+
+**De-bounce requirement:** pm-index must maintain an internal `_cb_active` flag
+per index. After sending `index.circuit_breaker_fire` it must suppress further
+fire commands for that index until the engine publishes
+`circuit_breaker.resume.index.{ID}` back on the PUB socket. To receive these
+events pm-index subscribes to `circuit_breaker.halt.index.*` and
+`circuit_breaker.resume.index.*` — reflected in the flowchart above. Without
+this guard, oscillation near a threshold would send repeated fire commands and
+repeatedly reset the halt timer.
 
 ### 6.2 New ZMQ message: `index.circuit_breaker_fire`
 
@@ -303,6 +378,21 @@ Sent by `pm-index` to the engine PULL socket when a threshold is crossed.
 | `reference_value` | float | Session reference value used in the calculation |
 | `move_pct` | float | Signed percentage move, e.g. `-0.072` for a 7.2% drop |
 | `cooldown_minutes` | integer | Configured cooldown for this level; `-1` for rest-of-day |
+
+**ZMQ envelope:** The engine PULL socket receives two-part messages of the form
+`[topic_bytes, json_payload_bytes]`. The topic for this command is the literal
+bytes `b"index.circuit_breaker_fire"`. The JSON payload contains the fields
+listed above.
+
+**Cooldown authority:** The `cooldown_minutes` field is informational. The engine
+looks up the authoritative cooldown from its own loaded `IndexConfig` (keyed by
+`index_id` and `level`). This prevents a config mismatch between pm-index and the
+engine from silently applying the wrong halt duration. The field is still included
+for logging and diagnostics.
+
+**`move_pct` sign convention:** Computed as
+`(current_value - reference_value) / reference_value`. A drop from 1000.0 to
+928.0 yields `−0.072`. A rise to 1072.0 yields `+0.072`. See §4.3.
 
 ### 6.3 Halt event: `circuit_breaker.halt.index.{ID}`
 
@@ -318,6 +408,11 @@ Published by the engine on the PUB socket when it processes
 | `move_pct` | float | Signed percentage move |
 | `resume_at_ns` | integer or null | Monotonic resume timestamp (nanoseconds); null for rest-of-day |
 
+**Field name note:** The symbol CB halt event (`circuit_breaker.halt.{SYM}`) uses
+`trigger_price` and `reference_price`. This event uses `current_value` and
+`reference_value`. The naming difference is intentional (prices vs index levels)
+but clients subscribing to both event types must handle distinct field sets.
+
 ### 6.4 Resume event: `circuit_breaker.resume.index.{ID}`
 
 Published by the engine when it lifts the halt (timed or manual).
@@ -326,7 +421,17 @@ Published by the engine when it lifts the halt (timed or manual).
 |-------|------|---------|
 | `index_id` | string | ID of the index that triggered the original halt |
 | `level` | string | Level that was active when resume occurred |
-| `resumed_by` | string | `"timer"` (timed cooldown expired), `"admin_command"` (INDEX RESUME), `"session_end"` (system.eod), or `"restart"` (engine restarted) |
+| `resumed_by` | string | `"timer"` (timed cooldown expired), `"admin_command"` (`INDEX RESUME` command), or `"session_end"` (`CLOSED` transition) |
+
+**No `"restart"` value:** Engine restart clears in-memory halt state without
+publishing any resume event — there is no record of what was halted before the
+restart. Audit logging of restart events must be handled at the
+process-management level (e.g. supervisor logs).
+
+**Asymmetry with symbol CB resume:** The symbol CB resume event
+(`circuit_breaker.resume.{SYM}`) only carries `symbol` and `mode` fields. The
+`resumed_by` field is specific to the index CB resume event. Clients handling
+both event types must not assume the same payload schema.
 
 
 
@@ -357,7 +462,26 @@ an index CB halt, the symbol CB halt state is recorded independently. The symbol
 will not start matching when the index CB lifts; it will wait for its own symbol
 CB resume (timed or manual).
 
-### 7.3 Order behavior during halt
+### 7.3 Multiple concurrent index CB halts
+
+When two or more indices have their circuit breakers enabled and both cross their
+thresholds near-simultaneously, the engine receives one `index.circuit_breaker_fire`
+command per index and applies each halt independently:
+
+- Each index maintains its own halt timer and cooldown state.
+- The exchange remains halted until **all** active index CB halts have been lifted.
+  A symbol is released from the index CB halt only when every contributing index
+  has resumed.
+- If one index resumes (timer expires) while another is still active, the affected
+  symbols remain halted and the auction uncross is deferred until the last active
+  index CB lifts.
+
+The engine must therefore maintain a **set** of active index CB identifiers per
+symbol rather than a single flag, so the `INDEX_CB` halt source is cleared only
+when that set becomes empty.
+
+
+### 7.4 Order behavior during halt
 
 While either a symbol CB halt or an index CB halt is active for a symbol:
 
@@ -367,6 +491,24 @@ While either a symbol CB halt or an index CB halt is active for a symbol:
 
 This is identical to symbol CB halt behavior (FR-RISK-006) and requires no new
 order-handling logic.
+
+**Cancel requests:** Cancel requests are accepted and processed during an index
+CB halt. Only order entry and matching are restricted.
+
+**Constituent change during halt:** If a constituent is added to or removed from
+the triggering index via `index.constituent_change` while an index CB halt is
+active, pm-index recalculates the index level. No new trades can occur, but if
+the recalculated value breaches a higher threshold, pm-index must send a new
+`index.circuit_breaker_fire` command for that higher level. The de-bounce guard
+(§6.1) suppresses re-firing the same level; a genuinely higher breach must still
+fire.
+
+**All constituents halted by symbol CBs:** If every constituent of an index is
+individually halted by its own symbol CB, no trades execute, the index is frozen,
+and the index CB cannot trigger. A broad market collapse can halt all constituents
+before the aggregate index threshold is reached. Operators who want exchange-wide
+protection should configure the index CB thresholds to be more sensitive than the
+individual symbol CB thresholds.
 
 
 ## 8. pm-config-gen Extensions
@@ -383,8 +525,12 @@ Two new flags cover the common case:
 --index-cb ID[:L1_PCT:L1_MINS:L2_PCT:L2_MINS:L3_PCT:L3_MINS]
 ```
 
-Enables the circuit breaker for the named index. All six threshold and cooldown
-values are optional; when omitted, the built-in defaults are used.
+Enables the circuit breaker for the named index. The six values must be supplied
+**all or none**: either provide all six (`L1_PCT`, `L1_MINS`, `L2_PCT`, `L2_MINS`,
+`L3_PCT`, `L3_MINS`) or omit all of them to use the built-in defaults (see §8.2).
+Partial specs (e.g. supplying only L1 values) are a configuration error and are
+rejected at startup. This follows the same convention as the existing `--cb-levels`
+flag for symbol circuit breakers.
 
 ```
 --no-index-cb ID
@@ -511,6 +657,40 @@ YAML; the config loader treats `-1` as the rest-of-day sentinel.
 Add `--index-cb` and `--no-index-cb` to the existing index argument group
 and parse them in the same pass as `--index-constituents`.
 
+**`index/main.py` — add PUSH socket and de-bounce state**
+
+`IndexProcess` currently has only a subscriber, a puller, and a publisher socket.
+The following additions are required:
+
+```python
+# In IndexProcess.__init__():
+from edumatcher.config import ENGINE_PULL_ADDR
+from edumatcher.messaging.bus import make_pusher
+
+self._engine_push = make_pusher(ENGINE_PULL_ADDR)
+self._cb_active: dict[str, bool] = {}  # index_id → True while index CB is halted
+```
+
+The SUB socket subscriptions in `IndexProcess` must also include:
+
+```
+"circuit_breaker.halt.index."
+"circuit_breaker.resume.index."
+```
+
+On `circuit_breaker.halt.index.{ID}`, set `_cb_active[index_id] = True`.
+On `circuit_breaker.resume.index.{ID}`, set `_cb_active[index_id] = False`.
+In `_handle_session_state()`, clear `_cb_active` on `CLOSED`.
+When evaluating a threshold crossing, only send `index.circuit_breaker_fire` if
+`_cb_active.get(index_id, False)` is `False`.
+
+**`index/config_loader.py` and `engine/config_loader.py` — add `IndexCbConfig`**
+
+Both config loaders must parse the `circuit_breaker` block of each index entry
+and expose it as a typed config object analogous to `CircuitBreakerConfig` for
+symbols. The engine config loader needs this to look up the authoritative
+`cooldown_minutes` value when handling `index.circuit_breaker_fire` (see §6.2).
+
 
 ## 9. Validation Rules
 
@@ -524,7 +704,10 @@ Required rules:
   is enabled.
 - `price_move_pct` must be a float in the range `(0, 1)` exclusive.
 - `cooldown_minutes` must be a positive integer or exactly `-1`. Zero is not
-  valid.
+  valid. The engine converts the value to nanoseconds via
+  `cooldown_ns = cooldown_minutes × 60 × 1_000_000_000`; this conversion is
+  applied in the `index.circuit_breaker_fire` handler, not in the YAML config
+  loader.
 - Level thresholds must be strictly ordered:
   `L1.price_move_pct < L2.price_move_pct < L3.price_move_pct`.
 - When `enabled` is `false`, the `levels` block is optional and its values are
@@ -549,7 +732,8 @@ Both questions from v0.1.0 are resolved.
 
 2. **Manual resume command** — Resolved: introduce a new `INDEX RESUME {ID}`
    admin command. The exchange also resumes automatically at the next trading
-   day or on engine restart. See §5.2.
+   day (`CLOSED` transition). Engine restart clears halt state without publishing
+   a resume event; there is no `resumed_by: "restart"` enum value. See §5.2.
 
 
 ## 11. Summary
@@ -574,3 +758,10 @@ Additional design decisions made in this proposal:
 - `pm-config-gen` is extended with `--index-cb` and `--no-index-cb` flags that
   reuse the existing index argument group and follow the same compact spec style
   as the existing `--cb-levels` flag.
+- `pm-index` requires a new PUSH socket to send commands to the engine PULL port,
+  plus internal de-bounce state (`_cb_active`) to suppress duplicate fire commands
+  (see §6.1 and §8.4).
+- Multiple simultaneous index CB halts are tracked per-index; the exchange remains
+  halted until the last active index CB has resumed (see §7.3).
+- Cancel requests are accepted during an index CB halt; only order entry and
+  matching are restricted (see §7.4).

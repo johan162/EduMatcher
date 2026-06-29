@@ -1,3 +1,31 @@
+## [v0.12.1] - 2026-06-29
+
+Release Type: patch
+
+### 📋 Summary
+This patch release fixes eight bugs across the matching engine and MM bot, and refactors the ALF Gateway into separate submodules for better maintainability. Documentation is updated with improved API Gateway guidance, an expanded AI Trader design, and an index-controlled circuit-breaker design refresh.
+
+### 🐛 Bug Fixes
+- Fixed `_run_uncross()` not triggering stop orders whose stop price was reached by the equilibrium price
+- Fixed `_run_uncross()` not updating the position ledger for auction fills, leaving position snapshots stale
+- Fixed race condition in engine signal handler calling `_shutdown()` mid-handler instead of setting a flag
+- Fixed passive orders resting in the book at shutdown silently matching on next startup with no trade emitted
+- Fixed MM bot `_handle_order_fill` overwriting the cancel-confirmation timeout when a fill arrives while a cancel is already in flight
+- Fixed MM bot `_handle_book` raising `KeyError` when a book message contains a malformed bid or ask level
+- Fixed MM bot `_run_loop` crashing with an unhandled `ValueError` from `QuotePricer` when symbol metadata produces an invalid gap
+- Fixed MM bot `_handle_quote_status` scheduling a duplicate reissue for orphaned `CANCELLED` events that follow an already-processed `INACTIVE`
+- Fixed broken documentation links in the user-guide landing page
+
+### 📚 Documentation
+- Improved API Gateway training material and user-guide coverage
+- Added expanded AI Trader v2 design with message structure, position snapshot protocol, and per-gateway fill history
+- Refreshed index-controlled circuit-breaker design documentation
+
+### 🛠 Internal
+- Refactored ALF Gateway `main.py` into `completer.py` (tab-completion) and `display.py` (console helpers), with backward-compatible re-exports
+- Reduced default VM disk allocation to 8 GB in bootstrap configuration
+
+
 ## [v0.12.0] - 2026-06-27
 
 Release Type: minor

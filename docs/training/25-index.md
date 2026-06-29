@@ -505,4 +505,4 @@ Returns records within the specified date range, newest last.
 - [Market Index — User Guide](../user-guide/22-index.md) — full reference for config fields, formulas, and history record types
 - [pm-index-cli reference](../user-guide/02-commands.md) — all subcommands, column descriptions, and output-format options
 - [Engine Configuration](../user-guide/01-configuration.md#configuring-pm-index) — `indices:` YAML field reference
-- [Process Reference — pm-index](../user-guide/10-processes.md#pm-index--index-calculation-process) — socket layout and message types
+- [Process Reference — pm-index](../user-guide/10-processes.md#pm-index-index-calculation-process) — socket layout and message types

@@ -1,53 +1,48 @@
 # EduMatcher, Educational Trading System
 
-EduMatcher is a multi-process Python trading simulator designed to teach the fundamentals of
-**order matching**, **market microstructure**, and **exchange architecture** through a hands-on,
-fully runnable system.
-
+EduMatcher is a multi-process Python trading simulator for learning how exchanges work in practice.
+It helps you build intuition for order matching, market microstructure, and exchange architecture through a runnable system.
 
 ![Order book illustration](assets/exchange-and-books-illustration.png)
 **Figure 1: The Exchange with Order Books and the Central Matching Engine (CME).**
 
-For more details on the core concept of the **Order Book** see [Concept Overview: Order Book](concepts/01-concepts-order-book.md)
-
 ## Start Here
 
-Use this page as a routing guide based on your background and intent.
+If you are new to exchanges, start with:
+
+1. [How an Exchange Works](how-exchange-works.md). 
+  This is a rather large book so for the first you should restrict the reading to Part I & II. The rest can be saved for when you need it.
+2. [Getting Started](user-guide/00-getting-started.md). This will help you install EduMatcher.
+3. [The Order Book](concepts/01-concepts-order-book.md). It cannot be overstated how important it is to thoroughly understand the concept of the *Order Book*
+4. [Your First Trade](concepts/04-concepts-first-trade.md). Getting your feet wet before you run the exchange
+
+If you are already familiar with trading, use this quick routing table:
 
 | If you are... | Read this first | Then continue with |
 |---|---|---|
-| New to finance / exchanges | [How an Exchange Works](how-exchange-works.md) | [Getting Started](user-guide/00-getting-started.md) → [The Order Book](concepts/01-concepts-order-book.md) → [Your First Trade](concepts/04-concepts-first-trade.md) |
-| Familiar with trading, new to EduMatcher | [Getting Started](user-guide/00-getting-started.md) | [Running the Engine](user-guide/03-running-the-engine.md) → [Gateway Commands](user-guide/08-gateway.md) |
-| Instructor running a classroom | [Getting Started](user-guide/00-getting-started.md) | [Configuration](user-guide/01-configuration.md) → [Processes](user-guide/10-processes.md) → [Auctions & Scheduling](user-guide/06-auctions-scheduling.md) |
-| Developer extending the system | [Architecture Overview](architecture/01-architecture.md) | [Detailed Walkthrough](architecture/02-architecture-guide.md) → [Developer Info](developer/01-dev-practice.md) → [Order Book Deep Dive](concepts/02-concepts-order-book-deep-dive.md) |
+| Hands-on user / instructor | [Getting Started](user-guide/00-getting-started.md) | [Configuration](user-guide/01-configuration.md) -> [Running the Engine](user-guide/03-running-the-engine.md) -> [Processes](user-guide/10-processes.md) |
+| Developer extending the system | [Architecture Overview](architecture/01-architecture.md) | [Architecture Walkthrough](architecture/02-architecture-guide.md) -> [Messages](user-guide/09-messages.md) -> [Developer Info](developer/01-dev-practice.md) |
+| Protocol reader | [Protocol Overview](user-guide/19-protocol-overview.md) | Choose protocol appendix and examples from there |
 
 ```mermaid
 flowchart TD
-  A[New Reader] --> B{Background?}
-  B -->|No finance background| C[How an Exchange Works]
-  B -->|Knows trading basics| D[Getting Started]
-  B -->|Wants to hack code| E[Architecture Overview]
+  A[New Reader] --> B{New to exchange concepts?}
+  B -->|Yes| C[How an Exchange Works]
+  B -->|No| D[Getting Started]
   C --> D
-  D --> F{Goal?}
-  F -->|Run first session| G[Running the Engine]
-  F -->|Learn mechanics| H[Concepts section]
-  F -->|Operate class demo| I[Processes + Scheduling]
-  F -->|Write custom client| J[Messages + ALF Appendix]
+  D --> E{Goal?}
+  E -->|Run first session| F[Running the Engine]
+  E -->|Understand mechanics| G[Concepts]
+  E -->|Operate a class demo| H[Processes + Scheduling]
+  E -->|Integrate protocols| I[Protocol Overview]
 ```
 
+> Next step: Open [Getting Started](user-guide/00-getting-started.md) and pick either VM bootstrap or pipx install mode.
 
+## What This System Models
 
-## What Is This System Modelling?
-
-When you buy a share of stock through a broker, your order travels to an
-exchange — a regulated marketplace where buy and sell orders are matched. At
-the heart of every exchange is a **matching engine**: software that maintains
-an **order book** for each traded instrument, pairs buy orders with sell
-orders, and produces **trades** when prices agree.
-
-EduMatcher reproduces this entire stack as independent processes
-communicating over a message bus, just as a real exchange does. The
-difference is that here, everything is visible and inspectable:
+In a real exchange, buy and sell orders meet in an order book managed by a matching engine.
+EduMatcher reproduces that stack as separate processes communicating over a message bus, with all key behavior visible for learning and experimentation.
 
 ```mermaid
 flowchart TD
@@ -65,210 +60,87 @@ flowchart TD
   ENG -->|broadcasts trades and fills| AUD
 ```
 
-A **trade** happens when two orders cross: a buyer willing to pay at least
-what a seller is willing to accept. The matching engine applies
-**price-time priority** — the best-priced order fills first; among orders at
-the same price, the earliest one fills first.
+A trade occurs when orders cross, and matching follows price-time priority.
+Better prices execute first; at the same price, earlier orders execute first.
 
+> Next step: Read [The Order Book](concepts/01-concepts-order-book.md) to connect this model to concrete matching behavior.
 
+## Reading Path (Beginner-Friendly)
 
-## What You'll Learn
+1. [How an Exchange Works](how-exchange-works.md)
+2. [Getting Started](user-guide/00-getting-started.md)
+3. [The Order Book](concepts/01-concepts-order-book.md)
+4. [Your First Trade](concepts/04-concepts-first-trade.md)
+5. [P&L and Clearing](user-guide/07-pnl-clearing.md)
+6. [A Full Trading Day](concepts/05-concepts-trading-day.md)
 
-| Topic | Where |
-|-------|-------|
-| First run instructions with install modes | [Getting Started](user-guide/00-getting-started.md) |
-| Exchange basics (for non-finance readers) | [How an Exchange Works](how-exchange-works.md) |
-| Order books, bids, asks, spread, depth | [The Order Book](concepts/01-concepts-order-book.md) |
-| How to execute your first trade | [Your First Trade](concepts/04-concepts-first-trade.md) |
-| Session phases, opening & closing auctions | [A Full Trading Day](concepts/05-concepts-trading-day.md) |
-| All ten order types with worked examples | [Order Types](user-guide/04-order-types.md) |
-| Multi-leg combo and OCO strategies | [Combo Orders](user-guide/05-combos.md) |
-| Realized vs. unrealized P&L, VWAP cost basis | [P&L & Clearing](user-guide/07-pnl-clearing.md) |
-| ZeroMQ pub/sub architecture | [Architecture](architecture/01-architecture.md) |
-| Definitions of all financial terms | [Glossary](glossary.md) |
+> Next step: Complete steps 1 to 4 first, then run a session and return for steps 5 and 6.
 
+## Quick Start (Minimal)
 
-
-## Suggested Reading Paths
-
-### Path A: No finance background
-
-1. **[How an Exchange Works](how-exchange-works.md)** — build intuition for buyers, sellers, order books, and trades
-2. **[Getting Started](user-guide/00-getting-started.md)** — install and run your first end-to-end session
-3. **[The Order Book](concepts/01-concepts-order-book.md)** — understand spread, depth, and price-time priority
-4. **[Your First Trade](concepts/04-concepts-first-trade.md)** — walk through an execution from command to fill
-5. **[P&L & Clearing](user-guide/07-pnl-clearing.md)** — connect fills to realized/unrealized outcomes
-
-### Path B:  Hands-on user / instructor
-
-1. **[Getting Started](user-guide/00-getting-started.md)**
-2. **[Configuration](user-guide/01-configuration.md)**
-3. **[Running the Engine](user-guide/03-running-the-engine.md)**
-4. **[Gateway Commands](user-guide/08-gateway.md)**
-5. **[Processes](user-guide/10-processes.md)** and **[Auctions & Scheduling](user-guide/06-auctions-scheduling.md)**
-
-### Path C: Developer and protocol reader
-
-1. **[Architecture Overview](architecture/01-architecture.md)**
-2. **[Architecture Walkthrough](architecture/02-architecture-guide.md)**
-3. **[Messages](user-guide/09-messages.md)**
-4. **[ALF Protocol Appendix](user-guide/90-app-alf-protocol.md)**
-5. **[BALF Protocol Appendix](user-guide/91-app-balf-protocol.md)**
-6. **[CALF Protocol Appendix](user-guide/92-app-calf-protocol.md)**
-7. **[Developer Info](developer/01-dev-practice.md)**
-
-### When to read the Concepts section
-
-The Concepts pages are best used as a **mental model track**. Read them when
-you want intuition and context, then jump back to the User Guide when you are
-ready to run commands.
-
-| Concept page | Best time to read it |
-|---|---|
-| [The Order Book](concepts/01-concepts-order-book.md) | Before your first trade session |
-| [Order Book Deep Dive](concepts/02-concepts-order-book-deep-dive.md) | After you've seen live fills and want matching details |
-| [MM Quotes](concepts/03-concepts-mm-quotes.md) | Before enabling market-maker seeds / obligations |
-| [Your First Trade](concepts/04-concepts-first-trade.md) | During your first hands-on run |
-| [A Full Trading Day](concepts/05-concepts-trading-day.md) | Before using `pm-scheduler` and auction phases |
-| [Market Data Feed (CALF)](concepts/06-concepts-market-data-feed.md) | When building or integrating market data consumers |
-
-
-
-## Quick Start
-
-This quick start points to the full walkthrough in
-[Getting Started](user-guide/00-getting-started.md).
+For full setup details, see [Getting Started](user-guide/00-getting-started.md).
 
 ### Prerequisites
 
 - Python 3.13+
-- Either:
-  - pipx (recommended for students/instructors), or
-  - Poetry (for developers)
+- Either pipx (recommended for students/instructors) or Poetry (developer mode)
 
-### Install (choose one)
+### Install
 
-***Alternative 1:** VM bootstrap mode (curl + Multipass)*
-
-
-| Requirement | Notes |
-|---|---|
-| Multipass | A lightweight VM manager. Install from [multipass.run](https://multipass.run/install) |
-| curl | Used to download the VM bootstrap script |
-| Internet access | Required for downloading scripts and PyPI packages |
-| Host resources | Recommended minimum: 2 vCPU, 3 GB RAM, 10 GB disk |
-
-Prefer this mode if you want a ready-to-run Linux VM without installing Python
-or cloning this repository on your host machine.
+**Option 1: VM bootstrap mode (curl + Multipass)**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.12.0 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.12.1 --snapshot
 ```
 
-More information:
-- [Getting Started - VM bootstrap mode](user-guide/00-getting-started.md)
-- [Developer guide - VM runtime image](developer/05-vm-runtime-image.md)
+More details:
+- [Getting Started](user-guide/00-getting-started.md)
+- [VM runtime image](developer/05-vm-runtime-image.md)
 
-
-***ALTERNATIVE 2:** Installed mode (pipx)*
+**Option 2: Installed mode (pipx)**
 
 ```bash
 pipx install edumatcher
 pm-setup
 ```
 
-After `pm-setup`, choose one config bootstrap path:
+### Run a minimal session
+
+Open five terminals and run one process in each:
 
 ```bash
-# Option A: generate a fresh config from CLI flags
-pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --sessions-enabled --output engine_config.yaml
-
-# Option B: start from the sample file copied by pm-setup
-# and edit engine_config.yaml in place
-```
-
-For full generator options, see
-[Configuration](user-guide/01-configuration.md#generate-configs-with-pm-config-gen).
-
-**Developer mode (Poetry)**
-
-```bash
-git clone https://github.com/johan162/EduMatcher.git
-cd EduMatcher
-poetry install --with dev,docs
-```
-
-### Start the system (minimum viable session)
-
-**Note:** Running the exchange is complex enough that you really **need** to read the documentation and follow the instructions in the User Guide to get a full exchange up and running. The above commands are just a quick start to get you going. The User Guide will explain how to configure the exchange, start and stop processes, and run the system in a realistic way.
-
-
-Open **five** terminal windows and run one process per window, in this order:
-
-```bash
-# Terminal 1 — Matching engine
 pm-engine --verbose
-
-# Terminal 2 — Audit log (printed to terminal)
 pm-audit --terminal
-
-# Terminal 3 — Clearing / P&L
 pm-clearing
-
-# Terminal 4 — Order book viewer for AAPL
 pm-viewer --symbol AAPL
-
-# Terminal 5 — Your gateway (user GW01)
 pm-gateway --id GW01
 ```
 
-If you are in developer mode, prefix each command with `poetry run`.
+If you use Poetry, prefix commands with `poetry run`.
 
-`GW01` must be configured under `gateways.alf` in `engine_config.yaml` or the
-gateway will fail authentication and exit.
+`GW01` must exist under `gateways.alf` in `engine_config.yaml`.
 
-To add more users, watch more symbols, or enable auctions:
+> Next step: Continue with [Running the Engine](user-guide/03-running-the-engine.md) for full process orchestration and troubleshooting.
 
-```bash
-# Another user
-pm-gateway --id GW02
+## Self Paced Training
 
-# Watch MSFT in parallel
-pm-viewer --symbol MSFT
+The [Training Manual](training/index.md) is a chapter-based, self-paced track for hands-on learning.
+It complements the User Guide by turning concepts into guided exercises that you can run step by step.
 
-# Global order status monitor
-pm-orders
+If you want direct entry points, start with:
 
-# Market statistics recorder
-pm-stats
+- [Installation](training/00-installation.md)
+- [Configuring Startup](training/01-configuring-startup.md)
+- [The First Trade](training/03-the-first-trade.md)
+- [Auctions](training/07-auctions.md)
+- [Risk Controls](training/11-risk-controls.md)
 
-# Session scheduler (drives opening/closing auctions)
-pm-scheduler --now
-```
+> Next step: Use [Training Index](training/index.md) as your checklist and cross-reference each chapter with the matching [User Guide](user-guide/00-getting-started.md) section.
 
-### One-command launch
+## Next Stops
 
-On macOS, you can use the convenience launcher instead:
-
-```bash
-./tools/launch_all.sh
-```
-
-`tools/launch_all.sh` uses `osascript` to open new Terminal windows, so it is
-macOS-specific rather than a generic background-process launcher.
-
-### Browse the docs locally
-
-```bash
-poetry run mkdocs serve
-# Open http://127.0.0.1:8000
-```
-
-
-## For more information see
-
-- [USer Guide - Getting Started](user-guide/00-getting-started.md) 
-- [USer Guide - Configuration](user-guide/01-configuration.md)
-- [USer Guide - Commands](user-guide/02-commands.md)
-- [USer Guide - Running the Engine](user-guide/03-running-the-engine.md)
-
+- [Configuration](user-guide/01-configuration.md)
+- [Commands](user-guide/02-commands.md)
+- [Running the Engine](user-guide/03-running-the-engine.md)
+- [Gateway Commands](user-guide/08-gateway.md)
+- [Protocol Overview](user-guide/19-protocol-overview.md)

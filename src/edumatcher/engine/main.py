@@ -85,6 +85,8 @@ from edumatcher.models.message import (
     make_session_schedule_msg,
     make_gateways_msg,
     make_volume_msg,
+    make_halt_status_msg,
+    make_position_snapshot_msg,
 )
 from edumatcher.models.participant import (
     DisconnectBehaviour,
@@ -142,6 +144,9 @@ class Engine:
 
         # Halt state — keyed by symbol; True means halted (circuit breaker fired)
         self._halted_symbols: dict[str, bool] = {}
+        # Persisted book stats — loaded once during _load_config and kept for
+        # _handle_symbols_request so prev_close is available without re-reading
+        self._book_stats: dict[str, dict[str, Any]] = {}
         # Price collar configs — keyed by symbol; populated in _load_config()
         self._collars: dict[str, Any] = {}  # values: CollarConfig
         # Circuit breaker states — keyed by symbol; populated in _load_config()
@@ -176,6 +181,12 @@ class Engine:
             {}
         )  # oco_group_id → [order_id_1, order_id_2]
         self._order_to_oco: dict[str, str] = {}  # order_id → oco_group_id
+
+        # Per-gateway position ledger — updated on every fill; keyed by
+        # uppercase gateway_id → symbol → value.  Allows bots to resync
+        # inventory state after a restart via system.position_request.
+        self._gateway_positions: dict[str, dict[str, int]] = {}
+        self._gateway_avg_cost: dict[str, dict[str, float]] = {}
 
         # Session state (auction / continuous matching)
         self._sessions_enabled: bool = False
@@ -325,6 +336,7 @@ class Engine:
 
         # Restore persisted stats first so config seeds only fill gaps
         stats = load_book_stats(BOOK_STATS_FILE)
+        self._book_stats = stats
         for sym, sym_cfg in self._engine_config.symbols.items():
             book = self._book(sym)
             persisted = stats.get(sym, {})
@@ -507,7 +519,10 @@ class Engine:
                 continue
             order.status = OrderStatus.NEW
             book = self._book(order.symbol)
-            book.process(order)
+            # match=False: restore resting state only; do not replay execution.
+            # Two crossed GTC orders saved from an auction phase would otherwise
+            # silently match with no fill events or position updates.
+            book.process(order, match=False)
             self._order_symbol[order.id] = order.symbol
             if self.verbose:
                 print(f"[ENGINE] Restored GTC order {order.id} ({order.symbol})")
@@ -711,6 +726,14 @@ class Engine:
         # single-threaded.  Eliminates a mutex acquire+release per order.
         now = _time_ns()
 
+        # NOTE: accepted=True is published here, BEFORE book.process() runs.
+        # This is the "gateway ACK" — it confirms the engine accepted the order
+        # for processing (symbol valid, session open, gateway authenticated).
+        # For MARKET, FOK, and IOC orders that the book subsequently rejects
+        # (e.g. FOK with insufficient liquidity), a second accepted=False ACK
+        # follows in the events loop below.  Clients must treat the second ACK
+        # as authoritative for these order types.
+        #
         # PERF A: Inline ack message — bypass make_ack_msg() entirely.
         #
         # make_ack_msg() allocates a base dict, conditionally merges order
@@ -757,6 +780,7 @@ class Engine:
                         "tif": _tif_v,
                         "qty": order.quantity,
                         "price": _price_v,
+                        "client_tag": order.client_tag,
                     }
                 ),
             ]
@@ -839,6 +863,7 @@ class Engine:
                                             else None
                                         )
                                     ),
+                                    "client_tag": evt.client_tag,
                                 }
                             ),
                         ]
@@ -889,7 +914,7 @@ class Engine:
                     [
                         _tc.get(f"cancel.{evt.gateway_id}")
                         or f"order.cancelled.{evt.gateway_id}".encode(),
-                        dumps({"order_id": evt.id}),
+                        dumps({"order_id": evt.id, "client_tag": evt.client_tag}),
                     ]
                 )
                 if evt.combo_parent_id:
@@ -899,7 +924,7 @@ class Engine:
                 if self.verbose:
                     print(f"[ENGINE] SMP CANCEL {evt.id[:8]} ({evt.gateway_id})")
 
-        # Publish trades
+        # Publish trades and update per-gateway position ledger
         for trade in trades:
             if self.verbose:
                 print(
@@ -907,6 +932,17 @@ class Engine:
                     f"qty={trade.quantity} @{trade.price}"
                 )
             _ptrade(trade)
+            _trade_price = from_ticks(trade.price, trade.symbol)
+            self._update_position(
+                trade.buy_gateway_id, trade.symbol, "BUY", trade.quantity, _trade_price
+            )
+            self._update_position(
+                trade.sell_gateway_id,
+                trade.symbol,
+                "SELL",
+                trade.quantity,
+                _trade_price,
+            )
 
         # Mark book dirty; snapshot will be published on next throttle tick
         self._dirty_symbols.add(order.symbol)
@@ -955,6 +991,11 @@ class Engine:
                 if mm_min_qty is not None:
                     meta["mm_min_qty"] = mm_min_qty
 
+            # Previous-close reference price (float display price)
+            prev_close = self._book_stats.get(symbol, {}).get("prev_close")
+            if prev_close is not None:
+                meta["prev_close"] = prev_close
+
             symbol_meta[symbol] = meta
 
         self.pub_sock.send_multipart(
@@ -971,6 +1012,95 @@ class Engine:
                 self._sessions_enabled,
             )
         )
+
+    def _update_position(
+        self,
+        gateway_id: str,
+        symbol: str,
+        side_str: str,
+        fill_qty: int,
+        fill_price: float,
+    ) -> None:
+        """Update per-gateway position ledger after a fill.
+
+        Maintains a signed net quantity per symbol and a VWAP average cost
+        that resets to the fill price whenever the position crosses zero.
+        """
+        gw = gateway_id.upper()
+        gw_pos = self._gateway_positions.setdefault(gw, {})
+        gw_cost = self._gateway_avg_cost.setdefault(gw, {})
+
+        pos = gw_pos.get(symbol, 0)
+        cost = gw_cost.get(symbol, 0.0)
+
+        if side_str == "BUY":
+            new_pos = pos + fill_qty
+            if pos >= 0:
+                # Opening or adding to a long position
+                new_cost = (cost * pos + fill_price * fill_qty) / new_pos
+            elif new_pos < 0:
+                # Reducing a short, still net short: avg_cost unchanged
+                new_cost = cost
+            elif new_pos == 0:
+                # Closed the short exactly flat
+                new_cost = 0.0
+            else:
+                # Crossed from short to long: reset cost to fill price
+                new_cost = fill_price
+        else:  # SELL
+            new_pos = pos - fill_qty
+            if pos <= 0:
+                # Opening or adding to a short position
+                abs_new = abs(new_pos)
+                new_cost = (cost * abs(pos) + fill_price * fill_qty) / abs_new
+            elif new_pos > 0:
+                # Reducing a long, still net long: avg_cost unchanged
+                new_cost = cost
+            elif new_pos == 0:
+                # Closed the long exactly flat
+                new_cost = 0.0
+            else:
+                # Crossed from long to short: reset cost to fill price
+                new_cost = fill_price
+
+        gw_pos[symbol] = new_pos
+        gw_cost[symbol] = new_cost if new_pos != 0 else 0.0
+
+    def _handle_position_request(self, payload: dict[str, Any]) -> None:
+        """Reply with a per-symbol position snapshot for the requesting gateway."""
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        ok, _ = self._gateway_status(gateway_id)
+        if not ok:
+            self.pub_sock.send_multipart(make_position_snapshot_msg(gateway_id, []))
+            return
+        gw_pos = self._gateway_positions.get(gateway_id, {})
+        gw_cost = self._gateway_avg_cost.get(gateway_id, {})
+        positions = [
+            {
+                "symbol": sym,
+                "net_qty": qty,
+                "avg_cost": gw_cost.get(sym, 0.0),
+            }
+            for sym, qty in gw_pos.items()
+            if qty != 0
+        ]
+        self.pub_sock.send_multipart(make_position_snapshot_msg(gateway_id, positions))
+
+    def _handle_halt_status_request(self, payload: dict[str, Any]) -> None:
+        """Reply with a snapshot of all currently halted symbols."""
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        halted: list[dict[str, Any]] = []
+        for symbol, is_halted in self._halted_symbols.items():
+            if not is_halted:
+                continue
+            entry: dict[str, Any] = {"symbol": symbol}
+            cb = self._circuit_breakers.get(symbol)
+            if cb and cb.halted:
+                entry["resume_at_ns"] = cb.resume_at_ns
+                entry["level"] = cb.triggered_level
+                entry["resumption_mode"] = cb.active_resumption_mode
+            halted.append(entry)
+        self.pub_sock.send_multipart(make_halt_status_msg(gateway_id, halted))
 
     def _handle_session_schedule_request(self, payload: dict[str, Any]) -> None:
         """Return the session schedule configuration from the loaded engine config."""
@@ -1324,7 +1454,7 @@ class Engine:
             cb.deactivate()
             self._halted_symbols[symbol] = False
             if _resumption_mode == "AUCTION":
-                self._run_uncross(from_state=self._session_state, symbol_filter=symbol)
+                self._run_uncross(symbol_filter=symbol)
             self.pub_sock.send_multipart(
                 encode(
                     f"circuit_breaker.resume.{symbol}",
@@ -2328,7 +2458,7 @@ class Engine:
             is_matching_enabled(to_state) or to_state == SessionState.CLOSED
         )
         if needs_uncross:
-            self._run_uncross(from_state)
+            self._run_uncross()
 
         # --- Expire auction-only orders when their window closes ---
         if from_state == SessionState.OPENING_AUCTION:
@@ -2369,15 +2499,12 @@ class Engine:
 
     def _run_uncross(
         self,
-        from_state: SessionState,
         symbol_filter: str | None = None,
     ) -> None:
         """Run the equilibrium-price uncrossing on every (or one) symbol book.
 
         Parameters
         ----------
-        from_state    : The session state from which the uncross is triggered
-                        (currently unused in the body, kept for call-site clarity).
         symbol_filter : When provided, only uncross this specific symbol.
                         Used by ``_flush_circuit_breakers()`` for per-symbol
                         resumption auctions.
@@ -2408,8 +2535,68 @@ class Engine:
 
                 for trade in trades:
                     self._publish_trade(trade)
+                    _tp = from_ticks(trade.price, symbol)
+                    self._update_position(
+                        trade.buy_gateway_id, symbol, "BUY", trade.quantity, _tp
+                    )
+                    self._update_position(
+                        trade.sell_gateway_id, symbol, "SELL", trade.quantity, _tp
+                    )
 
-                self._mark_dirty(symbol)
+            # Trigger stop and trailing-stop orders whose stop price is now
+            # reached by the equilibrium price.  execute_uncross() sets
+            # last_trade_price but does not call _check_stops(); without this
+            # block, auction-phase stop orders never fire at uncross time.
+            if trades:
+                now_stop = now_ns()
+                triggered = book.trigger_stops(now_stop)
+                for stop_order in triggered:
+                    sub_trades, sub_events = book.process(stop_order, now=now_stop)
+                    published_stop_ids: set[str] = set()
+                    for sub_evt in sub_events:
+                        if sub_evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
+                            if sub_evt.id not in published_stop_ids:
+                                published_stop_ids.add(sub_evt.id)
+                                self.pub_sock.send_multipart(
+                                    make_fill_msg(
+                                        sub_evt.gateway_id,
+                                        sub_evt.id,
+                                        fill_qty=sub_evt.quantity
+                                        - sub_evt.remaining_qty,
+                                        fill_price=(
+                                            from_ticks(book.last_trade_price, symbol)
+                                            if book.last_trade_price is not None
+                                            else 0.0
+                                        ),
+                                        remaining_qty=sub_evt.remaining_qty,
+                                        status=sub_evt.status.value,
+                                        order=sub_evt.to_dict(),
+                                    )
+                                )
+                                if sub_evt.combo_parent_id:
+                                    self._check_combo_after_child_event(sub_evt)
+                                if (
+                                    sub_evt.status == OrderStatus.FILLED
+                                    and sub_evt.oco_group_id
+                                ):
+                                    self._check_oco_after_event(sub_evt)
+                    for sub_trade in sub_trades:
+                        self._publish_trade(sub_trade)
+                        _stp = from_ticks(sub_trade.price, symbol)
+                        self._update_position(
+                            sub_trade.buy_gateway_id,
+                            symbol,
+                            "BUY",
+                            sub_trade.quantity,
+                            _stp,
+                        )
+                        self._update_position(
+                            sub_trade.sell_gateway_id,
+                            symbol,
+                            "SELL",
+                            sub_trade.quantity,
+                            _stp,
+                        )
 
                 if self.verbose:
                     print(
@@ -2779,7 +2966,11 @@ class Engine:
 
         if cancelled:
             self._order_symbol.pop(order_id, None)
-            self.pub_sock.send_multipart(make_cancelled_msg(gateway_id, order_id))
+            self.pub_sock.send_multipart(
+                make_cancelled_msg(
+                    gateway_id, order_id, client_tag=cancelled.client_tag
+                )
+            )
             self._mark_dirty(cancelled.symbol)
             if self.verbose:
                 print(f"[ENGINE] CANCELLED {order_id[:8]}")
@@ -2905,7 +3096,9 @@ class Engine:
                     # Expire DAY orders
                     order.status = OrderStatus.EXPIRED
                     self.pub_sock.send_multipart(
-                        make_expired_msg(order.gateway_id, order.id)
+                        make_expired_msg(
+                            order.gateway_id, order.id, client_tag=order.client_tag
+                        )
                     )
                     # If this was a combo child, cascade-cancel sibling legs
                     if order.combo_parent_id:
@@ -2967,8 +3160,12 @@ class Engine:
 
         print(f"[ENGINE] Listening on PULL={ENGINE_PULL_ADDR}  PUB={ENGINE_PUB_ADDR}")
 
-        signal.signal(signal.SIGINT, lambda *_: self._shutdown())
-        signal.signal(signal.SIGTERM, lambda *_: self._shutdown())
+        # Signal handlers only set the stop flag.  Calling _shutdown() directly
+        # from a signal handler is unsafe: the handler can interrupt mid-message
+        # (e.g. inside _handle_new_order) and close pub_sock while the handler
+        # still holds references, causing unhandled ZMQErrors in _flush_snapshots.
+        signal.signal(signal.SIGINT, lambda *_: setattr(self, "_running", False))
+        signal.signal(signal.SIGTERM, lambda *_: setattr(self, "_running", False))
 
         while self._running:
             try:
@@ -3031,12 +3228,18 @@ class Engine:
                         self._handle_gateways_request(payload)
                     elif topic == "system.volume_request":
                         self._handle_volume_request(payload)
+                    elif topic == "system.halt_status_request":
+                        self._handle_halt_status_request(payload)
+                    elif topic == "system.position_request":
+                        self._handle_position_request(payload)
                 except Exception as exc:
                     print(f"[ENGINE] Error processing {topic}: {exc}", file=sys.stderr)
             # Throttled snapshot publish — runs every poll tick (max 200ms)
             self._flush_snapshots()
             # Check circuit breaker timers — resume halted symbols
             self._flush_circuit_breakers()
+
+        self._shutdown()
 
 
 def main() -> None:

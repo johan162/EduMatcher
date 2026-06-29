@@ -63,6 +63,8 @@ class TestDepthSnapshotWithTrades:
         expected_keys = {
             "symbol",
             "mid_price_ticks",
+            "mid_price",
+            "microprice",
             "tolerance_ticks",
             "bid_depth",
             "ask_depth",

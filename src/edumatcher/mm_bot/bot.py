@@ -417,8 +417,10 @@ class MMBot:
             return
         bids = payload.get("bids", [])
         asks = payload.get("asks", [])
-        best_bid = float(bids[0]["price"]) if bids else None
-        best_ask = float(asks[0]["price"]) if asks else None
+        best_bid_raw = bids[0].get("price") if bids else None
+        best_ask_raw = asks[0].get("price") if asks else None
+        best_bid = float(best_bid_raw) if best_bid_raw is not None else None
+        best_ask = float(best_ask_raw) if best_ask_raw is not None else None
         self._pricer.update_mid(best_bid, best_ask)
         self._debug(f"book mid={self._pricer.mid_price}")
 
@@ -456,11 +458,22 @@ class MMBot:
         status = str(payload.get("status", "")).upper()
         self._debug(f"quote.status: {status}")
 
-        if status in ("INACTIVE_BID_FILLED", "INACTIVE_ASK_FILLED", "CANCELLED"):
-            # Schedule reissue
-            if self._state not in (BotState.PAUSED, BotState.WAITING_FOR_SESSION):
-                delay = self._reissue_delay_sec if status != "CANCELLED" else 0.0
-                self._reissue_at = time.monotonic() + delay
+        if self._state in (BotState.PAUSED, BotState.WAITING_FOR_SESSION):
+            return
+
+        if status in ("INACTIVE_BID_FILLED", "INACTIVE_ASK_FILLED"):
+            # Engine inactivated the quote; schedule fresh reissue.
+            self._reissue_at = time.monotonic() + self._reissue_delay_sec
+            self._clear_quote_state()
+            self._awaiting_cancel_for_reissue = False
+
+        elif status == "CANCELLED":
+            # Only reissue for CANCELLED if we still track a quote or are
+            # awaiting cancel confirmation.  A stale CANCELLED that arrives
+            # after an INACTIVE we already handled must be ignored to prevent
+            # a duplicate reissue.
+            if self._quote_id is not None or self._awaiting_cancel_for_reissue:
+                self._reissue_at = time.monotonic()  # immediate
                 self._clear_quote_state()
                 self._awaiting_cancel_for_reissue = False
 
@@ -480,8 +493,12 @@ class MMBot:
         fill_qty = payload.get("fill_qty", 0)
         self._debug(f"fill: {side} {fill_qty}@{payload.get('fill_price', '?')}")
 
-        # Reset or start the reissue timer
-        self._reissue_at = time.monotonic() + self._reissue_delay_sec
+        # Reset or start the reissue timer — but only when no cancel is already
+        # in flight.  Overwriting the cancel-confirmation timeout with a shorter
+        # fill-delay would lose the timeout if the cancel ACK never arrives,
+        # leaving the bot stuck in REPRICING with no recovery timer.
+        if not self._awaiting_cancel_for_reissue:
+            self._reissue_at = time.monotonic() + self._reissue_delay_sec
 
     def _handle_order_cancelled(self, payload: dict[str, Any]) -> None:
         """Handle order.cancelled — track leg cleanup."""
@@ -716,11 +733,15 @@ class MMBot:
                 return 1
 
         # Step 3: Initialize pricer
-        self._pricer = QuotePricer(
-            tick_size=self._tick_size,
-            gap=self.gap,
-            drift_ticks=self.drift_ticks,
-        )
+        try:
+            self._pricer = QuotePricer(
+                tick_size=self._tick_size,
+                gap=self.gap,
+                drift_ticks=self.drift_ticks,
+            )
+        except ValueError as exc:
+            self._log(f"startup failed: invalid gap/tick configuration: {exc}")
+            return 1
 
         # Step 4: QBOOT — try adoption
         boot_payload = self._request_bootstrap()

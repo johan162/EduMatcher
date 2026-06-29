@@ -98,8 +98,8 @@ training chapter.
 | 21 | [ExchangeCommandClient](../user-guide/02-commands.md#exchangecommandclient), [CLI reference (pm-mm-bot)](../user-guide/17-mm-bot.md#cli-reference) |
 | 22 | [Post-Trade Dissemination (RALF)](../user-guide/18-post-trade.md), [Appendix: RALF Protocol Reference](../user-guide/93-app-ralf-protocol.md) |
 | 23 | [Market Data Feed (CALF)](../user-guide/20-market-data-feed.md), [Appendix: CALF Protocol Reference](../user-guide/92-app-calf-protocol.md) |
-| 24 | [pm-api-gateway processes](../user-guide/10-processes.md#pm-api-gateway--restapigateway), [API Gateway Config](../user-guide/21-api-gateway.md) |
-| 25 | [Market Index (pm-index)](../user-guide/22-index.md), [pm-index-cli reference](../user-guide/02-commands.md), [pm-index process](../user-guide/10-processes.md#pm-index--index-calculation-process) |
+| 24 | [pm-api-gateway processes](../user-guide/10-processes.md#pm-api-gateway-restwebsocket-api-gateway), [API Gateway Config](../user-guide/21-api-gateway.md) |
+| 25 | [Market Index (pm-index)](../user-guide/22-index.md), [pm-index-cli reference](../user-guide/02-commands.md), [pm-index process](../user-guide/10-processes.md#pm-index-index-calculation-process) |
 
 ---
 

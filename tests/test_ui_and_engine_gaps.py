@@ -437,7 +437,7 @@ class TestEngineSessionTransitions:
         engine._handle_new_order(o.to_dict())
         # No matching sell — uncross should find no crossable interest
         pub_sock.sent.clear()
-        engine._run_uncross(SessionState.OPENING_AUCTION)
+        engine._run_uncross()
         from edumatcher.models.message import decode
 
         topics = [decode(f)[0] for f in pub_sock.sent]
