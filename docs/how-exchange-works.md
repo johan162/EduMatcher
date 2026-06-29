@@ -944,14 +944,14 @@ Think of it as two sorted lists:
 
 **What a real order book looks like.** At any given moment, a simplified snapshot of the AAPL book might be:
 
-| Bid Qty | Bid Price | | Ask Price | Ask Qty |
-|---:|:---:|---|:---:|:---|
-| 2,000 | $150.34 | ← **best bid** \| **best ask** → | $150.35 | 1,500 |
-| 1,500 | $150.33 | | $150.36 | 2,800 |
-| 3,200 | $150.32 | | $150.37 | 1,000 |
-| 800 | $150.31 | | $150.38 | 4,200 |
+| Bid Qty | Bid Price |                                  | Ask Price | Ask Qty |
+|--------:|:---------:|----------------------------------|:---------:|:--------|
+|   2,000 |  $150.34  | ← **best bid** \| **best ask** → |  $150.35  | 1,500   |
+|   1,500 |  $150.33  |                                  |  $150.36  | 2,800   |
+|   3,200 |  $150.32  |                                  |  $150.37  | 1,000   |
+|     800 |  $150.31  |                                  |  $150.38  | 4,200   |
 
-The **spread** here is $150.35 − $150.34 = $0.01. The **mid price** is ($150.34 + $150.35) / 2 = $150.345. If a market sell order for 3,500 shares arrives, it sweeps: 1,500 shares at $150.34 (exhausting that level), then 2,000 of the 2,800 available at $150.33. The new best bid after the sweep is $150.33 with 800 shares remaining.
+The **spread** here is $150.35 − $150.34 = $0.01. The **mid price** is ($150.34 + $150.35) / 2 = $150.345. If a market sell order for 3,500 shares arrives, it sweeps bid size: 2,000 shares at $150.34 (exhausting that level), then 1,500 at $150.33 (also exhausting that level). The new best bid after the sweep is $150.32 with 3,200 shares remaining at that price level.
 
 ### A Note on Implementation
 
