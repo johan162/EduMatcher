@@ -91,8 +91,8 @@ from edumatcher.models.price import to_ticks
 
 # Extracted submodules — re-exported here so that existing
 # ``from edumatcher.gateway.main import ...`` imports keep working.
-from .completer import GatewayCompleter  # noqa: F401
-from .display import _SysStdoutProxy  # noqa: F401  # type: ignore
+from .completer import GatewayCompleter as GatewayCompleter  # noqa: F401
+from .display import _SysStdoutProxy as _SysStdoutProxy  # noqa: F401  # type: ignore
 from .display import (
     HELP_TEXT,
     PROMPT_STYLE,
