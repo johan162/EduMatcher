@@ -364,3 +364,58 @@ created and populated the configured database.
 6. Test `GET /api/v1/status` with a bearer token
 7. Connect `/api/v1/events` before submitting orders if you want async outcomes
 8. Use `/history/*` only when `pm-stats` is running and writing `stats.db`
+
+
+## Minimal MARKET order CLI
+
+The script below lives at `docs/examples/REST/python/submit_market_order.py`
+and reuses the same `ApiGatewayClient` library used by `demo_info.py`.
+
+Run it from the examples directory:
+
+```bash
+cd docs/examples/REST/python
+python3 submit_market_order.py --side BUY  --symbol AAPL --qty 100
+python3 submit_market_order.py --side SELL --symbol MSFT --qty 50 --wait-ack
+```
+
+Override gateway URL and key with environment variables:
+
+```bash
+EDUMATCHER_API_URL=http://127.0.0.1:8080 \
+EDUMATCHER_API_KEY=key-trader-demo \
+python3 submit_market_order.py --side BUY --symbol AAPL --qty 100
+```
+
+| Option | Required | Default | Description |
+|---|---|---|---|
+| `--side` | yes | — | `BUY` or `SELL` |
+| `--symbol` | yes | — | Instrument symbol |
+| `--qty` | yes | — | Order quantity |
+| `--wait-ack` | no | off | Block until the matching engine ACKs the order |
+| `--url` | no | `$EDUMATCHER_API_URL` or `http://127.0.0.1:8080` | Gateway base URL |
+| `--key` | no | `$EDUMATCHER_API_KEY` or `key-trader-demo` | Bearer API key |
+
+Example output without `--wait-ack`:
+
+```text
+order_id  : ORD-3a7f1e2c
+status    : PENDING
+```
+
+Example output with `--wait-ack`:
+
+```text
+order_id  : ORD-3a7f1e2c
+status    : ACKED
+accepted  : True
+engine ack:
+{
+  "order_id": "ORD-3a7f1e2c",
+  "accepted": true,
+  "reason": null
+}
+```
+
+MARKET orders must not include `price` or `stop_price`. The gateway validates
+this and returns `400 VALIDATION` if either field is present.
