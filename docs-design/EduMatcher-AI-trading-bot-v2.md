@@ -1,8 +1,8 @@
-Version: 1.0.0
+Version: 1.1.0
 
-Date: 2026-06-28
+Date: 2026-06-29
 
-Status: Design Proposal — Ready for Implementation
+Status: Design Proposal — Reviewed and Ready for Implementation
 
 # EduMatcher — Intelligent AI Trading Bot 
 
@@ -213,11 +213,13 @@ SymbolState:
 
   # Derived (partially engine-supplied — see §4.2)
   spread: float | None          # best_ask - best_bid (computed locally from book.<SYM>)
-  midprice: float | None        # (best_bid + best_ask) / 2 (computed locally)
+  bid_ask_mid: float | None     # (best_bid + best_ask) / 2 (computed locally from book.<SYM>)
+                                # Named bid_ask_mid to avoid confusion with depth.<SYM>.mid_price
   microprice: float | None      # imbalance-weighted midprice — read directly from
                                 # depth.<SYM>.microprice (float price units, no
                                 # conversion needed; see §4.2 and §22.2)
   mid_price: float | None       # last-trade price as float — depth.<SYM>.mid_price
+                                # Note: distinct from bid_ask_mid; this is the last trade price
   imbalance: float | None       # (bid_depth - ask_depth) / (bid_depth + ask_depth)
                                 # ∈ (-1, +1); read from depth.<SYM>.imbalance
 
@@ -242,6 +244,8 @@ with the engine's book and order payloads (see §4.4).
 than simple midprice when the book is skewed:
 
 $$\text{microprice} = \text{mid} + \frac{Q_{bid} - Q_{ask}}{Q_{bid} + Q_{ask}} \cdot \frac{\text{spread}}{2}$$
+
+where $\text{mid}$ is the best bid/ask midpoint (`bid_ask_mid` in `SymbolState`).
 
 **Order book imbalance** — normalized depth difference:
 
@@ -415,7 +419,8 @@ for each poll tick:
   1. Drain all pending ZMQ events (non-blocking, batch)
   2. Update Market State Layer from events
   3. Run Order Lifecycle Manager checks (stale-cancel, reconcile fills/expiries)
-  4. If session allows new orders AND global_min_submit_ms has elapsed:
+  4. If sessions_enabled=false OR session allows new orders (§9.1)
+     AND global_min_submit_ms has elapsed:
      a. Pick symbol from Portfolio Manager (weighted; §6.2)
      b. If that symbol's per-symbol decision interval has elapsed:
         i.   Get directional score from Signal Engine (0.0 during warm-up, §4.5)
@@ -426,6 +431,13 @@ for each poll tick:
 ```
 
 Draining all events before deciding ensures decisions use the freshest state.
+
+> **`sessions_enabled` flag.** The `system.session_status` reply (step 2 of the
+> startup sequence, §9.3) includes a `sessions_enabled` boolean. When
+> `sessions_enabled=false`, the engine never enforces session phase restrictions
+> and ATO/ATC are never required — the bot should skip all phase gating and
+> submit DAY limit orders in all phases. When `sessions_enabled=true`, the full
+> phase policy in §9.1–§9.2 applies.
 
 ### 6.2 Symbol Selection
 
@@ -539,13 +551,39 @@ and removed when fully filled, cancelled, or expired.
 **Submission correlation.** Before sending each `order.new` the bot generates a
 unique `client_tag` (a UUID or short random string) and stores it in a
 `pending: dict[str, LiveOrder]` keyed by `client_tag`. When `order.ack.<GW_ID>`
-arrives, it carries the same `client_tag` — the OLM resolves the `LiveOrder` in
-O(1) with `pending.pop(ack.client_tag)`, records the engine-assigned `order_id`,
-and moves the entry to `live: dict[str, LiveOrder]` keyed by `order_id`.
-Subsequent `order.fill`, `order.cancelled`, and `order.expired` events carry
-both `order_id` and `client_tag`; the OLM uses `order_id` as the primary key for
-these (the order is already in `live` by then). There is no FIFO queue and no
-ambiguity with concurrent identical submissions.
+arrives with `accepted=True`, it carries the same `client_tag` — the OLM
+resolves the `LiveOrder` in O(1) with `pending.pop(ack.client_tag)`, records the
+engine-assigned `order_id`, and moves the entry to `live: dict[str, LiveOrder]`
+keyed by `order_id`. Subsequent `order.fill`, `order.cancelled`, and
+`order.expired` events carry both `order_id` and `client_tag`; the OLM uses
+`order_id` as the primary key for these (the order is already in `live` by then).
+There is no FIFO queue and no ambiguity with concurrent identical submissions.
+
+> **Rejected ack — no `client_tag` on wire.** When the engine rejects an order
+> (`accepted=False`), the rejection ack is sent without `client_tag` (only
+> `order_id`, `accepted`, `reason`). Because the bot-supplied `id` becomes the
+> `order_id` (§14.4), the OLM resolves rejected acks by `order_id`, not
+> `client_tag`: `pending.pop(ack["order_id"], None)`. The bot should maintain
+> a secondary index `pending_by_id: dict[str, LiveOrder]` (or simply key
+> `pending` by `id` instead of `client_tag`) to handle this path cleanly.
+
+**Incremental fill quantity.** The `fill_qty` in `order.fill` events equals
+`order.quantity − remaining_qty` — this is the **cumulative** fill for the
+order, not the incremental amount for this specific fill event. For a passive
+order filled across two separate events (e.g., 30 then 70 of an order with
+`quantity=100`), the second event will report `fill_qty=100`, not `70`.
+
+The correct pattern for computing the **incremental** fill quantity (for
+position tracking and P&L) is:
+
+```
+incremental_fill = live_order.remaining - fill_event["remaining_qty"]
+live_order.remaining = fill_event["remaining_qty"]
+position[symbol] += incremental_fill * sign(side)
+```
+
+This relies on `LiveOrder.remaining` being up-to-date, which it is because it
+is seeded at submission and updated on every fill event.
 
 ### 7.2 Stale Order Cancellation
 
@@ -602,6 +640,14 @@ closing prices from the payload (a cold-start reference for the next session,
 §9.2), and clears live-order state. If all symbols go stale for >30s (§13.4) the
 bot logs a likely engine disconnect rather than trading on stale data.
 
+**SMP-triggered cancellations.** When a bot's resting order is cancelled by
+self-match prevention (because a crossing order from the same gateway would
+trade against it), the engine emits `order.cancelled.<GW_ID>` without any prior
+cancel request from the bot. The OLM must handle this as an unsolicited
+cancellation: pop the order from `live`, free its concurrent slot, and update
+exposure. This event is identical in structure to a cancel confirmation and
+requires no special handling beyond the normal cancellation path.
+
 **Reconnect order reconciliation.** If the bot gateway is configured with
 `disconnect_behaviour: CANCEL_ALL` (recommended for bots — §15.3), all resting
 orders are cancelled by the engine on disconnect, so the OLM can safely start
@@ -611,6 +657,12 @@ sync with the book. In that case the bot should send `order.orders_request`
 (payload `{gateway_id}`) immediately after the startup seeding sequence; the
 engine replies on `order.orders.<GW_ID>` with a list of all resting orders, which
 the OLM should load into its `live` map before submitting new orders.
+
+> **`order.orders` caveats.** (1) `client_tag` is not included in the orders
+> response — resting orders loaded from this snapshot must be added to `live`
+> with `client_tag=None`. (2) The `timestamp` field in each order entry is a
+> **float in seconds** (nanoseconds divided by 1 000 000 000), not the integer
+> nanoseconds that the bot supplies at submission time.
 
 
 
@@ -713,28 +765,51 @@ profile-configurable:
 - Do not submit new orders until `circuit_breaker.resume.<SYM>` is received
 - Counts toward stale-cancel runs
 
+> **Engine behaviour during halt.** The engine accepts and rests LIMIT and
+> ICEBERG orders during a circuit-breaker halt (they accumulate without
+> matching, similar to auction interest). It only rejects MARKET, FOK, and IOC
+> orders outright. The bot's "no submit during halt" rule is a deliberate
+> **policy choice**, not an engine constraint — the bot refuses to submit to
+> avoid resting stale-priced orders at a price level set before the halt.
+
 ### 9.3 Halt Handling
 
 **Startup / reconnect seeding.** On connect the bot performs the following
 initialization sequence in order (all steps must complete before any
 `order.new` is emitted):
 
-1. **`system.session_state_request`** → `system.session_status.<GW_ID>`:
+1. **`gateway_connect`** (payload `{"gateway_id": "<ID>"}`) → await
+   `system.gateway_auth.<GW_ID>`. Check `accepted` field: if `False`, log the
+   `reason`, do **not** proceed to further steps, and exit with a clear
+   configuration error. A `False` auth in strict mode means the gateway ID is
+   not in `gateways.alf` — retrying is futile without fixing the config.
+2. **`system.symbols_request`** → `system.symbols.<GW_ID>`: seed the symbol
+   universe and per-symbol `tick_size` and `prev_close` from `symbol_meta`.
+   Without this, price rounding and auction pricing are undefined.
+3. **`system.session_state_request`** → `system.session_status.<GW_ID>`:
    seed the current session phase so the bot never submits into the wrong phase
    on a mid-session connect.  `session.state` broadcasts are *edge-triggered*
    (only sent on transitions) — without this explicit query the bot would not
-   know it joined during `OPENING_AUCTION` until the next transition.
-2. **`system.halt_status_request`** → `system.halt_status.<GW_ID>`: pre-populate
+   know it joined during `OPENING_AUCTION` until the next transition. Also seeds
+   `sessions_enabled` — if `False`, skip all phase gating (§6.1).
+4. **`system.halt_status_request`** → `system.halt_status.<GW_ID>`: pre-populate
    the per-symbol `halted` set so the bot never submits into a symbol that was
    already halted when it joined mid-session.
-3. **`system.position_request`** → `system.position_snapshot.<GW_ID>`: re-seed
+5. **`system.position_request`** → `system.position_snapshot.<GW_ID>`: re-seed
    per-symbol net position (`net_qty`) and average cost (`avg_cost`) from the
    engine's ledger.  The engine tracks every fill since it started; a reconnecting
    bot receives the up-to-date position, so the inventory-skew logic (§13.1) and
    the drawdown guard (§13.2) start from the correct state rather than from zero.
 
-If the engine replies with an empty list for either request the bot starts from
+If the engine replies with an empty list for steps 4–5 the bot starts from
 a flat / unhalt state, which is correct for a fresh session.
+
+> **Auth requirement by step.** Steps 2–4 (`symbols_request`,
+> `session_state_request`, `halt_status_request`) are processed by the engine
+> without an authentication check and may technically be sent before step 1
+> completes. Step 5 (`position_request`) **requires** the gateway to be
+> connected and authenticated; an unauthenticated request returns an empty list.
+> The sequence above is the correct operational order regardless.
 
 **Restart caveat.** The engine's position ledger resets on engine restart (it is
 not persisted to disk).  If the engine also restarts, both parties genuinely
@@ -1208,12 +1283,21 @@ Two position controls operate at different levels:
 
 The bot computes its own P&L from its fills (it does not depend on `pm-clearing`).
 For each symbol it maintains a position and a volume-weighted average cost
-(`avg_cost`):
+(`avg_cost`).
+
+**Incremental fill quantity.** P&L and position are updated from the incremental
+fill quantity, computed from `LiveOrder.remaining` (see §7.1), **not** from the
+raw `fill_qty` field in the fill event (which is cumulative). Concretely:
+
+```
+incremental = live_order.remaining - fill_event["remaining_qty"]
+live_order.remaining = fill_event["remaining_qty"]
+```
 
 - On a fill that **increases** |position| (opening), update `avg_cost` as the
-  running VWAP of the position.
+  running VWAP of the position using `incremental` and `fill_price`.
 - On a fill that **reduces** |position| (closing), accrue
-  `realized_pnl += (fill_price − avg_cost) × closed_qty × sign(position)`;
+  `realized_pnl += (fill_price − avg_cost) × incremental × sign(position)`;
   `avg_cost` is unchanged.
 
 Unrealised (mark-to-market) P&L per symbol is
@@ -1245,6 +1329,17 @@ progressive cooldown when the rejection rate is too high:
 - After three trips within `reset_window_sec`, the bot logs a critical warning
   and exits cleanly (prevents runaway invalid order flows)
 
+> **Rejection reason categories.** Not all rejections indicate a
+> misconfiguration. The engine may reject orders for operational reasons:
+> - `"Market is closed"` / `"ATO orders only accepted during opening auction"` —
+>   session phase mismatch; the session manager should prevent these.
+> - `"Price above/below collar limit"` — price collar violation; the bot's price
+>   was outside the allowed band. This is a signal-quality issue, not a config
+>   error; consider logging separately and **not** counting collar rejections
+>   toward the reject breaker threshold.
+> - `"Symbol not configured"` / `"Gateway not configured"` — hard config errors;
+>   three of these should trigger the exit path immediately.
+
 ### 13.4 Stale Data Gate
 
 The stale data gate suppresses order submission for any symbol whose market
@@ -1265,31 +1360,31 @@ data has not been updated within `stale_data_sec`. The check is per-symbol:
 |---|---|
 | `system.gateway_auth.<GW_ID>` | Connection acceptance. Payload: `{gateway_id, accepted (bool), reason (str), description (str)}`. The bot must check `accepted` before proceeding; `reason` carries the rejection message when `accepted=False`. |
 | `system.symbols.<GW_ID>` | Symbol universe + `symbol_meta` (incl. `tick_size`) when engine is configured (§4.4) |
-| `system.session_status.<GW_ID>` | Reply to `system.session_state_request`. Payload: `{state (str), sessions_enabled (bool)}`. Used in step 1 of the startup sequence to seed the current phase before any order submission. |
-| `session.state` | Session phase transition broadcast. Payload: `{state (str), prev_state (str)}`. **`prev_state` is absent on the initial broadcast** — always use `.get("prev_state", "")`. |
+| `system.session_status.<GW_ID>` | Reply to `system.session_state_request`. Payload: `{state (str), sessions_enabled (bool)}`. Used in step 3 of the startup sequence to seed the current phase before any order submission. |
+| `session.state` | Session phase transition broadcast. Payload: `{state (str), prev_state (str)}`. **`prev_state` is absent on the initial broadcast** — always use `.get("prev_state", "")`. This is edge-triggered; use `system.session_state_request` on connect to get current state (§9.3). |
 | `circuit_breaker.halt.<SYMBOL>` | Per-symbol circuit-breaker halt. Payload: `{symbol, trigger_price (float\|null), reference_price (float\|null), resume_at_ns (int\|null), resumption_mode (str), level (str)}`. `resumption_mode` is `"AUCTION"` (halt resolves via mini-auction) or `"MANUAL"` (admin-only resume). `resume_at_ns` is `null` for `MANUAL` mode. |
 | `circuit_breaker.resume.<SYMBOL>` | Per-symbol circuit-breaker resume. Payload: `{symbol, mode (str)}` where `mode` matches the `resumption_mode` from the halt message. |
 | `book.<SYMBOL>` | Book snapshot: best bid/ask, price levels, `last_price` (float prices) |
-| `depth.<SYMBOL>` | Engine-computed `bid_depth`, `ask_depth`, `imbalance`, `microprice` (float), `mid_price` (float) — ±100 ticks of last trade; no unit conversion needed |
+| `depth.<SYMBOL>` | Engine-computed `bid_depth`, `ask_depth`, `imbalance`, `microprice` (float), `mid_price` (float) — ±100 ticks of last trade; no unit conversion needed. **Not published until the symbol's first trade** — the engine suppresses the message entirely when no trade has occurred (no empty payload is sent). |
 | `trade.executed` | Trade events; relevant fields: `price` (float), **`quantity`** (int — note: field name is `quantity`, not `qty`), `aggressor_side` (`"BUY"` or `"SELL"`), `symbol`, `timestamp` (float seconds) |
-| `system.eod` | End-of-day broadcast. Payload: `{books: [{symbol, bids, asks, last_price (float\|null), last_qty (int\|null), last_buy_price (float\|null), last_sell_price (float\|null), recent_trades}]}`. The bot records `last_buy_price`/`last_sell_price` per symbol as the closing price reference for the next session (§7.4, §9.2). |
-| `order.ack.<GW_ID>` | Order acknowledgment (`accepted`, `order_id`, `client_tag`, echoed `symbol/side/price/qty`) |
-| `order.fill.<GW_ID>` | Fill event with `order_id`, `client_tag`, `fill_qty`, `fill_price`, `remaining_qty`, `status` (the engine field is `fill_price`, **not** `price`) |
-| `order.cancelled.<GW_ID>` | Cancellation confirmation (`order_id`, `client_tag`) |
-| `order.expired.<GW_ID>` | DAY/auction order expiry (`order_id`, `client_tag`) |
-| `system.halt_status.<GW_ID>` | Reply to halt-status request on connect; list of currently halted symbols. Each entry: `{symbol, resume_at_ns (int\|null), level (str\|null), resumption_mode (str\|null)}`. Empty list = no symbols halted. |
-| `system.position_snapshot.<GW_ID>` | Reply to position-snapshot request on connect; list of `{symbol, net_qty, avg_cost}` entries for all symbols with a non-zero position |
-| `order.orders.<GW_ID>` | Reply to `order.orders_request`; payload `{orders: [{id, symbol, side, order_type, tif, quantity, remaining_qty, price, gateway_id, status, timestamp}]}`. Used for OLM reconciliation on reconnect when `CANCEL_QUOTES_ONLY` is configured (§7.4). |
+| `system.eod` | End-of-day broadcast to **all** subscribers (no `<GW_ID>` suffix). Subscription filter: `"system.eod"` (exact). Payload: `{books: [{symbol, bids, asks, last_price (float\|null), last_qty (int\|null), last_buy_price (float\|null), last_sell_price (float\|null), recent_trades}]}`. The bot records `last_buy_price`/`last_sell_price` per symbol as the closing price reference for the next session (§7.4, §9.2). |
+| `order.ack.<GW_ID>` | Order acknowledgment. Accepted: `{order_id, accepted=true, reason="", symbol, side, order_type, tif, qty, price, client_tag}`. Rejected: `{order_id, accepted=false, reason}` — **`client_tag` is absent on rejection acks**; resolve from `pending` by `order_id` (§7.1). |
+| `order.fill.<GW_ID>` | Fill event: `{order_id, client_tag, fill_qty, fill_price, remaining_qty, status, symbol, side, qty, price}`. **`status`** is `"PARTIAL_FILL"` (not `"PARTIAL"`) when `remaining_qty > 0`, and `"FILLED"` when fully filled. **`fill_qty` is cumulative** (`quantity − remaining_qty`) — use `remaining_qty` delta for incremental fill (§7.1). The engine field for fill price is `fill_price`, **not** `price`. |
+| `order.cancelled.<GW_ID>` | Cancellation confirmation: `{order_id, client_tag}`. Sent for bot-initiated cancels, SMP-triggered cancels (§7.4), and halt-driven cancellations. |
+| `order.expired.<GW_ID>` | DAY/auction order expiry: `{order_id, client_tag}` |
+| `system.halt_status.<GW_ID>` | Reply to halt-status request on connect. Payload: `{"halted": [{symbol, resume_at_ns (int\|null), level (str\|null), resumption_mode (str\|null)}, ...]}`. Access entries via `payload["halted"]`. Empty list = no symbols halted. |
+| `system.position_snapshot.<GW_ID>` | Reply to position-snapshot request on connect. Payload: `{"positions": [{symbol, net_qty, avg_cost}, ...]}`. Access entries via `payload["positions"]`. Empty list = gateway is flat. |
+| `order.orders.<GW_ID>` | Reply to `order.orders_request`. Payload: `{"orders": [{id, symbol, side, order_type, tif, quantity, remaining_qty, price, gateway_id, status, timestamp, ...}]}`. Used for OLM reconciliation on reconnect (§7.4). **`client_tag` is not included** — load resting orders with `client_tag=None`. **`timestamp` is float seconds** (nanoseconds ÷ 1 000 000 000), not nanoseconds. |
 
 ### 14.2 Commands Sent (PUSH → engine PULL :5555)
 
 | Message | When |
 |---|---|
-| `gateway_connect` | On startup |
-| `system.symbols_request` | On startup and periodic refresh |
-| `system.session_state_request` | Immediately after `system.gateway_auth` (step 1 of startup — §9.3); seeds current session phase; reply arrives on `system.session_status.<GW_ID>` |
-| `system.halt_status_request` | After session state seeded (step 2 of startup — §9.3) |
-| `system.position_request` | After halt state seeded (step 3 of startup — §9.3) |
+| `gateway_connect` | On startup. Payload: `{"gateway_id": "<ID>"}` |
+| `system.symbols_request` | On startup (step 2 of seeding) and periodic refresh. Payload: `{"gateway_id": "<ID>"}` |
+| `system.session_state_request` | After auth (step 3 of startup — §9.3); seeds current session phase; reply arrives on `system.session_status.<GW_ID>` |
+| `system.halt_status_request` | After session state seeded (step 4 of startup — §9.3). Payload: `{"gateway_id": "<ID>"}` |
+| `system.position_request` | After halt state seeded (step 5 of startup — §9.3). Requires authenticated gateway. Payload: `{"gateway_id": "<ID>"}` |
 | `order.new` | Decision Engine emits `order_type=LIMIT`, `tif ∈ {DAY, ATO, ATC}`, `client_tag` (bot-generated UUID), optional `smp_action` (§6.3); full payload contract in §14.4 |
 | `order.cancel` | OLM cancels stale or halted orders (`{order_id, gateway_id}`) |
 | `order.orders_request` | Optional on reconnect with `CANCEL_QUOTES_ONLY` to reseed OLM from live resting orders; payload `{gateway_id}`; reply on `order.orders.<GW_ID>` (§7.4) |
@@ -1328,10 +1423,10 @@ defaults for the structural fields.
 > strictly necessary.
 
 > **Connect handshake.** The engine rejects `order.new` from an unconnected /
-> unauthorised gateway (`_gateway_status` check). The bot must complete
-> `gateway_connect` and receive `system.gateway_auth.<GW_ID>` **before** its
-> first submission, and must handle an `accepted=False` ack carrying a
-> “gateway not connected” reason by re-running the handshake (§23 step 2).
+> unauthorised gateway (`_gateway_status` check). The bot must complete the
+> full startup sequence (steps 1–5 of §9.3) **before** its first submission.
+> An `accepted=False` gateway auth must cause an immediate clean exit —
+> retrying connection is futile without fixing the configuration.
 
 ### 14.3 `system.symbols` Payload and Tick Size
 
@@ -1547,6 +1642,11 @@ gateways:
 Leave the default (`CANCEL_QUOTES_ONLY`) if you intentionally want bot orders to
 survive a restart (e.g., bots act as liquidity providers and should not cause a
 cascade of cancellations on a brief network blip).
+
+> **Three `disconnect_behaviour` values exist.** `CANCEL_QUOTES_ONLY` (default)
+> cancels only MM quote entries. `CANCEL_ALL` cancels all resting orders
+> including limit orders. `LEAVE_ALL` leaves all orders in the book unchanged.
+> AI bots should use `CANCEL_ALL`.
 
 #### Session scheduling
 
