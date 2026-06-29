@@ -64,10 +64,10 @@ poetry run pm-index --reset
 
 ### CLI options
 
-| Option | Default | Description |
-|---|---|---|
-| `--config FILE` / `-c FILE` | `engine_config.yaml` | Path to the engine config YAML file |
-| `--reset` | off | Delete persisted state files and re-initialise all indices from config |
+| Option                      | Default              | Description                                                            |
+|-----------------------------|----------------------|------------------------------------------------------------------------|
+| `--config FILE` / `-c FILE` | `engine_config.yaml` | Path to the engine config YAML file                                    |
+| `--reset`                   | off                  | Delete persisted state files and re-initialise all indices from config |
 
 `--reset` is useful after:
 
@@ -124,15 +124,15 @@ indices:
 
 ### Field reference
 
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `id` | string | — | Alphanumeric index identifier; used in events, file names, and gateway commands |
-| `description` | string | — | Human-readable label emitted in index events |
-| `base_value` | float | `1000.0` | Starting index level on first launch |
-| `publish_interval_sec` | float | `1.0` | Throttle on how often `index.update` is broadcast |
-| `history_file` | string | `data/indexes/<ID>_history.jsonl` | Append-only JSONL audit trail |
-| `state_file` | string | `data/indexes/<ID>_state.json` | Checkpoint file for divisor and last prices |
-| `constituents` | list | — | Symbols included in the index |
+| Field                  | Type   | Default                           | Description                                                                     |
+|------------------------|--------|-----------------------------------|---------------------------------------------------------------------------------|
+| `id`                   | string | —                                 | Alphanumeric index identifier; used in events, file names, and gateway commands |
+| `description`          | string | —                                 | Human-readable label emitted in index events                                    |
+| `base_value`           | float  | `1000.0`                          | Starting index level on first launch                                            |
+| `publish_interval_sec` | float  | `1.0`                             | Throttle on how often `index.update` is broadcast                               |
+| `history_file`         | string | `data/indexes/<ID>_history.jsonl` | Append-only JSONL audit trail                                                   |
+| `state_file`           | string | `data/indexes/<ID>_state.json`    | Checkpoint file for divisor and last prices                                     |
+| `constituents`         | list   | —                                 | Symbols included in the index                                                   |
 
 Constraints:
 
@@ -192,12 +192,12 @@ $$
 
 Example with three stocks and `base_value = 1000`:
 
-| Symbol | Price | Outstanding shares | Market cap |
-|---|---:|---:|---:|
-| AAPL | 209.50 | 15,000,000,000 | 3,142,500,000,000 |
-| MSFT | 415.00 | 7,400,000,000 | 3,071,000,000,000 |
-| TSLA | 248.00 | 3,200,000,000 | 793,600,000,000 |
-| **Total** | | | **7,007,100,000,000** |
+| Symbol    |  Price | Outstanding shares |            Market cap |
+|-----------|-------:|-------------------:|----------------------:|
+| AAPL      | 209.50 |     15,000,000,000 |     3,142,500,000,000 |
+| MSFT      | 415.00 |      7,400,000,000 |     3,071,000,000,000 |
+| TSLA      | 248.00 |      3,200,000,000 |       793,600,000,000 |
+| **Total** |        |                    | **7,007,100,000,000** |
 
 ```
 initial_divisor = 7,007,100,000,000 / 1000.0 = 7,007,100,000
@@ -335,14 +335,14 @@ reinitialise from config.
 Every significant event is appended to the JSONL history file (one JSON object
 per line):
 
-| Record type | When written |
-|---|---|
-| `INIT` | First-ever startup (no prior state); records `base_value`, `divisor`, constituent list |
-| `LEVEL` | Every `publish_interval_sec` during active trading |
-| `EOD` | When the session transitions to `CLOSED`; includes OHLC for the day |
-| `CORP_ACTION` | After every split, dividend, or shares-issuance adjustment |
-| `ADD_CONSTITUENT` | After a new symbol is added to the index |
-| `DELIST` | After a symbol is removed from the index |
+| Record type       | When written                                                                           |
+|-------------------|----------------------------------------------------------------------------------------|
+| `INIT`            | First-ever startup (no prior state); records `base_value`, `divisor`, constituent list |
+| `LEVEL`           | Every `publish_interval_sec` during active trading                                     |
+| `EOD`             | When the session transitions to `CLOSED`; includes OHLC for the day                    |
+| `CORP_ACTION`     | After every split, dividend, or shares-issuance adjustment                             |
+| `ADD_CONSTITUENT` | After a new symbol is added to the index                                               |
+| `DELIST`          | After a symbol is removed from the index                                               |
 
 Example history file extract:
 
@@ -416,20 +416,20 @@ IDX|CH=INDEX|SYM=EDU100|SEQ=2|TS=2026-06-12T10:15:24.411Z|LEVEL=1051.20|CHG=+9.1
 
 #### `IDX` message fields
 
-| Field | Type | Description |
-|---|---|---|
-| `CH` | string | Always `INDEX` |
-| `SYM` | string | Index ID (e.g. `EDU100`) |
-| `SEQ` | int | Monotonic sequence number for gap detection |
-| `TS` | string | UTC ISO-8601 timestamp |
-| `LEVEL` | decimal | Current index level |
-| `CHG` | decimal | Change from day open (signed); omitted before first open |
-| `PCTCHG` | decimal | Percentage change from day open (signed); omitted before first open |
-| `OPEN` | decimal | Day open level; omitted during `PRE_OPEN` and `OPENING_AUCTION` |
-| `HIGH` | decimal | Day high |
-| `LOW` | decimal | Day low |
-| `AGGCAP` | int | Current aggregate market cap |
-| `SESSION` | string | Current session state |
+| Field     | Type    | Description                                                         |
+|-----------|---------|---------------------------------------------------------------------|
+| `CH`      | string  | Always `INDEX`                                                      |
+| `SYM`     | string  | Index ID (e.g. `EDU100`)                                            |
+| `SEQ`     | int     | Monotonic sequence number for gap detection                         |
+| `TS`      | string  | UTC ISO-8601 timestamp                                              |
+| `LEVEL`   | decimal | Current index level                                                 |
+| `CHG`     | decimal | Change from day open (signed); omitted before first open            |
+| `PCTCHG`  | decimal | Percentage change from day open (signed); omitted before first open |
+| `OPEN`    | decimal | Day open level; omitted during `PRE_OPEN` and `OPENING_AUCTION`     |
+| `HIGH`    | decimal | Day high                                                            |
+| `LOW`     | decimal | Day low                                                             |
+| `AGGCAP`  | int     | Current aggregate market cap                                        |
+| `SESSION` | string  | Current session state                                               |
 
 ### Using `pm-index-cli` (recommended)
 

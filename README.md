@@ -60,8 +60,8 @@ On an ARM M1 MacBook the throughput is roughly 150,000 TPS (an improvement of al
 ### Throughput
 
 | Metric        | Value                                               |
-| ------------- | --------------------------------------------------- |
-| **Max TPS**   | ~60,000 orders/second                              |
+|---------------|-----------------------------------------------------|
+| **Max TPS**   | ~60,000 orders/second                               |
 | **Order mix** | 20% Market, 30% aggressive Limit, 50% passive Limit |
 
 *Performance note:* price-collar and circuit-breaker checks run in the hot path

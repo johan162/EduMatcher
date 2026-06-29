@@ -82,31 +82,31 @@ The engine is the only process that writes to the order book.  Every other
 process is either a **producer** (sends commands via PUSH) or a **subscriber**
 (reads events via SUB), or both.  No process shares memory with any other.
 
-| Port | Socket type | Bound by | Purpose |
-|------|------------|----------|---------|
-| **5555** | PULL | pm-engine | Receives all inbound commands (orders, cancels, admin) |
-| **5556** | PUB | pm-engine | Broadcasts all market events (fills, book updates, session changes) |
-| **5557** | PUB | pm-engine | Drop-copy feed, fill events tagged per gateway, with sequence numbers and replay support |
+| Port     | Socket type | Bound by  | Purpose                                                                                  |
+|----------|-------------|-----------|------------------------------------------------------------------------------------------|
+| **5555** | PULL        | pm-engine | Receives all inbound commands (orders, cancels, admin)                                   |
+| **5556** | PUB         | pm-engine | Broadcasts all market events (fills, book updates, session changes)                      |
+| **5557** | PUB         | pm-engine | Drop-copy feed, fill events tagged per gateway, with sequence numbers and replay support |
 
 This design has concrete advantages:
 
-| Advantage | How it helps |
-|-----------|-------------|
-| **Isolation** | A crashing viewer cannot corrupt the order book |
-| **Observability** | Any subscriber can see every event without changing the engine |
-| **Horizontal scale** | Multiple gateways connect simultaneously; each is independent |
-| **Language freedom** | A subscriber can be written in any language that speaks ZeroMQ |
-| **Testability** | The engine can be tested with a fake gateway; subscribers can be tested with recorded message streams |
+| Advantage            | How it helps                                                                                          |
+|----------------------|-------------------------------------------------------------------------------------------------------|
+| **Isolation**        | A crashing viewer cannot corrupt the order book                                                       |
+| **Observability**    | Any subscriber can see every event without changing the engine                                        |
+| **Horizontal scale** | Multiple gateways connect simultaneously; each is independent                                         |
+| **Language freedom** | A subscriber can be written in any language that speaks ZeroMQ                                        |
+| **Testability**      | The engine can be tested with a fake gateway; subscribers can be tested with recorded message streams |
 
 And honest disadvantages:
 
-| Disadvantage | Consequence |
-|-------------|------------|
-| **Latency** | Each message crosses a socket; a round-trip (order → engine → ACK) takes microseconds rather than nanoseconds on localhost |
-| **Startup order** | The engine must bind before any other process connects |
-| **Partial failure** | If the engine crashes mid-session, subscribers hold stale state until it restarts |
-| **No shared clock** | Timestamps are set by the sender; two processes on different machines can disagree by milliseconds |
-| **Message loss** | ZeroMQ PUB/SUB drops messages if a subscriber is slow; fast publishers can outrun slow consumers |
+| Disadvantage        | Consequence                                                                                                                |
+|---------------------|----------------------------------------------------------------------------------------------------------------------------|
+| **Latency**         | Each message crosses a socket; a round-trip (order → engine → ACK) takes microseconds rather than nanoseconds on localhost |
+| **Startup order**   | The engine must bind before any other process connects                                                                     |
+| **Partial failure** | If the engine crashes mid-session, subscribers hold stale state until it restarts                                          |
+| **No shared clock** | Timestamps are set by the sender; two processes on different machines can disagree by milliseconds                         |
+| **Message loss**    | ZeroMQ PUB/SUB drops messages if a subscriber is slow; fast publishers can outrun slow consumers                           |
 
 For an educational system running on a laptop, none of the disadvantages are
 serious.  For a production exchange, each one would require careful engineering
@@ -114,10 +114,10 @@ serious.  For a production exchange, each one would require careful engineering
 
 ### The two bus patterns used here
 
-| Pattern | Socket pair | Direction | Used for |
-|---------|------------|-----------|---------|
-| **PUSH/PULL** | Gateway PUSH → Engine PULL | One-to-one, reliable delivery | Sending commands (orders, cancel requests) to the engine |
-| **PUB/SUB** | Engine PUB → many SUBs | One-to-many, topic-filtered | Broadcasting events (fills, book updates, session changes) |
+| Pattern       | Socket pair                | Direction                     | Used for                                                   |
+|---------------|----------------------------|-------------------------------|------------------------------------------------------------|
+| **PUSH/PULL** | Gateway PUSH → Engine PULL | One-to-one, reliable delivery | Sending commands (orders, cancel requests) to the engine   |
+| **PUB/SUB**   | Engine PUB → many SUBs     | One-to-many, topic-filtered   | Broadcasting events (fills, book updates, session changes) |
 
 PUSH/PULL guarantees delivery to exactly one receiver (the engine).
 PUB/SUB does not guarantee delivery — a subscriber that is not yet connected
@@ -184,47 +184,47 @@ pm-engine --verbose
 
 **Core processes:**
 
-| Process | Command | Role | Required? |
-|---------|---------|------|-----------|
-| **pm-engine** | `pm-engine` | Matching engine — the single writer | Yes |
-| **pm-gateway** | `pm-gateway --id GW01` | ALF order entry terminal (one per trader) | At least one |
-| **pm-scheduler** | `pm-scheduler` | Drives session phase transitions | No |
-| **pm-viewer** | `pm-viewer --symbol AAPL` | Live order book display | No |
-| **pm-orders** | `pm-orders` | Cross-gateway order status monitor | No |
-| **pm-board** | `pm-board` | Full-screen multi-symbol display | No |
-| **pm-ticker** | `pm-ticker` | Scrolling market data ticker | No (needs pm-stats) |
-| **pm-stats** | `pm-stats` | OHLCV statistics to SQLite | No |
-| **pm-clearing** | `pm-clearing` | P&L and trade settlement | No |
-| **pm-audit** | `pm-audit` | Full event log to disk | No |
-| **pm-ralf-gwy** | `pm-ralf-gwy` | External post-trade dissemination gateway (RALF) | No |
-| **pm-md-gwy** | `pm-md-gwy` | External market-data gateway (CALF) over TCP :5570 | No |
-| **pm-api-gateway** | `pm-api-gateway` | REST/WebSocket order-entry and market-data API gateway | No |
-| **pm-index** | `pm-index` | Real-time cap-weighted index calculation and dissemination | No |
+| Process            | Command                   | Role                                                       | Required?           |
+|--------------------|---------------------------|------------------------------------------------------------|---------------------|
+| **pm-engine**      | `pm-engine`               | Matching engine — the single writer                        | Yes                 |
+| **pm-gateway**     | `pm-gateway --id GW01`    | ALF order entry terminal (one per trader)                  | At least one        |
+| **pm-scheduler**   | `pm-scheduler`            | Drives session phase transitions                           | No                  |
+| **pm-viewer**      | `pm-viewer --symbol AAPL` | Live order book display                                    | No                  |
+| **pm-orders**      | `pm-orders`               | Cross-gateway order status monitor                         | No                  |
+| **pm-board**       | `pm-board`                | Full-screen multi-symbol display                           | No                  |
+| **pm-ticker**      | `pm-ticker`               | Scrolling market data ticker                               | No (needs pm-stats) |
+| **pm-stats**       | `pm-stats`                | OHLCV statistics to SQLite                                 | No                  |
+| **pm-clearing**    | `pm-clearing`             | P&L and trade settlement                                   | No                  |
+| **pm-audit**       | `pm-audit`                | Full event log to disk                                     | No                  |
+| **pm-ralf-gwy**    | `pm-ralf-gwy`             | External post-trade dissemination gateway (RALF)           | No                  |
+| **pm-md-gwy**      | `pm-md-gwy`               | External market-data gateway (CALF) over TCP :5570         | No                  |
+| **pm-api-gateway** | `pm-api-gateway`          | REST/WebSocket order-entry and market-data API gateway     | No                  |
+| **pm-index**       | `pm-index`                | Real-time cap-weighted index calculation and dissemination | No                  |
 
 **Admin tools:**
 
-| Process | Command | Role | Required? |
-|---------|---------|------|-----------|
-| **pm-admin** | `pm-admin` | Interactive admin console | No |
-| **pm-admin-cli** | `pm-admin-cli <command>` | One-shot CLI admin commands | No |
-| **pm-cverifier** | `pm-cverifier [options] <config>` | Validate `engine_config.yaml` (YAML, schema, semantic, completeness checks) | No |
+| Process          | Command                           | Role                                                                        | Required? |
+|------------------|-----------------------------------|-----------------------------------------------------------------------------|-----------|
+| **pm-admin**     | `pm-admin`                        | Interactive admin console                                                   | No        |
+| **pm-admin-cli** | `pm-admin-cli <command>`          | One-shot CLI admin commands                                                 | No        |
+| **pm-cverifier** | `pm-cverifier [options] <config>` | Validate `engine_config.yaml` (YAML, schema, semantic, completeness checks) | No        |
 
 **Setup and configuration tools:**
 
-| Process | Command | Role | Required? |
-|---------|---------|------|-----------|
-| **pm-setup** | `pm-setup` | Bootstrap working directory and runtime files | Recommended first run |
-| **pm-config-gen** | `pm-config-gen [options]` | Generate `engine_config.yaml` from CLI options | Optional |
-| **pm-stats-cli** | `pm-stats-cli <command> [options]` | Read-only query interface for `stats.db` | Optional |
-| **pm-index-cli** | `pm-index-cli <command> [options]` | Read-only query interface for index history JSONL files | Optional |
+| Process           | Command                            | Role                                                    | Required?             |
+|-------------------|------------------------------------|---------------------------------------------------------|-----------------------|
+| **pm-setup**      | `pm-setup`                         | Bootstrap working directory and runtime files           | Recommended first run |
+| **pm-config-gen** | `pm-config-gen [options]`          | Generate `engine_config.yaml` from CLI options          | Optional              |
+| **pm-stats-cli**  | `pm-stats-cli <command> [options]` | Read-only query interface for `stats.db`                | Optional              |
+| **pm-index-cli**  | `pm-index-cli <command> [options]` | Read-only query interface for index history JSONL files | Optional              |
 
 **Optional AI trader tools:**
 
-| Process | Command | Role | Required? |
-|---------|---------|------|-----------|
-| **pm-ai-trader** | `pm-ai-trader` | Single AI trading bot gateway | No |
-| **pm-ai-swarm** | `pm-ai-swarm` | Coordinated multi-agent AI trading swarm | No |
-| **pm-mm-bot** | `pm-mm-bot --symbol SYM` | Autonomous [market-maker bot](17-mm-bot.md) for a single symbol | No |
+| Process          | Command                  | Role                                                            | Required? |
+|------------------|--------------------------|-----------------------------------------------------------------|-----------|
+| **pm-ai-trader** | `pm-ai-trader`           | Single AI trading bot gateway                                   | No        |
+| **pm-ai-swarm**  | `pm-ai-swarm`            | Coordinated multi-agent AI trading swarm                        | No        |
+| **pm-mm-bot**    | `pm-mm-bot --symbol SYM` | Autonomous [market-maker bot](17-mm-bot.md) for a single symbol | No        |
 
 !!! warning "Start the engine first"
     The engine binds the ZeroMQ sockets.  All other processes connect to those
@@ -267,10 +267,10 @@ pm-engine [--verbose] [--config engine_config.yaml]
 
 **Startup options:**
 
-| Flag | Description |
-|------|-------------|
-| `--verbose` / `-v` | Print each order received and trade produced to stdout |
-| `--config` / `-c` | Path to engine config YAML (default: `engine_config.yaml`) |
+| Flag               | Description                                                |
+|--------------------|------------------------------------------------------------|
+| `--verbose` / `-v` | Print each order received and trade produced to stdout     |
+| `--config` / `-c`  | Path to engine config YAML (default: `engine_config.yaml`) |
 
 **Expected runtime input arguments:**
 
@@ -295,39 +295,39 @@ See [Configuration](01-configuration.md) for full details on the config file.
 
 **Messages received** (PULL :5555):
 
-| Topic | Source |
-|---|---|
-| `order.new` | Gateways |
-| `order.cancel` | Gateways |
-| `order.combo` | Gateways |
-| `order.combo_cancel` | Gateways |
-| `system.gateway_connect` | Gateways |
-| `book.snapshot_request` | Viewers, Stats |
-| `system.symbols_request` | Gateways, Stats |
-| `order.orders_request` | Gateways |
-| `risk.kill_switch` | Gateways, Admin |
-| `risk.circuit_breaker_halt_all` | Admin gateways |
-| `risk.circuit_breaker_resume_all` | Admin gateways |
-| `session.transition` | Scheduler |
+| Topic                             | Source          |
+|-----------------------------------|-----------------|
+| `order.new`                       | Gateways        |
+| `order.cancel`                    | Gateways        |
+| `order.combo`                     | Gateways        |
+| `order.combo_cancel`              | Gateways        |
+| `system.gateway_connect`          | Gateways        |
+| `book.snapshot_request`           | Viewers, Stats  |
+| `system.symbols_request`          | Gateways, Stats |
+| `order.orders_request`            | Gateways        |
+| `risk.kill_switch`                | Gateways, Admin |
+| `risk.circuit_breaker_halt_all`   | Admin gateways  |
+| `risk.circuit_breaker_resume_all` | Admin gateways  |
+| `session.transition`              | Scheduler       |
 
 **Messages published** (PUB :5556):
 
-| Topic | Purpose |
-|---|---|
-| `order.ack.{GW_ID}` | Order accepted/rejected |
-| `order.fill.{GW_ID}` | Partial or full fill |
-| `order.cancelled.{GW_ID}` | Cancel confirmation |
-| `order.expired.{GW_ID}` | TIF expiry |
-| `order.orders.{GW_ID}` | Order list reply |
-| `combo.ack.{GW_ID}` | Combo accepted/rejected |
-| `combo.status.{GW_ID}` | Combo lifecycle change |
-| `trade.executed` | Every matched trade pair |
-| `book.{SYMBOL}` | Book snapshot after every change |
-| `session.state` | Session phase change |
-| `auction.result.{SYMBOL}` | Auction uncross result |
-| `system.gateway_auth.{GW_ID}` | Gateway authentication reply |
-| `system.symbols.{GW_ID}` | Symbol list reply |
-| `system.eod` | End-of-day broadcast |
+| Topic                         | Purpose                          |
+|-------------------------------|----------------------------------|
+| `order.ack.{GW_ID}`           | Order accepted/rejected          |
+| `order.fill.{GW_ID}`          | Partial or full fill             |
+| `order.cancelled.{GW_ID}`     | Cancel confirmation              |
+| `order.expired.{GW_ID}`       | TIF expiry                       |
+| `order.orders.{GW_ID}`        | Order list reply                 |
+| `combo.ack.{GW_ID}`           | Combo accepted/rejected          |
+| `combo.status.{GW_ID}`        | Combo lifecycle change           |
+| `trade.executed`              | Every matched trade pair         |
+| `book.{SYMBOL}`               | Book snapshot after every change |
+| `session.state`               | Session phase change             |
+| `auction.result.{SYMBOL}`     | Auction uncross result           |
+| `system.gateway_auth.{GW_ID}` | Gateway authentication reply     |
+| `system.symbols.{GW_ID}`      | Symbol list reply                |
+| `system.eod`                  | End-of-day broadcast             |
 
 **Messages published** (drop-copy PUB :5557):
 
@@ -353,9 +353,9 @@ pm-gateway --id <GW_ID>
 
 **Startup options:**
 
-| Flag | Required | Description |
-|------|----------|-------------|
-| `--id` | Yes | Unique gateway identifier (e.g. `GW01`, `ALICE`) |
+| Flag   | Required | Description                                      |
+|--------|----------|--------------------------------------------------|
+| `--id` | Yes      | Unique gateway identifier (e.g. `GW01`, `ALICE`) |
 
 **Expected runtime input arguments:**
 
@@ -376,36 +376,36 @@ is refused and the gateway exits.
 
 **Messages sent** (PUSH → :5555):
 
-| Topic | Purpose |
-|---|---|
+| Topic                    | Purpose                |
+|--------------------------|------------------------|
 | `system.gateway_connect` | Authentication request |
-| `order.new` | Submit order |
-| `order.cancel` | Cancel order |
-| `order.combo` | Submit combo |
-| `order.combo_cancel` | Cancel combo |
-| `order.orders_request` | Request order list |
-| `system.symbols_request` | Request symbol list |
+| `order.new`              | Submit order           |
+| `order.cancel`           | Cancel order           |
+| `order.combo`            | Submit combo           |
+| `order.combo_cancel`     | Cancel combo           |
+| `order.orders_request`   | Request order list     |
+| `system.symbols_request` | Request symbol list    |
 
 **Messages subscribed** (SUB from :5556):
 
-| Topic | Purpose |
-|---|---|
-| `system.gateway_auth.{own GW_ID}` | Authentication reply |
-| `order.ack.{own GW_ID}` | Order acknowledgements |
-| `order.fill.{own GW_ID}` | Fill notifications |
-| `order.amended.{own GW_ID}` | Successful amend notifications |
-| `order.cancelled.{own GW_ID}` | Cancel confirmations |
-| `order.expired.{own GW_ID}` | Expiry notifications |
-| `order.orders.{own GW_ID}` | Order list replies |
-| `combo.ack.{own GW_ID}` | Combo acknowledgements |
-| `combo.status.{own GW_ID}` | Combo status updates |
-| `oco.ack.{own GW_ID}` | OCO creation acknowledgements |
-| `oco.cancelled.{own GW_ID}` | OCO sibling-cancel notifications |
-| `quote.ack.{own GW_ID}` | Quote acknowledgements |
-| `quote.status.{own GW_ID}` | Quote lifecycle updates |
-| `risk.kill_switch_ack.{own GW_ID}` | Kill-switch acknowledgement |
-| `system.symbols.{own GW_ID}` | Symbol list reply |
-| `trade.executed` | Global trade feed for last-price / P&L display |
+| Topic                              | Purpose                                        |
+|------------------------------------|------------------------------------------------|
+| `system.gateway_auth.{own GW_ID}`  | Authentication reply                           |
+| `order.ack.{own GW_ID}`            | Order acknowledgements                         |
+| `order.fill.{own GW_ID}`           | Fill notifications                             |
+| `order.amended.{own GW_ID}`        | Successful amend notifications                 |
+| `order.cancelled.{own GW_ID}`      | Cancel confirmations                           |
+| `order.expired.{own GW_ID}`        | Expiry notifications                           |
+| `order.orders.{own GW_ID}`         | Order list replies                             |
+| `combo.ack.{own GW_ID}`            | Combo acknowledgements                         |
+| `combo.status.{own GW_ID}`         | Combo status updates                           |
+| `oco.ack.{own GW_ID}`              | OCO creation acknowledgements                  |
+| `oco.cancelled.{own GW_ID}`        | OCO sibling-cancel notifications               |
+| `quote.ack.{own GW_ID}`            | Quote acknowledgements                         |
+| `quote.status.{own GW_ID}`         | Quote lifecycle updates                        |
+| `risk.kill_switch_ack.{own GW_ID}` | Kill-switch acknowledgement                    |
+| `system.symbols.{own GW_ID}`       | Symbol list reply                              |
+| `trade.executed`                   | Global trade feed for last-price / P&L display |
 
 See the [Gateway Reference](08-gateway.md) for the full command list.
 
@@ -421,10 +421,10 @@ pm-viewer --symbol AAPL [--depth 10]
 
 **Startup options:**
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--symbol` / `-s` | required | Symbol to watch |
-| `--depth` / `-d` | 10 | Number of price levels to show per side |
+| Flag              | Default  | Description                             |
+|-------------------|----------|-----------------------------------------|
+| `--symbol` / `-s` | required | Symbol to watch                         |
+| `--depth` / `-d`  | 10       | Number of price levels to show per side |
 
 **Expected runtime input arguments:**
 
@@ -451,15 +451,15 @@ pm-viewer --symbol TSLA
 
 **Messages subscribed** (SUB from :5556):
 
-| Topic | Purpose |
-|---|---|
-| `book.{SYMBOL}` | Book updates for the watched symbol |
+| Topic           | Purpose                                     |
+|-----------------|---------------------------------------------|
+| `book.{SYMBOL}` | Book updates for the watched symbol         |
 | `session.state` | Session phase changes (displayed in header) |
 
 **Messages sent** (PUSH → :5555):
 
-| Topic | Purpose |
-|---|---|
+| Topic                   | Purpose                                |
+|-------------------------|----------------------------------------|
 | `book.snapshot_request` | Requests initial book state on startup |
 
 
@@ -474,9 +474,9 @@ pm-orders [--gateway GW01]
 
 **Startup options:**
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--gateway` / `-g` | (all) | Filter to a single gateway |
+| Flag               | Default | Description                |
+|--------------------|---------|----------------------------|
+| `--gateway` / `-g` | (all)   | Filter to a single gateway |
 
 **Expected runtime input arguments:**
 
@@ -489,11 +489,11 @@ Status colours: green=NEW, yellow=PARTIAL, bright green=FILLED, red=REJECTED/CAN
 
 **Messages subscribed** (SUB from :5556):
 
-| Topic | Purpose |
-|---|---|
+| Topic             | Purpose                                          |
+|-------------------|--------------------------------------------------|
 | `order.` (prefix) | All order events (ack, fill, cancelled, expired) |
-| `combo.` (prefix) | Combo ack and status events |
-| `session.state` | Session phase changes |
+| `combo.` (prefix) | Combo ack and status events                      |
+| `session.state`   | Session phase changes                            |
 
 
 
@@ -507,10 +507,10 @@ pm-audit [--log-file data/audit.log] [--terminal]
 
 **Startup options:**
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--log-file` | `data/audit.log` | Output log file path |
-| `--terminal` / `-t` | off | Also print each entry to stdout |
+| Flag                | Default          | Description                     |
+|---------------------|------------------|---------------------------------|
+| `--log-file`        | `data/audit.log` | Output log file path            |
+| `--terminal` / `-t` | off              | Also print each entry to stdout |
 
 **Expected runtime input arguments:**
 
@@ -528,8 +528,8 @@ Use `--terminal` during demos so the class can see every event in real time.
 
 **Messages subscribed** (SUB from :5556):
 
-| Topic | Purpose |
-|---|---|
+| Topic                                    | Purpose                                        |
+|------------------------------------------|------------------------------------------------|
 | *(empty prefix — receives all messages)* | Records everything published on the PUB socket |
 
 
@@ -562,8 +562,8 @@ trade_id,symbol,buy_order_id,sell_order_id,buy_gateway,sell_gateway,price,quanti
 
 **Messages subscribed** (SUB from :5556):
 
-| Topic | Purpose |
-|---|---|
+| Topic            | Purpose                                            |
+|------------------|----------------------------------------------------|
 | `trade.executed` | Every matched trade pair — drives P&L calculations |
 
 See [P&L & Clearing](07-pnl-clearing.md) for the full accounting model.
@@ -580,8 +580,8 @@ pm-stats [--db data/stats.db]
 
 **Startup options:**
 
-| Flag | Default | Description |
-|------|---------|-------------|
+| Flag   | Default         | Description               |
+|--------|-----------------|---------------------------|
 | `--db` | `data/stats.db` | SQLite database file path |
 
 **Expected runtime input arguments:**
@@ -590,11 +590,11 @@ None.
 
 **Subscriptions:**
 
-| Topic | Purpose |
-|---|---|
-| `trade.*` | Updates OHLCV, VWAP, min/max, volume, trade log |
-| `book.*` | Records opening bid/ask prices; drives 15-minute snapshots |
-| `system.eod` | Records end-of-day closing bid/ask prices |
+| Topic        | Purpose                                                    |
+|--------------|------------------------------------------------------------|
+| `trade.*`    | Updates OHLCV, VWAP, min/max, volume, trade log            |
+| `book.*`     | Records opening bid/ask prices; drives 15-minute snapshots |
+| `system.eod` | Records end-of-day closing bid/ask prices                  |
 
 **On engine shutdown**, the engine broadcasts `system.eod` before closing sockets.
 `pm-stats` receives it and immediately flushes the closing bid/ask for every active symbol
@@ -605,18 +605,18 @@ into `daily_stats`.
 **OHLCV and VWAP** accumulate in memory, one `SymbolStats` object per symbol, and are
 flushed to `daily_stats` after each trade.
 
-| Statistic | Trigger | Rule |
-|-----------|---------|------|
-| `open_price` | First `trade.*` of the day | Set once; never overwritten |
-| `close_price` | Every `trade.*` | Always overwritten with the latest price |
-| `high_price` | Every `trade.*` | Running `max(current, trade_price)` |
-| `low_price` | Every `trade.*` | Running `min(current, trade_price)` |
-| `volume` | Every `trade.*` | Cumulative sum of matched quantities |
-| `trade_count` | Every `trade.*` | Incremented by 1 |
-| `vwap` | Every `trade.*` | $\sum(price \times qty) / \sum(qty)$; maintained as two running accumulators |
-| `largest_trade_qty/price` | Every `trade.*` | Replaced when `qty > current_largest` |
-| `open_bid/ask` | First `book.*` update of the day | Set once from the book snapshot |
-| `close_bid/ask` | `system.eod` | Overwritten with the final bid/ask from the book |
+| Statistic                 | Trigger                          | Rule                                                                         |
+|---------------------------|----------------------------------|------------------------------------------------------------------------------|
+| `open_price`              | First `trade.*` of the day       | Set once; never overwritten                                                  |
+| `close_price`             | Every `trade.*`                  | Always overwritten with the latest price                                     |
+| `high_price`              | Every `trade.*`                  | Running `max(current, trade_price)`                                          |
+| `low_price`               | Every `trade.*`                  | Running `min(current, trade_price)`                                          |
+| `volume`                  | Every `trade.*`                  | Cumulative sum of matched quantities                                         |
+| `trade_count`             | Every `trade.*`                  | Incremented by 1                                                             |
+| `vwap`                    | Every `trade.*`                  | $\sum(price \times qty) / \sum(qty)$; maintained as two running accumulators |
+| `largest_trade_qty/price` | Every `trade.*`                  | Replaced when `qty > current_largest`                                        |
+| `open_bid/ask`            | First `book.*` update of the day | Set once from the book snapshot                                              |
+| `close_bid/ask`           | `system.eod`                     | Overwritten with the final bid/ask from the book                             |
 
 **15-minute price snapshots** are written to `price_snapshots` when a `book.*` message
 arrives and at least 15 minutes have elapsed since the last snapshot for that symbol
@@ -642,23 +642,23 @@ The database lives at `data/stats.db` (SQLite 3). Three tables are maintained.
 
 One row per `(date, symbol)`. Upserted on every trade and again when `system.eod` arrives.
 
-| Column | Type | Description |
-|---|---|---|
-| `date` | TEXT (PK) | Calendar date `YYYY-MM-DD` |
-| `symbol` | TEXT (PK) | Instrument ticker |
-| `open_price` | REAL | Price of the first trade of the day |
-| `high_price` | REAL | Highest trade price of the day |
-| `low_price` | REAL | Lowest trade price of the day |
-| `close_price` | REAL | Price of the last trade of the day |
-| `open_bid` | REAL | Best bid at the time of the first book update |
-| `open_ask` | REAL | Best ask at the time of the first book update |
-| `close_bid` | REAL | Best bid recorded at engine shutdown (`system.eod`) |
-| `close_ask` | REAL | Best ask recorded at engine shutdown (`system.eod`) |
-| `volume` | INTEGER | Total traded quantity for the day |
-| `trade_count` | INTEGER | Number of individual trades |
-| `vwap` | REAL | Volume-weighted average price: $\sum(price \times qty) / \sum(qty)$ |
-| `largest_trade_qty` | INTEGER | Quantity of the single largest trade |
-| `largest_trade_price` | REAL | Price of the single largest trade |
+| Column                | Type      | Description                                                         |
+|-----------------------|-----------|---------------------------------------------------------------------|
+| `date`                | TEXT (PK) | Calendar date `YYYY-MM-DD`                                          |
+| `symbol`              | TEXT (PK) | Instrument ticker                                                   |
+| `open_price`          | REAL      | Price of the first trade of the day                                 |
+| `high_price`          | REAL      | Highest trade price of the day                                      |
+| `low_price`           | REAL      | Lowest trade price of the day                                       |
+| `close_price`         | REAL      | Price of the last trade of the day                                  |
+| `open_bid`            | REAL      | Best bid at the time of the first book update                       |
+| `open_ask`            | REAL      | Best ask at the time of the first book update                       |
+| `close_bid`           | REAL      | Best bid recorded at engine shutdown (`system.eod`)                 |
+| `close_ask`           | REAL      | Best ask recorded at engine shutdown (`system.eod`)                 |
+| `volume`              | INTEGER   | Total traded quantity for the day                                   |
+| `trade_count`         | INTEGER   | Number of individual trades                                         |
+| `vwap`                | REAL      | Volume-weighted average price: $\sum(price \times qty) / \sum(qty)$ |
+| `largest_trade_qty`   | INTEGER   | Quantity of the single largest trade                                |
+| `largest_trade_price` | REAL      | Price of the single largest trade                                   |
 
 Example query — end-of-day summary:
 ```sql
@@ -676,14 +676,14 @@ ORDER BY date DESC, symbol;
 
 One row per `(ts, symbol)` written every **15 minutes** when a book update arrives.
 
-| Column | Type | Description |
-|---|---|---|
-| `ts` | TEXT (PK) | ISO-8601 timestamp (UTC, second precision) |
-| `symbol` | TEXT (PK) | Instrument ticker |
-| `mid_price` | REAL | `(best_bid + best_ask) / 2`; falls back to whichever side is present, then `last_price` |
-| `best_bid` | REAL | Best bid price at snapshot time (null if empty book) |
-| `best_ask` | REAL | Best ask price at snapshot time (null if empty book) |
-| `pct_change` | REAL | Percentage change of `mid_price` vs. previous snapshot: $100 \times (mid_{t} - mid_{t-1}) / mid_{t-1}$ |
+| Column       | Type      | Description                                                                                            |
+|--------------|-----------|--------------------------------------------------------------------------------------------------------|
+| `ts`         | TEXT (PK) | ISO-8601 timestamp (UTC, second precision)                                                             |
+| `symbol`     | TEXT (PK) | Instrument ticker                                                                                      |
+| `mid_price`  | REAL      | `(best_bid + best_ask) / 2`; falls back to whichever side is present, then `last_price`                |
+| `best_bid`   | REAL      | Best bid price at snapshot time (null if empty book)                                                   |
+| `best_ask`   | REAL      | Best ask price at snapshot time (null if empty book)                                                   |
+| `pct_change` | REAL      | Percentage change of `mid_price` vs. previous snapshot: $100 \times (mid_{t} - mid_{t-1}) / mid_{t-1}$ |
 
 Example query — intraday price path for MSFT:
 ```sql
@@ -700,15 +700,15 @@ ORDER BY ts;
 
 Append-only record of every individual matched trade.
 
-| Column | Type | Description |
-|---|---|---|
-| `ts` | TEXT | ISO-8601 timestamp (UTC, millisecond precision) |
-| `trade_id` | TEXT (PK) | UUID from the engine |
-| `symbol` | TEXT | Instrument ticker |
-| `price` | REAL | Execution price |
-| `quantity` | INTEGER | Matched quantity |
-| `buy_gateway_id` | TEXT | Gateway that submitted the buy order |
-| `sell_gateway_id` | TEXT | Gateway that submitted the sell order |
+| Column            | Type      | Description                                     |
+|-------------------|-----------|-------------------------------------------------|
+| `ts`              | TEXT      | ISO-8601 timestamp (UTC, millisecond precision) |
+| `trade_id`        | TEXT (PK) | UUID from the engine                            |
+| `symbol`          | TEXT      | Instrument ticker                               |
+| `price`           | REAL      | Execution price                                 |
+| `quantity`        | INTEGER   | Matched quantity                                |
+| `buy_gateway_id`  | TEXT      | Gateway that submitted the buy order            |
+| `sell_gateway_id` | TEXT      | Gateway that submitted the sell order           |
 
 Example query — all trades for a symbol sorted by time:
 ```sql
@@ -743,21 +743,21 @@ prints output, and exits.
 
 **Global options:**
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--db` | `data/stats.db` | SQLite database file path |
-| `--format` | `table` | Output format: `table`, `json`, or `csv` |
-| `--no-header` | off | Suppress header row in `csv` output |
+| Flag          | Default         | Description                              |
+|---------------|-----------------|------------------------------------------|
+| `--db`        | `data/stats.db` | SQLite database file path                |
+| `--format`    | `table`         | Output format: `table`, `json`, or `csv` |
+| `--no-header` | off             | Suppress header row in `csv` output      |
 
 **Subcommands:**
 
-| Subcommand | Purpose | Typical filters |
-|---|---|---|
-| `daily` | Daily OHLCV summary from `daily_stats` | `--date`, `--symbol`, `--limit`, `--wide` |
-| `snapshots` | Intraday snapshots from `price_snapshots` | `--symbol` (required), `--date`, `--from`, `--to`, `--limit` |
-| `trades` | Trade history from `trade_log` | `--symbol`, `--date`, `--from`, `--to`, `--limit` |
-| `symbols` | Discover symbols available in stats data | `--date` |
-| `dates` | Discover trading dates available in `daily_stats` | `--symbol` |
+| Subcommand  | Purpose                                           | Typical filters                                              |
+|-------------|---------------------------------------------------|--------------------------------------------------------------|
+| `daily`     | Daily OHLCV summary from `daily_stats`            | `--date`, `--symbol`, `--limit`, `--wide`                    |
+| `snapshots` | Intraday snapshots from `price_snapshots`         | `--symbol` (required), `--date`, `--from`, `--to`, `--limit` |
+| `trades`    | Trade history from `trade_log`                    | `--symbol`, `--date`, `--from`, `--to`, `--limit`            |
+| `symbols`   | Discover symbols available in stats data          | `--date`                                                     |
+| `dates`     | Discover trading dates available in `daily_stats` | `--symbol`                                                   |
 
 **Examples:**
 
@@ -808,11 +808,11 @@ pm-scheduler [--config engine_config.yaml] [--now] [--delay 3]
 
 **Startup options:**
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--config` / `-c` | `engine_config.yaml` | Config file containing the `schedule` section |
-| `--now` | off | Skip wall-clock waiting; send all transitions immediately with a delay between each |
-| `--delay` | 3 | Seconds between transitions in `--now` mode |
+| Flag              | Default              | Description                                                                         |
+|-------------------|----------------------|-------------------------------------------------------------------------------------|
+| `--config` / `-c` | `engine_config.yaml` | Config file containing the `schedule` section                                       |
+| `--now`           | off                  | Skip wall-clock waiting; send all transitions immediately with a delay between each |
+| `--delay`         | 3                    | Seconds between transitions in `--now` mode                                         |
 
 **Expected runtime input arguments:**
 
@@ -820,8 +820,8 @@ None.
 
 **Messages sent** (PUSH → :5555):
 
-| Topic | Purpose |
-|---|---|
+| Topic                | Purpose                                               |
+|----------------------|-------------------------------------------------------|
 | `session.transition` | Requests the engine to move to the next session phase |
 
 The scheduler does not subscribe to any PUB messages — it is fire-and-forget.
@@ -842,11 +842,11 @@ pm-ticker [--interval 30] [--db data/stats.db] [--db-interval 900]
 
 **Startup options:**
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--interval` | 30 | Seconds between printed ticker lines |
-| `--db` | `data/stats.db` | Path to the statistics SQLite database |
-| `--db-interval` | 900 | Seconds between daily_stats DB re-queries (15 min) |
+| Flag            | Default         | Description                                        |
+|-----------------|-----------------|----------------------------------------------------|
+| `--interval`    | 30              | Seconds between printed ticker lines               |
+| `--db`          | `data/stats.db` | Path to the statistics SQLite database             |
+| `--db-interval` | 900             | Seconds between daily_stats DB re-queries (15 min) |
 
 **Expected runtime input arguments:**
 
@@ -860,15 +860,15 @@ None.
 
 Each symbol segment shows:
 
-| Field | Description |
-|-------|-------------|
-| Symbol | Instrument name (bold cyan) |
-| Last price | Most recent trade price or closing price from DB |
-| Change % | Percentage change vs. today's open price (green if up, red if down) |
-| H: / L: | Intraday high (green) and low (red) from the daily_stats table |
-| Vol | Cumulative traded volume for the day |
-| (nT) | Number of trades today |
-| Bid/Ask | Current best bid (green) / best ask (red) from live book |
+| Field      | Description                                                         |
+|------------|---------------------------------------------------------------------|
+| Symbol     | Instrument name (bold cyan)                                         |
+| Last price | Most recent trade price or closing price from DB                    |
+| Change %   | Percentage change vs. today's open price (green if up, red if down) |
+| H: / L:    | Intraday high (green) and low (red) from the daily_stats table      |
+| Vol        | Cumulative traded volume for the day                                |
+| (nT)       | Number of trades today                                              |
+| Bid/Ask    | Current best bid (green) / best ask (red) from live book            |
 
 The ticker combines **live ZMQ data** (last price, bid/ask from `book.*` messages)
 with **historical DB data** (OHLCV, trade count from `pm-stats`'s SQLite database).
@@ -876,8 +876,8 @@ The DB is re-queried every `--db-interval` seconds to pick up updated daily stat
 
 **Messages subscribed** (SUB from :5556):
 
-| Topic | Purpose |
-|---|---|
+| Topic            | Purpose                                  |
+|------------------|------------------------------------------|
 | `book.` (prefix) | Live last price, best bid/ask per symbol |
 
 !!! note "Depends on pm-stats"
@@ -898,10 +898,10 @@ pm-board [--rows 8] [--interval 10]
 
 **Startup options:**
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--rows` / `-r` | 8 | Maximum number of symbols (rows) displayed per page |
-| `--interval` / `-i` | 10 | Seconds before auto-rotating to the next page |
+| Flag                | Default | Description                                         |
+|---------------------|---------|-----------------------------------------------------|
+| `--rows` / `-r`     | 8       | Maximum number of symbols (rows) displayed per page |
+| `--interval` / `-i` | 10      | Seconds before auto-rotating to the next page       |
 
 **Expected runtime input arguments:**
 
@@ -910,25 +910,25 @@ pm-board [--rows 8] [--interval 10]
 
 **Controls:**
 
-| Key | Action |
-|-----|--------|
-| ++enter++ | Advance to next page immediately |
-| ++ctrl+c++ | Exit |
+| Key        | Action                           |
+|------------|----------------------------------|
+| ++enter++  | Advance to next page immediately |
+| ++ctrl+c++ | Exit                             |
 
 **Display columns:**
 
-| Column | Description |
-|--------|-------------|
-| Symbol | Instrument ticker |
-| Last | Last traded price (coloured green if up from first trade, red if down) |
-| Chg % | Percentage change from the first trade of the session: $100 \times (last - first) / first$ |
-| Bid | Best (highest) bid price currently in the book |
-| Ask | Best (lowest) ask price currently in the book |
-| Spread | Difference between best ask and best bid: $ask - bid$ |
-| Last Buy | Last trade price where this symbol was bought (green) |
-| Last Sell | Last trade price where this symbol was sold (red) |
-| Vol | Cumulative traded volume for the session |
-| Updated | Timestamp of the most recent book update for this symbol |
+| Column    | Description                                                                                |
+|-----------|--------------------------------------------------------------------------------------------|
+| Symbol    | Instrument ticker                                                                          |
+| Last      | Last traded price (coloured green if up from first trade, red if down)                     |
+| Chg %     | Percentage change from the first trade of the session: $100 \times (last - first) / first$ |
+| Bid       | Best (highest) bid price currently in the book                                             |
+| Ask       | Best (lowest) ask price currently in the book                                              |
+| Spread    | Difference between best ask and best bid: $ask - bid$                                      |
+| Last Buy  | Last trade price where this symbol was bought (green)                                      |
+| Last Sell | Last trade price where this symbol was sold (red)                                          |
+| Vol       | Cumulative traded volume for the session                                                   |
+| Updated   | Timestamp of the most recent book update for this symbol                                   |
 
 The header bar shows: page number, total pages, number of active symbols, the
 auto-rotate interval, and the current clock time.
@@ -948,10 +948,10 @@ auto-rotate interval, and the current clock time.
 
 **Messages subscribed** (SUB from :5556):
 
-| Topic | Purpose |
-|---|---|
+| Topic            | Purpose                                                        |
+|------------------|----------------------------------------------------------------|
 | `book.` (prefix) | Book updates for all symbols — discovers symbols automatically |
-| `trade.executed` | Every matched trade — drives volume and last-price tracking |
+| `trade.executed` | Every matched trade — drives volume and last-price tracking    |
 
 !!! tip "Large-screen demo"
     For classroom or conference demos, maximise the terminal and use large rows:
@@ -970,19 +970,19 @@ pm-ai-trader --id AI01 [options]
 
 **Startup options:**
 
-| Flag | Default | Description |
-|---|---|---|
-| `--id` | required | Gateway ID used by the bot (e.g. `AI01`) |
-| `--profile` | `cautious` | Personality profile (`available_profiles()` set) |
-| `--symbols` | empty | Comma-separated symbol allowlist (e.g. `AAPL,MSFT`) |
-| `--seed` | `1` | RNG seed for deterministic behaviour |
-| `--duration` | `0` | Runtime in seconds; `0` means run until stopped |
-| `--run-id` | autogenerated | Optional run label for audit/traceability |
-| `--max-position` | `1000` | Absolute per-symbol position limit |
-| `--max-rejects` | `25` | Reject threshold before cooldown breaker trips |
-| `--reject-window` | `10.0` | Rolling reject window in seconds |
-| `--reject-cooldown` | `5.0` | Pause interval after reject breaker trips |
-| `--stale-data` | `4.0` | Max market-data age (seconds) before pausing orders |
+| Flag                | Default       | Description                                         |
+|---------------------|---------------|-----------------------------------------------------|
+| `--id`              | required      | Gateway ID used by the bot (e.g. `AI01`)            |
+| `--profile`         | `cautious`    | Personality profile (`available_profiles()` set)    |
+| `--symbols`         | empty         | Comma-separated symbol allowlist (e.g. `AAPL,MSFT`) |
+| `--seed`            | `1`           | RNG seed for deterministic behaviour                |
+| `--duration`        | `0`           | Runtime in seconds; `0` means run until stopped     |
+| `--run-id`          | autogenerated | Optional run label for audit/traceability           |
+| `--max-position`    | `1000`        | Absolute per-symbol position limit                  |
+| `--max-rejects`     | `25`          | Reject threshold before cooldown breaker trips      |
+| `--reject-window`   | `10.0`        | Rolling reject window in seconds                    |
+| `--reject-cooldown` | `5.0`         | Pause interval after reject breaker trips           |
+| `--stale-data`      | `4.0`         | Max market-data age (seconds) before pausing orders |
 
 **Expected runtime input arguments:**
 
@@ -1023,22 +1023,22 @@ pm-ai-swarm [options]
 
 **Startup options:**
 
-| Flag | Default | Description |
-|---|---|---|
-| `--count` | `10` | Number of bot processes to launch |
-| `--prefix` | `AI` | Gateway-ID prefix |
-| `--start-index` | `1` | First numeric suffix for generated IDs |
-| `--profiles` | all profiles | Comma-separated profile cycle |
-| `--symbols` | from config | Comma-separated symbol list override |
-| `--config` | `engine_config.yaml` | Config used to discover symbols |
-| `--seed-base` | `1000` | Base seed; bot `i` gets `seed-base + i` |
-| `--duration` | `60.0` | Per-bot runtime in seconds |
-| `--python` | current interpreter | Python executable used for child processes |
-| `--max-position` | `1000` | Passed through to child bots |
-| `--max-rejects` | `25` | Passed through to child bots |
-| `--reject-window` | `10.0` | Passed through to child bots |
-| `--reject-cooldown` | `5.0` | Passed through to child bots |
-| `--stale-data` | `4.0` | Passed through to child bots |
+| Flag                | Default              | Description                                |
+|---------------------|----------------------|--------------------------------------------|
+| `--count`           | `10`                 | Number of bot processes to launch          |
+| `--prefix`          | `AI`                 | Gateway-ID prefix                          |
+| `--start-index`     | `1`                  | First numeric suffix for generated IDs     |
+| `--profiles`        | all profiles         | Comma-separated profile cycle              |
+| `--symbols`         | from config          | Comma-separated symbol list override       |
+| `--config`          | `engine_config.yaml` | Config used to discover symbols            |
+| `--seed-base`       | `1000`               | Base seed; bot `i` gets `seed-base + i`    |
+| `--duration`        | `60.0`               | Per-bot runtime in seconds                 |
+| `--python`          | current interpreter  | Python executable used for child processes |
+| `--max-position`    | `1000`               | Passed through to child bots               |
+| `--max-rejects`     | `25`                 | Passed through to child bots               |
+| `--reject-window`   | `10.0`               | Passed through to child bots               |
+| `--reject-cooldown` | `5.0`                | Passed through to child bots               |
+| `--stale-data`      | `4.0`                | Passed through to child bots               |
 
 **Expected runtime input arguments:**
 
@@ -1063,26 +1063,26 @@ pm-mm-bot --symbol AAPL [options]
 
 **Startup options:**
 
-| Flag | Default | Description |
-|---|---|---|
-| `--symbol` | required | Instrument to make a market in (e.g. `AAPL`) |
-| `--gap` | `0.10` | Total spread in price units (bid at mid−gap/2, ask at mid+gap/2) |
-| `--qty` | `500` | Quote size on each leg |
-| `--id-suffix` | `01` | Running number for gateway ID (`MM_AAPL_01`) |
-| `--drift-ticks` | `3` | Reprice when mid moves by this many ticks |
-| `--reissue-delay-ms` | `200` | Milliseconds to wait after fill before re-issuing |
-| `--tif` | `DAY` | Time-in-force for quote legs (`DAY` or `GTC`) |
-| `--heartbeat-interval-sec` | `5.0` | Periodic live-quote check interval |
-| `--startup-session-timeout-sec` | `5.0` | Max wait for first `session.state` event |
-| `--bootstrap-timeout-sec` | `1.0` | Max wait for QBOOT reply |
-| `--cancel-timeout-sec` | `1.0` | Max wait for cancel confirmation |
-| `--shutdown-timeout-sec` | `2.0` | Max wait for cancel on SIGINT/SIGTERM |
-| `--qlegs-reconcile-interval-sec` | `15.0` | Periodic QLEGS reconciliation interval |
-| `--initial_min` | unset | Lower bound for random bootstrap price |
-| `--initial_max` | unset | Upper bound for random bootstrap price |
-| `--engine-pull` | `tcp://127.0.0.1:5555` | Engine PUSH/PULL address |
-| `--engine-pub` | `tcp://127.0.0.1:5556` | Engine PUB address |
-| `-v` / `--verbose` | off | Print debug-level events |
+| Flag                             | Default                | Description                                                      |
+|----------------------------------|------------------------|------------------------------------------------------------------|
+| `--symbol`                       | required               | Instrument to make a market in (e.g. `AAPL`)                     |
+| `--gap`                          | `0.10`                 | Total spread in price units (bid at mid−gap/2, ask at mid+gap/2) |
+| `--qty`                          | `500`                  | Quote size on each leg                                           |
+| `--id-suffix`                    | `01`                   | Running number for gateway ID (`MM_AAPL_01`)                     |
+| `--drift-ticks`                  | `3`                    | Reprice when mid moves by this many ticks                        |
+| `--reissue-delay-ms`             | `200`                  | Milliseconds to wait after fill before re-issuing                |
+| `--tif`                          | `DAY`                  | Time-in-force for quote legs (`DAY` or `GTC`)                    |
+| `--heartbeat-interval-sec`       | `5.0`                  | Periodic live-quote check interval                               |
+| `--startup-session-timeout-sec`  | `5.0`                  | Max wait for first `session.state` event                         |
+| `--bootstrap-timeout-sec`        | `1.0`                  | Max wait for QBOOT reply                                         |
+| `--cancel-timeout-sec`           | `1.0`                  | Max wait for cancel confirmation                                 |
+| `--shutdown-timeout-sec`         | `2.0`                  | Max wait for cancel on SIGINT/SIGTERM                            |
+| `--qlegs-reconcile-interval-sec` | `15.0`                 | Periodic QLEGS reconciliation interval                           |
+| `--initial_min`                  | unset                  | Lower bound for random bootstrap price                           |
+| `--initial_max`                  | unset                  | Upper bound for random bootstrap price                           |
+| `--engine-pull`                  | `tcp://127.0.0.1:5555` | Engine PUSH/PULL address                                         |
+| `--engine-pub`                   | `tcp://127.0.0.1:5556` | Engine PUB address                                               |
+| `-v` / `--verbose`               | off                    | Print debug-level events                                         |
 
 **Expected runtime input arguments:**
 
@@ -1115,15 +1115,15 @@ must be pre-registered in `engine_config.yaml` with `role: MARKET_MAKER`.
 
 **State machine:**
 
-| State | Meaning |
-|---|---|
-| `CONNECTING` | Opening ZMQ sockets |
-| `AUTHENTICATING` | Waiting for gateway auth reply |
-| `WAITING_FOR_SESSION` | Waiting for session to enter CONTINUOUS |
-| `QUOTING` | Active two-sided quote is resting in the book |
-| `REPRICING` | Mid-price drift detected; preparing new quote |
-| `REISSUING` | Sending replacement quote after fill or drift |
-| `PAUSED` | Session is not CONTINUOUS (auction, halt, closed) |
+| State                 | Meaning                                           |
+|-----------------------|---------------------------------------------------|
+| `CONNECTING`          | Opening ZMQ sockets                               |
+| `AUTHENTICATING`      | Waiting for gateway auth reply                    |
+| `WAITING_FOR_SESSION` | Waiting for session to enter CONTINUOUS           |
+| `QUOTING`             | Active two-sided quote is resting in the book     |
+| `REPRICING`           | Mid-price drift detected; preparing new quote     |
+| `REISSUING`           | Sending replacement quote after fill or drift     |
+| `PAUSED`              | Session is not CONTINUOUS (auction, halt, closed) |
 
 **Shutdown (Ctrl-C or SIGTERM):**
 
@@ -1133,33 +1133,33 @@ must be pre-registered in `engine_config.yaml` with `role: MARKET_MAKER`.
 
 **Messages sent** (PUSH → :5555):
 
-| Topic | Purpose |
-|---|---|
-| `system.gateway_connect` | Authentication request |
-| `system.symbols_request` | Request symbol list |
+| Topic                            | Purpose                                                |
+|----------------------------------|--------------------------------------------------------|
+| `system.gateway_connect`         | Authentication request                                 |
+| `system.symbols_request`         | Request symbol list                                    |
 | `system.quote_bootstrap_request` | Request active quote state for adopt-or-create (QBOOT) |
-| `system.quote_legs_request` | Request quote-leg mapping for reconciliation (QLEGS) |
-| `quote.new` | Submit or replace a two-sided quote |
-| `quote.cancel` | Cancel the active quote (shutdown or session change) |
+| `system.quote_legs_request`      | Request quote-leg mapping for reconciliation (QLEGS)   |
+| `quote.new`                      | Submit or replace a two-sided quote                    |
+| `quote.cancel`                   | Cancel the active quote (shutdown or session change)   |
 
 **Messages subscribed** (SUB from :5556):
 
-| Topic | Purpose |
-|---|---|
-| `system.gateway_auth.{GW_ID}` | Authentication reply |
-| `system.symbols.{GW_ID}` | Symbol list reply |
-| `system.quote_bootstrap.{GW_ID}` | Bootstrap snapshot with active quote state |
-| `system.quote_legs.{GW_ID}` | Quote-leg reconciliation reply |
-| `book.{SYMBOL}` | Book updates — drives mid-price tracking and drift detection |
-| `depth.{SYMBOL}` | Depth / imbalance metrics (microprice, mid_price) for the assigned symbol |
-| `trade.executed` | Trade events — fallback reference price source |
-| `order.fill.{GW_ID}` | Fill notifications on quote legs |
-| `order.cancelled.{GW_ID}` | Cancel confirmations for quote legs |
-| `quote.ack.{GW_ID}` | Quote accepted/rejected acknowledgements |
-| `quote.status.{GW_ID}` | Quote lifecycle changes (inactivated, cancelled) |
-| `session.state` | Session phase transitions (pause/resume quoting) |
-| `circuit_breaker.halt.{SYMBOL}` | Circuit breaker halt for the assigned symbol |
-| `circuit_breaker.resume.{SYMBOL}` | Circuit breaker resume for the assigned symbol |
+| Topic                             | Purpose                                                                   |
+|-----------------------------------|---------------------------------------------------------------------------|
+| `system.gateway_auth.{GW_ID}`     | Authentication reply                                                      |
+| `system.symbols.{GW_ID}`          | Symbol list reply                                                         |
+| `system.quote_bootstrap.{GW_ID}`  | Bootstrap snapshot with active quote state                                |
+| `system.quote_legs.{GW_ID}`       | Quote-leg reconciliation reply                                            |
+| `book.{SYMBOL}`                   | Book updates — drives mid-price tracking and drift detection              |
+| `depth.{SYMBOL}`                  | Depth / imbalance metrics (microprice, mid_price) for the assigned symbol |
+| `trade.executed`                  | Trade events — fallback reference price source                            |
+| `order.fill.{GW_ID}`              | Fill notifications on quote legs                                          |
+| `order.cancelled.{GW_ID}`         | Cancel confirmations for quote legs                                       |
+| `quote.ack.{GW_ID}`               | Quote accepted/rejected acknowledgements                                  |
+| `quote.status.{GW_ID}`            | Quote lifecycle changes (inactivated, cancelled)                          |
+| `session.state`                   | Session phase transitions (pause/resume quoting)                          |
+| `circuit_breaker.halt.{SYMBOL}`   | Circuit breaker halt for the assigned symbol                              |
+| `circuit_breaker.resume.{SYMBOL}` | Circuit breaker resume for the assigned symbol                            |
 
 See [Market-Maker Bot](17-mm-bot.md) for usage examples, configuration guide,
 bootstrap details, and troubleshooting.
@@ -1177,12 +1177,12 @@ pm-ralf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5580] [--engi
 
 **Startup options:**
 
-| Flag | Default | Description |
-|---|---|---|
-| `--config` / `-c` | `engine_config.yaml` | Config file; optional `post_trade_gateway` section |
-| `--bind` | from config / `0.0.0.0` | TCP bind address for external clients |
-| `--port` | from config / `5580` | TCP listen port for RALF clients |
-| `--engine-pub` | `tcp://127.0.0.1:5556` | Engine PUB address consumed by the gateway |
+| Flag              | Default                 | Description                                        |
+|-------------------|-------------------------|----------------------------------------------------|
+| `--config` / `-c` | `engine_config.yaml`    | Config file; optional `post_trade_gateway` section |
+| `--bind`          | from config / `0.0.0.0` | TCP bind address for external clients              |
+| `--port`          | from config / `5580`    | TCP listen port for RALF clients                   |
+| `--engine-pub`    | `tcp://127.0.0.1:5556`  | Engine PUB address consumed by the gateway         |
 
 **Expected runtime input arguments:**
 
@@ -1196,23 +1196,23 @@ No terminal input. External parties connect over TCP and send RALF lines:
 
 **Messages subscribed** (SUB from :5556):
 
-| Topic | Purpose |
-|---|---|
+| Topic            | Purpose                             |
+|------------------|-------------------------------------|
 | `trade.executed` | Source for `EXEC` post-trade events |
-| `system.eod` | Source for `EOD` summary markers |
+| `system.eod`     | Source for `EOD` summary markers    |
 
 **Messages published** (TCP RALF feed):
 
-| Message type | Purpose |
-|---|---|
-| `WELCOME` | Session acceptance and capabilities |
-| `SNAP` | Subscription/recovery baseline |
-| `EXEC` | Live execution dissemination |
-| `EOD` | End-of-day summary marker |
-| `HB` | Heartbeat |
-| `PONG` | Ping reply |
-| `ERR` | Protocol/entitlement/replay errors |
-| `EXIT` | Session termination reason |
+| Message type | Purpose                             |
+|--------------|-------------------------------------|
+| `WELCOME`    | Session acceptance and capabilities |
+| `SNAP`       | Subscription/recovery baseline      |
+| `EXEC`       | Live execution dissemination        |
+| `EOD`        | End-of-day summary marker           |
+| `HB`         | Heartbeat                           |
+| `PONG`       | Ping reply                          |
+| `ERR`        | Protocol/entitlement/replay errors  |
+| `EXIT`       | Session termination reason          |
 
 For external usage and examples see [Post-Trade Dissemination](18-post-trade.md)
 and [RALF Protocol Reference](93-app-ralf-protocol.md).
@@ -1232,10 +1232,10 @@ pm-index [--config engine_config.yaml] [--reset]
 
 **Startup options:**
 
-| Flag | Default | Description |
-|---|---|---|
-| `--config` / `-c` | `engine_config.yaml` | Path to engine config YAML containing the `indices:` section |
-| `--reset` | off | Delete persisted state files and reinitialise all indices from config |
+| Flag              | Default              | Description                                                           |
+|-------------------|----------------------|-----------------------------------------------------------------------|
+| `--config` / `-c` | `engine_config.yaml` | Path to engine config YAML containing the `indices:` section          |
+| `--reset`         | off                  | Delete persisted state files and reinitialise all indices from config |
 
 **Expected runtime input arguments:**
 
@@ -1257,35 +1257,35 @@ None. `pm-index` is a long-running background process after startup.
 
 **Messages subscribed** (SUB from :5556):
 
-| Topic | Purpose |
-|---|---|
-| `trade.executed` | Drives index recalculation for constituent symbols |
-| `session.state` | Tracks intraday OHLC reset points and triggers EOD finalisation on `CLOSED` |
-| `system.eod` | Alternate EOD trigger — writes final snapshot and OHLC record |
+| Topic            | Purpose                                                                     |
+|------------------|-----------------------------------------------------------------------------|
+| `trade.executed` | Drives index recalculation for constituent symbols                          |
+| `session.state`  | Tracks intraday OHLC reset points and triggers EOD finalisation on `CLOSED` |
+| `system.eod`     | Alternate EOD trigger — writes final snapshot and OHLC record               |
 
 **Messages received** (PULL :5559):
 
-| Topic | Purpose |
-|---|---|
-| `index.history_request` | Returns LEVEL and EOD records from the JSONL history file |
-| `index.corp_action` | Applies a stock split, cash dividend, or shares-issuance adjustment |
-| `index.constituent_change` | Adds or removes a constituent symbol from an index basket |
+| Topic                      | Purpose                                                             |
+|----------------------------|---------------------------------------------------------------------|
+| `index.history_request`    | Returns LEVEL and EOD records from the JSONL history file           |
+| `index.corp_action`        | Applies a stock split, cash dividend, or shares-issuance adjustment |
+| `index.constituent_change` | Adds or removes a constituent symbol from an index basket           |
 
 **Messages published** (PUB :5558):
 
-| Topic | Purpose |
-|---|---|
-| `index.update` | Current index level, OHLC, aggregate cap, divisor, and session state |
-| `index.history.{GW_ID}` | History query response addressed to the requesting gateway |
-| `index.corp_action_ack.{GW_ID}` | Corporate action applied / rejected acknowledgement |
-| `index.constituent_change_ack.{GW_ID}` | Constituent add or delist accepted / rejected acknowledgement |
-| `index.error.{GW_ID}` | Generic error for malformed or rejected requests |
+| Topic                                  | Purpose                                                              |
+|----------------------------------------|----------------------------------------------------------------------|
+| `index.update`                         | Current index level, OHLC, aggregate cap, divisor, and session state |
+| `index.history.{GW_ID}`                | History query response addressed to the requesting gateway           |
+| `index.corp_action_ack.{GW_ID}`        | Corporate action applied / rejected acknowledgement                  |
+| `index.constituent_change_ack.{GW_ID}` | Constituent add or delist accepted / rejected acknowledgement        |
+| `index.error.{GW_ID}`                  | Generic error for malformed or rejected requests                     |
 
 **Persistence:**
 
-| File | Purpose |
-|---|---|
-| `data/indexes/<ID>_state.json` | Divisor, last prices, and intraday OHLC checkpoint — rewritten after each EOD and corporate action |
+| File                              | Purpose                                                                                                           |
+|-----------------------------------|-------------------------------------------------------------------------------------------------------------------|
+| `data/indexes/<ID>_state.json`    | Divisor, last prices, and intraday OHLC checkpoint — rewritten after each EOD and corporate action                |
 | `data/indexes/<ID>_history.jsonl` | Append-only JSONL audit trail with `INIT`, `LEVEL`, `EOD`, `CORP_ACTION`, `ADD_CONSTITUENT`, and `DELIST` records |
 
 See [Market Index (pm-index)](22-index.md) for configuration details, calculation explanation, and corporate action procedures.
@@ -1306,15 +1306,15 @@ pm-api-gateway [--config engine_config.yaml] [--instance NAME] [options]
 
 **Startup options:**
 
-| Flag | Default | Description |
-|---|---|---|
-| `--config PATH` | `EDUMATCHER_CONFIG` resolution | Path to `engine_config.yaml` |
-| `--instance NAME` | auto-selected when only one entry exists | Named `api_gateways` entry to run; required when more than one entry is configured |
-| `--host ADDR` | config value | Override HTTP bind address |
-| `--port PORT` | config value | Override HTTP listen port |
-| `--engine-host HOST` | config value | Override engine host for ZMQ connections (cross-host deployments) |
-| `--stats-db PATH` | config value | Path to `data/stats.db` for `/history/*` endpoints |
-| `--log-level LEVEL` | config value | `debug`, `info`, `warning`, or `error` |
+| Flag                 | Default                                  | Description                                                                        |
+|----------------------|------------------------------------------|------------------------------------------------------------------------------------|
+| `--config PATH`      | `EDUMATCHER_CONFIG` resolution           | Path to `engine_config.yaml`                                                       |
+| `--instance NAME`    | auto-selected when only one entry exists | Named `api_gateways` entry to run; required when more than one entry is configured |
+| `--host ADDR`        | config value                             | Override HTTP bind address                                                         |
+| `--port PORT`        | config value                             | Override HTTP listen port                                                          |
+| `--engine-host HOST` | config value                             | Override engine host for ZMQ connections (cross-host deployments)                  |
+| `--stats-db PATH`    | config value                             | Path to `data/stats.db` for `/history/*` endpoints                                 |
+| `--log-level LEVEL`  | config value                             | `debug`, `info`, `warning`, or `error`                                             |
 
 **Expected runtime input arguments:**
 
@@ -1328,32 +1328,32 @@ No terminal input. External clients connect via HTTP or WebSocket.
 
 **REST endpoints** (base path `/api/v1`):
 
-| Method | Path | Key type | Purpose |
-|---|---|---|---|
-| `POST` | `/orders` | trading | Submit an order |
-| `DELETE` | `/orders/{id}` | trading | Cancel an order |
-| `PATCH` | `/orders/{id}` | trading | Amend price and/or quantity |
-| `GET` | `/orders` | trading | List live orders |
-| `POST` | `/oco` | trading | Submit OCO pair |
-| `POST` | `/combos` | trading | Submit combo order |
-| `POST` | `/quotes` | trading | Submit two-sided quote |
-| `DELETE` | `/quotes/{symbol}` | trading | Cancel active quote |
-| `POST` | `/mass-cancel` | trading | Cancel all or symbol-scoped exposure |
-| `GET` | `/symbols` | any | Instrument metadata |
-| `GET` | `/session` | any | Current engine session state |
-| `GET` | `/positions` | trading | Net positions by symbol |
-| `GET` | `/history/orders` | trading | Historical order lifecycle events |
-| `GET` | `/history/fills` | trading | Historical fills |
-| `GET` | `/history/trades` | any | Public trade log from `pm-stats` |
-| `GET` | `/history/daily` | any | Daily OHLCV from `pm-stats` |
-| `GET` | `/market-data` | any | Live order book top-of-book via REST |
+| Method   | Path               | Key type | Purpose                              |
+|----------|--------------------|----------|--------------------------------------|
+| `POST`   | `/orders`          | trading  | Submit an order                      |
+| `DELETE` | `/orders/{id}`     | trading  | Cancel an order                      |
+| `PATCH`  | `/orders/{id}`     | trading  | Amend price and/or quantity          |
+| `GET`    | `/orders`          | trading  | List live orders                     |
+| `POST`   | `/oco`             | trading  | Submit OCO pair                      |
+| `POST`   | `/combos`          | trading  | Submit combo order                   |
+| `POST`   | `/quotes`          | trading  | Submit two-sided quote               |
+| `DELETE` | `/quotes/{symbol}` | trading  | Cancel active quote                  |
+| `POST`   | `/mass-cancel`     | trading  | Cancel all or symbol-scoped exposure |
+| `GET`    | `/symbols`         | any      | Instrument metadata                  |
+| `GET`    | `/session`         | any      | Current engine session state         |
+| `GET`    | `/positions`       | trading  | Net positions by symbol              |
+| `GET`    | `/history/orders`  | trading  | Historical order lifecycle events    |
+| `GET`    | `/history/fills`   | trading  | Historical fills                     |
+| `GET`    | `/history/trades`  | any      | Public trade log from `pm-stats`     |
+| `GET`    | `/history/daily`   | any      | Daily OHLCV from `pm-stats`          |
+| `GET`    | `/market-data`     | any      | Live order book top-of-book via REST |
 
 **WebSocket endpoints:**
 
-| Path | Key type | Stream |
-|---|---|---|
-| `/events` | trading | Private fills, acks, expiries — filtered to the connected gateway |
-| `/market-data` | any | Public order book snapshots and trade events |
+| Path           | Key type | Stream                                                            |
+|----------------|----------|-------------------------------------------------------------------|
+| `/events`      | trading  | Private fills, acks, expiries — filtered to the connected gateway |
+| `/market-data` | any      | Public order book snapshots and trade events                      |
 
 **Authentication:**
 
@@ -1370,34 +1370,34 @@ market-data and history endpoints.
 
 **Messages sent** (PUSH → :5555):
 
-| Topic | Purpose |
-|---|---|
+| Topic                    | Purpose                                         |
+|--------------------------|-------------------------------------------------|
 | `system.gateway_connect` | Engine authentication request (once at startup) |
-| `order.new` | Order submission |
-| `order.cancel` | Order cancellation |
-| `order.combo` | Combo submission |
-| `quote.new` | Quote submission |
-| `quote.cancel` | Quote cancellation |
-| `risk.kill_switch` | Mass cancel triggered by `/mass-cancel` |
+| `order.new`              | Order submission                                |
+| `order.cancel`           | Order cancellation                              |
+| `order.combo`            | Combo submission                                |
+| `quote.new`              | Quote submission                                |
+| `quote.cancel`           | Quote cancellation                              |
+| `risk.kill_switch`       | Mass cancel triggered by `/mass-cancel`         |
 
 **Messages subscribed** (SUB from :5556):
 
-| Topic | Purpose |
-|---|---|
-| `system.gateway_auth.{GW_ID}` | Engine authentication reply |
-| `order.ack.{GW_ID}` | Order accepted or rejected |
-| `order.fill.{GW_ID}` | Partial or full fill |
-| `order.cancelled.{GW_ID}` | Cancel confirmation |
-| `order.expired.{GW_ID}` | TIF expiry |
-| `order.amended.{GW_ID}` | Amend confirmation |
-| `combo.ack.{GW_ID}` | Combo accepted or rejected |
-| `combo.status.{GW_ID}` | Combo lifecycle changes |
-| `quote.ack.{GW_ID}` | Quote accepted or rejected |
-| `quote.status.{GW_ID}` | Quote lifecycle changes |
-| `system.symbols.{GW_ID}` | Symbol list reply |
-| `book.{SYMBOL}` | Live book snapshots for the market-data WebSocket stream |
-| `trade.executed` | Trade events for the public market-data stream |
-| `session.state` | Session phase changes |
+| Topic                         | Purpose                                                  |
+|-------------------------------|----------------------------------------------------------|
+| `system.gateway_auth.{GW_ID}` | Engine authentication reply                              |
+| `order.ack.{GW_ID}`           | Order accepted or rejected                               |
+| `order.fill.{GW_ID}`          | Partial or full fill                                     |
+| `order.cancelled.{GW_ID}`     | Cancel confirmation                                      |
+| `order.expired.{GW_ID}`       | TIF expiry                                               |
+| `order.amended.{GW_ID}`       | Amend confirmation                                       |
+| `combo.ack.{GW_ID}`           | Combo accepted or rejected                               |
+| `combo.status.{GW_ID}`        | Combo lifecycle changes                                  |
+| `quote.ack.{GW_ID}`           | Quote accepted or rejected                               |
+| `quote.status.{GW_ID}`        | Quote lifecycle changes                                  |
+| `system.symbols.{GW_ID}`      | Symbol list reply                                        |
+| `book.{SYMBOL}`               | Live book snapshots for the market-data WebSocket stream |
+| `trade.executed`              | Trade events for the public market-data stream           |
+| `session.state`               | Session phase changes                                    |
 
 See [API Gateway (REST/WebSocket)](21-api-gateway.md) for endpoint reference, authentication examples, Swagger access, and client code.
 
@@ -1414,9 +1414,9 @@ pm-admin --id <ADMIN_GW_ID>
 
 **Startup options:**
 
-| Flag | Required | Description |
-|---|---|---|
-| `--id` | Yes | ADMIN gateway ID configured in `engine_config.yaml` (e.g. `GW_ADMIN`) |
+| Flag   | Required | Description                                                           |
+|--------|----------|-----------------------------------------------------------------------|
+| `--id` | Yes      | ADMIN gateway ID configured in `engine_config.yaml` (e.g. `GW_ADMIN`) |
 
 **Expected runtime input arguments:**
 
@@ -1434,19 +1434,19 @@ pm-admin --id <ADMIN_GW_ID>
 
 **Messages sent** (PUSH → :5555):
 
-| Topic | Purpose |
-|---|---|
-| `risk.kill_switch` | Trigger an exchange-wide order kill |
-| `risk.circuit_breaker_halt_all` | Halt all symbols (requires ADMIN gateway role) |
+| Topic                             | Purpose                                                 |
+|-----------------------------------|---------------------------------------------------------|
+| `risk.kill_switch`                | Trigger an exchange-wide order kill                     |
+| `risk.circuit_breaker_halt_all`   | Halt all symbols (requires ADMIN gateway role)          |
 | `risk.circuit_breaker_resume_all` | Resume all halted symbols (requires ADMIN gateway role) |
 
 **Messages subscribed** (SUB from :5556):
 
-| Topic | Purpose |
-|---|---|
-| `system.gateway_auth.{GW_ID}` | Authentication reply |
+| Topic                          | Purpose                     |
+|--------------------------------|-----------------------------|
+| `system.gateway_auth.{GW_ID}`  | Authentication reply        |
 | `risk.kill_switch_ack.{GW_ID}` | Kill-switch acknowledgement |
-| `session.state` | Session phase changes |
+| `session.state`                | Session phase changes       |
 
 
 
@@ -1464,35 +1464,35 @@ prints the result, and exits. Suitable for shell scripts and CI automation.
 
 **Startup options:**
 
-| Flag | Required | Description |
-|---|---|---|
-| `--id <GW_ID>` | Yes | ADMIN gateway ID |
-| `--push <ADDR>` | No | Engine PULL address (default from config) |
-| `--sub <ADDR>` | No | Engine PUB address (default from config) |
-| `--timeout <MS>` | No | Ack timeout in milliseconds (default: `3000`) |
+| Flag             | Required | Description                                   |
+|------------------|----------|-----------------------------------------------|
+| `--id <GW_ID>`   | Yes      | ADMIN gateway ID                              |
+| `--push <ADDR>`  | No       | Engine PULL address (default from config)     |
+| `--sub <ADDR>`   | No       | Engine PUB address (default from config)      |
+| `--timeout <MS>` | No       | Ack timeout in milliseconds (default: `3000`) |
 
 **Expected runtime input arguments:**
 
 Subcommands and required arguments:
 
-| Command | Required arguments | Optional arguments | Purpose |
-|---|---|---|---|
-| `halt` | none | none | Exchange-wide halt |
-| `resume` | none | none | Exchange-wide resume |
-| `halt-sym` | `--sym <SYMBOL>` | none | Halt one symbol |
-| `resume-sym` | `--sym <SYMBOL>` | none | Resume one symbol |
-| `cancel-sym` | `--sym <SYMBOL>` | none | Cancel all resting orders on one symbol |
-| `kill` | `--gw <GW_ID>` | `--sym <SYMBOL>` | Cancel all (or symbol-scoped) orders/quotes for gateway |
-| `kick` | `--gw <GW_ID>` | `--reason <TEXT>` | Disconnect a gateway |
-| `qcancel` | `--gw <GW_ID> --sym <SYMBOL>` | none | Cancel active quote for gateway on symbol |
-| `book` | `--sym <SYMBOL>` | none | Fetch book snapshot |
-| `orders` | `--gw <GW_ID>` | none | List resting orders for gateway |
-| `symbols` | none | none | List configured instruments |
-| `session` | `--state <STATE>` | none | Request session transition |
-| `session-status` | none | none | Read current session state |
-| `schedule` | none | none | Read configured schedule |
-| `gateways` | none | none | List gateway states |
-| `volume` | none | none | Show daily volume summary |
+| Command          | Required arguments            | Optional arguments | Purpose                                                 |
+|------------------|-------------------------------|--------------------|---------------------------------------------------------|
+| `halt`           | none                          | none               | Exchange-wide halt                                      |
+| `resume`         | none                          | none               | Exchange-wide resume                                    |
+| `halt-sym`       | `--sym <SYMBOL>`              | none               | Halt one symbol                                         |
+| `resume-sym`     | `--sym <SYMBOL>`              | none               | Resume one symbol                                       |
+| `cancel-sym`     | `--sym <SYMBOL>`              | none               | Cancel all resting orders on one symbol                 |
+| `kill`           | `--gw <GW_ID>`                | `--sym <SYMBOL>`   | Cancel all (or symbol-scoped) orders/quotes for gateway |
+| `kick`           | `--gw <GW_ID>`                | `--reason <TEXT>`  | Disconnect a gateway                                    |
+| `qcancel`        | `--gw <GW_ID> --sym <SYMBOL>` | none               | Cancel active quote for gateway on symbol               |
+| `book`           | `--sym <SYMBOL>`              | none               | Fetch book snapshot                                     |
+| `orders`         | `--gw <GW_ID>`                | none               | List resting orders for gateway                         |
+| `symbols`        | none                          | none               | List configured instruments                             |
+| `session`        | `--state <STATE>`             | none               | Request session transition                              |
+| `session-status` | none                          | none               | Read current session state                              |
+| `schedule`       | none                          | none               | Read configured schedule                                |
+| `gateways`       | none                          | none               | List gateway states                                     |
+| `volume`         | none                          | none               | Show daily volume summary                               |
 
 
 
@@ -1506,12 +1506,12 @@ pm-setup
 
 **Startup options:**
 
-| Flag | Default | Description |
-|---|---|---|
-| `--data-dir <PATH>` | `$EDUMATCHER_DATA_DIR` or `~/.local/share/edumatcher` | Data directory for persistent files |
-| `--config-dest <PATH>` | `./engine_config.yaml` | Destination path for copied sample config |
-| `--force` | off | Overwrite existing config destination |
-| `--no-config` | off | Skip sample config copy; create data dir only |
+| Flag                   | Default                                               | Description                                   |
+|------------------------|-------------------------------------------------------|-----------------------------------------------|
+| `--data-dir <PATH>`    | `$EDUMATCHER_DATA_DIR` or `~/.local/share/edumatcher` | Data directory for persistent files           |
+| `--config-dest <PATH>` | `./engine_config.yaml`                                | Destination path for copied sample config     |
+| `--force`              | off                                                   | Overwrite existing config destination         |
+| `--no-config`          | off                                                   | Skip sample config copy; create data dir only |
 
 **Expected runtime input arguments:**
 
@@ -1539,34 +1539,34 @@ pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --ses
 
 **Startup options:**
 
-| Flag | Required | Default | Description |
-|---|---|---|---|
-| `--symbols <SYM ...>` | Yes | — | One or more symbols |
-| `--gateways <GW_SPEC ...>` | Yes | — | One or more gateway specs (`ID[:ROLE[:DISCONNECT]]`) |
-| `--symbol-opts <SPEC>` | No | repeatable | Per-symbol overrides (`SYMBOL:KEY=VALUE,...`) |
-| `--sessions-enabled` / `--no-sessions-enabled` | No | disabled | Enable/disable scheduler-driven sessions |
-| `--snapshot-interval <SECS>` | No | default | Snapshot interval in seconds (>0) |
-| `--no-collars` | No | off | Disable collar enforcement |
-| `--no-circuit-breakers` | No | off | Disable circuit-breaker enforcement |
-| `--static-band <PCT>` | No | unset | Default static band in `(0,1)` |
-| `--dynamic-band <PCT>` | No | unset | Default dynamic band in `(0,1)` |
-| `--risk-level <SPEC>` | No | repeatable | `NAME:STATIC_PCT[:DYNAMIC_PCT]` |
-| `--cb-levels <CB_SPEC ...>` | No | unset | `NAME:SHIFT_PCT[:HALT_MINS]` entries |
-| `--cb-window-ns <NS>` | No | default | Circuit-breaker reference window |
-| `--mm-spread-ticks <N>` | No | default | Global MM max spread ticks |
-| `--mm-min-qty <N>` | No | default | Global MM minimum quote qty |
-| `--enforce-mm-obligations` / `--no-enforce-mm-obligations` | No | disabled | Enable/disable MM obligations |
-| `--tick-decimals <N>` | No | default | Default tick decimals (`0..8`) |
-| `--seed-last-prices` | No | off | Emit null `last_buy_price`/`last_sell_price` placeholders |
-| `--schedule` / `--no-schedule` | No | auto | Force include/suppress schedule section |
-| `--pre-open <HH:MM>` | No | default | Pre-open schedule time |
-| `--opening-auction <HH:MM>` | No | default | Opening auction start time |
-| `--continuous <HH:MM>` | No | default | Continuous trading start time |
-| `--closing-auction <HH:MM>` | No | default | Closing auction start time |
-| `--closing-end <HH:MM>` | No | default | Closing auction end time |
-| `--output <FILE>` | No | stdout mode | Output path |
-| `--force` | No | off | Overwrite existing output file |
-| `--dry-run` | No | off | Print generated YAML only; do not write file |
+| Flag                                                       | Required | Default     | Description                                               |
+|------------------------------------------------------------|----------|-------------|-----------------------------------------------------------|
+| `--symbols <SYM ...>`                                      | Yes      | —           | One or more symbols                                       |
+| `--gateways <GW_SPEC ...>`                                 | Yes      | —           | One or more gateway specs (`ID[:ROLE[:DISCONNECT]]`)      |
+| `--symbol-opts <SPEC>`                                     | No       | repeatable  | Per-symbol overrides (`SYMBOL:KEY=VALUE,...`)             |
+| `--sessions-enabled` / `--no-sessions-enabled`             | No       | disabled    | Enable/disable scheduler-driven sessions                  |
+| `--snapshot-interval <SECS>`                               | No       | default     | Snapshot interval in seconds (>0)                         |
+| `--no-collars`                                             | No       | off         | Disable collar enforcement                                |
+| `--no-circuit-breakers`                                    | No       | off         | Disable circuit-breaker enforcement                       |
+| `--static-band <PCT>`                                      | No       | unset       | Default static band in `(0,1)`                            |
+| `--dynamic-band <PCT>`                                     | No       | unset       | Default dynamic band in `(0,1)`                           |
+| `--risk-level <SPEC>`                                      | No       | repeatable  | `NAME:STATIC_PCT[:DYNAMIC_PCT]`                           |
+| `--cb-levels <CB_SPEC ...>`                                | No       | unset       | `NAME:SHIFT_PCT[:HALT_MINS]` entries                      |
+| `--cb-window-ns <NS>`                                      | No       | default     | Circuit-breaker reference window                          |
+| `--mm-spread-ticks <N>`                                    | No       | default     | Global MM max spread ticks                                |
+| `--mm-min-qty <N>`                                         | No       | default     | Global MM minimum quote qty                               |
+| `--enforce-mm-obligations` / `--no-enforce-mm-obligations` | No       | disabled    | Enable/disable MM obligations                             |
+| `--tick-decimals <N>`                                      | No       | default     | Default tick decimals (`0..8`)                            |
+| `--seed-last-prices`                                       | No       | off         | Emit null `last_buy_price`/`last_sell_price` placeholders |
+| `--schedule` / `--no-schedule`                             | No       | auto        | Force include/suppress schedule section                   |
+| `--pre-open <HH:MM>`                                       | No       | default     | Pre-open schedule time                                    |
+| `--opening-auction <HH:MM>`                                | No       | default     | Opening auction start time                                |
+| `--continuous <HH:MM>`                                     | No       | default     | Continuous trading start time                             |
+| `--closing-auction <HH:MM>`                                | No       | default     | Closing auction start time                                |
+| `--closing-end <HH:MM>`                                    | No       | default     | Closing auction end time                                  |
+| `--output <FILE>`                                          | No       | stdout mode | Output path                                               |
+| `--force`                                                  | No       | off         | Overwrite existing output file                            |
+| `--dry-run`                                                | No       | off         | Print generated YAML only; do not write file              |
 
 **Expected runtime input arguments:**
 
@@ -1596,12 +1596,12 @@ pm-index-cli [--config engine_config.yaml] [--format table|json|csv] COMMAND [op
 
 **Startup options:**
 
-| Flag | Default | Description |
-|---|---|---|
-| `--config PATH` / `-c PATH` | unset | Path to `engine_config.yaml`; auto-discovers history file paths and index IDs |
-| `--data-dir DIR` | `data/indexes` | Directory containing history files; used when `--config` is absent or an index is not in config |
-| `--format table\|json\|csv` | `table` | Output format |
-| `--no-header` | off | Suppress header row (CSV only) |
+| Flag                        | Default        | Description                                                                                     |
+|-----------------------------|----------------|-------------------------------------------------------------------------------------------------|
+| `--config PATH` / `-c PATH` | unset          | Path to `engine_config.yaml`; auto-discovers history file paths and index IDs                   |
+| `--data-dir DIR`            | `data/indexes` | Directory containing history files; used when `--config` is absent or an index is not in config |
+| `--format table\|json\|csv` | `table`        | Output format                                                                                   |
+| `--no-header`               | off            | Suppress header row (CSV only)                                                                  |
 
 **Expected runtime input arguments:**
 
@@ -1609,12 +1609,12 @@ None.
 
 **Subcommands:**
 
-| Subcommand | Default limit | Purpose |
-|---|---|---|
-| `level` | 1,000 | Throttled LEVEL records — index value snapshots captured during trading |
-| `eod` | 365 | EOD records — one row per trading day with open/high/low/close |
-| `events` | 1,000 | Structural events: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST` |
-| `indices` | — | List configured indices from `engine_config.yaml` |
+| Subcommand | Default limit | Purpose                                                                 |
+|------------|---------------|-------------------------------------------------------------------------|
+| `level`    | 1,000         | Throttled LEVEL records — index value snapshots captured during trading |
+| `eod`      | 365           | EOD records — one row per trading day with open/high/low/close          |
+| `events`   | 1,000         | Structural events: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`   |
+| `indices`  | —             | List configured indices from `engine_config.yaml`                       |
 
 All history subcommands share `--index ID` (repeatable), `--days N`,
 `--from DATE_OR_TS`, `--to DATE_OR_TS`, and `--limit N`. The `events`
@@ -1665,9 +1665,9 @@ from the single PUB socket — none of them coordinate with each other.
 The following processes are documented as design proposals and are not yet
 available as runnable scripts.
 
-| Process | Protocol | Purpose | Status |
-|---------|----------|---------|--------|
-| **pm-balf-gateway** | BALF | Binary order entry gateway for low-latency programmatic clients | Design proposal |
+| Process             | Protocol | Purpose                                                         | Status          |
+|---------------------|----------|-----------------------------------------------------------------|-----------------|
+| **pm-balf-gateway** | BALF     | Binary order entry gateway for low-latency programmatic clients | Design proposal |
 
 See the [BALF Protocol Reference](91-app-balf-protocol.md) for message specifications planned for future gateway implementations.
 

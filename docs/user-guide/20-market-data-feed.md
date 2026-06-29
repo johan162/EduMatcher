@@ -133,16 +133,16 @@ For multi-stream recovery, reconnect with normal `HELLO` and resubscribe.
 
 ## Common errors and fixes
 
-| Error code | Typical cause | Action |
-|---|---|---|
-| `AUTH_REQUIRED` | `SUB` sent before `HELLO` | Send `HELLO` first |
-| `PROTO_MISMATCH` | Wrong or missing `PROTO` | Use `PROTO=CALF1` |
-| `INVALID_CHANNEL` | Unknown `CH` | Use `TOP`, `TRADE`, or `STATE` |
-| `INVALID_SYMBOL` | Unknown symbol or invalid wildcard usage | Use configured symbols; `SYM=*` only for `STATE` |
-| `SUB_LIMIT` | Too many subscribed symbols | Reduce requested symbol set |
-| `REPLAY_MISS` | Requested replay is outside buffer window | Accept fresh `SNAP` and continue |
-| `SLOW_CLIENT` | Client cannot drain outbound stream fast enough | Reconnect and process faster |
-| `BAD_MESSAGE` | Malformed line or oversize line | Fix line syntax/framing |
+| Error code        | Typical cause                                   | Action                                           |
+|-------------------|-------------------------------------------------|--------------------------------------------------|
+| `AUTH_REQUIRED`   | `SUB` sent before `HELLO`                       | Send `HELLO` first                               |
+| `PROTO_MISMATCH`  | Wrong or missing `PROTO`                        | Use `PROTO=CALF1`                                |
+| `INVALID_CHANNEL` | Unknown `CH`                                    | Use `TOP`, `TRADE`, or `STATE`                   |
+| `INVALID_SYMBOL`  | Unknown symbol or invalid wildcard usage        | Use configured symbols; `SYM=*` only for `STATE` |
+| `SUB_LIMIT`       | Too many subscribed symbols                     | Reduce requested symbol set                      |
+| `REPLAY_MISS`     | Requested replay is outside buffer window       | Accept fresh `SNAP` and continue                 |
+| `SLOW_CLIENT`     | Client cannot drain outbound stream fast enough | Reconnect and process faster                     |
+| `BAD_MESSAGE`     | Malformed line or oversize line                 | Fix line syntax/framing                          |
 
 
 ## Operational checklist
@@ -225,15 +225,15 @@ Outcomes:
 
 ### Fast error triage
 
-| Error code | Typical cause | Action |
-|---|---|---|
-| `AUTH_REQUIRED` | `SUB` before successful `HELLO` | Authenticate first |
-| `PROTO_MISMATCH` | Wrong or missing protocol value | Use `PROTO=CALF1` |
-| `INVALID_CHANNEL` | Unsupported `CH` value | Use `TOP`, `TRADE`, `STATE` |
-| `INVALID_SYMBOL` | Unknown symbol or invalid wildcard usage | Use configured symbols; `SYM=*` only for `STATE` |
-| `REPLAY_MISS` | Replay point outside retention | Accept `SNAP` and reset local baseline |
-| `SLOW_CLIENT` | Client too slow to drain stream | Reconnect and increase consume throughput |
-| `BAD_MESSAGE` | Malformed line syntax | Fix message format |
+| Error code        | Typical cause                            | Action                                           |
+|-------------------|------------------------------------------|--------------------------------------------------|
+| `AUTH_REQUIRED`   | `SUB` before successful `HELLO`          | Authenticate first                               |
+| `PROTO_MISMATCH`  | Wrong or missing protocol value          | Use `PROTO=CALF1`                                |
+| `INVALID_CHANNEL` | Unsupported `CH` value                   | Use `TOP`, `TRADE`, `STATE`                      |
+| `INVALID_SYMBOL`  | Unknown symbol or invalid wildcard usage | Use configured symbols; `SYM=*` only for `STATE` |
+| `REPLAY_MISS`     | Replay point outside retention           | Accept `SNAP` and reset local baseline           |
+| `SLOW_CLIENT`     | Client too slow to drain stream          | Reconnect and increase consume throughput        |
+| `BAD_MESSAGE`     | Malformed line syntax                    | Fix message format                               |
 
 ### Operator checklist
 

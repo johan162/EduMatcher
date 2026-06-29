@@ -62,11 +62,11 @@ calling `run()` do not bind a ZMQ socket.
 
 ### Socket addresses
 
-| Socket | Address | Purpose |
-|---|---|---|
-| Engine PULL | `tcp://127.0.0.1:5555` | Engine receives orders from gateways |
-| Engine PUB | `tcp://127.0.0.1:5556` | Engine broadcasts book snapshots, trades, etc. |
-| Drop copy PUB | `tcp://127.0.0.1:5557` | Engine broadcasts fill events to risk systems |
+| Socket        | Address                | Purpose                                        |
+|---------------|------------------------|------------------------------------------------|
+| Engine PULL   | `tcp://127.0.0.1:5555` | Engine receives orders from gateways           |
+| Engine PUB    | `tcp://127.0.0.1:5556` | Engine broadcasts book snapshots, trades, etc. |
+| Drop copy PUB | `tcp://127.0.0.1:5557` | Engine broadcasts fill events to risk systems  |
 
 The drop copy address is configurable via `DROP_COPY_PUB_ADDR` in
 `src/edumatcher/config.py`.
@@ -84,13 +84,13 @@ Frame 1 (payload):  orjson-encoded JSON object
 
 ### Payload fields
 
-| Field | Type | Description |
-|---|---|---|
-| `seq` | int | Monotonically increasing sequence number (starts at 1, never resets) |
-| `timestamp` | int | Nanosecond timestamp from `now_ns()` |
-| `gateway_id` | str | ID of the gateway that submitted the order |
-| `event_type` | str | Type of event (currently `"order.fill"`) |
-| *…additional fields* | varies | Event-specific data merged into the top-level object |
+| Field                | Type   | Description                                                          |
+|----------------------|--------|----------------------------------------------------------------------|
+| `seq`                | int    | Monotonically increasing sequence number (starts at 1, never resets) |
+| `timestamp`          | int    | Nanosecond timestamp from `now_ns()`                                 |
+| `gateway_id`         | str    | ID of the gateway that submitted the order                           |
+| `event_type`         | str    | Type of event (currently `"order.fill"`)                             |
+| *…additional fields* | varies | Event-specific data merged into the top-level object                 |
 
 ### `order.fill` event
 
@@ -197,10 +197,10 @@ gap would typically be filled from a persistent audit log (see
 ZeroMQ PUB/SUB uses prefix-based topic filtering.  Common subscription patterns
 for the drop copy stream:
 
-| Pattern | Receives |
-|---|---|
-| `b"drop_copy.event."` | All live fill events from all gateways |
-| `b"drop_copy.event.TRADER01"` | Live fills from gateway TRADER01 only |
+| Pattern                           | Receives                                 |
+|-----------------------------------|------------------------------------------|
+| `b"drop_copy.event."`             | All live fill events from all gateways   |
+| `b"drop_copy.event.TRADER01"`     | Live fills from gateway TRADER01 only    |
 | `b"drop_copy.replay.MY_RISK_SYS"` | Replay messages addressed to MY_RISK_SYS |
 
 

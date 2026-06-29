@@ -145,11 +145,11 @@ such as `0.0.0.0` and restrict access at the network boundary.
 
 The gateway supports three channels:
 
-| Channel | Intended consumers |
-|---|---|
-| `CLEARING` | Clearing and reconciliation systems |
-| `DROP_COPY` | Risk and compliance subscribers |
-| `AUDIT` | Audit/surveillance consumers |
+| Channel     | Intended consumers                  |
+|-------------|-------------------------------------|
+| `CLEARING`  | Clearing and reconciliation systems |
+| `DROP_COPY` | Risk and compliance subscribers     |
+| `AUDIT`     | Audit/surveillance consumers        |
 
 Example subscriptions:
 
@@ -261,15 +261,15 @@ Outcomes:
 
 ### Fast error triage
 
-| Error code | Typical cause | Action |
-|---|---|---|
-| `AUTH_REQUIRED` | `SUB` before successful `HELLO` | Authenticate first |
-| `PROTO_MISMATCH` | Wrong/missing protocol value | Use `PROTO=RALF1` |
-| `ENTITLEMENT_DENIED` | Role blocked by policy | Use an allowed role or update config |
-| `INVALID_CHANNEL` | Unsupported `CH` value | Use `CLEARING`, `DROP_COPY`, `AUDIT` |
-| `REPLAY_MISS` | Replay point outside retention | Accept `SNAP` and reset local baseline |
-| `SLOW_CLIENT` | Client too slow to drain stream | Reconnect and increase consume throughput |
-| `BAD_MESSAGE` | Malformed line syntax | Fix message format |
+| Error code           | Typical cause                   | Action                                    |
+|----------------------|---------------------------------|-------------------------------------------|
+| `AUTH_REQUIRED`      | `SUB` before successful `HELLO` | Authenticate first                        |
+| `PROTO_MISMATCH`     | Wrong/missing protocol value    | Use `PROTO=RALF1`                         |
+| `ENTITLEMENT_DENIED` | Role blocked by policy          | Use an allowed role or update config      |
+| `INVALID_CHANNEL`    | Unsupported `CH` value          | Use `CLEARING`, `DROP_COPY`, `AUDIT`      |
+| `REPLAY_MISS`        | Replay point outside retention  | Accept `SNAP` and reset local baseline    |
+| `SLOW_CLIENT`        | Client too slow to drain stream | Reconnect and increase consume throughput |
+| `BAD_MESSAGE`        | Malformed line syntax           | Fix message format                        |
 
 ### Operator checklist
 

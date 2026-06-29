@@ -1319,14 +1319,14 @@ Broadcast once per symbol after an auction uncross completes (i.e. when
 transitioning out of OPENING_AUCTION or CLOSING_AUCTION).  Reports the
 equilibrium price, quantity matched, and any imbalance.
 
-| Field | Type | Description |
-|---|---|---|
-| `symbol` | string | Instrument ticker |
-| `eq_price` | float \| null | Equilibrium (uncross) price; `null` if no crossable interest |
-| `eq_qty` | integer | Total quantity matched at the equilibrium price |
-| `trades_count` | integer | Number of individual trade pairs generated |
-| `imbalance_side` | string | `"BUY"`, `"SELL"`, or `""` (balanced) |
-| `imbalance_qty` | integer | Surplus quantity that could not be matched |
+| Field            | Type          | Description                                                  |
+|------------------|---------------|--------------------------------------------------------------|
+| `symbol`         | string        | Instrument ticker                                            |
+| `eq_price`       | float \| null | Equilibrium (uncross) price; `null` if no crossable interest |
+| `eq_qty`         | integer       | Total quantity matched at the equilibrium price              |
+| `trades_count`   | integer       | Number of individual trade pairs generated                   |
+| `imbalance_side` | string        | `"BUY"`, `"SELL"`, or `""` (balanced)                        |
+| `imbalance_qty`  | integer       | Surplus quantity that could not be matched                   |
 
 
 
@@ -1338,8 +1338,8 @@ equilibrium price, quantity matched, and any imbalance.
 Broadcast by the engine at shutdown before sockets are closed.  
 Consumed by the statistics process to record end-of-day closing bid/ask prices.
 
-| Field | Type | Description |
-|---|---|---|
+| Field   | Type                    | Description                                                                               |
+|---------|-------------------------|-------------------------------------------------------------------------------------------|
 | `books` | array of book snapshots | One entry per active symbol; each element has the same shape as a `book.{SYMBOL}` payload |
 
 
@@ -1367,10 +1367,10 @@ These events are published on PUB :5556 whenever a symbol halts or resumes, rega
 **Motivation:** Broadcasts symbol-level protection state so strategies and UIs can react immediately to trading halts/resumptions.
 **Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
 
-| Field | Type | Description |
-|---|---|---|
-| `symbol` | string | Resumed instrument ticker |
-| `mode` | `"AUCTION"` \| `"CONTINUOUS"` \| `"MANUAL"` | How the symbol reopened |
+| Field    | Type                                        | Description               |
+|----------|---------------------------------------------|---------------------------|
+| `symbol` | string                                      | Resumed instrument ticker |
+| `mode`   | `"AUCTION"` \| `"CONTINUOUS"` \| `"MANUAL"` | How the symbol reopened   |
 
 
 
@@ -1384,8 +1384,8 @@ These events are published on PUB :5556 whenever a symbol halts or resumes, rega
 Sent by the `pm-scheduler` process to request a session-phase transition.
 Travels over the PUSH/PULL channel (port 5555), same as order messages.
 
-| Field | Type | Description |
-|---|---|---|
+| Field      | Type   | Description                                                                                      |
+|------------|--------|--------------------------------------------------------------------------------------------------|
 | `to_state` | string | Target state: `"PRE_OPEN"`, `"OPENING_AUCTION"`, `"CONTINUOUS"`, `"CLOSING_AUCTION"`, `"CLOSED"` |
 
 The engine validates the transition (see [Auctions & Scheduling](06-auctions-scheduling.md)

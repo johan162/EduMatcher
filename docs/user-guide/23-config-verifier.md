@@ -51,11 +51,11 @@ pm-cverifier --strict --format json engine_config.yaml
 
 Exit codes:
 
-| Code | Meaning |
-|------|---------|
-| `0` | All checks passed; zero errors and zero warnings |
-| `1` | One or more warnings; no errors |
-| `2` | One or more hard errors |
+| Code | Meaning                                          |
+|------|--------------------------------------------------|
+| `0`  | All checks passed; zero errors and zero warnings |
+| `1`  | One or more warnings; no errors                  |
+| `2`  | One or more hard errors                          |
 
 With `--strict`, any warning also produces exit code `2`.
 
@@ -98,12 +98,12 @@ flowchart TD
     L1 -->|fail| STOP["Stop — report error"]
 ```
 
-| Layer | Severity | What it checks |
-|-------|----------|----------------|
-| 1 — YAML Syntax | ERROR | File readable, valid YAML, top-level is a mapping |
-| 2 — Schema | ERROR | Required keys, correct types, in-range values |
-| 3 — Semantic | ERROR or WARN | Cross-field consistency, referential integrity |
-| 4 — Completeness | WARN or INFO | Missing-but-recommended settings, default-value notices |
+| Layer            | Severity      | What it checks                                          |
+|------------------|---------------|---------------------------------------------------------|
+| 1 — YAML Syntax  | ERROR         | File readable, valid YAML, top-level is a mapping       |
+| 2 — Schema       | ERROR         | Required keys, correct types, in-range values           |
+| 3 — Semantic     | ERROR or WARN | Cross-field consistency, referential integrity          |
+| 4 — Completeness | WARN or INFO  | Missing-but-recommended settings, default-value notices |
 
 
 ## Understanding the Output
@@ -182,103 +182,103 @@ reporting scripts.
 
 ### Layer 1 — YAML Syntax (`Y001`–`Y004`)
 
-| Code | Condition |
-|------|-----------|
-| `Y001` | File not found |
-| `Y002` | File is not readable |
-| `Y003` | YAML parse error |
+| Code   | Condition                           |
+|--------|-------------------------------------|
+| `Y001` | File not found                      |
+| `Y002` | File is not readable                |
+| `Y003` | YAML parse error                    |
 | `Y004` | Top-level document is not a mapping |
 
 ### Layer 2 — Schema (`S001`–`S042`)
 
 **Top-level structure**
 
-| Code | Condition |
-|------|-----------|
-| `S001` | `symbols` absent or not a mapping |
-| `S002` | `gateways` absent or not a mapping |
+| Code   | Condition                           |
+|--------|-------------------------------------|
+| `S001` | `symbols` absent or not a mapping   |
+| `S002` | `gateways` absent or not a mapping  |
 | `S003` | `gateways.alf` absent or not a list |
-| `S004` | `symbols` is empty |
-| `S005` | `gateways.alf` is empty |
+| `S004` | `symbols` is empty                  |
+| `S005` | `gateways.alf` is empty             |
 
 **Symbol fields**
 
-| Code | Condition |
-|------|-----------|
-| `S010` | `tick_decimals` not an integer in `0..8` |
-| `S011` | `last_buy_price` or `last_sell_price` not numeric |
-| `S012` | `outstanding_shares` not a positive integer |
-| `S013` | `level` references an undefined risk level |
-| `S014` | `market_maker_quotes[n]` missing required fields |
-| `S015` | `market_maker_quotes[n].bid_price >= ask_price` |
+| Code   | Condition                                                                                             |
+|--------|-------------------------------------------------------------------------------------------------------|
+| `S010` | `tick_decimals` not an integer in `0..8`                                                              |
+| `S011` | `last_buy_price` or `last_sell_price` not numeric                                                     |
+| `S012` | `outstanding_shares` not a positive integer                                                           |
+| `S013` | `level` references an undefined risk level                                                            |
+| `S014` | `market_maker_quotes[n]` missing required fields                                                      |
+| `S015` | `market_maker_quotes[n].bid_price >= ask_price`                                                       |
 | `S016` | `market_maker_quotes[n]` has a non-numeric price, non-positive/non-integer quantity, or invalid `tif` |
 
 **Gateway fields**
 
-| Code | Condition |
-|------|-----------|
-| `S020` | Gateway entry missing `id` |
-| `S021` | Duplicate gateway ID |
-| `S022` | `role` is not a recognised value |
+| Code   | Condition                                        |
+|--------|--------------------------------------------------|
+| `S020` | Gateway entry missing `id`                       |
+| `S021` | Duplicate gateway ID                             |
+| `S022` | `role` is not a recognised value                 |
 | `S023` | `disconnect_behaviour` is not a recognised value |
 
 **Circuit breaker fields**
 
-| Code | Condition |
-|------|-----------|
+| Code   | Condition                                             |
+|--------|-------------------------------------------------------|
 | `S030` | `circuit_breaker_defaults` or `.levels` not a mapping |
-| `S031` | CB level missing `price_shift_pct` |
-| `S032` | `price_shift_pct` out of range `(0, 1)` |
-| `S033` | `halt_duration_ns` not a positive integer |
-| `S034` | `resumption_mode` not `AUCTION` or `CONTINUOUS` |
-| `S035` | `circuit_breaker` present inside a risk level |
+| `S031` | CB level missing `price_shift_pct`                    |
+| `S032` | `price_shift_pct` out of range `(0, 1)`               |
+| `S033` | `halt_duration_ns` not a positive integer             |
+| `S034` | `resumption_mode` not `AUCTION` or `CONTINUOUS`       |
+| `S035` | `circuit_breaker` present inside a risk level         |
 
 **Risk controls**
 
-| Code | Condition |
-|------|-----------|
+| Code   | Condition                                                   |
+|--------|-------------------------------------------------------------|
 | `S040` | `risk_controls.default_level` references an undefined level |
-| `S041` | `collar.static_band_pct` not in `(0, 1)` |
-| `S042` | `collar.dynamic_band_pct` not in `(0, 1)` |
+| `S041` | `collar.static_band_pct` not in `(0, 1)`                    |
+| `S042` | `collar.dynamic_band_pct` not in `(0, 1)`                   |
 
 ### Layer 3 — Semantic (`M001`–`M016`)
 
-| Code | Severity | Condition |
-|------|----------|-----------|
-| `M001` | ERROR | MM gateway present but a symbol has no seed quotes |
-| `M002` | WARN | MM seed references a gateway ID not in `gateways.alf` |
-| `M003` | WARN | MM seed spread exceeds `mm_max_spread_ticks` |
-| `M004` | ERROR | `sessions_enabled: true` but no `schedule` |
-| `M005` | WARN | `sessions_enabled: false` but a `schedule` is present |
-| `M006` | WARN | Schedule times not in chronological order |
-| `M007` | WARN | `enforce_collars: false` while collars are defined |
-| `M008` | WARN | `enforce_circuit_breakers: false` while CB levels are defined |
-| `M009` | ERROR | Index constituent not in `symbols` |
-| `M010` | WARN | Index constituent missing `outstanding_shares` |
-| `M011` | ERROR | More than 5 indices defined |
-| `M012` | WARN | Combo uses `tif: GTC` |
-| `M013` | WARN | No ADMIN gateway configured |
-| `M014` | WARN | CB level thresholds not strictly increasing |
-| `M015` | ERROR | Combo leg references symbol not in `symbols` |
-| `M016` | WARN | `post_trade_gateway` configured but no ADMIN gateway |
+| Code   | Severity | Condition                                                     |
+|--------|----------|---------------------------------------------------------------|
+| `M001` | ERROR    | MM gateway present but a symbol has no seed quotes            |
+| `M002` | WARN     | MM seed references a gateway ID not in `gateways.alf`         |
+| `M003` | WARN     | MM seed spread exceeds `mm_max_spread_ticks`                  |
+| `M004` | ERROR    | `sessions_enabled: true` but no `schedule`                    |
+| `M005` | WARN     | `sessions_enabled: false` but a `schedule` is present         |
+| `M006` | WARN     | Schedule times not in chronological order                     |
+| `M007` | WARN     | `enforce_collars: false` while collars are defined            |
+| `M008` | WARN     | `enforce_circuit_breakers: false` while CB levels are defined |
+| `M009` | ERROR    | Index constituent not in `symbols`                            |
+| `M010` | WARN     | Index constituent missing `outstanding_shares`                |
+| `M011` | ERROR    | More than 5 indices defined                                   |
+| `M012` | WARN     | Combo uses `tif: GTC`                                         |
+| `M013` | WARN     | No ADMIN gateway configured                                   |
+| `M014` | WARN     | CB level thresholds not strictly increasing                   |
+| `M015` | ERROR    | Combo leg references symbol not in `symbols`                  |
+| `M016` | WARN     | `post_trade_gateway` configured but no ADMIN gateway          |
 
 ### Layer 4 — Completeness (`C001`–`C013`)
 
-| Code | Severity | Condition |
-|------|----------|-----------|
-| `C001` | WARN | No symbol has a reference price |
-| `C002` | INFO | Symbol has only one of `last_buy_price` / `last_sell_price` |
-| `C003` | INFO | `enforce_collars: true` but no collar configured |
-| `C004` | INFO | `enforce_circuit_breakers: true` but no CB levels |
-| `C005` | WARN | MM gateway present but `mm_obligation_defaults` absent |
-| `C006` | WARN | `enforce_mm_obligation: false` |
-| `C007` | INFO | `snapshot_interval_sec` is at the default `0.5` |
-| `C008` | WARN | Index constituent has no reference price |
-| `C009` | INFO | `sessions_enabled: false` and no schedule (always-on) |
-| `C010` | WARN | `disconnect_behaviour: LEAVE_ALL` on a non-ADMIN gateway |
-| `C011` | INFO | Risk level defined but no symbol uses it |
-| `C012` | WARN | More than 20 symbols with `snapshot_interval_sec < 0.2` |
-| `C013` | WARN | Index `history_file` or `state_file` parent directory may not exist |
+| Code   | Severity | Condition                                                           |
+|--------|----------|---------------------------------------------------------------------|
+| `C001` | WARN     | No symbol has a reference price                                     |
+| `C002` | INFO     | Symbol has only one of `last_buy_price` / `last_sell_price`         |
+| `C003` | INFO     | `enforce_collars: true` but no collar configured                    |
+| `C004` | INFO     | `enforce_circuit_breakers: true` but no CB levels                   |
+| `C005` | WARN     | MM gateway present but `mm_obligation_defaults` absent              |
+| `C006` | WARN     | `enforce_mm_obligation: false`                                      |
+| `C007` | INFO     | `snapshot_interval_sec` is at the default `0.5`                     |
+| `C008` | WARN     | Index constituent has no reference price                            |
+| `C009` | INFO     | `sessions_enabled: false` and no schedule (always-on)               |
+| `C010` | WARN     | `disconnect_behaviour: LEAVE_ALL` on a non-ADMIN gateway            |
+| `C011` | INFO     | Risk level defined but no symbol uses it                            |
+| `C012` | WARN     | More than 20 symbols with `snapshot_interval_sec < 0.2`             |
+| `C013` | WARN     | Index `history_file` or `state_file` parent directory may not exist |
 
 
 ## Using in CI
@@ -303,16 +303,16 @@ The Risk Summary is always printed at the end of the text report (and included i
 the `risk_summary` key of JSON output).  It answers: *"What does this config
 actually do at runtime?"*
 
-| Field | Description |
-|-------|-------------|
-| Symbols | Total count and names |
-| Gateways | Total count, ID, and role for each |
-| Sessions | Enabled/disabled, schedule summary |
-| Collars | Whether enforced and which levels are configured |
-| Circuit breakers | Whether enforced and threshold summary |
-| MM obligations | Whether enforcement is active |
-| Admin gateway | Which gateway (if any) has role `ADMIN` |
-| Indices | Index IDs if any are configured |
+| Field            | Description                                      |
+|------------------|--------------------------------------------------|
+| Symbols          | Total count and names                            |
+| Gateways         | Total count, ID, and role for each               |
+| Sessions         | Enabled/disabled, schedule summary               |
+| Collars          | Whether enforced and which levels are configured |
+| Circuit breakers | Whether enforced and threshold summary           |
+| MM obligations   | Whether enforcement is active                    |
+| Admin gateway    | Which gateway (if any) has role `ADMIN`          |
+| Indices          | Index IDs if any are configured                  |
 
 A ⚠ next to a Risk Summary line means a completeness issue was detected for that
 subsystem — even if the overall verdict is `OK`.
@@ -320,11 +320,11 @@ subsystem — even if the overall verdict is `OK`.
 
 ## Relationship to Other Tools
 
-| Tool | Purpose |
-|------|---------|
+| Tool            | Purpose                                           |
+|-----------------|---------------------------------------------------|
 | `pm-config-gen` | *Generate* an `engine_config.yaml` from CLI flags |
-| `pm-cverifier` | *Verify* an existing config file before use |
-| `pm-engine` | *Load* the config and start the matching engine |
+| `pm-cverifier`  | *Verify* an existing config file before use       |
+| `pm-engine`     | *Load* the config and start the matching engine   |
 
 `pm-cverifier` is read-only and has no effect on the engine or any runtime state.
 It is safe to run at any time, including while the engine is running.

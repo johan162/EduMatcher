@@ -45,11 +45,11 @@ The client holds a PUSH socket (port **5555**) for commands and a SUB socket
 
 There are three ways to issue exchange commands, suited to different workflows:
 
-| Tool | What it is | Best for |
-|---|---|---|
-| `pm-admin` | Interactive REPL with tab completion and history | Human operator — incident response, market supervision |
-| `pm-admin-cli` | Single-shot CLI command, exits with code 0/1 | Scripting, CI/CD, automation pipelines |
-| `ExchangeCommandClient` | Python API class | Custom operator tooling, integration tests |
+| Tool                    | What it is                                       | Best for                                               |
+|-------------------------|--------------------------------------------------|--------------------------------------------------------|
+| `pm-admin`              | Interactive REPL with tab completion and history | Human operator — incident response, market supervision |
+| `pm-admin-cli`          | Single-shot CLI command, exits with code 0/1     | Scripting, CI/CD, automation pipelines                 |
+| `ExchangeCommandClient` | Python API class                                 | Custom operator tooling, integration tests             |
 
 All three share the **same command execution logic** (`execute_command` in
 `src/edumatcher/commands/console.py`), so adding a new exchange command only
@@ -167,24 +167,24 @@ ADMIN console GW_ADMIN disconnected.
 `pm-admin`, `pm-admin-cli`, and `ExchangeCommandClient` all share the
 same `execute_command()` function.  Every command maps 1-to-1:
 
-| Console (`pm-admin`) | CLI (`pm-admin-cli`) | Python API |
-|---|---|---|
-| `HALT` | `halt` | `client.halt_all()` |
-| `RESUME` | `resume` | `client.resume_all()` |
-| `HALT_SYM\|SYM=X` | `halt-sym --sym X` | `client.symbol_halt("X")` |
-| `RESUME_SYM\|SYM=X` | `resume-sym --sym X` | `client.symbol_resume("X")` |
-| `CANCEL_SYM\|SYM=X` | `cancel-sym --sym X` | `client.cancel_symbol("X")` |
-| `KILL\|GW=X\|SYM=Y` | `kill --gw X --sym Y` | `client.kill_switch("X", symbol="Y")` |
+| Console (`pm-admin`)   | CLI (`pm-admin-cli`)     | Python API                             |
+|------------------------|--------------------------|----------------------------------------|
+| `HALT`                 | `halt`                   | `client.halt_all()`                    |
+| `RESUME`               | `resume`                 | `client.resume_all()`                  |
+| `HALT_SYM\|SYM=X`      | `halt-sym --sym X`       | `client.symbol_halt("X")`              |
+| `RESUME_SYM\|SYM=X`    | `resume-sym --sym X`     | `client.symbol_resume("X")`            |
+| `CANCEL_SYM\|SYM=X`    | `cancel-sym --sym X`     | `client.cancel_symbol("X")`            |
+| `KILL\|GW=X\|SYM=Y`    | `kill --gw X --sym Y`    | `client.kill_switch("X", symbol="Y")`  |
 | `KICK\|GW=X\|REASON=Z` | `kick --gw X --reason Z` | `client.gateway_kick("X", reason="Z")` |
-| `QCANCEL\|GW=X\|SYM=Y` | `qcancel --gw X --sym Y` | `client.quote_cancel("X", "Y")` |
-| `BOOK\|SYM=X` | `book --sym X` | `client.book_depth("X")` |
-| `ORDERS\|GW=X` | `orders --gw X` | `client.order_list("X")` |
-| `SYMBOLS` | `symbols` | `client.symbol_list()` |
-| `SESSION\|STATE=X` | `session --state X` | `client.session_advance("X")` |
-| `SESSION_STATUS` | `session-status` | `client.session_status()` |
-| `SCHEDULE` | `schedule` | `client.session_schedule()` |
-| `GATEWAYS` | `gateways` | `client.gateway_list()` |
-| `VOLUME` | `volume` | `client.volume()` |
+| `QCANCEL\|GW=X\|SYM=Y` | `qcancel --gw X --sym Y` | `client.quote_cancel("X", "Y")`        |
+| `BOOK\|SYM=X`          | `book --sym X`           | `client.book_depth("X")`               |
+| `ORDERS\|GW=X`         | `orders --gw X`          | `client.order_list("X")`               |
+| `SYMBOLS`              | `symbols`                | `client.symbol_list()`                 |
+| `SESSION\|STATE=X`     | `session --state X`      | `client.session_advance("X")`          |
+| `SESSION_STATUS`       | `session-status`         | `client.session_status()`              |
+| `SCHEDULE`             | `schedule`               | `client.session_schedule()`            |
+| `GATEWAYS`             | `gateways`               | `client.gateway_list()`                |
+| `VOLUME`               | `volume`                 | `client.volume()`                      |
 
 Use `pm-admin` for interactive human-driven operations, `pm-admin-cli` for
 scripting and automation, and `ExchangeCommandClient` for custom Python tooling.
@@ -251,9 +251,9 @@ Halts only the specified symbol.  All other symbols continue trading.  Any
 active MM quote legs for that symbol are cancelled.  The symbol remains halted
 until `resume-sym` is called.  Requires `role: ADMIN`.
 
-| Flag | Required | Description |
-|---|---|---|
-| `--sym SYMBOL` | yes | Symbol to halt |
+| Flag           | Required | Description    |
+|----------------|----------|----------------|
+| `--sym SYMBOL` | yes      | Symbol to halt |
 
 
 
@@ -289,9 +289,9 @@ order book for one symbol regardless of who placed the orders.  The symbol
 remains in its current halt state; no halt or resume is triggered.
 Requires `role: ADMIN`.
 
-| Flag | Required | Description |
-|---|---|---|
-| `--sym SYMBOL` | yes | Symbol whose orders to cancel |
+| Flag           | Required | Description                   |
+|----------------|----------|-------------------------------|
+| `--sym SYMBOL` | yes      | Symbol whose orders to cancel |
 
 
 
@@ -308,10 +308,10 @@ pm-admin-cli --id GW_ADMIN kill --gw TRADER01 --sym AAPL
 KILL OK  TRADER01  orders=4  quotes=0
 ```
 
-| Flag | Required | Description |
-|---|---|---|
-| `--gw GW_ID` | yes | Target gateway to cancel for |
-| `--sym SYMBOL` | no | Scope to one symbol (omit for all) |
+| Flag           | Required | Description                        |
+|----------------|----------|------------------------------------|
+| `--gw GW_ID`   | yes      | Target gateway to cancel for       |
+| `--sym SYMBOL` | no       | Scope to one symbol (omit for all) |
 
 
 
@@ -324,10 +324,10 @@ pm-admin-cli --id GW_ADMIN kick --gw TRADER01 --reason "Compliance hold"
 No ack is published.  Exit code is always 0 if the engine is reachable.
 Verify with `orders --gw TRADER01`.
 
-| Flag | Required | Description |
-|---|---|---|
-| `--gw GW_ID` | yes | Target gateway to disconnect |
-| `--reason TEXT` | no | Reason string recorded in the engine log |
+| Flag            | Required | Description                              |
+|-----------------|----------|------------------------------------------|
+| `--gw GW_ID`    | yes      | Target gateway to disconnect             |
+| `--reason TEXT` | no       | Reason string recorded in the engine log |
 
 
 
@@ -406,9 +406,9 @@ pm-admin-cli --id GW_ADMIN session --state CONTINUOUS
 SESSION  OPENING_AUCTION → CONTINUOUS
 ```
 
-| Flag | Required | Description |
-|---|---|---|
-| `--state STATE` | yes | Target state (case-insensitive): `PRE_OPEN` `OPENING_AUCTION` `CONTINUOUS` `CLOSING_AUCTION` `CLOSED` |
+| Flag            | Required | Description                                                                                           |
+|-----------------|----------|-------------------------------------------------------------------------------------------------------|
+| `--state STATE` | yes      | Target state (case-insensitive): `PRE_OPEN` `OPENING_AUCTION` `CONTINUOUS` `CLOSING_AUCTION` `CLOSED` |
 
 Invalid transitions are silently rejected by the engine.  Check the printed
 result to verify the transition was applied.
@@ -545,78 +545,78 @@ pm-index-cli [--config PATH] [--data-dir DIR] [--format table|json|csv] [--no-he
 
 ### Global options
 
-| Option | Default | Description |
-|---|---|---|
-| `--config PATH` / `-c PATH` | unset | Path to `engine_config.yaml`; used to discover history file paths and index IDs automatically |
-| `--data-dir DIR` | `data/indexes` | Directory containing history JSONL files; used when `--config` is not given or an index is not in config |
-| `--format table\|json\|csv` | `table` | Output format |
-| `--no-header` | off | Suppress header row (CSV only) |
+| Option                      | Default        | Description                                                                                              |
+|-----------------------------|----------------|----------------------------------------------------------------------------------------------------------|
+| `--config PATH` / `-c PATH` | unset          | Path to `engine_config.yaml`; used to discover history file paths and index IDs automatically            |
+| `--data-dir DIR`            | `data/indexes` | Directory containing history JSONL files; used when `--config` is not given or an index is not in config |
+| `--format table\|json\|csv` | `table`        | Output format                                                                                            |
+| `--no-header`               | off            | Suppress header row (CSV only)                                                                           |
 
 ### Subcommands
 
-| Subcommand | Purpose |
-|---|---|
-| `level` | Throttled LEVEL records — index value snapshots captured during trading |
-| `eod` | EOD records — one row per trading day with open/high/low/close |
-| `events` | Structural events: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST` |
-| `indices` | List configured indices from `engine_config.yaml` |
+| Subcommand | Purpose                                                                 |
+|------------|-------------------------------------------------------------------------|
+| `level`    | Throttled LEVEL records — index value snapshots captured during trading |
+| `eod`      | EOD records — one row per trading day with open/high/low/close          |
+| `events`   | Structural events: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`   |
+| `indices`  | List configured indices from `engine_config.yaml`                       |
 
 All history subcommands (`level`, `eod`, `events`) share the same set of
 per-index and time-range options:
 
-| Option | Description |
-|---|---|
+| Option                 | Description                                                                                 |
+|------------------------|---------------------------------------------------------------------------------------------|
 | `--index ID` / `-i ID` | Index ID to query (repeatable); defaults to all configured indices when `--config` is given |
-| `--days N` | Return records from the last N days (mutually exclusive with `--from`) |
-| `--from DATE_OR_TS` | Start of time range: `YYYY-MM-DD` or ISO-8601 (mutually exclusive with `--days`) |
-| `--to DATE_OR_TS` | End of time range: `YYYY-MM-DD` or ISO-8601 (default: now) |
-| `--limit N` | Maximum rows per index |
+| `--days N`             | Return records from the last N days (mutually exclusive with `--from`)                      |
+| `--from DATE_OR_TS`    | Start of time range: `YYYY-MM-DD` or ISO-8601 (mutually exclusive with `--days`)            |
+| `--to DATE_OR_TS`      | End of time range: `YYYY-MM-DD` or ISO-8601 (default: now)                                  |
+| `--limit N`            | Maximum rows per index                                                                      |
 
 The `events` subcommand also accepts:
 
-| Option | Description |
-|---|---|
+| Option                    | Description                                                                               |
+|---------------------------|-------------------------------------------------------------------------------------------|
 | `--type TYPE` / `-t TYPE` | Filter to one event type (repeatable): `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST` |
 
 ### Output columns
 
 **`level` subcommand:**
 
-| Column | Description |
-|---|---|
-| `ts` | UTC timestamp (`YYYY-MM-DDTHH:MM:SS`) |
-| `index_id` | Index identifier |
-| `level` | Index level at this snapshot |
-| `session_state` | Session state at time of snapshot |
+| Column          | Description                                                                  |
+|-----------------|------------------------------------------------------------------------------|
+| `ts`            | UTC timestamp (`YYYY-MM-DDTHH:MM:SS`)                                        |
+| `index_id`      | Index identifier                                                             |
+| `level`         | Index level at this snapshot                                                 |
+| `session_state` | Session state at time of snapshot                                            |
 | `aggregate_cap` | Aggregate market capitalisation (sum of price × shares for all constituents) |
-| `divisor` | Current divisor |
+| `divisor`       | Current divisor                                                              |
 
 **`eod` subcommand:**
 
-| Column | Description |
-|---|---|
-| `date` | Calendar date (`YYYY-MM-DD`) |
-| `index_id` | Index identifier |
-| `open` | Day-open index level |
-| `high` | Day-high index level |
-| `low` | Day-low index level |
-| `close` | Closing index level |
-| `level` | Final level at EOD write time (same as `close`) |
-| `aggregate_cap` | Aggregate market cap at session close |
-| `divisor` | Divisor at session close |
+| Column          | Description                                     |
+|-----------------|-------------------------------------------------|
+| `date`          | Calendar date (`YYYY-MM-DD`)                    |
+| `index_id`      | Index identifier                                |
+| `open`          | Day-open index level                            |
+| `high`          | Day-high index level                            |
+| `low`           | Day-low index level                             |
+| `close`         | Closing index level                             |
+| `level`         | Final level at EOD write time (same as `close`) |
+| `aggregate_cap` | Aggregate market cap at session close           |
+| `divisor`       | Divisor at session close                        |
 
 **`events` subcommand:**
 
-| Column | Description |
-|---|---|
-| `ts` | UTC timestamp |
-| `index_id` | Index identifier |
-| `type` | Event type: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, or `DELIST` |
-| `symbol` | Affected symbol (empty for `INIT`) |
-| `detail` | Human-readable summary (e.g. `SPLIT 2:1`, `ref_price=195.0`) |
-| `old_divisor` | Divisor before adjustment (empty for `INIT`) |
-| `new_divisor` | Divisor after adjustment (empty for `INIT`) |
-| `level` | Index level after the event |
+| Column        | Description                                                       |
+|---------------|-------------------------------------------------------------------|
+| `ts`          | UTC timestamp                                                     |
+| `index_id`    | Index identifier                                                  |
+| `type`        | Event type: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, or `DELIST` |
+| `symbol`      | Affected symbol (empty for `INIT`)                                |
+| `detail`      | Human-readable summary (e.g. `SPLIT 2:1`, `ref_price=195.0`)      |
+| `old_divisor` | Divisor before adjustment (empty for `INIT`)                      |
+| `new_divisor` | Divisor after adjustment (empty for `INIT`)                       |
+| `level`       | Index level after the event                                       |
 
 ### Examples
 
@@ -695,11 +695,11 @@ pm-index-cli --format table level \
 
 ### No-row behaviour
 
-| Format | Output when no rows match |
-|---|---|
-| `table` | `No rows found.` |
-| `json` | `[]` |
-| `csv` | Header row only (unless `--no-header`) |
+| Format  | Output when no rows match              |
+|---------|----------------------------------------|
+| `table` | `No rows found.`                       |
+| `json`  | `[]`                                   |
+| `csv`   | Header row only (unless `--no-header`) |
 
 ### Plotting example (Python)
 
@@ -745,12 +745,12 @@ sockets are closed on exit.
 
 ### Constructor parameters
 
-| Parameter | Default | Description |
-|---|---|---|
-| `gw_id` | *(required)* | Gateway ID to authenticate as — must be configured in `engine_config.yaml` |
-| `push_addr` | `tcp://127.0.0.1:5555` | Engine PULL socket address |
-| `pub_addr` | `tcp://127.0.0.1:5556` | Engine PUB socket address |
-| `timeout_ms` | `3000` | Milliseconds to wait for an ack before raising `CommandTimeoutError` |
+| Parameter    | Default                | Description                                                                |
+|--------------|------------------------|----------------------------------------------------------------------------|
+| `gw_id`      | *(required)*           | Gateway ID to authenticate as — must be configured in `engine_config.yaml` |
+| `push_addr`  | `tcp://127.0.0.1:5555` | Engine PULL socket address                                                 |
+| `pub_addr`   | `tcp://127.0.0.1:5556` | Engine PUB socket address                                                  |
+| `timeout_ms` | `3000`                 | Milliseconds to wait for an ack before raising `CommandTimeoutError`       |
 
 ### Usage example
 
@@ -782,27 +782,27 @@ with ExchangeCommandClient("GW_ADMIN") as client:
 
 ## Command reference
 
-| Command | Arguments | Auth required | Underlying message | Ack topic |
-|---|---|---|---|---|
-| `connect()` | — | — | `system.gateway_connect` | `system.gateway_auth.{GW}` |
-| `disconnect()` | — | — | `system.gateway_disconnect` | *(none)* |
-| `halt_all()` | — | **ADMIN** | `risk.circuit_breaker_halt_all` | `risk.circuit_breaker_halt_all_ack.{GW}` |
-| `resume_all()` | — | **ADMIN** | `risk.circuit_breaker_resume_all` | `risk.circuit_breaker_resume_all_ack.{GW}` |
-| `kill_switch(target, symbol?)` | target GW ID, optional symbol | Any connected GW | `risk.kill_switch` | `risk.kill_switch_ack.{target}` |
-| `mass_cancel(target, symbol)` | target GW ID, symbol | Any connected GW | `risk.kill_switch` | `risk.kill_switch_ack.{target}` |
-| `quote_cancel(target, symbol)` | target GW ID, symbol | Any connected GW | `quote.cancel` | `quote.ack.{target}` |
-| `gateway_kick(target, reason?)` | target GW ID, optional reason | Any connected GW | `system.gateway_disconnect` | *(none)* |
-| `book_depth(symbol)` | symbol | Any connected GW | `book.snapshot_request` | `book.{SYMBOL}` |
-| `order_list(target)` | target GW ID | Any connected GW | `order.orders_request` | `order.orders.{target}` |
-| `symbol_list()` | — | Any connected GW | `system.symbols_request` | `system.symbols.{GW}` |
-| `session_advance(state)` | target state string | Any connected GW | `session.transition` | `session.state` |
-| `session_status()` | — | Any connected GW | `system.session_state_request` | `system.session_status.{GW}` |
-| `session_schedule()` | — | Any connected GW | `system.session_schedule_request` | `system.session_schedule.{GW}` |
-| `gateway_list()` | — | Any connected GW | `system.gateways_request` | `system.gateways.{GW}` |
-| `volume()` | — | Any connected GW | `system.volume_request` | `system.volume.{GW}` |
-| `symbol_halt(symbol)` | symbol | **ADMIN** | `risk.symbol_halt` | `risk.symbol_halt_ack.{GW}` |
-| `symbol_resume(symbol)` | symbol | **ADMIN** | `risk.symbol_resume` | `risk.symbol_resume_ack.{GW}` |
-| `cancel_symbol(symbol)` | symbol | **ADMIN** | `risk.cancel_symbol` | `risk.cancel_symbol_ack.{GW}` |
+| Command                         | Arguments                     | Auth required    | Underlying message                | Ack topic                                  |
+|---------------------------------|-------------------------------|------------------|-----------------------------------|--------------------------------------------|
+| `connect()`                     | —                             | —                | `system.gateway_connect`          | `system.gateway_auth.{GW}`                 |
+| `disconnect()`                  | —                             | —                | `system.gateway_disconnect`       | *(none)*                                   |
+| `halt_all()`                    | —                             | **ADMIN**        | `risk.circuit_breaker_halt_all`   | `risk.circuit_breaker_halt_all_ack.{GW}`   |
+| `resume_all()`                  | —                             | **ADMIN**        | `risk.circuit_breaker_resume_all` | `risk.circuit_breaker_resume_all_ack.{GW}` |
+| `kill_switch(target, symbol?)`  | target GW ID, optional symbol | Any connected GW | `risk.kill_switch`                | `risk.kill_switch_ack.{target}`            |
+| `mass_cancel(target, symbol)`   | target GW ID, symbol          | Any connected GW | `risk.kill_switch`                | `risk.kill_switch_ack.{target}`            |
+| `quote_cancel(target, symbol)`  | target GW ID, symbol          | Any connected GW | `quote.cancel`                    | `quote.ack.{target}`                       |
+| `gateway_kick(target, reason?)` | target GW ID, optional reason | Any connected GW | `system.gateway_disconnect`       | *(none)*                                   |
+| `book_depth(symbol)`            | symbol                        | Any connected GW | `book.snapshot_request`           | `book.{SYMBOL}`                            |
+| `order_list(target)`            | target GW ID                  | Any connected GW | `order.orders_request`            | `order.orders.{target}`                    |
+| `symbol_list()`                 | —                             | Any connected GW | `system.symbols_request`          | `system.symbols.{GW}`                      |
+| `session_advance(state)`        | target state string           | Any connected GW | `session.transition`              | `session.state`                            |
+| `session_status()`              | —                             | Any connected GW | `system.session_state_request`    | `system.session_status.{GW}`               |
+| `session_schedule()`            | —                             | Any connected GW | `system.session_schedule_request` | `system.session_schedule.{GW}`             |
+| `gateway_list()`                | —                             | Any connected GW | `system.gateways_request`         | `system.gateways.{GW}`                     |
+| `volume()`                      | —                             | Any connected GW | `system.volume_request`           | `system.volume.{GW}`                       |
+| `symbol_halt(symbol)`           | symbol                        | **ADMIN**        | `risk.symbol_halt`                | `risk.symbol_halt_ack.{GW}`                |
+| `symbol_resume(symbol)`         | symbol                        | **ADMIN**        | `risk.symbol_resume`              | `risk.symbol_resume_ack.{GW}`              |
+| `cancel_symbol(symbol)`         | symbol                        | **ADMIN**        | `risk.cancel_symbol`              | `risk.cancel_symbol_ack.{GW}`              |
 
 !!! warning "PUSH socket has no authentication"
     The engine does not verify *who* placed a message on the PUSH socket — it
@@ -946,11 +946,11 @@ client.gateway_kick("TRADER01", reason="Compliance hold")
 
 The engine applies the gateway's configured `disconnect_behaviour`:
 
-| Behaviour | Effect |
-|---|---|
-| `LEAVE_ALL` | Session marked disconnected, all orders and quotes left resting |
-| `CANCEL_QUOTES_ONLY` | Quotes cancelled, limit orders left resting |
-| `CANCEL_ALL` | All quotes and orders cancelled |
+| Behaviour            | Effect                                                          |
+|----------------------|-----------------------------------------------------------------|
+| `LEAVE_ALL`          | Session marked disconnected, all orders and quotes left resting |
+| `CANCEL_QUOTES_ONLY` | Quotes cancelled, limit orders left resting                     |
+| `CANCEL_ALL`         | All quotes and orders cancelled                                 |
 
 No ack is published.  Verify the effect with `order_list("TRADER01")`.
 

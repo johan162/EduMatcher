@@ -126,12 +126,12 @@ Where to read more:
 
 ## Quick selection guide
 
-| If you need to... | Protocol to start with |
-|---|---|
-| Enter and manage orders from participant terminals | **ALF** |
-| Plan binary low-latency order-entry integrations | **BALF** |
-| Consume market-data channels externally | **CALF** |
-| Consume post-trade/clearing/audit streams externally | **RALF** |
+| If you need to...                                    | Protocol to start with |
+|------------------------------------------------------|------------------------|
+| Enter and manage orders from participant terminals   | **ALF**                |
+| Plan binary low-latency order-entry integrations     | **BALF**               |
+| Consume market-data channels externally              | **CALF**               |
+| Consume post-trade/clearing/audit streams externally | **RALF**               |
 
 
 ## See also

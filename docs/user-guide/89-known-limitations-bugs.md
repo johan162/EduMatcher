@@ -142,8 +142,8 @@ at the right prices. Only the **buyer's** average cost is wrong.
 The last level reached in a sweep is always the **worst** price for the
 aggressor, so the error has a predictable sign:
 
-| Aggressor side | Last level is… | Effect on the aggressor's books          |
-|----------------|----------------|-------------------------------------------|
+| Aggressor side | Last level is… | Effect on the aggressor's books                        |
+|----------------|----------------|--------------------------------------------------------|
 | **BUY**        | Highest price  | Cost basis **overstated** → unrealized P&L understated |
 | **SELL**       | Lowest price   | Proceeds **understated** → unrealized P&L understated  |
 

@@ -18,11 +18,11 @@ sessions to preserve market state and historical records.
     All persistence files live under the **data directory**, which varies by
     installation mode:
 
-    | Mode | Default path |
-    |---|---|
-    | Developer (Poetry) | `<repo>/src/data/` |
-    | Installed (pipx) | `~/.local/share/edumatcher` |
-    | Custom | `$EDUMATCHER_DATA_DIR` |
+    | Mode               | Default path                |
+    |--------------------|-----------------------------|
+    | Developer (Poetry) | `<repo>/src/data/`          |
+    | Installed (pipx)   | `~/.local/share/edumatcher` |
+    | Custom             | `$EDUMATCHER_DATA_DIR`      |
 
     See [Getting Started → Environment variables](00-getting-started.md#environment-variables) for override details.
 
@@ -266,11 +266,11 @@ Example lines:
 
 **Format details**:
 
-| Component | Description |
-|---|---|
-| `TIMESTAMP` | ISO 8601 UTC with millisecond precision (`2026-04-29T14:30:01.456+00:00`) |
-| `TOPIC` | The ZeroMQ topic string, e.g. `order.fill.GW01`, `trade.executed`, `session.state` |
-| `{JSON_PAYLOAD}` | The full message payload as compact JSON — no pretty-printing |
+| Component        | Description                                                                        |
+|------------------|------------------------------------------------------------------------------------|
+| `TIMESTAMP`      | ISO 8601 UTC with millisecond precision (`2026-04-29T14:30:01.456+00:00`)          |
+| `TOPIC`          | The ZeroMQ topic string, e.g. `order.fill.GW01`, `trade.executed`, `session.state` |
+| `{JSON_PAYLOAD}` | The full message payload as compact JSON — no pretty-printing                      |
 
 The topic is **not** a JSON field inside the payload; it appears as a separate
 bracket-delimited token on the same line.
@@ -310,17 +310,17 @@ executes, that trade is not recorded here (it is still in `stats.db` and `audit.
 
 **Header and column definitions**:
 
-| Column | Type | Description |
-|---|---|---|
-| `trade_id` | string (UUID) | Engine-assigned unique trade identifier |
-| `symbol` | string | Traded instrument, e.g. `AAPL` |
-| `buy_order_id` | string (UUID) | Order ID of the buy-side order |
-| `sell_order_id` | string (UUID) | Order ID of the sell-side order |
-| `buy_gateway` | string | Gateway ID of the buyer, e.g. `GW01` |
-| `sell_gateway` | string | Gateway ID of the seller, e.g. `MM01` |
-| `price` | decimal | Execution price as a display decimal (e.g. `150.05`) |
-| `quantity` | integer | Executed quantity |
-| `timestamp` | ISO 8601 | UTC timestamp of the trade execution |
+| Column          | Type          | Description                                          |
+|-----------------|---------------|------------------------------------------------------|
+| `trade_id`      | string (UUID) | Engine-assigned unique trade identifier              |
+| `symbol`        | string        | Traded instrument, e.g. `AAPL`                       |
+| `buy_order_id`  | string (UUID) | Order ID of the buy-side order                       |
+| `sell_order_id` | string (UUID) | Order ID of the sell-side order                      |
+| `buy_gateway`   | string        | Gateway ID of the buyer, e.g. `GW01`                 |
+| `sell_gateway`  | string        | Gateway ID of the seller, e.g. `MM01`                |
+| `price`         | decimal       | Execution price as a display decimal (e.g. `150.05`) |
+| `quantity`      | integer       | Executed quantity                                    |
+| `timestamp`     | ISO 8601      | UTC timestamp of the trade execution                 |
 
 **Example**:
 
@@ -453,14 +453,14 @@ ORDER BY ts;
 
 ## Summary of All Data Files
 
-| File | Written by | When written | Survives restart? | Purpose |
-|---|---|---|---|---|
-| `src/data/gtc_orders.json` | Engine | Shutdown | Used at next startup | Resting GTC order book state |
-| `src/data/gtc_combos.json` | Engine | Shutdown | Used at next startup | Resting GTC combo parent state |
-| `src/data/book_stats.json` | Engine | Shutdown | Used at next startup | Last buy/sell prices; seed-once detection |
-| `src/data/audit.log` | `pm-audit` | Continuously | Accumulates (rotating) | Full event audit trail |
-| `src/data/clearing_report.csv` | `pm-clearing` | Per trade | Accumulates | Trade settlement records |
-| `src/data/stats.db` | `pm-stats` | Per trade + 15 min | Accumulates | OHLCV, intraday charts, trade log |
+| File                           | Written by    | When written       | Survives restart?      | Purpose                                   |
+|--------------------------------|---------------|--------------------|------------------------|-------------------------------------------|
+| `src/data/gtc_orders.json`     | Engine        | Shutdown           | Used at next startup   | Resting GTC order book state              |
+| `src/data/gtc_combos.json`     | Engine        | Shutdown           | Used at next startup   | Resting GTC combo parent state            |
+| `src/data/book_stats.json`     | Engine        | Shutdown           | Used at next startup   | Last buy/sell prices; seed-once detection |
+| `src/data/audit.log`           | `pm-audit`    | Continuously       | Accumulates (rotating) | Full event audit trail                    |
+| `src/data/clearing_report.csv` | `pm-clearing` | Per trade          | Accumulates            | Trade settlement records                  |
+| `src/data/stats.db`            | `pm-stats`    | Per trade + 15 min | Accumulates            | OHLCV, intraday charts, trade log         |
 
 !!! note "Why `src/data/` and not `data/`?"
     `DATA_DIR` is resolved relative to `src/edumatcher/config.py`, two parent

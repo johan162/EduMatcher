@@ -74,12 +74,12 @@ macOS, Linux, or Windows.
 
 **Requirements**
 
-| Requirement | Notes |
-|---|---|
-| Multipass | Install from [multipass.run](https://multipass.run/install) |
-| curl | Used to download the VM bootstrap script |
-| Internet access | Required for downloading scripts and PyPI packages |
-| Host resources | Recommended minimum: 2 vCPU, 3 GB RAM, 10 GB disk |
+| Requirement     | Notes                                                       |
+|-----------------|-------------------------------------------------------------|
+| Multipass       | Install from [multipass.run](https://multipass.run/install) |
+| curl            | Used to download the VM bootstrap script                    |
+| Internet access | Required for downloading scripts and PyPI packages          |
+| Host resources  | Recommended minimum: 2 vCPU, 3 GB RAM, 10 GB disk           |
 
 **Bootstrap with one command**
 
@@ -132,9 +132,9 @@ no source code, no Poetry, no virtual environment management.
 
 **Requirements**
 
-| Requirement | Notes |
-|---|---|
-| Python 3.13 or later | Check with `python --version` |
+| Requirement                    | Notes                                    |
+|--------------------------------|------------------------------------------|
+| Python 3.13 or later           | Check with `python --version`            |
 | Three or more terminal windows | Or a terminal multiplexer such as `tmux` |
 
 **Install**
@@ -205,11 +205,11 @@ Use this mode if you want to modify the engine, run tests, or contribute.
 
 **Requirements**
 
-| Requirement | Notes |
-|---|---|
-| Python 3.13 or later | Check with `python --version` |
+| Requirement                          | Notes                                         |
+|--------------------------------------|-----------------------------------------------|
+| Python 3.13 or later                 | Check with `python --version`                 |
 | [Poetry](https://python-poetry.org/) | `pip install poetry` or `pipx install poetry` |
-| Three terminal windows | Or `tmux` / `screen` |
+| Three terminal windows               | Or `tmux` / `screen`                          |
 
 **Install**
 
@@ -246,10 +246,10 @@ poetry run pm-gateway --id GW01
 These two variables work in both modes. Set them in your shell profile to
 override the defaults permanently.
 
-| Variable | Default (installed) | Default (source) | Purpose |
-|---|---|---|---|
-| `EDUMATCHER_DATA_DIR` | `~/.local/share/edumatcher` | `<repo>/src/data/` | Where all persistent data files are stored |
-| `EDUMATCHER_CONFIG` | `./engine_config.yaml` (CWD) | `<repo>/engine_config.yaml` | Path to the engine configuration YAML |
+| Variable              | Default (installed)          | Default (source)            | Purpose                                    |
+|-----------------------|------------------------------|-----------------------------|--------------------------------------------|
+| `EDUMATCHER_DATA_DIR` | `~/.local/share/edumatcher`  | `<repo>/src/data/`          | Where all persistent data files are stored |
+| `EDUMATCHER_CONFIG`   | `./engine_config.yaml` (CWD) | `<repo>/engine_config.yaml` | Path to the engine configuration YAML      |
 
 The `--config` flag on `pm-engine` and `pm-scheduler` always takes precedence
 over both the environment variable and the default.
@@ -311,14 +311,14 @@ For startup order and a practical first-run sequence, see
 If your gateway role is `MARKET_MAKER`, this is the fastest practical command
 set for quote operation and fill recognition:
 
-| Goal | Command |
-|---|---|
-| Submit/replace quote | `QUOTE\|SYM=AAPL\|BID=209.80\|ASK=210.20\|BID_QTY=500\|ASK_QTY=500\|QUOTE_ID=Q123` |
-| Cancel active quote | `QUOTE_CANCEL\|SYM=AAPL` |
-| Show active quote legs | `QLEGS` |
-| Show one-symbol quote legs | `QLEGS\|SYM=AAPL` |
-| Show recent completed legs | `QLEGS\|SHOW=RECENT` |
-| Show active + recent legs | `QLEGS\|SYM=AAPL\|SHOW=ALL` |
+| Goal                       | Command                                                                            |
+|----------------------------|------------------------------------------------------------------------------------|
+| Submit/replace quote       | `QUOTE\|SYM=AAPL\|BID=209.80\|ASK=210.20\|BID_QTY=500\|ASK_QTY=500\|QUOTE_ID=Q123` |
+| Cancel active quote        | `QUOTE_CANCEL\|SYM=AAPL`                                                           |
+| Show active quote legs     | `QLEGS`                                                                            |
+| Show one-symbol quote legs | `QLEGS\|SYM=AAPL`                                                                  |
+| Show recent completed legs | `QLEGS\|SHOW=RECENT`                                                               |
+| Show active + recent legs  | `QLEGS\|SYM=AAPL\|SHOW=ALL`                                                        |
 
 Recommended manual loop:
 
@@ -511,17 +511,17 @@ sequenceDiagram
 
 The engine is the only mandatory process. Add the others as you need them:
 
-| When you want to… | Start this process | More information |
-|---|---|---|
-| Watch P&L update in real time | `pm-clearing` | [P&L and Clearing](07-pnl-clearing.md) |
-| Record OHLCV statistics | `pm-stats` | [Statistics and Reporting](16-statistics-and-reporting.md) |
-| Query recorded statistics without SQL | `pm-stats-cli daily --date 2026-06-14` | [Statistics and Reporting](16-statistics-and-reporting.md) |
-| Use `pm-admin` operator commands | `pm-admin` (interactive REPL) | [Risk Controls](12-risk-controls.md) |
-| Schedule opening/closing auctions | `pm-scheduler` | [Auctions and Scheduling](06-auctions-scheduling.md) |
-| Add autonomous AI order flow | `pm-ai-swarm --count 5 --duration 60` | [AI Traders](15-ai-traders.md) |
-| Add automated market-maker liquidity | `pm-mm-bot --symbol AAPL` | [Market-Maker Bot](17-mm-bot.md) |
-| Feed external clearing/drop-copy consumers over TCP | `pm-ralf-gwy` | [Post-Trade Dissemination](18-post-trade.md) |
-| Feed compliance/risk systems | Subscribe to `:5557` (drop-copy socket) | [Drop Copy](13-drop-copy.md) |
+| When you want to…                                   | Start this process                      | More information                                           |
+|-----------------------------------------------------|-----------------------------------------|------------------------------------------------------------|
+| Watch P&L update in real time                       | `pm-clearing`                           | [P&L and Clearing](07-pnl-clearing.md)                     |
+| Record OHLCV statistics                             | `pm-stats`                              | [Statistics and Reporting](16-statistics-and-reporting.md) |
+| Query recorded statistics without SQL               | `pm-stats-cli daily --date 2026-06-14`  | [Statistics and Reporting](16-statistics-and-reporting.md) |
+| Use `pm-admin` operator commands                    | `pm-admin` (interactive REPL)           | [Risk Controls](12-risk-controls.md)                       |
+| Schedule opening/closing auctions                   | `pm-scheduler`                          | [Auctions and Scheduling](06-auctions-scheduling.md)       |
+| Add autonomous AI order flow                        | `pm-ai-swarm --count 5 --duration 60`   | [AI Traders](15-ai-traders.md)                             |
+| Add automated market-maker liquidity                | `pm-mm-bot --symbol AAPL`               | [Market-Maker Bot](17-mm-bot.md)                           |
+| Feed external clearing/drop-copy consumers over TCP | `pm-ralf-gwy`                           | [Post-Trade Dissemination](18-post-trade.md)               |
+| Feed compliance/risk systems                        | Subscribe to `:5557` (drop-copy socket) | [Drop Copy](13-drop-copy.md)                               |
 
 For a full classroom session, use the provided launch script:
 
@@ -581,34 +581,34 @@ Typical setup:
 
 Use the table below to decide what to read based on your goal.
 
-| Goal | Read these sections in order |
-|---|---|
+| Goal                           | Read these sections in order                         |
+|--------------------------------|------------------------------------------------------|
 | **Understand the full system** | 01 → 03 → 08 → 04 → 06 → 11 → 12 → 02 → 07 → 09 → 10 |
-| **Set up a classroom session** | 01 → 03 → 08 → 06 → 14 (MM) → 15 (AI) |
-| **Participate as a trader** | 08 → 04 → 05 |
-| **Run as a market maker** | 01 → 08 → 14 (MM) |
-| **Monitor the market** | 09 → 10 → 13 → 07 |
-| **Write a custom client** | 09 → 20 → 02 |
-| **Understand risk controls** | 12 → 06 → 04 |
+| **Set up a classroom session** | 01 → 03 → 08 → 06 → 14 (MM) → 15 (AI)                |
+| **Participate as a trader**    | 08 → 04 → 05                                         |
+| **Run as a market maker**      | 01 → 08 → 14 (MM)                                    |
+| **Monitor the market**         | 09 → 10 → 13 → 07                                    |
+| **Write a custom client**      | 09 → 20 → 02                                         |
+| **Understand risk controls**   | 12 → 06 → 04                                         |
 
 
 
 ## Glossary of terms used throughout this guide
 
-| Term | Meaning |
-|---|---|
-| **Engine** | The `pm-engine` matching engine process — the authoritative order book |
-| **Gateway** | A `pm-gateway` participant terminal; one per trader |
-| **Symbol** | A tradeable instrument, e.g. `AAPL`, `MSFT` |
-| **Order book** | Sorted list of resting bids and asks for one symbol |
-| **Fill** | An execution — the result of two orders matching |
-| **TIF** | Time-in-Force: how long an order lives (`DAY`, `GTC`, `ATO`, `ATC`) |
-| **Tick** | Minimum price increment (e.g. 0.01 for most equities) |
-| **Gateway ID** | Unique identifier for a participant connection, e.g. `GW01` |
-| **Session state** | Phase of the trading day: `PRE_OPEN`, `OPENING_AUCTION`, `CONTINUOUS`, `CLOSING_AUCTION`, `CLOSED` |
-| **Market maker** | A participant with role `MARKET_MAKER` who quotes two-sided prices |
-| **Circuit breaker** | Automatic halt triggered when price moves beyond a configured threshold |
-| **Drop copy** | A copy of all fill events published to a dedicated socket for compliance systems |
+| Term                | Meaning                                                                                            |
+|---------------------|----------------------------------------------------------------------------------------------------|
+| **Engine**          | The `pm-engine` matching engine process — the authoritative order book                             |
+| **Gateway**         | A `pm-gateway` participant terminal; one per trader                                                |
+| **Symbol**          | A tradeable instrument, e.g. `AAPL`, `MSFT`                                                        |
+| **Order book**      | Sorted list of resting bids and asks for one symbol                                                |
+| **Fill**            | An execution — the result of two orders matching                                                   |
+| **TIF**             | Time-in-Force: how long an order lives (`DAY`, `GTC`, `ATO`, `ATC`)                                |
+| **Tick**            | Minimum price increment (e.g. 0.01 for most equities)                                              |
+| **Gateway ID**      | Unique identifier for a participant connection, e.g. `GW01`                                        |
+| **Session state**   | Phase of the trading day: `PRE_OPEN`, `OPENING_AUCTION`, `CONTINUOUS`, `CLOSING_AUCTION`, `CLOSED` |
+| **Market maker**    | A participant with role `MARKET_MAKER` who quotes two-sided prices                                 |
+| **Circuit breaker** | Automatic halt triggered when price moves beyond a configured threshold                            |
+| **Drop copy**       | A copy of all fill events published to a dedicated socket for compliance systems                   |
 
 ## See also
 

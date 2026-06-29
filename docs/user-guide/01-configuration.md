@@ -69,10 +69,10 @@ If you are running from a Poetry checkout, prefix commands with `poetry run`.
 
 The engine and scheduler handle missing config differently:
 
-| Process | Missing default config | Missing explicit `--config` |
-|---|---|---|
-| `pm-engine` | Starts unrestricted | Starts unrestricted for that path |
-| `pm-scheduler` | Uses built-in schedule | Fatal error |
+| Process        | Missing default config | Missing explicit `--config`       |
+|----------------|------------------------|-----------------------------------|
+| `pm-engine`    | Starts unrestricted    | Starts unrestricted for that path |
+| `pm-scheduler` | Uses built-in schedule | Fatal error                       |
 
 Unrestricted engine mode means there is no symbol allowlist, no gateway
 allowlist, no configured risk levels, no seeded last prices, no seeded
@@ -184,38 +184,38 @@ for each MM quote seed at generation time.
 
 Required inputs:
 
-| Option | Type | Description |
-|---|---|---|
-| `--symbols SYM [SYM ...]` | Repeatable tokens | Symbol universe (uppercased on parse) |
+| Option                             | Type              | Description                               |
+|------------------------------------|-------------------|-------------------------------------------|
+| `--symbols SYM [SYM ...]`          | Repeatable tokens | Symbol universe (uppercased on parse)     |
 | `--gateways GW_SPEC [GW_SPEC ...]` | Repeatable tokens | Gateway specs as `ID[:ROLE[:DISCONNECT]]` |
 
 Session and schedule options:
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `--sessions-enabled` / `--no-sessions-enabled` | Flag pair | `false` | Enable/disable scheduler-driven sessions |
-| `--schedule` / `--no-schedule` | Flag pair | auto | Force include/exclude `schedule`; auto emits when sessions are enabled |
-| `--pre-open HH:MM` | String | `09:00` | Schedule pre-open time |
-| `--opening-auction HH:MM` | String | `09:25` | Opening auction start |
-| `--continuous HH:MM` | String | `09:30` | Continuous start |
-| `--closing-auction HH:MM` | String | `16:00` | Closing auction start |
-| `--closing-end HH:MM` | String | `16:05` | Closing auction end |
+| Option                                         | Type      | Default | Description                                                            |
+|------------------------------------------------|-----------|---------|------------------------------------------------------------------------|
+| `--sessions-enabled` / `--no-sessions-enabled` | Flag pair | `false` | Enable/disable scheduler-driven sessions                               |
+| `--schedule` / `--no-schedule`                 | Flag pair | auto    | Force include/exclude `schedule`; auto emits when sessions are enabled |
+| `--pre-open HH:MM`                             | String    | `09:00` | Schedule pre-open time                                                 |
+| `--opening-auction HH:MM`                      | String    | `09:25` | Opening auction start                                                  |
+| `--continuous HH:MM`                           | String    | `09:30` | Continuous start                                                       |
+| `--closing-auction HH:MM`                      | String    | `16:00` | Closing auction start                                                  |
+| `--closing-end HH:MM`                          | String    | `16:05` | Closing auction end                                                    |
 
 Core engine and risk options:
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `--snapshot-interval SECS` | float (`> 0`) | `0.5` | `snapshot_interval_sec` |
-| `--no-collars` | Flag | off | Emit `enforce_collars: false` |
-| `--no-circuit-breakers` | Flag | off | Emit `enforce_circuit_breakers: false` |
-| `--static-band PCT` | float in `(0,1)` | unset | Default risk-control static band (`DEFAULT` level) |
-| `--dynamic-band PCT` | float in `(0,1)` | unset | Default risk-control dynamic band (`DEFAULT` level) |
-| `--symbol-static-band SYM:PCT` | Repeatable | none | Per-symbol `collar.static_band_pct` override |
-| `--symbol-dynamic-band SYM:PCT` | Repeatable | none | Per-symbol `collar.dynamic_band_pct` override |
-| `--symbol-risk-level SYM:LEVEL` | Repeatable | none | Per-symbol `symbols.<SYM>.level` override |
-| `--risk-level NAME:STATIC[:DYNAMIC]` | Repeatable | none | Add named risk levels under `risk_controls.levels` |
-| `--cb-levels NAME:SHIFT[:HALT_MINS] ...` | List | built-in ladder | Circuit-breaker level specs |
-| `--cb-window-ns NS` | int (`> 0`) | `300000000000` | Circuit-breaker reference window |
+| Option                                   | Type             | Default         | Description                                         |
+|------------------------------------------|------------------|-----------------|-----------------------------------------------------|
+| `--snapshot-interval SECS`               | float (`> 0`)    | `0.5`           | `snapshot_interval_sec`                             |
+| `--no-collars`                           | Flag             | off             | Emit `enforce_collars: false`                       |
+| `--no-circuit-breakers`                  | Flag             | off             | Emit `enforce_circuit_breakers: false`              |
+| `--static-band PCT`                      | float in `(0,1)` | unset           | Default risk-control static band (`DEFAULT` level)  |
+| `--dynamic-band PCT`                     | float in `(0,1)` | unset           | Default risk-control dynamic band (`DEFAULT` level) |
+| `--symbol-static-band SYM:PCT`           | Repeatable       | none            | Per-symbol `collar.static_band_pct` override        |
+| `--symbol-dynamic-band SYM:PCT`          | Repeatable       | none            | Per-symbol `collar.dynamic_band_pct` override       |
+| `--symbol-risk-level SYM:LEVEL`          | Repeatable       | none            | Per-symbol `symbols.<SYM>.level` override           |
+| `--risk-level NAME:STATIC[:DYNAMIC]`     | Repeatable       | none            | Add named risk levels under `risk_controls.levels`  |
+| `--cb-levels NAME:SHIFT[:HALT_MINS] ...` | List             | built-in ladder | Circuit-breaker level specs                         |
+| `--cb-window-ns NS`                      | int (`> 0`)      | `300000000000`  | Circuit-breaker reference window                    |
 
 Market-maker and symbol defaults:
 
@@ -242,32 +242,32 @@ Output and safety options:
 
 Post-trade gateway options:
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `--post-trade-gateway` | Flag | off | Emit top-level `post_trade_gateway` block for `pm-ralf-gwy` |
-| `--post-trade-name` | string | `ralf-gwy01` | `post_trade_gateway.name` |
-| `--post-trade-bind-address` | string | `0.0.0.0` | `post_trade_gateway.bind_address` |
-| `--post-trade-port` | int (`> 0`) | `5580` | `post_trade_gateway.port` |
-| `--post-trade-replay-retention-sec` | int (`> 0`) | `86400` | `post_trade_gateway.replay_retention_sec` |
-| `--post-trade-heartbeat-interval-sec` | int (`> 0`) | `1` | `post_trade_gateway.heartbeat_interval_sec` |
-| `--post-trade-idle-timeout-sec` | int (`> 0`) | `5` | `post_trade_gateway.idle_timeout_sec` |
-| `--post-trade-max-client-queue` | int (`> 0`) | `10000` | `post_trade_gateway.max_client_queue` |
-| `--post-trade-allowed-roles ROLE [ROLE ...]` | list | `CLEARING DROP_COPY AUDIT` | `post_trade_gateway.allowed_roles` |
+| Option                                       | Type        | Default                    | Description                                                 |
+|----------------------------------------------|-------------|----------------------------|-------------------------------------------------------------|
+| `--post-trade-gateway`                       | Flag        | off                        | Emit top-level `post_trade_gateway` block for `pm-ralf-gwy` |
+| `--post-trade-name`                          | string      | `ralf-gwy01`               | `post_trade_gateway.name`                                   |
+| `--post-trade-bind-address`                  | string      | `0.0.0.0`                  | `post_trade_gateway.bind_address`                           |
+| `--post-trade-port`                          | int (`> 0`) | `5580`                     | `post_trade_gateway.port`                                   |
+| `--post-trade-replay-retention-sec`          | int (`> 0`) | `86400`                    | `post_trade_gateway.replay_retention_sec`                   |
+| `--post-trade-heartbeat-interval-sec`        | int (`> 0`) | `1`                        | `post_trade_gateway.heartbeat_interval_sec`                 |
+| `--post-trade-idle-timeout-sec`              | int (`> 0`) | `5`                        | `post_trade_gateway.idle_timeout_sec`                       |
+| `--post-trade-max-client-queue`              | int (`> 0`) | `10000`                    | `post_trade_gateway.max_client_queue`                       |
+| `--post-trade-allowed-roles ROLE [ROLE ...]` | list        | `CLEARING DROP_COPY AUDIT` | `post_trade_gateway.allowed_roles`                          |
 
 Market-data gateway options:
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `--market-data-gateway` | Flag | off | Emit top-level `market_data_gateway` block for `pm-md-gwy` |
-| `--market-data-enabled` / `--market-data-disabled` | Flag pair | unset (`true` when emitted) | Set `market_data_gateway.enabled` |
-| `--market-data-name` | string | `md-gwy01` | `market_data_gateway.name` |
-| `--market-data-bind-address` | string | `0.0.0.0` | `market_data_gateway.bind_address` |
-| `--market-data-port` | int (`> 0`) | `5570` | `market_data_gateway.port` |
-| `--market-data-heartbeat-interval-sec` | int (`> 0`) | `1` | `market_data_gateway.heartbeat_interval_sec` |
-| `--market-data-idle-timeout-sec` | int (`> 0`) | `5` | `market_data_gateway.idle_timeout_sec` |
-| `--market-data-replay-window-sec` | int (`> 0`) | `30` | `market_data_gateway.replay_window_sec` |
-| `--market-data-max-symbols-per-client` | int (`> 0`) | `200` | `market_data_gateway.max_symbols_per_client` |
-| `--market-data-max-client-queue` | int (`> 0`) | `10000` | `market_data_gateway.max_client_queue` |
+| Option                                             | Type        | Default                     | Description                                                |
+|----------------------------------------------------|-------------|-----------------------------|------------------------------------------------------------|
+| `--market-data-gateway`                            | Flag        | off                         | Emit top-level `market_data_gateway` block for `pm-md-gwy` |
+| `--market-data-enabled` / `--market-data-disabled` | Flag pair   | unset (`true` when emitted) | Set `market_data_gateway.enabled`                          |
+| `--market-data-name`                               | string      | `md-gwy01`                  | `market_data_gateway.name`                                 |
+| `--market-data-bind-address`                       | string      | `0.0.0.0`                   | `market_data_gateway.bind_address`                         |
+| `--market-data-port`                               | int (`> 0`) | `5570`                      | `market_data_gateway.port`                                 |
+| `--market-data-heartbeat-interval-sec`             | int (`> 0`) | `1`                         | `market_data_gateway.heartbeat_interval_sec`               |
+| `--market-data-idle-timeout-sec`                   | int (`> 0`) | `5`                         | `market_data_gateway.idle_timeout_sec`                     |
+| `--market-data-replay-window-sec`                  | int (`> 0`) | `30`                        | `market_data_gateway.replay_window_sec`                    |
+| `--market-data-max-symbols-per-client`             | int (`> 0`) | `200`                       | `market_data_gateway.max_symbols_per_client`               |
+| `--market-data-max-client-queue`                   | int (`> 0`) | `10000`                     | `market_data_gateway.max_client_queue`                     |
 
 API gateway options:
 
@@ -293,14 +293,14 @@ API gateway options:
 
 Index options:
 
-| Option | Type | Default | Description |
-|---|---|---|---|
-| `--index ID[:DESCRIPTION]` | Repeatable | none | Define an index; `ID` is alphanumeric, `DESCRIPTION` is optional text after the first colon |
-| `--index-constituents ID:SYM[,SYM,...]` | Repeatable | none | Set constituent symbols for the named index |
-| `--index-base-value ID:VALUE` | Repeatable | `1000.0` | Override `base_value` for the named index |
-| `--index-interval ID:SECS` | Repeatable | `1.0` | Override `publish_interval_sec` for the named index |
-| `--index-history-file ID:PATH` | Repeatable | derived from ID | Override `history_file` path; default is `data/indexes/<ID>_history.jsonl` |
-| `--index-state-file ID:PATH` | Repeatable | derived from ID | Override `state_file` path; default is `data/indexes/<ID>_state.json` |
+| Option                                  | Type       | Default         | Description                                                                                 |
+|-----------------------------------------|------------|-----------------|---------------------------------------------------------------------------------------------|
+| `--index ID[:DESCRIPTION]`              | Repeatable | none            | Define an index; `ID` is alphanumeric, `DESCRIPTION` is optional text after the first colon |
+| `--index-constituents ID:SYM[,SYM,...]` | Repeatable | none            | Set constituent symbols for the named index                                                 |
+| `--index-base-value ID:VALUE`           | Repeatable | `1000.0`        | Override `base_value` for the named index                                                   |
+| `--index-interval ID:SECS`              | Repeatable | `1.0`           | Override `publish_interval_sec` for the named index                                         |
+| `--index-history-file ID:PATH`          | Repeatable | derived from ID | Override `history_file` path; default is `data/indexes/<ID>_history.jsonl`                  |
+| `--index-state-file ID:PATH`            | Repeatable | derived from ID | Override `state_file` path; default is `data/indexes/<ID>_state.json`                       |
 
 Up to 5 indices may be defined. Every constituent symbol must appear in `--symbols`. Every index must have at least one constituent. Each `ID` must be alphanumeric. When `history_file` and `state_file` are omitted, `pm-config-gen` derives them from the index ID under `data/indexes/`.
 
@@ -356,11 +356,11 @@ Examples:
 
 Role defaults for disconnect behavior:
 
-| Role | Default disconnect behavior |
-|---|---|
-| `TRADER` | `CANCEL_ALL` |
-| `MARKET_MAKER` | `CANCEL_QUOTES_ONLY` |
-| `ADMIN` | `LEAVE_ALL` |
+| Role           | Default disconnect behavior |
+|----------------|-----------------------------|
+| `TRADER`       | `CANCEL_ALL`                |
+| `MARKET_MAKER` | `CANCEL_QUOTES_ONLY`        |
+| `ADMIN`        | `LEAVE_ALL`                 |
 
 ### `--symbol-opts` format
 
@@ -382,16 +382,16 @@ pm-config-gen \
 
 Supported `KEY` values:
 
-| Key | Value type | Effect |
-|---|---|---|
-| `tick_decimals` | int `0..8` | Override symbol tick precision |
-| `static_band` | float `(0,1)` | Symbol collar static band |
-| `dynamic_band` | float `(0,1)` | Symbol collar dynamic band |
-| `cb_shift_l1` / `cb_shift_l2` / `cb_shift_l3` | float `(0,1)` | Override CB level shift pct |
-| `cb_halt_l1` / `cb_halt_l2` / `cb_halt_l3` | int `>= 0` minutes | Override CB halt duration (`0` means rest-of-day) |
-| `level` | string | Symbol risk level key |
-| `mm_spread_ticks` | int `> 0` | Symbol MM spread threshold |
-| `mm_min_qty` | int `> 0` | Symbol MM minimum quantity |
+| Key                                           | Value type         | Effect                                            |
+|-----------------------------------------------|--------------------|---------------------------------------------------|
+| `tick_decimals`                               | int `0..8`         | Override symbol tick precision                    |
+| `static_band`                                 | float `(0,1)`      | Symbol collar static band                         |
+| `dynamic_band`                                | float `(0,1)`      | Symbol collar dynamic band                        |
+| `cb_shift_l1` / `cb_shift_l2` / `cb_shift_l3` | float `(0,1)`      | Override CB level shift pct                       |
+| `cb_halt_l1` / `cb_halt_l2` / `cb_halt_l3`    | int `>= 0` minutes | Override CB halt duration (`0` means rest-of-day) |
+| `level`                                       | string             | Symbol risk level key                             |
+| `mm_spread_ticks`                             | int `> 0`          | Symbol MM spread threshold                        |
+| `mm_min_qty`                                  | int `> 0`          | Symbol MM minimum quantity                        |
 
 For the two most common collar overrides, you can also use explicit flags:
 
@@ -640,24 +640,24 @@ pm-config-gen \
 
 The current parser recognizes these top-level keys:
 
-| Key | Required when file exists? | Used by | Purpose |
-|---|---:|---|---|
-| `symbols` | Yes | Engine | Accepted symbols and per-symbol settings |
-| `gateways` | Yes | Engine | Gateway configuration container |
-| `gateways.alf` | Yes | Engine | Accepted ALF order-entry gateways |
-| `sessions_enabled` | No | Engine | Enable scheduler-driven session states |
-| `enforce_collars` | No | Engine | Global collar enforcement toggle |
-| `enforce_circuit_breakers` | No | Engine | Global circuit-breaker enforcement toggle |
-| `snapshot_interval_sec` | No | Engine | Per-symbol book snapshot throttle |
-| `mm_obligation_defaults` | No | Engine | Default market-maker quote obligation policy |
-| `risk_controls` | No | Engine | Named collar profiles |
-| `circuit_breaker_defaults` | No | Engine | Default circuit-breaker ladder |
-| `market_maker_combos` | No | Engine | Startup multi-symbol combo seeds |
-| `schedule` | No | Scheduler, parsed by engine too | Session transition times |
-| `post_trade_gateway` | No | `pm-ralf-gwy` | External RALF dissemination gateway settings |
-| `market_data_gateway` | No | `pm-md-gwy` | External CALF dissemination gateway settings |
-| `api_gateways` | No | `pm-api-gateway` | Named REST/WebSocket order-entry and market-data gateway process settings |
-| `indices` | No | `pm-index` | Index calculation process configurations |
+| Key                        | Required when file exists? | Used by                         | Purpose                                                                   |
+|----------------------------|---------------------------:|---------------------------------|---------------------------------------------------------------------------|
+| `symbols`                  |                        Yes | Engine                          | Accepted symbols and per-symbol settings                                  |
+| `gateways`                 |                        Yes | Engine                          | Gateway configuration container                                           |
+| `gateways.alf`             |                        Yes | Engine                          | Accepted ALF order-entry gateways                                         |
+| `sessions_enabled`         |                         No | Engine                          | Enable scheduler-driven session states                                    |
+| `enforce_collars`          |                         No | Engine                          | Global collar enforcement toggle                                          |
+| `enforce_circuit_breakers` |                         No | Engine                          | Global circuit-breaker enforcement toggle                                 |
+| `snapshot_interval_sec`    |                         No | Engine                          | Per-symbol book snapshot throttle                                         |
+| `mm_obligation_defaults`   |                         No | Engine                          | Default market-maker quote obligation policy                              |
+| `risk_controls`            |                         No | Engine                          | Named collar profiles                                                     |
+| `circuit_breaker_defaults` |                         No | Engine                          | Default circuit-breaker ladder                                            |
+| `market_maker_combos`      |                         No | Engine                          | Startup multi-symbol combo seeds                                          |
+| `schedule`                 |                         No | Scheduler, parsed by engine too | Session transition times                                                  |
+| `post_trade_gateway`       |                         No | `pm-ralf-gwy`                   | External RALF dissemination gateway settings                              |
+| `market_data_gateway`      |                         No | `pm-md-gwy`                     | External CALF dissemination gateway settings                              |
+| `api_gateways`             |                         No | `pm-api-gateway`                | Named REST/WebSocket order-entry and market-data gateway process settings |
+| `indices`                  |                         No | `pm-index`                      | Index calculation process configurations                                  |
 
 The nested sections below document every field currently parsed under these
 top-level keys. Unknown keys in a mapping are generally ignored by the loader,
@@ -1215,10 +1215,10 @@ When `true`, the engine starts in `CLOSED` and accepts scheduler transitions.
 When `false`, the engine starts in `CONTINUOUS` and ignores scheduler
 transitions.
 
-| Scenario | Effective value |
-|---|---|
-| Config file present, field absent | `true` |
-| No config file (unrestricted mode) | `false` |
+| Scenario                           | Effective value |
+|------------------------------------|-----------------|
+| Config file present, field absent  | `true`          |
+| No config file (unrestricted mode) | `false`         |
 
 ### `enforce_collars`
 
@@ -1270,25 +1270,25 @@ gateways:
 
 ### Gateway Fields
 
-| Field | Required | Accepted values / type | Default |
-|---|---:|---|---|
-| `id` | Yes | Non-empty string, uppercased by parser | None |
-| `description` | No | String or null | Empty string |
-| `role` | No | `TRADER`, `MARKET_MAKER`, `ADMIN` | `TRADER` |
-| `disconnect_behaviour` | No | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL` | `CANCEL_QUOTES_ONLY` |
-| `quote_refresh_policy` | No | `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, `NEVER_INACTIVATE` | `INACTIVATE_ON_ANY_FILL` |
-| `enforce_mm_obligation` | No | Boolean | Global MM default |
-| `mm_max_spread_ticks` | No | Positive integer | Global MM default, then `10` |
-| `mm_min_qty` | No | Positive integer | Global MM default, then `100` |
-| `mm_obligations` | No | Per-symbol mapping | Empty mapping |
+| Field                   | Required | Accepted values / type                                                  | Default                       |
+|-------------------------|---------:|-------------------------------------------------------------------------|-------------------------------|
+| `id`                    |      Yes | Non-empty string, uppercased by parser                                  | None                          |
+| `description`           |       No | String or null                                                          | Empty string                  |
+| `role`                  |       No | `TRADER`, `MARKET_MAKER`, `ADMIN`                                       | `TRADER`                      |
+| `disconnect_behaviour`  |       No | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL`                         | `CANCEL_QUOTES_ONLY`          |
+| `quote_refresh_policy`  |       No | `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, `NEVER_INACTIVATE` | `INACTIVATE_ON_ANY_FILL`      |
+| `enforce_mm_obligation` |       No | Boolean                                                                 | Global MM default             |
+| `mm_max_spread_ticks`   |       No | Positive integer                                                        | Global MM default, then `10`  |
+| `mm_min_qty`            |       No | Positive integer                                                        | Global MM default, then `100` |
+| `mm_obligations`        |       No | Per-symbol mapping                                                      | Empty mapping                 |
 
 Nested `mm_obligations.<SYMBOL>` entries support these fields:
 
-| Field | Required | Accepted values / type | Default |
-|---|---:|---|---|
-| `enforce_mm_obligation` | No | Boolean | Gateway `enforce_mm_obligation` |
-| `max_spread_ticks` | No | Integer; use positive values for a valid spread limit | Gateway `mm_max_spread_ticks` |
-| `min_qty` | No | Integer; use positive values for a valid quantity floor | Gateway `mm_min_qty` |
+| Field                   | Required | Accepted values / type                                  | Default                         |
+|-------------------------|---------:|---------------------------------------------------------|---------------------------------|
+| `enforce_mm_obligation` |       No | Boolean                                                 | Gateway `enforce_mm_obligation` |
+| `max_spread_ticks`      |       No | Integer; use positive values for a valid spread limit   | Gateway `mm_max_spread_ticks`   |
+| `min_qty`               |       No | Integer; use positive values for a valid quantity floor | Gateway `mm_min_qty`            |
 
 Inside `mm_obligations`, use this shape:
 
@@ -1309,11 +1309,11 @@ flat-field names `mm_max_spread_ticks` and `mm_min_qty` there.
 
 ### Role Privileges
 
-| Role | Regular orders | Quotes | Admin circuit-breaker halt/resume | Typical use |
-|---|---:|---:|---:|---|
-| `TRADER` | Yes | No | No | Students, manual participants, AI traders |
-| `MARKET_MAKER` | Yes | Yes | No | Quote providers |
-| `ADMIN` | Yes | No | Yes | Instructor/operator console |
+| Role           | Regular orders | Quotes | Admin circuit-breaker halt/resume | Typical use                               |
+|----------------|---------------:|-------:|----------------------------------:|-------------------------------------------|
+| `TRADER`       |            Yes |     No |                                No | Students, manual participants, AI traders |
+| `MARKET_MAKER` |            Yes |    Yes |                                No | Quote providers                           |
+| `ADMIN`        |            Yes |     No |                               Yes | Instructor/operator console               |
 
 `MARKET_MAKER` gateways are the only gateways allowed to submit quotes. `ADMIN`
 gateways can send exchange-wide circuit-breaker halt/resume commands.
@@ -1336,23 +1336,23 @@ mm_obligation_defaults:
       mm_min_qty: 200
 ```
 
-| Field | Required | Description |
-|---|---:|---|
-| `enforce_mm_obligation` | No | Enable quote obligation checks |
-| `mm_max_spread_ticks` | No | Maximum allowed bid/ask spread in ticks |
-| `mm_min_qty` | No | Minimum bid and ask quantity |
-| `symbols` | No | Per-symbol overrides using the same three fields |
+| Field                   | Required | Description                                      |
+|-------------------------|---------:|--------------------------------------------------|
+| `enforce_mm_obligation` |       No | Enable quote obligation checks                   |
+| `mm_max_spread_ticks`   |       No | Maximum allowed bid/ask spread in ticks          |
+| `mm_min_qty`            |       No | Minimum bid and ask quantity                     |
+| `symbols`               |       No | Per-symbol overrides using the same three fields |
 
 Defaults and validation:
 
-| Field | Accepted values / type | Default |
-|---|---|---|
-| `enforce_mm_obligation` | Boolean | `false` |
-| `mm_max_spread_ticks` | Positive integer | `10` |
-| `mm_min_qty` | Positive integer | `100` |
-| `symbols.<SYMBOL>.enforce_mm_obligation` | Boolean | Top-level `enforce_mm_obligation` |
-| `symbols.<SYMBOL>.mm_max_spread_ticks` | Positive integer | Top-level `mm_max_spread_ticks` |
-| `symbols.<SYMBOL>.mm_min_qty` | Positive integer | Top-level `mm_min_qty` |
+| Field                                    | Accepted values / type | Default                           |
+|------------------------------------------|------------------------|-----------------------------------|
+| `enforce_mm_obligation`                  | Boolean                | `false`                           |
+| `mm_max_spread_ticks`                    | Positive integer       | `10`                              |
+| `mm_min_qty`                             | Positive integer       | `100`                             |
+| `symbols.<SYMBOL>.enforce_mm_obligation` | Boolean                | Top-level `enforce_mm_obligation` |
+| `symbols.<SYMBOL>.mm_max_spread_ticks`   | Positive integer       | Top-level `mm_max_spread_ticks`   |
+| `symbols.<SYMBOL>.mm_min_qty`            | Positive integer       | Top-level `mm_min_qty`            |
 
 The effective policy is resolved from most specific to least specific:
 
@@ -1380,15 +1380,15 @@ null.
 
 ### Symbol Fields
 
-| Field | Required | Type / accepted values | Description |
-|---|---:|---|---|
-| `tick_decimals` | No | Integer `0..8` | Decimal places used to convert display prices to ticks |
-| `level` | No | Key from `risk_controls.levels` | Named collar profile |
-| `last_buy_price` | No | Number | Initial last-buy reference when no persisted stat exists |
-| `last_sell_price` | No | Number | Initial last-sell reference when no persisted stat exists |
-| `collar` | No | Mapping | Symbol-level collar override |
-| `circuit_breaker` | No | Mapping | Symbol-level circuit-breaker override |
-| `market_maker_quotes` | No | List of mappings | Startup quote seeds |
+| Field                 | Required | Type / accepted values          | Description                                               |
+|-----------------------|---------:|---------------------------------|-----------------------------------------------------------|
+| `tick_decimals`       |       No | Integer `0..8`                  | Decimal places used to convert display prices to ticks    |
+| `level`               |       No | Key from `risk_controls.levels` | Named collar profile                                      |
+| `last_buy_price`      |       No | Number                          | Initial last-buy reference when no persisted stat exists  |
+| `last_sell_price`     |       No | Number                          | Initial last-sell reference when no persisted stat exists |
+| `collar`              |       No | Mapping                         | Symbol-level collar override                              |
+| `circuit_breaker`     |       No | Mapping                         | Symbol-level circuit-breaker override                     |
+| `market_maker_quotes` |       No | List of mappings                | Startup quote seeds                                       |
 
 Orders for unknown symbols are rejected with:
 
@@ -1471,22 +1471,22 @@ Semantics:
 
 ### Risk-control Fields
 
-| Field | Required | Accepted values / type | Default |
-|---|---:|---|---|
-| `default_level` | No | Non-empty string matching a key in `levels` | None |
-| `levels` | No | Mapping of named level configs | Empty mapping |
-| `levels.<LEVEL>` | No | Mapping; level name is uppercased | None |
-| `levels.<LEVEL>.collar` | No | Mapping | Empty mapping |
+| Field                   | Required | Accepted values / type                      | Default       |
+|-------------------------|---------:|---------------------------------------------|---------------|
+| `default_level`         |       No | Non-empty string matching a key in `levels` | None          |
+| `levels`                |       No | Mapping of named level configs              | Empty mapping |
+| `levels.<LEVEL>`        |       No | Mapping; level name is uppercased           | None          |
+| `levels.<LEVEL>.collar` |       No | Mapping                                     | Empty mapping |
 
 ### Collar Fields
 
 Collars may appear under `risk_controls.levels.<LEVEL>.collar` or under
 `symbols.<SYMBOL>.collar`.
 
-| Field | Required | Accepted values / type | Default when a collar is active |
-|---|---:|---|---|
-| `static_band_pct` | No | Number in `(0, 1)` | `0.20` |
-| `dynamic_band_pct` | No | Number in `(0, 1)` | `0.02` |
+| Field              | Required | Accepted values / type | Default when a collar is active |
+|--------------------|---------:|------------------------|---------------------------------|
+| `static_band_pct`  |       No | Number in `(0, 1)`     | `0.20`                          |
+| `dynamic_band_pct` |       No | Number in `(0, 1)`     | `0.02`                          |
 
 Meaning of collar values:
 
@@ -1583,13 +1583,13 @@ When a breaker *is* active, configuration is resolved as follows:
 Circuit breakers may appear under `circuit_breaker_defaults` or under
 `symbols.<SYMBOL>.circuit_breaker`. Symbol-level fields merge over defaults.
 
-| Field | Required | Accepted values / type | Default |
-|---|---:|---|---|
-| `reference_window_ns` | No | Integer nanoseconds | `300000000000` |
-| `levels` | Yes when a breaker is active | Non-empty mapping after merging | Built-in L1/L2/L3 only when no levels are supplied |
-| `levels.<LEVEL>.price_shift_pct` | Yes | Number in `(0, 1)` | None |
-| `levels.<LEVEL>.halt_duration_ns` | No | Positive integer nanoseconds or null | Null |
-| `levels.<LEVEL>.resumption_mode` | No | `AUCTION`, `CONTINUOUS` | `AUCTION` |
+| Field                             |                     Required | Accepted values / type               | Default                                            |
+|-----------------------------------|-----------------------------:|--------------------------------------|----------------------------------------------------|
+| `reference_window_ns`             |                           No | Integer nanoseconds                  | `300000000000`                                     |
+| `levels`                          | Yes when a breaker is active | Non-empty mapping after merging      | Built-in L1/L2/L3 only when no levels are supplied |
+| `levels.<LEVEL>.price_shift_pct`  |                          Yes | Number in `(0, 1)`                   | None                                               |
+| `levels.<LEVEL>.halt_duration_ns` |                           No | Positive integer nanoseconds or null | Null                                               |
+| `levels.<LEVEL>.resumption_mode`  |                           No | `AUCTION`, `CONTINUOUS`              | `AUCTION`                                          |
 
 
 ## Market-Maker Quote Seeds
@@ -1610,16 +1610,16 @@ symbols:
         seed_once: true
 ```
 
-| Field | Required | Accepted values / type | Default | Description |
-|---|---:|---|---|---|
-| `gateway_id` | Yes | Non-empty string, uppercased | None | Configured `MARKET_MAKER` gateway that owns the quote |
-| `quote_id` | No | String; empty string is treated as omitted | Generated | Explicit quote label |
-| `bid_price` | Yes | Number | None | Display price converted to ticks by the engine |
-| `ask_price` | Yes | Number greater than `bid_price` | None | Display price converted to ticks by the engine |
-| `bid_qty` | Yes | Positive integer | None | Bid-side quantity |
-| `ask_qty` | Yes | Positive integer | None | Ask-side quantity |
-| `tif` | No | `DAY`, `GTC`, `ATO`, `ATC` | `DAY` | Time in force |
-| `seed_once` | No | Boolean-like value; use YAML `true`/`false` | `true` | Skip injection after `book_stats.json` has symbol history |
+| Field        | Required | Accepted values / type                      | Default   | Description                                               |
+|--------------|---------:|---------------------------------------------|-----------|-----------------------------------------------------------|
+| `gateway_id` |      Yes | Non-empty string, uppercased                | None      | Configured `MARKET_MAKER` gateway that owns the quote     |
+| `quote_id`   |       No | String; empty string is treated as omitted  | Generated | Explicit quote label                                      |
+| `bid_price`  |      Yes | Number                                      | None      | Display price converted to ticks by the engine            |
+| `ask_price`  |      Yes | Number greater than `bid_price`             | None      | Display price converted to ticks by the engine            |
+| `bid_qty`    |      Yes | Positive integer                            | None      | Bid-side quantity                                         |
+| `ask_qty`    |      Yes | Positive integer                            | None      | Ask-side quantity                                         |
+| `tif`        |       No | `DAY`, `GTC`, `ATO`, `ATC`                  | `DAY`     | Time in force                                             |
+| `seed_once`  |       No | Boolean-like value; use YAML `true`/`false` | `true`    | Skip injection after `book_stats.json` has symbol history |
 
 Validation rules:
 
@@ -1661,24 +1661,24 @@ market_maker_combos:
 
 Combo fields:
 
-| Field | Required | Accepted values / type |
-|---|---:|---|
-| `combo_id` | Yes | Non-empty string |
-| `combo_type` | No | `AON`; defaults to `AON` |
-| `tif` | No | `DAY`, `GTC`, `ATO`, `ATC`; defaults to `DAY` |
-| `legs` | Yes | List with 2 to 10 entries |
+| Field        | Required | Accepted values / type                        |
+|--------------|---------:|-----------------------------------------------|
+| `combo_id`   |      Yes | Non-empty string                              |
+| `combo_type` |       No | `AON`; defaults to `AON`                      |
+| `tif`        |       No | `DAY`, `GTC`, `ATO`, `ATC`; defaults to `DAY` |
+| `legs`       |      Yes | List with 2 to 10 entries                     |
 
 Leg fields:
 
-| Field | Required | Accepted values / type |
-|---|---:|---|
-| `symbol` | Yes | Configured symbol, unique inside the combo |
-| `side` | Yes | `BUY`, `SELL` |
-| `order_type` | Yes | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` |
-| `quantity` | Yes | Integer quantity |
-| `price` | Conditional | Integer tick price for priced order types |
-| `stop_price` | Conditional | Integer tick stop price for stop order types |
-| `smp_action` | No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`; defaults to `NONE` |
+| Field        |    Required | Accepted values / type                                                            |
+|--------------|------------:|-----------------------------------------------------------------------------------|
+| `symbol`     |         Yes | Configured symbol, unique inside the combo                                        |
+| `side`       |         Yes | `BUY`, `SELL`                                                                     |
+| `order_type` |         Yes | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` |
+| `quantity`   |         Yes | Integer quantity                                                                  |
+| `price`      | Conditional | Integer tick price for priced order types                                         |
+| `stop_price` | Conditional | Integer tick stop price for stop order types                                      |
+| `smp_action` |          No | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`; defaults to `NONE`   |
 
 Combo leg values are passed to `ComboLeg.from_dict()`, so these are the only leg
 fields used by current config parsing. Unlike quote seeds, combo legs do not
@@ -1703,13 +1703,13 @@ schedule:
   closing_auction_end: "16:05"
 ```
 
-| Key | Required | Default |
-|---|---:|---|
-| `pre_open` | No | `09:00` |
-| `opening_auction_start` | No | `09:25` |
-| `continuous_start` | No | `09:30` |
-| `closing_auction_start` | No | `16:00` |
-| `closing_auction_end` | No | `16:05` |
+| Key                     | Required | Default |
+|-------------------------|---------:|---------|
+| `pre_open`              |       No | `09:00` |
+| `opening_auction_start` |       No | `09:25` |
+| `continuous_start`      |       No | `09:30` |
+| `closing_auction_start` |       No | `16:00` |
+| `closing_auction_end`   |       No | `16:05` |
 
 Schedule values are read as strings and should be local server `HH:MM` values.
 The scheduler uses any provided subset in trading-day order. If no usable
@@ -1809,85 +1809,85 @@ Ranges use mathematical interval notation: `(a, b)` is open (exclusive),
 
 ### Top-level fields
 
-| Field | Type | Required | Default | Allowed values / range | Constraint |
-|---|---|---:|---|---|---|
-| `symbols` | mapping | Yes | — | — | Must contain at least one entry |
-| `gateways` | mapping | Yes | — | — | Must contain key `alf` |
-| `gateways.alf` | list | Yes | — | — | Non-empty list of gateway mappings |
-| `sessions_enabled` | bool | No | `true` when file exists, `false` in unrestricted mode | `true`, `false` | Must be a YAML boolean |
-| `enforce_collars` | bool | No | `true` | `true`, `false` | Must be a YAML boolean |
-| `enforce_circuit_breakers` | bool | No | `true` | `true`, `false` | Must be a YAML boolean |
-| `snapshot_interval_sec` | float | No | `0.5` | Any number | Must be `> 0` |
-| `mm_obligation_defaults` | mapping | No | — | — | — |
-| `risk_controls` | mapping | No | — | — | — |
-| `circuit_breaker_defaults` | mapping | No | — | — | — |
-| `market_maker_combos` | list | No | `[]` | — | Each entry must be a mapping |
-| `schedule` | mapping | No | — | — | Parsed by scheduler and stored by engine |
+| Field                      | Type    | Required | Default                                               | Allowed values / range | Constraint                               |
+|----------------------------|---------|---------:|-------------------------------------------------------|------------------------|------------------------------------------|
+| `symbols`                  | mapping |      Yes | —                                                     | —                      | Must contain at least one entry          |
+| `gateways`                 | mapping |      Yes | —                                                     | —                      | Must contain key `alf`                   |
+| `gateways.alf`             | list    |      Yes | —                                                     | —                      | Non-empty list of gateway mappings       |
+| `sessions_enabled`         | bool    |       No | `true` when file exists, `false` in unrestricted mode | `true`, `false`        | Must be a YAML boolean                   |
+| `enforce_collars`          | bool    |       No | `true`                                                | `true`, `false`        | Must be a YAML boolean                   |
+| `enforce_circuit_breakers` | bool    |       No | `true`                                                | `true`, `false`        | Must be a YAML boolean                   |
+| `snapshot_interval_sec`    | float   |       No | `0.5`                                                 | Any number             | Must be `> 0`                            |
+| `mm_obligation_defaults`   | mapping |       No | —                                                     | —                      | —                                        |
+| `risk_controls`            | mapping |       No | —                                                     | —                      | —                                        |
+| `circuit_breaker_defaults` | mapping |       No | —                                                     | —                      | —                                        |
+| `market_maker_combos`      | list    |       No | `[]`                                                  | —                      | Each entry must be a mapping             |
+| `schedule`                 | mapping |       No | —                                                     | —                      | Parsed by scheduler and stored by engine |
 
 ---
 
 ### `gateways.alf[]` — gateway entry fields
 
-| Field | Type | Required | Default | Allowed values / range | Constraint |
-|---|---|---:|---|---|---|
-| `id` | str | Yes | — | Any non-empty string | Uppercased; must be unique within the list |
-| `description` | str or null | No | `""` | Any string or null | Null is coerced to `""` |
-| `role` | Enum | No | `TRADER` | `TRADER`, `MARKET_MAKER`, `ADMIN` | Case-insensitive |
-| `disconnect_behaviour` | Enum | No | `CANCEL_QUOTES_ONLY` | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL` | Case-insensitive |
-| `quote_refresh_policy` | Enum | No | `INACTIVATE_ON_ANY_FILL` | `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, `NEVER_INACTIVATE` | Case-insensitive |
-| `enforce_mm_obligation` | bool | No | From `mm_obligation_defaults.enforce_mm_obligation`, else `false` | `true`, `false` | Must be a YAML boolean |
-| `mm_max_spread_ticks` | int | No | From `mm_obligation_defaults.mm_max_spread_ticks`, else `10` | Integer | Must be `> 0` |
-| `mm_min_qty` | int | No | From `mm_obligation_defaults.mm_min_qty`, else `100` | Integer | Must be `> 0` |
-| `mm_obligations` | mapping | No | `{}` | Mapping of symbol → obligation entry | Symbol keys are uppercased |
+| Field                   | Type        | Required | Default                                                           | Allowed values / range                                                  | Constraint                                 |
+|-------------------------|-------------|---------:|-------------------------------------------------------------------|-------------------------------------------------------------------------|--------------------------------------------|
+| `id`                    | str         |      Yes | —                                                                 | Any non-empty string                                                    | Uppercased; must be unique within the list |
+| `description`           | str or null |       No | `""`                                                              | Any string or null                                                      | Null is coerced to `""`                    |
+| `role`                  | Enum        |       No | `TRADER`                                                          | `TRADER`, `MARKET_MAKER`, `ADMIN`                                       | Case-insensitive                           |
+| `disconnect_behaviour`  | Enum        |       No | `CANCEL_QUOTES_ONLY`                                              | `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL`                         | Case-insensitive                           |
+| `quote_refresh_policy`  | Enum        |       No | `INACTIVATE_ON_ANY_FILL`                                          | `INACTIVATE_ON_ANY_FILL`, `INACTIVATE_ON_FULL_FILL`, `NEVER_INACTIVATE` | Case-insensitive                           |
+| `enforce_mm_obligation` | bool        |       No | From `mm_obligation_defaults.enforce_mm_obligation`, else `false` | `true`, `false`                                                         | Must be a YAML boolean                     |
+| `mm_max_spread_ticks`   | int         |       No | From `mm_obligation_defaults.mm_max_spread_ticks`, else `10`      | Integer                                                                 | Must be `> 0`                              |
+| `mm_min_qty`            | int         |       No | From `mm_obligation_defaults.mm_min_qty`, else `100`              | Integer                                                                 | Must be `> 0`                              |
+| `mm_obligations`        | mapping     |       No | `{}`                                                              | Mapping of symbol → obligation entry                                    | Symbol keys are uppercased                 |
 
 ### `gateways.alf[].mm_obligations.<SYMBOL>` fields
 
-| Field | Type | Required | Default | Allowed values / range | Constraint |
-|---|---|---:|---|---|---|
-| `enforce_mm_obligation` | bool | No | Gateway `enforce_mm_obligation` | `true`, `false` | Must be a YAML boolean |
-| `max_spread_ticks` | int | No | Gateway `mm_max_spread_ticks` | Integer | Must be `> 0` |
-| `min_qty` | int | No | Gateway `mm_min_qty` | Integer | Must be `> 0` |
+| Field                   | Type | Required | Default                         | Allowed values / range | Constraint             |
+|-------------------------|------|---------:|---------------------------------|------------------------|------------------------|
+| `enforce_mm_obligation` | bool |       No | Gateway `enforce_mm_obligation` | `true`, `false`        | Must be a YAML boolean |
+| `max_spread_ticks`      | int  |       No | Gateway `mm_max_spread_ticks`   | Integer                | Must be `> 0`          |
+| `min_qty`               | int  |       No | Gateway `mm_min_qty`            | Integer                | Must be `> 0`          |
 
 ---
 
 ### `mm_obligation_defaults` fields
 
-| Field | Type | Required | Default | Allowed values / range | Constraint |
-|---|---|---:|---|---|---|
-| `enforce_mm_obligation` | bool | No | `false` | `true`, `false` | Must be a YAML boolean |
-| `mm_max_spread_ticks` | int | No | `10` | Integer | Must be `> 0` |
-| `mm_min_qty` | int | No | `100` | Integer | Must be `> 0` |
-| `symbols` | mapping | No | `{}` | Symbol name → override mapping | Symbol keys are uppercased; each must reference a configured symbol |
+| Field                   | Type    | Required | Default | Allowed values / range         | Constraint                                                          |
+|-------------------------|---------|---------:|---------|--------------------------------|---------------------------------------------------------------------|
+| `enforce_mm_obligation` | bool    |       No | `false` | `true`, `false`                | Must be a YAML boolean                                              |
+| `mm_max_spread_ticks`   | int     |       No | `10`    | Integer                        | Must be `> 0`                                                       |
+| `mm_min_qty`            | int     |       No | `100`   | Integer                        | Must be `> 0`                                                       |
+| `symbols`               | mapping |       No | `{}`    | Symbol name → override mapping | Symbol keys are uppercased; each must reference a configured symbol |
 
 ### `mm_obligation_defaults.symbols.<SYMBOL>` fields
 
-| Field | Type | Required | Default | Allowed values / range | Constraint |
-|---|---|---:|---|---|---|
-| `enforce_mm_obligation` | bool | No | Top-level `enforce_mm_obligation` | `true`, `false` | Must be a YAML boolean |
-| `mm_max_spread_ticks` | int | No | Top-level `mm_max_spread_ticks` | Integer | Must be `> 0` |
-| `mm_min_qty` | int | No | Top-level `mm_min_qty` | Integer | Must be `> 0` |
+| Field                   | Type | Required | Default                           | Allowed values / range | Constraint             |
+|-------------------------|------|---------:|-----------------------------------|------------------------|------------------------|
+| `enforce_mm_obligation` | bool |       No | Top-level `enforce_mm_obligation` | `true`, `false`        | Must be a YAML boolean |
+| `mm_max_spread_ticks`   | int  |       No | Top-level `mm_max_spread_ticks`   | Integer                | Must be `> 0`          |
+| `mm_min_qty`            | int  |       No | Top-level `mm_min_qty`            | Integer                | Must be `> 0`          |
 
 ---
 
 ### `risk_controls` fields
 
-| Field | Type | Required | Default | Allowed values / range | Constraint |
-|---|---|---:|---|---|---|
-| `default_level` | str | No | `null` | Any non-empty string | Must match a key in `risk_controls.levels` if set |
-| `levels` | mapping | No | `{}` | Level name → level config mapping | Level names are uppercased |
+| Field           | Type    | Required | Default | Allowed values / range            | Constraint                                        |
+|-----------------|---------|---------:|---------|-----------------------------------|---------------------------------------------------|
+| `default_level` | str     |       No | `null`  | Any non-empty string              | Must match a key in `risk_controls.levels` if set |
+| `levels`        | mapping |       No | `{}`    | Level name → level config mapping | Level names are uppercased                        |
 
 ### `risk_controls.levels.<LEVEL>` fields
 
-| Field | Type | Required | Default | Allowed values / range | Constraint |
-|---|---|---:|---|---|---|
-| `collar` | mapping | No | `{}` | See collar fields | Must be a mapping; `circuit_breaker` sub-key is rejected |
+| Field    | Type    | Required | Default | Allowed values / range | Constraint                                               |
+|----------|---------|---------:|---------|------------------------|----------------------------------------------------------|
+| `collar` | mapping |       No | `{}`    | See collar fields      | Must be a mapping; `circuit_breaker` sub-key is rejected |
 
 ### Collar fields — in `risk_controls.levels.<LEVEL>.collar` or `symbols.<SYMBOL>.collar`
 
-| Field | Type | Required | Default | Allowed values / range | Constraint |
-|---|---|---:|---|---|---|
-| `static_band_pct` | float | No | `0.20` | `(0, 1)` exclusive | Band truncates toward zero; makes range slightly tighter than exact |
-| `dynamic_band_pct` | float | No | `0.02` | `(0, 1)` exclusive | Same truncation rule |
+| Field              | Type  | Required | Default | Allowed values / range | Constraint                                                          |
+|--------------------|-------|---------:|---------|------------------------|---------------------------------------------------------------------|
+| `static_band_pct`  | float |       No | `0.20`  | `(0, 1)` exclusive     | Band truncates toward zero; makes range slightly tighter than exact |
+| `dynamic_band_pct` | float |       No | `0.02`  | `(0, 1)` exclusive     | Same truncation rule                                                |
 
 ---
 
@@ -1912,11 +1912,11 @@ Symbol-level entries merge over the defaults: only the fields you specify are ov
 but supplies no `levels`; if no circuit-breaker section is present at all, the
 symbol has no breaker):
 
-| Level | `price_shift_pct` | `halt_duration_ns` | `resumption_mode` |
-|---|---|---|---|
-| L1 | `0.07` | `300000000000` (5 min) | `AUCTION` |
-| L2 | `0.13` | `900000000000` (15 min) | `AUCTION` |
-| L3 | `0.20` | `null` (rest-of-day) | `AUCTION` |
+| Level | `price_shift_pct` | `halt_duration_ns`      | `resumption_mode` |
+|-------|-------------------|-------------------------|-------------------|
+| L1    | `0.07`            | `300000000000` (5 min)  | `AUCTION`         |
+| L2    | `0.13`            | `900000000000` (15 min) | `AUCTION`         |
+| L3    | `0.20`            | `null` (rest-of-day)    | `AUCTION`         |
 
 ---
 

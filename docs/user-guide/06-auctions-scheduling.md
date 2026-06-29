@@ -53,13 +53,13 @@ The scheduler process (`pm-scheduler`) drives these transitions by sending
 
 ## Session phases
 
-| Phase | Orders accepted? | Matching? | Description |
-|---|---|---|---|
-| `PRE_OPEN` | Yes | No | Orders rest on the book, no execution.  Participants can position themselves before the auction starts. |
-| `OPENING_AUCTION` | Yes | No | Orders continue to accumulate.  **ATO** (At-The-Open) orders are accepted only during this phase. |
-| `CONTINUOUS` | Yes | Yes | Normal price-time-priority matching.  Every incoming order is immediately swept against resting liquidity. |
-| `CLOSING_AUCTION` | Yes | No | Orders accumulate for the closing uncross.  **ATC** (At-The-Close) orders are accepted only during this phase. |
-| `CLOSED` | No | No | Market is closed.  All new orders are rejected. |
+| Phase             | Orders accepted? | Matching? | Description                                                                                                    |
+|-------------------|------------------|-----------|----------------------------------------------------------------------------------------------------------------|
+| `PRE_OPEN`        | Yes              | No        | Orders rest on the book, no execution.  Participants can position themselves before the auction starts.        |
+| `OPENING_AUCTION` | Yes              | No        | Orders continue to accumulate.  **ATO** (At-The-Open) orders are accepted only during this phase.              |
+| `CONTINUOUS`      | Yes              | Yes       | Normal price-time-priority matching.  Every incoming order is immediately swept against resting liquidity.     |
+| `CLOSING_AUCTION` | Yes              | No        | Orders accumulate for the closing uncross.  **ATC** (At-The-Close) orders are accepted only during this phase. |
+| `CLOSED`          | No               | No        | Market is closed.  All new orders are rejected.                                                                |
 
 ### Order acceptance rules by phase
 
@@ -178,11 +178,11 @@ If no config file provides a `schedule` section, `pm-scheduler` uses:
 
 | Time  | Transition target |
 |-------|-------------------|
-| 09:00 | `PRE_OPEN` |
+| 09:00 | `PRE_OPEN`        |
 | 09:25 | `OPENING_AUCTION` |
-| 09:30 | `CONTINUOUS` |
+| 09:30 | `CONTINUOUS`      |
 | 16:00 | `CLOSING_AUCTION` |
-| 16:05 | `CLOSED` |
+| 16:05 | `CLOSED`          |
 
 ### `--now` mode
 
@@ -360,13 +360,13 @@ improvement or slippage during the uncross.
 
 When an uncross completes, the engine publishes:
 
-| Topic | Content |
-|---|---|
-| `order.fill.{gateway_id}` | One per order that received a fill (partial or complete) |
-| `trade.executed` | One per matched pair |
-| `auction.result.{symbol}` | Summary: equilibrium price, quantity, surplus, imbalance side |
-| `order.expired.{gateway_id}` | One per ATO/ATC order that did not fill and was expired |
-| `session.state` | Confirms the new session state after the transition |
+| Topic                        | Content                                                       |
+|------------------------------|---------------------------------------------------------------|
+| `order.fill.{gateway_id}`    | One per order that received a fill (partial or complete)      |
+| `trade.executed`             | One per matched pair                                          |
+| `auction.result.{symbol}`    | Summary: equilibrium price, quantity, surplus, imbalance side |
+| `order.expired.{gateway_id}` | One per ATO/ATC order that did not fill and was expired       |
+| `session.state`              | Confirms the new session state after the transition           |
 
 ---
 

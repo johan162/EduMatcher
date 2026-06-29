@@ -249,10 +249,10 @@ already traded.
 QLEGS[|SYM=<symbol>][|SHOW=ACTIVE|RECENT|ALL]
 ```
 
-| Field | Required | Default | Description |
-|---|---|---|---|
-| `SYM` | No | all symbols | Restrict output to one symbol |
-| `SHOW` | No | `ACTIVE` | `ACTIVE` = currently live legs, `RECENT` = completed legs, `ALL` = both |
+| Field  | Required | Default     | Description                                                             |
+|--------|----------|-------------|-------------------------------------------------------------------------|
+| `SYM`  | No       | all symbols | Restrict output to one symbol                                           |
+| `SHOW` | No       | `ACTIVE`    | `ACTIVE` = currently live legs, `RECENT` = completed legs, `ALL` = both |
 
 Output columns:
 
@@ -316,9 +316,9 @@ have been seeded by config before the gateway connected.
 QBOOT[|SYM=<symbol>]
 ```
 
-| Field | Required | Default | Description |
-|---|---|---|---|
-| `SYM` | No | all symbols | Restrict bootstrap response to one symbol |
+| Field | Required | Default     | Description                               |
+|-------|----------|-------------|-------------------------------------------|
+| `SYM` | No       | all symbols | Restrict bootstrap response to one symbol |
 
 Examples:
 
@@ -375,31 +375,31 @@ SMP prevents you from accidentally trading against your own resting orders.
 
 #### Examples
 
-| Order Type | Command |
-|-----------|--------|
-| Market buy | `NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=MARKET\|QTY=100` |
-| Limit sell | `NEW\|SYM=AAPL\|SIDE=SELL\|TYPE=LIMIT\|QTY=100\|PRICE=152.00` |
-| GTC limit | `NEW\|SYM=MSFT\|SIDE=BUY\|TYPE=LIMIT\|QTY=200\|PRICE=310.00\|TIF=GTC` |
-| Stop-loss | `NEW\|SYM=AAPL\|SIDE=SELL\|TYPE=STOP\|QTY=100\|STOP=148.00` |
-| Stop-limit | `NEW\|SYM=AAPL\|SIDE=SELL\|TYPE=STOP_LIMIT\|QTY=100\|STOP=148.00\|PRICE=147.50` |
-| FOK | `NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=FOK\|QTY=100\|PRICE=150.00` |
-| IOC | `NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=IOC\|QTY=100\|PRICE=150.00` |
-| Iceberg | `NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=ICEBERG\|QTY=1000\|PRICE=150.00\|VISIBLE=100` |
-| Trailing stop | `NEW\|SYM=AAPL\|SIDE=SELL\|TYPE=TRAILING_STOP\|QTY=100\|TRAIL=1.50` |
-| With SMP | `NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=LIMIT\|QTY=100\|PRICE=150.00\|SMP=CANCEL_RESTING` |
+| Order Type    | Command                                                                          |
+|---------------|----------------------------------------------------------------------------------|
+| Market buy    | `NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=MARKET\|QTY=100`                                  |
+| Limit sell    | `NEW\|SYM=AAPL\|SIDE=SELL\|TYPE=LIMIT\|QTY=100\|PRICE=152.00`                    |
+| GTC limit     | `NEW\|SYM=MSFT\|SIDE=BUY\|TYPE=LIMIT\|QTY=200\|PRICE=310.00\|TIF=GTC`            |
+| Stop-loss     | `NEW\|SYM=AAPL\|SIDE=SELL\|TYPE=STOP\|QTY=100\|STOP=148.00`                      |
+| Stop-limit    | `NEW\|SYM=AAPL\|SIDE=SELL\|TYPE=STOP_LIMIT\|QTY=100\|STOP=148.00\|PRICE=147.50`  |
+| FOK           | `NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=FOK\|QTY=100\|PRICE=150.00`                       |
+| IOC           | `NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=IOC\|QTY=100\|PRICE=150.00`                       |
+| Iceberg       | `NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=ICEBERG\|QTY=1000\|PRICE=150.00\|VISIBLE=100`     |
+| Trailing stop | `NEW\|SYM=AAPL\|SIDE=SELL\|TYPE=TRAILING_STOP\|QTY=100\|TRAIL=1.50`              |
+| With SMP      | `NEW\|SYM=AAPL\|SIDE=BUY\|TYPE=LIMIT\|QTY=100\|PRICE=150.00\|SMP=CANCEL_RESTING` |
 
 #### Required fields by type
 
-| Type | Required fields | Optional |
-|------|----------------|----------|
-| MARKET | SYM, SIDE, QTY | SMP |
-| LIMIT | SYM, SIDE, QTY, PRICE | TIF, SMP |
-| STOP | SYM, SIDE, QTY, STOP | TIF, SMP |
-| STOP_LIMIT | SYM, SIDE, QTY, STOP, PRICE | TIF, SMP |
-| FOK | SYM, SIDE, QTY, PRICE | SMP |
-| IOC | SYM, SIDE, QTY, PRICE | SMP |
-| ICEBERG | SYM, SIDE, QTY, PRICE, VISIBLE (must be < QTY) | TIF, SMP |
-| TRAILING_STOP | SYM, SIDE, QTY, TRAIL | STOP (initial stop price), TIF, SMP |
+| Type          | Required fields                                | Optional                            |
+|---------------|------------------------------------------------|-------------------------------------|
+| MARKET        | SYM, SIDE, QTY                                 | SMP                                 |
+| LIMIT         | SYM, SIDE, QTY, PRICE                          | TIF, SMP                            |
+| STOP          | SYM, SIDE, QTY, STOP                           | TIF, SMP                            |
+| STOP_LIMIT    | SYM, SIDE, QTY, STOP, PRICE                    | TIF, SMP                            |
+| FOK           | SYM, SIDE, QTY, PRICE                          | SMP                                 |
+| IOC           | SYM, SIDE, QTY, PRICE                          | SMP                                 |
+| ICEBERG       | SYM, SIDE, QTY, PRICE, VISIBLE (must be < QTY) | TIF, SMP                            |
+| TRAILING_STOP | SYM, SIDE, QTY, TRAIL                          | STOP (initial stop price), TIF, SMP |
 
 
 
@@ -411,18 +411,18 @@ NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=<DAY|GTC>|LEG_COUNT=<n>|LEG0.
 
 #### Combo fields
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `TYPE=COMBO` | Yes | Signals multi-leg order |
-| `COMBO_ID=<label>` | Yes | Your tracking label (used for cancel) |
-| `COMBO_TYPE=AON` | Yes | All-or-none semantics |
-| `TIF=DAY\|GTC` | No | Time-in-force (default DAY), applies to all legs |
-| `LEG_COUNT=<n>` | Yes | Number of legs (2–10) |
-| `LEG<i>.SYM` | Yes | Symbol for leg *i* (0-indexed) |
-| `LEG<i>.SIDE` | Yes | BUY or SELL |
-| `LEG<i>.QTY` | Yes | Quantity |
-| `LEG<i>.PRICE` | Yes* | Limit price (*required for LIMIT type) |
-| `LEG<i>.TYPE` | No | Order type (default LIMIT) |
+| Field              | Required | Description                                      |
+|--------------------|----------|--------------------------------------------------|
+| `TYPE=COMBO`       | Yes      | Signals multi-leg order                          |
+| `COMBO_ID=<label>` | Yes      | Your tracking label (used for cancel)            |
+| `COMBO_TYPE=AON`   | Yes      | All-or-none semantics                            |
+| `TIF=DAY\|GTC`     | No       | Time-in-force (default DAY), applies to all legs |
+| `LEG_COUNT=<n>`    | Yes      | Number of legs (2–10)                            |
+| `LEG<i>.SYM`       | Yes      | Symbol for leg *i* (0-indexed)                   |
+| `LEG<i>.SIDE`      | Yes      | BUY or SELL                                      |
+| `LEG<i>.QTY`       | Yes      | Quantity                                         |
+| `LEG<i>.PRICE`     | Yes*     | Limit price (*required for LIMIT type)           |
+| `LEG<i>.TYPE`      | No       | Order type (default LIMIT)                       |
 
 #### Examples
 
@@ -447,19 +447,19 @@ AMEND|ID=<full-order-id>[|PRICE=<new-price>][|QTY=<new-total-qty>]
 
 At least one of `PRICE=` or `QTY=` must be present.
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `ID` | Yes | Full order UUID (visible in the `ORDERS` table) |
-| `PRICE` | Conditional | New limit price; omit to keep current price |
-| `QTY` | Conditional | New total quantity; must be ≥ filled quantity |
+| Field   | Required    | Description                                     |
+|---------|-------------|-------------------------------------------------|
+| `ID`    | Yes         | Full order UUID (visible in the `ORDERS` table) |
+| `PRICE` | Conditional | New limit price; omit to keep current price     |
+| `QTY`   | Conditional | New total quantity; must be ≥ filled quantity   |
 
 **Priority rules:**
 
-| Change | Time priority |
-|--------|---------------|
-| Quantity decrease only | **Preserved** — the order keeps its queue position |
-| Price change | **Lost** — the order moves to the back of the queue at the new price |
-| Quantity increase | **Lost** — the order moves to the back of the queue |
+| Change                 | Time priority                                                        |
+|------------------------|----------------------------------------------------------------------|
+| Quantity decrease only | **Preserved** — the order keeps its queue position                   |
+| Price change           | **Lost** — the order moves to the back of the queue at the new price |
+| Quantity increase      | **Lost** — the order moves to the back of the queue                  |
 
 Reply: `AMENDED <id>  price=<p> qty=<q> remaining=<r>` on success, or a rejection via `REJECTED` with a reason.
 
@@ -475,18 +475,18 @@ NEW|TYPE=OCO|OCO_ID=<label>|SYM=<symbol>|QTY=<qty>[|TIF=<DAY|GTC>]
    |LEG2_SIDE=<BUY|SELL>|LEG2_TYPE=<type>[|LEG2_PRICE=<p>][|LEG2_STOP=<p>][|LEG2_TRAIL=<offset>]
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `OCO_ID` | Yes | Client label for the pair |
-| `SYM` | Yes | Instrument ticker — shared by both legs |
-| `QTY` | Yes | Quantity — shared by both legs |
-| `TIF` | No | `DAY` or `GTC`; defaults to `DAY` |
-| `LEG1_SIDE` | Yes | `BUY` or `SELL` |
-| `LEG1_TYPE` | Yes | Order type for leg 1 |
-| `LEG1_PRICE` | Conditional | Required for `LIMIT`, `STOP_LIMIT`, `FOK` legs |
-| `LEG1_STOP` | Conditional | Required for `STOP`, `STOP_LIMIT` legs |
-| `LEG1_TRAIL` | Conditional | Required for `TRAILING_STOP` legs |
-| `LEG2_*` | Same rules as LEG1 | Second leg fields |
+| Field        | Required           | Description                                    |
+|--------------|--------------------|------------------------------------------------|
+| `OCO_ID`     | Yes                | Client label for the pair                      |
+| `SYM`        | Yes                | Instrument ticker — shared by both legs        |
+| `QTY`        | Yes                | Quantity — shared by both legs                 |
+| `TIF`        | No                 | `DAY` or `GTC`; defaults to `DAY`              |
+| `LEG1_SIDE`  | Yes                | `BUY` or `SELL`                                |
+| `LEG1_TYPE`  | Yes                | Order type for leg 1                           |
+| `LEG1_PRICE` | Conditional        | Required for `LIMIT`, `STOP_LIMIT`, `FOK` legs |
+| `LEG1_STOP`  | Conditional        | Required for `STOP`, `STOP_LIMIT` legs         |
+| `LEG1_TRAIL` | Conditional        | Required for `TRAILING_STOP` legs              |
+| `LEG2_*`     | Same rules as LEG1 | Second leg fields                              |
 
 #### Example — bracket order
 
@@ -665,54 +665,54 @@ All events are printed inline with a `[HH:MM:SS.mmm]` timestamp prefix. A backgr
 
 ### Order Events
 
-| Message | Meaning |
-|---------|--------|
-| `ACK  <id>  order accepted` | Engine received and registered the order |
-| `REJECTED  <id>  <reason>` | Order was rejected (e.g. FOK: insufficient liquidity) |
-| `FILL  <id>  qty=50 @150.50  remaining=50  [PARTIAL]` | Partial fill |
-| `FILL  <id>  qty=100 @150.50  remaining=0  [FILLED]` | Full fill |
-| `AMENDED  <id>  price=151.0 qty=100 remaining=100` | Amendment confirmed |
-| `CANCELLED  <id>` | Cancel confirmed |
-| `EXPIRED  <id>  (DAY order — trading day ended)` | Engine shut down or session phase change |
+| Message                                               | Meaning                                               |
+|-------------------------------------------------------|-------------------------------------------------------|
+| `ACK  <id>  order accepted`                           | Engine received and registered the order              |
+| `REJECTED  <id>  <reason>`                            | Order was rejected (e.g. FOK: insufficient liquidity) |
+| `FILL  <id>  qty=50 @150.50  remaining=50  [PARTIAL]` | Partial fill                                          |
+| `FILL  <id>  qty=100 @150.50  remaining=0  [FILLED]`  | Full fill                                             |
+| `AMENDED  <id>  price=151.0 qty=100 remaining=100`    | Amendment confirmed                                   |
+| `CANCELLED  <id>`                                     | Cancel confirmed                                      |
+| `EXPIRED  <id>  (DAY order — trading day ended)`      | Engine shut down or session phase change              |
 
 ### Quote Events
 
-| Message | Meaning |
-|---------|--------|
-| `QUOTE ACK  <quote_id>  bid=<8-char-id> ask=<8-char-id>` | Both quote legs accepted and posted to the book |
-| `QUOTE REJ  <quote_id>  <reason>` | Quote rejected (e.g. `BID >= ASK`, missing gateway role) |
-| `QUOTE <status>  <quote_id>  [reason]` | Quote lifecycle update — status is `INACTIVATED`, `CANCELLED`, or `FILLED` |
+| Message                                                  | Meaning                                                                    |
+|----------------------------------------------------------|----------------------------------------------------------------------------|
+| `QUOTE ACK  <quote_id>  bid=<8-char-id> ask=<8-char-id>` | Both quote legs accepted and posted to the book                            |
+| `QUOTE REJ  <quote_id>  <reason>`                        | Quote rejected (e.g. `BID >= ASK`, missing gateway role)                   |
+| `QUOTE <status>  <quote_id>  [reason]`                   | Quote lifecycle update — status is `INACTIVATED`, `CANCELLED`, or `FILLED` |
 
 ### OCO Events
 
-| Message | Meaning |
-|---------|--------|
-| `OCO ACK  <oco_id>  legs=<leg1_8char>/<leg2_8char>` | Both legs linked; IDs are first 8 chars of each order UUID |
-| `OCO REJ  <oco_id>  <reason>` | OCO rejected (invalid legs, symbol mismatch, etc.) |
+| Message                                                 | Meaning                                                                           |
+|---------------------------------------------------------|-----------------------------------------------------------------------------------|
+| `OCO ACK  <oco_id>  legs=<leg1_8char>/<leg2_8char>`     | Both legs linked; IDs are first 8 chars of each order UUID                        |
+| `OCO REJ  <oco_id>  <reason>`                           | OCO rejected (invalid legs, symbol mismatch, etc.)                                |
 | `OCO CANCEL  <oco_id>  sibling=<order_8char>  <reason>` | Engine auto-cancelled the sibling leg after the other leg filled or was cancelled |
 
 ### Combo Events
 
-| Message | Meaning |
-|---------|--------|
-| `COMBO ACK  <combo_id>  accepted` | Combo validated, child orders posted to books |
-| `COMBO REJECTED  <combo_id>  <reason>` | Combo failed validation (e.g. "Duplicate symbols") |
-| `COMBO STATUS  <combo_id>  PARTIALLY_MATCHED` | At least one leg has filled |
-| `COMBO STATUS  <combo_id>  MATCHED` | All legs fully filled |
-| `COMBO STATUS  <combo_id>  FAILED  <reason>` | A leg was cancelled/expired; siblings cascade-cancelled |
-| `COMBO STATUS  <combo_id>  CANCELLED` | User-initiated cancel completed |
+| Message                                       | Meaning                                                 |
+|-----------------------------------------------|---------------------------------------------------------|
+| `COMBO ACK  <combo_id>  accepted`             | Combo validated, child orders posted to books           |
+| `COMBO REJECTED  <combo_id>  <reason>`        | Combo failed validation (e.g. "Duplicate symbols")      |
+| `COMBO STATUS  <combo_id>  PARTIALLY_MATCHED` | At least one leg has filled                             |
+| `COMBO STATUS  <combo_id>  MATCHED`           | All legs fully filled                                   |
+| `COMBO STATUS  <combo_id>  FAILED  <reason>`  | A leg was cancelled/expired; siblings cascade-cancelled |
+| `COMBO STATUS  <combo_id>  CANCELLED`         | User-initiated cancel completed                         |
 
 ### Risk Events
 
-| Message | Meaning |
-|---------|--------|
-| `KILL ACK  orders=<n> quote_legs=<n>` | Kill-switch applied; counts show what was cancelled |
-| `KILL REJ  <reason>` | Kill-switch rejected (not expected in normal operation) |
+| Message                               | Meaning                                                 |
+|---------------------------------------|---------------------------------------------------------|
+| `KILL ACK  orders=<n> quote_legs=<n>` | Kill-switch applied; counts show what was cancelled     |
+| `KILL REJ  <reason>`                  | Kill-switch rejected (not expected in normal operation) |
 
 ### System Events
 
-| Message | Meaning |
-|---------|--------|
+| Message                    | Meaning                       |
+|----------------------------|-------------------------------|
 | `Active Instruments` table | Response to `SYMBOLS` command |
 
 !!! note "Session phase changes"
@@ -749,19 +749,19 @@ gateways' activity.
 
 The gateway provides **context-aware tab completion**:
 
-| Position | Completions |
-|----------|-------------|
-| First word | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `QBOOT`, `QLEGS`, `KILL`, `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `HELP`, `EXIT`, `QUIT` |
-| After `NEW\|` | `SYM=`, `SIDE=`, `TYPE=`, `QTY=`, `PRICE=`, `STOP=`, `TRAIL=`, `TIF=`, `VISIBLE=`, `SMP=` |
-| After `NEW\|TYPE=COMBO\|` | `COMBO_ID=`, `COMBO_TYPE=`, `TIF=`, `LEG_COUNT=`, plus `LEG0.SYM=`, `LEG0.SIDE=`, etc. |
-| After `NEW\|TYPE=OCO\|` | `OCO_ID=`, `SYM=`, `QTY=`, `TIF=`, `LEG1_SIDE=`, `LEG1_TYPE=`, etc. |
-| After `AMEND\|` | `ID=`, `PRICE=`, `QTY=` |
-| After `CANCEL\|` | `ID=`, `COMBO_ID=`, `OCO_ID=` |
-| After `TYPE=` | All order types: `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `IOC`, `ICEBERG`, `TRAILING_STOP`, `COMBO`, `OCO` |
-| After `SIDE=` | `BUY`, `SELL` |
-| After `TIF=` | `DAY`, `GTC`, `ATO`, `ATC` |
-| After `SMP=` | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` |
-| After `SYM=` | Known symbols (populated from the last `SYMBOLS` reply) |
+| Position                  | Completions                                                                                                                               |
+|---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| First word                | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `QBOOT`, `QLEGS`, `KILL`, `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `HELP`, `EXIT`, `QUIT` |
+| After `NEW\|`             | `SYM=`, `SIDE=`, `TYPE=`, `QTY=`, `PRICE=`, `STOP=`, `TRAIL=`, `TIF=`, `VISIBLE=`, `SMP=`                                                 |
+| After `NEW\|TYPE=COMBO\|` | `COMBO_ID=`, `COMBO_TYPE=`, `TIF=`, `LEG_COUNT=`, plus `LEG0.SYM=`, `LEG0.SIDE=`, etc.                                                    |
+| After `NEW\|TYPE=OCO\|`   | `OCO_ID=`, `SYM=`, `QTY=`, `TIF=`, `LEG1_SIDE=`, `LEG1_TYPE=`, etc.                                                                       |
+| After `AMEND\|`           | `ID=`, `PRICE=`, `QTY=`                                                                                                                   |
+| After `CANCEL\|`          | `ID=`, `COMBO_ID=`, `OCO_ID=`                                                                                                             |
+| After `TYPE=`             | All order types: `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `IOC`, `ICEBERG`, `TRAILING_STOP`, `COMBO`, `OCO`                        |
+| After `SIDE=`             | `BUY`, `SELL`                                                                                                                             |
+| After `TIF=`              | `DAY`, `GTC`, `ATO`, `ATC`                                                                                                                |
+| After `SMP=`              | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`                                                                               |
+| After `SYM=`              | Known symbols (populated from the last `SYMBOLS` reply)                                                                                   |
 
 Press **Tab** to cycle through suggestions.
 

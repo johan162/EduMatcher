@@ -19,18 +19,18 @@ strategies across multiple symbols atomically.
 
 ## Contents
 
-| Order type | Category | Key characteristic |
-|---|---|---|
-| [MARKET](#market) | Aggressive | Immediate execution at best price; no price guarantee |
-| [LIMIT](#limit) | Passive | Rests on book at specified price or better |
-| [STOP](#stop-stop-market) | Conditional | Dormant until trigger; then becomes MARKET |
-| [STOP_LIMIT](#stop_limit) | Conditional | Dormant until trigger; then becomes LIMIT |
-| [FOK](#fok-fill-or-kill) | Aggressive | All-or-nothing; fill completely or cancel |
-| [IOC](#ioc-immediate-or-cancel) | Aggressive | Fill what you can immediately; cancel rest |
-| [ICEBERG](#iceberg) | Passive | Large order with hidden reserve; visible peak only |
-| [TRAILING_STOP](#trailing_stop) | Conditional | Dynamic stop that follows price by fixed offset |
-| [COMBO](#combo) | Multi-leg | Multiple linked orders across symbols |
-| [OCO](#oco-one-cancels-other) | Multi-leg | Two orders where fill/cancel of one cancels the other |
+| Order type                      | Category    | Key characteristic                                    |
+|---------------------------------|-------------|-------------------------------------------------------|
+| [MARKET](#market)               | Aggressive  | Immediate execution at best price; no price guarantee |
+| [LIMIT](#limit)                 | Passive     | Rests on book at specified price or better            |
+| [STOP](#stop-stop-market)       | Conditional | Dormant until trigger; then becomes MARKET            |
+| [STOP_LIMIT](#stop_limit)       | Conditional | Dormant until trigger; then becomes LIMIT             |
+| [FOK](#fok-fill-or-kill)        | Aggressive  | All-or-nothing; fill completely or cancel             |
+| [IOC](#ioc-immediate-or-cancel) | Aggressive  | Fill what you can immediately; cancel rest            |
+| [ICEBERG](#iceberg)             | Passive     | Large order with hidden reserve; visible peak only    |
+| [TRAILING_STOP](#trailing_stop) | Conditional | Dynamic stop that follows price by fixed offset       |
+| [COMBO](#combo)                 | Multi-leg   | Multiple linked orders across symbols                 |
+| [OCO](#oco-one-cancels-other)   | Multi-leg   | Two orders where fill/cancel of one cancels the other |
 
 ### Single-order lifecycle
 
@@ -322,16 +322,16 @@ Use COMBO when:
 NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=GTC|LEG_COUNT=2|LEG0.SYM=MSFT|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=415.00|LEG1.SYM=AAPL|LEG1.SIDE=SELL|LEG1.QTY=100|LEG1.PRICE=210.00
 ```
 
-| Field | Meaning |
-|-------|---------|
-| `TYPE=COMBO` | Identifies this as a multi-leg order |
-| `COMBO_ID` | Your human-readable tracking label |
+| Field            | Meaning                                                          |
+|------------------|------------------------------------------------------------------|
+| `TYPE=COMBO`     | Identifies this as a multi-leg order                             |
+| `COMBO_ID`       | Your human-readable tracking label                               |
 | `COMBO_TYPE=AON` | All-or-none: combo succeeds only when every leg fills completely |
-| `LEG_COUNT` | Number of legs (2–10) |
-| `LEG<i>.SYM` | Symbol for leg *i* |
-| `LEG<i>.SIDE` | BUY or SELL for leg *i* |
-| `LEG<i>.QTY` | Quantity for leg *i* |
-| `LEG<i>.PRICE` | Limit price for leg *i* |
+| `LEG_COUNT`      | Number of legs (2–10)                                            |
+| `LEG<i>.SYM`     | Symbol for leg *i*                                               |
+| `LEG<i>.SIDE`    | BUY or SELL for leg *i*                                          |
+| `LEG<i>.QTY`     | Quantity for leg *i*                                             |
+| `LEG<i>.PRICE`   | Limit price for leg *i*                                          |
 
 **Educational note**: The `COMBO_TYPE` field is reserved for future expansion. Currently only `AON` (All-Or-Nothing) is supported, meaning the combo is successful only if every leg fills in full. In the future, we may add `ANY` (combo succeeds if at least one leg fills) or `MIN` (combo succeeds if a minimum number of legs fill).
 
@@ -428,8 +428,8 @@ event in the execution stream.
 
 Stops are evaluated after every trade event:
 
-| Order Side | Trigger Condition |
-|------------|------------------|
+| Order Side | Trigger Condition                |
+|------------|----------------------------------|
 | BUY STOP   | `last_trade_price >= stop_price` |
 | SELL STOP  | `last_trade_price <= stop_price` |
 
@@ -887,12 +887,12 @@ the order ID** and, under certain conditions, **preserves time priority**.
 
 EduMatcher implements the same priority rules used by most lit exchanges:
 
-| Amendment Type | Priority |
-|----------------|----------|
-| Quantity decrease only (price unchanged) | **Preserved** — order keeps its original timestamp |
-| Price change (any direction) | **Lost** — order moves to the back of the queue at the new price |
-| Quantity increase (price unchanged) | **Lost** — order moves to the back of the queue |
-| Price change + quantity change | **Lost** |
+| Amendment Type                           | Priority                                                         |
+|------------------------------------------|------------------------------------------------------------------|
+| Quantity decrease only (price unchanged) | **Preserved** — order keeps its original timestamp               |
+| Price change (any direction)             | **Lost** — order moves to the back of the queue at the new price |
+| Quantity increase (price unchanged)      | **Lost** — order moves to the back of the queue                  |
+| Price change + quantity change           | **Lost**                                                         |
 
 **Rationale**: A quantity decrease cannot disadvantage other participants at
 the same price level (there is less competition for incoming aggressor flow).
@@ -902,15 +902,15 @@ the order more opportunity to fill without having competed for that position
 
 ### AMEND vs. Cancel+New
 
-| Aspect | AMEND | Cancel + New |
-|--------|-------|--------------|
-| Order ID | Preserved | New ID assigned |
-| Message count | 1 inbound + 1 response | 2 inbound + 2 responses |
-| Priority on qty decrease | Preserved | **Lost** (new order gets current timestamp) |
-| Atomicity | Guaranteed — no gap where the order is absent from the book | Non-atomic — brief window with no resting order |
-| Fill risk during gap | None | Another order could fill the opposite side during the gap |
-| Filled quantity tracking | Continuous — partial fills before amendment are preserved | Resets to zero on the new order |
-| Gateway state | Single cache entry updated | Old entry cancelled + new entry created |
+| Aspect                   | AMEND                                                       | Cancel + New                                              |
+|--------------------------|-------------------------------------------------------------|-----------------------------------------------------------|
+| Order ID                 | Preserved                                                   | New ID assigned                                           |
+| Message count            | 1 inbound + 1 response                                      | 2 inbound + 2 responses                                   |
+| Priority on qty decrease | Preserved                                                   | **Lost** (new order gets current timestamp)               |
+| Atomicity                | Guaranteed — no gap where the order is absent from the book | Non-atomic — brief window with no resting order           |
+| Fill risk during gap     | None                                                        | Another order could fill the opposite side during the gap |
+| Filled quantity tracking | Continuous — partial fills before amendment are preserved   | Resets to zero on the new order                           |
+| Gateway state            | Single cache entry updated                                  | Old entry cancelled + new entry created                   |
 
 **When to use Cancel+New instead**: If you need to change the order's side,
 symbol, order type, or TIF, you must cancel and resubmit — amendment only
@@ -959,27 +959,27 @@ AMEND|ID=abc123...|QTY=60
 
 ### Amendment Events
 
-| Topic | Fired When |
-|-------|------------|
-| `order.amended.{GW}` | Amendment accepted; contains new `price`, `qty`, `remaining_qty`, `priority_reset` |
-| `order.ack.{GW}` (`accepted=false`) | Amendment rejected; contains `reason` |
+| Topic                               | Fired When                                                                         |
+|-------------------------------------|------------------------------------------------------------------------------------|
+| `order.amended.{GW}`                | Amendment accepted; contains new `price`, `qty`, `remaining_qty`, `priority_reset` |
+| `order.ack.{GW}` (`accepted=false`) | Amendment rejected; contains `reason`                                              |
 
 ### Edge Cases and Gotchas
 
-| Scenario | Behaviour |
-|----------|-----------|
-| Order not found (wrong ID) | **REJECTED** — "Order not found" |
-| Order already filled | **REJECTED** — "Cannot amend FILLED order" |
-| Order already cancelled | **REJECTED** — "Cannot amend CANCELLED order" |
-| MARKET / STOP / FOK order | **REJECTED** — e.g. `"Cannot amend STOP orders"` (message names the actual order type) |
-| New QTY $\leq$ already filled qty | **REJECTED** — "New quantity must exceed already-filled quantity" |
-| New QTY = 0 or negative | **REJECTED** — "Quantity must be positive" |
-| New PRICE $\leq$ 0 | **REJECTED** — "Price must be positive" |
-| Neither PRICE nor QTY supplied | **REJECTED** — "Amend requires at least PRICE or QTY" |
-| Iceberg order amended | Supported — displayed_qty is recalculated from `visible_qty` |
-| Combo child order amended | Allowed — the child is a normal resting order |
-| OCO leg amended | Allowed — does not affect the OCO linkage |
-| Amend during auction phase | Allowed — the resting order's price/qty is updated in the book |
+| Scenario                          | Behaviour                                                                              |
+|-----------------------------------|----------------------------------------------------------------------------------------|
+| Order not found (wrong ID)        | **REJECTED** — "Order not found"                                                       |
+| Order already filled              | **REJECTED** — "Cannot amend FILLED order"                                             |
+| Order already cancelled           | **REJECTED** — "Cannot amend CANCELLED order"                                          |
+| MARKET / STOP / FOK order         | **REJECTED** — e.g. `"Cannot amend STOP orders"` (message names the actual order type) |
+| New QTY $\leq$ already filled qty | **REJECTED** — "New quantity must exceed already-filled quantity"                      |
+| New QTY = 0 or negative           | **REJECTED** — "Quantity must be positive"                                             |
+| New PRICE $\leq$ 0                | **REJECTED** — "Price must be positive"                                                |
+| Neither PRICE nor QTY supplied    | **REJECTED** — "Amend requires at least PRICE or QTY"                                  |
+| Iceberg order amended             | Supported — displayed_qty is recalculated from `visible_qty`                           |
+| Combo child order amended         | Allowed — the child is a normal resting order                                          |
+| OCO leg amended                   | Allowed — does not affect the OCO linkage                                              |
+| Amend during auction phase        | Allowed — the resting order's price/qty is updated in the book                         |
 
 !!! warning "QTY means *total* quantity"
     `QTY=` in an `AMEND` command sets the **new total order size**, not the
@@ -1144,12 +1144,12 @@ CANCEL|OCO_ID=TPS
 
 ### OCO Events
 
-| Topic | Fired When |
-|-------|------------|
-| `oco.ack.{GW}` | OCO pair accepted; contains `order_id_1`, `order_id_2` |
-| `oco.ack.{GW}` (`accepted=false`) | OCO pair rejected; contains `reason` |
-| `oco.cancelled.{GW}` | Sibling auto-cancelled after the other leg settled |
-| `order.fill.{GW}` | Each leg is an independent order; fill events are per-leg |
+| Topic                             | Fired When                                                |
+|-----------------------------------|-----------------------------------------------------------|
+| `oco.ack.{GW}`                    | OCO pair accepted; contains `order_id_1`, `order_id_2`    |
+| `oco.ack.{GW}` (`accepted=false`) | OCO pair rejected; contains `reason`                      |
+| `oco.cancelled.{GW}`              | Sibling auto-cancelled after the other leg settled        |
+| `order.fill.{GW}`                 | Each leg is an independent order; fill events are per-leg |
 | `order.cancelled.{GW}` | Published for each leg on explicit CANCEL|OCO_ID= |
 
 ### Edge Cases and Gotchas
@@ -1158,15 +1158,15 @@ CANCEL|OCO_ID=TPS
     A duplicate `oco_id` silently replaces the previously tracked group.
     Always use a unique label per OCO pair.
 
-| Scenario | Behaviour |
-|----------|-----------|
-| OCO_ID already in use | **Not checked** — a duplicate `oco_id` silently replaces the tracked group |
-| Unknown symbol or gateway | **REJECTED** with `oco.ack accepted=false` |
-| LIMIT leg missing `LEG1_PRICE=` or `LEG2_PRICE=` | **REJECTED** |
-| STOP leg missing `LEG1_STOP=` or `LEG2_STOP=` | **REJECTED** |
-| Partial fill of one leg | Does NOT cancel the sibling — only a terminal state (FILLED, CANCELLED, REJECTED) does |
-| Both legs fill simultaneously | First fill to be processed cancels the second; race resolved by event order |
-| GTC OCO across sessions | Both legs persist with their TIF; if GTC they survive session reset |
+| Scenario                                         | Behaviour                                                                              |
+|--------------------------------------------------|----------------------------------------------------------------------------------------|
+| OCO_ID already in use                            | **Not checked** — a duplicate `oco_id` silently replaces the tracked group             |
+| Unknown symbol or gateway                        | **REJECTED** with `oco.ack accepted=false`                                             |
+| LIMIT leg missing `LEG1_PRICE=` or `LEG2_PRICE=` | **REJECTED**                                                                           |
+| STOP leg missing `LEG1_STOP=` or `LEG2_STOP=`    | **REJECTED**                                                                           |
+| Partial fill of one leg                          | Does NOT cancel the sibling — only a terminal state (FILLED, CANCELLED, REJECTED) does |
+| Both legs fill simultaneously                    | First fill to be processed cancels the second; race resolved by event order            |
+| GTC OCO across sessions                          | Both legs persist with their TIF; if GTC they survive session reset                    |
 
 ## See also
 

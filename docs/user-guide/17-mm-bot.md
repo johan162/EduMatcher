@@ -240,14 +240,14 @@ is ever lost:
 
 The bot respects the exchange session lifecycle:
 
-| Session State | Bot Behaviour |
-|---|---|
-| `PRE_OPEN` | Wait — do not quote |
-| `OPENING_AUCTION` | Cancel any live quote; wait |
-| `CONTINUOUS` | Post and maintain a two-sided quote |
-| `CLOSING_AUCTION` | Cancel any live quote; wait |
-| `CLOSED` | Cancel any live quote; wait |
-| `HALTED` (circuit breaker) | Cancel and pause immediately |
+| Session State              | Bot Behaviour                       |
+|----------------------------|-------------------------------------|
+| `PRE_OPEN`                 | Wait — do not quote                 |
+| `OPENING_AUCTION`          | Cancel any live quote; wait         |
+| `CONTINUOUS`               | Post and maintain a two-sided quote |
+| `CLOSING_AUCTION`          | Cancel any live quote; wait         |
+| `CLOSED`                   | Cancel any live quote; wait         |
+| `HALTED` (circuit breaker) | Cancel and pause immediately        |
 
 When the session transitions to `CONTINUOUS`, the bot resumes quoting
 automatically.
@@ -277,26 +277,26 @@ pm-mm-bot --symbol AAPL --initial_min 95.00 --initial_max 105.00
 
 ## CLI reference
 
-| Argument | Default | Description |
-|---|---|---|
-| `--symbol SYM` | *required* | Instrument to make a market in |
-| `--gap PRICE` | `0.10` | Total spread (bid at mid−gap/2, ask at mid+gap/2) |
-| `--qty N` | `500` | Quote size on each leg |
-| `--id-suffix NN` | `01` | Running number for gateway ID (`MM_AAPL_01`) |
-| `--drift-ticks N` | `3` | Reprice when mid moves by this many ticks |
-| `--reissue-delay-ms N` | `200` | Wait after fill before re-issuing |
-| `--tif {DAY,GTC}` | `DAY` | Time-in-force for quote legs |
-| `--heartbeat-interval-sec F` | `5.0` | Periodic live-quote check interval |
-| `--startup-session-timeout-sec F` | `5.0` | Max wait for first `session.state` |
-| `--bootstrap-timeout-sec F` | `1.0` | Max wait for QBOOT reply |
-| `--cancel-timeout-sec F` | `1.0` | Max wait for cancel confirmation before forced replacement reissue |
-| `--shutdown-timeout-sec F` | `2.0` | Max wait for cancel on SIGINT/SIGTERM |
-| `--qlegs-reconcile-interval-sec F` | `15.0` | Periodic QLEGS reconciliation interval |
-| `--initial_min PRICE` | *unset* | Lower bound for random bootstrap price |
-| `--initial_max PRICE` | *unset* | Upper bound for random bootstrap price |
-| `--engine-pull ADDR` | `tcp://127.0.0.1:5555` | Engine PUSH/PULL address |
-| `--engine-pub ADDR` | `tcp://127.0.0.1:5556` | Engine PUB address |
-| `-v`, `--verbose` | `false` | Print debug-level events |
+| Argument                           | Default                | Description                                                        |
+|------------------------------------|------------------------|--------------------------------------------------------------------|
+| `--symbol SYM`                     | *required*             | Instrument to make a market in                                     |
+| `--gap PRICE`                      | `0.10`                 | Total spread (bid at mid−gap/2, ask at mid+gap/2)                  |
+| `--qty N`                          | `500`                  | Quote size on each leg                                             |
+| `--id-suffix NN`                   | `01`                   | Running number for gateway ID (`MM_AAPL_01`)                       |
+| `--drift-ticks N`                  | `3`                    | Reprice when mid moves by this many ticks                          |
+| `--reissue-delay-ms N`             | `200`                  | Wait after fill before re-issuing                                  |
+| `--tif {DAY,GTC}`                  | `DAY`                  | Time-in-force for quote legs                                       |
+| `--heartbeat-interval-sec F`       | `5.0`                  | Periodic live-quote check interval                                 |
+| `--startup-session-timeout-sec F`  | `5.0`                  | Max wait for first `session.state`                                 |
+| `--bootstrap-timeout-sec F`        | `1.0`                  | Max wait for QBOOT reply                                           |
+| `--cancel-timeout-sec F`           | `1.0`                  | Max wait for cancel confirmation before forced replacement reissue |
+| `--shutdown-timeout-sec F`         | `2.0`                  | Max wait for cancel on SIGINT/SIGTERM                              |
+| `--qlegs-reconcile-interval-sec F` | `15.0`                 | Periodic QLEGS reconciliation interval                             |
+| `--initial_min PRICE`              | *unset*                | Lower bound for random bootstrap price                             |
+| `--initial_max PRICE`              | *unset*                | Upper bound for random bootstrap price                             |
+| `--engine-pull ADDR`               | `tcp://127.0.0.1:5555` | Engine PUSH/PULL address                                           |
+| `--engine-pub ADDR`                | `tcp://127.0.0.1:5556` | Engine PUB address                                                 |
+| `-v`, `--verbose`                  | `false`                | Print debug-level events                                           |
 
 ---
 

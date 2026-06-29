@@ -107,15 +107,15 @@ poetry run pm-api-gateway --config engine_config.yaml --instance desk
 
 Useful options:
 
-| Option | Default | Description |
-|---|---:|---|
-| `--host ADDR` | config value | Override HTTP bind address |
-| `--port PORT` | config value | Override HTTP listen port |
-| `--instance NAME` | auto-selected only when one entry exists | Select a named `api_gateways` entry |
-| `--config PATH` | `EDUMATCHER_CONFIG` resolution | Central engine config path |
-| `--engine-host HOST` | config value | Override engine host for ZMQ ports `5555`/`5556` |
-| `--stats-db PATH` | config value | SQLite database for `/history/*` |
-| `--log-level LEVEL` | config value | `debug`, `info`, `warning`, or `error` |
+| Option               |                                  Default | Description                                      |
+|----------------------|-----------------------------------------:|--------------------------------------------------|
+| `--host ADDR`        |                             config value | Override HTTP bind address                       |
+| `--port PORT`        |                             config value | Override HTTP listen port                        |
+| `--instance NAME`    | auto-selected only when one entry exists | Select a named `api_gateways` entry              |
+| `--config PATH`      |           `EDUMATCHER_CONFIG` resolution | Central engine config path                       |
+| `--engine-host HOST` |                             config value | Override engine host for ZMQ ports `5555`/`5556` |
+| `--stats-db PATH`    |                             config value | SQLite database for `/history/*`                 |
+| `--log-level LEVEL`  |                             config value | `debug`, `info`, `warning`, or `error`           |
 
 Uvicorn writes access and application logs to stdout/stderr. Redirect them with
 your shell or service manager:
@@ -164,34 +164,34 @@ cannot submit, cancel, or inspect private orders.
 
 Base path: `/api/v1`.
 
-| Method | Path | Auth | Purpose |
-|---|---|---|---|
-| `POST` | `/orders` | trading | Submit one order |
-| `DELETE` | `/orders/{order_id}` | trading | Cancel one order |
-| `PATCH` | `/orders/{order_id}` | trading | Amend price and/or quantity |
-| `POST` | `/orders/{order_id}/replace` | trading | Cancel then submit replacement |
-| `GET` | `/orders` | trading | List live orders for the gateway |
-| `GET` | `/orders/{order_id}` | trading | Read cached order state |
-| `POST` | `/oco` | trading | Submit OCO pair |
-| `DELETE` | `/oco/{oco_id}` | trading | Cancel OCO pair |
-| `POST` | `/combos` | trading | Submit combo order |
-| `DELETE` | `/combos/{combo_id}` | trading | Cancel combo |
-| `POST` | `/quotes` | trading | Submit two-sided quote |
-| `DELETE` | `/quotes/{symbol}` | trading | Cancel quote for symbol |
-| `POST` | `/mass-cancel` | trading | Cancel all or symbol-scoped exposure |
-| `POST` | `/kill-switch` | trading | Alias of `/mass-cancel` |
-| `GET` | `/symbols` | trading | Instrument metadata |
-| `GET` | `/session` | trading | Current engine session state |
-| `GET` | `/quotes/bootstrap` | trading | Active quote bootstrap state |
-| `GET` | `/quotes/legs` | trading | Quote leg state |
-| `GET` | `/positions` | trading | Net positions by symbol |
-| `GET` | `/status` | trading | Gateway cache summary |
-| `GET` | `/history/orders` | trading | Historical order lifecycle events |
-| `GET` | `/history/orders/{order_id}` | trading | Full lifecycle for one order |
-| `GET` | `/history/fills` | trading | Historical fills |
-| `GET` | `/history/trades` | any valid key | Public trade log |
-| `GET` | `/history/daily` | any valid key | Daily OHLCV rows |
-| `GET` | `/healthz` | none | Liveness probe (not in Swagger) |
+| Method   | Path                         | Auth          | Purpose                              |
+|----------|------------------------------|---------------|--------------------------------------|
+| `POST`   | `/orders`                    | trading       | Submit one order                     |
+| `DELETE` | `/orders/{order_id}`         | trading       | Cancel one order                     |
+| `PATCH`  | `/orders/{order_id}`         | trading       | Amend price and/or quantity          |
+| `POST`   | `/orders/{order_id}/replace` | trading       | Cancel then submit replacement       |
+| `GET`    | `/orders`                    | trading       | List live orders for the gateway     |
+| `GET`    | `/orders/{order_id}`         | trading       | Read cached order state              |
+| `POST`   | `/oco`                       | trading       | Submit OCO pair                      |
+| `DELETE` | `/oco/{oco_id}`              | trading       | Cancel OCO pair                      |
+| `POST`   | `/combos`                    | trading       | Submit combo order                   |
+| `DELETE` | `/combos/{combo_id}`         | trading       | Cancel combo                         |
+| `POST`   | `/quotes`                    | trading       | Submit two-sided quote               |
+| `DELETE` | `/quotes/{symbol}`           | trading       | Cancel quote for symbol              |
+| `POST`   | `/mass-cancel`               | trading       | Cancel all or symbol-scoped exposure |
+| `POST`   | `/kill-switch`               | trading       | Alias of `/mass-cancel`              |
+| `GET`    | `/symbols`                   | trading       | Instrument metadata                  |
+| `GET`    | `/session`                   | trading       | Current engine session state         |
+| `GET`    | `/quotes/bootstrap`          | trading       | Active quote bootstrap state         |
+| `GET`    | `/quotes/legs`               | trading       | Quote leg state                      |
+| `GET`    | `/positions`                 | trading       | Net positions by symbol              |
+| `GET`    | `/status`                    | trading       | Gateway cache summary                |
+| `GET`    | `/history/orders`            | trading       | Historical order lifecycle events    |
+| `GET`    | `/history/orders/{order_id}` | trading       | Full lifecycle for one order         |
+| `GET`    | `/history/fills`             | trading       | Historical fills                     |
+| `GET`    | `/history/trades`            | any valid key | Public trade log                     |
+| `GET`    | `/history/daily`             | any valid key | Daily OHLCV rows                     |
+| `GET`    | `/healthz`                   | none          | Liveness probe (not in Swagger)      |
 
 
 ### Submit order
@@ -215,18 +215,18 @@ Content-Type: application/json
 }
 ```
 
-| Field | Required | Notes |
-|---|---|---|
-| `symbol` | yes | Instrument symbol |
-| `side` | yes | `BUY` or `SELL` |
-| `order_type` | yes | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` |
-| `quantity` | yes | Positive integer |
-| `tif` | no | `DAY`, `GTC`, `ATO`, `ATC`; default `DAY` |
-| `price` | conditional | Required for `LIMIT`, `FOK`, `IOC`, `ICEBERG`, `STOP_LIMIT` |
-| `stop_price` | conditional | Required for `STOP`, `STOP_LIMIT` |
-| `visible_qty` | conditional | Required for `ICEBERG`, less than `quantity` |
-| `trail_offset` | conditional | Required for `TRAILING_STOP` |
-| `smp_action` | no | Self-match prevention action |
+| Field          | Required    | Notes                                                                             |
+|----------------|-------------|-----------------------------------------------------------------------------------|
+| `symbol`       | yes         | Instrument symbol                                                                 |
+| `side`         | yes         | `BUY` or `SELL`                                                                   |
+| `order_type`   | yes         | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` |
+| `quantity`     | yes         | Positive integer                                                                  |
+| `tif`          | no          | `DAY`, `GTC`, `ATO`, `ATC`; default `DAY`                                         |
+| `price`        | conditional | Required for `LIMIT`, `FOK`, `IOC`, `ICEBERG`, `STOP_LIMIT`                       |
+| `stop_price`   | conditional | Required for `STOP`, `STOP_LIMIT`                                                 |
+| `visible_qty`  | conditional | Required for `ICEBERG`, less than `quantity`                                      |
+| `trail_offset` | conditional | Required for `TRAILING_STOP`                                                      |
+| `smp_action`   | no          | Self-match prevention action                                                      |
 
 Default write calls return immediately with `202 Accepted`. Add `?wait=ack` to
 wait for the matching engine ACK until the configured timeout. The wait filters
@@ -238,11 +238,11 @@ cache returns `409 Conflict`.
 
 ### Cancel, amend, and replace
 
-| Operation | Payload |
-|---|---|
-| `DELETE /orders/{order_id}` | no body |
-| `PATCH /orders/{order_id}` | `{ "price": 151.00 }`, `{ "quantity": 200 }`, or both |
-| `POST /orders/{order_id}/replace` | same shape as `POST /orders` |
+| Operation                         | Payload                                               |
+|-----------------------------------|-------------------------------------------------------|
+| `DELETE /orders/{order_id}`       | no body                                               |
+| `PATCH /orders/{order_id}`        | `{ "price": 151.00 }`, `{ "quantity": 200 }`, or both |
+| `POST /orders/{order_id}/replace` | same shape as `POST /orders`                          |
 
 
 ### OCO, combos, quotes, and mass cancel
@@ -257,9 +257,9 @@ cache returns `409 Conflict`.
 
 ## WebSocket endpoints
 
-| Path | Purpose | First message |
-|---|---|---|
-| `/api/v1/events` | Private order/quote/risk lifecycle events for one gateway | `{ "api_key": "key-trader-demo" }` |
+| Path                  | Purpose                                                        | First message                         |
+|-----------------------|----------------------------------------------------------------|---------------------------------------|
+| `/api/v1/events`      | Private order/quote/risk lifecycle events for one gateway      | `{ "api_key": "key-trader-demo" }`    |
 | `/api/v1/market-data` | Public book, trade, depth, session, and circuit-breaker events | `{ "api_key": "key-dashboard-demo" }` |
 
 Private event envelope:
@@ -387,14 +387,14 @@ EDUMATCHER_API_KEY=key-trader-demo \
 python3 submit_market_order.py --side BUY --symbol AAPL --qty 100
 ```
 
-| Option | Required | Default | Description |
-|---|---|---|---|
-| `--side` | yes | — | `BUY` or `SELL` |
-| `--symbol` | yes | — | Instrument symbol |
-| `--qty` | yes | — | Order quantity |
-| `--wait-ack` | no | off | Block until the matching engine ACKs the order |
-| `--url` | no | `$EDUMATCHER_API_URL` or `http://127.0.0.1:8080` | Gateway base URL |
-| `--key` | no | `$EDUMATCHER_API_KEY` or `key-trader-demo` | Bearer API key |
+| Option       | Required | Default                                          | Description                                    |
+|--------------|----------|--------------------------------------------------|------------------------------------------------|
+| `--side`     | yes      | —                                                | `BUY` or `SELL`                                |
+| `--symbol`   | yes      | —                                                | Instrument symbol                              |
+| `--qty`      | yes      | —                                                | Order quantity                                 |
+| `--wait-ack` | no       | off                                              | Block until the matching engine ACKs the order |
+| `--url`      | no       | `$EDUMATCHER_API_URL` or `http://127.0.0.1:8080` | Gateway base URL                               |
+| `--key`      | no       | `$EDUMATCHER_API_KEY` or `key-trader-demo`       | Bearer API key                                 |
 
 Example output without `--wait-ack`:
 

@@ -70,24 +70,24 @@ QUOTE|SYM=AAPL|BID=149.90|ASK=150.10|BID_QTY=500|ASK_QTY=500
 
 Optional fields:
 
-| Field | Default | Description |
-|---|---|---|
-| `QUOTE_ID=` | Auto-generated | Label for this quote pair; used in status events and cancel |
-| `TIF=` | `DAY` | Either `DAY` or `GTC`; controls whether the quote survives to the next session |
+| Field       | Default        | Description                                                                    |
+|-------------|----------------|--------------------------------------------------------------------------------|
+| `QUOTE_ID=` | Auto-generated | Label for this quote pair; used in status events and cancel                    |
+| `TIF=`      | `DAY`          | Either `DAY` or `GTC`; controls whether the quote survives to the next session |
 
 ### Validation rules
 
 The engine rejects a quote if:
 
-| Condition | Rejection reason |
-|---|---|
-| Gateway role is not `MARKET_MAKER` | `Quotes are only allowed for MARKET_MAKER participants` |
-| `BID_PRICE >= ASK_PRICE` | `Quote requires bid_price < ask_price` |
-| Either quantity $\leq$ 0 | `Quote quantities must be positive` |
-| Symbol is halted | `{SYMBOL} is halted — quotes rejected during circuit breaker halt` |
-| Spread exceeds `mm_max_spread_ticks` | `Spread {n} ticks exceeds max {m}` |
-| Either side below `mm_min_qty` | `Quote size must be >= {n}` |
-| Sending a new quote replaces any existing quote for the same (gateway, symbol) pair | *(no rejection; the existing quote is cancelled silently)* |
+| Condition                                                                           | Rejection reason                                                   |
+|-------------------------------------------------------------------------------------|--------------------------------------------------------------------|
+| Gateway role is not `MARKET_MAKER`                                                  | `Quotes are only allowed for MARKET_MAKER participants`            |
+| `BID_PRICE >= ASK_PRICE`                                                            | `Quote requires bid_price < ask_price`                             |
+| Either quantity $\leq$ 0                                                            | `Quote quantities must be positive`                                |
+| Symbol is halted                                                                    | `{SYMBOL} is halted — quotes rejected during circuit breaker halt` |
+| Spread exceeds `mm_max_spread_ticks`                                                | `Spread {n} ticks exceeds max {m}`                                 |
+| Either side below `mm_min_qty`                                                      | `Quote size must be >= {n}`                                        |
+| Sending a new quote replaces any existing quote for the same (gateway, symbol) pair | *(no rejection; the existing quote is cancelled silently)*         |
 
 ### Quote acknowledgement
 
@@ -132,11 +132,11 @@ need to re-quote."*
 
 The `quote_refresh_policy` config key controls **what triggers inactivation**:
 
-| Policy | Inactivation trigger | Typical use |
-|---|---|---|
-| `INACTIVATE_ON_ANY_FILL` | Any partial or full fill on either leg | Conservative; re-quote after every fill event |
-| `INACTIVATE_ON_FULL_FILL` | Only when a leg is **completely** filled | Allows partial fills to accumulate before re-quoting |
-| `NEVER_INACTIVATE` | Never — both legs stay in the book until manually cancelled | High-volume automated MMs that manage their own inventory |
+| Policy                    | Inactivation trigger                                        | Typical use                                               |
+|---------------------------|-------------------------------------------------------------|-----------------------------------------------------------|
+| `INACTIVATE_ON_ANY_FILL`  | Any partial or full fill on either leg                      | Conservative; re-quote after every fill event             |
+| `INACTIVATE_ON_FULL_FILL` | Only when a leg is **completely** filled                    | Allows partial fills to accumulate before re-quoting      |
+| `NEVER_INACTIVATE`        | Never — both legs stay in the book until manually cancelled | High-volume automated MMs that manage their own inventory |
 
 ```mermaid
 flowchart TD
@@ -226,11 +226,11 @@ fill activity exceeds a threshold.
 
 The MMP parameters live in `mm_obligation_defaults` or per-gateway config:
 
-| Parameter | Default | Meaning |
-|---|---|---|
-| `mmp_fill_count` | 5 | Number of fills within the window that triggers MMP |
-| `mmp_window_ns` | 1,000,000,000 | Rolling window in nanoseconds (default: 1 second) |
-| `max_requote_delay_ns` | 500,000,000 | How long (ns) the MM has to re-quote before being flagged |
+| Parameter              | Default       | Meaning                                                   |
+|------------------------|---------------|-----------------------------------------------------------|
+| `mmp_fill_count`       | 5             | Number of fills within the window that triggers MMP       |
+| `mmp_window_ns`        | 1,000,000,000 | Rolling window in nanoseconds (default: 1 second)         |
+| `max_requote_delay_ns` | 500,000,000   | How long (ns) the MM has to re-quote before being flagged |
 
 ```mermaid
 sequenceDiagram
@@ -379,14 +379,14 @@ sequenceDiagram
 
 The table below summarises the full session-boundary behaviour:
 
-| Component | Saved at shutdown? | Day 2+ behaviour |
-|---|---|---|
-| GTC participant orders | Yes → `gtc_orders.json` | Restored into book before seed injection |
-| GTC combo parent state | Yes → `gtc_combos.json` | Restored; parent-child links rebuilt |
-| Book stats (OHLCV, last prices) | Yes → `book_stats.json` | Restored; provides the "known symbol" flag |
-| MM seed quotes (`seed_once: true`) | **No** | Skipped — symbol is already known |
-| MM seed quotes (`seed_once: false`) | **No** | Re-injected on every startup |
-| DAY participant orders | No (expired at shutdown) | Must be re-submitted by participants |
+| Component                           | Saved at shutdown?       | Day 2+ behaviour                           |
+|-------------------------------------|--------------------------|--------------------------------------------|
+| GTC participant orders              | Yes → `gtc_orders.json`  | Restored into book before seed injection   |
+| GTC combo parent state              | Yes → `gtc_combos.json`  | Restored; parent-child links rebuilt       |
+| Book stats (OHLCV, last prices)     | Yes → `book_stats.json`  | Restored; provides the "known symbol" flag |
+| MM seed quotes (`seed_once: true`)  | **No**                   | Skipped — symbol is already known          |
+| MM seed quotes (`seed_once: false`) | **No**                   | Re-injected on every startup               |
+| DAY participant orders              | No (expired at shutdown) | Must be re-submitted by participants       |
 
 !!! note "Why quote legs are never saved to `gtc_orders.json`"
     At shutdown the engine skips quote-origin orders when writing
@@ -396,10 +396,10 @@ The table below summarises the full session-boundary behaviour:
 
 ### Choosing `tif` for seed quotes
 
-| `tif` value | Behaviour during the session | Cross-session behaviour |
-|---|---|---|
-| `DAY` | Quote expires at end of trading day (Ctrl-C / SIGTERM) | Re-seeded from config on next startup (if conditions met) |
-| `GTC` | Quote survives an ATC/session reset within the same engine run | Still re-seeded from config on next startup (legs not persisted) |
+| `tif` value | Behaviour during the session                                   | Cross-session behaviour                                          |
+|-------------|----------------------------------------------------------------|------------------------------------------------------------------|
+| `DAY`       | Quote expires at end of trading day (Ctrl-C / SIGTERM)         | Re-seeded from config on next startup (if conditions met)        |
+| `GTC`       | Quote survives an ATC/session reset within the same engine run | Still re-seeded from config on next startup (legs not persisted) |
 
 For most setups `tif: DAY` is the right choice. Use `tif: GTC` only if you
 want the seed to survive an intra-session `CLOSED → PRE_OPEN` cycle within
@@ -412,11 +412,11 @@ the same running engine instance.
 If a market maker's gateway disconnects (Ctrl-C or network failure), the engine
 must decide what to do with any resting quotes:
 
-| `disconnect_behaviour` | What happens to quotes | What happens to plain orders |
-|---|---|---|
-| `CANCEL_QUOTES_ONLY` | All quotes cancelled | Resting orders remain in book |
-| `CANCEL_ALL` | All quotes cancelled | All resting orders also cancelled |
-| `LEAVE_ALL` | Nothing cancelled | Nothing cancelled |
+| `disconnect_behaviour` | What happens to quotes | What happens to plain orders      |
+|------------------------|------------------------|-----------------------------------|
+| `CANCEL_QUOTES_ONLY`   | All quotes cancelled   | Resting orders remain in book     |
+| `CANCEL_ALL`           | All quotes cancelled   | All resting orders also cancelled |
+| `LEAVE_ALL`            | Nothing cancelled      | Nothing cancelled                 |
 
 The default is `CANCEL_QUOTES_ONLY`, which is the most appropriate for
 market making: quotes represent ongoing commitment and should not linger after

@@ -34,10 +34,10 @@ This split keeps the recorder separate from the query interface, so you can:
 
 The location where `pm-stats` writes `data/stats.db` depends on how EduMatcher is installed:
 
-| Running mode | Default location | Environment override |
-|---|---|---|
-| **Source checkout** (`poetry run pm-stats`) | `<repo>/src/data/stats.db` | `EDUMATCHER_DATA_DIR` |
-| **Installed** (`pm-stats` on PATH) | `~/.local/share/edumatcher/stats.db` | `EDUMATCHER_DATA_DIR` |
+| Running mode                                | Default location                     | Environment override  |
+|---------------------------------------------|--------------------------------------|-----------------------|
+| **Source checkout** (`poetry run pm-stats`) | `<repo>/src/data/stats.db`           | `EDUMATCHER_DATA_DIR` |
+| **Installed** (`pm-stats` on PATH)          | `~/.local/share/edumatcher/stats.db` | `EDUMATCHER_DATA_DIR` |
 
 **Set the data directory in your shell profile** (`~/.zshrc` or `~/.bashrc`) to override either default:
 
@@ -55,12 +55,12 @@ pm-stats-cli daily
 
 **Common use cases:**
 
-| Scenario | Environment variable | Purpose |
-|----------|----------------------|---------|
-| **Installed user** (default for pipx) | (unset) → `~/.local/share/edumatcher` | Persistent user data folder |
-| **Source checkout** (default for `poetry run`) | (unset) → `<repo>/src/data/` | Development environment |
-| **Isolated sessions** | `~/sessions/morning` | Per-session isolation for demos or testing |
-| **Shared network** | `/mnt/shared/trading/` | Shared data across machines |
+| Scenario                                       | Environment variable                  | Purpose                                    |
+|------------------------------------------------|---------------------------------------|--------------------------------------------|
+| **Installed user** (default for pipx)          | (unset) → `~/.local/share/edumatcher` | Persistent user data folder                |
+| **Source checkout** (default for `poetry run`) | (unset) → `<repo>/src/data/`          | Development environment                    |
+| **Isolated sessions**                          | `~/sessions/morning`                  | Per-session isolation for demos or testing |
+| **Shared network**                             | `/mnt/shared/trading/`                | Shared data across machines                |
 
 **Example: Per-session isolation**
 
@@ -99,23 +99,23 @@ All statistics are stored in `data/stats.db`, a SQLite 3 database with four tabl
 
 Aggregated OHLCV (open, high, low, close, volume) and related metrics for each symbol per day.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `date` | TEXT | Calendar date `YYYY-MM-DD` |
-| `symbol` | TEXT | Instrument ticker |
-| `open_price` | REAL | First trade price of the day |
-| `high_price` | REAL | Highest trade price |
-| `low_price` | REAL | Lowest trade price |
-| `close_price` | REAL | Last trade price |
-| `volume` | INTEGER | Total traded quantity |
-| `trade_count` | INTEGER | Number of trades |
-| `vwap` | REAL | Volume-weighted average price |
-| `open_bid` | REAL | Best bid at first book update of the day |
-| `open_ask` | REAL | Best ask at first book update of the day |
-| `close_bid` | REAL | Best bid at engine shutdown |
-| `close_ask` | REAL | Best ask at engine shutdown |
-| `largest_trade_qty` | INTEGER | Quantity of the single largest trade |
-| `largest_trade_price` | REAL | Price of the single largest trade |
+| Column                | Type    | Description                              |
+|-----------------------|---------|------------------------------------------|
+| `date`                | TEXT    | Calendar date `YYYY-MM-DD`               |
+| `symbol`              | TEXT    | Instrument ticker                        |
+| `open_price`          | REAL    | First trade price of the day             |
+| `high_price`          | REAL    | Highest trade price                      |
+| `low_price`           | REAL    | Lowest trade price                       |
+| `close_price`         | REAL    | Last trade price                         |
+| `volume`              | INTEGER | Total traded quantity                    |
+| `trade_count`         | INTEGER | Number of trades                         |
+| `vwap`                | REAL    | Volume-weighted average price            |
+| `open_bid`            | REAL    | Best bid at first book update of the day |
+| `open_ask`            | REAL    | Best ask at first book update of the day |
+| `close_bid`           | REAL    | Best bid at engine shutdown              |
+| `close_ask`           | REAL    | Best ask at engine shutdown              |
+| `largest_trade_qty`   | INTEGER | Quantity of the single largest trade     |
+| `largest_trade_price` | REAL    | Price of the single largest trade        |
 
 **Use case**: End-of-day summaries, daily trend analysis, multi-day performance tracking.
 
@@ -123,13 +123,13 @@ Aggregated OHLCV (open, high, low, close, volume) and related metrics for each s
 
 Intraday mid-price, bid/ask, and percentage-change history captured every 15 minutes per symbol.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `ts` | TEXT | ISO-8601 timestamp (UTC, second precision) |
-| `symbol` | TEXT | Instrument ticker |
-| `mid_price` | REAL | `(best_bid + best_ask) / 2`; falls back to last trade price if book is empty |
-| `best_bid` | REAL | Best bid at snapshot time (null if empty) |
-| `best_ask` | REAL | Best ask at snapshot time (null if empty) |
+| Column       | Type | Description                                                                       |
+|--------------|------|-----------------------------------------------------------------------------------|
+| `ts`         | TEXT | ISO-8601 timestamp (UTC, second precision)                                        |
+| `symbol`     | TEXT | Instrument ticker                                                                 |
+| `mid_price`  | REAL | `(best_bid + best_ask) / 2`; falls back to last trade price if book is empty      |
+| `best_bid`   | REAL | Best bid at snapshot time (null if empty)                                         |
+| `best_ask`   | REAL | Best ask at snapshot time (null if empty)                                         |
 | `pct_change` | REAL | Percentage change of mid-price from previous snapshot (e.g. `1.25` means +1.25 %) |
 
 **Use case**: Intraday price trends, volatility analysis, spread history, detecting trading halts or gaps.
@@ -138,15 +138,15 @@ Intraday mid-price, bid/ask, and percentage-change history captured every 15 min
 
 Append-only record of every matched trade — no aggregation, one row per trade.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `ts` | TEXT | ISO-8601 timestamp (UTC, millisecond precision) |
-| `trade_id` | TEXT | UUID from the engine (unique per trade) |
-| `symbol` | TEXT | Instrument ticker |
-| `price` | REAL | Execution price |
-| `quantity` | INTEGER | Matched quantity |
-| `buy_gateway_id` | TEXT | Gateway that submitted the buy order |
-| `sell_gateway_id` | TEXT | Gateway that submitted the sell order |
+| Column            | Type    | Description                                     |
+|-------------------|---------|-------------------------------------------------|
+| `ts`              | TEXT    | ISO-8601 timestamp (UTC, millisecond precision) |
+| `trade_id`        | TEXT    | UUID from the engine (unique per trade)         |
+| `symbol`          | TEXT    | Instrument ticker                               |
+| `price`           | REAL    | Execution price                                 |
+| `quantity`        | INTEGER | Matched quantity                                |
+| `buy_gateway_id`  | TEXT    | Gateway that submitted the buy order            |
+| `sell_gateway_id` | TEXT    | Gateway that submitted the sell order           |
 
 **Use case**: Trade-by-trade analysis, flow analysis, detecting potential market manipulation, audit trails.
 
@@ -154,29 +154,29 @@ Append-only record of every matched trade — no aggregation, one row per trade.
 
 Append-only order lifecycle history captured from private engine topics. This table is used by API Gateway history endpoints to reconstruct per-gateway order, fill, cancel, amend, combo, OCO, and quote events.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `seq` | INTEGER | Monotonic local sequence assigned by SQLite for stable event ordering |
-| `ts` | TEXT | ISO-8601 timestamp (UTC, millisecond precision) when `pm-stats` recorded the event |
-| `event_type` | TEXT | Normalized event category: `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO`, `OCO`, `QUOTE`, or `EVENT` |
-| `order_id` | TEXT | Order-like identifier; for combo/OCO/quote events this may be `combo_id`, `oco_id`, or `quote_id` |
-| `gateway_id` | TEXT | Gateway identity that owns the private event |
-| `symbol` | TEXT | Instrument ticker when present in the event payload |
-| `side` | TEXT | `BUY` or `SELL` when applicable |
-| `order_type` | TEXT | Order type from the original order or lifecycle event |
-| `tif` | TEXT | Time-in-force value when present |
-| `price` | REAL | Limit/order price when present |
-| `quantity` | INTEGER | Original or submitted quantity when present |
-| `remaining_qty` | INTEGER | Quantity remaining after the event when provided by the engine |
-| `status` | TEXT | Engine status value when present |
-| `fill_price` | REAL | Execution price for fill events |
-| `fill_qty` | INTEGER | Executed quantity for fill events |
-| `trade_id` | TEXT | Trade identifier linked to a fill event |
-| `reason` | TEXT | Rejection, cancel, expire, or status reason when provided |
-| `client_order_id` | TEXT | Client-supplied order identifier when present |
-| `combo_parent_id` | TEXT | Parent combo identifier for combo child events |
-| `oco_group_id` | TEXT | OCO group identifier for linked order events |
-| `priority_reset` | INTEGER | `1` when an amend reset queue priority, `0` when it did not, null when not applicable |
+| Column            | Type    | Description                                                                                                          |
+|-------------------|---------|----------------------------------------------------------------------------------------------------------------------|
+| `seq`             | INTEGER | Monotonic local sequence assigned by SQLite for stable event ordering                                                |
+| `ts`              | TEXT    | ISO-8601 timestamp (UTC, millisecond precision) when `pm-stats` recorded the event                                   |
+| `event_type`      | TEXT    | Normalized event category: `ACK`, `REJECT`, `FILL`, `AMEND`, `CANCEL`, `EXPIRE`, `COMBO`, `OCO`, `QUOTE`, or `EVENT` |
+| `order_id`        | TEXT    | Order-like identifier; for combo/OCO/quote events this may be `combo_id`, `oco_id`, or `quote_id`                    |
+| `gateway_id`      | TEXT    | Gateway identity that owns the private event                                                                         |
+| `symbol`          | TEXT    | Instrument ticker when present in the event payload                                                                  |
+| `side`            | TEXT    | `BUY` or `SELL` when applicable                                                                                      |
+| `order_type`      | TEXT    | Order type from the original order or lifecycle event                                                                |
+| `tif`             | TEXT    | Time-in-force value when present                                                                                     |
+| `price`           | REAL    | Limit/order price when present                                                                                       |
+| `quantity`        | INTEGER | Original or submitted quantity when present                                                                          |
+| `remaining_qty`   | INTEGER | Quantity remaining after the event when provided by the engine                                                       |
+| `status`          | TEXT    | Engine status value when present                                                                                     |
+| `fill_price`      | REAL    | Execution price for fill events                                                                                      |
+| `fill_qty`        | INTEGER | Executed quantity for fill events                                                                                    |
+| `trade_id`        | TEXT    | Trade identifier linked to a fill event                                                                              |
+| `reason`          | TEXT    | Rejection, cancel, expire, or status reason when provided                                                            |
+| `client_order_id` | TEXT    | Client-supplied order identifier when present                                                                        |
+| `combo_parent_id` | TEXT    | Parent combo identifier for combo child events                                                                       |
+| `oco_group_id`    | TEXT    | OCO group identifier for linked order events                                                                         |
+| `priority_reset`  | INTEGER | `1` when an amend reset queue priority, `0` when it did not, null when not applicable                                |
 
 **Use case**: API Gateway order history, support investigations, per-gateway audit trails, fill-only history, and lifecycle reconstruction for a single order ID.
 
@@ -206,8 +206,8 @@ pm-stats
 
 **Startup options:**
 
-| Flag | Default | Description |
-|------|---------|-------------|
+| Flag   | Default         | Description                     |
+|--------|-----------------|---------------------------------|
 | `--db` | `data/stats.db` | Custom statistics database path |
 
 Use `--db` if you want to record into a different location:
@@ -232,11 +232,11 @@ pm-stats-cli [--db data/stats.db] [--format table|json|csv] COMMAND [options]
 
 **Global options:**
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--db` | `data/stats.db` | Path to statistics database |
-| `--format` | `table` | Output format: `table` (human), `json` (structured), or `csv` (export) |
-| `--no-header` | off | Omit header row (useful for CSV scripts) |
+| Flag          | Default         | Description                                                            |
+|---------------|-----------------|------------------------------------------------------------------------|
+| `--db`        | `data/stats.db` | Path to statistics database                                            |
+| `--format`    | `table`         | Output format: `table` (human), `json` (structured), or `csv` (export) |
+| `--no-header` | off             | Omit header row (useful for CSV scripts)                               |
 
 ### Available Commands
 
@@ -254,12 +254,12 @@ pm-stats-cli daily --limit 10
 
 **Options:**
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--date` | latest available | Calendar date to query |
-| `--symbol` | all | Limit to one symbol |
-| `--limit` | 100 | Maximum rows to return |
-| `--wide` | off | Include open/close bid/ask and largest-trade fields |
+| Option     | Default          | Description                                         |
+|------------|------------------|-----------------------------------------------------|
+| `--date`   | latest available | Calendar date to query                              |
+| `--symbol` | all              | Limit to one symbol                                 |
+| `--limit`  | 100              | Maximum rows to return                              |
+| `--wide`   | off              | Include open/close bid/ask and largest-trade fields |
 
 **Example output (default `table` format):**
 
@@ -283,13 +283,13 @@ pm-stats-cli snapshots --symbol AAPL --limit 50
 
 **Options:**
 
-| Option | Required | Default | Description |
-|--------|----------|---------|-------------|
-| `--symbol` | Yes | — | Symbol to query |
-| `--date` | No | all dates | Restrict to one trading date |
-| `--from` | No | — | Start timestamp (ISO format) |
-| `--to` | No | — | End timestamp (ISO format) |
-| `--limit` | No | 500 | Maximum rows to return |
+| Option     | Required | Default   | Description                  |
+|------------|----------|-----------|------------------------------|
+| `--symbol` | Yes      | —         | Symbol to query              |
+| `--date`   | No       | all dates | Restrict to one trading date |
+| `--from`   | No       | —         | Start timestamp (ISO format) |
+| `--to`     | No       | —         | End timestamp (ISO format)   |
+| `--limit`  | No       | 500       | Maximum rows to return       |
 
 **Example output:**
 
@@ -315,13 +315,13 @@ pm-stats-cli trades --limit 50
 
 **Options:**
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--symbol` | all | Limit to one symbol |
-| `--date` | all dates | Restrict to one trading date |
-| `--from` | — | Start timestamp |
-| `--to` | — | End timestamp |
-| `--limit` | 200 | Maximum rows to return |
+| Option     | Default   | Description                  |
+|------------|-----------|------------------------------|
+| `--symbol` | all       | Limit to one symbol          |
+| `--date`   | all dates | Restrict to one trading date |
+| `--from`   | —         | Start timestamp              |
+| `--to`     | —         | End timestamp                |
+| `--limit`  | 200       | Maximum rows to return       |
 
 **Example output:**
 
@@ -380,10 +380,10 @@ pm-stats-cli --format csv order-lifecycle --gateway TRADER01 --order-id O-AAPL-1
 
 **Options:**
 
-| Option | Required | Default | Description |
-|--------|----------|---------|-------------|
-| `--gateway` | Yes | - | Gateway ID that owns the private event trail |
-| `--order-id` | Yes | - | Order, combo, OCO, or quote identifier to reconstruct |
+| Option       | Required | Default | Description                                           |
+|--------------|----------|---------|-------------------------------------------------------|
+| `--gateway`  | Yes      | -       | Gateway ID that owns the private event trail          |
+| `--order-id` | Yes      | -       | Order, combo, OCO, or quote identifier to reconstruct |
 
 #### `symbols` — Symbol Discovery
 

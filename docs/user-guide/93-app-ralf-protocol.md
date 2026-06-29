@@ -20,24 +20,24 @@ by `pm-ralf-gwy`.
     `RALF1` is supported through the running `pm-ralf-gwy` process. External
     clients use this protocol by opening a TCP connection to `pm-ralf-gwy`.
 
-| Protocol | Purpose |
-|---|---|
-| ALF | Interactive text order entry |
-| BALF | Binary order entry |
-| CALF | Market-data dissemination |
-| RALF | Post-trade dissemination |
+| Protocol | Purpose                      |
+|----------|------------------------------|
+| ALF      | Interactive text order entry |
+| BALF     | Binary order entry           |
+| CALF     | Market-data dissemination    |
+| RALF     | Post-trade dissemination     |
 
 This appendix defines the client-visible behavior for `RALF1`.
 
 
 ## Transport and session model
 
-| Property | Value |
-|---|---|
-| Transport | TCP |
-| Default port | `5580` |
-| Encoding | UTF-8 text lines |
-| Delimiter | `\n` |
+| Property         | Value                         |
+|------------------|-------------------------------|
+| Transport        | TCP                           |
+| Default port     | `5580`                        |
+| Encoding         | UTF-8 text lines              |
+| Delimiter        | `\n`                          |
 | Connection model | Long-lived per-client session |
 
 Session sequence:
@@ -66,12 +66,12 @@ Rules:
 
 Reserved cross-message keys:
 
-| Key | Meaning |
-|---|---|
-| `CH` | Channel (`CLEARING`, `DROP_COPY`, `AUDIT`) |
-| `SYM` | Symbol filter or event symbol |
-| `SEQ` | Monotonic message sequence |
-| `TS` | UTC ISO-8601 timestamp |
+| Key   | Meaning                                    |
+|-------|--------------------------------------------|
+| `CH`  | Channel (`CLEARING`, `DROP_COPY`, `AUDIT`) |
+| `SYM` | Symbol filter or event symbol              |
+| `SEQ` | Monotonic message sequence                 |
+| `TS`  | UTC ISO-8601 timestamp                     |
 
 
 ## Roles and channels
@@ -97,17 +97,17 @@ A client subscribes by channel and symbol scope.
 
 Required fields:
 
-| Field | Type | Notes |
-|---|---|---|
+| Field    | Type   | Notes                      |
+|----------|--------|----------------------------|
 | `CLIENT` | string | External client identifier |
-| `PROTO` | string | Must be `RALF1` |
-| `ROLE` | string | One of allowed roles |
+| `PROTO`  | string | Must be `RALF1`            |
+| `ROLE`   | string | One of allowed roles       |
 
 Optional fields:
 
-| Field | Type | Notes |
-|---|---|---|
-| `LASTSEQ` | int | Replay checkpoint |
+| Field     | Type | Notes             |
+|-----------|------|-------------------|
+| `LASTSEQ` | int  | Replay checkpoint |
 
 Example:
 
@@ -119,13 +119,13 @@ HELLO|CLIENT=ccp01|PROTO=RALF1|ROLE=CLEARING|LASTSEQ=1200
 
 Fields:
 
-| Field | Description |
-|---|---|
-| `PROTO` | Negotiated protocol version (`RALF1`) |
-| `GW` | Gateway identifier |
-| `ROLE` | Accepted role |
-| `REPLAY` | Replay retention (seconds) |
-| `HBINT` | Heartbeat interval (seconds) |
+| Field    | Description                           |
+|----------|---------------------------------------|
+| `PROTO`  | Negotiated protocol version (`RALF1`) |
+| `GW`     | Gateway identifier                    |
+| `ROLE`   | Accepted role                         |
+| `REPLAY` | Replay retention (seconds)            |
+| `HBINT`  | Heartbeat interval (seconds)          |
 
 
 ## Subscription messages
@@ -134,15 +134,15 @@ Fields:
 
 Required fields:
 
-| Field | Type |
-|---|---|
-| `CH` | Comma-separated channels |
+| Field | Type                     |
+|-------|--------------------------|
+| `CH`  | Comma-separated channels |
 
 Optional fields:
 
-| Field | Type | Default |
-|---|---|---|
-| `SYM` | Comma-separated symbols or `*` | `*` |
+| Field | Type                           | Default |
+|-------|--------------------------------|---------|
+| `SYM` | Comma-separated symbols or `*` | `*`     |
 
 Examples:
 
@@ -173,21 +173,21 @@ Live execution dissemination message.
 
 Required fields in `RALF1` implementation:
 
-| Field | Description |
-|---|---|
-| `CH` | Channel |
-| `SYM` | Symbol |
-| `SEQ` | Sequence number |
-| `TS` | Timestamp |
-| `EXEC_ID` | Execution id |
-| `MATCH_ID` | Match id |
-| `BUY_ORDER_ID` | Buy order id |
-| `SELL_ORDER_ID` | Sell order id |
-| `BUY_GW` | Buy gateway id |
-| `SELL_GW` | Sell gateway id |
-| `SIDE` | Aggressor side |
-| `QTY` | Quantity |
-| `PX` | Price |
+| Field           | Description     |
+|-----------------|-----------------|
+| `CH`            | Channel         |
+| `SYM`           | Symbol          |
+| `SEQ`           | Sequence number |
+| `TS`            | Timestamp       |
+| `EXEC_ID`       | Execution id    |
+| `MATCH_ID`      | Match id        |
+| `BUY_ORDER_ID`  | Buy order id    |
+| `SELL_ORDER_ID` | Sell order id   |
+| `BUY_GW`        | Buy gateway id  |
+| `SELL_GW`       | Sell gateway id |
+| `SIDE`          | Aggressor side  |
+| `QTY`           | Quantity        |
+| `PX`            | Price           |
 
 Example:
 
@@ -201,14 +201,14 @@ End-of-day summary marker.
 
 Fields:
 
-| Field | Description |
-|---|---|
-| `CH` | Channel |
-| `SYM` | Symbol |
-| `SEQ` | Sequence number |
-| `TS` | Timestamp |
-| `TRADE_COUNT` | Summary count |
-| `EXEC_COUNT` | Summary count |
+| Field         | Description     |
+|---------------|-----------------|
+| `CH`          | Channel         |
+| `SYM`         | Symbol          |
+| `SEQ`         | Sequence number |
+| `TS`          | Timestamp       |
+| `TRADE_COUNT` | Summary count   |
+| `EXEC_COUNT`  | Summary count   |
 
 
 ## Session control messages
@@ -247,14 +247,14 @@ Subscription/recovery baseline message.
 
 Gateway emits `ERR` for protocol and entitlement failures.
 
-| Code | Meaning |
-|---|---|
-| `AUTH_REQUIRED` | Missing or invalid handshake sequence |
-| `BAD_MESSAGE` | Parse/validation failure |
-| `INVALID_CHANNEL` | Unsupported channel requested |
-| `ENTITLEMENT_DENIED` | Role not permitted |
-| `REPLAY_MISS` | Requested replay point is outside retention |
-| `SLOW_CLIENT` | Outbound queue exceeded configured threshold |
+| Code                 | Meaning                                      |
+|----------------------|----------------------------------------------|
+| `AUTH_REQUIRED`      | Missing or invalid handshake sequence        |
+| `BAD_MESSAGE`        | Parse/validation failure                     |
+| `INVALID_CHANNEL`    | Unsupported channel requested                |
+| `ENTITLEMENT_DENIED` | Role not permitted                           |
+| `REPLAY_MISS`        | Requested replay point is outside retention  |
+| `SLOW_CLIENT`        | Outbound queue exceeded configured threshold |
 
 Example:
 
