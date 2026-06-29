@@ -42,7 +42,6 @@ Unlike toy examples, it is designed to be both understandable and fast.
 - No primary-secondary site failover
 - No load balancing
 - Limited replay for participants that lose the connection
-- No index calculations
 
 ## Performance
 
