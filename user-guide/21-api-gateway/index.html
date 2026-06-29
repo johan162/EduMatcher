@@ -1600,6 +1600,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#minimal-market-order-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Minimal MARKET order CLI
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -3658,6 +3669,84 @@ created and populated the configured database.</p>
 <li>Connect <code>/api/v1/events</code> before submitting orders if you want async outcomes</li>
 <li>Use <code>/history/*</code> only when <code>pm-stats</code> is running and writing <code>stats.db</code></li>
 </ol>
+<h2 id="minimal-market-order-cli">Minimal MARKET order CLI<a class="headerlink" href="#minimal-market-order-cli" title="Permanent link">&para;</a></h2>
+<p>The script below lives at <code>docs/examples/REST/python/submit_market_order.py</code>
+and reuses the same <code>ApiGatewayClient</code> library used by <code>demo_info.py</code>.</p>
+<p>Run it from the examples directory:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/python
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w">  </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>SELL<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--qty<span class="w"> </span><span class="m">50</span><span class="w"> </span>--wait-ack
+</code></pre></div>
+<p>Override gateway URL and key with environment variables:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nv">EDUMATCHER_API_URL</span><span class="o">=</span>http://127.0.0.1:8080<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="nv">EDUMATCHER_API_KEY</span><span class="o">=</span>key-trader-demo<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>python3<span class="w"> </span>submit_market_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--side</code></td>
+<td>yes</td>
+<td>—</td>
+<td><code>BUY</code> or <code>SELL</code></td>
+</tr>
+<tr>
+<td><code>--symbol</code></td>
+<td>yes</td>
+<td>—</td>
+<td>Instrument symbol</td>
+</tr>
+<tr>
+<td><code>--qty</code></td>
+<td>yes</td>
+<td>—</td>
+<td>Order quantity</td>
+</tr>
+<tr>
+<td><code>--wait-ack</code></td>
+<td>no</td>
+<td>off</td>
+<td>Block until the matching engine ACKs the order</td>
+</tr>
+<tr>
+<td><code>--url</code></td>
+<td>no</td>
+<td><code>$EDUMATCHER_API_URL</code> or <code>http://127.0.0.1:8080</code></td>
+<td>Gateway base URL</td>
+</tr>
+<tr>
+<td><code>--key</code></td>
+<td>no</td>
+<td><code>$EDUMATCHER_API_KEY</code> or <code>key-trader-demo</code></td>
+<td>Bearer API key</td>
+</tr>
+</tbody>
+</table>
+<p>Example output without <code>--wait-ack</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>order_id  : ORD-3a7f1e2c
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>status    : PENDING
+</code></pre></div>
+<p>Example output with <code>--wait-ack</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>order_id  : ORD-3a7f1e2c
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>status    : ACKED
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>accepted  : True
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>engine ack:
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>{
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>  &quot;order_id&quot;: &quot;ORD-3a7f1e2c&quot;,
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>  &quot;accepted&quot;: true,
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>  &quot;reason&quot;: null
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>}
+</code></pre></div>
+<p>MARKET orders must not include <code>price</code> or <code>stop_price</code>. The gateway validates
+this and returns <code>400 VALIDATION</code> if either field is present.</p>
 
 
 

@@ -1105,6 +1105,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#message-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#background-messages-in-a-bus-system" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1642,6 +1653,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#depthsymbol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        depth.{SYMBOL}
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1747,22 +1769,27 @@
   
 </li>
         
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#system-messages-engine-all-subscribers" class="md-nav__link">
+          <li class="md-nav__item">
+  <a href="#systemhalt_status_request" class="md-nav__link">
     <span class="md-ellipsis">
       
-        System messages (engine → all subscribers)
+        system.halt_status_request
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="System messages (engine → all subscribers)">
-      <ul class="md-nav__list">
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#systemposition_request" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        system.position_request
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#sessionstate" class="md-nav__link">
@@ -3731,6 +3758,259 @@
   processes produce and consume each one</li>
 </ul>
 </div>
+<h2 id="message-summary">Message Summary<a class="headerlink" href="#message-summary" title="Permanent link">&para;</a></h2>
+<p>Quick index of all defined message topics with publisher and purpose.</p>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Published by</th>
+<th>Short description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>system.gateway_connect</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Sent by an ALF gateway at startup to authenticate its gateway ID against <code>engine_config.yaml</code>.</td>
+</tr>
+<tr>
+<td><code>order.new</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Sent by a gateway to submit a new order for matching.</td>
+</tr>
+<tr>
+<td><code>order.cancel</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Sent by a gateway to cancel a resting order.</td>
+</tr>
+<tr>
+<td><code>order.amend</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Sent by a gateway to amend the price and/or quantity of a resting order.</td>
+</tr>
+<tr>
+<td><code>quote.new</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Sent by a market-maker gateway to submit or replace a two-sided quote.</td>
+</tr>
+<tr>
+<td><code>quote.ack.{GW_ID}</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Acknowledgement of a <code>quote.new</code> submission.</td>
+</tr>
+<tr>
+<td><code>quote.status.{GW_ID}</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Published when the quote's lifecycle state changes (e.g.</td>
+</tr>
+<tr>
+<td><code>quote.cancel</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Cancel the active quote for one symbol.</td>
+</tr>
+<tr>
+<td><code>order.oco</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Links two existing resting orders into an OCO pair.</td>
+</tr>
+<tr>
+<td><code>order.oco_cancel</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Cancel both legs of an OCO pair.</td>
+</tr>
+<tr>
+<td><code>oco.ack.{GW_ID}</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Acknowledgement of an <code>order.oco</code> request.</td>
+</tr>
+<tr>
+<td><code>oco.cancelled.{GW_ID}</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Notifies the gateway when the engine cancels the sibling leg of an OCO pair (because the other leg filled or was cancelled).</td>
+</tr>
+<tr>
+<td><code>risk.kill_switch</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Cancels all resting orders and quotes for the specified gateway.</td>
+</tr>
+<tr>
+<td><code>risk.symbol_halt</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Operator command to halt a single symbol.</td>
+</tr>
+<tr>
+<td><code>risk.symbol_resume</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Resume trading on a single previously halted symbol.</td>
+</tr>
+<tr>
+<td><code>risk.cancel_symbol</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Cancel all resting orders and quotes on a single symbol across all gateways.</td>
+</tr>
+<tr>
+<td><code>risk.circuit_breaker_halt_all</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Administrative global halt request.</td>
+</tr>
+<tr>
+<td><code>risk.circuit_breaker_resume_all</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Administrative global resume request.</td>
+</tr>
+<tr>
+<td><code>system.gateway_disconnect</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Graceful disconnect notice from gateway to engine.</td>
+</tr>
+<tr>
+<td><code>order.combo</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Sent by a gateway to submit a combo (multi-leg) order.</td>
+</tr>
+<tr>
+<td><code>order.combo_cancel</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Sent by a gateway to cancel a combo and all its child legs.</td>
+</tr>
+<tr>
+<td><code>order.ack.{GW_ID}</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Acknowledgement of an <code>order.new</code> submission.</td>
+</tr>
+<tr>
+<td><code>order.fill.{GW_ID}</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Notifies a gateway (and the order monitor) of a partial or full fill.</td>
+</tr>
+<tr>
+<td><code>order.cancelled.{GW_ID}</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Confirms a cancel request or a Self-Match Prevention (SMP) forced cancellation.</td>
+</tr>
+<tr>
+<td><code>order.amended.{GW_ID}</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Confirms a successful order amendment.</td>
+</tr>
+<tr>
+<td><code>order.expired.{GW_ID}</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Published during engine shutdown for every resting <code>DAY</code> order that did not fill.</td>
+</tr>
+<tr>
+<td><code>order.orders.{GW_ID}</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Response to an <code>order.orders_request</code> from a gateway; delivers the full current order list.</td>
+</tr>
+<tr>
+<td><code>combo.ack.{GW_ID}</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Acknowledgement of a combo order submission.</td>
+</tr>
+<tr>
+<td><code>combo.status.{GW_ID}</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Published when a combo transitions between lifecycle states.</td>
+</tr>
+<tr>
+<td><code>trade.executed</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Published once per matched trade pair.</td>
+</tr>
+<tr>
+<td><code>book.{SYMBOL}</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Full order-book snapshot published after every state change for the named symbol.</td>
+</tr>
+<tr>
+<td><code>depth.{SYMBOL}</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Published alongside <code>book.{SYMBOL}</code> after every state change (same throttle).</td>
+</tr>
+<tr>
+<td><code>book.snapshot_request</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Requests the current book snapshot for a symbol (used by viewers on startup to avoid waiting for the next update).</td>
+</tr>
+<tr>
+<td><code>system.symbols_request</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Requests the list of configured symbols from the engine.</td>
+</tr>
+<tr>
+<td><code>order.orders_request</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Requests the current order list for a specific gateway.</td>
+</tr>
+<tr>
+<td><code>system.quote_bootstrap_request</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Request active quote bootstrap state for a gateway.</td>
+</tr>
+<tr>
+<td><code>system.session_state_request</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Requests the current session state and whether session enforcement is enabled.</td>
+</tr>
+<tr>
+<td><code>system.session_schedule_request</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Requests the configured session schedule (the times the scheduler will send phase transitions).</td>
+</tr>
+<tr>
+<td><code>system.gateways_request</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Requests the list of configured gateways and their connection status.</td>
+</tr>
+<tr>
+<td><code>system.volume_request</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Requests cumulative traded volume for all symbols in the current session.</td>
+</tr>
+<tr>
+<td><code>system.halt_status_request</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Requests a snapshot of all symbols that are currently halted.</td>
+</tr>
+<tr>
+<td><code>system.position_request</code></td>
+<td>Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</td>
+<td>Requests a per-symbol position snapshot (net qty and average cost) for a specific gateway.</td>
+</tr>
+<tr>
+<td><code>session.state</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Broadcast whenever the engine transitions between session phases (for example, OPENING_AUCTION to CONTINUOUS).</td>
+</tr>
+<tr>
+<td><code>auction.result.{SYMBOL}</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Broadcast once per symbol after an auction uncross completes and reports equilibrium outcome.</td>
+</tr>
+<tr>
+<td><code>system.eod</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Broadcast by the engine at shutdown before sockets are closed.</td>
+</tr>
+<tr>
+<td><code>circuit_breaker.halt.{SYMBOL}</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Broadcasts symbol-level protection state so strategies and UIs can react immediately to trading halts/resumptions.</td>
+</tr>
+<tr>
+<td><code>circuit_breaker.resume.{SYMBOL}</code></td>
+<td>pm-engine via PUB (mostly :5556; drop-copy events on :5557)</td>
+<td>Broadcasts symbol-level protection state so strategies and UIs can react immediately to trading halts/resumptions.</td>
+</tr>
+<tr>
+<td><code>session.transition</code></td>
+<td>pm-scheduler (PUSH -&gt; engine on :5555)</td>
+<td>Sent by the <code>pm-scheduler</code> process to request a session-phase transition.</td>
+</tr>
+</tbody>
+</table>
 <h2 id="background-messages-in-a-bus-system">Background — Messages in a Bus System<a class="headerlink" href="#background-messages-in-a-bus-system" title="Permanent link">&para;</a></h2>
 <h3 id="what-is-a-message">What is a message?<a class="headerlink" href="#what-is-a-message" title="Permanent link">&para;</a></h3>
 <p>A function call passes data synchronously inside a process: the caller blocks
@@ -3935,6 +4215,8 @@ and received atomically:</p>
     ENG -- "PUB\n:5556" --&gt; AUD["pm-audit"]
     ENG -. "PUB\n:5557" .-&gt; DC["Drop-copy\nconsumers"]</code></pre>
 <h3 id="systemgateway_connect"><code>system.gateway_connect</code><a class="headerlink" href="#systemgateway_connect" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Sent by an ALF gateway at startup to authenticate its gateway ID against
 <code>engine_config.yaml</code>.</p>
 <pre class="mermaid"><code>sequenceDiagram
@@ -3999,6 +4281,8 @@ and received atomically:</p>
 </table>
 <p>When <code>accepted=false</code>, the gateway must terminate and MUST NOT submit orders.</p>
 <h3 id="ordernew"><code>order.new</code><a class="headerlink" href="#ordernew" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Sent by a gateway to submit a new order for matching.</p>
 <table>
 <thead>
@@ -4089,6 +4373,11 @@ and received atomically:</p>
 <td>string</td>
 <td>Self-match prevention: <code>NONE</code>, <code>CANCEL_AGGRESSOR</code>, <code>CANCEL_RESTING</code>, <code>CANCEL_BOTH</code></td>
 </tr>
+<tr>
+<td><code>client_tag</code></td>
+<td>string | absent</td>
+<td>Optional client-supplied tag echoed back on every lifecycle event for this order (ack, fill, cancelled, expired). When present, subscribers can map events back to their submission without a FIFO scheme.</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Valid field combinations by order type:</strong></p>
@@ -4171,6 +4460,8 @@ and received atomically:</p>
 </tbody>
 </table>
 <h3 id="ordercancel"><code>order.cancel</code><a class="headerlink" href="#ordercancel" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Sent by a gateway to cancel a resting order.</p>
 <table>
 <thead>
@@ -4194,6 +4485,8 @@ and received atomically:</p>
 </tbody>
 </table>
 <h3 id="orderamend"><code>order.amend</code><a class="headerlink" href="#orderamend" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Sent by a gateway to amend the price and/or quantity of a resting order.</p>
 <table>
 <thead>
@@ -4234,6 +4527,8 @@ and received atomically:</p>
 </ul>
 <p><strong>Reply:</strong> <code>order.amended.{GW_ID}</code> on success, or <code>order.ack.{GW_ID}</code> with <code>accepted=false</code> on rejection.</p>
 <h3 id="quotenew"><code>quote.new</code><a class="headerlink" href="#quotenew" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Sent by a market-maker gateway to submit or replace a two-sided quote.
 Role requirements and MM obligation controls are documented in
 <a href="../01-configuration/#role-privileges">Configuration - Role Privileges</a>.</p>
@@ -4294,6 +4589,8 @@ Role requirements and MM obligation controls are documented in
 <li><code>quote.status.{GW_ID}</code></li>
 </ul>
 <h3 id="quoteackgw_id"><code>quote.ack.{GW_ID}</code><a class="headerlink" href="#quoteackgw_id" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <p>Acknowledgement of a <code>quote.new</code> submission.</p>
 <table>
 <thead>
@@ -4332,6 +4629,8 @@ Role requirements and MM obligation controls are documented in
 </tbody>
 </table>
 <h3 id="quotestatusgw_id"><code>quote.status.{GW_ID}</code><a class="headerlink" href="#quotestatusgw_id" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <p>Published when the quote's lifecycle state changes (e.g. a fill inactivates the quote or a cancel removes it).</p>
 <table>
 <thead>
@@ -4387,6 +4686,8 @@ Role requirements and MM obligation controls are documented in
 </tbody>
 </table>
 <h3 id="quotecancel"><code>quote.cancel</code><a class="headerlink" href="#quotecancel" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Cancel the active quote for one symbol.</p>
 <table>
 <thead>
@@ -4412,6 +4713,8 @@ Role requirements and MM obligation controls are documented in
 <h2 id="oco-messages-gateway-engine-engine-subscribers">OCO messages (gateway → engine / engine → subscribers)<a class="headerlink" href="#oco-messages-gateway-engine-engine-subscribers" title="Permanent link">&para;</a></h2>
 <p>A <strong>One-Cancels-Other (OCO)</strong> pair links two resting orders so that when one fills or is cancelled the other is automatically cancelled by the engine.</p>
 <h3 id="orderoco"><code>order.oco</code><a class="headerlink" href="#orderoco" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Links two existing resting orders into an OCO pair.</p>
 <table>
 <thead>
@@ -4447,6 +4750,8 @@ Role requirements and MM obligation controls are documented in
 <p>Both orders must already be resting on the book and must belong to the same gateway.</p>
 <p><strong>Reply:</strong> <code>oco.ack.{GW_ID}</code></p>
 <h3 id="orderoco_cancel"><code>order.oco_cancel</code><a class="headerlink" href="#orderoco_cancel" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Cancel both legs of an OCO pair.</p>
 <table>
 <thead>
@@ -4470,6 +4775,8 @@ Role requirements and MM obligation controls are documented in
 </tbody>
 </table>
 <h3 id="ocoackgw_id"><code>oco.ack.{GW_ID}</code><a class="headerlink" href="#ocoackgw_id" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <p>Acknowledgement of an <code>order.oco</code> request.</p>
 <table>
 <thead>
@@ -4508,6 +4815,8 @@ Role requirements and MM obligation controls are documented in
 </tbody>
 </table>
 <h3 id="ococancelledgw_id"><code>oco.cancelled.{GW_ID}</code><a class="headerlink" href="#ococancelledgw_id" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <p>Notifies the gateway when the engine cancels the sibling leg of an OCO pair (because the other leg filled or was cancelled).</p>
 <table>
 <thead>
@@ -4537,6 +4846,8 @@ Role requirements and MM obligation controls are documented in
 </table>
 <h2 id="risk-control-messages-gateway-engine">Risk control messages (gateway → engine)<a class="headerlink" href="#risk-control-messages-gateway-engine" title="Permanent link">&para;</a></h2>
 <h3 id="riskkill_switch"><code>risk.kill_switch</code><a class="headerlink" href="#riskkill_switch" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Cancels all resting orders and quotes for the specified gateway. Does not halt the symbol; trading continues normally for other participants.</p>
 <table>
 <thead>
@@ -4587,6 +4898,8 @@ Role requirements and MM obligation controls are documented in
 </tbody>
 </table>
 <h3 id="risksymbol_halt"><code>risk.symbol_halt</code><a class="headerlink" href="#risksymbol_halt" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Operator command to halt a single symbol. Any authenticated connected gateway may send this; no ADMIN role is required.</p>
 <table>
 <thead>
@@ -4638,6 +4951,8 @@ Role requirements and MM obligation controls are documented in
 </table>
 <p>The engine also publishes <code>circuit_breaker.halt.{SYMBOL}</code> with <code>resumption_mode = "MANUAL"</code> when a symbol is halted this way.</p>
 <h3 id="risksymbol_resume"><code>risk.symbol_resume</code><a class="headerlink" href="#risksymbol_resume" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Resume trading on a single previously halted symbol.</p>
 <table>
 <thead>
@@ -4684,6 +4999,8 @@ Role requirements and MM obligation controls are documented in
 </table>
 <p>The engine publishes <code>circuit_breaker.resume.{SYMBOL}</code> with <code>mode = "MANUAL"</code> when the symbol is resumed.</p>
 <h3 id="riskcancel_symbol"><code>risk.cancel_symbol</code><a class="headerlink" href="#riskcancel_symbol" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Cancel all resting orders and quotes on a single symbol across all gateways. The symbol remains active; only resting interest is cleared.</p>
 <table>
 <thead>
@@ -4739,6 +5056,8 @@ Role requirements and MM obligation controls are documented in
 </tbody>
 </table>
 <h3 id="riskcircuit_breaker_halt_all"><code>risk.circuit_breaker_halt_all</code><a class="headerlink" href="#riskcircuit_breaker_halt_all" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Administrative global halt request. This sets all known symbols to halted.
 Only gateways configured with <code>role: ADMIN</code> are authorized.</p>
 <p>Operational semantics:</p>
@@ -4802,6 +5121,8 @@ Only gateways configured with <code>role: ADMIN</code> are authorized.</p>
 </tbody>
 </table>
 <h3 id="riskcircuit_breaker_resume_all"><code>risk.circuit_breaker_resume_all</code><a class="headerlink" href="#riskcircuit_breaker_resume_all" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Administrative global resume request. Clears the halt on every symbol that was
 halted by a preceding <code>risk.circuit_breaker_halt_all</code>.
 Only gateways configured with <code>role: ADMIN</code> are authorized.</p>
@@ -4918,6 +5239,8 @@ session and marks its role as <code>ADMIN</code>.</p>
 <p>After receiving the ack, normal order flow resumes for all previously halted
 symbols. Market-maker quote obligations are enforced again immediately.</p>
 <h3 id="systemgateway_disconnect"><code>system.gateway_disconnect</code><a class="headerlink" href="#systemgateway_disconnect" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Graceful disconnect notice from gateway to engine.</p>
 <table>
 <thead>
@@ -4941,6 +5264,8 @@ symbols. Market-maker quote obligations are enforced again immediately.</p>
 </tbody>
 </table>
 <h3 id="ordercombo"><code>order.combo</code><a class="headerlink" href="#ordercombo" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Sent by a gateway to submit a combo (multi-leg) order.</p>
 <table>
 <thead>
@@ -4994,6 +5319,8 @@ symbols. Market-maker quote obligations are enforced again immediately.</p>
 </tbody>
 </table>
 <h3 id="ordercombo_cancel"><code>order.combo_cancel</code><a class="headerlink" href="#ordercombo_cancel" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Sent by a gateway to cancel a combo and all its child legs.</p>
 <table>
 <thead>
@@ -5037,6 +5364,8 @@ symbols. Market-maker quote obligations are enforced again immediately.</p>
     ENG--&gt;&gt;CLR: trade.executed {buy_gw:R, sell_gw:A, price:150.00, qty:60}
     ENG--&gt;&gt;VW: book.AAPL {bids: [{price:150.00, qty:40}]}</code></pre>
 <h3 id="orderackgw_id"><code>order.ack.{GW_ID}</code><a class="headerlink" href="#orderackgw_id" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <p>Acknowledgement of an <code>order.new</code> submission.<br />
 Subscribed to by the originating gateway and the order monitor.</p>
 <table>
@@ -5093,6 +5422,11 @@ Subscribed to by the originating gateway and the order monitor.</p>
 <td>float | null</td>
 <td>Limit price <em>(present when accepted)</em></td>
 </tr>
+<tr>
+<td><code>client_tag</code></td>
+<td>string | absent</td>
+<td>Echoed from <code>order.new</code> when the field was set</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">
@@ -5100,6 +5434,8 @@ Subscribed to by the originating gateway and the order monitor.</p>
 <p>Common rejection reasons: <code>"Symbol not configured: XYZ"</code>, <code>"Insufficient liquidity"</code> (FOK), <code>"Order not found"</code> (cancel), <code>"Gateway not configured: TRADER99"</code>, <code>"Gateway not connected: TRADER01"</code>.</p>
 </div>
 <h3 id="orderfillgw_id"><code>order.fill.{GW_ID}</code><a class="headerlink" href="#orderfillgw_id" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <p>Notifies a gateway (and the order monitor) of a partial or full fill.<br />
 Both the aggressor and the resting counterparty receive their own <code>order.fill</code> message.</p>
 <table>
@@ -5166,9 +5502,16 @@ Both the aggressor and the resting counterparty receive their own <code>order.fi
 <td>float | null</td>
 <td>Limit price</td>
 </tr>
+<tr>
+<td><code>client_tag</code></td>
+<td>string | absent</td>
+<td>Echoed from <code>order.new</code> when the field was set</td>
+</tr>
 </tbody>
 </table>
 <h3 id="ordercancelledgw_id"><code>order.cancelled.{GW_ID}</code><a class="headerlink" href="#ordercancelledgw_id" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <p>Confirms a cancel request or a Self-Match Prevention (SMP) forced cancellation.</p>
 <table>
 <thead>
@@ -5184,9 +5527,16 @@ Both the aggressor and the resting counterparty receive their own <code>order.fi
 <td>string (UUID)</td>
 <td>Cancelled order</td>
 </tr>
+<tr>
+<td><code>client_tag</code></td>
+<td>string | absent</td>
+<td>Echoed from the original <code>order.new</code> when the field was set</td>
+</tr>
 </tbody>
 </table>
 <h3 id="orderamendedgw_id"><code>order.amended.{GW_ID}</code><a class="headerlink" href="#orderamendedgw_id" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <p>Confirms a successful order amendment.</p>
 <table>
 <thead>
@@ -5225,6 +5575,8 @@ Both the aggressor and the resting counterparty receive their own <code>order.fi
 </tbody>
 </table>
 <h3 id="orderexpiredgw_id"><code>order.expired.{GW_ID}</code><a class="headerlink" href="#orderexpiredgw_id" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <p>Published during engine shutdown for every resting <code>DAY</code> order that did not fill.</p>
 <table>
 <thead>
@@ -5240,9 +5592,16 @@ Both the aggressor and the resting counterparty receive their own <code>order.fi
 <td>string (UUID)</td>
 <td>Expired order</td>
 </tr>
+<tr>
+<td><code>client_tag</code></td>
+<td>string | absent</td>
+<td>Echoed from the original <code>order.new</code> when the field was set</td>
+</tr>
 </tbody>
 </table>
 <h3 id="orderordersgw_id"><code>order.orders.{GW_ID}</code><a class="headerlink" href="#orderordersgw_id" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <p>Response to an <code>order.orders_request</code> from a gateway; delivers the full current order list.</p>
 <table>
 <thead>
@@ -5262,6 +5621,8 @@ Both the aggressor and the resting counterparty receive their own <code>order.fi
 </table>
 <h2 id="combo-events-engine-subscribers">Combo events (engine → subscribers)<a class="headerlink" href="#combo-events-engine-subscribers" title="Permanent link">&para;</a></h2>
 <h3 id="comboackgw_id"><code>combo.ack.{GW_ID}</code><a class="headerlink" href="#comboackgw_id" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <p>Acknowledgement of a combo order submission.</p>
 <table>
 <thead>
@@ -5299,6 +5660,8 @@ Both the aggressor and the resting counterparty receive their own <code>order.fi
 <p>Common rejection reasons: <code>"Combo requires at least 2 legs"</code>, <code>"Duplicate symbols in combo legs"</code>, <code>"Symbol not configured: XYZ"</code>, <code>"Leg 0: invalid quantity 0"</code>, <code>"Leg 0: LIMIT requires a price"</code>.</p>
 </div>
 <h3 id="combostatusgw_id"><code>combo.status.{GW_ID}</code><a class="headerlink" href="#combostatusgw_id" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <p>Published when a combo transitions between lifecycle states.</p>
 <table>
 <thead>
@@ -5359,6 +5722,8 @@ Both the aggressor and the resting counterparty receive their own <code>order.fi
 </table>
 <h2 id="trade-events-engine-all-subscribers">Trade events (engine → all subscribers)<a class="headerlink" href="#trade-events-engine-all-subscribers" title="Permanent link">&para;</a></h2>
 <h3 id="tradeexecuted"><code>trade.executed</code><a class="headerlink" href="#tradeexecuted" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Distributes real-time market state needed for pricing, strategy, monitoring, and post-trade analytics.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <p>Published once per matched trade pair. Consumed by clearing, audit, and statistics processes.</p>
 <table>
 <thead>
@@ -5418,6 +5783,8 @@ Both the aggressor and the resting counterparty receive their own <code>order.fi
 </table>
 <h2 id="book-events-engine-all-subscribers">Book events (engine → all subscribers)<a class="headerlink" href="#book-events-engine-all-subscribers" title="Permanent link">&para;</a></h2>
 <h3 id="booksymbol"><code>book.{SYMBOL}</code><a class="headerlink" href="#booksymbol" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Distributes real-time market state needed for pricing, strategy, monitoring, and post-trade analytics.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <p>Full order-book snapshot published after every state change for the named symbol.<br />
 Consumed by order-book viewers and the statistics process.</p>
 <table>
@@ -5471,9 +5838,74 @@ Consumed by order-book viewers and the statistics process.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="depthsymbol"><code>depth.{SYMBOL}</code><a class="headerlink" href="#depthsymbol" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Distributes real-time market state needed for pricing, strategy, monitoring, and post-trade analytics.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
+<p>Published alongside <code>book.{SYMBOL}</code> after every state change (same throttle).<br />
+Contains depth and imbalance metrics computed within ±100 ticks of the last trade.<br />
+Absent (not published) until at least one trade has occurred for the symbol.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td>string</td>
+<td>Instrument ticker</td>
+</tr>
+<tr>
+<td><code>mid_price_ticks</code></td>
+<td>integer</td>
+<td>Last trade price in <strong>integer ticks</strong></td>
+</tr>
+<tr>
+<td><code>mid_price</code></td>
+<td>float</td>
+<td>Last trade price as a <strong>float display price</strong> (same units as <code>book.{SYMBOL}</code>)</td>
+</tr>
+<tr>
+<td><code>tolerance_ticks</code></td>
+<td>integer</td>
+<td>Window width used (currently 100 ticks each side)</td>
+</tr>
+<tr>
+<td><code>bid_depth</code></td>
+<td>integer</td>
+<td>Total resting bid quantity within the window</td>
+</tr>
+<tr>
+<td><code>ask_depth</code></td>
+<td>integer</td>
+<td>Total resting ask quantity within the window</td>
+</tr>
+<tr>
+<td><code>imbalance</code></td>
+<td>float</td>
+<td><code>(bid_depth − ask_depth) / (bid_depth + ask_depth)</code> ∈ [−1, +1]; positive = more bids</td>
+</tr>
+<tr>
+<td><code>microprice</code></td>
+<td>float</td>
+<td>Imbalance-weighted midprice: <code>(best_bid+best_ask)/2 + imbalance×spread/2</code>; falls back to <code>mid_price</code> when no resting orders</td>
+</tr>
+<tr>
+<td><code>cost_to_move</code></td>
+<td>integer</td>
+<td>Same as <code>bid_depth</code> (reserved for future asymmetric depth)</td>
+</tr>
+</tbody>
+</table>
+<p>Subscribe with prefix <code>depth.</code> to receive updates for all symbols.</p>
 <h2 id="request-response-gateway-engine-point-to-point">Request / response (gateway → engine, point-to-point)<a class="headerlink" href="#request-response-gateway-engine-point-to-point" title="Permanent link">&para;</a></h2>
 <p>These messages travel over the PUSH/PULL channel (port 5555) and the reply is published on the PUB socket filtered by <code>{GW_ID}</code>.</p>
 <h3 id="booksnapshot_request"><code>book.snapshot_request</code><a class="headerlink" href="#booksnapshot_request" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Requests the current book snapshot for a symbol (used by viewers on startup to avoid waiting for the next update).</p>
 <table>
 <thead>
@@ -5493,6 +5925,8 @@ Consumed by order-book viewers and the statistics process.</p>
 </table>
 <p><strong>Reply:</strong> <code>book.{SYMBOL}</code> — same shape as above.</p>
 <h3 id="systemsymbols_request"><code>system.symbols_request</code><a class="headerlink" href="#systemsymbols_request" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Requests the list of configured symbols from the engine.
 Used by gateways on connect and by the statistics process at startup to discover
 which symbols to pull opening book snapshots for.</p>
@@ -5540,8 +5974,11 @@ which symbols to pull opening book snapshots for.</p>
 <li><code>enforce_mm_obligation</code> (bool): effective MM obligation enforcement for this gateway/symbol</li>
 <li><code>mm_max_spread_ticks</code> (int): effective max MM spread in ticks</li>
 <li><code>mm_min_qty</code> (int): effective minimum MM quote quantity</li>
+<li><code>prev_close</code> (float | absent): last traded price from the previous session, in display price units. Present only when a previous session's book stats have been persisted (not available on a fresh engine with no prior data).</li>
 </ul>
 <h3 id="orderorders_request"><code>order.orders_request</code><a class="headerlink" href="#orderorders_request" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Requests the current order list for a specific gateway.</p>
 <table>
 <thead>
@@ -5561,6 +5998,8 @@ which symbols to pull opening book snapshots for.</p>
 </table>
 <p><strong>Reply:</strong> <code>order.orders.{GW_ID}</code> — see above.</p>
 <h3 id="systemquote_bootstrap_request"><code>system.quote_bootstrap_request</code><a class="headerlink" href="#systemquote_bootstrap_request" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Request active quote bootstrap state for a gateway. This is useful for market-
 maker startup/reconnect flows to discover currently active quote slots (for
 example config-seeded quotes that were injected before the gateway connected).</p>
@@ -5612,6 +6051,8 @@ example config-seeded quotes that were injected before the gateway connected).</
 <li><code>bid_status</code>, <code>ask_status</code></li>
 </ul>
 <h3 id="systemsession_state_request"><code>system.session_state_request</code><a class="headerlink" href="#systemsession_state_request" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Requests the current session state and whether session enforcement is enabled.</p>
 <table>
 <thead>
@@ -5652,6 +6093,8 @@ example config-seeded quotes that were injected before the gateway connected).</
 </tbody>
 </table>
 <h3 id="systemsession_schedule_request"><code>system.session_schedule_request</code><a class="headerlink" href="#systemsession_schedule_request" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Requests the configured session schedule (the times the scheduler will send phase transitions).</p>
 <table>
 <thead>
@@ -5692,6 +6135,8 @@ example config-seeded quotes that were injected before the gateway connected).</
 </tbody>
 </table>
 <h3 id="systemgateways_request"><code>system.gateways_request</code><a class="headerlink" href="#systemgateways_request" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Requests the list of configured gateways and their connection status.</p>
 <table>
 <thead>
@@ -5759,7 +6204,80 @@ example config-seeded quotes that were injected before the gateway connected).</
 </tbody>
 </table>
 <h3 id="systemvolume_request"><code>system.volume_request</code><a class="headerlink" href="#systemvolume_request" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
 <p>Requests cumulative traded volume for all symbols in the current session.</p>
+<h3 id="systemhalt_status_request"><code>system.halt_status_request</code><a class="headerlink" href="#systemhalt_status_request" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
+<p>Requests a snapshot of all symbols that are currently halted. Useful for any
+process that connects or reconnects mid-session and cannot know the halt state
+from edge events alone.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateway_id</code></td>
+<td>string</td>
+<td>Requesting gateway or process identifier</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply:</strong> <code>system.halt_status.{GW_ID}</code></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>halted</code></td>
+<td>array of objects</td>
+<td>One entry per currently halted symbol; empty array = no halts active</td>
+</tr>
+</tbody>
+</table>
+<p>Each entry in <code>halted</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td>string</td>
+<td>Halted instrument ticker</td>
+</tr>
+<tr>
+<td><code>resume_at_ns</code></td>
+<td>integer | null</td>
+<td>Engine nanosecond timestamp when the halt auto-expires; <code>null</code> for manual halts</td>
+</tr>
+<tr>
+<td><code>level</code></td>
+<td>string | null</td>
+<td>CB ladder level that triggered the halt (<code>"L1"</code>, <code>"L2"</code>, <code>"L3"</code>, <code>"ADMIN_ALL"</code>) or <code>null</code> if not available</td>
+</tr>
+<tr>
+<td><code>resumption_mode</code></td>
+<td>string | null</td>
+<td><code>"AUCTION"</code>, <code>"CONTINUOUS"</code>, or <code>"MANUAL"</code></td>
+</tr>
+</tbody>
+</table>
 <table>
 <thead>
 <tr>
@@ -5835,8 +6353,87 @@ example config-seeded quotes that were injected before the gateway connected).</
 </tr>
 </tbody>
 </table>
-<h2 id="system-messages-engine-all-subscribers">System messages (engine → all subscribers)<a class="headerlink" href="#system-messages-engine-all-subscribers" title="Permanent link">&para;</a></h2>
+<h3 id="systemposition_request"><code>system.position_request</code><a class="headerlink" href="#systemposition_request" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+<strong>Published by:</strong> Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555</p>
+<p>Requests a snapshot of the per-symbol position held by the engine for a
+specific gateway.  The engine derives positions by tracking every fill
+from the moment the engine process started.  This is primarily used by
+AI bots and other automated traders to re-seed their internal risk state
+after a restart or reconnect, so they do not begin trading with a stale
+(zero) position when the engine still holds resting orders or recorded
+fills for that gateway.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateway_id</code></td>
+<td>string</td>
+<td>Requesting gateway identifier</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reply:</strong> <code>system.position_snapshot.{GW_ID}</code></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>positions</code></td>
+<td>array of objects</td>
+<td>One entry per symbol with a non-zero net position; empty array = gateway is flat</td>
+</tr>
+</tbody>
+</table>
+<p>Each entry in <code>positions</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>symbol</code></td>
+<td>string</td>
+<td>Instrument ticker</td>
+</tr>
+<tr>
+<td><code>net_qty</code></td>
+<td>integer</td>
+<td>Signed net position: positive = net long, negative = net short</td>
+</tr>
+<tr>
+<td><code>avg_cost</code></td>
+<td>float</td>
+<td>Volume-weighted average fill price (display price units); <code>0.0</code> when flat</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Engine lifetime scope</p>
+<p>The position ledger resets when the engine process restarts — it is not
+persisted to disk.  Only fills that occurred <em>during the current engine
+session</em> are counted.  After an engine restart both the engine and the
+bot start from a genuinely flat position, so no resync is needed.
+The resync use case is a <em>bot</em> restart while the <em>engine</em> keeps running.</p>
+</div>
 <h3 id="sessionstate"><code>session.state</code><a class="headerlink" href="#sessionstate" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Publishes venue/session lifecycle transitions that gate trading behavior and downstream workflows.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <p>Broadcast whenever the engine transitions between session phases (e.g.
 from OPENING_AUCTION to CONTINUOUS).  Consumed by gateways, monitors,
 and the statistics process to know what trading mode is currently active.</p>
@@ -5862,6 +6459,8 @@ and the statistics process to know what trading mode is currently active.</p>
 </tbody>
 </table>
 <h3 id="auctionresultsymbol"><code>auction.result.{SYMBOL}</code><a class="headerlink" href="#auctionresultsymbol" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Publishes venue/session lifecycle transitions that gate trading behavior and downstream workflows.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <p>Broadcast once per symbol after an auction uncross completes (i.e. when
 transitioning out of OPENING_AUCTION or CLOSING_AUCTION).  Reports the
 equilibrium price, quantity matched, and any imbalance.</p>
@@ -5907,6 +6506,8 @@ equilibrium price, quantity matched, and any imbalance.</p>
 </tbody>
 </table>
 <h3 id="systemeod"><code>system.eod</code><a class="headerlink" href="#systemeod" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Publishes venue/session lifecycle transitions that gate trading behavior and downstream workflows.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <p>Broadcast by the engine at shutdown before sockets are closed.<br />
 Consumed by the statistics process to record end-of-day closing bid/ask prices.</p>
 <table>
@@ -5928,6 +6529,8 @@ Consumed by the statistics process to record end-of-day closing bid/ask prices.<
 <h2 id="circuit-breaker-events-engine-all-subscribers">Circuit breaker events (engine → all subscribers)<a class="headerlink" href="#circuit-breaker-events-engine-all-subscribers" title="Permanent link">&para;</a></h2>
 <p>These events are published on PUB :5556 whenever a symbol halts or resumes, regardless of whether the halt was triggered by a trade threshold, a per-symbol operator command, or the exchange-wide ADMIN halt.</p>
 <h3 id="circuit_breakerhaltsymbol"><code>circuit_breaker.halt.{SYMBOL}</code><a class="headerlink" href="#circuit_breakerhaltsymbol" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Broadcasts symbol-level protection state so strategies and UIs can react immediately to trading halts/resumptions.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <table>
 <thead>
 <tr>
@@ -5970,6 +6573,8 @@ Consumed by the statistics process to record end-of-day closing bid/ask prices.<
 </tbody>
 </table>
 <h3 id="circuit_breakerresumesymbol"><code>circuit_breaker.resume.{SYMBOL}</code><a class="headerlink" href="#circuit_breakerresumesymbol" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Broadcasts symbol-level protection state so strategies and UIs can react immediately to trading halts/resumptions.
+<strong>Published by:</strong> pm-engine via PUB (mostly :5556; drop-copy events on :5557)</p>
 <table>
 <thead>
 <tr>
@@ -5993,6 +6598,8 @@ Consumed by the statistics process to record end-of-day closing bid/ask prices.<
 </table>
 <h2 id="session-messages-scheduler-engine">Session messages (scheduler → engine)<a class="headerlink" href="#session-messages-scheduler-engine" title="Permanent link">&para;</a></h2>
 <h3 id="sessiontransition"><code>session.transition</code><a class="headerlink" href="#sessiontransition" title="Permanent link">&para;</a></h3>
+<p><strong>Motivation:</strong> Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+<strong>Published by:</strong> pm-scheduler (PUSH -&gt; engine on :5555)</p>
 <p>Sent by the <code>pm-scheduler</code> process to request a session-phase transition.
 Travels over the PUSH/PULL channel (port 5555), same as order messages.</p>
 <table>
@@ -6030,7 +6637,7 @@ event confirming the new phase.</p>
 </tr>
 <tr>
 <td>Order-book viewer</td>
-<td><code>book.{SYMBOL}</code>, <code>session.state</code></td>
+<td><code>book.{SYMBOL}</code>, <code>depth.{SYMBOL}</code>, <code>session.state</code></td>
 </tr>
 <tr>
 <td>Order monitor</td>
@@ -6047,6 +6654,10 @@ event confirming the new phase.</p>
 <tr>
 <td>Statistics</td>
 <td><code>trade.</code>, <code>book.</code>, <code>system.eod</code>, <code>system.symbols.STATS</code>, <code>session.state</code>, <code>auction.result.</code></td>
+</tr>
+<tr>
+<td>AI trader / bot</td>
+<td><code>session.state</code>, <code>circuit_breaker.halt.</code>, <code>circuit_breaker.resume.</code>, <code>book.</code>, <code>depth.</code>, <code>trade.executed</code>, <code>order.ack.{GW}</code>, <code>order.fill.{GW}</code>, <code>order.cancelled.{GW}</code>, <code>order.expired.{GW}</code>, <code>system.symbols.{GW}</code>, <code>system.gateway_auth.{GW}</code>, <code>system.halt_status.{GW}</code>, <code>system.position_snapshot.{GW}</code>, <code>system.eod</code></td>
 </tr>
 </tbody>
 </table>

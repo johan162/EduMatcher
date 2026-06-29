@@ -1404,17 +1404,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#pm-ai-swarm-multi-bot-launcher" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        pm-ai-swarm — Multi-Bot Launcher
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#pm-mm-bot-autonomous-market-maker-bot" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -5182,7 +5171,27 @@ The board auto-discovers symbols as they become active — no configuration need
 </table>
 <p><strong>Expected runtime input arguments:</strong></p>
 <p>None.</p>
-<h2 id="pm-ai-swarm-multi-bot-launcher">pm-ai-swarm — Multi-Bot Launcher<a class="headerlink" href="#pm-ai-swarm-multi-bot-launcher" title="Permanent link">&para;</a></h2>
+<p><strong>Connect / restart handshake:</strong></p>
+<p>On every startup (or reconnect) the bot performs the following initialization
+sequence before it begins submitting orders:</p>
+<ol>
+<li>Send <code>gateway_connect</code>; wait for <code>system.gateway_auth.&lt;ID&gt;</code>.</li>
+<li>Send <code>system.symbols_request</code>; receive <code>system.symbols.&lt;ID&gt;</code> to populate
+   the symbol universe and resolve per-symbol <code>tick_size</code> and <code>prev_close</code>.</li>
+<li>Send <code>system.session_state_request</code>; receive <code>system.session_status.&lt;ID&gt;</code>
+   to seed the current trading phase.  Session broadcasts are edge-triggered —
+   without this explicit query, a bot that connects mid-session would not know
+   it is in <code>OPENING_AUCTION</code> or <code>CLOSED</code> until the next phase transition.</li>
+<li>Send <code>system.halt_status_request</code>; receive <code>system.halt_status.&lt;ID&gt;</code> to
+   seed the per-symbol halt flags so the bot never submits into a halted symbol.</li>
+<li>Send <code>system.position_request</code>; receive <code>system.position_snapshot.&lt;ID&gt;</code> to
+   re-seed per-symbol net position and average cost from the engine's ledger.
+   This ensures risk guards (position cap, drawdown guard) are accurate even
+   when the bot restarts while the engine is still running.</li>
+</ol>
+<p>Steps 3–5 are idempotent: if the engine returns an empty list or a
+<code>CONTINUOUS</code> state the bot simply starts from a flat / unhalt / continuous
+state, which is correct for a fresh session.</p>
 <p>Launches and supervises multiple <code>pm-ai-trader</code> bots as a coordinated swarm.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>pm-ai-swarm<span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
@@ -5514,6 +5523,10 @@ must be pre-registered in <code>engine_config.yaml</code> with <code>role: MARKE
 <tr>
 <td><code>book.{SYMBOL}</code></td>
 <td>Book updates — drives mid-price tracking and drift detection</td>
+</tr>
+<tr>
+<td><code>depth.{SYMBOL}</code></td>
+<td>Depth / imbalance metrics (microprice, mid_price) for the assigned symbol</td>
 </tr>
 <tr>
 <td><code>trade.executed</code></td>

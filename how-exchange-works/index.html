@@ -6794,7 +6794,7 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
 </table>
 <h2 id="the-order-book-the-exchanges-memory">The Order Book, The Exchange's Memory<a class="headerlink" href="#the-order-book-the-exchanges-memory" title="Permanent link">&para;</a></h2>
 <p>The <strong>order book</strong> (also called the <strong>limit order book</strong> or <strong>LOB</strong>) is the central data structure of a matching engine [1] [2]. It is the live record of every resting order in the market, all the buyers waiting to buy and all the sellers waiting to sell, organised by price.</p>
-<p><img alt="The Order Book" src="assets/order-book-illustration-small2.png" /></p>
+<p><img alt="The Order Book" src="../assets/order-book-illustration-small2.png" /></p>
 <p><em><strong>Figure 1:</strong> The most important data structure in an Exchange - the book.</em></p>
 <blockquote>
 <p><strong>Key idea:</strong> The order book contains only <em>resting</em> orders, those waiting for a counterparty. The current "market price" is derived from the book (as the mid of best bid and ask) or from the last trade, not from a stored field.</p>
@@ -6844,7 +6844,7 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
 </tr>
 </tbody>
 </table>
-<p>The <strong>spread</strong> here is $150.35 − $150.34 = <span class="arithmatex">\(0.01. The **mid price** is (\)</span>150.34 + $150.35) / 2 = $150.345. If a market sell order for 3,500 shares arrives, it sweeps: 1,500 shares at $150.34 (exhausting that level), then 2,000 of the 2,800 available at $150.33. The new best bid after the sweep is $150.33 with 800 shares remaining.</p>
+<p>The <strong>spread</strong> here is $150.35 − $150.34 = <span class="arithmatex">\(0.01. The **mid price** is (\)</span>150.34 + $150.35) / 2 = $150.345. If a market sell order for 3,500 shares arrives, it sweeps bid size: 2,000 shares at $150.34 (exhausting that level), then 1,500 at $150.33 (also exhausting that level). The new best bid after the sweep is $150.32 with 3,200 shares remaining at that price level.</p>
 <h3 id="a-note-on-implementation">A Note on Implementation<a class="headerlink" href="#a-note-on-implementation" title="Permanent link">&para;</a></h3>
 <p>It is probably safe to say that no other data structure in an exchange is as heavily optimised as the order book. A modern exchange may maintain tens of thousands of order books simultaneously (one per tradeable symbol) and process millions of operations per second across them. Shaving a microsecond (<span class="arithmatex">\(10^{-6}\)</span>s) from each operation or reducing the per-order memory footprint by a few bytes can translate directly into measurable throughput and latency gains at scale. Understanding <em>why</em> involves looking at how software architecture is shaped by hardware constraints.</p>
 <h4 id="principles-of-order-book-design">Principles of order book design<a class="headerlink" href="#principles-of-order-book-design" title="Permanent link">&para;</a></h4>
@@ -6974,7 +6974,7 @@ Trader B wants to buy the Jan/Feb spread at −\)</span>2.00, meaning they will 
 <p><strong>What happens when a non-aligned price is submitted?</strong> If a participant submits a limit buy at $150.305 when the tick size is <span class="arithmatex">\(0.01, the price is not a valid tick multiple. The pre-trade validation layer rejects the order before it reaches the matching engine and returns an error message identifying the nearest valid prices on either side (\)</span>150.30 and $150.31) so the participant can resubmit correctly. The order receives REJECTED status and never enters the book. This becomes especially important at larger tick sizes, a futures product with a $0.25 tick makes it easy to accidentally submit a price like $150.10 that falls between valid multiples.</p>
 <h2 id="the-matching-engine-the-heart-of-the-exchange">The Matching Engine, The Heart of the Exchange<a class="headerlink" href="#the-matching-engine-the-heart-of-the-exchange" title="Permanent link">&para;</a></h2>
 <p>The <strong>matching engine</strong> is the software that receives orders, manages the order book, and executes trades when buy and sell orders are compatible. It is the exchange's most critical, performance-sensitive component.</p>
-<p><img alt="Matching Engine Diagram" src="assets/exchange-and-books-illustration-small.png" /></p>
+<p><img alt="Matching Engine Diagram" src="../assets/exchange-and-books-illustration-small.png" /></p>
 <p><em><strong>Figure 1:</strong> The matching engine receives orders from participants, manages the order book, and executes trades when compatible orders are found. It publishes trade and order status events to participants and subscribers.</em></p>
 <h3 id="the-core-loop">The Core Loop<a class="headerlink" href="#the-core-loop" title="Permanent link">&para;</a></h3>
 <p>At its simplest, the matching engine runs an endless loop:</p>
