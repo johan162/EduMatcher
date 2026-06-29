@@ -42,9 +42,10 @@ class QuotePricer:
     def _decimals_from_tick(tick_size: float) -> int:
         """Derive the number of decimal places from tick_size."""
         s = f"{tick_size:.10f}".rstrip("0")
-        if "." in s:
-            return len(s.split(".")[1])
-        return 0
+        # f"{x:.10f}" always produces a '.' for float values, so the fallback
+        # branch (return 0) is never reached in practice.  Use the length of
+        # the fractional part directly.
+        return len(s.split(".")[1]) if "." in s else 0
 
     @property
     def mid_price(self) -> float | None:

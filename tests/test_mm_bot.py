@@ -1306,3 +1306,485 @@ class TestMMBotDispatch:
         bot._handle_session_state({"state": "CONTINUOUS"})
         assert bot._state == BotState.WAITING_FOR_SESSION
         assert bot._reissue_at is not None
+
+
+# ========================================================================
+# Bug-fix regression tests and additional coverage
+# ========================================================================
+
+
+class TestFillDuringCancelInFlight:
+    """Bug fix: fill must not overwrite the cancel-confirmation timeout."""
+
+    def _ready_bot(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> tuple[MMBot, _FakeSock, _FakeSock]:
+        bot, push, sub = _make_bot(monkeypatch, initial_min=95.0, initial_max=105.0)
+        bot._push_sock = push
+        bot._sub_sock = sub
+        bot._running = True
+        bot._session_state = "CONTINUOUS"
+        bot._state = BotState.REPRICING
+        bot._quote_id = "q-001"
+        bot._bid_order_id = "bid-001"
+        bot._ask_order_id = "ask-001"
+        bot._awaiting_cancel_for_reissue = True
+        bot._pricer = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+        assert bot._pricer is not None
+        bot._pricer.set_mid(100.0)
+        return bot, push, sub
+
+    def test_fill_while_cancel_in_flight_does_not_overwrite_timeout(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Fill arriving while _awaiting_cancel_for_reissue=True must not reset the
+        cancel-confirmation timer, which would leave the bot stuck in REPRICING."""
+        bot, push, sub = self._ready_bot(monkeypatch)
+        bot._reissue_at = time.monotonic() + 1.0  # cancel timeout at T+1s
+        original_reissue_at = bot._reissue_at
+
+        bot._handle_order_fill(
+            {"order_id": "ask-001", "fill_qty": 100, "fill_price": 100.05}
+        )
+
+        # Timer must NOT be shortened by the fill
+        assert bot._reissue_at == pytest.approx(original_reissue_at, abs=1e-3)
+
+    def test_fill_without_cancel_in_flight_sets_timer(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Normal fill (no cancel in flight) still arms the reissue timer."""
+        bot, push, sub = self._ready_bot(monkeypatch)
+        bot._awaiting_cancel_for_reissue = False
+        bot._reissue_at = None
+
+        bot._handle_order_fill(
+            {"order_id": "ask-001", "fill_qty": 100, "fill_price": 100.05}
+        )
+
+        assert bot._reissue_at is not None
+
+
+class TestQuoteStatusOrphanedCancelled:
+    """Bug fix: stale CANCELLED after INACTIVE already handled must be ignored."""
+
+    def _reissuing_bot(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> tuple[MMBot, _FakeSock, _FakeSock]:
+        """Bot that has already processed INACTIVE — quote cleared, in REISSUING."""
+        bot, push, sub = _make_bot(monkeypatch, initial_min=95.0, initial_max=105.0)
+        bot._push_sock = push
+        bot._sub_sock = sub
+        bot._running = True
+        bot._session_state = "CONTINUOUS"
+        bot._state = BotState.REISSUING
+        bot._quote_id = None  # already cleared by INACTIVE handler
+        bot._bid_order_id = None
+        bot._ask_order_id = None
+        bot._awaiting_cancel_for_reissue = False
+        bot._pricer = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+        assert bot._pricer is not None
+        bot._pricer.set_mid(100.0)
+        return bot, push, sub
+
+    def test_orphaned_cancelled_does_not_schedule_second_reissue(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """CANCELLED arriving after INACTIVE already cleared quote state must be
+        ignored — prevents a duplicate quote.new."""
+        bot, push, sub = self._reissuing_bot(monkeypatch)
+        bot._reissue_at = None  # no timer already running
+
+        bot._handle_quote_status({"status": "CANCELLED"})
+
+        # Must NOT schedule a reissue — there is no tracked quote to cancel
+        assert bot._reissue_at is None
+
+    def test_inactive_bid_filled_schedules_reissue(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """INACTIVE_BID_FILLED always schedules reissue regardless of quote_id."""
+        bot, push, sub = self._reissuing_bot(monkeypatch)
+        # Reset to QUOTING with active quote to simulate real INACTIVE scenario
+        bot._state = BotState.QUOTING
+        bot._quote_id = "q-active"
+        bot._reissue_at = None
+
+        bot._handle_quote_status({"status": "INACTIVE_BID_FILLED"})
+
+        assert bot._reissue_at is not None
+        assert bot._quote_id is None  # cleared
+
+    def test_inactive_ask_filled_schedules_reissue(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """INACTIVE_ASK_FILLED always schedules reissue."""
+        bot, push, sub = self._reissuing_bot(monkeypatch)
+        bot._state = BotState.QUOTING
+        bot._quote_id = "q-active"
+        bot._reissue_at = None
+
+        bot._handle_quote_status({"status": "INACTIVE_ASK_FILLED"})
+
+        assert bot._reissue_at is not None
+        assert bot._quote_id is None
+
+    def test_cancelled_with_quote_id_schedules_reissue(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """CANCELLED when we still track a quote schedules immediate reissue."""
+        bot, push, sub = self._reissuing_bot(monkeypatch)
+        bot._state = BotState.QUOTING
+        bot._quote_id = "q-tracked"
+        bot._reissue_at = None
+
+        bot._handle_quote_status({"status": "CANCELLED"})
+
+        assert bot._reissue_at is not None
+        assert bot._quote_id is None
+
+    def test_cancelled_while_awaiting_cancel_ack_schedules_reissue(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """CANCELLED when awaiting cancel confirmation (cancel-then-reissue path)."""
+        bot, push, sub = self._reissuing_bot(monkeypatch)
+        bot._state = BotState.REPRICING
+        bot._quote_id = None  # cleared by cancel timeout path
+        bot._awaiting_cancel_for_reissue = True
+        bot._reissue_at = None
+
+        bot._handle_quote_status({"status": "CANCELLED"})
+
+        assert bot._reissue_at is not None
+        assert bot._awaiting_cancel_for_reissue is False
+
+    def test_quote_status_paused_state_ignored(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Any status received while PAUSED is silently ignored."""
+        bot, push, sub = self._reissuing_bot(monkeypatch)
+        bot._state = BotState.PAUSED
+        bot._quote_id = "q-active"
+
+        bot._handle_quote_status({"status": "CANCELLED"})
+
+        assert bot._reissue_at is None
+        assert bot._quote_id == "q-active"  # not cleared
+
+    def test_unknown_status_ignored(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Unknown status string is silently ignored."""
+        bot, push, sub = self._reissuing_bot(monkeypatch)
+        bot._state = BotState.QUOTING
+        bot._quote_id = "q-active"
+
+        bot._handle_quote_status({"status": "SOME_FUTURE_STATUS"})
+
+        assert bot._reissue_at is None
+        assert bot._quote_id == "q-active"
+
+
+class TestRunLoopInvalidGap:
+    """Bug fix: QuotePricer ValueError must be caught and return exit code 1."""
+
+    def test_gap_smaller_than_two_ticks_after_meta_load_exits_cleanly(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """tick_size loaded from engine makes gap < 2*tick_size → clean exit, not crash."""
+        bot, push, sub = _make_bot(monkeypatch)
+        # Inject a large tick_size that makes default gap invalid
+        bot.gap = 0.10
+        bot._tick_size = 0.20  # 2*tick_size = 0.40 > gap=0.10
+
+        sub.recv_queue.extend(
+            [
+                _auth_msg(),
+                _symbols_msg(),
+                _boot_msg(),
+                _qlegs_msg(),
+                _session_msg("CONTINUOUS"),
+            ]
+        )
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        rc = bot.run()
+        assert rc == 1
+
+
+class TestHandleBookMissingPrice:
+    """Bug fix: _handle_book must not raise KeyError on malformed level."""
+
+    def test_book_level_without_price_key_treated_as_no_side(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Level dict missing 'price' key → treated as no best bid/ask for that side."""
+        bot, push, sub = _make_bot(monkeypatch, initial_min=95.0, initial_max=105.0)
+        bot._pricer = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+        bot._pricer.set_mid(100.0)
+
+        # Malformed book: bid level has no 'price', ask level is normal
+        bot._handle_book({"bids": [{"qty": 500}], "asks": [{"price": 100.10}]})
+
+        # ask-only mid should be 100.10
+        assert bot._pricer is not None
+        assert bot._pricer.mid_price == pytest.approx(100.10)
+
+    def test_empty_book_keeps_previous_mid(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Empty bids and asks list keeps the previous mid unchanged."""
+        bot, push, sub = _make_bot(monkeypatch, initial_min=95.0, initial_max=105.0)
+        bot._pricer = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+        bot._pricer.set_mid(99.0)
+
+        bot._handle_book({"bids": [], "asks": []})
+
+        assert bot._pricer is not None
+        assert bot._pricer.mid_price == pytest.approx(99.0)
+
+
+class TestMainValidation:
+    """Additional coverage for main.py validation paths."""
+
+    def test_negative_reissue_delay_exits(self) -> None:
+        """--reissue-delay-ms negative exits with error."""
+        from edumatcher.mm_bot import main as mm_main
+
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main(["--symbol", "AAPL", "--reissue-delay-ms", "-1"])
+        assert exc_info.value.code == 1
+
+    def test_negative_cancel_timeout_exits(self) -> None:
+        """--cancel-timeout-sec negative exits with error."""
+        from edumatcher.mm_bot import main as mm_main
+
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main(["--symbol", "AAPL", "--cancel-timeout-sec", "-1"])
+        assert exc_info.value.code == 1
+
+    def test_symbol_not_in_list_exits(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Symbol not in the engine symbol list exits with rc=1."""
+        bot, push, sub = _make_bot(monkeypatch, initial_min=95.0, initial_max=105.0)
+        sub.recv_queue.extend(
+            [
+                _auth_msg(),
+                encode("system.symbols.MM_AAPL_01", {"symbols": ["MSFT", "TSLA"]}),
+            ]
+        )
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        rc = bot.run()
+        assert rc == 1
+
+    def test_main_keyboard_interrupt_calls_shutdown(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """KeyboardInterrupt during bot.run() calls bot.shutdown() and exits 0."""
+        from edumatcher.mm_bot import main as mm_main
+
+        class FakeBotInterrupt:
+            def __init__(self, **kwargs: object) -> None:
+                self.shutdown_called = False
+
+            def run(self) -> int:
+                raise KeyboardInterrupt
+
+            def shutdown(self) -> None:
+                self.shutdown_called = True
+
+        bot_ref: list[FakeBotInterrupt] = []
+
+        def _make_fake(**kwargs: object) -> FakeBotInterrupt:
+            b = FakeBotInterrupt(**kwargs)
+            bot_ref.append(b)
+            return b
+
+        monkeypatch.setattr("edumatcher.mm_bot.bot.MMBot", _make_fake)
+
+        with pytest.raises(SystemExit) as exc_info:
+            mm_main.main(["--symbol", "AAPL"])
+        assert exc_info.value.code == 0
+        assert bot_ref[0].shutdown_called
+
+
+class TestAdditionalBotPaths:
+    """Cover remaining uncovered paths for the 88% target."""
+
+    def _ready_bot(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> tuple[MMBot, _FakeSock, _FakeSock]:
+        bot, push, sub = _make_bot(monkeypatch, initial_min=95.0, initial_max=105.0)
+        bot._push_sock = push
+        bot._sub_sock = sub
+        bot._running = True
+        bot._session_state = "CONTINUOUS"
+        bot._state = BotState.QUOTING
+        bot._quote_id = "q-001"
+        bot._bid_order_id = "bid-001"
+        bot._ask_order_id = "ask-001"
+        bot._pricer = QuotePricer(tick_size=0.01, gap=0.10, drift_ticks=3)
+        assert bot._pricer is not None
+        bot._pricer.set_mid(100.0)
+        bot._quoted_at_mid = 100.0
+        return bot, push, sub
+
+    def test_cancel_and_reissue_guard_when_awaiting(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """_cancel_and_reissue returns early when already awaiting cancel."""
+        bot, push, sub = self._ready_bot(monkeypatch)
+        bot._awaiting_cancel_for_reissue = True
+        push.sent.clear()
+
+        bot._cancel_and_reissue()
+
+        # No additional cancel should be sent
+        assert len(push.sent) == 0
+
+    def test_tick_forces_replacement_on_cancel_timeout(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Cancel timeout in REPRICING with existing quote_id forces replacement."""
+        bot, push, sub = self._ready_bot(monkeypatch)
+        bot._state = BotState.REPRICING
+        bot._awaiting_cancel_for_reissue = True
+        bot._reissue_at = 0  # expired
+        push.sent.clear()
+
+        bot._tick()
+
+        # Should have cleared quote state and sent a new quote
+        topics = [msg_decode(m)[0] for m in push.sent]
+        assert "quote.new" in topics
+        assert bot._quote_id is None
+
+    def test_tick_moves_to_waiting_when_no_session(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Reissue timer fires but session is non-CONTINUOUS → WAITING_FOR_SESSION."""
+        bot, push, sub = self._ready_bot(monkeypatch)
+        bot._session_state = "CLOSED"
+        bot._reissue_at = 0  # expired
+        push.sent.clear()
+
+        bot._tick()
+
+        assert bot._state == BotState.WAITING_FOR_SESSION
+        assert len(push.sent) == 0
+
+    def test_tick_periodic_qlegs_request(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Periodic QLEGS reconciliation request is sent from heartbeat."""
+        bot, push, sub = self._ready_bot(monkeypatch)
+        bot._last_qlegs_reconcile = 0.0  # force reconcile now
+        push.sent.clear()
+
+        bot._tick()
+
+        topics = [msg_decode(m)[0] for m in push.sent]
+        assert "system.quote_legs_request" in topics
+
+    def test_dispatch_qlegs_during_main_loop(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """QLEGS reply in main event loop is handled by _reconcile_qlegs."""
+        bot, push, sub = self._ready_bot(monkeypatch)
+        # Matching legs — no mismatch, no reissue
+        bot._dispatch(
+            "system.quote_legs.MM_AAPL_01",
+            {
+                "legs": [
+                    {"quote_id": "q-001", "order_id": "bid-001", "side": "BUY"},
+                    {"quote_id": "q-001", "order_id": "ask-001", "side": "SELL"},
+                ]
+            },
+        )
+        assert bot._quote_id == "q-001"
+        assert bot._reissue_at is None
+
+    def test_adopted_quote_paused_session(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Adopted quote with non-CONTINUOUS session starts in PAUSED."""
+        bot, push, sub = _make_bot(monkeypatch)
+        active_quote = {
+            "symbol": "AAPL",
+            "state": "ACTIVE",
+            "quote_id": "q-existing",
+            "bid_order_id": "bid-001",
+            "ask_order_id": "ask-001",
+            "bid_price": 149.95,
+            "ask_price": 150.05,
+        }
+        sub.recv_queue.extend(
+            [
+                _auth_msg(),
+                _symbols_msg(),
+                _boot_msg([active_quote]),
+                _qlegs_msg(
+                    [{"quote_id": "q-existing", "order_id": "bid-001", "side": "BUY"}]
+                ),
+                _session_msg("CLOSED"),
+            ]
+        )
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        bot.run()
+
+        assert bot._state == BotState.PAUSED
+
+    def test_send_quote_no_mid_skips(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """_send_quote does nothing when no mid-price is set."""
+        bot, push, sub = self._ready_bot(monkeypatch)
+        assert bot._pricer is not None
+        bot._pricer._mid_price = None
+        push.sent.clear()
+
+        bot._send_quote()
+
+        assert len(push.sent) == 0
+
+    def test_handle_trade_no_op_when_mid_already_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """trade.executed is ignored when a book-derived mid is already available."""
+        bot, push, sub = self._ready_bot(monkeypatch)
+        # mid already set to 100.0
+        bot._dispatch("trade.executed", {"symbol": "AAPL", "price": 99.0})
+        # mid should NOT change
+        assert bot._pricer is not None
+        assert bot._pricer.mid_price == pytest.approx(100.0)
+
+    def test_startup_qlegs_mismatch_clears_adopted_state(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """QLEGS at startup contradicts adopted quote → clear and reissue."""
+        bot, push, sub = _make_bot(monkeypatch, initial_min=95.0, initial_max=105.0)
+        active_quote = {
+            "symbol": "AAPL",
+            "state": "ACTIVE",
+            "quote_id": "q-adopted",
+            "bid_order_id": "bid-001",
+            "ask_order_id": "ask-001",
+            "bid_price": 149.95,
+            "ask_price": 150.05,
+        }
+        sub.recv_queue.extend(
+            [
+                _auth_msg(),
+                _symbols_msg(),
+                _boot_msg([active_quote]),
+                # QLEGS says different quote_id — mismatch!
+                _qlegs_msg([{"quote_id": "q-DIFFERENT", "order_id": "bid-999"}]),
+                _session_msg("CONTINUOUS"),
+            ]
+        )
+        monkeypatch.setattr(
+            "edumatcher.mm_bot.bot.signal.signal", lambda *a, **kw: None
+        )
+        bot.run()
+
+        # Adopted state cleared → quote.new should have been sent
+        topics_sent = [msg_decode(m)[0] for m in push.sent]
+        assert "quote.new" in topics_sent
