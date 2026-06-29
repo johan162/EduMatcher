@@ -288,6 +288,12 @@ clean: ## Remove build artefacts, caches, stamp files (keeps .venv intact)
 maintainer-clean: clean-venv clean ## Full clean including .venv (use before a fresh reinstall)
 	@echo -e "$(GREEN)✓ Maintainer clean completed$(NC)"
 
+clean-gh: ## Clean GitHub Actions artefacts (runs clean + removes .github/workflows/.cache)
+	./scripts/mkdelghactions.sh --delete --keep 3
+	@echo -e "$(DARKYELLOW)- Removing GitHub Actions cache...$(NC)"
+	@rm -rf .github/workflows/.cache
+	@echo -e "$(GREEN)✓ GitHub Actions artefacts cleaned$(NC)"
+
 # ============================================================================================
 # Git
 # ============================================================================================
