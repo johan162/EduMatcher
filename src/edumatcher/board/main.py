@@ -24,6 +24,8 @@ import time
 from datetime import datetime
 from typing import Any
 
+import errno
+
 import zmq
 from rich.console import Console
 from rich.live import Live
@@ -184,7 +186,9 @@ def main() -> None:
                 # Poll ZMQ for incoming messages (100ms tick)
                 try:
                     socks = dict(poller.poll(timeout=100))
-                except zmq.ZMQError:
+                except zmq.ZMQError as exc:
+                    if exc.errno != errno.EINTR:
+                        raise
                     break
 
                 if sub in socks:
@@ -208,8 +212,8 @@ def main() -> None:
                         # Best bid/ask from top of book
                         bids = payload.get("bids", [])
                         asks = payload.get("asks", [])
-                        entry["best_bid"] = bids[0]["price"] if bids else None
-                        entry["best_ask"] = asks[0]["price"] if asks else None
+                        entry["best_bid"] = bids[0].get("price") if bids else None
+                        entry["best_ask"] = asks[0].get("price") if asks else None
 
                         # Track first price for % change
                         if (
