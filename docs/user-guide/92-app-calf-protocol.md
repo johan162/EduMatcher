@@ -47,6 +47,7 @@ behavior.
 - top-of-book updates (`MD`) by symbol
 - trade prints (`TRADE`) by symbol
 - state transitions (`STATE`) for session-wide and symbol-level changes
+- index level updates (`IDX`) from `pm-index`
 - point-in-time stream baselines (`SNAP`) for `TOP` and `STATE`
 - per-stream sequence numbers on `(CH, SYM)`
 - bounded replay on reconnect (`RESUME=1` + `LASTSEQ`)
@@ -153,6 +154,7 @@ CALF groups market data into logical channels.
 | `TOP`   | Best bid/ask updates and snapshots  | No               |
 | `TRADE` | Trade prints                        | No               |
 | `STATE` | Session or symbol state transitions | Yes              |
+| `INDEX` | Index level updates                 | No               |
 
 `SNAP` is a message type, not a channel.
 
@@ -257,6 +259,7 @@ sequenceDiagram
 | `MD`    | Gateway -> Client | Incremental top-of-book update        |
 | `TRADE` | Gateway -> Client | Trade print                           |
 | `STATE` | Gateway -> Client | Session/symbol state transition       |
+| `IDX`   | Gateway -> Client | Index level update                    |
 
 
 
@@ -456,6 +459,34 @@ STATE|CH=STATE|SYM=*|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=
 STATE|CH=STATE|SYM=AAPL|SEQ=3|TS=2026-06-07T11:02:17.330Z|SESSION=HALTED|PREV=CONTINUOUS
 ```
 
+### `IDX`
+
+**Direction:** Gateway -> Client
+
+**Purpose:** Index level update for one `INDEX` stream.
+
+| Field     | Req | Description                                          |
+|-----------|-----|------------------------------------------------------|
+| `CH`      | Yes | `INDEX`                                              |
+| `SYM`     | Yes | Index identifier (e.g. `EDU50`)                      |
+| `SEQ`     | Yes | Stream-local sequence number                         |
+| `TS`      | Yes | Event timestamp                                      |
+| `LEVEL`   | Yes | Current index level, decimal string                  |
+| `SESSION` | Yes | Index session state                                  |
+| `OPEN`    | No  | Day open level, decimal string                       |
+| `HIGH`    | No  | Day high, decimal string                             |
+| `LOW`     | No  | Day low, decimal string                              |
+| `CHG`     | No  | Change from open, signed decimal e.g. `+1.23`        |
+| `PCTCHG`  | No  | Percent change from open, signed e.g. `+0.45`        |
+| `AGGCAP`  | No  | Aggregate market cap, integer string                 |
+
+`IDX` has no baseline `SNAP` variant in CALF `1.0.0`. Delivery starts from
+events that occur after the subscription becomes active.
+
+```text
+IDX|CH=INDEX|SYM=EDU50|SEQ=12|TS=2026-06-07T10:16:00.000Z|LEVEL=5123.45|SESSION=CONTINUOUS|OPEN=5100.00|CHG=+23.45|PCTCHG=+0.46
+```
+
 ### `HB`
 
 **Direction:** Gateway -> Client
@@ -492,16 +523,16 @@ PONG
 
 Normative error codes:
 
-| Code              | Meaning                                       |
-|-------------------|-----------------------------------------------|
-| `PROTO_MISMATCH`  | Unsupported protocol in `HELLO`               |
-| `AUTH_REQUIRED`   | Non-HELLO message before successful handshake |
-| `INVALID_CHANNEL` | Unknown channel in `SUB`/`UNSUB`              |
-| `INVALID_SYMBOL`  | Unknown symbol or invalid `SYM=*` usage       |
-| `SUB_LIMIT`       | Subscription exceeds max symbol limit         |
-| `REPLAY_MISS`     | Resume request is outside replay window       |
-| `SLOW_CLIENT`     | Outbound queue overflow                       |
-| `BAD_MESSAGE`     | Parse failure or oversize line                |
+| Code              | Meaning                                                                          |
+|-------------------|---------------------------------------------------------------------------------|
+| `PROTO_MISMATCH`  | `HELLO` missing `CLIENT` or `PROTO != CALF1`                                    |
+| `AUTH_REQUIRED`   | Non-`HELLO` message sent before successful handshake                            |
+| `INVALID_CHANNEL` | `CH` not in `{TOP, TRADE, STATE, INDEX}`                                        |
+| `INVALID_SYMBOL`  | Symbol not in known list, or wildcard used on wrong channel                     |
+| `SUB_LIMIT`       | Subscription would exceed `max_symbols_per_client`                              |
+| `REPLAY_MISS`     | `LASTSEQ` is older than the replay window; gateway sends a `SNAP` instead       |
+| `SLOW_CLIENT`     | Outbound queue exceeded `max_client_queue`; connection closed                   |
+| `BAD_MESSAGE`     | Parse failure, oversized line (> 4096 bytes), or unsupported message type       |
 
 Terminal behavior:
 
