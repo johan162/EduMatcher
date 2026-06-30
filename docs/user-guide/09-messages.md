@@ -1395,6 +1395,129 @@ event confirming the new phase.
 
 
 
+## Index messages (operator / gateway → pm-index / pm-index → subscribers)
+
+The `pm-index` process owns its own PULL socket (`:INDEX_PULL_ADDR`) for
+operator commands and publishes results on its own PUB socket
+(`:INDEX_PUB_ADDR`).  It also subscribes to the engine PUB socket for
+`trade.executed`, `session.state`, and `system.eod`.
+
+### `index.history_request`
+
+**Motivation:** Allows gateways and operator tools to retrieve historical index
+levels and corporate-action records without polling the state file.
+**Published by:** Any client (gateway, operator CLI) via PUSH → pm-index PULL
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Routing key — reply is sent to `index.history.{gateway_id}` |
+| `index_id` | string | Index identifier (e.g. `"EDU50"`) |
+| `from_ts` | float | Start of query window (Unix epoch seconds; default: 30 days ago) |
+| `to_ts` | float | End of query window (Unix epoch seconds; default: now) |
+| `types` | array of string | Record types to return: `"LEVEL"`, `"EOD"`, `"CORP_ACTION"`, `"INIT"`, `"ADD_CONSTITUENT"`, `"DELIST"` (default: `["LEVEL", "EOD"]`) |
+| `max_records` | integer | Maximum number of records to return (default: 10 000) |
+
+**Reply:** `index.history.{gateway_id}`
+
+| Field | Type | Description |
+|---|---|---|
+| `index_id` | string | Echoed index identifier |
+| `records` | array | Matching history records in chronological order |
+| `warnings` | array of string | Optional truncation or range warnings |
+
+
+
+### `index.corp_action`
+
+**Motivation:** Allows operators to apply corporate actions (splits, dividends,
+share issuances) that affect index divisor continuity.
+**Published by:** Operator tool via PUSH → pm-index PULL
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Routing key for the ack reply |
+| `index_id` | string | Target index |
+| `action` | string | `"SPLIT"`, `"CASH_DIVIDEND"`, or `"SHARES_ISSUANCE"` |
+| `symbol` | string | Affected constituent symbol |
+| `ratio_numerator` | integer | For `SPLIT`: numerator of split ratio (e.g. `2` for 2-for-1) |
+| `ratio_denominator` | integer | For `SPLIT`: denominator of split ratio |
+| `dividend_per_share` | float | For `CASH_DIVIDEND`: gross dividend amount per share |
+| `new_shares_outstanding` | integer | For `SHARES_ISSUANCE`: updated total shares outstanding |
+
+**Reply:** `index.corp_action_ack.{gateway_id}`
+
+| Field | Type | Description |
+|---|---|---|
+| `accepted` | boolean | Whether the action was applied |
+| `reason` | string | Error description when `accepted` is false |
+| `index_id` | string | Echoed index identifier |
+| `level` | float | New index level after the action (present when accepted) |
+| `divisor` | float | New divisor after the action (present when accepted) |
+| `timestamp` | float | Unix epoch seconds |
+
+
+
+### `index.constituent_change`
+
+**Motivation:** Allows operators to add or delist a constituent while preserving
+index level continuity via a divisor adjustment.
+**Published by:** Operator tool via PUSH → pm-index PULL
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Routing key for the ack reply |
+| `index_id` | string | Target index |
+| `change_type` | string | `"ADD"` or `"DELIST"` |
+| `symbol` | string | Symbol being added or delisted |
+| `shares_outstanding` | integer | For `ADD`: shares outstanding for the new constituent |
+| `initial_price` | float | For `ADD`: reference price used for divisor adjustment |
+
+**Reply:** `index.constituent_change_ack.{gateway_id}`
+
+| Field | Type | Description |
+|---|---|---|
+| `accepted` | boolean | Whether the change was applied |
+| `reason` | string | Error description when `accepted` is false |
+| `index_id` | string | Echoed index identifier |
+| `level` | float | New index level after the change (present when accepted) |
+| `divisor` | float | New divisor after the change (present when accepted) |
+| `timestamp` | float | Unix epoch seconds |
+
+
+
+### `index.update`
+
+**Motivation:** Distributes the current index level to all subscribers after
+every constituent trade or forced recalculation.
+**Published by:** pm-index via PUB (`:INDEX_PUB_ADDR`)
+
+| Field | Type | Description |
+|---|---|---|
+| `index_id` | string | Index identifier |
+| `level` | float | Current index level |
+| `aggregate_cap` | float | Sum of constituent market caps at current prices |
+| `divisor` | float | Current divisor |
+| `session_state` | string | Session phase at time of publication |
+| `day_open` | float \| null | First level of the trading day (omitted before first trade) |
+| `day_high` | float \| null | Intraday high (omitted before first trade) |
+| `day_low` | float \| null | Intraday low (omitted before first trade) |
+| `timestamp` | float | Unix epoch seconds |
+
+
+
+### `index.error.{gateway_id}`
+
+**Motivation:** Uniform error reply for any rejected index request.
+**Published by:** pm-index via PUB
+
+| Field | Type | Description |
+|---|---|---|
+| `accepted` | boolean | Always `false` |
+| `reason` | string | Human-readable error description |
+| `timestamp` | float | Unix epoch seconds |
+
+
+
 ## Subscription filter summary
 
 | Subscriber | Topics subscribed |
@@ -1406,6 +1529,199 @@ event confirming the new phase.
 | Audit | *(empty filter — receives everything)* |
 | Statistics | `trade.`, `book.`, `system.eod`, `system.symbols.STATS`, `session.state`, `auction.result.` |
 | AI trader / bot | `session.state`, `circuit_breaker.halt.`, `circuit_breaker.resume.`, `book.`, `depth.`, `trade.executed`, `order.ack.{GW}`, `order.fill.{GW}`, `order.cancelled.{GW}`, `order.expired.{GW}`, `system.symbols.{GW}`, `system.gateway_auth.{GW}`, `system.halt_status.{GW}`, `system.position_snapshot.{GW}`, `system.eod` |
+| Market-data gateway (`pm-md-gwy`) | `book.`, `trade.executed`, `session.state`, `circuit_breaker.halt.`, `circuit_breaker.resume.`, `index.` |
+
+
+
+## CALF TCP protocol (`pm-md-gwy`)
+
+The market-data gateway exposes a newline-delimited UTF-8 text protocol on TCP port 5570.
+Each line is `MSGTYPE|KEY=VALUE|KEY=VALUE\n`. All four allowed channels are
+`TOP`, `TRADE`, `STATE`, and `INDEX`.
+
+### Client → gateway
+
+#### `HELLO` — authenticate and open session
+
+| Field | Required | Description |
+|---|---|---|
+| `CLIENT` | yes | Client identifier, max 32 characters |
+| `PROTO` | yes | Must be `CALF1` |
+| `RESUME` | no | Set `1` to request stream replay (requires `CH`, `SYM`, `LASTSEQ`) |
+| `CH` | when `RESUME=1` | Channel to resume |
+| `SYM` | when `RESUME=1` | Symbol to resume |
+| `LASTSEQ` | when `RESUME=1` | Last sequence received; gateway replays events after this |
+
+**Reply:** `WELCOME` on success; `ERR|CODE=PROTO_MISMATCH` otherwise.
+
+
+
+#### `SUB` — subscribe to streams
+
+| Field | Required | Description |
+|---|---|---|
+| `CH` | yes | Comma-separated channels: `TOP`, `TRADE`, `STATE`, `INDEX` |
+| `SYM` | yes | Comma-separated symbols; `*` wildcard only valid for `STATE` |
+
+Subscribing to `TOP` or `STATE` triggers an immediate `SNAP` per new stream.
+`TRADE` and `INDEX` subscriptions have no baseline snapshot — only future events are delivered.
+
+**Reply:** Implicit `SNAP` per new `TOP`/`STATE` stream; `ERR` on invalid channel or symbol.
+
+
+
+#### `UNSUB` — cancel subscriptions
+
+| Field | Required | Description |
+|---|---|---|
+| `CH` | yes | Comma-separated channels to remove |
+| `SYM` | yes | Comma-separated symbols to remove |
+
+`UNSUB` is idempotent; removing a non-existent `(CH, SYM)` pair has no effect.
+
+
+
+#### `PING` — keepalive
+
+No fields. **Reply:** `PONG`
+
+
+
+#### `EXIT` — close connection gracefully
+
+No fields. Gateway drains the output queue then disconnects.
+
+
+
+### Gateway → client
+
+#### `WELCOME` — session open confirmation
+
+| Field | Description |
+|---|---|
+| `PROTO` | `CALF1` |
+| `GW` | Gateway name (from config) |
+| `HBINT` | Heartbeat interval in seconds |
+| `REPLAY` | Replay window in seconds |
+| `SYMBOLS` | Comma-separated known symbol list (omitted when empty) |
+
+
+
+#### `SNAP` — stream baseline snapshot
+
+Sent after `SUB` for `TOP`/`STATE` channels and after a successful replay resume.
+
+| Field | Description |
+|---|---|
+| `CH` | Channel |
+| `SYM` | Symbol or index ID |
+| `SEQ` | Stream-local sequence number (starts at 1) |
+| `TS` | UTC ISO-8601 timestamp with millisecond precision |
+| *(payload)* | Same fields as the corresponding incremental message type |
+
+
+
+#### `MD` — incremental top-of-book update (`TOP` channel)
+
+| Field | Description |
+|---|---|
+| `CH` | `TOP` |
+| `SYM` | Symbol |
+| `SEQ` | Stream-local sequence number |
+| `TS` | Timestamp |
+| `BID` | Best bid price, decimal string (omitted if unchanged) |
+| `BIDSZ` | Best bid size, integer string (omitted if bid unchanged) |
+| `ASK` | Best ask price, decimal string (omitted if unchanged) |
+| `ASKSZ` | Best ask size, integer string (omitted if ask unchanged) |
+| `LAST` | Last trade price, decimal string (omitted if unchanged) |
+| `LASTSZ` | Last trade size, integer string (omitted if unchanged) |
+
+
+
+#### `TRADE` — trade print (`TRADE` channel)
+
+| Field | Description |
+|---|---|
+| `CH` | `TRADE` |
+| `SYM` | Symbol |
+| `SEQ` | Stream-local sequence number |
+| `TS` | Timestamp |
+| `PX` | Trade price, decimal string |
+| `QTY` | Trade quantity, integer string |
+| `SIDE` | Aggressor side (`BUY` or `SELL`) |
+
+
+
+#### `STATE` — session or symbol state change (`STATE` channel)
+
+| Field | Description |
+|---|---|
+| `CH` | `STATE` |
+| `SYM` | Symbol, or `*` for a session-wide transition |
+| `SEQ` | Stream-local sequence number |
+| `TS` | Timestamp |
+| `SESSION` | New state (`CONTINUOUS`, `HALTED`, `OPENING_AUCTION`, etc.) |
+| `PREV` | Previous state (omitted for session-wide events without a prior state) |
+
+
+
+#### `IDX` — index level update (`INDEX` channel)
+
+| Field | Description |
+|---|---|
+| `CH` | `INDEX` |
+| `SYM` | Index identifier |
+| `SEQ` | Stream-local sequence number |
+| `TS` | Timestamp |
+| `LEVEL` | Current index level, decimal string |
+| `SESSION` | Index session state |
+| `OPEN` | Day open level, decimal string (optional) |
+| `HIGH` | Day high, decimal string (optional) |
+| `LOW` | Day low, decimal string (optional) |
+| `CHG` | Change from open, signed decimal string e.g. `+1.23` (optional) |
+| `PCTCHG` | Percent change from open, signed e.g. `+0.45` (optional) |
+| `AGGCAP` | Aggregate market cap, integer string (optional) |
+
+
+
+#### `HB` — heartbeat
+
+Sent when no market data has been queued within `heartbeat_interval_sec` seconds.
+
+| Field | Description |
+|---|---|
+| `TS` | Current gateway UTC timestamp |
+
+
+
+#### `PONG` — ping reply
+
+No fields.
+
+
+
+#### `ERR` — error
+
+| Field | Description |
+|---|---|
+| `CODE` | Machine-readable error code |
+| `MSG` | Human-readable description (optional) |
+| `CH` | Affected channel (where applicable) |
+| `SYM` | Affected symbol (where applicable) |
+
+**Error codes**
+
+| Code | Cause |
+|---|---|
+| `AUTH_REQUIRED` | Client sent a message before `HELLO` |
+| `PROTO_MISMATCH` | `HELLO` missing `CLIENT` or `PROTO != CALF1` |
+| `BAD_MESSAGE` | Parse failure, oversized line (> 4096 bytes), or unsupported message type |
+| `INVALID_CHANNEL` | `CH` not in `{TOP, TRADE, STATE, INDEX}` |
+| `INVALID_SYMBOL` | Symbol not in known list, or wildcard used on wrong channel |
+| `SUB_LIMIT` | Subscription would exceed `max_symbols_per_client` |
+| `REPLAY_MISS` | `LASTSEQ` is older than the replay window; gateway sends a `SNAP` instead |
+| `SLOW_CLIENT` | Outbound queue exceeded `max_client_queue`; connection closed |
+
 
 ## See also
 
@@ -1414,18 +1730,5 @@ event confirming the new phase.
 - [Commands](02-commands.md) — `ExchangeCommandClient` methods and their underlying message topics
 - [Drop Copy](13-drop-copy.md) — the separate :5557 socket for fill-only event feeds
 - [Risk Controls](12-risk-controls.md) — `risk.*` message payloads in detail
+- [CALF TCP Protocol](#calf-tcp-protocol-pm-md-gwy) — external market-data feed message types
 
-
-
-## Price And Timestamp Semantics (v2)
-
-- Internal engine/model state uses integer ticks for price and integer
-  nanoseconds for ordering-critical timestamps.
-- External process payloads keep human-readable decimal prices and seconds-based
-  timestamps where appropriate.
-- Message producers convert from internal ticks/ns at publish boundaries.
-
-Practical rule:
-
-- Do not perform business logic on decimal payload values in core matching code.
-- Do conversion at process edges only.
