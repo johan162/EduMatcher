@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import threading
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -179,7 +180,9 @@ class EngineClient:
         while self._running:
             try:
                 ready = dict(poller.poll(timeout=200))
-            except zmq.ZMQError:
+            except zmq.ZMQError as exc:
+                if exc.errno != errno.EINTR:
+                    raise
                 break
             if self._sub not in ready:
                 continue

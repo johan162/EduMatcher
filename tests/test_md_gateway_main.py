@@ -83,6 +83,9 @@ market_data_gateway: {}
         def run(self) -> None:
             called["run"] = True
 
+        def close(self) -> None:
+            pass
+
     monkeypatch.setattr(md_main, "MarketDataGateway", _DummyGateway)
     md_main.main()
     assert called["run"] is True

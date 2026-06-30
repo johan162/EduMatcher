@@ -7,7 +7,6 @@ from pathlib import Path
 
 from edumatcher.config import (
     ENGINE_CONFIG_FILE,
-    ENGINE_PUB_ADDR,
     INDEX_PUB_CONNECT_ADDR,
 )
 from edumatcher.engine.config_loader import load_engine_config
@@ -32,8 +31,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--port", type=int, help="TCP bind port override")
     parser.add_argument(
         "--engine-pub",
-        default=ENGINE_PUB_ADDR,
-        help="Engine PUB socket address (default: tcp://127.0.0.1:5556)",
+        default=None,
+        help="Engine PUB socket address (overrides config; default: tcp://127.0.0.1:5556)",
     )
     parser.add_argument(
         "--index-pub",
@@ -96,7 +95,10 @@ def main() -> None:
         return
 
     gateway = MarketDataGateway(config=config, known_symbols=known_symbols)
-    gateway.run()
+    try:
+        gateway.run()
+    finally:
+        gateway.close()
 
 
 __all__ = ["main", "_build_parser", "_resolve_config"]

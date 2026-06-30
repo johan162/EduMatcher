@@ -686,14 +686,14 @@ sequenceDiagram
 
 ### Key differences from automatic circuit breakers
 
-| Property | Automatic CB (per-symbol) | ADMIN global halt |
-|---|---|---|
-| Trigger | Trade price deviation | Operator command |
-| Scope | Single symbol | All symbols |
-| Resume | Scheduled timer (or AUCTION uncross) | Explicit `risk.circuit_breaker_resume_all` |
-| Quotes cancelled on halt | Yes | Yes |
-| `resumption_mode` | `AUCTION` or `CONTINUOUS` | Always `MANUAL` |
-| Who can send | Any connected gateway | `ADMIN` role only |
+| Property                 | Automatic CB (per-symbol)            | ADMIN global halt                          |
+|--------------------------|--------------------------------------|--------------------------------------------|
+| Trigger                  | Trade price deviation                | Operator command                           |
+| Scope                    | Single symbol                        | All symbols                                |
+| Resume                   | Scheduled timer (or AUCTION uncross) | Explicit `risk.circuit_breaker_resume_all` |
+| Quotes cancelled on halt | Yes                                  | Yes                                        |
+| `resumption_mode`        | `AUCTION` or `CONTINUOUS`            | Always `MANUAL`                            |
+| Who can send             | Any connected gateway                | `ADMIN` role only                          |
 
 
 
@@ -747,13 +747,13 @@ payload: {
 
 ### Differences from a halt
 
-| Property | Kill switch | Instrument halt |
-|---|---|---|
-| Scope | One gateway's orders | All orders on a symbol |
-| Symbol trading | Continues uninterrupted | Paused |
-| New orders accepted | Yes | LIMIT/ICEBERG only |
-| Requires ADMIN role | No | No (per-symbol); Yes (exchange-wide) |
-| Auto-resume | Not applicable | Yes (CB) / Manual (operator) |
+| Property            | Kill switch             | Instrument halt                      |
+|---------------------|-------------------------|--------------------------------------|
+| Scope               | One gateway's orders    | All orders on a symbol               |
+| Symbol trading      | Continues uninterrupted | Paused                               |
+| New orders accepted | Yes                     | LIMIT/ICEBERG only                   |
+| Requires ADMIN role | No                      | No (per-symbol); Yes (exchange-wide) |
+| Auto-resume         | Not applicable          | Yes (CB) / Manual (operator)         |
 
 !!! note "No cross-gateway kill switch"
     A kill switch always targets a single gateway.  There is no command to
@@ -766,10 +766,10 @@ payload: {
 
 When any halt fires — whether triggered by a circuit breaker, a per-symbol operator halt, or the exchange-wide ADMIN halt — **all outstanding market-maker quote legs for the affected symbols are cancelled immediately**. This protects market makers from having stale quotes executed against them during a disorderly market. The cancellation reason included in the `order.cancelled` message distinguishes the halt source:
 
-| Halt source | Cancellation reason text |
-|---|---|
-| Circuit breaker | `"Circuit breaker halt"` |
-| Per-symbol operator halt | `"Per-symbol halt"` |
+| Halt source              | Cancellation reason text        |
+|--------------------------|---------------------------------|
+| Circuit breaker          | `"Circuit breaker halt"`        |
+| Per-symbol operator halt | `"Per-symbol halt"`             |
 | Exchange-wide ADMIN halt | `"Global circuit breaker halt"` |
 
 When a symbol resumes, market makers are expected to submit fresh quotes at updated prices. The engine will begin enforcing MM obligation checks again immediately upon resumption.

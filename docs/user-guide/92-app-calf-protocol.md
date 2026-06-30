@@ -22,11 +22,11 @@ terminal, and strict enough to support deterministic clients.
 
 CALF complements the other application protocols:
 
-| Protocol | Purpose |
-|---|---|
-| ALF | Text order entry (interactive) |
-| BALF | Binary order entry (low-latency programmatic) |
-| CALF | Channelized text market data |
+| Protocol | Purpose                                       |
+|----------|-----------------------------------------------|
+| ALF      | Text order entry (interactive)                |
+| BALF     | Binary order entry (low-latency programmatic) |
+| CALF     | Channelized text market data                  |
 
 This appendix is the **normative reference** for CALF `1.0.0` semantics.
 
@@ -47,6 +47,7 @@ behavior.
 - top-of-book updates (`MD`) by symbol
 - trade prints (`TRADE`) by symbol
 - state transitions (`STATE`) for session-wide and symbol-level changes
+- index level updates (`IDX`) from `pm-index`
 - point-in-time stream baselines (`SNAP`) for `TOP` and `STATE`
 - per-stream sequence numbers on `(CH, SYM)`
 - bounded replay on reconnect (`RESUME=1` + `LASTSEQ`)
@@ -124,21 +125,21 @@ contain half a line, one full line, or many lines.
 
 ### Reserved keys
 
-| Key | Meaning |
-|---|---|
-| `CH` | Logical channel (`TOP`, `TRADE`, `STATE`) |
-| `SYM` | Symbol or `*` where allowed |
+| Key   | Meaning                                    |
+|-------|--------------------------------------------|
+| `CH`  | Logical channel (`TOP`, `TRADE`, `STATE`)  |
+| `SYM` | Symbol or `*` where allowed                |
 | `SEQ` | Sequence number for one `(CH, SYM)` stream |
-| `TS` | UTC ISO-8601 timestamp with milliseconds |
+| `TS`  | UTC ISO-8601 timestamp with milliseconds   |
 
 ### Wire value types
 
-| Type | Wire representation | Example |
-|---|---|---|
-| Decimal price | Text decimal | `150.25` |
-| Integer | Base-10 text integer | `1200` |
-| Boolean flag | `0` or `1` | `RESUME=1` |
-| Timestamp | UTC ISO-8601 ms | `2026-06-07T10:15:23.411Z` |
+| Type          | Wire representation  | Example                    |
+|---------------|----------------------|----------------------------|
+| Decimal price | Text decimal         | `150.25`                   |
+| Integer       | Base-10 text integer | `1200`                     |
+| Boolean flag  | `0` or `1`           | `RESUME=1`                 |
+| Timestamp     | UTC ISO-8601 ms      | `2026-06-07T10:15:23.411Z` |
 
 Optional fields are omitted when not present. Empty required values are invalid.
 
@@ -148,11 +149,12 @@ Optional fields are omitted when not present. Empty required values are invalid.
 
 CALF groups market data into logical channels.
 
-| Channel | Description | `SYM=*` allowed? |
-|---|---|---|
-| `TOP` | Best bid/ask updates and snapshots | No |
-| `TRADE` | Trade prints | No |
-| `STATE` | Session or symbol state transitions | Yes |
+| Channel | Description                         | `SYM=*` allowed? |
+|---------|-------------------------------------|------------------|
+| `TOP`   | Best bid/ask updates and snapshots  | No               |
+| `TRADE` | Trade prints                        | No               |
+| `STATE` | Session or symbol state transitions | Yes              |
+| `INDEX` | Index level updates                 | No               |
 
 `SNAP` is a message type, not a channel.
 
@@ -237,26 +239,27 @@ sequenceDiagram
 
 ### Session control messages
 
-| Message | Direction | Purpose |
-|---|---|---|
-| `HELLO` | Client -> Gateway | Start session; optional single-stream resume |
-| `WELCOME` | Gateway -> Client | Confirm session and advertise parameters |
-| `SUB` | Client -> Gateway | Add subscriptions |
-| `UNSUB` | Client -> Gateway | Remove subscriptions |
-| `PING` | Client -> Gateway | Liveness probe |
-| `PONG` | Gateway -> Client | Probe reply |
-| `HB` | Gateway -> Client | Heartbeat when quiet |
-| `ERR` | Gateway -> Client | Protocol or flow error |
-| `EXIT` | Client -> Gateway | Clean disconnect |
+| Message   | Direction         | Purpose                                      |
+|-----------|-------------------|----------------------------------------------|
+| `HELLO`   | Client -> Gateway | Start session; optional single-stream resume |
+| `WELCOME` | Gateway -> Client | Confirm session and advertise parameters     |
+| `SUB`     | Client -> Gateway | Add subscriptions                            |
+| `UNSUB`   | Client -> Gateway | Remove subscriptions                         |
+| `PING`    | Client -> Gateway | Liveness probe                               |
+| `PONG`    | Gateway -> Client | Probe reply                                  |
+| `HB`      | Gateway -> Client | Heartbeat when quiet                         |
+| `ERR`     | Gateway -> Client | Protocol or flow error                       |
+| `EXIT`    | Client -> Gateway | Clean disconnect                             |
 
 ### Market-data messages
 
-| Message | Direction | Purpose |
-|---|---|---|
-| `SNAP` | Gateway -> Client | Point-in-time baseline for one stream |
-| `MD` | Gateway -> Client | Incremental top-of-book update |
-| `TRADE` | Gateway -> Client | Trade print |
-| `STATE` | Gateway -> Client | Session/symbol state transition |
+| Message | Direction         | Purpose                               |
+|---------|-------------------|---------------------------------------|
+| `SNAP`  | Gateway -> Client | Point-in-time baseline for one stream |
+| `MD`    | Gateway -> Client | Incremental top-of-book update        |
+| `TRADE` | Gateway -> Client | Trade print                           |
+| `STATE` | Gateway -> Client | Session/symbol state transition       |
+| `IDX`   | Gateway -> Client | Index level update                    |
 
 
 
@@ -270,13 +273,13 @@ sequenceDiagram
 
 **Response:** `WELCOME` or `ERR`.
 
-| Field | Req | Description |
-|---|---|---|
-| `CLIENT` | Yes | Client ID (ASCII, max 32 chars) |
-| `PROTO` | Yes | Must be `CALF1` |
-| `RESUME` | No | `1` enables replay request |
-| `CH` | If `RESUME=1` | One channel to resume |
-| `SYM` | If `RESUME=1` | One symbol for resumed stream |
+| Field     | Req           | Description                            |
+|-----------|---------------|----------------------------------------|
+| `CLIENT`  | Yes           | Client ID (ASCII, max 32 chars)        |
+| `PROTO`   | Yes           | Must be `CALF1`                        |
+| `RESUME`  | No            | `1` enables replay request             |
+| `CH`      | If `RESUME=1` | One channel to resume                  |
+| `SYM`     | If `RESUME=1` | One symbol for resumed stream          |
 | `LASTSEQ` | If `RESUME=1` | Last received sequence for that stream |
 
 Validation rules:
@@ -295,13 +298,13 @@ HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
 
 **Direction:** Gateway -> Client
 
-| Field | Req | Description |
-|---|---|---|
-| `PROTO` | Yes | Echoes negotiated protocol |
-| `GW` | Yes | Gateway instance name |
-| `HBINT` | Yes | Heartbeat interval in seconds |
-| `REPLAY` | Yes | Replay window in seconds |
-| `SYMBOLS` | No | Optional comma-separated symbol list |
+| Field     | Req | Description                          |
+|-----------|-----|--------------------------------------|
+| `PROTO`   | Yes | Echoes negotiated protocol           |
+| `GW`      | Yes | Gateway instance name                |
+| `HBINT`   | Yes | Heartbeat interval in seconds        |
+| `REPLAY`  | Yes | Replay window in seconds             |
+| `SYMBOLS` | No  | Optional comma-separated symbol list |
 
 ```text
 WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT
@@ -311,9 +314,9 @@ WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT
 
 **Direction:** Client -> Gateway
 
-| Field | Req | Description |
-|---|---|---|
-| `CH` | Yes | Comma-separated channels |
+| Field | Req | Description                                     |
+|-------|-----|-------------------------------------------------|
+| `CH`  | Yes | Comma-separated channels                        |
 | `SYM` | Yes | Comma-separated symbols (`*` only with `STATE`) |
 
 **Response semantics:**
@@ -333,10 +336,10 @@ SUB|CH=STATE|SYM=*
 
 **Direction:** Client -> Gateway
 
-| Field | Req | Description |
-|---|---|---|
-| `CH` | Yes | Comma-separated channels |
-| `SYM` | Yes | Comma-separated symbols |
+| Field | Req | Description              |
+|-------|-----|--------------------------|
+| `CH`  | Yes | Comma-separated channels |
+| `SYM` | Yes | Comma-separated symbols  |
 
 `UNSUB` is idempotent. Removing a non-existent `(CH,SYM)` pair has no effect.
 
@@ -354,28 +357,28 @@ UNSUB|CH=TOP|SYM=AAPL
 
 Common fields:
 
-| Field | Req | Description |
-|---|---|---|
-| `CH` | Yes | `TOP` or `STATE` |
+| Field | Req | Description                     |
+|-------|-----|---------------------------------|
+| `CH`  | Yes | `TOP` or `STATE`                |
 | `SYM` | Yes | Symbol or `*` for session state |
-| `SEQ` | Yes | Current stream sequence |
-| `TS` | Yes | Snapshot timestamp |
+| `SEQ` | Yes | Current stream sequence         |
+| `TS`  | Yes | Snapshot timestamp              |
 
 `CH=TOP` fields:
 
-| Field | Req | Description |
-|---|---|---|
-| `BID` | No | Best bid price |
-| `BIDSZ` | No | Best bid size |
-| `ASK` | No | Best ask price |
-| `ASKSZ` | No | Best ask size |
-| `LAST` | No | Last trade price |
-| `LASTSZ` | No | Last trade size |
+| Field    | Req | Description      |
+|----------|-----|------------------|
+| `BID`    | No  | Best bid price   |
+| `BIDSZ`  | No  | Best bid size    |
+| `ASK`    | No  | Best ask price   |
+| `ASKSZ`  | No  | Best ask size    |
+| `LAST`   | No  | Last trade price |
+| `LASTSZ` | No  | Last trade size  |
 
 `CH=STATE` fields:
 
-| Field | Req | Description |
-|---|---|---|
+| Field     | Req | Description         |
+|-----------|-----|---------------------|
 | `SESSION` | Yes | Current state value |
 
 `TRADE` stream note:
@@ -394,18 +397,18 @@ SNAP|CH=STATE|SYM=*|SEQ=5|TS=2026-06-07T10:16:00.000Z|SESSION=CONTINUOUS
 
 **Purpose:** Incremental `TOP` update. Unchanged sides may be omitted.
 
-| Field | Req | Description |
-|---|---|---|
-| `CH` | Yes | `TOP` |
-| `SYM` | Yes | Symbol |
-| `SEQ` | Yes | Stream sequence |
-| `TS` | Yes | Event timestamp |
-| `BID` | No | Updated bid |
-| `BIDSZ` | No | Updated bid size |
-| `ASK` | No | Updated ask |
-| `ASKSZ` | No | Updated ask size |
-| `LAST` | No | Updated last trade price |
-| `LASTSZ` | No | Updated last trade size |
+| Field    | Req | Description              |
+|----------|-----|--------------------------|
+| `CH`     | Yes | `TOP`                    |
+| `SYM`    | Yes | Symbol                   |
+| `SEQ`    | Yes | Stream sequence          |
+| `TS`     | Yes | Event timestamp          |
+| `BID`    | No  | Updated bid              |
+| `BIDSZ`  | No  | Updated bid size         |
+| `ASK`    | No  | Updated ask              |
+| `ASKSZ`  | No  | Updated ask size         |
+| `LAST`   | No  | Updated last trade price |
+| `LASTSZ` | No  | Updated last trade size  |
 
 ```text
 MD|CH=TOP|SYM=AAPL|SEQ=1051|TS=2026-06-07T10:16:00.115Z|BID=150.11|BIDSZ=1400|ASK=150.13|ASKSZ=800
@@ -415,14 +418,14 @@ MD|CH=TOP|SYM=AAPL|SEQ=1051|TS=2026-06-07T10:16:00.115Z|BID=150.11|BIDSZ=1400|AS
 
 **Direction:** Gateway -> Client
 
-| Field | Req | Description |
-|---|---|---|
-| `CH` | Yes | `TRADE` |
-| `SYM` | Yes | Symbol |
-| `SEQ` | Yes | Stream sequence |
-| `TS` | Yes | Trade timestamp |
-| `PX` | Yes | Trade price |
-| `QTY` | Yes | Trade quantity |
+| Field  | Req | Description                      |
+|--------|-----|----------------------------------|
+| `CH`   | Yes | `TRADE`                          |
+| `SYM`  | Yes | Symbol                           |
+| `SEQ`  | Yes | Stream sequence                  |
+| `TS`   | Yes | Trade timestamp                  |
+| `PX`   | Yes | Trade price                      |
+| `QTY`  | Yes | Trade quantity                   |
 | `SIDE` | Yes | Aggressor side (`BUY` or `SELL`) |
 
 ```text
@@ -433,14 +436,14 @@ TRADE|CH=TRADE|SYM=AAPL|SEQ=809|TS=2026-06-07T10:16:00.141Z|PX=150.12|QTY=200|SI
 
 **Direction:** Gateway -> Client
 
-| Field | Req | Description |
-|---|---|---|
-| `CH` | Yes | `STATE` |
-| `SYM` | Yes | Symbol or `*` |
-| `SEQ` | Yes | Stream sequence |
-| `TS` | Yes | Transition timestamp |
-| `SESSION` | Yes | New state value |
-| `PREV` | No | Previous state when known |
+| Field     | Req | Description               |
+|-----------|-----|---------------------------|
+| `CH`      | Yes | `STATE`                   |
+| `SYM`     | Yes | Symbol or `*`             |
+| `SEQ`     | Yes | Stream sequence           |
+| `TS`      | Yes | Transition timestamp      |
+| `SESSION` | Yes | New state value           |
+| `PREV`    | No  | Previous state when known |
 
 Valid `SESSION` values:
 
@@ -456,15 +459,43 @@ STATE|CH=STATE|SYM=*|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=
 STATE|CH=STATE|SYM=AAPL|SEQ=3|TS=2026-06-07T11:02:17.330Z|SESSION=HALTED|PREV=CONTINUOUS
 ```
 
+### `IDX`
+
+**Direction:** Gateway -> Client
+
+**Purpose:** Index level update for one `INDEX` stream.
+
+| Field     | Req | Description                                          |
+|-----------|-----|------------------------------------------------------|
+| `CH`      | Yes | `INDEX`                                              |
+| `SYM`     | Yes | Index identifier (e.g. `EDU50`)                      |
+| `SEQ`     | Yes | Stream-local sequence number                         |
+| `TS`      | Yes | Event timestamp                                      |
+| `LEVEL`   | Yes | Current index level, decimal string                  |
+| `SESSION` | Yes | Index session state                                  |
+| `OPEN`    | No  | Day open level, decimal string                       |
+| `HIGH`    | No  | Day high, decimal string                             |
+| `LOW`     | No  | Day low, decimal string                              |
+| `CHG`     | No  | Change from open, signed decimal e.g. `+1.23`        |
+| `PCTCHG`  | No  | Percent change from open, signed e.g. `+0.45`        |
+| `AGGCAP`  | No  | Aggregate market cap, integer string                 |
+
+`IDX` has no baseline `SNAP` variant in CALF `1.0.0`. Delivery starts from
+events that occur after the subscription becomes active.
+
+```text
+IDX|CH=INDEX|SYM=EDU50|SEQ=12|TS=2026-06-07T10:16:00.000Z|LEVEL=5123.45|SESSION=CONTINUOUS|OPEN=5100.00|CHG=+23.45|PCTCHG=+0.46
+```
+
 ### `HB`
 
 **Direction:** Gateway -> Client
 
 Sent when no outbound market-data line was emitted during the heartbeat interval.
 
-| Field | Req | Description |
-|---|---|---|
-| `TS` | Yes | Gateway timestamp |
+| Field | Req | Description       |
+|-------|-----|-------------------|
+| `TS`  | Yes | Gateway timestamp |
 
 ```text
 HB|TS=2026-06-07T10:16:05.000Z
@@ -483,25 +514,25 @@ PONG
 
 **Direction:** Gateway -> Client
 
-| Field | Req | Description |
-|---|---|---|
-| `CODE` | Yes | Machine-readable error code |
-| `MSG` | No | Human-readable context |
-| `CH` | No | Channel context when relevant |
-| `SYM` | No | Symbol context when relevant |
+| Field  | Req | Description                   |
+|--------|-----|-------------------------------|
+| `CODE` | Yes | Machine-readable error code   |
+| `MSG`  | No  | Human-readable context        |
+| `CH`   | No  | Channel context when relevant |
+| `SYM`  | No  | Symbol context when relevant  |
 
 Normative error codes:
 
-| Code | Meaning |
-|---|---|
-| `PROTO_MISMATCH` | Unsupported protocol in `HELLO` |
-| `AUTH_REQUIRED` | Non-HELLO message before successful handshake |
-| `INVALID_CHANNEL` | Unknown channel in `SUB`/`UNSUB` |
-| `INVALID_SYMBOL` | Unknown symbol or invalid `SYM=*` usage |
-| `SUB_LIMIT` | Subscription exceeds max symbol limit |
-| `REPLAY_MISS` | Resume request is outside replay window |
-| `SLOW_CLIENT` | Outbound queue overflow |
-| `BAD_MESSAGE` | Parse failure or oversize line |
+| Code              | Meaning                                                                          |
+|-------------------|---------------------------------------------------------------------------------|
+| `PROTO_MISMATCH`  | `HELLO` missing `CLIENT` or `PROTO != CALF1`                                    |
+| `AUTH_REQUIRED`   | Non-`HELLO` message sent before successful handshake                            |
+| `INVALID_CHANNEL` | `CH` not in `{TOP, TRADE, STATE, INDEX}`                                        |
+| `INVALID_SYMBOL`  | Symbol not in known list, or wildcard used on wrong channel                     |
+| `SUB_LIMIT`       | Subscription would exceed `max_symbols_per_client`                              |
+| `REPLAY_MISS`     | `LASTSEQ` is older than the replay window; gateway sends a `SNAP` instead       |
+| `SLOW_CLIENT`     | Outbound queue exceeded `max_client_queue`; connection closed                   |
+| `BAD_MESSAGE`     | Parse failure, oversized line (> 4096 bytes), or unsupported message type       |
 
 Terminal behavior:
 

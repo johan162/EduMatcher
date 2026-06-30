@@ -85,16 +85,17 @@ class MarketDataGateway:
             f"(engine pub: {self.config.engine_pub_addr})"
         )
 
-        while self._running:
-            self._accept_new_clients()
-            self._read_client_data()
-            self._poll_engine_events()
-            self._send_heartbeats_if_due()
-            self._flush_client_writes()
-            self._drop_idle_clients()
-            time.sleep(0.01)
-
-        self.close()
+        try:
+            while self._running:
+                self._accept_new_clients()
+                self._read_client_data()
+                self._poll_engine_events()
+                self._send_heartbeats_if_due()
+                self._flush_client_writes()
+                self._drop_idle_clients()
+                time.sleep(0.01)
+        finally:
+            self.close()
 
     def stop(self) -> None:
         self._running = False
@@ -111,8 +112,10 @@ class MarketDataGateway:
             self._server.close()
             self._server = None
 
-        self._sub_sock.close()
-        self._index_sub.close()
+        if not self._sub_sock.closed:
+            self._sub_sock.close()
+        if not self._index_sub.closed:
+            self._index_sub.close()
 
     # ------------------------------------------------------------------
     # Network IO
@@ -499,7 +502,10 @@ class MarketDataGateway:
 
     def _poll_engine_events(self) -> None:
         while self._sub_sock.poll(timeout=0):
-            topic, payload = decode(self._sub_sock.recv_multipart())
+            try:
+                topic, payload = decode(self._sub_sock.recv_multipart())
+            except Exception:
+                continue
             now_seconds = _extract_ts(payload)
 
             if topic.startswith("book."):
@@ -554,7 +560,10 @@ class MarketDataGateway:
                 )
 
         while self._index_sub.poll(timeout=0):
-            topic, payload = decode(self._index_sub.recv_multipart())
+            try:
+                topic, payload = decode(self._index_sub.recv_multipart())
+            except Exception:
+                continue
             now_seconds = _extract_ts(payload)
             if topic == "index.update":
                 index_id, fields = self._normaliser.normalise_index_update(payload)

@@ -278,17 +278,17 @@ From the gateway terminal, use the `TYPE=COMBO` format:
 NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=GTC|LEG_COUNT=2|LEG0.SYM=MSFT|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=415.00|LEG1.SYM=AAPL|LEG1.SIDE=SELL|LEG1.QTY=100|LEG1.PRICE=210.00
 ```
 
-| Field | Meaning |
-|-------|---------|
-| `TYPE=COMBO` | Tells the parser this is a multi-leg order |
-| `COMBO_ID=PAIR-001` | Your tracking label (human-readable) |
-| `COMBO_TYPE=AON` | All-or-none semantics: combo completes only when **all** legs are fully filled |
-| `TIF=GTC` | Time-in-force applied to all legs |
-| `LEG_COUNT=2` | Number of legs (2–10) |
-| `LEG<i>.SYM` | Symbol for leg *i* |
-| `LEG<i>.SIDE` | BUY or SELL for leg *i* |
-| `LEG<i>.QTY` | Quantity for leg *i* |
-| `LEG<i>.PRICE` | Limit price for leg *i* |
+| Field               | Meaning                                                                        |
+|---------------------|--------------------------------------------------------------------------------|
+| `TYPE=COMBO`        | Tells the parser this is a multi-leg order                                     |
+| `COMBO_ID=PAIR-001` | Your tracking label (human-readable)                                           |
+| `COMBO_TYPE=AON`    | All-or-none semantics: combo completes only when **all** legs are fully filled |
+| `TIF=GTC`           | Time-in-force applied to all legs                                              |
+| `LEG_COUNT=2`       | Number of legs (2–10)                                                          |
+| `LEG<i>.SYM`        | Symbol for leg *i*                                                             |
+| `LEG<i>.SIDE`       | BUY or SELL for leg *i*                                                        |
+| `LEG<i>.QTY`        | Quantity for leg *i*                                                           |
+| `LEG<i>.PRICE`      | Limit price for leg *i*                                                        |
 
 ### What Happens After Submission
 
@@ -405,11 +405,11 @@ P&L convention: for your **long** MSFT position, profit = (exit price − entry 
 × quantity. For your **short** AAPL position, profit = (entry price − exit price) ×
 quantity (you profit when the price falls below where you sold).
 
-| Scenario | MSFT | AAPL | P&L |
-|----------|------|------|-----|
-| Both rise | 420 (+5) | 210 (+2) | +500 + 200 = **+700** |
-| Both fall | 410 (−5) | 205 (+7) | −500 + 700 = **+200** |
-| MSFT rises, AAPL flat | 420 (+5) | 212 (0) | +500 + 0 = **+500** |
+| Scenario              | MSFT     | AAPL     | P&L                   |
+|-----------------------|----------|----------|-----------------------|
+| Both rise             | 420 (+5) | 210 (+2) | +500 + 200 = **+700** |
+| Both fall             | 410 (−5) | 205 (+7) | −500 + 700 = **+200** |
+| MSFT rises, AAPL flat | 420 (+5) | 212 (0)  | +500 + 0 = **+500**   |
 
 The combo profits regardless of market direction — only the spread matters.
 
@@ -475,16 +475,16 @@ manage the risk that one leg fills before the other.
 
 ## Summary
 
-| Aspect | Single-Leg Orders | Combo Orders |
-|--------|-------------------|--------------|
-| Scope | One symbol | 2–10 symbols |
-| Leg risk | N/A | Managed by cascade-cancel |
-| Strategies | Directional (long/short) | Relative-value, hedged, arbitrage |
-| State tracking | One book, one lifecycle | Parent combo + children across books |
-| Cancellation | Cancel one order | Cancel cascades to all siblings |
-| Market-maker demands | Quote one symbol | Quote cross-symbol spreads |
-| Persistence | One order per file entry | Combo metadata + child orders |
-| Complexity | Low | Significantly higher |
+| Aspect               | Single-Leg Orders        | Combo Orders                         |
+|----------------------|--------------------------|--------------------------------------|
+| Scope                | One symbol               | 2–10 symbols                         |
+| Leg risk             | N/A                      | Managed by cascade-cancel            |
+| Strategies           | Directional (long/short) | Relative-value, hedged, arbitrage    |
+| State tracking       | One book, one lifecycle  | Parent combo + children across books |
+| Cancellation         | Cancel one order         | Cancel cascades to all siblings      |
+| Market-maker demands | Quote one symbol         | Quote cross-symbol spreads           |
+| Persistence          | One order per file entry | Combo metadata + child orders        |
+| Complexity           | Low                      | Significantly higher                 |
 
 Combos are where an educational trading system transitions from "toy" to
 "architecturally realistic." They force you to think about distributed state,

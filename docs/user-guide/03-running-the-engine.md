@@ -22,15 +22,15 @@
 EduMatcher supports two ways to run the `pm-*` commands. Everything on this
 page works in both modes. The only difference is how you invoke the commands.
 
-| | Developer mode | Installed mode |
-|---|---|---|
-| **Who uses this** | Contributors, engine developers | Instructors, students |
-| **Installation** | `poetry install --with dev` (source checkout) | `pipx install edumatcher` |
-| **Command prefix** | `poetry run pm-engine` | `pm-engine` (no prefix) |
-| **Data directory** | `<repo>/src/data/` (auto-detected) | `~/.local/share/edumatcher` or `$EDUMATCHER_DATA_DIR` |
-| **Config file** | `<repo>/engine_config.yaml` (auto-detected) | `./engine_config.yaml` (CWD) or `$EDUMATCHER_CONFIG` |
-| **First-time setup** | Nothing extra | Run `pm-setup` once |
-| **Launch all** | `./tools/launch_all.sh` | `./tools/launch_all.sh` (script is mode-aware) |
+|                      | Developer mode                                | Installed mode                                        |
+|----------------------|-----------------------------------------------|-------------------------------------------------------|
+| **Who uses this**    | Contributors, engine developers               | Instructors, students                                 |
+| **Installation**     | `poetry install --with dev` (source checkout) | `pipx install edumatcher`                             |
+| **Command prefix**   | `poetry run pm-engine`                        | `pm-engine` (no prefix)                               |
+| **Data directory**   | `<repo>/src/data/` (auto-detected)            | `~/.local/share/edumatcher` or `$EDUMATCHER_DATA_DIR` |
+| **Config file**      | `<repo>/engine_config.yaml` (auto-detected)   | `./engine_config.yaml` (CWD) or `$EDUMATCHER_CONFIG`  |
+| **First-time setup** | Nothing extra                                 | Run `pm-setup` once                                   |
+| **Launch all**       | `./tools/launch_all.sh`                       | `./tools/launch_all.sh` (script is mode-aware)        |
 
 !!! tip "First-time end-user setup"
     If you installed with pipx, run this once before anything else:
@@ -600,14 +600,14 @@ print('Gateways:', sorted(cfg.fix_gateways.keys()) if cfg else 'None (unrestrict
 
 ### Continuous visual monitoring
 
-| Tool | Best for |
-|---|---|
+| Tool                       | Best for                                                    |
+|----------------------------|-------------------------------------------------------------|
 | `pm-viewer --symbol <SYM>` | Watching one book in real time — see bids, asks, last trade |
-| `pm-board` | High-level overview of all symbols simultaneously |
-| `pm-ticker` | Scrolling tape of OHLCV data — good for a side monitor |
-| `pm-orders` | Watching resting orders across all gateways |
-| `pm-audit --terminal` | Raw event stream — everything that touches the engine |
-| `pm-clearing` | Live P&L per gateway |
+| `pm-board`                 | High-level overview of all symbols simultaneously           |
+| `pm-ticker`                | Scrolling tape of OHLCV data — good for a side monitor      |
+| `pm-orders`                | Watching resting orders across all gateways                 |
+| `pm-audit --terminal`      | Raw event stream — everything that touches the engine       |
+| `pm-clearing`              | Live P&L per gateway                                        |
 
 ### Operator query commands
 

@@ -53,11 +53,11 @@ own 60 shares). Positions can be:
 
 For each `(gateway_id, symbol)` pair the clearing process tracks:
 
-| Field | Description |
-|-------|-------------|
-| `position` | Net quantity held. Positive = long, negative = short, zero = flat. |
-| `avg_cost` | Volume-weighted average entry price (explained below). |
-| `realized_pnl` | Accumulated profit/loss from trades that reduced the position. |
+| Field            | Description                                                           |
+|------------------|-----------------------------------------------------------------------|
+| `position`       | Net quantity held. Positive = long, negative = short, zero = flat.    |
+| `avg_cost`       | Volume-weighted average entry price (explained below).                |
+| `realized_pnl`   | Accumulated profit/loss from trades that reduced the position.        |
 | `unrealized_pnl` | Paper profit/loss on the remaining open position (not yet locked in). |
 
 
@@ -200,17 +200,17 @@ trade_id,symbol,buy_order_id,sell_order_id,buy_gateway,sell_gateway,price,quanti
 abc123,AAPL,ord-aaa,ord-bbb,GW01,GW02,150.50,100,2026-04-29T14:32:01.123
 ```
 
-| Column | Description |
-|---|---|
-| `trade_id` | Engine-assigned unique trade identifier |
-| `symbol` | Traded instrument symbol |
-| `buy_order_id` | Order ID of the resting or aggressing buy order |
+| Column          | Description                                      |
+|-----------------|--------------------------------------------------|
+| `trade_id`      | Engine-assigned unique trade identifier          |
+| `symbol`        | Traded instrument symbol                         |
+| `buy_order_id`  | Order ID of the resting or aggressing buy order  |
 | `sell_order_id` | Order ID of the resting or aggressing sell order |
-| `buy_gateway` | Gateway ID of the buyer |
-| `sell_gateway` | Gateway ID of the seller |
-| `price` | Execution price (decimal) |
-| `quantity` | Executed quantity |
-| `timestamp` | ISO 8601 timestamp of the trade |
+| `buy_gateway`   | Gateway ID of the buyer                          |
+| `sell_gateway`  | Gateway ID of the seller                         |
+| `price`         | Execution price (decimal)                        |
+| `quantity`      | Executed quantity                                |
+| `timestamp`     | ISO 8601 timestamp of the trade                  |
 
 This file persists across restarts — it is never truncated, giving a complete history
 of all trades for the day.

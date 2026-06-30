@@ -18,6 +18,7 @@ and in full on Ctrl-C exit.
 from __future__ import annotations
 
 import csv
+import errno
 import signal
 import sys
 import threading
@@ -96,7 +97,6 @@ class PositionRecord:
                 signed_qty < 0 and self.position < 0
             ):
                 # Reversed — set new avg_cost for the remaining position
-                _reversal_qty = abs(self.position)  # noqa: F841
                 self.avg_cost = price
                 # Re-base: only the excess qty contributes
                 # (simple approximation: new basis = fill price)
@@ -213,11 +213,23 @@ class ClearingProcess:
         poller = zmq.Poller()
         poller.register(self.sub, zmq.POLLIN)
         while self._running:
-            socks = dict(poller.poll(timeout=300))
+            try:
+                socks = dict(poller.poll(timeout=300))
+            except zmq.ZMQError as exc:
+                if exc.errno != errno.EINTR:
+                    raise
+                break
             if self.sub in socks:
                 frames = self.sub.recv_multipart()
-                _, payload = decode(frames)
-                trade = Trade.from_dict(payload)
+                try:
+                    _, payload = decode(frames)
+                    trade = Trade.from_dict(payload)
+                except Exception as exc:
+                    print(
+                        f"[CLEARING] WARNING: failed to decode trade: {exc}",
+                        flush=True,
+                    )
+                    continue
                 self._record_trade(trade)
                 self._update_ledger(trade)
                 self._trade_count += 1
@@ -236,17 +248,22 @@ class ClearingProcess:
 
     def run(self) -> None:
         signal.signal(signal.SIGINT, lambda *_: self._stop())
+        signal.signal(signal.SIGTERM, lambda *_: self._stop())
         t = threading.Thread(target=self._receive, daemon=True)
         t.start()
         console.print(f"[CLEARING] Recording trades → {self._csv_path}")
-        t.join()
+        try:
+            t.join()
+        finally:
+            self._csv_file.close()
+            self.sub.close()
+        if not self._running:
+            print("\n[CLEARING] Final P&L:")
+            self._print_pnl_table()
+            print(f"[CLEARING] Trades saved to {self._csv_path}")
 
     def _stop(self) -> None:
         self._running = False
-        self._csv_file.close()
-        print("\n[CLEARING] Final P&L:")
-        self._print_pnl_table()
-        print(f"[CLEARING] Trades saved to {self._csv_path}")
 
 
 def main() -> None:

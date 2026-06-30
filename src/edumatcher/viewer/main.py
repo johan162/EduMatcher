@@ -16,6 +16,7 @@ invisible, demonstrating the privacy feature of iceberg orders.
 from __future__ import annotations
 
 import argparse
+import errno
 import threading
 import time
 from datetime import datetime
@@ -36,6 +37,7 @@ from edumatcher.models.message import decode, make_book_snapshot_request_msg
 console = Console()
 
 _REFRESH_HZ = 2  # rich Live refresh rate
+_MAX_RECENT_TRADES = 5
 
 
 def _build_display(snapshot: dict[str, Any], symbol: str, depth: int) -> Panel:
@@ -76,7 +78,7 @@ def _build_display(snapshot: dict[str, Any], symbol: str, depth: int) -> Panel:
     trades_tbl.add_column("Time", min_width=12)
     trades_tbl.add_column("Price", justify="right", min_width=10)
     trades_tbl.add_column("Qty", justify="right", min_width=8)
-    for tr in reversed(recent[-5:]):
+    for tr in reversed(recent[-_MAX_RECENT_TRADES:]):
         ts = datetime.fromtimestamp(tr["timestamp"]).strftime("%H:%M:%S.%f")[:-3]
         trades_tbl.add_row(ts, f"{tr['price']:.4f}", str(tr["quantity"]))
 
@@ -125,8 +127,10 @@ def main() -> None:
     def _request_snapshot() -> None:
         time.sleep(0.15)
         push = make_pusher(ENGINE_PULL_ADDR)
-        push.send_multipart(make_book_snapshot_request_msg(symbol))
-        push.close()
+        try:
+            push.send_multipart(make_book_snapshot_request_msg(symbol))
+        finally:
+            push.close()
 
     threading.Thread(target=_request_snapshot, daemon=True).start()
 
@@ -142,8 +146,10 @@ def main() -> None:
             while True:
                 try:
                     socks = dict(poller.poll(timeout=int(1000 / _REFRESH_HZ)))
-                except zmq.ZMQError:
-                    break  # EINTR: signal arrived, check below
+                except zmq.ZMQError as exc:
+                    if exc.errno != errno.EINTR:
+                        raise
+                    break  # EINTR: signal interrupted poll — exit cleanly
                 if sub in socks:
                     frames = sub.recv_multipart()
                     _, payload = decode(frames)

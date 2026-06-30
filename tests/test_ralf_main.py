@@ -37,7 +37,7 @@ def test_build_parser_defaults() -> None:
     args = parser.parse_args([])
     assert args.bind is None
     assert args.port is None
-    assert args.engine_pub
+    assert args.engine_pub is None
 
 
 def test_main_invalid_config_exits(
@@ -66,6 +66,9 @@ def test_main_runs_gateway(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
 
         def run(self) -> None:
             called["run"] = True
+
+        def close(self) -> None:
+            pass
 
     monkeypatch.setattr(ralf_main, "RalfGateway", _DummyGateway)
     ralf_main.main()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import time
 from dataclasses import dataclass
@@ -473,27 +474,40 @@ class IndexProcess:
         poller.register(self._pull_sock, zmq.POLLIN)
 
         while self._running:
-            socks = dict(poller.poll(timeout=200))
+            try:
+                socks = dict(poller.poll(timeout=200))
+            except zmq.ZMQError as exc:
+                if exc.errno != errno.EINTR:
+                    raise
+                break
 
             if self._sub_sock in socks:
                 frames = self._sub_sock.recv_multipart()
-                topic, payload = decode(frames)
-                if topic == "trade.executed":
-                    self._handle_trade(payload)
-                elif topic == "session.state":
-                    self._handle_session_state(payload)
-                elif topic == "system.eod":
-                    self._finalize_eod()
+                try:
+                    topic, payload = decode(frames)
+                except Exception as exc:
+                    print(f"[INDEX] WARNING: malformed sub frame: {exc}", flush=True)
+                else:
+                    if topic == "trade.executed":
+                        self._handle_trade(payload)
+                    elif topic == "session.state":
+                        self._handle_session_state(payload)
+                    elif topic == "system.eod":
+                        self._finalize_eod()
 
             if self._pull_sock in socks:
                 frames = self._pull_sock.recv_multipart()
-                topic, payload = decode(frames)
-                if topic == "index.history_request":
-                    self._handle_history_request(payload)
-                elif topic == "index.corp_action":
-                    self._handle_corp_action(payload)
-                elif topic == "index.constituent_change":
-                    self._handle_constituent_change(payload)
+                try:
+                    topic, payload = decode(frames)
+                except Exception as exc:
+                    print(f"[INDEX] WARNING: malformed pull frame: {exc}", flush=True)
+                else:
+                    if topic == "index.history_request":
+                        self._handle_history_request(payload)
+                    elif topic == "index.corp_action":
+                        self._handle_corp_action(payload)
+                    elif topic == "index.constituent_change":
+                        self._handle_constituent_change(payload)
 
             for idx in self._indices.values():
                 idx.history.flush()

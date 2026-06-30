@@ -1,3 +1,38 @@
+## [v0.12.2] - 2026-06-30
+
+Release Type: patch
+
+### 📋 Summary
+This patch hardens ZMQ receive loops and socket lifecycle across all gateway and
+process modules, eliminating socket leaks, over-broad exception catches, and
+signal-handler safety violations. The CALF documentation is significantly
+expanded with a full channel reference, protocol comparison table, and annotated
+Python subscriber examples.
+
+### 🐛 Bug Fixes
+- Fixed `bids[0]["price"]` / `asks[0]["price"]` dict access in `board`, `ticker`, `stats`, and MM bot — raises `KeyError` on malformed book levels; changed to `.get("price")`
+- Fixed `except zmq.ZMQError: break` in receive loops across `board`, `ticker`, `api_gateway`, `audit`, `clearing`, `index`, `stats`, and `md_gateway` — was catching all errors including real failures; now checks `errno.EINTR` and re-raises others
+- Fixed `viewer` push socket not closed on exception path in `_request_snapshot`
+- Fixed `ticker` accessing `self.sub` from main thread while daemon receive thread owns it — ZMQ thread-safety violation
+- Fixed `clearing` signal handler calling `_stop()` which performed I/O and lock acquisition from a signal context — refactored to flag-only
+- Fixed `clearing` and `audit` ZMQ sockets not closed when `run()` exits via exception
+- Fixed `ralf_gateway` and `md_gateway` `--engine-pub` CLI default baking in a hardcoded address, silencing any config-file override; changed to `None`
+- Fixed `md_gateway` ZMQ sockets created in `__init__` leaking when `run()` raises before reaching its own cleanup; wrapped main loop in `try/finally`
+- Fixed `md_gateway` bare `decode(recv_multipart())` calls in `_poll_engine_events` — unguarded decode of a malformed engine frame would crash the gateway; wrapped in `try/except Exception: continue`
+- Fixed `stats` `self.push` socket accessed from both main thread and receive thread without a lock; added `self._push_lock`
+- Fixed `stats` subscription filter `"trade."` matching unintended topics; narrowed to `"trade.executed"`
+- Fixed `scheduler` push socket not closed in `finally` on the `sys.exit(1)` path
+
+### 📚 Documentation
+- Added full CALF TCP protocol section to `09-messages.md` covering all 13 message types, error codes, and `pm-md-gwy` subscription filter row
+- Added `INDEX` channel and `IDX` message definition to `92-app-calf-protocol.md`; synchronized ERR code descriptions between `92-app-calf-protocol.md` and `09-messages.md`
+- Expanded `20-market-data-feed.md` with per-channel deep-dives (`TOP`, `TRADE`, `STATE`, `INDEX`), protocol comparison table, step-by-step connection guide, gap-detection and replay-recovery section, annotated Python subscriber using `examples/calf/calf_parser.py`, and targeted-subset subscription table
+
+### 🛠 Internal
+- Added code review skill to `.github/skills/code-review/SKILL.md`
+- Updated `test_md_gateway_main.py` and `test_md_gateway_runtime_paths.py` to add `close()` method and `closed` property to test stubs
+- Updated `test_ralf_main.py` for new `--engine-pub` default of `None`
+
 ## [v0.12.1] - 2026-06-29
 
 Release Type: patch

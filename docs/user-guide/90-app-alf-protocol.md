@@ -219,40 +219,40 @@ not part of the documented protocol and should be avoided.
 
 ## Common field vocabulary
 
-| Field | Meaning |
-|---|---|
-| `SYM` | Symbol, for example `AAPL` |
-| `SIDE` | `BUY` or `SELL` |
-| `TYPE` | Order type or high-level order family such as `COMBO` or `OCO` |
-| `QTY` | Integer quantity |
-| `PRICE` | Limit price in display units |
-| `STOP` | Stop trigger price in display units |
-| `TRAIL` | Trailing-stop offset in display units |
-| `TIF` | Time in force: `DAY`, `GTC`, `ATO`, `ATC` |
-| `VISIBLE` | Displayed peak size for iceberg orders |
-| `SMP` | Self-match-prevention action |
-| `ID` | Engine-generated single-order identifier |
-| `COMBO_ID` | User-supplied combo label |
-| `OCO_ID` | User-supplied OCO label |
-| `QUOTE_ID` | User-supplied quote label |
+| Field      | Meaning                                                        |
+|------------|----------------------------------------------------------------|
+| `SYM`      | Symbol, for example `AAPL`                                     |
+| `SIDE`     | `BUY` or `SELL`                                                |
+| `TYPE`     | Order type or high-level order family such as `COMBO` or `OCO` |
+| `QTY`      | Integer quantity                                               |
+| `PRICE`    | Limit price in display units                                   |
+| `STOP`     | Stop trigger price in display units                            |
+| `TRAIL`    | Trailing-stop offset in display units                          |
+| `TIF`      | Time in force: `DAY`, `GTC`, `ATO`, `ATC`                      |
+| `VISIBLE`  | Displayed peak size for iceberg orders                         |
+| `SMP`      | Self-match-prevention action                                   |
+| `ID`       | Engine-generated single-order identifier                       |
+| `COMBO_ID` | User-supplied combo label                                      |
+| `OCO_ID`   | User-supplied OCO label                                        |
+| `QUOTE_ID` | User-supplied quote label                                      |
 
 ###  Supported `TIF` values
 
-| Value | Meaning |
-|---|---|
-| `DAY` | Valid for the trading day only |
-| `GTC` | Good till cancelled |
-| `ATO` | At the open; only meaningful during the opening auction |
+| Value | Meaning                                                  |
+|-------|----------------------------------------------------------|
+| `DAY` | Valid for the trading day only                           |
+| `GTC` | Good till cancelled                                      |
+| `ATO` | At the open; only meaningful during the opening auction  |
 | `ATC` | At the close; only meaningful during the closing auction |
 
 ### Supported `SMP` values
 
-| Value | Meaning |
-|---|---|
-| `NONE` | Allow self-trades |
+| Value              | Meaning                                          |
+|--------------------|--------------------------------------------------|
+| `NONE`             | Allow self-trades                                |
 | `CANCEL_AGGRESSOR` | Cancel the incoming order if it would self-match |
-| `CANCEL_RESTING` | Cancel the resting order and continue matching |
-| `CANCEL_BOTH` | Cancel both the incoming and resting order |
+| `CANCEL_RESTING`   | Cancel the resting order and continue matching   |
+| `CANCEL_BOTH`      | Cancel both the incoming and resting order       |
 
 
 
@@ -260,11 +260,11 @@ not part of the documented protocol and should be avoided.
 
 ALF commands fall into three groups:
 
-| Group | Commands |
-|---|---|
-| Trading commands forwarded to the engine | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `KILL`, `SYMBOLS`, `QBOOT` |
-| Gateway-local informational commands | `STATUS`, `ORDERS`, `POS`, `QLEGS`, `HELP` |
-| Session-control commands for the CLI process | `EXIT`, `QUIT` |
+| Group                                        | Commands                                                                      |
+|----------------------------------------------|-------------------------------------------------------------------------------|
+| Trading commands forwarded to the engine     | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `KILL`, `SYMBOLS`, `QBOOT` |
+| Gateway-local informational commands         | `STATUS`, `ORDERS`, `POS`, `QLEGS`, `HELP`                                    |
+| Session-control commands for the CLI process | `EXIT`, `QUIT`                                                                |
 
 If you are writing another interface that wants to submit orders, the most
 important commands are the **trading commands**.
@@ -453,10 +453,10 @@ At least one of `PRICE` or `QTY` must be present.
 
 ### Supported amendment forms
 
-| Form | Meaning |
-|---|---|
-| `AMEND|ID=...|PRICE=...` | Price-only amendment |
-| `AMEND|ID=...|QTY=...` | Quantity-only amendment |
+| Form                             | Meaning                        |
+|----------------------------------|--------------------------------|
+| `AMEND|ID=...|PRICE=...`         | Price-only amendment           |
+| `AMEND|ID=...|QTY=...`           | Quantity-only amendment        |
 | `AMEND|ID=...|PRICE=...|QTY=...` | Change both price and quantity |
 
 ### Examples
@@ -595,12 +595,12 @@ NEW
 
 ### OCO field semantics
 
-| Field | Meaning |
-|---|---|
-| `OCO_ID` | User label for the pair |
-| `SYM` | Shared symbol for both legs |
-| `QTY` | Shared quantity for both legs |
-| `TIF` | Shared TIF for both legs |
+| Field              | Meaning                                      |
+|--------------------|----------------------------------------------|
+| `OCO_ID`           | User label for the pair                      |
+| `SYM`              | Shared symbol for both legs                  |
+| `QTY`              | Shared quantity for both legs                |
+| `TIF`              | Shared TIF for both legs                     |
 | `LEG1_*`, `LEG2_*` | Per-leg side, type, and trigger/limit fields |
 
 If `TIF` is omitted, the gateway defaults it to `DAY`.
@@ -609,16 +609,16 @@ If `TIF` is omitted, the gateway defaults it to `DAY`.
 
 ALF OCO syntax can express these leg types cleanly:
 
-| Leg type | Supported in ALF OCO syntax | Required extra fields |
-|---|---|---|
-| `MARKET` | Yes | none |
-| `LIMIT` | Yes | `LEGn_PRICE` |
-| `IOC` | Yes | `LEGn_PRICE` |
-| `FOK` | Yes | `LEGn_PRICE` |
-| `STOP` | Yes | `LEGn_STOP` |
-| `STOP_LIMIT` | Yes | `LEGn_STOP` and `LEGn_PRICE` |
-| `TRAILING_STOP` | Yes | `LEGn_TRAIL`, optional `LEGn_STOP` |
-| `ICEBERG` | No practical ALF support | ALF OCO syntax has no `LEGn_VISIBLE` field |
+| Leg type        | Supported in ALF OCO syntax | Required extra fields                      |
+|-----------------|-----------------------------|--------------------------------------------|
+| `MARKET`        | Yes                         | none                                       |
+| `LIMIT`         | Yes                         | `LEGn_PRICE`                               |
+| `IOC`           | Yes                         | `LEGn_PRICE`                               |
+| `FOK`           | Yes                         | `LEGn_PRICE`                               |
+| `STOP`          | Yes                         | `LEGn_STOP`                                |
+| `STOP_LIMIT`    | Yes                         | `LEGn_STOP` and `LEGn_PRICE`               |
+| `TRAILING_STOP` | Yes                         | `LEGn_TRAIL`, optional `LEGn_STOP`         |
+| `ICEBERG`       | No practical ALF support    | ALF OCO syntax has no `LEGn_VISIBLE` field |
 
 ### Examples
 
@@ -674,15 +674,15 @@ NEW
 
 ### Combo field semantics
 
-| Field | Meaning |
-|---|---|
-| `TYPE=COMBO` | Selects combo mode |
-| `COMBO_ID` | User label used later by `CANCEL|COMBO_ID=...` |
-| `COMBO_TYPE=AON` | Optional today; defaults to `AON` |
-| `TIF` | Shared TIF for all child legs |
-| `SMP` | Shared SMP setting applied to all child legs |
-| `LEG_COUNT` | Number of legs, from 2 to 10 |
-| `LEGi.*` | Per-leg fields, using zero-based numbering |
+| Field            | Meaning                                        |
+|------------------|------------------------------------------------|
+| `TYPE=COMBO`     | Selects combo mode                             |
+| `COMBO_ID`       | User label used later by `CANCEL|COMBO_ID=...` |
+| `COMBO_TYPE=AON` | Optional today; defaults to `AON`              |
+| `TIF`            | Shared TIF for all child legs                  |
+| `SMP`            | Shared SMP setting applied to all child legs   |
+| `LEG_COUNT`      | Number of legs, from 2 to 10                   |
+| `LEGi.*`         | Per-leg fields, using zero-based numbering     |
 
 If `COMBO_TYPE` is omitted, the gateway defaults it to `AON`. If `TIF` is
 omitted, it defaults to `DAY`.
@@ -707,16 +707,16 @@ It does **not** expose:
 
 So, in practical ALF terms:
 
-| Leg type | Practical ALF combo support | Reason |
-|---|---|---|
-| `LIMIT` | Yes | Default leg type; `PRICE` available |
-| `MARKET` | Yes | No extra fields required |
-| `IOC` | Yes | `PRICE` available |
-| `FOK` | Yes | `PRICE` available |
-| `STOP` | No practical ALF support | No `LEGi.STOP` field |
-| `STOP_LIMIT` | No practical ALF support | No `LEGi.STOP` field |
-| `TRAILING_STOP` | No practical ALF support | No `LEGi.TRAIL` field |
-| `ICEBERG` | No practical ALF support | No `LEGi.VISIBLE` field |
+| Leg type        | Practical ALF combo support | Reason                              |
+|-----------------|-----------------------------|-------------------------------------|
+| `LIMIT`         | Yes                         | Default leg type; `PRICE` available |
+| `MARKET`        | Yes                         | No extra fields required            |
+| `IOC`           | Yes                         | `PRICE` available                   |
+| `FOK`           | Yes                         | `PRICE` available                   |
+| `STOP`          | No practical ALF support    | No `LEGi.STOP` field                |
+| `STOP_LIMIT`    | No practical ALF support    | No `LEGi.STOP` field                |
+| `TRAILING_STOP` | No practical ALF support    | No `LEGi.TRAIL` field               |
+| `ICEBERG`       | No practical ALF support    | No `LEGi.VISIBLE` field             |
 
 ### Examples
 

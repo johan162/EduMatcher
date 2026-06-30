@@ -41,6 +41,8 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+import errno
+
 import zmq
 
 from edumatcher.config import (
@@ -264,7 +266,7 @@ class StatsProcess:
 
         self.sub = make_subscriber(
             ENGINE_PUB_ADDR,
-            "trade.",
+            "trade.executed",
             "book.",
             "system.eod",
             "system.symbols.STATS",
@@ -281,6 +283,7 @@ class StatsProcess:
             "quote.status.",
         )
         self.push = make_pusher(ENGINE_PULL_ADDR)
+        self._push_lock = threading.Lock()
 
     # ------------------------------------------------------------------
     # Accumulator helpers
@@ -362,8 +365,8 @@ class StatsProcess:
             acc = self._accum_for(symbol)
             bids = payload.get("bids", [])
             asks = payload.get("asks", [])
-            best_bid = bids[0]["price"] if bids else None
-            best_ask = asks[0]["price"] if asks else None
+            best_bid = bids[0].get("price") if bids else None
+            best_ask = asks[0].get("price") if asks else None
 
             if acc.open_bid is None and best_bid is not None:
                 acc.open_bid = best_bid
@@ -409,8 +412,8 @@ class StatsProcess:
                     continue
                 bids = book.get("bids", [])
                 asks = book.get("asks", [])
-                best_bid = bids[0]["price"] if bids else None
-                best_ask = asks[0]["price"] if asks else None
+                best_bid = bids[0].get("price") if bids else None
+                best_ask = asks[0].get("price") if asks else None
                 acc = self._accum_for(symbol)
                 acc.on_eod_book(best_bid, best_ask)
                 # close_price already set by last trade; if no trades today keep None
@@ -477,7 +480,9 @@ class StatsProcess:
         while self._running:
             try:
                 socks = dict(poller.poll(timeout=300))
-            except zmq.ZMQError:
+            except zmq.ZMQError as exc:
+                if exc.errno != errno.EINTR:
+                    raise
                 break
             if self.sub not in socks:
                 continue
@@ -509,8 +514,9 @@ class StatsProcess:
         arrive after the stats process starts.
         """
         symbols = payload.get("symbols", [])
-        for sym in symbols:
-            self.push.send_multipart(make_book_snapshot_request_msg(sym))
+        with self._push_lock:
+            for sym in symbols:
+                self.push.send_multipart(make_book_snapshot_request_msg(sym))
         if symbols:
             print(f"[STATS] Requested opening snapshots for: {', '.join(symbols)}")
 
@@ -525,18 +531,20 @@ class StatsProcess:
         # then request the symbol list so we can pull opening book snapshots.
         # This handles the race where the engine seeded MM orders before we started.
         time.sleep(0.3)
-        self.push.send_multipart(make_symbols_request_msg("STATS"))
+        with self._push_lock:
+            self.push.send_multipart(make_symbols_request_msg("STATS"))
 
         print("[STATS] Recording market statistics …  (Ctrl-C to stop)")
-        while self._running:
-            t.join(timeout=0.5)
-
-        # Wait for the receive thread to finish its current message before
-        # closing the database and sockets to avoid mid-transaction errors.
-        t.join(timeout=1.0)
-        self._conn.close()
-        self.sub.close()
-        self.push.close()
+        try:
+            while self._running:
+                t.join(timeout=0.5)
+        finally:
+            # Wait for the receive thread to finish its current message before
+            # closing the database and sockets to avoid mid-transaction errors.
+            t.join(timeout=1.0)
+            self._conn.close()
+            self.sub.close()
+            self.push.close()
 
     def _stop(self) -> None:
         self._running = False

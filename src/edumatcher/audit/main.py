@@ -18,6 +18,7 @@ Options
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import logging
 import signal
@@ -32,6 +33,9 @@ import zmq
 from edumatcher.config import AUDIT_LOG_FILE, ENGINE_PUB_ADDR
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.message import decode
+
+_POLL_TIMEOUT_MS = 300
+_JOIN_POLL_SEC = 0.5
 
 
 def _setup_logger(log_path: Path, to_terminal: bool) -> logging.Logger:
@@ -67,9 +71,11 @@ class AuditProcess:
         poller.register(self.sub, zmq.POLLIN)
         while self._running:
             try:
-                socks = dict(poller.poll(timeout=300))
-            except zmq.ZMQError:
-                break  # EINTR or socket closed — honour _running flag
+                socks = dict(poller.poll(timeout=_POLL_TIMEOUT_MS))
+            except zmq.ZMQError as exc:
+                if exc.errno != errno.EINTR:
+                    raise
+                break  # EINTR — honour _running flag
             if self.sub in socks:
                 frames = self.sub.recv_multipart()
                 try:
@@ -91,8 +97,12 @@ class AuditProcess:
         t = threading.Thread(target=self._receive, daemon=True)
         t.start()
         print("[AUDIT] Logging all events …  (Ctrl-C to stop)")
-        while self._running:
-            t.join(timeout=0.5)  # re-check _running every 500 ms
+        try:
+            while self._running:
+                t.join(timeout=_JOIN_POLL_SEC)  # re-check _running every 500 ms
+        finally:
+            t.join(timeout=1.0)
+            self.sub.close()
 
     def _stop(self) -> None:
         self._running = False
