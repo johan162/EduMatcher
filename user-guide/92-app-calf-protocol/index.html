@@ -2043,6 +2043,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#idx" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IDX
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#hb" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3464,6 +3475,7 @@ behavior.</p>
 <li>top-of-book updates (<code>MD</code>) by symbol</li>
 <li>trade prints (<code>TRADE</code>) by symbol</li>
 <li>state transitions (<code>STATE</code>) for session-wide and symbol-level changes</li>
+<li>index level updates (<code>IDX</code>) from <code>pm-index</code></li>
 <li>point-in-time stream baselines (<code>SNAP</code>) for <code>TOP</code> and <code>STATE</code></li>
 <li>per-stream sequence numbers on <code>(CH, SYM)</code></li>
 <li>bounded replay on reconnect (<code>RESUME=1</code> + <code>LASTSEQ</code>)</li>
@@ -3626,6 +3638,11 @@ contain half a line, one full line, or many lines.</p>
 <td>Session or symbol state transitions</td>
 <td>Yes</td>
 </tr>
+<tr>
+<td><code>INDEX</code></td>
+<td>Index level updates</td>
+<td>No</td>
+</tr>
 </tbody>
 </table>
 <p><code>SNAP</code> is a message type, not a channel.</p>
@@ -3780,6 +3797,11 @@ for new <code>SUB</code> requests on <code>TOP</code> and <code>STATE</code>.</p
 <td><code>STATE</code></td>
 <td>Gateway -&gt; Client</td>
 <td>Session/symbol state transition</td>
+</tr>
+<tr>
+<td><code>IDX</code></td>
+<td>Gateway -&gt; Client</td>
+<td>Index level update</td>
 </tr>
 </tbody>
 </table>
@@ -4213,6 +4235,84 @@ for new <code>SUB</code> requests on <code>TOP</code> and <code>STATE</code>.</p
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>STATE|CH=STATE|SYM=*|SEQ=14|TS=2026-06-07T10:30:00.000Z|SESSION=CONTINUOUS|PREV=OPENING_AUCTION
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>STATE|CH=STATE|SYM=AAPL|SEQ=3|TS=2026-06-07T11:02:17.330Z|SESSION=HALTED|PREV=CONTINUOUS
 </code></pre></div>
+<h3 id="idx"><code>IDX</code><a class="headerlink" href="#idx" title="Permanent link">&para;</a></h3>
+<p><strong>Direction:</strong> Gateway -&gt; Client</p>
+<p><strong>Purpose:</strong> Index level update for one <code>INDEX</code> stream.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Req</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CH</code></td>
+<td>Yes</td>
+<td><code>INDEX</code></td>
+</tr>
+<tr>
+<td><code>SYM</code></td>
+<td>Yes</td>
+<td>Index identifier (e.g. <code>EDU50</code>)</td>
+</tr>
+<tr>
+<td><code>SEQ</code></td>
+<td>Yes</td>
+<td>Stream-local sequence number</td>
+</tr>
+<tr>
+<td><code>TS</code></td>
+<td>Yes</td>
+<td>Event timestamp</td>
+</tr>
+<tr>
+<td><code>LEVEL</code></td>
+<td>Yes</td>
+<td>Current index level, decimal string</td>
+</tr>
+<tr>
+<td><code>SESSION</code></td>
+<td>Yes</td>
+<td>Index session state</td>
+</tr>
+<tr>
+<td><code>OPEN</code></td>
+<td>No</td>
+<td>Day open level, decimal string</td>
+</tr>
+<tr>
+<td><code>HIGH</code></td>
+<td>No</td>
+<td>Day high, decimal string</td>
+</tr>
+<tr>
+<td><code>LOW</code></td>
+<td>No</td>
+<td>Day low, decimal string</td>
+</tr>
+<tr>
+<td><code>CHG</code></td>
+<td>No</td>
+<td>Change from open, signed decimal e.g. <code>+1.23</code></td>
+</tr>
+<tr>
+<td><code>PCTCHG</code></td>
+<td>No</td>
+<td>Percent change from open, signed e.g. <code>+0.45</code></td>
+</tr>
+<tr>
+<td><code>AGGCAP</code></td>
+<td>No</td>
+<td>Aggregate market cap, integer string</td>
+</tr>
+</tbody>
+</table>
+<p><code>IDX</code> has no baseline <code>SNAP</code> variant in CALF <code>1.0.0</code>. Delivery starts from
+events that occur after the subscription becomes active.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>IDX|CH=INDEX|SYM=EDU50|SEQ=12|TS=2026-06-07T10:16:00.000Z|LEVEL=5123.45|SESSION=CONTINUOUS|OPEN=5100.00|CHG=+23.45|PCTCHG=+0.46
+</code></pre></div>
 <h3 id="hb"><code>HB</code><a class="headerlink" href="#hb" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Gateway -&gt; Client</p>
 <p>Sent when no outbound market-data line was emitted during the heartbeat interval.</p>
@@ -4232,12 +4332,12 @@ for new <code>SUB</code> requests on <code>TOP</code> and <code>STATE</code>.</p
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>HB|TS=2026-06-07T10:16:05.000Z
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>HB|TS=2026-06-07T10:16:05.000Z
 </code></pre></div>
 <h3 id="ping-pong"><code>PING</code> / <code>PONG</code><a class="headerlink" href="#ping-pong" title="Permanent link">&para;</a></h3>
 <p><code>PING</code> is client-initiated liveness check. <code>PONG</code> is immediate reply.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>PING
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>PONG
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>PING
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>PONG
 </code></pre></div>
 <h3 id="err"><code>ERR</code><a class="headerlink" href="#err" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Gateway -&gt; Client</p>
@@ -4283,35 +4383,35 @@ for new <code>SUB</code> requests on <code>TOP</code> and <code>STATE</code>.</p
 <tbody>
 <tr>
 <td><code>PROTO_MISMATCH</code></td>
-<td>Unsupported protocol in <code>HELLO</code></td>
+<td><code>HELLO</code> missing <code>CLIENT</code> or <code>PROTO != CALF1</code></td>
 </tr>
 <tr>
 <td><code>AUTH_REQUIRED</code></td>
-<td>Non-HELLO message before successful handshake</td>
+<td>Non-<code>HELLO</code> message sent before successful handshake</td>
 </tr>
 <tr>
 <td><code>INVALID_CHANNEL</code></td>
-<td>Unknown channel in <code>SUB</code>/<code>UNSUB</code></td>
+<td><code>CH</code> not in <code>{TOP, TRADE, STATE, INDEX}</code></td>
 </tr>
 <tr>
 <td><code>INVALID_SYMBOL</code></td>
-<td>Unknown symbol or invalid <code>SYM=*</code> usage</td>
+<td>Symbol not in known list, or wildcard used on wrong channel</td>
 </tr>
 <tr>
 <td><code>SUB_LIMIT</code></td>
-<td>Subscription exceeds max symbol limit</td>
+<td>Subscription would exceed <code>max_symbols_per_client</code></td>
 </tr>
 <tr>
 <td><code>REPLAY_MISS</code></td>
-<td>Resume request is outside replay window</td>
+<td><code>LASTSEQ</code> is older than the replay window; gateway sends a <code>SNAP</code> instead</td>
 </tr>
 <tr>
 <td><code>SLOW_CLIENT</code></td>
-<td>Outbound queue overflow</td>
+<td>Outbound queue exceeded <code>max_client_queue</code>; connection closed</td>
 </tr>
 <tr>
 <td><code>BAD_MESSAGE</code></td>
-<td>Parse failure or oversize line</td>
+<td>Parse failure, oversized line (&gt; 4096 bytes), or unsupported message type</td>
 </tr>
 </tbody>
 </table>
@@ -4320,12 +4420,12 @@ for new <code>SUB</code> requests on <code>TOP</code> and <code>STATE</code>.</p
 <li><code>SLOW_CLIENT</code> is terminal for the current TCP session; gateway disconnects.</li>
 <li><code>BAD_MESSAGE</code> may be terminal when parsing cannot continue safely.</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>ERR|CODE=REPLAY_MISS|MSG=Requested sequence outside replay buffer|CH=TOP|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>ERR|CODE=REPLAY_MISS|MSG=Requested sequence outside replay buffer|CH=TOP|SYM=AAPL
 </code></pre></div>
 <h3 id="exit"><code>EXIT</code><a class="headerlink" href="#exit" title="Permanent link">&para;</a></h3>
 <p><strong>Direction:</strong> Client -&gt; Gateway</p>
 <p>Requests clean disconnect.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>EXIT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>EXIT
 </code></pre></div>
 <h2 id="liveness-and-timeout-rules">Liveness and timeout rules<a class="headerlink" href="#liveness-and-timeout-rules" title="Permanent link">&para;</a></h2>
 <ul>
@@ -4450,16 +4550,16 @@ for new <code>SUB</code> requests on <code>TOP</code> and <code>STATE</code>.</p
 <li><code>max_client_queue</code> controls slow-client backpressure behavior.</li>
 </ul>
 <p><strong>Example:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nt">market_data_gateway</span><span class="p">:</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;md-gwy01&quot;</span>
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.0.0.0&quot;</span>
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5570</span>
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">  </span><span class="nt">idle_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
-<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="w">  </span><span class="nt">replay_window_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
-<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="w">  </span><span class="nt">max_symbols_per_client</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
-<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nt">market_data_gateway</span><span class="p">:</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;md-gwy01&quot;</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">  </span><span class="nt">bind_address</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.0.0.0&quot;</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">  </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5570</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">  </span><span class="nt">heartbeat_interval_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="w">  </span><span class="nt">idle_timeout_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="w">  </span><span class="nt">replay_window_sec</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="w">  </span><span class="nt">max_symbols_per_client</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="w">  </span><span class="nt">max_client_queue</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span>
 </code></pre></div>
 <h2 id="what-to-watch-out-for-during-implementation">What to watch out for during implementation<a class="headerlink" href="#what-to-watch-out-for-during-implementation" title="Permanent link">&para;</a></h2>
 <ul>
