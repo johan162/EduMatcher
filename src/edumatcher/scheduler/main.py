@@ -140,12 +140,27 @@ def _run_now(push_sock: zmq.Socket[bytes], delay: float = NOW_MODE_DELAY) -> Non
 
     print(f"[SCHEDULER] --now mode: sending all transitions with {delay}s delays\n")
 
+    running = True
+
+    def _stop(*_: object) -> None:
+        nonlocal running
+        running = False
+
+    signal.signal(signal.SIGINT, _stop)
+    signal.signal(signal.SIGTERM, _stop)
+
     for state in transitions:
+        if not running:
+            print("[SCHEDULER] Interrupted")
+            break
         print(f"[SCHEDULER] → {state.value}")
         push_sock.send_multipart(make_session_transition_msg(state.value))
-        time.sleep(delay)
+        deadline = time.monotonic() + delay
+        while running and time.monotonic() < deadline:
+            time.sleep(min(1.0, deadline - time.monotonic()))
 
-    print("[SCHEDULER] Done.")
+    if running:
+        print("[SCHEDULER] Done.")
 
 
 def main() -> None:
@@ -173,21 +188,21 @@ def main() -> None:
     push_sock = make_pusher(ENGINE_PULL_ADDR)
     time.sleep(0.1)  # let socket connect
 
-    if args.now:
-        _run_now(push_sock, now_mode_delay)
-    else:
-        config_path = Path(args.config) if args.config else ENGINE_CONFIG_FILE
-        if args.config and not config_path.exists():
-            print(
-                f"[SCHEDULER] FATAL: Config file not found: {config_path}",
-                file=sys.stderr,
-            )
-            push_sock.close()
-            sys.exit(1)
-        schedule = _load_schedule(config_path)
-        _run_scheduled(push_sock, schedule)
-
-    push_sock.close()
+    try:
+        if args.now:
+            _run_now(push_sock, now_mode_delay)
+        else:
+            config_path = Path(args.config) if args.config else ENGINE_CONFIG_FILE
+            if args.config and not config_path.exists():
+                print(
+                    f"[SCHEDULER] FATAL: Config file not found: {config_path}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            schedule = _load_schedule(config_path)
+            _run_scheduled(push_sock, schedule)
+    finally:
+        push_sock.close()
 
 
 if __name__ == "__main__":
