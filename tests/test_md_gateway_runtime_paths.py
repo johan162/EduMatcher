@@ -31,6 +31,10 @@ class _FakeSubscriber:
     def close(self) -> None:
         return None
 
+    @property
+    def closed(self) -> bool:
+        return False
+
 
 def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

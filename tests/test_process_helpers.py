@@ -10,6 +10,7 @@ Tests for process helper functions and classes that don't require live ZMQ:
 from __future__ import annotations
 
 import argparse
+import errno
 import textwrap
 from datetime import datetime
 from pathlib import Path
@@ -425,7 +426,7 @@ class TestViewerMain:
                 self._calls += 1
                 if self._calls == 1:
                     return [(self._sub, 1)]
-                raise zmq.ZMQError()
+                raise zmq.ZMQError(errno.EINTR)
 
         class _FakeLive:
             def __init__(self, **_kwargs: object) -> None:
@@ -587,7 +588,7 @@ class TestTickerMain:
                 self._calls += 1
                 if self._calls == 1:
                     return [(self._sub, 1)]
-                raise zmq.ZMQError()
+                raise zmq.ZMQError(errno.EINTR)
 
         sub = _FakeSub()
         proc = ticker_main.TickerProcess(
@@ -640,6 +641,9 @@ class TestTickerMain:
 
             def start(self) -> None:
                 _ = (self._target, self._daemon)
+
+            def join(self, timeout: float | None = None) -> None:
+                _ = timeout
 
         proc = ticker_main.TickerProcess(
             db_path=tmp_path / "stats.db",
