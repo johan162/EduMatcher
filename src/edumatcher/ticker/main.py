@@ -23,6 +23,7 @@ Output:
 from __future__ import annotations
 
 import argparse
+import errno
 import signal
 import sqlite3
 import threading
@@ -45,6 +46,7 @@ from edumatcher.models.message import decode
 
 _DISPLAY_INTERVAL_DEFAULT = 30  # seconds between printed ticker lines
 _DB_REFRESH_DEFAULT = 900  # seconds between daily_stats re-queries (15 min)
+_MAIN_LOOP_SLEEP_SEC = 0.1  # main-loop polling granularity
 
 console = Console(highlight=False)
 
@@ -82,6 +84,66 @@ def _query_daily_stats(
 # ---------------------------------------------------------------------------
 
 
+def _format_symbol(
+    sym: str,
+    d: dict[str, Any],
+    lv: dict[str, Any],
+) -> Text:
+    """Format one symbol's data as a Rich Text segment."""
+    frag = Text()
+
+    last_price = lv.get("last_price") or d.get("close_price")
+    open_price = d.get("open_price")
+    high_price = d.get("high_price")
+    low_price = d.get("low_price")
+    volume = d.get("volume", 0)
+    trade_count = d.get("trade_count", 0)
+    best_bid = lv.get("best_bid")
+    best_ask = lv.get("best_ask")
+
+    # Symbol name
+    frag.append(sym, style="bold cyan")
+
+    # Last price
+    if last_price is not None:
+        frag.append(f"  {last_price:>8.2f}", style="bold white")
+    else:
+        frag.append("        —", style="dim")
+
+    # % change vs open
+    if last_price is not None and open_price and open_price != 0:
+        pct = (last_price - open_price) / open_price * 100
+        sign = "+" if pct >= 0 else ""
+        color = "bright_green" if pct > 0 else ("bright_red" if pct < 0 else "white")
+        frag.append(f"  {sign}{pct:.2f}%", style=color)
+    else:
+        frag.append("       —  ", style="dim")
+
+    # High / Low
+    if high_price is not None:
+        frag.append(f"  H:{high_price:.2f}", style="green")
+    if low_price is not None:
+        frag.append(f"  L:{low_price:.2f}", style="red")
+
+    # Volume + trade count
+    if volume:
+        frag.append(f"  Vol:{volume:,}", style="dim")
+    if trade_count:
+        frag.append(f" ({trade_count}T)", style="dim")
+
+    # Bid / Ask spread
+    if best_bid is not None and best_ask is not None:
+        frag.append(f"  {best_bid:.2f}", style="green")
+        frag.append("/", style="dim")
+        frag.append(f"{best_ask:.2f}", style="red")
+    elif best_bid is not None:
+        frag.append(f"  {best_bid:.2f}/—", style="green")
+    elif best_ask is not None:
+        frag.append(f"  —/{best_ask:.2f}", style="red")
+
+    return frag
+
+
 def _build_line(
     symbols: list[str],
     daily: dict[str, dict[str, Any]],
@@ -91,65 +153,10 @@ def _build_line(
     line = Text()
     ts = datetime.now().strftime("%H:%M:%S")
     line.append(f"{ts}  ", style="dim")
-
     for i, sym in enumerate(symbols):
         if i > 0:
             line.append("  ◆  ", style="dim")
-
-        d = daily.get(sym, {})
-        lv = live.get(sym, {})
-
-        last_price = lv.get("last_price") or d.get("close_price")
-        open_price = d.get("open_price")
-        high_price = d.get("high_price")
-        low_price = d.get("low_price")
-        volume = d.get("volume", 0)
-        trade_count = d.get("trade_count", 0)
-        best_bid = lv.get("best_bid")
-        best_ask = lv.get("best_ask")
-
-        # Symbol name
-        line.append(sym, style="bold cyan")
-
-        # Last price
-        if last_price is not None:
-            line.append(f"  {last_price:>8.2f}", style="bold white")
-        else:
-            line.append("        —", style="dim")
-
-        # % change vs open
-        if last_price is not None and open_price and open_price != 0:
-            pct = (last_price - open_price) / open_price * 100
-            sign = "+" if pct >= 0 else ""
-            color = (
-                "bright_green" if pct > 0 else ("bright_red" if pct < 0 else "white")
-            )
-            line.append(f"  {sign}{pct:.2f}%", style=color)
-        else:
-            line.append("       —  ", style="dim")
-
-        # High / Low
-        if high_price is not None:
-            line.append(f"  H:{high_price:.2f}", style="green")
-        if low_price is not None:
-            line.append(f"  L:{low_price:.2f}", style="red")
-
-        # Volume + trade count
-        if volume:
-            line.append(f"  Vol:{volume:,}", style="dim")
-        if trade_count:
-            line.append(f" ({trade_count}T)", style="dim")
-
-        # Bid / Ask spread
-        if best_bid is not None and best_ask is not None:
-            line.append(f"  {best_bid:.2f}", style="green")
-            line.append("/", style="dim")
-            line.append(f"{best_ask:.2f}", style="red")
-        elif best_bid is not None:
-            line.append(f"  {best_bid:.2f}/—", style="green")
-        elif best_ask is not None:
-            line.append(f"  —/{best_ask:.2f}", style="red")
-
+        line.append_text(_format_symbol(sym, daily.get(sym, {}), live.get(sym, {})))
     return line
 
 
@@ -215,7 +222,9 @@ class TickerProcess:
         while self._running:
             try:
                 socks = dict(poller.poll(timeout=300))
-            except zmq.ZMQError:
+            except zmq.ZMQError as exc:
+                if exc.errno != errno.EINTR:
+                    raise
                 break
             if self.sub not in socks:
                 continue
@@ -232,8 +241,8 @@ class TickerProcess:
                 with self._lock:
                     self._live[symbol] = {
                         "last_price": payload.get("last_price"),
-                        "best_bid": bids[0]["price"] if bids else None,
-                        "best_ask": asks[0]["price"] if asks else None,
+                        "best_bid": bids[0].get("price") if bids else None,
+                        "best_ask": asks[0].get("price") if asks else None,
                     }
                     if symbol not in self._symbols:
                         self._symbols.append(symbol)
@@ -249,51 +258,53 @@ class TickerProcess:
 
         t = threading.Thread(target=self._receive, daemon=True)
         t.start()
+        try:
+            console.print(
+                "[bold cyan]◆ EduMatcher Ticker[/bold cyan]  —  "
+                f"display every [bold]{self._display_interval}s[/bold], "
+                f"DB refresh every [bold]{self._db_interval}s[/bold]  "
+                "(Ctrl-C to stop)",
+            )
 
-        console.print(
-            "[bold cyan]◆ EduMatcher Ticker[/bold cyan]  —  "
-            f"display every [bold]{self._display_interval}s[/bold], "
-            f"DB refresh every [bold]{self._db_interval}s[/bold]  "
-            "(Ctrl-C to stop)",
-        )
+            # Initial DB load — show data immediately if available
+            self._refresh_db()
+            self._last_db_refresh = time.monotonic()
 
-        # Initial DB load — show data immediately if available
-        self._refresh_db()
-        self._last_db_refresh = time.monotonic()
+            # Print first line right away (set last_display far enough in the past)
+            last_display = time.monotonic() - self._display_interval
 
-        # Print first line right away (set last_display far enough in the past)
-        last_display = time.monotonic() - self._display_interval
+            while self._running:
+                now = time.monotonic()
 
-        while self._running:
-            now = time.monotonic()
+                # Periodic DB refresh
+                if now - self._last_db_refresh >= self._db_interval:
+                    self._refresh_db()
+                    self._last_db_refresh = now
 
-            # Periodic DB refresh
-            if now - self._last_db_refresh >= self._db_interval:
-                self._refresh_db()
-                self._last_db_refresh = now
+                # Print ticker line
+                if now - last_display >= self._display_interval:
+                    with self._lock:
+                        syms = list(self._symbols)
+                        daily = dict(self._daily)
+                        live = dict(self._live)
+                    if syms:
+                        console.print(_build_line(syms, daily, live))
+                    else:
+                        console.print(
+                            f"[dim]{datetime.now().strftime('%H:%M:%S')}  "
+                            "waiting for market data…[/dim]"
+                        )
+                    last_display = now
 
-            # Print ticker line
-            if now - last_display >= self._display_interval:
-                with self._lock:
-                    syms = list(self._symbols)
-                    daily = dict(self._daily)
-                    live = dict(self._live)
-                if syms:
-                    console.print(_build_line(syms, daily, live))
-                else:
-                    console.print(
-                        f"[dim]{datetime.now().strftime('%H:%M:%S')}  "
-                        "waiting for market data…[/dim]"
-                    )
-                last_display = now
-
-            time.sleep(0.1)
-
-        self.sub.close()
+                time.sleep(_MAIN_LOOP_SLEEP_SEC)
+        finally:
+            self._running = False  # ensure _receive exits even on exception
+            t.join(timeout=2.0)  # wait for thread before touching the socket
+            self.sub.close()  # safe: _receive is no longer polling
+        console.print("\n[TICKER] Stopped.", style="dim")
 
     def _stop(self) -> None:
         self._running = False
-        print("\n[TICKER] Stopped.")
 
 
 # ---------------------------------------------------------------------------
