@@ -15,9 +15,6 @@
 EduMatcher is an educational trading system that teaches market microstructure,
 matching logic, and exchange architecture through runnable code.
 
-Unlike toy examples, it is designed to be both understandable and fast.
-
-
 ## Why EduMatcher?
 
 - Real exchange mechanics: order books, auctions, clearing, and risk controls
@@ -35,19 +32,25 @@ Unlike toy examples, it is designed to be both understandable and fast.
 - Message-based process boundaries with strong observability
 - Implement real risk controls such as prioce-collar, kill-switch, circuit-breaker, and mass-cancel
 
-## Key Limitations
+## Key Functional Limitations
 
 - No spread-order books
 - No implied (synthetic) orders
-- No primary-secondary site failover
+
+## Key Infrastructure Limitations
+
+- No primary-secondary automatic site failover
 - No load balancing
 - Limited replay for participants that lose the connection
 
+
 ## Performance
 
-EduMatcher does not aim to match venues like NYSE or LSE, but it is still
+EduMatcher does not aim to match venues like NYSE or LSE, but it is still fairly
 fast for a pure Python educational project. The figures below reflect the performance on an Intel MacBook Pro.
 On an ARM M1 MacBook the throughput is roughly 150,000 TPS (an improvement of almost 150%). Latencies are about 25% lower.
+
+It would be an interesting exercise rewriting this project in Rust.
 
 
 ### Latency (engine-only, n=1,000 each)
@@ -79,14 +82,6 @@ Main documentation site [EduMatcher Documentation](https://johan162.github.io/Ed
 - **How an Exchange Works**: a primer on exchange mechanics and market microstructure concepts aimed at software developers with no prior financial experience
 
 
-## Who It's For
-
-- Computer science students learning systems design and concurrency
-- Finance students learning market microstructure and trading mechanics
-- Developers building exchange technology or trading systems
-- Anyone curious about how modern markets actually work
-
-
 ## Contributing
 
 This is an educational project. If you find bugs, improve the documentation, or make other enhancements PRs are welcome!
@@ -94,25 +89,10 @@ This is an educational project. If you find bugs, improve the documentation, or 
 
 ## Setup a running system 
 
-### ALTERNATIVE 1: Local Python Installation via `pipx`
 
-1. Install Python 3.13+ and Poetry (or use the VM setup below)
-2. Install from PyPI with `pipx install edumatcher` 
-3. Bootstrap a new session directory and either generate `engine_config.yaml`
-with sane defaults, or start from the sample config copied by `pm-setup`:
+### ALTERNATIVE 1: Using a Multipass VM
 
-```bash
-mkdir session
-cd session
-pm-setup
-pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --sessions-enabled --output engine_config.yaml
-pm-engine --verbose
-```
-
-
-### ALTERNATIVE 2: Using a Multipass VM
-
-#### Requirements
+#### Pre-Reqs
 
 | Requirement     | Notes                                                                                 |
 |-----------------|---------------------------------------------------------------------------------------|
@@ -125,7 +105,7 @@ pm-engine --verbose
 #### Bootstrap with one command
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.12.1 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.12.2 --snapshot
 ```
 
 This command downloads the VM setup scripts, launches a Multipass VM,
@@ -148,6 +128,24 @@ terminal to start `pm-gateway`, `pm-viewer`, `pm-clearing`, and `pm-audit`.
 **Note:** Running the exchange is complex enough that you really **need** to read the documentation and follow the instructions in the User Guide to get a full exchange up and running. The above commands are just a quick start to get you going. The User Guide will explain how to configure the exchange, start and stop processes, and run the system in a realistic way.
 
 
+### ALTERNATIVE 2: Local Python Installation via `pipx`
+
+1. Install Python 3.13+ and Poetry (or use the VM setup below)
+2. Install `pipx` (`pip install pipx` or on MacOS `brew install pipx`)
+3. Bootstrap a new session directory and either generate `engine_config.yaml`
+with sane defaults, or start from the sample config copied by `pm-setup`:
+
+```bash
+pipx install edumatcher
+mkdir session
+cd session
+pm-setup
+pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --sessions-enabled --output engine_config.yaml
+pm-engine --verbose
+```
+
+
+
 ## Citation
 
 If you use this tool in teaching or courses, please cite:
@@ -158,7 +156,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/edumatcher},
-  version = {0.12.1}
+  version = {0.12.2}
 }
 ```
 
