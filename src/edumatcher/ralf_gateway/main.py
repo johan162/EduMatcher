@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from edumatcher.config import ENGINE_CONFIG_FILE, ENGINE_PUB_ADDR
+from edumatcher.config import ENGINE_CONFIG_FILE
 from edumatcher.ralf_gateway.config import (
     RalfGatewayConfig,
     load_default_ralf_gateway_config,
@@ -28,8 +28,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--port", type=int, help="TCP bind port override")
     parser.add_argument(
         "--engine-pub",
-        default=ENGINE_PUB_ADDR,
-        help="Engine PUB socket address (default: tcp://127.0.0.1:5556)",
+        default=None,
+        help="Engine PUB socket address (default: value from config, then tcp://127.0.0.1:5556)",
     )
     return parser
 
@@ -65,7 +65,10 @@ def main() -> None:
         parser.error(str(exc))
 
     gateway = RalfGateway(config)
-    gateway.run()
+    try:
+        gateway.run()
+    finally:
+        gateway.close()
 
 
 __all__ = [
