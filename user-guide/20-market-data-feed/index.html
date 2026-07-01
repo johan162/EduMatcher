@@ -3437,7 +3437,7 @@ to external clients.  <code>pm-md-gwy</code> bridges that gap: it subscribes to 
 PUB socket, normalises raw engine events into CALF lines, and re-publishes them
 over TCP (default port <code>5570</code>) in a format any language can consume with a plain
 socket and line-split logic.</p>
-<pre class="mermaid"><code>flowchart LR
+<pre class="mermaid"><code>flowchart TB
     E[pm-engine\nZMQ PUB :5556] --&gt;|"book.*, trade.executed\nsession.state\ncircuit_breaker.*\nindex.*"| G
 
     subgraph G["pm-md-gwy  (TCP :5570)"]

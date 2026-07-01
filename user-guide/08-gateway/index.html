@@ -1138,10 +1138,54 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#what-this-process-does" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What this process does
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture-position" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture position
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-to-use-alf-protocol-comparison" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When to use ALF — protocol comparison
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#starting-a-gateway" class="md-nav__link">
     <span class="md-ellipsis">
       
         Starting a Gateway
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#session-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Session lifecycle
       
     </span>
   </a>
@@ -1159,6 +1203,28 @@
   
     <nav class="md-nav" aria-label="Command Format">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#command-families-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command families at a glance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#role-entitlements-what-each-role-can-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Role entitlements (what each role can do)
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#quote-submitreplace-a-two-sided-mm-quote" class="md-nav__link">
@@ -1454,6 +1520,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reconnect-and-state-re-sync-playbook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reconnect and state re-sync playbook
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#gateway-responses" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1537,6 +1614,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#end-to-end-operator-walkthrough" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        End-to-end operator walkthrough
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#multiple-gateways" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1598,10 +1686,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#common-mistakes" class="md-nav__link">
+  <a href="#common-mistakes-and-fast-triage" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Common mistakes
+        Common mistakes and fast triage
       
     </span>
   </a>
@@ -3628,6 +3716,84 @@ without discrimination.  In practice this means:</p>
 ZeroMQ arrival order with no timestamps beyond the wall clock of the machine
 running the test.  For a learning system on localhost this is irrelevant; for a
 regulated venue it would be a compliance failure.</p>
+<h2 id="what-this-process-does">What this process does<a class="headerlink" href="#what-this-process-does" title="Permanent link">&para;</a></h2>
+<p><code>pm-gateway</code> is the interactive ALF trading gateway. It connects a human or bot
+operator to the matching engine for order-entry workflows: submit, amend,
+cancel, monitor order lifecycle, and inspect local position state.</p>
+<p>Responsibilities of <code>pm-gateway</code>:</p>
+<ul>
+<li>authenticates the gateway ID against <code>gateways.alf</code></li>
+<li>parses ALF command lines into validated engine requests</li>
+<li>subscribes to gateway-scoped lifecycle events (acks, fills, cancels, rejects)</li>
+<li>maintains local session caches for <code>ORDERS</code>, <code>POS</code>, <code>QBOOT</code>, and <code>QLEGS</code></li>
+<li>provides interactive terminal ergonomics (history, tab completion, live events)</li>
+</ul>
+<h2 id="architecture-position">Architecture position<a class="headerlink" href="#architecture-position" title="Permanent link">&para;</a></h2>
+<p><code>pm-gateway</code> sits between an ALF client (human operator or automation script)
+and the matching engine. Outbound commands go to the engine request socket,
+while gateway-scoped lifecycle events and selected market events come back on
+the engine PUB stream.</p>
+<pre class="mermaid"><code>flowchart TB
+  CL["Operator / bot\nALF commands"]
+  GW["pm-gateway\n(ALF interactive client)"]
+  ENG["pm-engine\nMatching + risk"]
+  EVT["Gateway event stream\norder.ack/order.fill/...\ntrade.executed"]
+
+  CL --&gt;|"ALF commands"| GW
+  GW --&gt;|"order/control requests"| ENG
+  ENG --&gt;|"events + acks"| EVT
+  EVT --&gt; GW</code></pre>
+<h2 id="when-to-use-alf-protocol-comparison">When to use ALF — protocol comparison<a class="headerlink" href="#when-to-use-alf-protocol-comparison" title="Permanent link">&para;</a></h2>
+<p>EduMatcher offers multiple interfaces. Use this quick guide to choose the right one.</p>
+<table>
+<thead>
+<tr>
+<th>Interface</th>
+<th>Transport</th>
+<th>Best for</th>
+<th>Not suitable for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ALF</strong> (<code>pm-gateway</code>)</td>
+<td>TCP text (interactive client)</td>
+<td>Human/manual trading workflows, command-driven testing, order-entry demos</td>
+<td>External market-data-only consumers</td>
+</tr>
+<tr>
+<td><strong>CALF</strong> (<code>pm-md-gwy</code>)</td>
+<td>TCP text</td>
+<td>External market data (<code>TOP</code>, <code>TRADE</code>, <code>STATE</code>, <code>INDEX</code>)</td>
+<td>Order entry</td>
+</tr>
+<tr>
+<td><strong>RALF</strong> (<code>pm-ralf-gwy</code>)</td>
+<td>TCP text</td>
+<td>External post-trade feeds (<code>CLEARING</code>, <code>DROP_COPY</code>, <code>AUDIT</code>)</td>
+<td>Pre-trade market data, order entry</td>
+</tr>
+<tr>
+<td><strong>REST / WebSocket</strong> (<code>pm-api-gwy</code>)</td>
+<td>HTTP/JSON + WS</td>
+<td>Browser and API-native apps</td>
+<td>Lowest-latency interactive trading</td>
+</tr>
+<tr>
+<td><strong>Internal ZMQ PUB/PULL</strong></td>
+<td>ZMQ binary</td>
+<td>Internal processes that import <code>edumatcher</code></td>
+<td>External clients</td>
+</tr>
+</tbody>
+</table>
+<p>Rule of thumb:</p>
+<ul>
+<li>Manual or scripted command-line order entry -&gt; <strong>ALF (<code>pm-gateway</code>)</strong></li>
+<li>External market data feed -&gt; <strong>CALF</strong></li>
+<li>External clearing/audit feed -&gt; <strong>RALF</strong></li>
+<li>Browser/web integration -&gt; <strong>REST/WebSocket</strong></li>
+</ul>
 <p>The gateway (<code>pm-gateway</code>) is your trading terminal. Each gateway instance represents
 one user connecting to the trading system. Multiple gateways can run simultaneously.</p>
 <h2 id="starting-a-gateway">Starting a Gateway<a class="headerlink" href="#starting-a-gateway" title="Permanent link">&para;</a></h2>
@@ -3673,6 +3839,21 @@ phase transitions live.</p>
 </code></pre></div>
 <p>If a gateway starts with an ID that is not listed there, the engine refuses
 the connection and the gateway exits.</p>
+<h2 id="session-lifecycle">Session lifecycle<a class="headerlink" href="#session-lifecycle" title="Permanent link">&para;</a></h2>
+<p>Every gateway session follows this operator lifecycle:</p>
+<pre class="mermaid"><code>sequenceDiagram
+  participant U as Operator
+  participant GW as pm-gateway
+  participant ENG as pm-engine
+
+  U-&gt;&gt;GW: Start pm-gateway --id TRADER01
+  GW-&gt;&gt;ENG: system.gateway_connect
+  ENG--&gt;&gt;GW: system.gateway_auth.TRADER01 accepted=true
+  U-&gt;&gt;GW: NEW / AMEND / CANCEL / QUOTE ...
+  GW-&gt;&gt;ENG: ALF command translated to engine request
+  ENG--&gt;&gt;GW: order.ack / order.fill / order.cancelled / ...
+  U-&gt;&gt;GW: ORDERS / POS / STATUS / SYMBOLS
+  U-&gt;&gt;GW: EXIT</code></pre>
 <h2 id="command-format">Command Format<a class="headerlink" href="#command-format" title="Permanent link">&para;</a></h2>
 <p>All commands use the ALF pipe-separated key=value format.</p>
 <div class="admonition note">
@@ -3680,6 +3861,71 @@ the connection and the gateway exits.</p>
 <p>For the precise ALF grammar, parser rules, field semantics, and full command
 catalog, see <a href="../90-app-alf-protocol/">Appendix: ALF Protocol Reference</a>.</p>
 </div>
+<h3 id="command-families-at-a-glance">Command families at a glance<a class="headerlink" href="#command-families-at-a-glance" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Family</th>
+<th>Commands</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Order entry</td>
+<td><code>NEW</code>, <code>NEW|TYPE=COMBO</code>, <code>NEW|TYPE=OCO</code>, <code>QUOTE</code></td>
+<td>Create new exposure</td>
+</tr>
+<tr>
+<td>Order updates</td>
+<td><code>AMEND</code>, <code>CANCEL</code>, <code>QUOTE_CANCEL</code></td>
+<td>Modify or remove exposure</td>
+</tr>
+<tr>
+<td>Risk controls</td>
+<td><code>KILL</code></td>
+<td>Emergency local gateway kill-switch</td>
+</tr>
+<tr>
+<td>Monitoring</td>
+<td><code>STATUS</code>, <code>ORDERS</code>, <code>POS</code>, <code>SYMBOLS</code>, <code>QBOOT</code>, <code>QLEGS</code></td>
+<td>Inspect live/cached state</td>
+</tr>
+<tr>
+<td>Session control</td>
+<td><code>HELP</code>, <code>EXIT</code>, <code>QUIT</code></td>
+<td>Terminal usability</td>
+</tr>
+</tbody>
+</table>
+<h3 id="role-entitlements-what-each-role-can-do">Role entitlements (what each role can do)<a class="headerlink" href="#role-entitlements-what-each-role-can-do" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Gateway role</th>
+<th>Allowed trading behavior</th>
+<th>Disallowed behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TRADER</code></td>
+<td>Standard <code>NEW</code>/<code>AMEND</code>/<code>CANCEL</code>, OCO/COMBO, monitoring commands</td>
+<td>MM quote commands (<code>QUOTE</code>, <code>QUOTE_CANCEL</code>)</td>
+</tr>
+<tr>
+<td><code>MARKET_MAKER</code></td>
+<td>All trader behavior plus quote workflows (<code>QUOTE</code>, <code>QBOOT</code>, <code>QLEGS</code>)</td>
+<td>N/A within configured symbols/limits</td>
+</tr>
+<tr>
+<td><code>ADMIN</code> (if configured)</td>
+<td>Operational commands per config/policy</td>
+<td>Business flow outside policy</td>
+</tr>
+</tbody>
+</table>
+<p>If a command is not allowed for your configured role, the gateway prints a rejection.</p>
 <h3 id="quote-submitreplace-a-two-sided-mm-quote">QUOTE — Submit/Replace A Two-Sided MM Quote<a class="headerlink" href="#quote-submitreplace-a-two-sided-mm-quote" title="Permanent link">&para;</a></h3>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
@@ -4275,6 +4521,21 @@ the engine refuses the connection.</p>
 <h3 id="exit-quit-disconnect">EXIT / QUIT — Disconnect<a class="headerlink" href="#exit-quit-disconnect" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>EXIT
 </code></pre></div>
+<h2 id="reconnect-and-state-re-sync-playbook">Reconnect and state re-sync playbook<a class="headerlink" href="#reconnect-and-state-re-sync-playbook" title="Permanent link">&para;</a></h2>
+<p>After restarting the gateway, rebuild local confidence in state with this sequence.</p>
+<ol>
+<li>Run <code>SYMBOLS</code> to confirm active books and symbol metadata.</li>
+<li>Run <code>ORDERS</code> to recover your current resting single-leg orders.</li>
+<li>If you are a market maker, run <code>QBOOT</code> then <code>QLEGS|SHOW=ALL</code>.</li>
+<li>Run <code>POS</code> to rebuild your session-local position view from current stream.</li>
+<li>Resume normal trading only after steps 1-4 look consistent.</li>
+</ol>
+<p>Why this matters:</p>
+<ul>
+<li><code>ORDERS</code> gives authoritative order IDs for follow-up <code>AMEND</code>/<code>CANCEL</code></li>
+<li><code>QBOOT</code>/<code>QLEGS</code> avoids accidental duplicate quoting after reconnect</li>
+<li><code>POS</code> helps detect drift between expected and observed exposure</li>
+</ul>
 <h2 id="gateway-responses">Gateway Responses<a class="headerlink" href="#gateway-responses" title="Permanent link">&para;</a></h2>
 <p>All events are printed inline with a <code>[HH:MM:SS.mmm]</code> timestamp prefix. A background thread receives events from the engine while you continue typing.</p>
 <h3 id="order-events">Order Events<a class="headerlink" href="#order-events" title="Permanent link">&para;</a></h3>
@@ -4435,16 +4696,49 @@ the engine refuses the connection.</p>
 <p class="admonition-title">Session phase changes</p>
 <p>The gateway does <strong>not</strong> subscribe to <code>session.state</code> events. Trading phase transitions are not displayed in the gateway terminal. To monitor session phases, run <code>pm-audit</code>, <code>pm-viewer</code>, or <code>pm-orders</code> in a separate terminal.</p>
 </div>
+<h2 id="end-to-end-operator-walkthrough">End-to-end operator walkthrough<a class="headerlink" href="#end-to-end-operator-walkthrough" title="Permanent link">&para;</a></h2>
+<p>This transcript shows a realistic manual session from connect to disconnect.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a># Start gateway
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>$ poetry run pm-gateway --id TRADER01
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>TRADER01&gt; SYMBOLS
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a># confirms AAPL/MSFT active
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>[09:30:00.100] ACK  7c4a91e2  order accepted
+<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a>
+<a id="__codelineno-30-10" name="__codelineno-30-10" href="#__codelineno-30-10"></a>TRADER01&gt; ORDERS
+<a id="__codelineno-30-11" name="__codelineno-30-11" href="#__codelineno-30-11"></a># copy full UUID from table if you plan to amend/cancel
+<a id="__codelineno-30-12" name="__codelineno-30-12" href="#__codelineno-30-12"></a>
+<a id="__codelineno-30-13" name="__codelineno-30-13" href="#__codelineno-30-13"></a>TRADER01&gt; AMEND|ID=7c4a91e2-...|PRICE=150.10
+<a id="__codelineno-30-14" name="__codelineno-30-14" href="#__codelineno-30-14"></a>[09:30:01.500] AMENDED  7c4a91e2  price=150.1 qty=100 remaining=100
+<a id="__codelineno-30-15" name="__codelineno-30-15" href="#__codelineno-30-15"></a>
+<a id="__codelineno-30-16" name="__codelineno-30-16" href="#__codelineno-30-16"></a>[09:30:02.200] FILL  7c4a91e2  qty=40 @150.10  remaining=60  [PARTIAL]
+<a id="__codelineno-30-17" name="__codelineno-30-17" href="#__codelineno-30-17"></a>
+<a id="__codelineno-30-18" name="__codelineno-30-18" href="#__codelineno-30-18"></a>TRADER01&gt; POS
+<a id="__codelineno-30-19" name="__codelineno-30-19" href="#__codelineno-30-19"></a># exposure now reflects partial fill
+<a id="__codelineno-30-20" name="__codelineno-30-20" href="#__codelineno-30-20"></a>
+<a id="__codelineno-30-21" name="__codelineno-30-21" href="#__codelineno-30-21"></a>TRADER01&gt; CANCEL|ID=7c4a91e2-...
+<a id="__codelineno-30-22" name="__codelineno-30-22" href="#__codelineno-30-22"></a>[09:30:03.000] CANCELLED  7c4a91e2
+<a id="__codelineno-30-23" name="__codelineno-30-23" href="#__codelineno-30-23"></a>
+<a id="__codelineno-30-24" name="__codelineno-30-24" href="#__codelineno-30-24"></a>TRADER01&gt; EXIT
+</code></pre></div>
+<p>Recommended habits:</p>
+<ul>
+<li>Always use <code>ORDERS</code> to copy full IDs before <code>AMEND</code>/<code>CANCEL</code></li>
+<li>Check <code>POS</code> after fills, not only at end of session</li>
+<li>If behavior looks inconsistent, run the re-sync playbook above</li>
+</ul>
 <h2 id="multiple-gateways">Multiple Gateways<a class="headerlink" href="#multiple-gateways" title="Permanent link">&para;</a></h2>
 <p>Run as many gateways as needed — each in its own terminal window:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># Terminal A</span>
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER01
-<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>
-<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="c1"># Terminal B  </span>
-<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER02
-<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>
-<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a><span class="c1"># Terminal C</span>
-<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER03
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="c1"># Terminal A</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="c1"># Terminal B  </span>
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER02
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>
+<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="c1"># Terminal C</span>
+<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER03
 </code></pre></div>
 <p>Before starting a new gateway ID (for example <code>TRADER03</code>), add it to
 <code>engine_config.yaml</code> in <code>gateways.alf</code> and restart the engine.</p>
@@ -4515,51 +4809,64 @@ gateways' activity.</p>
 <p>A background thread listens on the SUB socket and prints events (fills, cancels,
 combo status changes, session transitions) in real-time, interleaved cleanly with
 the command prompt. You can continue typing while events arrive.</p>
-<h2 id="common-mistakes">Common mistakes<a class="headerlink" href="#common-mistakes" title="Permanent link">&para;</a></h2>
-<p>New users frequently encounter these issues when first using the gateway:</p>
+<h2 id="common-mistakes-and-fast-triage">Common mistakes and fast triage<a class="headerlink" href="#common-mistakes-and-fast-triage" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>Symptom</th>
-<th>Cause</th>
-<th>Fix</th>
+<th>Typical cause</th>
+<th>Fast check</th>
+<th>Action</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>Gateway authentication timed out</code></td>
-<td>Engine is not running</td>
+<td>Engine is not running/reachable</td>
+<td>Is <code>pm-engine</code> running in another terminal?</td>
 <td>Start <code>pm-engine</code> first</td>
 </tr>
 <tr>
 <td><code>Gateway not configured: GW01</code></td>
 <td>Gateway ID not in <code>engine_config.yaml</code></td>
-<td>Add the ID under <code>gateways.alf</code> or run in unrestricted mode (no config)</td>
+<td>Check <code>gateways.alf</code> list</td>
+<td>Add ID under <code>gateways.alf</code> and restart engine</td>
 </tr>
 <tr>
 <td><code>REJECTED: SYMBOL_NOT_CONFIGURED</code></td>
-<td>Symbol not in config</td>
-<td>Add the symbol under <code>symbols:</code> in the config</td>
+<td>Symbol unknown to engine config</td>
+<td>Run <code>SYMBOLS</code></td>
+<td>Use listed symbols or add symbol to config</td>
 </tr>
 <tr>
 <td><code>REJECTED: SYMBOL_HALTED</code></td>
-<td>A circuit breaker fired or operator halted the symbol</td>
-<td>Wait for resume, or use <code>pm-admin</code> to resume</td>
+<td>Circuit breaker/operator halt</td>
+<td>Check audit/viewer output</td>
+<td>Wait for resume or use admin controls</td>
 </tr>
 <tr>
 <td><code>REJECTED: STATIC_COLLAR_BREACH</code></td>
-<td>Order price too far from reference</td>
-<td>Choose a price closer to the last traded price</td>
+<td>Price too far from reference</td>
+<td>Compare to recent trade prices</td>
+<td>Reprice closer to market</td>
 </tr>
 <tr>
 <td>Order rests but does not fill</td>
-<td>No counterparty at that price</td>
-<td>Another gateway must post a crossing order</td>
+<td>No crossing liquidity</td>
+<td>Check opposite side activity</td>
+<td>Wait or improve price</td>
 </tr>
 <tr>
 <td><code>Quotes are only allowed for MARKET_MAKER participants</code></td>
-<td>Gateway role is <code>TRADER</code></td>
-<td>Change the role to <code>MARKET_MAKER</code> in config</td>
+<td>Role is <code>TRADER</code></td>
+<td>Verify gateway role in config</td>
+<td>Change role to <code>MARKET_MAKER</code> if intended</td>
+</tr>
+<tr>
+<td><code>AMEND</code>/<code>CANCEL</code> fails with unknown ID</td>
+<td>Short ID used instead of full UUID</td>
+<td>Run <code>ORDERS</code> and inspect full ID</td>
+<td>Retry with full order UUID</td>
 </tr>
 </tbody>
 </table>
