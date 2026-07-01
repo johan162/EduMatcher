@@ -54,6 +54,11 @@ flowchart LR
     SCH -- "session state" --> ENG
 ```
 
+## How to get started
+
+Running the exchange is complex enough that you really **need** to read the documentation and follow the instructions in the User Guide to get a full exchange up and running. The installation below is just the very first step to get started. The rest of the User Guide will explain how to configure the exchange, start and stop processes, and run the system in a realistic way. 
+
+This might seem overwhelming at first and the best way to get started is to skim through the entirety of the user-guide. After the installation a good way to get started is through the self-paced [training sections](training/index.md)
 
 
 ## Installation
@@ -108,11 +113,11 @@ terminal to start `pm-gateway`, `pm-viewer`, `pm-clearing`, and `pm-audit`.
 ```bash
 # Different VM name and version
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
-    bash -s -- --name edumatcher-092 --version 0.12.3 --snapshot
+    bash -s -- --name edumatcher-vm --version 0.12.3 --snapshot
 
 # Tune resources
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
-    bash -s -- --cpus 2 --memory 3G --disk 10G
+    bash -s -- --cpus 2 --memory 3G --disk 8G
 ```
 
 **Optional: inspect script before execution**
@@ -122,8 +127,6 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_se
 less curl_setup_vm.sh
 bash curl_setup_vm.sh --version 0.12.3 --snapshot
 ```
-
-
 
 ### End-user / student mode — `pipx install` (recommended)
 
@@ -139,26 +142,32 @@ no source code, no Poetry, no virtual environment management.
 
 **Install**
 
+If using `brew` then install `pipx` 
+
+```bash
+# Install pipx using homebrew
+brew install pipx
+pipx ensurepath        # adds ~/.local/bin to PATH; reopen your shell after this
+```
+
+or on Linux
+
 ```bash
 # Install pipx (once, if not already present)
 pip install pipx
 pipx ensurepath        # adds ~/.local/bin to PATH; reopen your shell after this
+```
+
+
 
 # Install EduMatcher — all pm-* commands land on your PATH
+
+
+```bash
 pipx install edumatcher
-```
-
-Or use the provided one-shot script (handles pipx installation automatically):
-
-```bash
-./scripts/install-runtime.sh
-```
-
-**Bootstrap your session directory**
-
-```bash
-cd ~/my-exchange-session    # create and cd into any working directory you like
-pm-setup                    # creates ~/.local/share/edumatcher  +  copies engine_config.yaml here
+mkdir session
+cd session
+pm-setup
 ```
 
 `pm-setup` prints a shell snippet to add to your `.zshrc` / `.bashrc`:
@@ -166,6 +175,12 @@ pm-setup                    # creates ~/.local/share/edumatcher  +  copies engin
 ```bash
 export EDUMATCHER_DATA_DIR="$HOME/.local/share/edumatcher"
 export EDUMATCHER_CONFIG="$HOME/my-exchange-session/engine_config.yaml"
+```
+
+Or use the provided one-shot script (handles pipx installation automatically):
+
+```bash
+./scripts/install-runtime.sh
 ```
 
 After reloading your shell, every `pm-*` command picks up the right data
