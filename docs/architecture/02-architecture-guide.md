@@ -160,8 +160,6 @@ graph TD
     DICT["__dict__  ·  a hash table\n\nid → ...\nsymbol → ...\nside → ...\n...\n18 attributes stored as key-value pairs"]
     COST["Attribute access = hash lookup\n≈ 50–70 ns per access"]
     OBJ --> DICT --> COST
-    style DICT fill:#ffeeba,stroke:#d4a017
-    style COST fill:#f8d7da,stroke:#c0392b
 ```
 
 With `__slots__`, Python replaces the dictionary with a fixed C array:
@@ -179,11 +177,6 @@ graph TD
     OBJ2 --> S2
     OBJ2 --> SN
     SN --> COST2
-    style S0 fill:#d4edda,stroke:#28a745
-    style S1 fill:#d4edda,stroke:#28a745
-    style S2 fill:#d4edda,stroke:#28a745
-    style SN fill:#d4edda,stroke:#28a745
-    style COST2 fill:#d4edda,stroke:#155724
 ```
 
 Each attribute access saves roughly 20-40 nanoseconds. With thousands of fills per
@@ -204,7 +197,7 @@ The **order book** is the core data structure of an exchange. It holds all resti
 Conceptually, it looks like this for AAPL:
 
 ```mermaid
-graph LR
+graph TB
     subgraph BIDS["📉  BID SIDE  ·  buyers  ·  highest price first"]
         B1["$210.00  ·  500 qty  ←  best bid"]
         B2["$209.50  ·  1,200 qty"]
@@ -217,7 +210,6 @@ graph LR
         A3["$212.00  ·  300 qty"]
     end
     BIDS --- SP --- ASKS
-    style SP fill:#fff3cd,stroke:#856404
 ```
 
 The **spread** is the gap between the best bid ($210.00) and the best ask ($211.00).
@@ -235,7 +227,7 @@ the buyer is willing to pay. The new buy order would rest in the book at $210.50
 narrowing the spread. The book would now look like:
 
 ```mermaid
-graph LR
+graph TB
     subgraph BIDS2["📉  BID SIDE  (after new order at $210.50)"]
         NB1["$210.50  ·  100 qty  ←  NEW resting order"]
         NB2["$210.00  ·  500 qty"]
@@ -245,8 +237,6 @@ graph LR
         NA1["$211.00  ·  2,000 qty  ←  best ask"]
     end
     BIDS2 --- SP2 --- ASKS2
-    style NB1 fill:#cce5ff,stroke:#004085
-    style SP2 fill:#fff3cd,stroke:#856404
 ```
 
 This accumulation of unfilled limit orders is what creates depth in the book.
