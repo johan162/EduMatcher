@@ -82,6 +82,8 @@ def load_ralf_gateway_config(path: Path) -> RalfGatewayConfig:
         name=name,
         bind_address=bind_address,
         port=port,
+        # engine_pub_addr is always taken from the global ENGINE_PUB_ADDR constant.
+        # It cannot be overridden per-gateway in YAML; use the --engine-pub CLI flag.
         engine_pub_addr=ENGINE_PUB_ADDR,
         replay_retention_sec=replay_retention_sec,
         heartbeat_interval_sec=heartbeat_interval_sec,

@@ -11,105 +11,107 @@ from edumatcher.stats.main import SCHEMA
 
 def _seed_db(path: Path) -> None:
     conn = sqlite3.connect(path)
-    conn.executescript(SCHEMA)
+    try:
+        conn.executescript(SCHEMA)
 
-    conn.execute(
-        "INSERT INTO daily_stats "
-        "(date, symbol, open_price, high_price, low_price, close_price, volume, trade_count, vwap) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ("2026-06-14", "AAPL", 150.0, 153.25, 149.5, 152.75, 5000, 12, 151.82),
-    )
-    conn.execute(
-        "INSERT INTO daily_stats "
-        "(date, symbol, open_price, high_price, low_price, close_price, volume, trade_count, vwap) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ("2026-06-15", "MSFT", 414.0, 418.5, 413.0, 417.0, 3200, 8, 415.63),
-    )
+        conn.execute(
+            "INSERT INTO daily_stats "
+            "(date, symbol, open_price, high_price, low_price, close_price, volume, trade_count, vwap) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("2026-06-14", "AAPL", 150.0, 153.25, 149.5, 152.75, 5000, 12, 151.82),
+        )
+        conn.execute(
+            "INSERT INTO daily_stats "
+            "(date, symbol, open_price, high_price, low_price, close_price, volume, trade_count, vwap) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ("2026-06-15", "MSFT", 414.0, 418.5, 413.0, 417.0, 3200, 8, 415.63),
+        )
 
-    conn.execute(
-        "INSERT INTO price_snapshots (ts, symbol, mid_price, best_bid, best_ask, pct_change) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        ("2026-06-14T09:00:00+00:00", "AAPL", 150.5, 150.0, 151.0, None),
-    )
+        conn.execute(
+            "INSERT INTO price_snapshots (ts, symbol, mid_price, best_bid, best_ask, pct_change) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("2026-06-14T09:00:00+00:00", "AAPL", 150.5, 150.0, 151.0, None),
+        )
 
-    conn.execute(
-        "INSERT INTO trade_log "
-        "(ts, trade_id, symbol, price, quantity, buy_gateway_id, sell_gateway_id) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (
-            "2026-06-14T09:00:01.000+00:00",
-            "T-AAPL-1",
-            "AAPL",
-            150.0,
-            100,
-            "GW01",
-            "GW02",
-        ),
-    )
+        conn.execute(
+            "INSERT INTO trade_log "
+            "(ts, trade_id, symbol, price, quantity, buy_gateway_id, sell_gateway_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                "2026-06-14T09:00:01.000+00:00",
+                "T-AAPL-1",
+                "AAPL",
+                150.0,
+                100,
+                "GW01",
+                "GW02",
+            ),
+        )
 
-    conn.execute(
-        "INSERT INTO order_events "
-        "(ts, event_type, order_id, gateway_id, symbol, side, order_type, tif, "
-        "price, quantity, remaining_qty, status, client_order_id) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (
-            "2026-06-14T09:00:00.100+00:00",
-            "ACK",
-            "O-AAPL-1",
-            "GW01",
-            "AAPL",
-            "BUY",
-            "LIMIT",
-            "DAY",
-            150.0,
-            100,
-            100,
-            "ACCEPTED",
-            "client-1",
-        ),
-    )
-    conn.execute(
-        "INSERT INTO order_events "
-        "(ts, event_type, order_id, gateway_id, symbol, side, fill_price, fill_qty, "
-        "trade_id, remaining_qty, status) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (
-            "2026-06-14T09:00:01.000+00:00",
-            "FILL",
-            "O-AAPL-1",
-            "GW01",
-            "AAPL",
-            "BUY",
-            150.0,
-            100,
-            "T-AAPL-1",
-            0,
-            "FILLED",
-        ),
-    )
-    conn.execute(
-        "INSERT INTO order_events "
-        "(ts, event_type, order_id, gateway_id, symbol, side, order_type, tif, "
-        "price, quantity, remaining_qty, status) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (
-            "2026-06-14T09:00:02.000+00:00",
-            "ACK",
-            "O-MSFT-1",
-            "GW02",
-            "MSFT",
-            "SELL",
-            "LIMIT",
-            "DAY",
-            415.0,
-            50,
-            50,
-            "ACCEPTED",
-        ),
-    )
+        conn.execute(
+            "INSERT INTO order_events "
+            "(ts, event_type, order_id, gateway_id, symbol, side, order_type, tif, "
+            "price, quantity, remaining_qty, status, client_order_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "2026-06-14T09:00:00.100+00:00",
+                "ACK",
+                "O-AAPL-1",
+                "GW01",
+                "AAPL",
+                "BUY",
+                "LIMIT",
+                "DAY",
+                150.0,
+                100,
+                100,
+                "ACCEPTED",
+                "client-1",
+            ),
+        )
+        conn.execute(
+            "INSERT INTO order_events "
+            "(ts, event_type, order_id, gateway_id, symbol, side, fill_price, fill_qty, "
+            "trade_id, remaining_qty, status) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "2026-06-14T09:00:01.000+00:00",
+                "FILL",
+                "O-AAPL-1",
+                "GW01",
+                "AAPL",
+                "BUY",
+                150.0,
+                100,
+                "T-AAPL-1",
+                0,
+                "FILLED",
+            ),
+        )
+        conn.execute(
+            "INSERT INTO order_events "
+            "(ts, event_type, order_id, gateway_id, symbol, side, order_type, tif, "
+            "price, quantity, remaining_qty, status) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "2026-06-14T09:00:02.000+00:00",
+                "ACK",
+                "O-MSFT-1",
+                "GW02",
+                "MSFT",
+                "SELL",
+                "LIMIT",
+                "DAY",
+                415.0,
+                50,
+                50,
+                "ACCEPTED",
+            ),
+        )
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _run_cli(monkeypatch: pytest.MonkeyPatch, argv: list[str]) -> None:
