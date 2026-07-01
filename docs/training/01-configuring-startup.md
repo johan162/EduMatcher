@@ -117,13 +117,19 @@ Open a terminal and run:
 pm-engine --config engine_config.yaml
 ```
 
-Expected output includes:
+Expected output includes (exact wording/log format may vary by version — this
+is illustrative, not a literal match target):
 
 ```
 [INFO] Loaded 3 symbols: AAPL, MSFT, TSLA
 [INFO] Loaded 3 gateways
 [INFO] Engine listening on :5555 (PULL), publishing on :5556 (PUB)
 ```
+
+The stable way to confirm the engine actually loaded your config, independent
+of log wording, is to query it from a gateway once connected (Exercise 5) with
+`SYMBOLS` — if it lists `AAPL`, `MSFT`, and `TSLA`, the engine started correctly
+regardless of what the startup banner said.
 
 :material-checkbox-blank-outline: **Checkpoint:** engine is running without errors.
 
@@ -137,7 +143,7 @@ In a **second terminal**:
 pm-scheduler
 ```
 
-Expected output:
+Expected output (illustrative):
 
 ```
 [INFO] Session state: PRE_OPEN
@@ -231,6 +237,13 @@ You now have:
 - A configuration file defining 3 symbols and 3 gateways.
 - A running engine, scheduler, and at least one trader gateway.
 - Confirmation that all symbols accept orders.
+
+## Reflection
+
+Why does the engine, scheduler, and each gateway all run as **separate
+processes** connected over ZMQ sockets, instead of one monolithic program?
+What would you lose (or gain) operationally if the scheduler crashed while
+the engine kept running?
 
 ## Further Reading
 

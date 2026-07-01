@@ -272,6 +272,25 @@ You now have:
 - Environment variables configured.
 - A sample `engine_config.yaml` ready for customisation.
 
+## Before You Continue
+
+Confirm every item before starting Chapter 01 — each one is a prerequisite
+that chapter assumes without re-explaining:
+
+- [ ] `engine_config.yaml` exists in your working directory (`ls engine_config.yaml`).
+- [ ] `EDUMATCHER_DATA_DIR` and `EDUMATCHER_CONFIG` are set **in the shell you
+      will use for the next chapter** (`echo $EDUMATCHER_DATA_DIR`) — these do
+      not persist across new terminal windows unless added to your shell profile.
+- [ ] `pm-engine --version` and `pm-engine --help` both resolve without a
+      `command not found` error in that same shell.
+
+## Reflection
+
+Why does the training guide have you set `EDUMATCHER_DATA_DIR` explicitly in
+Exercise 3 rather than always accepting a compiled-in default? What would
+break in Chapter 16 (Persistence & Recovery) if two different terminal
+sessions ended up pointing at two different data directories?
+
 ## Further Reading
 
 - [Getting Started](../user-guide/00-getting-started.md)

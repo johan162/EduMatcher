@@ -287,6 +287,26 @@ You have now covered major RALF protocol usage patterns:
 - recovering with LASTSEQ replay semantics
 - diagnosing protocol errors operationally
 
+## Reflection
+
+Compare the three roles you just used, from a recovery-priorities standpoint:
+
+- **CLEARING**: consumes trade/settlement events. A gap here directly risks
+  incorrect positions or P&L — what makes this role the least tolerant of
+  missed messages, and how does LASTSEQ replay (Exercise 6) address that?
+- **DROP_COPY**: consumes a compliance/risk copy of activity. Is a short gap
+  here as operationally urgent as a CLEARING gap? Why or why not — consider
+  who consumes this data and on what timescale they act on it.
+- **AUDIT**: consumes a forensic/event journal. If AUDIT falls behind or
+  drops messages, is it recoverable after the fact from other sources
+  (e.g. the exchange's own audit log from Chapter 16), and does that change
+  how urgently you'd page an on-call engineer compared to a CLEARING gap?
+
+Write one sentence for each role stating its recovery priority (immediate /
+same-day / best-effort) and why — this is the kind of judgment call a real
+operations team makes when deciding which reconnect alerts to treat as
+incidents versus routine noise.
+
 ## Further Reading
 
 - [Post-Trade Dissemination](../user-guide/18-post-trade.md)

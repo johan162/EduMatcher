@@ -97,7 +97,45 @@ risk/compliance subscribers and publishes topics such as
 
 ---
 
-## Exercise 5: Compare Public Events and Drop-Copy Purpose
+## Exercise 5: Subscribe to the Drop-Copy Feed Directly
+
+`pm-audit`/`pm-viewer`/`pm-orders` all read the *public* feed on port 5556.
+None of them show you the drop-copy feed itself. To see it, connect a minimal
+ZMQ subscriber:
+
+```bash
+python - <<'PY'
+import json
+import zmq
+
+ctx = zmq.Context()
+sock = ctx.socket(zmq.SUB)
+sock.connect("tcp://127.0.0.1:5557")
+sock.subscribe(b"drop_copy.event.")
+
+print("listening on drop_copy.event.*")
+for _ in range(10):
+    topic, payload = sock.recv_multipart()
+    msg = json.loads(payload)
+    print(topic.decode(), "seq=", msg.get("seq"), "gateway=", msg.get("gateway_id"),
+          "event_type=", msg.get("event_type"))
+PY
+```
+
+While this is running, execute a trade from `TRADER01` in another terminal:
+
+```
+TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+```
+
+You should see one `drop_copy.event.<gateway_id>` message per participant on
+each side of the trade, each with its own monotonically increasing `seq`.
+
+:material-checkbox-blank-outline: **Checkpoint:** you received at least one drop-copy message directly from port 5557, distinct from anything `pm-audit` printed on port 5556.
+
+---
+
+## Exercise 6: Compare Public Events and Drop-Copy Purpose
 
 Execute another trade and compare what each consumer is for:
 
@@ -112,7 +150,7 @@ Execute another trade and compare what each consumer is for:
 
 ---
 
-## Exercise 6: Launch the Market Board
+## Exercise 7: Launch the Market Board
 
 Start the multi-symbol dashboard:
 
@@ -138,6 +176,14 @@ flowchart LR
 ```
 
 ---
+
+## Reflection
+
+Why does the engine publish drop-copy events on a **separate** socket
+(`:5557`) rather than mixing them into the same `:5556` PUB feed that
+viewers, orders, audit, and stats all subscribe to? What operational problem
+would arise for a compliance drop-copy consumer if it shared a socket with
+high-volume book/viewer traffic?
 
 ## Further Reading
 

@@ -135,7 +135,7 @@ Expected: rejection — you can only cancel your own orders.
 From the admin gateway, cancel all orders for a specific gateway:
 
 ```
-GW_ADMIN> KILL|GATEWAY_ID=TRADER01
+GW_ADMIN> KILL|GW=TRADER01
 ```
 
 All of TRADER01's resting orders are cancelled.
@@ -178,6 +178,13 @@ stateDiagram-v2
 ```
 
 ---
+
+## Reflection
+
+Why does `KILL|GW=<gateway_id>` cancel every order for an entire gateway
+rather than requiring one CANCEL per order? In what operational scenario
+(think: a runaway bot or a disconnected trader) does that bulk-kill behavior
+matter most?
 
 ## Further Reading
 

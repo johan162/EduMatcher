@@ -179,6 +179,14 @@ You can now operate advanced admin controls beyond halt/resume:
 - `CANCEL_SYM` for symbol-wide book clearing.
 - `SESSION|STATE=...` for deterministic phase management.
 
+## Reflection
+
+Why does `CANCEL_SYM` clear an entire symbol's book while `QCANCEL` targets
+only quote-based orders? In an incident where a single market maker's bot is
+malfunctioning, which of these tools (or `KICK`, or the Chapter 11 kill
+switch) would you reach for first, and why is that the *least* disruptive
+choice available?
+
 ## Further Reading
 
 - [Controlling the Exchange](../user-guide/02-commands.md)
