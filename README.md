@@ -106,7 +106,7 @@ This is an educational project. If you find bugs, improve the documentation, or 
 #### Bootstrap with one command
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.12.2 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.12.3 --snapshot
 ```
 
 This command downloads the VM setup scripts, launches a Multipass VM,
@@ -157,7 +157,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/EduMatcher},
-  version = {0.12.2}
+  version = {0.12.3}
 }
 ```
 
