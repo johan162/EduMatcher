@@ -76,75 +76,18 @@ for every match. They are required for realistic risk control and add measurable
 
 Main documentation site [EduMatcher Documentation](https://johan162.github.io/EduMatcher/) that among other things includes:
 
-- **Installation Guide**: how to get up and running with EduMatcher
-- **User Guide**: step-by-step instructions for installation, configuration, and running EduMatcher
-- **Developer Guide**: deep dive into the architecture, design decisions, and code structure- 
-- **Training Materials**: self-paced exercises to learn how to setup and manage the Exchange
-- **How an Exchange Works**: a primer on exchange mechanics and market microstructure concepts aimed at software developers with no prior financial experience
+- **[How an Exchange Works](https://johan162.github.io/EduMatcher/how-exchange-works/)**: a primer on exchange mechanics and market microstructure concepts aimed at software developers with no prior financial experience
+- **[Exchange Concepts](https://johan162.github.io/EduMatcher/how-exchange-works/)**: deep dive in core technical concept of an exchange
+- **[User Guide](https://johan162.github.io/EduMatcher/user-guide/00-getting-started/)**: step-by-step instructions for installation, configuration, and running EduMatcher
+- **[Training Material](https://johan162.github.io/EduMatcher/training/)**: self-paced exercises to learn how to setup and manage the Exchange
+- **[Architecture](https://johan162.github.io/EduMatcher/architecture/01-architecture/)**: an overview of the SW architecture
+- **[Developer Guide](https://johan162.github.io/EduMatcher/developer/01-dev-practice/)**: deep dive into the architecture, design decisions, and code structure. Necessary reading for anyone wanting to contribute!
 
+## Installing
 
-## Contributing
+See [User Guide: Installation](https://johan162.github.io/EduMatcher/user-guide/00-getting-started/#installation)
 
-This is an educational project. If you find bugs, improve the documentation, or make other enhancements PRs are welcome!
-
-
-## Setup a running system 
-
-
-### ALTERNATIVE 1: Using a Multipass VM
-
-#### Pre-Reqs
-
-| Requirement     | Notes                                                                                 |
-|-----------------|---------------------------------------------------------------------------------------|
-| Multipass       | A lightweight VM manager. Install from [multipass.run](https://multipass.run/install) |
-| curl            | Used to download the VM bootstrap script                                              |
-| Internet access | Required for downloading scripts and PyPI packages                                    |
-| Host resources  | Recommended minimum: 2 vCPU, 3 GB RAM, 8 GB disk                                      |
-
-
-#### Bootstrap with one command
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.12.3 --snapshot
-```
-
-This command downloads the VM setup scripts, launches a Multipass VM,
-installs EduMatcher in the VM, links all process commands in the exchange `pm-*` commands into
-`/usr/local/bin`, prepares `/home/ubuntu/session`, and takes
-an initial snapshot to allow you to easily reset the environment. 
-
-
-#### Start the CME (Central Matching Engine) in the VM
-
-```bash
-multipass shell edumatcher-vm
-cd /home/ubuntu/session
-pm-engine --verbose
-```
-
-Open additional host terminals and run `multipass shell edumatcher-vm` in each
-terminal to start `pm-gateway`, `pm-viewer`, `pm-clearing`, and `pm-audit`.
-
-**Note:** Running the exchange is complex enough that you really **need** to read the documentation and follow the instructions in the User Guide to get a full exchange up and running. The above commands are just a quick start to get you going. The User Guide will explain how to configure the exchange, start and stop processes, and run the system in a realistic way.
-
-
-### ALTERNATIVE 2: Local Python Installation via `pipx`
-
-1. Install Python 3.13+ and Poetry (or use the VM setup below)
-2. Install `pipx` (`pip install pipx` or on MacOS `brew install pipx`)
-3. Bootstrap a new session directory and either generate `engine_config.yaml`
-with sane defaults, or start from the sample config copied by `pm-setup`:
-
-```bash
-pipx install edumatcher
-mkdir session
-cd session
-pm-setup
-pm-config-gen --symbols AAPL MSFT --gateways TRADER01 TRADER02 OPS01:ADMIN --sessions-enabled --output engine_config.yaml
-pm-engine --verbose
-```
-
+***Note:** Running an exchange is an inherent complex task and unfortunately it is only so much that can be simplified. However, going throught the user guide and training material should give a great start!*
 
 
 ## Citation
