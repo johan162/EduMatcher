@@ -596,6 +596,7 @@ class TestTickerMain:
             display_interval=10.0,
             db_interval=30.0,
         )
+        proc.sub.close()
         proc.sub = cast(Any, sub)
 
         monkeypatch.setattr(
@@ -651,6 +652,7 @@ class TestTickerMain:
             db_interval=5.0,
         )
         sub = _FakeSub()
+        proc.sub.close()
         proc.sub = cast(Any, sub)
 
         printed: list[object] = []

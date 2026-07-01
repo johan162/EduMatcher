@@ -255,8 +255,7 @@ class ClearingProcess:
         try:
             t.join()
         finally:
-            self._csv_file.close()
-            self.sub.close()
+            self.close()
         if not self._running:
             print("\n[CLEARING] Final P&L:")
             self._print_pnl_table()
@@ -264,6 +263,19 @@ class ClearingProcess:
 
     def _stop(self) -> None:
         self._running = False
+
+    def close(self) -> None:
+        if hasattr(self, "_csv_file") and not self._csv_file.closed:
+            self._csv_file.close()
+        if hasattr(self, "sub") and not self.sub.closed:
+            self.sub.close()
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            # Never raise from finalizer paths.
+            pass
 
 
 def main() -> None:

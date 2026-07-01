@@ -50,6 +50,18 @@ class ClientSession:
     closing: bool = False
     last_activity: float = field(default_factory=time.monotonic)
 
+    def close(self) -> None:
+        try:
+            self.sock.close()
+        except OSError:
+            pass
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
+
 
 class RalfGateway:
     """RALF TCP gateway process."""

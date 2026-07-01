@@ -24,7 +24,22 @@ class IndexHistory:
         self._fh.flush()
 
     def close(self) -> None:
-        self._fh.close()
+        if not self._fh.closed:
+            self._fh.close()
+
+    def __enter__(self) -> "IndexHistory":
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+        _ = (exc_type, exc, tb)
+        self.close()
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            # Never raise during GC finalization.
+            pass
 
     def query(
         self,
