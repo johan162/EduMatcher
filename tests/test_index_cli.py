@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import csv
-import io
 import json
-import sys
 import time
 from argparse import Namespace
 from pathlib import Path
@@ -15,13 +12,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from edumatcher.index.cli import (
-    _DEFAULT_DATA_DIR,
-    _EOD_COLUMNS,
-    _EVENTS_COLUMNS,
-    _INDICES_COLUMNS,
-    _LEVEL_COLUMNS,
-    _STRUCTURAL_TYPES,
-    _add_time_args,
     _build_parser,
     _cmd_eod,
     _cmd_events,
@@ -44,7 +34,6 @@ from edumatcher.index.cli import (
     main,
 )
 from edumatcher.index.cli import _parse_ts
-
 
 # ---------------------------------------------------------------------------
 # _parse_ts
@@ -143,9 +132,7 @@ class TestReadJsonl:
                 f.write(json.dumps(r) + "\n")
 
     def test_nonexistent_file_returns_empty(self, tmp_path: Path) -> None:
-        result = _read_jsonl(
-            tmp_path / "nope.jsonl", 0.0, 1e18, {"LEVEL"}, 1000
-        )
+        result = _read_jsonl(tmp_path / "nope.jsonl", 0.0, 1e18, {"LEVEL"}, 1000)
         assert result == []
 
     def test_filters_by_type(self, tmp_path: Path) -> None:
@@ -182,9 +169,7 @@ class TestReadJsonl:
         p = tmp_path / "hist.jsonl"
         ts = time.time()
         p.write_text(
-            "\n"
-            + json.dumps({"type": "LEVEL", "timestamp": ts, "level": 1.0})
-            + "\n\n"
+            "\n" + json.dumps({"type": "LEVEL", "timestamp": ts, "level": 1.0}) + "\n\n"
         )
         result = _read_jsonl(p, 0.0, 1e18, {"LEVEL"}, 1000)
         assert len(result) == 1
@@ -193,8 +178,7 @@ class TestReadJsonl:
         p = tmp_path / "hist.jsonl"
         ts = time.time()
         p.write_text(
-            "NOT JSON\n"
-            + json.dumps({"type": "LEVEL", "timestamp": ts}) + "\n"
+            "NOT JSON\n" + json.dumps({"type": "LEVEL", "timestamp": ts}) + "\n"
         )
         result = _read_jsonl(p, 0.0, 1e18, {"LEVEL"}, 1000)
         assert len(result) == 1
@@ -437,9 +421,7 @@ class TestResolveTimeRange:
 
     def test_from_after_to_raises(self) -> None:
         with pytest.raises(SystemExit) as exc:
-            _resolve_time_range(
-                self._args(from_ts="2026-06-01", to_ts="2026-01-01")
-            )
+            _resolve_time_range(self._args(from_ts="2026-06-01", to_ts="2026-01-01"))
         assert exc.value.code == 2
 
     def test_invalid_from_raises(self) -> None:
@@ -449,9 +431,7 @@ class TestResolveTimeRange:
 
     def test_invalid_to_raises(self) -> None:
         with pytest.raises(SystemExit) as exc:
-            _resolve_time_range(
-                self._args(from_ts="2026-01-01", to_ts="bad-date")
-            )
+            _resolve_time_range(self._args(from_ts="2026-01-01", to_ts="bad-date"))
         assert exc.value.code == 2
 
 
@@ -474,9 +454,7 @@ class TestResolveIndexIds:
 
     def test_config_with_empty_indices_raises(self) -> None:
         args = Namespace(index=None)
-        with patch(
-            "edumatcher.index.cli._config_index_map", return_value={}
-        ):
+        with patch("edumatcher.index.cli._config_index_map", return_value={}):
             with pytest.raises(SystemExit) as exc:
                 _resolve_index_ids(args, "some_config.yaml")
             assert exc.value.code == 1
@@ -484,9 +462,7 @@ class TestResolveIndexIds:
     def test_config_returns_ids(self) -> None:
         args = Namespace(index=None)
         fake_map = {"IDX1": MagicMock(), "IDX2": MagicMock()}
-        with patch(
-            "edumatcher.index.cli._config_index_map", return_value=fake_map
-        ):
+        with patch("edumatcher.index.cli._config_index_map", return_value=fake_map):
             result = _resolve_index_ids(args, "some_config.yaml")
         assert set(result) == {"IDX1", "IDX2"}
 
@@ -504,9 +480,7 @@ class TestResolveHistoryFiles:
     def test_config_overrides_path(self, tmp_path: Path) -> None:
         custom_path = str(tmp_path / "custom.jsonl")
         mock_map = {"IDX": MagicMock(history_file=custom_path)}
-        with patch(
-            "edumatcher.index.cli._config_index_map", return_value=mock_map
-        ):
+        with patch("edumatcher.index.cli._config_index_map", return_value=mock_map):
             result = _resolve_history_files(["IDX"], "config.yaml", str(tmp_path))
         assert result["IDX"] == Path(custom_path)
 
@@ -517,9 +491,7 @@ class TestResolveHistoryFiles:
             "edumatcher.index.cli._config_index_map",
             side_effect=RuntimeError("oops"),
         ):
-            result = _resolve_history_files(
-                ["IDX"], "bad_config.yaml", str(tmp_path)
-            )
+            result = _resolve_history_files(["IDX"], "bad_config.yaml", str(tmp_path))
         assert result["IDX"] == tmp_path / "IDX_history.jsonl"
         assert "WARNING" in capsys.readouterr().err
 
@@ -545,9 +517,7 @@ class TestBuildParser:
 
     def test_events_subcommand_with_type(self) -> None:
         parser = _build_parser()
-        args = parser.parse_args(
-            ["events", "--index", "IDX", "--type", "INIT"]
-        )
+        args = parser.parse_args(["events", "--index", "IDX", "--type", "INIT"])
         assert args.command == "events"
         assert args.event_types == ["INIT"]
 
@@ -624,9 +594,7 @@ class TestCmdLevel:
         _cmd_level(args)
         assert "99.5" in capsys.readouterr().out
 
-    def test_json_format(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_json_format(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
         ts = time.time()
         _write_history(
             tmp_path / "TEST_history.jsonl",
@@ -637,9 +605,7 @@ class TestCmdLevel:
         parsed = json.loads(capsys.readouterr().out)
         assert parsed[0]["level"] == 50.0
 
-    def test_csv_format(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_csv_format(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
         ts = time.time()
         _write_history(
             tmp_path / "TEST_history.jsonl",
@@ -674,9 +640,7 @@ class TestCmdEod:
         out = capsys.readouterr().out
         assert "95" in out or "101" in out
 
-    def test_no_eod_rows(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_no_eod_rows(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
         _write_history(
             tmp_path / "TEST_history.jsonl",
             [{"type": "LEVEL", "timestamp": time.time(), "level": 1.0}],
@@ -724,18 +688,14 @@ class TestCmdEvents:
         out = capsys.readouterr().out
         assert "INIT" in out
 
-    def test_invalid_event_type_raises(
-        self, tmp_path: Path
-    ) -> None:
+    def test_invalid_event_type_raises(self, tmp_path: Path) -> None:
         (tmp_path / "TEST_history.jsonl").write_text("")
         args = _make_args(tmp_path, "events", event_types=["BOGUS"])
         with pytest.raises(SystemExit) as exc:
             _cmd_events(args)
         assert exc.value.code == 2
 
-    def test_no_event_rows(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_no_event_rows(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
         _write_history(
             tmp_path / "TEST_history.jsonl",
             [{"type": "LEVEL", "timestamp": time.time()}],
@@ -768,9 +728,7 @@ class TestCmdIndices:
         idx.state_file = "data/idx1_state.json"
         idx.constituents = ["AAPL", "MSFT"]
         mock_cfg.indices = [idx]
-        with patch(
-            "edumatcher.index.cli._load_engine_config", return_value=mock_cfg
-        ):
+        with patch("edumatcher.index.cli._load_engine_config", return_value=mock_cfg):
             args = Namespace(
                 config="dummy.yaml",
                 data_dir=str(tmp_path),
@@ -781,9 +739,7 @@ class TestCmdIndices:
         out = capsys.readouterr().out
         assert "IDX1" in out
 
-    def test_json_format(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_json_format(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
         mock_cfg = MagicMock()
         idx = MagicMock()
         idx.id = "IDX1"
@@ -792,9 +748,7 @@ class TestCmdIndices:
         idx.state_file = "s.json"
         idx.constituents = []
         mock_cfg.indices = [idx]
-        with patch(
-            "edumatcher.index.cli._load_engine_config", return_value=mock_cfg
-        ):
+        with patch("edumatcher.index.cli._load_engine_config", return_value=mock_cfg):
             args = Namespace(
                 config="dummy.yaml",
                 data_dir=str(tmp_path),
@@ -880,9 +834,7 @@ class TestMain:
     ) -> None:
         mock_cfg = MagicMock()
         mock_cfg.indices = []
-        with patch(
-            "edumatcher.index.cli._load_engine_config", return_value=mock_cfg
-        ):
+        with patch("edumatcher.index.cli._load_engine_config", return_value=mock_cfg):
             with patch(
                 "sys.argv",
                 ["pm-index-cli", "--config", "dummy.yaml", "indices"],

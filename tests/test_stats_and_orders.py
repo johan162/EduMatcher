@@ -10,6 +10,7 @@ from __future__ import annotations
 import sqlite3
 import time
 from pathlib import Path
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -440,9 +441,7 @@ class TestOnOrderEvent:
                 "status": "PARTIAL",
             },
         )
-        rows = sp._conn.execute(
-            "SELECT event_type FROM order_events"
-        ).fetchall()
+        rows = sp._conn.execute("SELECT event_type FROM order_events").fetchall()
         assert rows == [("FILL",)]
 
     def test_records_cancel_event(self, sp: StatsProcess) -> None:
@@ -461,9 +460,7 @@ class TestOnOrderEvent:
             "order.ack",
             {"order_id": "O004", "gateway_id": "GW02", "accepted": True},
         )
-        rows = sp._conn.execute(
-            "SELECT gateway_id FROM order_events"
-        ).fetchall()
+        rows = sp._conn.execute("SELECT gateway_id FROM order_events").fetchall()
         assert rows == [("GW02",)]
 
     def test_combo_id_used_as_order_id(self, sp: StatsProcess) -> None:
@@ -538,9 +535,7 @@ class TestEventTypeFromTopic:
         assert _event_type_from_topic("order.ack.GW01", {"accepted": True}) == "ACK"
 
     def test_ack_rejected(self) -> None:
-        assert (
-            _event_type_from_topic("order.ack.GW01", {"accepted": False}) == "REJECT"
-        )
+        assert _event_type_from_topic("order.ack.GW01", {"accepted": False}) == "REJECT"
 
     def test_fill(self) -> None:
         assert _event_type_from_topic("order.fill.GW01", {}) == "FILL"
@@ -589,8 +584,8 @@ class TestStatsRun:
 
         sp.run()
 
-        sp.sub.close.assert_called()
-        sp.push.close.assert_called()
+        cast(MagicMock, sp.sub.close).assert_called()
+        cast(MagicMock, sp.push.close).assert_called()
 
 
 # ---------------------------------------------------------------------------

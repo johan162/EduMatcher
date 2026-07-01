@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from edumatcher.scheduler.main import _load_schedule, _run_now, _time_today
-
 
 # ---------------------------------------------------------------------------
 # _load_schedule
