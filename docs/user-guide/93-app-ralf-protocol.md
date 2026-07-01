@@ -3,7 +3,7 @@
 !!! note "Learning objectives"
     After reading this appendix you will understand:
 
-    - the exact `RALF1` wire format and message grammar
+    - the exact `RALF` wire format and message grammar
     - handshake and subscription flow for external post-trade consumers
     - required fields for core lifecycle messages (`EXEC`, `EOD`)
     - replay and error semantics for reconnect behavior
@@ -17,7 +17,7 @@ RALF is EduMatcher's text post-trade dissemination protocol, delivered over TCP
 by `pm-ralf-gwy`.
 
 !!! info "Runtime support"
-    `RALF1` is supported through the running `pm-ralf-gwy` process. External
+    `RALF` is supported through the running `pm-ralf-gwy` process. External
     clients use this protocol by opening a TCP connection to `pm-ralf-gwy`.
 
 | Protocol | Purpose                      |
@@ -27,7 +27,7 @@ by `pm-ralf-gwy`.
 | CALF     | Market-data dissemination    |
 | RALF     | Post-trade dissemination     |
 
-This appendix defines the client-visible behavior for `RALF1`.
+This appendix defines the client-visible behavior for `RALF`.
 
 
 ## Transport and session model

@@ -6,6 +6,7 @@ protocol for external clearing/drop-copy/audit parties.
 
 from __future__ import annotations
 
+import errno
 import select
 import signal
 import socket
@@ -49,6 +50,18 @@ class ClientSession:
     closing: bool = False
     last_activity: float = field(default_factory=time.monotonic)
 
+    def close(self) -> None:
+        try:
+            self.sock.close()
+        except OSError:
+            pass
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
+
 
 class RalfGateway:
     """RALF TCP gateway process."""
@@ -66,6 +79,7 @@ class RalfGateway:
             "system.eod",
         )
         self._last_heartbeat = time.monotonic()
+        self._trade_counts: dict[str, int] = {}  # symbol → intraday execution count
 
     def run(self) -> None:
         self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -109,7 +123,8 @@ class RalfGateway:
         if self._server is not None:
             self._server.close()
             self._server = None
-        self._sub.close()
+        if not self._sub.closed:
+            self._sub.close()
 
     # ------------------------------------------------------------------
     # Networking
@@ -311,6 +326,16 @@ class RalfGateway:
                     {"CODE": "INVALID_CHANNEL", "DETAIL": f"unsupported CH={ch}"},
                 )
                 return
+            if ch != sess.role and sess.role != "AUDIT":
+                self._queue_line(
+                    sess,
+                    "ERR",
+                    {
+                        "CODE": "ENTITLEMENT_DENIED",
+                        "DETAIL": f"role {sess.role!r} cannot access CH={ch}",
+                    },
+                )
+                return
 
         for ch in channels:
             for sym in symbols:
@@ -372,7 +397,14 @@ class RalfGateway:
 
     def _poll_engine_events(self) -> None:
         while self._sub.poll(timeout=0):
-            topic, payload = decode(self._sub.recv_multipart())
+            try:
+                topic, payload = decode(self._sub.recv_multipart())
+            except zmq.ZMQError as exc:
+                if exc.errno != errno.EINTR:
+                    raise
+                break
+            except Exception:
+                continue
             if topic == "trade.executed":
                 self._handle_trade(payload)
             elif topic == "system.eod":
@@ -383,6 +415,7 @@ class RalfGateway:
         qty = str(payload.get("quantity", 0))
         px = str(payload.get("price", 0.0))
         ts_value = float(payload.get("timestamp", time.time()))
+        self._trade_counts[symbol] = self._trade_counts.get(symbol, 0) + 1
 
         for channel in ("CLEARING", "DROP_COPY", "AUDIT"):
             self._emit_event(
@@ -414,6 +447,7 @@ class RalfGateway:
             if not isinstance(raw_book, dict):
                 continue
             symbol = str(raw_book.get("symbol", "")).upper()
+            exec_count = str(self._trade_counts.get(symbol, 0))
             for channel in ("CLEARING", "AUDIT"):
                 self._emit_event(
                     "EOD",
@@ -421,12 +455,13 @@ class RalfGateway:
                         "CH": channel,
                         "SYM": symbol,
                         "TS": iso_utc(time.time()),
-                        "TRADE_COUNT": "0",
-                        "EXEC_COUNT": "0",
+                        "TRADE_COUNT": exec_count,
+                        "EXEC_COUNT": exec_count,
                     },
                     channel=channel,
                     symbol=symbol,
                 )
+        self._trade_counts.clear()
 
     def _emit_event(
         self,

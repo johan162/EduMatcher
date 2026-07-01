@@ -6,9 +6,15 @@
 NODE_TOOLS_DIR := ../build-tools
 NODE_MODULES_PATH := $(NODE_TOOLS_DIR)/node_modules
 MERMAID_FILTER := $(NODE_MODULES_PATH)/.bin/mermaid-filter
-PUPPETER_EXECUTABLE_PATH ?= /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
 MERMAID_FILTER_FORMAT ?= pdf
 MERMAID_FILTER_WIDTH ?= 600
+
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+    PUPPETEER_EXECUTABLE_PATH ?= /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+else
+    PUPPETEER_EXECUTABLE_PATH ?= /usr/bin/google-chrome
+endif
 
 .PHONY: docs pdf-docs training-pdf clean really-clean serve check-latex-engine
 
@@ -256,7 +262,7 @@ $$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$($1_TEMPLATE) $$
 	@awk 'FNR==1 && NR!=1{print ""; print ""}1' $$(foreach f,$$(USER_GUIDE_MD_SOURCES),$$($1_EXPANDED_DIR)/$$(notdir $$f)) > $$($1_CONCAT_MD)
 	@echo -e "$$(DARKYELLOW)  - Converting concatenated markdown to LaTeX body...$$(NC)"
 	@mkdir -p $$($1_EXPANDED_DIR)/.mermaid-img
-	@PUPPETEER_EXECUTABLE_PATH="$(PUPPETER_EXECUTABLE_PATH)" \
+	@PUPPETEER_EXECUTABLE_PATH="$(PUPPETEER_EXECUTABLE_PATH)" \
 	MERMAID_FILTER_FORMAT="$(MERMAID_FILTER_FORMAT)" \
 	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
 	MERMAID_FILTER_LOC="$$($1_EXPANDED_DIR)/.mermaid-img" \
@@ -314,7 +320,7 @@ $$($1_PDF): $$(TRAINING_GUIDE_MD_SOURCES) $$(TRAINING_GUIDE_PDF_DEPS) $$($1_TEMP
 	@awk 'FNR==1 && NR!=1{print ""; print ""}1' $$(foreach f,$$(TRAINING_GUIDE_MD_SOURCES),$$($1_EXPANDED_DIR)/$$(notdir $$f)) > $$($1_CONCAT_MD)
 	@echo -e "$$(DARKYELLOW)  - Converting concatenated markdown to LaTeX body...$$(NC)"
 	@mkdir -p $$($1_EXPANDED_DIR)/.mermaid-img
-	@PUPPETEER_EXECUTABLE_PATH="$(PUPPETER_EXECUTABLE_PATH)" \
+	@PUPPETEER_EXECUTABLE_PATH="$(PUPPETEER_EXECUTABLE_PATH)" \
 	MERMAID_FILTER_FORMAT="$(MERMAID_FILTER_FORMAT)" \
 	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
 	MERMAID_FILTER_LOC="$$($1_EXPANDED_DIR)/.mermaid-img" \

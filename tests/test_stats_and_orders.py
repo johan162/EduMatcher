@@ -10,6 +10,7 @@ from __future__ import annotations
 import sqlite3
 import time
 from pathlib import Path
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -19,7 +20,10 @@ from edumatcher.stats.main import (
     SCHEMA,
     StatsProcess,
     _DayAccum,
+    _event_type_from_topic,
+    _is_order_event_topic,
     _open_db,
+    main as stats_main,
 )
 from edumatcher.ticker.main import _query_daily_stats
 
@@ -386,3 +390,220 @@ class TestOrdersBuildTable:
         }
         t = _build_table(orders, None)
         assert t.row_count == 6
+
+
+# ---------------------------------------------------------------------------
+# StatsProcess._on_eod — empty-symbol branch (line 412)
+# ---------------------------------------------------------------------------
+
+
+class TestOnEodEmptySymbol:
+    def test_empty_symbol_skipped(self, sp: StatsProcess) -> None:
+        sp._on_eod({"books": [{"symbol": "", "bids": [], "asks": []}]})
+        rows = sp._conn.execute("SELECT * FROM daily_stats").fetchall()
+        assert rows == []
+
+
+# ---------------------------------------------------------------------------
+# StatsProcess._on_order_event
+# ---------------------------------------------------------------------------
+
+
+class TestOnOrderEvent:
+    def test_records_ack_accepted(self, sp: StatsProcess) -> None:
+        sp._on_order_event(
+            "order.ack.GW01",
+            {
+                "order_id": "O001",
+                "accepted": True,
+                "symbol": "AAPL",
+                "side": "BUY",
+                "order_type": "LIMIT",
+                "tif": "DAY",
+                "price": 100.0,
+                "quantity": 100,
+            },
+        )
+        rows = sp._conn.execute(
+            "SELECT event_type, order_id, gateway_id FROM order_events"
+        ).fetchall()
+        assert rows == [("ACK", "O001", "GW01")]
+
+    def test_records_fill_event(self, sp: StatsProcess) -> None:
+        sp._on_order_event(
+            "order.fill.GW01",
+            {
+                "order_id": "O002",
+                "fill_price": 100.0,
+                "fill_qty": 50,
+                "trade_id": "T001",
+                "remaining_qty": 50,
+                "status": "PARTIAL",
+            },
+        )
+        rows = sp._conn.execute("SELECT event_type FROM order_events").fetchall()
+        assert rows == [("FILL",)]
+
+    def test_records_cancel_event(self, sp: StatsProcess) -> None:
+        sp._on_order_event("order.cancelled.GW01", {"order_id": "O003"})
+        rows = sp._conn.execute("SELECT event_type FROM order_events").fetchall()
+        assert rows == [("CANCEL",)]
+
+    def test_no_order_id_skipped(self, sp: StatsProcess) -> None:
+        sp._on_order_event("order.ack.GW01", {"accepted": True})
+        rows = sp._conn.execute("SELECT * FROM order_events").fetchall()
+        assert rows == []
+
+    def test_short_topic_uses_payload_gateway(self, sp: StatsProcess) -> None:
+        # Topic with only 2 parts → falls back to payload gateway_id
+        sp._on_order_event(
+            "order.ack",
+            {"order_id": "O004", "gateway_id": "GW02", "accepted": True},
+        )
+        rows = sp._conn.execute("SELECT gateway_id FROM order_events").fetchall()
+        assert rows == [("GW02",)]
+
+    def test_combo_id_used_as_order_id(self, sp: StatsProcess) -> None:
+        sp._on_order_event("combo.ack.GW01", {"combo_id": "C001"})
+        rows = sp._conn.execute("SELECT order_id FROM order_events").fetchall()
+        assert rows == [("C001",)]
+
+    def test_all_optional_fields_persisted(self, sp: StatsProcess) -> None:
+        sp._on_order_event(
+            "order.fill.GW01",
+            {
+                "order_id": "O005",
+                "symbol": "MSFT",
+                "side": "SELL",
+                "order_type": "MARKET",
+                "tif": "IOC",
+                "price": None,
+                "quantity": 200,
+                "remaining_qty": 0,
+                "status": "FILLED",
+                "fill_price": 250.0,
+                "fill_qty": 200,
+                "trade_id": "T002",
+                "reason": None,
+                "client_order_id": "CL001",
+                "combo_parent_id": None,
+                "oco_group_id": None,
+                "priority_reset": True,
+            },
+        )
+        rows = sp._conn.execute(
+            "SELECT fill_price, fill_qty, priority_reset FROM order_events"
+        ).fetchall()
+        assert rows == [(250.0, 200, 1)]
+
+
+# ---------------------------------------------------------------------------
+# _is_order_event_topic
+# ---------------------------------------------------------------------------
+
+
+class TestIsOrderEventTopic:
+    def test_recognizes_all_order_topics(self) -> None:
+        for topic in [
+            "order.ack.GW01",
+            "order.fill.GW01",
+            "order.cancelled.GW01",
+            "order.expired.GW01",
+            "order.amended.GW01",
+            "combo.ack.GW01",
+            "combo.status.GW01",
+            "oco.ack.GW01",
+            "oco.cancelled.GW01",
+            "quote.ack.GW01",
+            "quote.status.GW01",
+        ]:
+            assert _is_order_event_topic(topic), f"Should match: {topic}"
+
+    def test_rejects_other_topics(self) -> None:
+        assert not _is_order_event_topic("trade.executed")
+        assert not _is_order_event_topic("book.AAPL")
+        assert not _is_order_event_topic("system.eod")
+
+
+# ---------------------------------------------------------------------------
+# _event_type_from_topic
+# ---------------------------------------------------------------------------
+
+
+class TestEventTypeFromTopic:
+    def test_ack_accepted(self) -> None:
+        assert _event_type_from_topic("order.ack.GW01", {"accepted": True}) == "ACK"
+
+    def test_ack_rejected(self) -> None:
+        assert _event_type_from_topic("order.ack.GW01", {"accepted": False}) == "REJECT"
+
+    def test_fill(self) -> None:
+        assert _event_type_from_topic("order.fill.GW01", {}) == "FILL"
+
+    def test_amend(self) -> None:
+        assert _event_type_from_topic("order.amended.GW01", {}) == "AMEND"
+
+    def test_cancel(self) -> None:
+        assert _event_type_from_topic("order.cancelled.GW01", {}) == "CANCEL"
+
+    def test_expire(self) -> None:
+        assert _event_type_from_topic("order.expired.GW01", {}) == "EXPIRE"
+
+    def test_combo(self) -> None:
+        assert _event_type_from_topic("combo.ack.GW01", {}) == "COMBO"
+
+    def test_oco(self) -> None:
+        assert _event_type_from_topic("oco.ack.GW01", {}) == "OCO"
+
+    def test_quote(self) -> None:
+        assert _event_type_from_topic("quote.ack.GW01", {}) == "QUOTE"
+
+    def test_unknown(self) -> None:
+        assert _event_type_from_topic("system.eod", {}) == "EVENT"
+
+
+# ---------------------------------------------------------------------------
+# StatsProcess.run — verify cleanup and signal registration
+# ---------------------------------------------------------------------------
+
+
+class TestStatsRun:
+    @patch("edumatcher.stats.main.threading.Thread")
+    @patch("edumatcher.stats.main.time.sleep")
+    def test_run_closes_sockets_on_exit(
+        self, mock_sleep: MagicMock, mock_thread_cls: MagicMock, sp: StatsProcess
+    ) -> None:
+        mock_t = MagicMock()
+        mock_thread_cls.return_value = mock_t
+
+        # Make join() stop the loop on the first call (inside while self._running)
+        def _stop_on_first_join(*args: object, **kwargs: object) -> None:
+            sp._running = False
+
+        mock_t.join.side_effect = _stop_on_first_join
+
+        sp.run()
+
+        cast(MagicMock, sp.sub.close).assert_called()
+        cast(MagicMock, sp.push.close).assert_called()
+
+
+# ---------------------------------------------------------------------------
+# stats main()
+# ---------------------------------------------------------------------------
+
+
+class TestStatsMain:
+    @patch("edumatcher.stats.main.StatsProcess.run", return_value=None)
+    @patch("edumatcher.stats.main.make_pusher", return_value=MagicMock())
+    @patch("edumatcher.stats.main.make_subscriber", return_value=MagicMock())
+    def test_main_creates_process_and_runs(
+        self,
+        mock_sub: MagicMock,
+        mock_push: MagicMock,
+        mock_run: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        with patch("sys.argv", ["pm-stats", "--db", str(tmp_path / "test.db")]):
+            stats_main()
+        mock_run.assert_called_once()

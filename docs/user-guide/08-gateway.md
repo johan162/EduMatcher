@@ -139,9 +139,66 @@ running the test.  For a learning system on localhost this is irrelevant; for a
 regulated venue it would be a compliance failure.
 
 
+## What this process does
+
+`pm-gateway` is the interactive ALF trading gateway. It connects a human or bot
+operator to the matching engine for order-entry workflows: submit, amend,
+cancel, monitor order lifecycle, and inspect local position state.
+
+Responsibilities of `pm-gateway`:
+
+- authenticates the gateway ID against `gateways.alf`
+- parses ALF command lines into validated engine requests
+- subscribes to gateway-scoped lifecycle events (acks, fills, cancels, rejects)
+- maintains local session caches for `ORDERS`, `POS`, `QBOOT`, and `QLEGS`
+- provides interactive terminal ergonomics (history, tab completion, live events)
+
+
+## Architecture position
+
+`pm-gateway` sits between an ALF client (human operator or automation script)
+and the matching engine. Outbound commands go to the engine request socket,
+while gateway-scoped lifecycle events and selected market events come back on
+the engine PUB stream.
+
+```mermaid
+flowchart TB
+  CL["Operator / bot\nALF commands"]
+  GW["pm-gateway\n(ALF interactive client)"]
+  ENG["pm-engine\nMatching + risk"]
+  EVT["Gateway event stream\norder.ack/order.fill/...\ntrade.executed"]
+
+  CL -->|"ALF commands"| GW
+  GW -->|"order/control requests"| ENG
+  ENG -->|"events + acks"| EVT
+  EVT --> GW
+```
+
+
+## When to use ALF — protocol comparison
+
+EduMatcher offers multiple interfaces. Use this quick guide to choose the right one.
+
+| Interface | Transport | Best for | Not suitable for |
+|----------|-----------|----------|------------------|
+| **ALF** (`pm-gateway`) | TCP text (interactive client) | Human/manual trading workflows, command-driven testing, order-entry demos | External market-data-only consumers |
+| **CALF** (`pm-md-gwy`) | TCP text | External market data (`TOP`, `TRADE`, `STATE`, `INDEX`) | Order entry |
+| **RALF** (`pm-ralf-gwy`) | TCP text | External post-trade feeds (`CLEARING`, `DROP_COPY`, `AUDIT`) | Pre-trade market data, order entry |
+| **REST / WebSocket** (`pm-api-gwy`) | HTTP/JSON + WS | Browser and API-native apps | Lowest-latency interactive trading |
+| **Internal ZMQ PUB/PULL** | ZMQ binary | Internal processes that import `edumatcher` | External clients |
+
+Rule of thumb:
+
+- Manual or scripted command-line order entry -> **ALF (`pm-gateway`)**
+- External market data feed -> **CALF**
+- External clearing/audit feed -> **RALF**
+- Browser/web integration -> **REST/WebSocket**
 
 The gateway (`pm-gateway`) is your trading terminal. Each gateway instance represents
 one user connecting to the trading system. Multiple gateways can run simultaneously.
+
+
+
 
 ## Starting a Gateway
 
@@ -200,6 +257,27 @@ If a gateway starts with an ID that is not listed there, the engine refuses
 the connection and the gateway exits.
 
 
+## Session lifecycle
+
+Every gateway session follows this operator lifecycle:
+
+```mermaid
+sequenceDiagram
+  participant U as Operator
+  participant GW as pm-gateway
+  participant ENG as pm-engine
+
+  U->>GW: Start pm-gateway --id TRADER01
+  GW->>ENG: system.gateway_connect
+  ENG-->>GW: system.gateway_auth.TRADER01 accepted=true
+  U->>GW: NEW / AMEND / CANCEL / QUOTE ...
+  GW->>ENG: ALF command translated to engine request
+  ENG-->>GW: order.ack / order.fill / order.cancelled / ...
+  U->>GW: ORDERS / POS / STATUS / SYMBOLS
+  U->>GW: EXIT
+```
+
+
 
 ## Command Format
 
@@ -208,6 +286,26 @@ All commands use the ALF pipe-separated key=value format.
 !!! note
     For the precise ALF grammar, parser rules, field semantics, and full command
     catalog, see [Appendix: ALF Protocol Reference](90-app-alf-protocol.md).
+
+### Command families at a glance
+
+| Family | Commands | Purpose |
+|--------|----------|---------|
+| Order entry | `NEW`, `NEW|TYPE=COMBO`, `NEW|TYPE=OCO`, `QUOTE` | Create new exposure |
+| Order updates | `AMEND`, `CANCEL`, `QUOTE_CANCEL` | Modify or remove exposure |
+| Risk controls | `KILL` | Emergency local gateway kill-switch |
+| Monitoring | `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `QBOOT`, `QLEGS` | Inspect live/cached state |
+| Session control | `HELP`, `EXIT`, `QUIT` | Terminal usability |
+
+### Role entitlements (what each role can do)
+
+| Gateway role | Allowed trading behavior | Disallowed behavior |
+|--------------|--------------------------|---------------------|
+| `TRADER` | Standard `NEW`/`AMEND`/`CANCEL`, OCO/COMBO, monitoring commands | MM quote commands (`QUOTE`, `QUOTE_CANCEL`) |
+| `MARKET_MAKER` | All trader behavior plus quote workflows (`QUOTE`, `QBOOT`, `QLEGS`) | N/A within configured symbols/limits |
+| `ADMIN` (if configured) | Operational commands per config/policy | Business flow outside policy |
+
+If a command is not allowed for your configured role, the gateway prints a rejection.
 
 ### QUOTE — Submit/Replace A Two-Sided MM Quote
 
@@ -658,6 +756,23 @@ EXIT
 ```
 
 
+## Reconnect and state re-sync playbook
+
+After restarting the gateway, rebuild local confidence in state with this sequence.
+
+1. Run `SYMBOLS` to confirm active books and symbol metadata.
+2. Run `ORDERS` to recover your current resting single-leg orders.
+3. If you are a market maker, run `QBOOT` then `QLEGS|SHOW=ALL`.
+4. Run `POS` to rebuild your session-local position view from current stream.
+5. Resume normal trading only after steps 1-4 look consistent.
+
+Why this matters:
+
+- `ORDERS` gives authoritative order IDs for follow-up `AMEND`/`CANCEL`
+- `QBOOT`/`QLEGS` avoids accidental duplicate quoting after reconnect
+- `POS` helps detect drift between expected and observed exposure
+
+
 
 ## Gateway Responses
 
@@ -719,6 +834,44 @@ All events are printed inline with a `[HH:MM:SS.mmm]` timestamp prefix. A backgr
     The gateway does **not** subscribe to `session.state` events. Trading phase transitions are not displayed in the gateway terminal. To monitor session phases, run `pm-audit`, `pm-viewer`, or `pm-orders` in a separate terminal.
 
 
+## End-to-end operator walkthrough
+
+This transcript shows a realistic manual session from connect to disconnect.
+
+```text
+# Start gateway
+$ poetry run pm-gateway --id TRADER01
+
+TRADER01> SYMBOLS
+# confirms AAPL/MSFT active
+
+TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
+[09:30:00.100] ACK  7c4a91e2  order accepted
+
+TRADER01> ORDERS
+# copy full UUID from table if you plan to amend/cancel
+
+TRADER01> AMEND|ID=7c4a91e2-...|PRICE=150.10
+[09:30:01.500] AMENDED  7c4a91e2  price=150.1 qty=100 remaining=100
+
+[09:30:02.200] FILL  7c4a91e2  qty=40 @150.10  remaining=60  [PARTIAL]
+
+TRADER01> POS
+# exposure now reflects partial fill
+
+TRADER01> CANCEL|ID=7c4a91e2-...
+[09:30:03.000] CANCELLED  7c4a91e2
+
+TRADER01> EXIT
+```
+
+Recommended habits:
+
+- Always use `ORDERS` to copy full IDs before `AMEND`/`CANCEL`
+- Check `POS` after fills, not only at end of session
+- If behavior looks inconsistent, run the re-sync playbook above
+
+
 
 ## Multiple Gateways
 
@@ -776,19 +929,18 @@ A background thread listens on the SUB socket and prints events (fills, cancels,
 combo status changes, session transitions) in real-time, interleaved cleanly with
 the command prompt. You can continue typing while events arrive.
 
-## Common mistakes
+## Common mistakes and fast triage
 
-New users frequently encounter these issues when first using the gateway:
-
-| Symptom | Cause | Fix |
-|---|---|---|
-| `Gateway authentication timed out` | Engine is not running | Start `pm-engine` first |
-| `Gateway not configured: GW01` | Gateway ID not in `engine_config.yaml` | Add the ID under `gateways.alf` or run in unrestricted mode (no config) |
-| `REJECTED: SYMBOL_NOT_CONFIGURED` | Symbol not in config | Add the symbol under `symbols:` in the config |
-| `REJECTED: SYMBOL_HALTED` | A circuit breaker fired or operator halted the symbol | Wait for resume, or use `pm-admin` to resume |
-| `REJECTED: STATIC_COLLAR_BREACH` | Order price too far from reference | Choose a price closer to the last traded price |
-| Order rests but does not fill | No counterparty at that price | Another gateway must post a crossing order |
-| `Quotes are only allowed for MARKET_MAKER participants` | Gateway role is `TRADER` | Change the role to `MARKET_MAKER` in config |
+| Symptom | Typical cause | Fast check | Action |
+|---|---|---|---|
+| `Gateway authentication timed out` | Engine is not running/reachable | Is `pm-engine` running in another terminal? | Start `pm-engine` first |
+| `Gateway not configured: GW01` | Gateway ID not in `engine_config.yaml` | Check `gateways.alf` list | Add ID under `gateways.alf` and restart engine |
+| `REJECTED: SYMBOL_NOT_CONFIGURED` | Symbol unknown to engine config | Run `SYMBOLS` | Use listed symbols or add symbol to config |
+| `REJECTED: SYMBOL_HALTED` | Circuit breaker/operator halt | Check audit/viewer output | Wait for resume or use admin controls |
+| `REJECTED: STATIC_COLLAR_BREACH` | Price too far from reference | Compare to recent trade prices | Reprice closer to market |
+| Order rests but does not fill | No crossing liquidity | Check opposite side activity | Wait or improve price |
+| `Quotes are only allowed for MARKET_MAKER participants` | Role is `TRADER` | Verify gateway role in config | Change role to `MARKET_MAKER` if intended |
+| `AMEND`/`CANCEL` fails with unknown ID | Short ID used instead of full UUID | Run `ORDERS` and inspect full ID | Retry with full order UUID |
 
 ## See also
 

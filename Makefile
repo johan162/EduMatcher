@@ -221,6 +221,10 @@ test-html: ## Run tests, generate HTML + XML coverage reports
 		-q
 	@echo -e "$(GREEN)✓ Reports: htmlcov/index.html and coverage.xml$(NC)"
 
+test-malloc: ## Run tests with memory allocation tracking (requires pytest-malloc)
+	@echo -e "$(DARKYELLOW)- Running tests with PYTHONTRACEMALLOC ...$(NC)"
+	@PYTHONTRACEMALLOC=1 poetry run pytest -n auto -W error::ResourceWarning -x
+
 verify: ## Run end-to-end deterministic matching verification suite
 	@if [ ! -f tools/verify_matching.sh ]; then \
 		echo -e "$(RED)✗ tools/verify_matching.sh not found$(NC)"; exit 1; \

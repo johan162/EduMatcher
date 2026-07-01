@@ -1,3 +1,34 @@
+## [v0.12.3] - 2026-07-01
+
+Release Type: patch
+
+### 📋 Summary
+This patch hardens resource lifecycle and shutdown behavior across the stats,
+clearing, CALF, RALF, and ticker paths, eliminating leaked SQLite, file, TCP,
+and ZMQ handles found under strict warning checks. It also expands gateway and
+post-trade documentation and adds broader regression coverage for index,
+scheduler, and stats workflows.
+
+### 🚀 Improvements
+- Improved RALF gateway subscription handling by enforcing role-to-channel entitlement checks for non-AUDIT clients
+- Improved RALF end-of-day reporting by tracking and emitting per-symbol trade counts in EOD events
+- Improved build portability by adapting Puppeteer path handling for different operating systems
+
+### 🐛 Bug Fixes
+- Fixed leaked SQLite connections in `pm-stats` teardown paths that surfaced as `ResourceWarning` during full test runs
+- Fixed leaked file, TCP, and ZMQ handles across clearing, index history, CALF, RALF, ticker, and related test fixtures by adding explicit cleanup paths and closing replaced sockets
+- Fixed gateway receive-loop cleanup paths to guard double-close behavior and continue safely on malformed frames while still honoring `errno.EINTR`
+
+### 📚 Documentation
+- Expanded gateway and post-trade user-guide chapters with harmonized structure and richer protocol and operational guidance
+- Updated README, Getting Started, VM runtime, and training material to reflect current feature scope and environment details
+
+### 🛠 Internal
+- Added broad regression coverage for `pm-index-cli`, scheduler helpers, stats order flows, and stats CLI output handling
+- Fixed type and lint issues across test and support code
+- Bumped project dependencies and refreshed build-script and Makefile support files
+
+
 ## [v0.12.2] - 2026-06-30
 
 Release Type: patch

@@ -8,7 +8,7 @@
 | **Documentation** | [![Documentation](https://img.shields.io/badge/docs-mkdocs-blue)](https://johan162.github.io/EduMatcher/) |
 | **License**       | [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)  |
 | **Release**       | [![GitHub release](https://img.shields.io/github/v/release/johan162/edumatcher?include_prereleases)](https://github.com/johan162/edumatcher/releases)  |
-| **CI/CD**         | [![Coverage](https://img.shields.io/badge/coverage-85%25-brightgreen.svg)](coverage.svg)   |
+| **CI/CD**         | [![Coverage](https://img.shields.io/badge/coverage-87%25-brightgreen.svg)](coverage.svg)   |
 | **Code Quality**  | [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black) [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/) [![Linting: flake8](https://img.shields.io/badge/linting-flake8-yellowgreen)](https://flake8.pycqa.org/) |
 | Repo URL          | [![GitHub](https://img.shields.io/badge/GitHub-100000?style=flat-square&logo=github&logoColor=white)](https://github.com/johan162/edumatcher) |
 
@@ -20,17 +20,18 @@ matching logic, and exchange architecture through runnable code.
 - Real exchange mechanics: order books, auctions, clearing, and risk controls
 - Multi-process architecture: gateway, engine, audit, clearing, stats, and tooling
 - Performance-aware implementation: ~60,000 orders/second with microsecond latency
-- Practical protocol design: ALF (ALmost Fix) command language for gateway order entry
+- Practical protocol design: ALF (ALmost Fix) command language for gateway order entry, RALF (Reconciliation ALF) for post trade consumers and CALF (Channel ALF) to serve market data to subscribers
 - Strong engineering discipline: type hints, linting, and high test coverage
 
 ## Key Features
 
 - Complete lifecycle: order entry, matching, clearing, and audit trail
 - Rich order support: MARKET, LIMIT, STOP, STOP_LIMIT, IOC/FOK, ICEBERG, combo, OCO
-- Market mechanisms: opening/closing auctions and circuit breakers
-- Config-driven behavior via `engine_config.yaml` which acts as reference data for EduMatcher
+- Market mechanisms: opening/closing auctions 
+- Risk handling with circuit breakers and price collars
 - Message-based process boundaries with strong observability
 - Implement real risk controls such as prioce-collar, kill-switch, circuit-breaker, and mass-cancel
+- Easy to understand configuration through single source `engine_config.yaml` which acts as the system reference data. To simplify its creation a CLI tool `pm-config-gen` can be used and a handwritten config file can be verified with `pm-cverifier` 
 
 ## Key Functional Limitations
 
@@ -105,7 +106,7 @@ This is an educational project. If you find bugs, improve the documentation, or 
 #### Bootstrap with one command
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.12.2 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.12.3 --snapshot
 ```
 
 This command downloads the VM setup scripts, launches a Multipass VM,
@@ -155,8 +156,8 @@ If you use this tool in teaching or courses, please cite:
   title = {EduMatcher},
   author = {Johan Persson},
   year = {2026},
-  url = {https://github.com/johan162/edumatcher},
-  version = {0.12.2}
+  url = {https://github.com/johan162/EduMatcher},
+  version = {0.12.3}
 }
 ```
 

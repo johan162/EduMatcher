@@ -206,17 +206,17 @@ def test_python_example_subscribes_and_parses_gateway_exec(
             {
                 "CLIENT": "py-example",
                 "PROTO": "RALF1",
-                "ROLE": "CLEARING",
+                "ROLE": "AUDIT",
                 "LASTSEQ": "0",
             },
         )
         welcome = parser_module.parse_ralf_line(reader.recv_line())
         assert welcome.msg_type == "WELCOME"
-        assert welcome.fields["ROLE"] == "CLEARING"
+        assert welcome.fields["ROLE"] == "AUDIT"
 
         subscriber_module.subscribe_channels(
             sock,
-            "CLEARING",
+            "AUDIT",
             ["CLEARING", "DROP_COPY", "AUDIT"],
             "*",
         )

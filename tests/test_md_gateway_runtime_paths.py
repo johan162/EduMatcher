@@ -178,6 +178,7 @@ def test_poll_engine_events_all_topics(
             ("circuit_breaker.resume.aapl", {"timestamp": 5.0}),
         ]
     )
+    unit_gateway._sub_sock.close()
     unit_gateway._sub_sock = fake
     monkeypatch.setattr(gateway_mod, "decode", lambda payload: payload)
 
@@ -206,6 +207,8 @@ def test_poll_index_events_emits_idx(
     unit_gateway: MarketDataGateway,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    unit_gateway._sub_sock.close()
+    unit_gateway._index_sub.close()
     unit_gateway._sub_sock = _FakeSubscriber([])
     unit_gateway._index_sub = _FakeSubscriber(
         [

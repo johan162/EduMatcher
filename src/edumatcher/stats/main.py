@@ -542,13 +542,26 @@ class StatsProcess:
             # Wait for the receive thread to finish its current message before
             # closing the database and sockets to avoid mid-transaction errors.
             t.join(timeout=1.0)
-            self._conn.close()
-            self.sub.close()
-            self.push.close()
+            self.close()
 
     def _stop(self) -> None:
         self._running = False
         print("\n[STATS] Stopped.")
+
+    def close(self) -> None:
+        if hasattr(self, "_conn"):
+            self._conn.close()
+        if hasattr(self, "sub") and getattr(self.sub, "closed", False) is not True:
+            self.sub.close()
+        if hasattr(self, "push") and getattr(self.push, "closed", False) is not True:
+            self.push.close()
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            # Never raise during GC finalization.
+            pass
 
 
 def _is_order_event_topic(topic: str) -> bool:
