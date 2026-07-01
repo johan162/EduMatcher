@@ -84,6 +84,15 @@ Before reading the topology diagram, it is worth having clear definitions:
   layer using the subscription filter — no broker, no routing table, no extra
   process.
 
+**Private reply over PUB/SUB**
+: The subscription prefix enables a lightweight request/reply pattern without a
+  dedicated REQ/REP socket.  When a gateway pushes a `system.symbols_request`
+  command, the engine publishes the answer on `system.symbols.GW01` — a topic
+  only that gateway's SUB filter will match; every other subscriber silently
+  discards it at the ZMQ layer.  This pattern covers every personalised engine
+  response: `order.ack.{GW}`, `system.symbols.{GW}`, `system.quote_bootstrap.{GW}`,
+  and more.  It requires every connected process to register a unique gateway ID.
+
 
 
 ## Overview
@@ -96,31 +105,43 @@ No ZMQ broker daemon, no message queue server, no external dependencies beyond Z
 
 ## ZMQ Topology
 
-```
-                          ┌───────────────────────────────┐
-                          │      Matching Engine          │
-  Gateway(s)              │                               │
-  ──PUSH──────────────►   │  PULL :5555  receives orders  │
-                          │  PUB  :5556  broadcasts events│
-  Scheduler               │                               │
-  ──PUSH──────────────►   └───────────┬───────────────────┘
-                                      │ PUB :5556
-                    ┌─────────────────┼──────────────────────┐
-                    │                 │                      │
-              ┌─────▼──────┐  ┌──────▼──────┐  ┌────────────▼──────┐
-              │ Gateway(s) │  │  Viewer(s)  │  │  pm-orders        │
-              │ SUB        │  │  SUB        │  │  SUB              │
-              │ order.*    │  │  book.*     │  │  order.*          │
-              │ combo.*    │  │             │  │  (all gateways)   │
-              │ session.*  │  │             │  │                   │
-              └────────────┘  └─────────────┘  └───────────────────┘
-                    │
-              ┌─────▼──────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-              │  Audit     │  │  Clearing   │  │  Stats      │  │  Board      │
-              │  SUB       │  │  SUB        │  │  SUB        │  │  SUB        │
-              │  (all)     │  │  trade.*    │  │  trade.*    │  │  book.*     │
-              └────────────┘  └─────────────┘  │  book.*     │  │  trade.*    │
-                                               └─────────────┘  └─────────────┘
+```mermaid
+graph TD
+    ALF["pm-gateway\nALF"]
+    APIGW["pm-api-gateway"]
+    MMBOT["pm-mm-bot"]
+    SCH["pm-scheduler"]
+
+    subgraph Engine["Matching Engine — sole binder"]
+        PULL["PULL :5555\norder commands"]
+        PUB56["PUB :5556\nmarket events"]
+        PUB57["PUB :5557\ndrop-copy"]
+    end
+
+    GW_R["pm-gateway\nprivate events"]
+    APIR["pm-api-gateway\nWebSocket bridge"]
+    OPS["pm-stats · pm-clearing · pm-audit"]
+    UI["pm-viewer · pm-board · pm-ticker · pm-orders"]
+    IDX["pm-index"]
+    MD["pm-md-gwy\nCALF TCP bridge"]
+    PT["pm-ralf-gwy\nRALF TCP bridge"]
+    DCC["Risk / compliance consumers"]
+
+    subgraph IndexBus["Index bus  (pm-index binds)"]
+        IPUB["PUB :5558\nindex events"]
+        IPULL["PULL :5559\nindex commands"]
+    end
+
+    ExtMD["External market-data clients"]
+    ExtPT["External post-trade clients"]
+
+    ALF & APIGW & MMBOT & SCH -->|PUSH| PULL
+    PUB56 -->|SUB| GW_R & APIR & OPS & UI & IDX & MD & PT
+    PUB57 -->|SUB| DCC
+    IDX -->|binds| IPUB & IPULL
+    ALF & APIGW -.->|"SUB / PUSH"| IndexBus
+    MD -->|"CALF / TCP"| ExtMD
+    PT -->|"RALF / TCP"| ExtPT
 ```
 
 
@@ -132,31 +153,100 @@ All messages are two-frame ZMQ multipart:
 - **frame[0]** — topic string (used for SUB filtering)
 - **frame[1]** — JSON payload
 
+### Commands — GW / operator → Engine (PUSH :5555)
+
+| Topic | Description |
+|-------|-------------|
+| `order.new` | Submit a new order |
+| `order.cancel` | Cancel a resting order |
+| `order.amend` | Amend the price and/or quantity of a resting order |
+| `order.combo` | Submit a multi-leg combo order |
+| `order.combo_cancel` | Cancel a combo and all its child legs |
+| `order.oco` | Link two resting orders into an OCO pair |
+| `order.oco_cancel` | Cancel both legs of an OCO pair |
+| `quote.new` | Submit or replace a two-sided market-maker quote |
+| `quote.cancel` | Cancel the active quote for a symbol |
+| `risk.kill_switch` | Cancel all resting orders and quotes for a gateway |
+| `risk.symbol_halt` | Operator halt of a single symbol |
+| `risk.symbol_resume` | Resume a previously halted symbol |
+| `risk.cancel_symbol` | Cancel all resting orders across all gateways on one symbol |
+| `risk.circuit_breaker_halt_all` | Administrative global halt |
+| `risk.circuit_breaker_resume_all` | Administrative global resume |
+| `system.gateway_connect` | Authenticate a gateway ID on startup |
+| `system.gateway_disconnect` | Graceful disconnect notice from a gateway |
+| `system.symbols_request` | Request the list of configured symbols |
+| `book.snapshot_request` | Request an immediate book snapshot for a symbol |
+| `order.orders_request` | Request the current resting order list for a gateway |
+| `system.quote_bootstrap_request` | Request active quote state for a gateway |
+| `system.quote_legs_request` | Request quote leg snapshot (QLEGS) |
+| `system.session_state_request` | Request current session state |
+| `system.gateways_request` | Request the list of configured gateways and connection status |
+| `system.volume_request` | Request cumulative traded volume for all symbols |
+| `system.halt_status_request` | Request a snapshot of all currently halted symbols |
+| `system.position_request` | Request per-symbol position snapshot for a gateway |
+| `session.transition` | Request a session-phase change (sent by pm-scheduler) |
+
+### Private replies — Engine → GW (PUB :5556, personalised prefix)
+
+| Topic | Description |
+|-------|-------------|
+| `order.ack.{GW_ID}` | Order accepted or rejected |
+| `order.fill.{GW_ID}` | Partial or full fill notification |
+| `order.cancelled.{GW_ID}` | Cancel confirmed or SMP-forced cancellation |
+| `order.amended.{GW_ID}` | Amendment confirmed |
+| `order.expired.{GW_ID}` | DAY / ATO / ATC order expired at phase change or shutdown |
+| `order.orders.{GW_ID}` | Response to `order.orders_request`: full resting order list |
+| `combo.ack.{GW_ID}` | Combo order accepted or rejected |
+| `combo.status.{GW_ID}` | Combo lifecycle state change |
+| `oco.ack.{GW_ID}` | OCO link accepted |
+| `oco.cancelled.{GW_ID}` | Sibling leg cancelled after other leg filled or was cancelled |
+| `quote.ack.{GW_ID}` | Quote accepted or rejected |
+| `quote.status.{GW_ID}` | Quote lifecycle state change |
+| `risk.kill_switch_ack.{GW_ID}` | Kill-switch execution confirmed |
+| `system.gateway_auth.{GW_ID}` | Authentication accepted or rejected |
+| `system.symbols.{GW_ID}` | Response to `system.symbols_request` |
+| `system.quote_bootstrap.{GW_ID}` | Active quote bootstrap state |
+| `system.quote_legs.{GW_ID}` | Quote leg snapshot response |
+| `system.session_status.{GW_ID}` | Current session state and enforcement flag |
+| `system.gateways.{GW_ID}` | Configured gateways and connection status |
+| `system.volume.{GW_ID}` | Cumulative traded volume per symbol |
+| `system.halt_status.{GW_ID}` | Currently halted symbols snapshot |
+| `system.position.{GW_ID}` | Per-symbol position snapshot (net qty, avg cost) |
+
+### Broadcasts — Engine → all subscribers (PUB :5556)
+
+| Topic | Description |
+|-------|-------------|
+| `session.state` | Session phase changed; every subscriber reacts accordingly |
+| `auction.result.{SYMBOL}` | Auction uncross result: equilibrium price, quantity, imbalance |
+| `trade.executed` | A trade was matched; consumed by clearing, stats, RALF, viewers |
+| `book.{SYMBOL}` | Full order-book snapshot after every state change for this symbol |
+| `depth.{SYMBOL}` | Depth-of-market statistics (bid/ask imbalance, cost-to-move) published alongside `book.{SYMBOL}` |
+| `circuit_breaker.halt.{SYMBOL}` | Symbol halted by the circuit breaker |
+| `circuit_breaker.resume.{SYMBOL}` | Symbol resumed after a circuit-breaker halt |
+| `system.eod` | End-of-day shutdown broadcast; signals all subscribers to flush and stop |
+
+### Drop-copy feed — Engine → compliance consumers (PUB :5557)
+
+| Topic | Description |
+|-------|-------------|
+| `drop_copy.event.{GW_ID}` | Sequenced fill event with nanosecond timestamp, one per filled order leg |
+| `drop_copy.replay.{CLIENT_ID}` | Replayed historical fill events in response to a replay request |
+
+### Index bus — pm-index ↔ clients (PUB :5558 / PULL :5559)
+
+`pm-index` is its own process with its own dedicated sockets at ports :5558 and :5559.
+It subscribes to the engine PUB at :5556 and publishes index events independently.
+
 | Topic | Direction | Description |
 |-------|-----------|-------------|
-| `order.new` | GW → Engine | New order submission |
-| `order.cancel` | GW → Engine | Cancel request |
-| `order.combo` | GW → Engine | Submit multi-leg combo order |
-| `order.combo_cancel` | GW → Engine | Cancel a combo and all its legs |
-| `session.transition` | Scheduler → Engine | Request session phase change |
-| `system.gateway_connect` | GW → Engine | Gateway authentication request |
-| `system.symbols_request` | Any → Engine | Request active symbol list |
-| `book.snapshot_request` | Any → Engine | Request immediate book snapshot |
-| `order.orders_request` | GW → Engine | Request resting orders for a gateway |
-| `order.ack.{GW_ID}` | Engine → GW | Order accepted or rejected |
-| `order.fill.{GW_ID}` | Engine → GW | Partial or full fill |
-| `order.cancelled.{GW_ID}` | Engine → GW | Cancel confirmed |
-| `order.expired.{GW_ID}` | Engine → GW | Order expired (DAY/ATO/ATC at phase change or shutdown) |
-| `order.orders.{GW_ID}` | Engine → GW | Response: list of resting orders |
-| `combo.ack.{GW_ID}` | Engine → GW | Combo accepted or rejected |
-| `combo.status.{GW_ID}` | Engine → GW | Combo lifecycle status change |
-| `system.gateway_auth.{GW_ID}` | Engine → GW | Authentication response |
-| `system.symbols.{GW_ID}` | Engine → Requestor | Response: list of symbols |
-| `session.state` | Engine → all | Current session phase broadcast |
-| `auction.result.{SYMBOL}` | Engine → all | Auction uncross result |
-| `trade.executed` | Engine → all | Trade occurred |
-| `book.{SYMBOL}` | Engine → all | Order book snapshot after each change |
-| `system.eod` | Engine → all | End-of-day shutdown broadcast |
+| `index.update` | pm-index → all | Current index level, OHLC, and session state |
+| `index.history_request` | GW → pm-index | Query index history by time range |
+| `index.history.{GW_ID}` | pm-index → GW | History query response |
+| `index.corp_action` | GW → pm-index | Apply a corporate action to an index constituent |
+| `index.corp_action_ack.{GW_ID}` | pm-index → GW | Corporate action acknowledgement |
+| `index.constituent_change` | GW → pm-index | Add or remove an index constituent |
+| `index.constituent_change_ack.{GW_ID}` | pm-index → GW | Constituent-change acknowledgement |
 
 
 
@@ -164,16 +254,87 @@ All messages are two-frame ZMQ multipart:
 
 | Process | ZMQ Sockets | Binds/Connects | Role |
 |---------|------------|----------------|------|
-| Engine | PULL :5555, PUB :5556, PUB :5557 | **Binds** all | Matching, session state, combo tracking, drop-copy |
-| Gateway | PUSH→5555, SUB→5556 | Connects | User order entry, authenticates on connect |
-| Scheduler | PUSH→5555 | Connects | Drives session phase transitions |
-| Viewer | SUB→5556 | Connects | Real-time book display (per symbol) |
-| pm-orders | SUB→5556 | Connects | Order status monitor (all gateways) |
-| Audit | SUB→5556 | Connects | Universal event logging |
-| Clearing | SUB→5556 | Connects | P&L tracking, trade settlement |
-| Stats | SUB→5556 | Connects | OHLCV statistics, SQLite persistence |
-| Ticker | SUB→5556 | Connects | Scrolling market data display |
-| Board | SUB→5556 | Connects | Multi-symbol paged market display (all symbols) |
+| pm-engine | PULL :5555, PUB :5556, PUB :5557 | **Binds** all three | Matching, session state, combo/OCO/quote tracking, drop-copy |
+| pm-gateway (ALF) | PUSH→:5555, SUB→:5556, SUB→:5558, PUSH→:5559 | Connects | Interactive order entry; ALF line protocol; index data display |
+| pm-api-gateway | PUSH→:5555, SUB→:5556, SUB→:5558, PUSH→:5559 | Connects | REST and WebSocket order gateway for programmatic clients |
+| pm-mm-bot | PUSH→:5555, SUB→:5556 | Connects | Automated market-maker; manages two-sided quotes |
+| pm-scheduler | PUSH→:5555 | Connects | Drives session phase transitions on a time schedule |
+| pm-viewer | SUB→:5556 | Connects | Real-time order book display for one symbol |
+| pm-orders | SUB→:5556 | Connects | Order status monitor across all gateways |
+| pm-audit | SUB→:5556 | Connects | Universal event log (subscribes to all topics) |
+| pm-clearing | SUB→:5556 | Connects | P&L tracking and trade settlement |
+| pm-stats | SUB→:5556 | Connects | OHLCV statistics and SQLite persistence |
+| pm-ticker | SUB→:5556 | Connects | Scrolling market data display |
+| pm-board | SUB→:5556 | Connects | Multi-symbol paged market display |
+| pm-index | PULL :5559, PUB :5558, SUB→:5556 | **Binds** :5558 and :5559; connects→:5556 | Index calculation, OHLC, corporate actions |
+| pm-md-gwy (CALF) | SUB→:5556, SUB→:5558 | Connects | Translates engine events to CALF TCP for external market-data subscribers |
+| pm-ralf-gwy (RALF) | SUB→:5556 | Connects | Translates trade events to RALF TCP for external post-trade / clearing parties |
+
+
+
+## Key Design Decisions
+
+### The Engine as the Sole Binder
+
+The engine is the only process that binds sockets (:5555, :5556, :5557).  Every
+other process connects to the engine.  This has three practical consequences:
+
+- **Start the engine first.** A gateway that connects before the engine is started
+  will block on send until the engine comes up (ZMQ queues outgoing messages).
+- **Adding a new subscriber requires no engine change.** Any process can connect
+  to :5556 and subscribe to the topics it needs.  The engine has no knowledge of
+  who is listening.
+- **Restart isolation.** Any subscriber can crash and restart without disturbing
+  the engine or other subscribers.  It simply reconnects and resumes.
+
+`pm-index` is the one exception: it binds its own pair of sockets (:5558, :5559)
+because it is a second-tier publisher, not a consumer of the engine.
+
+### Two Tiers of Gateways
+
+EduMatcher has two distinct gateway roles:
+
+**Order-entry gateways** (`pm-gateway`, `pm-api-gateway`, `pm-mm-bot`) connect
+directly to the engine over ZMQ PUSH/PULL.  They authenticate via
+`system.gateway_connect` and receive personalised events on their subscribed
+`order.*`, `quote.*`, and `system.*` topics.  These processes are internal to the
+exchange operator.
+
+**Protocol bridges** (`pm-md-gwy`, `pm-ralf-gwy`) subscribe to the engine PUB
+socket and translate engine events into an external TCP line protocol for
+third-party consumers:
+
+- `pm-md-gwy` (CALF) — real-time order book and trade data for market-data
+  subscribers, with session management, subscription filtering, and gap-recovery
+  replay
+- `pm-ralf-gwy` (RALF) — post-trade execution events for external clearing,
+  drop-copy, and audit parties over authenticated TCP sessions
+
+### Bus Segmentation by Function
+
+Separating traffic onto distinct ports serves both operational and compliance needs:
+
+| Port | Socket | Purpose |
+|------|--------|---------|
+| :5555 | PULL | Order commands — only the engine reads these |
+| :5556 | PUB | Market events — all internal subscribers |
+| :5557 | PUB | Drop-copy — sequenced fill feed for compliance consumers |
+| :5558 | PUB | Index events — separate bus owned by `pm-index` |
+| :5559 | PULL | Index commands — received only by `pm-index` |
+
+The drop-copy feed on :5557 deliberately isolates the compliance feed from the full
+market event stream.  Each fill event carries a monotonic sequence number and a
+nanosecond timestamp so consumers can detect gaps.
+
+### Single-Threaded Engine as a Correctness Guarantee
+
+The engine's main loop processes one message at a time in a single thread.  There
+are no locks, no shared mutable state, and no concurrent modifications.  Combo
+status transitions, cascade-cancels, and session phase changes are all fully
+serialised.  The price is that a long auction uncross blocks all other message
+processing until it finishes — acceptable for an educational system, but a
+production engine would decompose the critical path or use non-blocking event
+dispatch.
 
 
 
@@ -532,17 +693,16 @@ ComboOrder
 
 #### Combo Lifecycle State Machine
 
-```
-                     ┌─── all legs fill ────► MATCHED
-                     │
-   PENDING ──► PARTIALLY_MATCHED ──┤
-     │                              │
-     │                              └─── leg cancelled/expired ──► FAILED
-     │                                           │
-     │                                           ▼
-     │                                   cascade-cancel siblings
-     │
-     └── user cancels ──► CANCELLED (+ cascade-cancel siblings)
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING
+    PENDING --> PARTIALLY_MATCHED : first leg fills
+    PENDING --> CANCELLED : user cancel → cascade-cancel all legs
+    PARTIALLY_MATCHED --> MATCHED : all legs filled
+    PARTIALLY_MATCHED --> FAILED : any leg cancelled/expired → cascade-cancel siblings
+    MATCHED --> [*]
+    CANCELLED --> [*]
+    FAILED --> [*]
 ```
 
 #### Combo Entry Algorithm
@@ -689,20 +849,17 @@ whether matching occurs.  The scheduler process drives transitions by sending
 
 #### States and Transitions
 
+```mermaid
+stateDiagram-v2
+    [*] --> PRE_OPEN
+    PRE_OPEN --> OPENING_AUCTION : session.transition
+    PRE_OPEN --> CONTINUOUS : session.transition (shortcut)
+    OPENING_AUCTION --> CONTINUOUS : uncross all books + expire ATO orders
+    CONTINUOUS --> CLOSING_AUCTION : session.transition
+    CONTINUOUS --> CLOSED : session.transition (shortcut)
+    CLOSING_AUCTION --> CLOSED : uncross all books + expire ATC orders
+    CLOSED --> [*]
 ```
-   ┌──────────┐         ┌──────────────────┐         ┌────────────┐
-   │ PRE_OPEN │────────►│ OPENING_AUCTION  │────────►│ CONTINUOUS │
-   │          │         │                  │         │            │
-   └──────────┘         └──────────────────┘         └─────┬──────┘
-        ▲                                                  │
-        │                                                  ▼
-   ┌────┴─────┐         ┌──────────────────┐         ┌────────────┐
-   │  CLOSED  │◄────────│ CLOSING_AUCTION  │◄────────│            │
-   │          │         │                  │         │            │
-   └──────────┘         └──────────────────┘         └────────────┘
-```
-
-Additional valid shortcuts: `PRE_OPEN → CONTINUOUS`, `CONTINUOUS → CLOSED`.
 
 #### Phase Behavior
 
