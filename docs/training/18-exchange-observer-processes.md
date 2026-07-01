@@ -245,6 +245,14 @@ You have now run the main exchange observer processes and seen how each one
 answers a different operational question. In normal use, start only the observers
 you need for the lesson or scenario you are running.
 
+## Reflection
+
+Why does EduMatcher split viewing responsibilities across several small
+observer processes (`pm-viewer`, `pm-orders`, `pm-audit`, `pm-stats`,
+`pm-board`) instead of one all-in-one dashboard? What would you lose in a
+classroom setting if all of them were combined into a single process that
+had to be restarted together?
+
 ## Further Reading
 
 - [Processes](../user-guide/10-processes.md)

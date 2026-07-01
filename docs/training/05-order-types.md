@@ -14,6 +14,33 @@ IOC, ICEBERG, and TRAILING_STOP — through practical exercises.
 
 ---
 
+## Deterministic Trigger Setup
+
+Stop and stop-limit orders only trigger when the market actually trades
+through their trigger price. Vague instructions like "sell aggressively" can
+leave the trigger price behind by chance rather than by design. Use this
+procedure before each stop exercise so the trigger is guaranteed:
+
+1. Check the current best bid/offer with `BOOK|SYM=AAPL` from any gateway.
+2. Set your stop's `STOP` price **inside** the current spread, close to (but
+   not past) the best bid — for example, if the best bid is 149.80, use
+   `STOP=149.50` so it will not trigger immediately but is easy to reach.
+3. Place the stop order (Exercise 1/2 below).
+4. From `TRADER02`, place a **marketable limit sell** priced below your stop
+   trigger, sized to exceed available resting bids down to that level, e.g.:
+
+   ```
+   TRADER02> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=500|PRICE=149.00|TIF=DAY
+   ```
+
+   This guarantees the trade prints at or below 149.50, deterministically
+   triggering your stop — rather than hoping an "aggressive" sell happens to
+   cross it.
+5. Re-check `BOOK|SYM=AAPL` to confirm the last trade price is at/below your
+   stop level before concluding the exercise.
+
+---
+
 ## Exercise 1: Stop Order
 
 A stop order becomes a market order when the trigger price is reached.
@@ -30,7 +57,9 @@ executes as a market order.
 Interpretation: 149.50 is the **trigger** level, not a guaranteed execution
 price.
 
-To test: from TRADER02, sell aggressively to push the price down past the stop.
+To test, follow the **Deterministic Trigger Setup** above: from TRADER02,
+place a marketable sell priced below 149.50 to force a trade through the
+trigger level.
 
 :material-checkbox-blank-outline: **Checkpoint:** stop order triggered and filled after price drop.
 
@@ -49,6 +78,11 @@ market gaps below 149.40, the order may not fill (unlike a plain stop).
 
 Interpretation: `STOP=149.50` controls **when** the order is activated, while
 `PRICE=149.40` controls the **worst acceptable execution price** after trigger.
+
+Use the same **Deterministic Trigger Setup** procedure to force the trigger.
+To specifically observe the "gaps below and doesn't fill" case, set your
+TRADER02 counter-sell price below `PRICE=149.40` (e.g. `PRICE=149.00`) so the
+book trades through both the stop and the limit level.
 
 :material-checkbox-blank-outline: **Checkpoint:** stop-limit triggers and rests as a limit order.
 
@@ -144,6 +178,13 @@ you.
 | TRAILING_STOP | Dynamic stop follows market | Until triggered | `TRAIL` |
 
 ---
+
+## Reflection
+
+Why does STOP_LIMIT exist at all, given that a plain STOP order guarantees
+execution once triggered? What real trading scenario would make a trader
+prefer a STOP_LIMIT's "might not fill" risk over a STOP's "might fill at a
+bad price" risk?
 
 ## Further Reading
 

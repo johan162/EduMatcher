@@ -55,7 +55,20 @@ The clearing service records:
 - Position: +300 AAPL
 - Average cost: VWAP of the two fill prices
 
-:material-checkbox-blank-outline: **Checkpoint:** position building confirmed in clearing logs.
+Verify with a command, not just the terminal log: inspect the CSV artifact
+the clearing service appends on every trade:
+
+```bash
+tail -n 5 "$EDUMATCHER_DATA_DIR/clearing_report.csv"
+```
+
+You should see two new rows, one per fill, with `symbol=AAPL` and
+`quantity` of 200 and 100 respectively (the CSV logs raw trades — `trade_id`,
+`symbol`, `buy_order_id`, `sell_order_id`, `buy_gateway`, `sell_gateway`,
+`price`, `quantity`, `timestamp` — it does not carry P&L, which is computed
+separately per gateway/symbol in the clearing console's P&L Summary table).
+
+:material-checkbox-blank-outline: **Checkpoint:** two new rows for AAPL appear in `clearing_report.csv` with quantities 200 and 100.
 
 ---
 
@@ -73,7 +86,12 @@ The clearing service computes realized P&L:
 Realized P&L = (sell_price - avg_cost) × qty_sold
 ```
 
-:material-checkbox-blank-outline: **Checkpoint:** realized P&L appears in clearing output.
+Verify this from the clearing console's periodically-printed **P&L Summary**
+table (not the CSV, which only logs raw trades): find the row for your
+gateway/`AAPL` and confirm the `Realized` column now shows a non-zero value
+matching the formula above.
+
+:material-checkbox-blank-outline: **Checkpoint:** P&L Summary table shows a non-zero `Realized` value for AAPL matching the expected calculation.
 
 ---
 
@@ -85,9 +103,12 @@ The remaining 200 shares have unrealized P&L based on the current market price:
 Unrealized P&L = (current_mid - avg_cost) × position
 ```
 
-This updates continuously as the book changes.
+This updates continuously as the book changes. Verify it the same way as
+Exercise 3: in the clearing console's P&L Summary table, confirm the `AAPL`
+row's `Position` column reads `+200` and its `Unrealized` column changes
+value if you re-check after the market price moves.
 
-:material-checkbox-blank-outline: **Checkpoint:** unrealized P&L calculation understood.
+:material-checkbox-blank-outline: **Checkpoint:** P&L Summary table shows AAPL position `+200` with an `Unrealized` value that changes as price moves.
 
 ---
 
@@ -132,6 +153,13 @@ tracking in the clearing output.
 | Unrealized P&L (short) | $(\text{avg\_cost} - \text{mid\_price}) \times |\text{position}|$ |
 
 ---
+
+## Reflection
+
+Why does realized P&L use the trade price at the moment of the closing sell,
+while unrealized P&L keeps recalculating against the current mid-price? What
+would happen to your reported P&L if the clearing service stopped updating
+`last_price` while the book kept trading?
 
 ## Further Reading
 

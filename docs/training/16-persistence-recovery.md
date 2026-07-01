@@ -59,7 +59,21 @@ TRADER01> ORDERS
 
 ## Exercise 3: Restart the Engine
 
-Stop `pm-engine` cleanly, then start it again with the same config and data dir:
+GTC persistence in EduMatcher is unconditional — there is no config flag to
+enable/disable it — but it only works correctly under these conditions:
+
+- **Stop the engine cleanly** (`Ctrl+C` / SIGINT), not `kill -9`. The engine
+  writes `gtc_orders.json` during its graceful shutdown handler; a hard kill
+  skips that write entirely and no orders will be restored.
+- **Restart with the same `EDUMATCHER_DATA_DIR`** (and thus the same
+  `gtc_orders.json` path) used in Exercise 2 — a different data directory has
+  nothing to restore from.
+- **Restart with a config that still lists the same symbol** — on restore,
+  the engine skips any persisted GTC order whose symbol is no longer in
+  `engine_config.yaml`.
+
+With those three conditions met, stop `pm-engine` cleanly, then start it again
+with the same config and data dir:
 
 ```bash
 pm-engine --config engine_config.yaml
@@ -71,11 +85,14 @@ Reconnect `TRADER01` and inspect orders:
 TRADER01> ORDERS
 ```
 
-The GTC order should be restored if persistence is enabled for your run.
+The GTC order should be restored — the engine also prints a line at shutdown
+confirming how many GTC orders it saved (`[ENGINE] Saved N GTC order(s) to
+...`), which you can check as a stable confirmation instead of relying on
+`ORDERS` output alone.
 
 Compare explicitly after restart:
 
-- GTC orders may restore from persistence.
+- GTC orders restore from persistence (given the conditions above).
 - DAY orders from prior session should not survive CLOSED.
 - Stats remain in `stats.db` if `pm-stats` was writing before restart.
 
@@ -141,6 +158,14 @@ You now understand:
 - Which data belongs in `EDUMATCHER_DATA_DIR`.
 - Why GTC and DAY orders behave differently across session boundaries.
 - How stats and audit files survive beyond the current terminal session.
+
+## Reflection
+
+Why does the engine persist GTC orders but deliberately discard DAY orders
+and re-seed MM quote legs from config on every restart, instead of just
+saving and restoring the entire book state wholesale? What would go wrong
+operationally if quote legs were persisted and blindly restored alongside
+GTC orders after a config change removed a market maker?
 
 ## Further Reading
 

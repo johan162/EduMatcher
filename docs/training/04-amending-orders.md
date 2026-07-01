@@ -133,6 +133,12 @@ Expected: rejection — order not found.
 
 ---
 
+## Reflection
+
+Why does reducing quantity preserve time priority, but increasing it does
+not? What unfair advantage would a trader gain if increasing quantity kept
+their original priority in a busy book?
+
 ## Further Reading
 
 - [Gateway Commands](../user-guide/08-gateway.md)

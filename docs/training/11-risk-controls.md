@@ -266,6 +266,13 @@ pm-admin-cli --id GW_ADMIN kill --gw TRADER02 --sym AAPL
 
 ---
 
+## Reflection
+
+Why does a circuit breaker halt the whole symbol rather than just rejecting
+new orders like the collars do? What failure mode (think: a runaway
+algorithmic trader or a bad data feed) is a circuit breaker specifically
+designed to stop that per-order collars cannot?
+
 ## Further Reading
 
 - [Risk Controls](../user-guide/12-risk-controls.md)
