@@ -8,7 +8,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "edumatcher"
-version = "0.12.3"
+version = "0.12.4"
 description = "Educational multi-process trading system with order matching"
 authors = ["Johan Persson <johan162@gmail.com>"]
 readme = "README.md"
