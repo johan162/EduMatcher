@@ -24,7 +24,7 @@ over TCP (default port `5570`) in a format any language can consume with a plain
 socket and line-split logic.
 
 ```mermaid
-flowchart LR
+flowchart TB
     E[pm-engine\nZMQ PUB :5556] -->|"book.*, trade.executed\nsession.state\ncircuit_breaker.*\nindex.*"| G
 
     subgraph G["pm-md-gwy  (TCP :5570)"]
