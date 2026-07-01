@@ -1,3 +1,16 @@
+## [v0.12.4] - 2026-07-01
+
+Release Type: patch
+
+### 📋 Summary
+Documentation update with refreshed architecture overview and shortened `README.md`
+
+### 📚 Documentation
+- Converted ZMQ topology diagram, session state machine, and combo lifecycle state machine to Mermaid in the architecture overview
+- Expanded the architecture message-topics reference to include all current messages: amend, OCO, quotes, risk controls, circuit-breaker events, drop-copy, and the index bus
+- Updated Getting Started installation guide with current environment and setup steps
+- Focused README scope and updated feature descriptions
+
 ## [v0.12.3] - 2026-07-01
 
 Release Type: patch
