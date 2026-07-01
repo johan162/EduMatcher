@@ -4058,9 +4058,7 @@ its attributes in a dictionary:</p>
     OBJ["Order instance"]
     DICT["__dict__  ·  a hash table\n\nid → ...\nsymbol → ...\nside → ...\n...\n18 attributes stored as key-value pairs"]
     COST["Attribute access = hash lookup\n≈ 50–70 ns per access"]
-    OBJ --&gt; DICT --&gt; COST
-    style DICT fill:#ffeeba,stroke:#d4a017
-    style COST fill:#f8d7da,stroke:#c0392b</code></pre>
+    OBJ --&gt; DICT --&gt; COST</code></pre>
 <p>With <code>__slots__</code>, Python replaces the dictionary with a fixed C array:</p>
 <pre class="mermaid"><code>graph TD
     OBJ2["Order instance"]
@@ -4073,12 +4071,7 @@ its attributes in a dictionary:</p>
     OBJ2 --&gt; S1
     OBJ2 --&gt; S2
     OBJ2 --&gt; SN
-    SN --&gt; COST2
-    style S0 fill:#d4edda,stroke:#28a745
-    style S1 fill:#d4edda,stroke:#28a745
-    style S2 fill:#d4edda,stroke:#28a745
-    style SN fill:#d4edda,stroke:#28a745
-    style COST2 fill:#d4edda,stroke:#155724</code></pre>
+    SN --&gt; COST2</code></pre>
 <p>Each attribute access saves roughly 20-40 nanoseconds. With thousands of fills per
 second and 5+ attribute accesses per fill, this compounds to 1-2 microseconds saved
 per order — about 15% of the total per-order budget.</p>
@@ -4089,7 +4082,7 @@ reduces both memory consumption and garbage collection pressure.</p>
 <p>The <strong>order book</strong> is the core data structure of an exchange. It holds all resting
 (unfilled) orders, organised by price level, waiting for a counterparty.</p>
 <p>Conceptually, it looks like this for AAPL:</p>
-<pre class="mermaid"><code>graph LR
+<pre class="mermaid"><code>graph TB
     subgraph BIDS["📉  BID SIDE  ·  buyers  ·  highest price first"]
         B1["$210.00  ·  500 qty  ←  best bid"]
         B2["$209.50  ·  1,200 qty"]
@@ -4101,8 +4094,7 @@ reduces both memory consumption and garbage collection pressure.</p>
         A2["$211.50  ·  800 qty"]
         A3["$212.00  ·  300 qty"]
     end
-    BIDS --- SP --- ASKS
-    style SP fill:#fff3cd,stroke:#856404</code></pre>
+    BIDS --- SP --- ASKS</code></pre>
 <p>The <strong>spread</strong> is the gap between the best bid (<span class="arithmatex">\(210.00) and the best ask (\)</span>211.00).
 In this example, the cheapest you can buy immediately is $211.00. The most you can
 sell immediately is $210.00.</p>
@@ -4114,7 +4106,7 @@ sell at $211.00. The book would be crossed and a trade would happen.</p>
 fill immediately — the cheapest available seller wants $211.00, which is more than
 the buyer is willing to pay. The new buy order would rest in the book at $210.50,
 narrowing the spread. The book would now look like:</p>
-<pre class="mermaid"><code>graph LR
+<pre class="mermaid"><code>graph TB
     subgraph BIDS2["📉  BID SIDE  (after new order at $210.50)"]
         NB1["$210.50  ·  100 qty  ←  NEW resting order"]
         NB2["$210.00  ·  500 qty"]
@@ -4123,9 +4115,7 @@ narrowing the spread. The book would now look like:</p>
     subgraph ASKS2["📈  ASK SIDE  (unchanged)"]
         NA1["$211.00  ·  2,000 qty  ←  best ask"]
     end
-    BIDS2 --- SP2 --- ASKS2
-    style NB1 fill:#cce5ff,stroke:#004085
-    style SP2 fill:#fff3cd,stroke:#856404</code></pre>
+    BIDS2 --- SP2 --- ASKS2</code></pre>
 <p>This accumulation of unfilled limit orders is what creates depth in the book.</p>
 <p>In EduMatcher, this is <code>OrderBook</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># engine/order_book.py</span>
