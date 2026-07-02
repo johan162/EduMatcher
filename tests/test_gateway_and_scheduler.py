@@ -21,7 +21,9 @@ def _make_gateway(gw_id: str = "GW01"):
     fake_push = MagicMock()
     fake_sub = MagicMock()
     with patch("edumatcher.alf_console.main.make_pusher", return_value=fake_push):
-        with patch("edumatcher.alf_console.main.make_subscriber", return_value=fake_sub):
+        with patch(
+            "edumatcher.alf_console.main.make_subscriber", return_value=fake_sub
+        ):
             gw = Gateway(gw_id)
     return gw
 
