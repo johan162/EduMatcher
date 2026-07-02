@@ -5,14 +5,14 @@
 Launch AI-driven autonomous traders to generate realistic order flow for
 demonstrations, classroom sessions, and stress testing.
 
----
+ 
 
 ## Prerequisites
 
 - Chapters 01–13 completed.
 - Baseline liquidity available (manual MM gateways or `pm-mm-bot`).
 
----
+ 
 
 ## Background
 
@@ -34,7 +34,7 @@ Four built-in personality profiles create diverse order flow:
 | `many-small` | 180 ms | 1–25 | 18% | High-frequency tiny orders |
 | `few-large` | 1400 ms | 150–700 | 12% | Infrequent institutional-style block orders |
 
----
+ 
 
 ## Exercise 1: Add AI Trader Gateways
 
@@ -62,7 +62,7 @@ Restart the engine.
 
 :material-checkbox-blank-outline: **Checkpoint:** 3 additional gateways loaded (`AI01`–`AI03`).
 
----
+ 
 
 ## Exercise 2: Launch a Single AI Trader
 
@@ -75,7 +75,7 @@ Watch the gateway output — you'll see orders being submitted at the profile's
 
 :material-checkbox-blank-outline: **Checkpoint:** AI trader generates order flow on AAPL.
 
----
+ 
 
 ## Exercise 3: Launch the AI Swarm
 
@@ -96,7 +96,7 @@ pm-ai-trader --id AI03 --profile many-small --symbols TSLA &
 
 :material-checkbox-blank-outline: **Checkpoint:** multiple AI traders running; books active.
 
----
+ 
 
 ## Exercise 4: Observe Market Dynamics
 
@@ -112,7 +112,7 @@ the MMs.
 
 :material-checkbox-blank-outline: **Checkpoint:** dynamic order book with changing prices.
 
----
+ 
 
 ## Exercise 5: Trade Against AI Flow
 
@@ -126,7 +126,7 @@ Your order interacts naturally with both MM quotes and AI trader orders.
 
 :material-checkbox-blank-outline: **Checkpoint:** successful trades against AI-generated liquidity.
 
----
+ 
 
 ## Exercise 6: Stop the AI Swarm
 
@@ -137,7 +137,7 @@ force-kills immediately if a bot hangs. Your baseline liquidity providers
 
 :material-checkbox-blank-outline: **Checkpoint:** clean shutdown; books return to MM-only state.
 
----
+ 
 
 ## Classroom Tips
 
@@ -146,7 +146,7 @@ force-kills immediately if a bot hangs. Your baseline liquidity providers
 - Use `--seed` for reproducible order sequences across repeated classroom runs.
 - Combine with circuit breakers to demonstrate halt/resume under stress.
 
----
+ 
 
 ## Reflection
 
@@ -154,7 +154,7 @@ Why does `aggressive` generate more executions per minute than `few-large`,
 even though both can trade the same symbol? What would happen to book depth
 if you launched only `aggressive` bots with no market maker running?
 
----
+ 
 
 ## Further Reading
 
@@ -164,6 +164,6 @@ if you launched only `aggressive` bots with no market maker running?
 - [Risk Controls](../user-guide/12-risk-controls.md)
 - [Order Book Deep Dive](../concepts/02-concepts-order-book-deep-dive.md)
 
----
+ 
 
 **Next:** [15 — Statistics & Reporting](15-statistics-reporting.md)

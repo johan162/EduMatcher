@@ -5,14 +5,14 @@
 Create multi-leg orders that execute atomically and understand OCO (One-Cancels-
 Other) linked orders.
 
----
+ 
 
 ## Prerequisites
 
 - Chapters 01–09 completed.
 - Two trader gateways connected so you can stage opposing liquidity.
 
----
+ 
 
 ## Background
 
@@ -20,7 +20,7 @@ A **combo order** bundles two or more legs (different symbols or sides) into a
 single atomic unit. Either all legs fill or none do. This eliminates "leg risk" —
 the danger of only one side of a spread filling.
 
----
+ 
 
 ## Exercise 1: Simple Two-Leg Combo
 
@@ -47,7 +47,7 @@ engine can fill both legs simultaneously.
 Observation: atomic behavior is what removes leg risk. You should never see one
 leg fill without the other in a valid combo execution.
 
----
+ 
 
 ## Exercise 2: Verify Atomic Behaviour (Resting Case)
 
@@ -73,7 +73,7 @@ liquidity is missing on **one** leg:
 Operational rationale: without atomicity, you could end up with accidental
 directional inventory from only one leg filling.
 
----
+ 
 
 ## Exercise 3: Cancel a Resting Combo
 
@@ -85,7 +85,7 @@ All legs are cancelled together.
 
 :material-checkbox-blank-outline: **Checkpoint:** full combo cancellation confirmed.
 
----
+ 
 
 ## Exercise 4: OCO — One-Cancels-Other
 
@@ -101,7 +101,7 @@ is automatically cancelled.
 
 :material-checkbox-blank-outline: **Checkpoint:** filling one OCO leg cancels the other.
 
----
+ 
 
 ## Exercise 5: OCO with Different Sides
 
@@ -116,7 +116,7 @@ If price drops to 149.00 (stop triggers and fills), the limit sell is cancelled.
 
 :material-checkbox-blank-outline: **Checkpoint:** bracket order behaves as expected.
 
----
+ 
 
 ## When to Use Combos vs OCO
 
@@ -127,7 +127,7 @@ If price drops to 149.00 (stop triggers and fills), the limit sell is cancelled.
 | Take-profit + stop-loss (only want one to execute) | OCO |
 | Multiple entries at different prices (only want one) | OCO |
 
----
+ 
 
 ## Reflection
 
@@ -141,6 +141,6 @@ a pairs trade versus a take-profit/stop-loss pair?
 - [Combo Orders](../user-guide/05-combos.md)
 - [ALF Protocol — OCO and Combo Orders](../user-guide/90-app-alf-protocol.md)
 
----
+ 
 
 **Next:** [11 — Risk Controls](11-risk-controls.md)

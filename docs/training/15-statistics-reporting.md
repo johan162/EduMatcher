@@ -5,14 +5,14 @@
 Use the statistics service to record market data and query OHLCV, VWAP, and
 trade history for analysis and reporting.
 
----
+ 
 
 ## Prerequisites
 
 - Chapters 01–14 completed.
 - `pm-stats` running and at least a few trades executed.
 
----
+ 
 
 ## Background
 
@@ -22,7 +22,7 @@ whatever data directory you configured in Chapter 00 — it is **not** a fixed
 `data/stats.db` path in the current working directory). The `pm-stats-cli`
 tool lets you query this data without writing SQL.
 
----
+ 
 
 ## Exercise 1: Start the Statistics Service
 
@@ -52,7 +52,7 @@ ls -la "$EDUMATCHER_DATA_DIR/stats.db"
 
 :material-checkbox-blank-outline: **Checkpoint:** stats service running and `$EDUMATCHER_DATA_DIR/stats.db` exists.
 
----
+ 
 
 ## Exercise 2: Generate Some Trading Activity
 
@@ -66,7 +66,7 @@ TRADER01> NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=200
 
 :material-checkbox-blank-outline: **Checkpoint:** trades executed and recorded by stats service.
 
----
+ 
 
 ## Exercise 3: Query OHLCV Data
 
@@ -83,7 +83,7 @@ timestamp           | open   | high   | low    | close  | volume
 
 :material-checkbox-blank-outline: **Checkpoint:** OHLCV data returned for AAPL.
 
----
+ 
 
 ## Exercise 4: Query VWAP
 
@@ -95,7 +95,7 @@ Shows the volume-weighted average price across all trades in the current session
 
 :material-checkbox-blank-outline: **Checkpoint:** VWAP value returned.
 
----
+ 
 
 ## Exercise 5: Query Trade Log
 
@@ -107,7 +107,7 @@ Shows the last 20 trades with timestamp, price, quantity, and aggressor side.
 
 :material-checkbox-blank-outline: **Checkpoint:** trade log visible.
 
----
+ 
 
 ## Exercise 6: Multi-Symbol Summary
 
@@ -124,7 +124,7 @@ Shows a per-symbol overview:
 
 :material-checkbox-blank-outline: **Checkpoint:** summary covers all active symbols.
 
----
+ 
 
 ## Exercise 7: Export Data
 
@@ -136,7 +136,7 @@ The CSV can be imported into Excel or a Jupyter notebook for further analysis.
 
 :material-checkbox-blank-outline: **Checkpoint:** CSV export generated.
 
----
+ 
 
 ## What Gets Recorded
 
@@ -147,7 +147,7 @@ The CSV can be imported into Excel or a Jupyter notebook for further analysis.
 | OHLCV bar | open, high, low, close, volume per configurable interval |
 | Session event | timestamp, old state, new state |
 
----
+ 
 
 ## Summary
 

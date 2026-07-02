@@ -5,14 +5,14 @@
 Explore every order type beyond basic LIMIT and MARKET — STOP, STOP_LIMIT, FOK,
 IOC, ICEBERG, and TRAILING_STOP — through practical exercises.
 
----
+ 
 
 ## Prerequisites
 
 - Chapters 01–04 completed.
 - At least one trader gateway connected with active MM liquidity.
 
----
+ 
 
 ## Deterministic Trigger Setup
 
@@ -39,7 +39,7 @@ procedure before each stop exercise so the trigger is guaranteed:
 5. Re-check `BOOK|SYM=AAPL` to confirm the last trade price is at/below your
    stop level before concluding the exercise.
 
----
+ 
 
 ## Exercise 1: Stop Order
 
@@ -63,7 +63,7 @@ trigger level.
 
 :material-checkbox-blank-outline: **Checkpoint:** stop order triggered and filled after price drop.
 
----
+ 
 
 ## Exercise 2: Stop-Limit Order
 
@@ -86,7 +86,7 @@ book trades through both the stop and the limit level.
 
 :material-checkbox-blank-outline: **Checkpoint:** stop-limit triggers and rests as a limit order.
 
----
+ 
 
 ## Exercise 3: Fill-or-Kill (FOK)
 
@@ -107,7 +107,7 @@ TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=FOK|QTY=100|PRICE=150.10
 
 :material-checkbox-blank-outline: **Checkpoint:** large FOK cancelled; small FOK filled.
 
----
+ 
 
 ## Exercise 4: Immediate-or-Cancel (IOC)
 
@@ -121,7 +121,7 @@ If only 300 are available at the ask, you get 300 filled and 700 cancelled.
 
 :material-checkbox-blank-outline: **Checkpoint:** partial fill + cancellation of remainder.
 
----
+ 
 
 ## Exercise 5: Iceberg Order
 
@@ -144,7 +144,7 @@ You should see a 100-lot bid, not 1000.
 
 :material-checkbox-blank-outline: **Checkpoint:** only peak quantity visible in the book.
 
----
+ 
 
 ## Exercise 6: Trailing Stop
 
@@ -162,7 +162,7 @@ you.
 
 :material-checkbox-blank-outline: **Checkpoint:** trailing stop triggers after price reversal.
 
----
+ 
 
 ## Order Type Summary
 
@@ -177,7 +177,7 @@ you.
 | ICEBERG | Hidden reserve, visible peak | Yes | `VISIBLE` |
 | TRAILING_STOP | Dynamic stop follows market | Until triggered | `TRAIL` |
 
----
+ 
 
 ## Reflection
 
@@ -191,6 +191,6 @@ bad price" risk?
 - [Order Types](../user-guide/04-order-types.md)
 - [ALF Protocol — Single-leg Orders](../user-guide/90-app-alf-protocol.md)
 
----
+ 
 
 **Next:** [06 — Time-in-Force & Sessions](06-time-in-force-sessions.md)

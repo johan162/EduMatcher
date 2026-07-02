@@ -32,7 +32,7 @@ later chapters build on configuration and positions established in earlier ones.
 - `[output]` — expected output from the system (may vary slightly).
 - :material-checkbox-blank-outline: — exercise checkpoint; verify before continuing.
 
----
+ 
 
 ## Training Plan
 
@@ -65,7 +65,7 @@ later chapters build on configuration and positions established in earlier ones.
 | 24 | [API Gateway REST/WebSocket](24-api-gwy.md) | pm-api-gateway, bearer tokens, REST endpoints, WebSocket streams, multi-instance split |
 | 25 | [Market Index (pm-index)](25-index.md) | Index config, cap-weighted formula, divisor, corporate actions, INDEX command, pm-index-cli |
 
----
+ 
 
 ## User Guide Cross-Reference by Chapter
 
@@ -101,7 +101,7 @@ training chapter.
 | 24 | [pm-api-gateway processes](../user-guide/10-processes.md#pm-api-gateway-restwebsocket-api-gateway), [API Gateway Config](../user-guide/21-api-gateway.md) |
 | 25 | [Market Index (pm-index)](../user-guide/22-index.md), [pm-index-cli reference](../user-guide/02-commands.md), [pm-index process](../user-guide/10-processes.md#pm-index-index-calculation-process) |
 
----
+ 
 
 ## Quick Reference
 

@@ -5,7 +5,7 @@
 By the end of this chapter you will have a working exchange with at least one
 gateway and three tradeable symbols, ready to accept orders.
 
----
+ 
 
 ## Prerequisites
 
@@ -20,7 +20,7 @@ EduMatcher requires two essential processes:
 
 A **gateway** (`pm-gateway`) connects traders to the engine.
 
----
+ 
 
 ## Exercise 1: Create a Minimal Configuration
 
@@ -56,7 +56,7 @@ gateways:
 
 :material-checkbox-blank-outline: **Checkpoint:** file saved, YAML is valid (no tabs!).
 
----
+ 
 
 ## Exercise 2: Generate a Config with pm-config-gen
 
@@ -107,7 +107,7 @@ cat engine_config.yaml
 
 :material-checkbox-blank-outline: **Checkpoint:** generated config matches the manual one; symbols and gateways present.
 
----
+ 
 
 ## Exercise 3: Start the Engine
 
@@ -133,7 +133,7 @@ regardless of what the startup banner said.
 
 :material-checkbox-blank-outline: **Checkpoint:** engine is running without errors.
 
----
+ 
 
 ## Exercise 4: Start the Scheduler
 
@@ -154,7 +154,7 @@ automatically (or you can trigger immediate continuous with `--immediate`).
 
 :material-checkbox-blank-outline: **Checkpoint:** scheduler reports session state changes.
 
----
+ 
 
 ## Exercise 5: Connect a Gateway
 
@@ -175,7 +175,7 @@ Try typing `ORDERS` — it should report no resting orders for this gateway.
 
 :material-checkbox-blank-outline: **Checkpoint:** gateway prompt is interactive and connected.
 
----
+ 
 
 ## Exercise 6: Verify the Setup
 
@@ -192,7 +192,7 @@ Repeat for `MSFT` and `TSLA` to confirm all three books are active.
 
 :material-checkbox-blank-outline: **Checkpoint:** all three symbols accept orders.
 
----
+ 
 
 ## Exercise 7: Connect the Admin Gateway
 
@@ -212,7 +212,7 @@ You should see a book snapshot (possibly with the 1-lot bid from Exercise 5).
 
 :material-checkbox-blank-outline: **Checkpoint:** admin gateway works; BOOK command shows data.
 
----
+ 
 
 ## Exercise 8: Inspect Enriched SYMBOLS Metadata
 
@@ -228,7 +228,7 @@ obligation settings when configured.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can identify at least `description` and `tick_size` for each symbol from `SYMBOLS` output.
 
----
+ 
 
 ## Summary
 

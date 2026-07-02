@@ -6,7 +6,7 @@ Execute your first buy and sell trades against the market-maker quotes and
 understand fill messages, clearing records, order IDs, and the order book
 lifecycle.
 
----
+ 
 
 ## Prerequisites
 
@@ -15,7 +15,7 @@ lifecycle.
 - `TRADER01` gateway connected.
 - One spare terminal for the clearing process.
 
----
+ 
 
 ## Exercise 1: Start Clearing
 
@@ -31,7 +31,7 @@ running while you work through this chapter.
 
 :material-checkbox-blank-outline: **Checkpoint:** clearing is running and waiting for trades.
 
----
+ 
 
 ## Exercise 2: Buy at Market — Lift the Ask
 
@@ -55,7 +55,7 @@ sold AAPL, and positions/P&L are updated from the execution price.
 
 :material-checkbox-blank-outline: **Checkpoint:** you received a fill confirmation and can see the trade in `pm-clearing`.
 
----
+ 
 
 ## Exercise 3: Sell at Market — Hit the Bid
 
@@ -71,7 +71,7 @@ Expected output:
 
 :material-checkbox-blank-outline: **Checkpoint:** sell fill at the bid price.
 
----
+ 
 
 ## Exercise 4: Place a Limit Buy Order
 
@@ -93,7 +93,7 @@ You should see your 200-lot bid at 149.80 below the MM's bid.
 
 :material-checkbox-blank-outline: **Checkpoint:** limit order visible in the book.
 
----
+ 
 
 ## Exercise 5: Place a Limit Sell and Get a Fill
 
@@ -116,7 +116,7 @@ Both gateways receive fill notifications:
 
 :material-checkbox-blank-outline: **Checkpoint:** cross-gateway fill confirmed on both sides.
 
----
+ 
 
 ## Exercise 6: Check Order State
 
@@ -131,7 +131,7 @@ showing the partial fill.
 
 :material-checkbox-blank-outline: **Checkpoint:** ORDERS shows partial fill state correctly.
 
----
+ 
 
 **Optional:** If you have `pm-viewer` running on AAPL, you should see the bid size drop from 200 to 150 after the fill.
 
@@ -150,7 +150,7 @@ mid if the trade moved the reference price).
 
 :material-checkbox-blank-outline: **Checkpoint:** MM has re-quoted after being filled.
 
----
+ 
 
 ## Key Concepts Learned
 
@@ -173,6 +173,6 @@ that a LIMIT order would protect you from?
 - [The Order Book](../concepts/01-concepts-order-book.md)
 - [Gateway Commands](../user-guide/08-gateway.md)
 
----
+ 
 
 **Next:** [04 — Amending Orders](04-amending-orders.md)

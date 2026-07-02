@@ -6,7 +6,7 @@ Run the viewer and observer processes side by side so you can see the same
 exchange activity from different operational viewpoints: book depth, cross-gateway
 orders, ticker tape, market board, audit trail, statistics, and clearing/P&L.
 
----
+ 
 
 ## Prerequisites
 
@@ -17,7 +17,7 @@ orders, ticker tape, market board, audit trail, statistics, and clearing/P&L.
 - Several terminals available. These observer processes are intentionally separate
   so you can start, stop, and compare them independently.
 
----
+ 
 
 ## Background
 
@@ -36,7 +36,7 @@ visible from different angles.
 | `pm-stats-cli` | Statistics query CLI | Reading persisted stats |
 | `pm-clearing` | Positions and P&L | Settlement and participant exposure |
 
----
+ 
 
 ## Exercise 1: Start the Baseline Exchange
 
@@ -62,7 +62,7 @@ TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.80|TIF=DAY
 
 :material-checkbox-blank-outline: **Checkpoint:** `TRADER01` receives an acknowledgement and `ORDERS` shows the order.
 
----
+ 
 
 ## Exercise 2: Watch One Book with pm-viewer
 
@@ -83,7 +83,7 @@ data changes.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can identify best bid, best ask, spread, and recent trades in `pm-viewer`.
 
----
+ 
 
 ## Exercise 3: Monitor Orders Across Gateways with pm-orders
 
@@ -111,7 +111,7 @@ inside one gateway; `pm-orders` is useful when you want an exchange-wide monitor
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-orders` shows orders from both gateways, while `ORDERS` shows only the current gateway's cache.
 
----
+ 
 
 ## Exercise 4: Record the Event Stream with pm-audit
 
@@ -138,7 +138,7 @@ view of what the engine publishes.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can find the order acknowledgement, fill, trade, and book update events in the audit output.
 
----
+ 
 
 ## Exercise 5: Build Persistent Statistics with pm-stats
 
@@ -162,7 +162,7 @@ for the SQLite database written by `pm-stats`.
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-stats-cli` shows recent trades and at least one aggregate statistic after activity occurs.
 
----
+ 
 
 ## Exercise 6: Launch the Scrolling Ticker
 
@@ -182,7 +182,7 @@ TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=20|PRICE=149.70|TIF=DAY
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-ticker` prints periodic lines with symbols, last price or best bid/ask, and statistics when available.
 
----
+ 
 
 ## Exercise 7: Launch the Multi-Symbol Board
 
@@ -198,7 +198,7 @@ more symbols than rows.
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-board` shows AAPL, MSFT, and TSLA in a single market overview.
 
----
+ 
 
 ## Exercise 8: Track Positions and P&L with pm-clearing
 
@@ -220,7 +220,7 @@ and P&L. It also writes a clearing report CSV in the data directory.
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-clearing` shows the changed position or records the trade in its report.
 
----
+ 
 
 ## Exercise 9: Compare the Views
 
@@ -237,7 +237,7 @@ For one trade, identify where each process shows it:
 
 :material-checkbox-blank-outline: **Checkpoint:** explain why no single observer replaces the others.
 
----
+ 
 
 ## Summary
 

@@ -6,7 +6,7 @@ Configure market-maker gateways and use manual `QUOTE` commands to provide
 two-sided liquidity for all three symbols. You will also compare this manual
 workflow with `pm-mm-bot`, which automates the same lifecycle.
 
----
+ 
 
 ## Prerequisites
 
@@ -14,7 +14,7 @@ workflow with `pm-mm-bot`, which automates the same lifecycle.
 - `pm-engine` and `pm-scheduler` running.
 - At least one trader gateway connected (for book checks).
 
----
+ 
 
 ## Background
 
@@ -26,7 +26,7 @@ the order book is empty and no trader can get an immediate fill.
   `pm-gateway` + `QUOTE` so you can see quote lifecycle and operator tools
   directly before using automation.
 
----
+ 
 
 ## Exercise 1: Add MM Gateways to Configuration
 
@@ -60,7 +60,7 @@ Restart `pm-engine` to pick up the new gateways.
 
 :material-checkbox-blank-outline: **Checkpoint:** engine logs show 6 gateways loaded.
 
----
+ 
 
 ## Exercise 2: Connect the AAPL Market Maker
 
@@ -80,7 +80,7 @@ Expected output should include a quote acknowledgement and active status.
 
 :material-checkbox-blank-outline: **Checkpoint:** AAPL quote acknowledged and active.
 
----
+ 
 
 ## Exercise 3: Quote MSFT and TSLA
 
@@ -100,7 +100,7 @@ MM_TSLA_01> QUOTE|SYM=TSLA|BID=249.75|ASK=250.25|BID_QTY=200|ASK_QTY=200|TIF=DAY
 
 :material-checkbox-blank-outline: **Checkpoint:** all three market makers report active quotes.
 
----
+ 
 
 ## Exercise 4: Verify Liquidity from the Trader Gateway
 
@@ -119,7 +119,7 @@ TRADER01> BOOK|SYM=TSLA
 
 :material-checkbox-blank-outline: **Checkpoint:** all three books show two-sided liquidity.
 
----
+ 
 
 ## Exercise 5: Inspect Quote State with QLEGS
 
@@ -143,7 +143,7 @@ Interpretation guide:
 
 :material-checkbox-blank-outline: **Checkpoint:** QLEGS shows both quote legs for each symbol.
 
----
+ 
 
 ## Exercise 6: Run the Equivalent Bot Workflow (Optional)
 
@@ -179,7 +179,7 @@ See the detailed walkthrough in [09 — Market Making](09-market-making.md).
 
 :material-checkbox-blank-outline: **Checkpoint:** explain what the bot automates compared with your manual `QUOTE` workflow.
 
----
+ 
 
 ## Summary
 

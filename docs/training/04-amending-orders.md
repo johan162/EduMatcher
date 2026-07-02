@@ -5,7 +5,7 @@
 Learn to modify resting orders — change price, quantity, or both — and
 understand how amendments affect queue priority.
 
----
+ 
 
 ## Prerequisites
 
@@ -13,7 +13,7 @@ understand how amendments affect queue priority.
     (manual MM gateways or `pm-mm-bot`).
 - `TRADER01` connected with at least one resting limit order.
 
----
+ 
 
 ## Exercise 1: Place a Resting Order to Amend
 
@@ -25,7 +25,7 @@ Note the `order_id` returned.
 
 :material-checkbox-blank-outline: **Checkpoint:** order resting; `ORDERS` confirms qty=300, price=419.50.
 
----
+ 
 
 ## Exercise 2: Amend Quantity Down
 
@@ -46,7 +46,7 @@ Expected: amendment accepted; new qty=200.
 
 :material-checkbox-blank-outline: **Checkpoint:** `ORDERS` shows qty=200, same price.
 
----
+ 
 
 ## Exercise 3: Amend Price
 
@@ -67,7 +67,7 @@ Expected: amendment accepted; new price=419.70.
 
 :material-checkbox-blank-outline: **Checkpoint:** `ORDERS` shows price=419.70.
 
----
+ 
 
 ## Exercise 4: Amend Both Price and Quantity
 
@@ -77,7 +77,7 @@ TRADER01> AMEND|ID=<order_id>|PRICE=419.60|QTY=150
 
 :material-checkbox-blank-outline: **Checkpoint:** both fields updated in one command.
 
----
+ 
 
 ## Exercise 5: Attempt an Invalid Amendment
 
@@ -99,7 +99,7 @@ Expected: rejection — order not found.
 
 :material-checkbox-blank-outline: **Checkpoint:** both invalid amendments rejected with clear errors.
 
----
+ 
 
 ## Exercise 6: Amend After Partial Fill
 
@@ -120,7 +120,7 @@ Expected: rejection — order not found.
 
 :material-checkbox-blank-outline: **Checkpoint:** amendment accepted on partially filled order.
 
----
+ 
 
 ## Key Rules
 
@@ -131,7 +131,7 @@ Expected: rejection — order not found.
 | Price change (any direction) | Priority lost |
 | Both price and qty | Priority lost |
 
----
+ 
 
 ## Reflection
 
@@ -144,6 +144,6 @@ their original priority in a busy book?
 - [Gateway Commands](../user-guide/08-gateway.md)
 - [ALF Protocol — AMEND](../user-guide/90-app-alf-protocol.md)
 
----
+ 
 
 **Next:** [05 — Order Types Deep Dive](05-order-types.md)

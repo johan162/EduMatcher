@@ -12,7 +12,7 @@ example parser/subscriber libraries for the three main external party roles:
 You will practice connection, subscription, live event handling, heartbeats,
 replay checkpoints, and recovery/error behavior.
 
----
+ 
 
 ## Prerequisites
 
@@ -29,7 +29,7 @@ Recommended startup terminals:
 2. RALF gateway: `pm-ralf-gwy`
 3. One or more client terminals for subscriber exercises
 
----
+ 
 
 ## Background
 
@@ -44,7 +44,7 @@ In this chapter, the most important operational ideas are:
 - Replay with LASTSEQ and REPLAY_MISS handling
 - Role/channel design for different external consumers
 
----
+ 
 
 ## Exercise 1: Prepare a Config That Enables RALF
 
@@ -71,7 +71,7 @@ pm-ralf-gwy --config engine_config.yaml
 
 :material-checkbox-blank-outline: Checkpoint: gateway starts and listens on the configured port.
 
----
+ 
 
 ## Exercise 2: Use the Python Example as a CLEARING Consumer
 
@@ -95,7 +95,7 @@ Observe:
 
 :material-checkbox-blank-outline: Checkpoint: subscriber prints parsed EXEC events with expected symbols and sequence values.
 
----
+ 
 
 ## Exercise 2B: Manual Handshake Probe with nc
 
@@ -120,7 +120,7 @@ Expected behavior:
 
 :material-checkbox-blank-outline: Checkpoint: manual nc session can establish, subscribe, and receive at least one post-trade message.
 
----
+ 
 
 ## Exercise 3: Use the C Example as a DROP_COPY Consumer
 
@@ -143,7 +143,7 @@ DROP_COPY role argument and validate that role is accepted.
 
 :material-checkbox-blank-outline: Checkpoint: C subscriber connects, parses, and prints live RALF events.
 
----
+ 
 
 ## Exercise 4: Run an AUDIT Session and Compare View Semantics
 
@@ -169,7 +169,7 @@ Discussion points:
 
 :material-checkbox-blank-outline: Checkpoint: you can explain why separate external roles may consume different channel sets.
 
----
+ 
 
 ## Exercise 5: Protocol Control Messages (PING, UNSUB, EXIT)
 
@@ -197,7 +197,7 @@ Expected behavior:
 
 :material-checkbox-blank-outline: Checkpoint: you can manually drive and verify protocol control flow.
 
----
+ 
 
 ## Support Libraries and Example Clients
 
@@ -211,7 +211,7 @@ Reference implementations used in this training chapter:
 
 Use these to bootstrap both quick lab subscribers and production-like integration test harnesses.
 
----
+ 
 
 ## Exercise 6: Replay and Recovery with LASTSEQ
 
@@ -231,7 +231,7 @@ Observe replay behavior:
 
 :material-checkbox-blank-outline: Checkpoint: you can describe the recovery path for both replay-hit and replay-miss cases.
 
----
+ 
 
 ## Exercise 7: Error Conditions and Operational Interpretation
 
@@ -254,7 +254,7 @@ Map observed ERR codes to operator action:
 
 :material-checkbox-blank-outline: Checkpoint: you can convert each ERR code into a practical remediation step.
 
----
+ 
 
 ## Suggested Lab Pattern for the Three External Parties
 
@@ -274,7 +274,7 @@ For each session, record:
 This produces a realistic external-party operating model for classroom or
 integration testing.
 
----
+ 
 
 ## Summary
 
