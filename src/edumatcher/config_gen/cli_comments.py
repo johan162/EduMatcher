@@ -1,0 +1,656 @@
+"""Static comment-block generator for pm-config-gen --comment-default-config-fields."""
+
+from __future__ import annotations
+
+
+def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[str]:
+    """Build comprehensive comment block for optional engine configuration fields.
+
+    Mimics the sample YAML format with three sections:
+    - Overview & top-level settings
+    - Complete recognized configuration shape (all optional fields with examples)
+    - Field notes and accepted values (detailed field documentation)
+    """
+    lines: list[str] = []
+
+    # =========================================================================
+    # Section 1: Header and overview
+    # =========================================================================
+    lines.extend(
+        [
+            "=============================================================================",
+            "Complete Recognized Configuration Shape",
+            "=============================================================================",
+            "",
+            "The following commented example lists optional top-level entries and nested",
+            "fields recognized by the current engine and scheduler parsers. Leave entries",
+            "commented unless you need them.",
+            "",
+        ]
+    )
+
+    # sessions_enabled
+    lines.extend(
+        [
+            "sessions_enabled: true",
+            "  Controls whether the scheduler owns session-state transitions.",
+            "  true  = engine starts CLOSED and pm-scheduler drives the trading-day timeline.",
+            "  false = engine starts in CONTINUOUS and ignores scheduler session transitions.",
+            "",
+        ]
+    )
+
+    # enforce_collars
+    lines.extend(
+        [
+            "enforce_collars: true",
+            "  Global switch for price-collar validation on incoming orders.",
+            "",
+        ]
+    )
+
+    # enforce_circuit_breakers
+    lines.extend(
+        [
+            "enforce_circuit_breakers: true",
+            "  Global switch for circuit-breaker halt detection and enforcement.",
+            "",
+        ]
+    )
+
+    # snapshot_interval_sec
+    lines.extend(
+        [
+            "snapshot_interval_sec: 0.5",
+            "  Minimum interval between published book snapshots for a dirty symbol.",
+            "  Reduces outbound snapshot volume while preserving near-real-time updates.",
+            "",
+        ]
+    )
+
+    # mm_obligation_defaults
+    lines.extend(
+        [
+            "mm_obligation_defaults:",
+            "  enforce_mm_obligation: false",
+            "  mm_max_spread_ticks: 10",
+            "  mm_min_qty: 100",
+            "  symbols:",
+            "    AAPL:",
+            "      enforce_mm_obligation: true",
+            "      mm_max_spread_ticks: 8",
+            "      mm_min_qty: 200",
+            "",
+        ]
+    )
+
+    # risk_controls
+    lines.extend(
+        [
+            "risk_controls:",
+            "  default_level: L2",
+            "  levels:",
+            "    L1:",
+            "      collar:",
+            "        static_band_pct: 0.30",
+            "        dynamic_band_pct: 0.05",
+            "    L2:",
+            "      collar:",
+            "        static_band_pct: 0.20",
+            "        dynamic_band_pct: 0.02",
+            "",
+        ]
+    )
+
+    # circuit_breaker_defaults
+    lines.extend(
+        [
+            "circuit_breaker_defaults:",
+            "  reference_window_ns: 300000000000",
+            "  levels:",
+            "    L1:",
+            "      price_shift_pct: 0.07",
+            "      halt_duration_ns: 300000000000",
+            "      resumption_mode: AUCTION",
+            "    L2:",
+            "      price_shift_pct: 0.13",
+            "      halt_duration_ns: 900000000000",
+            "      resumption_mode: AUCTION",
+            "    L3:",
+            "      price_shift_pct: 0.20",
+            "      halt_duration_ns: null",
+            "      resumption_mode: AUCTION",
+            "",
+        ]
+    )
+
+    # gateways
+    lines.extend(
+        [
+            "gateways:",
+            "  alf:",
+            "    - id: TRADER01",
+            "      description: Student workstation 1",
+            "      role: TRADER",
+            "      disconnect_behaviour: CANCEL_ALL",
+            "      quote_refresh_policy: INACTIVATE_ON_ANY_FILL",
+            "      enforce_mm_obligation: false",
+            "      mm_max_spread_ticks: 10",
+            "      mm_min_qty: 100",
+            "      mm_obligations:",
+            "        AAPL:",
+            "          enforce_mm_obligation: true",
+            "          max_spread_ticks: 6",
+            "          min_qty: 300",
+            "",
+        ]
+    )
+
+    # symbols section
+    lines.extend(
+        [
+            "symbols:",
+            "  AAPL:",
+            "    tick_decimals: 2",
+            "    level: L2",
+            "    last_buy_price: 209.50",
+            "    last_sell_price: 210.50",
+            "    outstanding_shares: 2600000000",
+            "    collar:",
+            "      static_band_pct: 0.20",
+            "      dynamic_band_pct: 0.02",
+            "    circuit_breaker:",
+            "      reference_window_ns: 300000000000",
+            "      levels:",
+            "        L1:",
+            "          price_shift_pct: 0.07",
+            "          halt_duration_ns: 300000000000",
+            "          resumption_mode: AUCTION",
+            "        L2:",
+            "          price_shift_pct: 0.13",
+            "          halt_duration_ns: 900000000000",
+            "          resumption_mode: CONTINUOUS",
+            "        L3:",
+            "          price_shift_pct: 0.20",
+            "          halt_duration_ns:",
+            "          resumption_mode: AUCTION",
+            "    market_maker_quotes:",
+            "      - gateway_id: MM01",
+            "        quote_id: SEED-MM01-AAPL",
+            "        bid_price: 209.00",
+            "        ask_price: 211.00",
+            "        bid_qty: 1000",
+            "        ask_qty: 1000",
+            "        tif: DAY",
+            "        seed_once: true",
+            "",
+        ]
+    )
+
+    # market_maker_combos
+    lines.extend(
+        [
+            "market_maker_combos:",
+            "  - combo_id: SEED-PAIR-AAPL-MSFT",
+            "    combo_type: AON",
+            "    tif: DAY",
+            "    legs:",
+            "      - symbol: AAPL",
+            "        side: BUY",
+            "        order_type: LIMIT",
+            "        quantity: 100",
+            "        price: 20950",
+            "        stop_price: null",
+            "        smp_action: NONE",
+            "      - symbol: MSFT",
+            "        side: SELL",
+            "        order_type: LIMIT",
+            "        quantity: 50",
+            "        price: 41550",
+            "        stop_price: null",
+            "        smp_action: NONE",
+            "",
+        ]
+    )
+
+    # post_trade_gateway
+    lines.extend(
+        [
+            "post_trade_gateway:",
+            "  name: ralf-gwy01",
+            "  bind_address: 0.0.0.0",
+            "  port: 5580",
+            "  replay_retention_sec: 86400",
+            "  heartbeat_interval_sec: 1",
+            "  idle_timeout_sec: 5",
+            "  max_client_queue: 10000",
+            "  allowed_roles: [CLEARING, DROP_COPY, AUDIT]",
+            "",
+        ]
+    )
+
+    # market_data_gateway
+    lines.extend(
+        [
+            "market_data_gateway:",
+            "  enabled: true",
+            "  name: md-gwy01",
+            "  bind_address: 0.0.0.0",
+            "  port: 5570",
+            "  heartbeat_interval_sec: 1",
+            "  idle_timeout_sec: 5",
+            "  replay_window_sec: 30",
+            "  max_symbols_per_client: 200",
+            "  max_client_queue: 10000",
+            "",
+        ]
+    )
+
+    # indices
+    lines.extend(
+        [
+            "indices:",
+            "  - id: EDU100",
+            "    description: Broad technology benchmark",
+            "    base_value: 1000.0",
+            "    publish_interval_sec: 1.0",
+            "    history_file: data/indexes/EDU100_history.jsonl",
+            "    state_file: data/indexes/EDU100_state.json",
+            "    constituents: [AAPL, MSFT, TSLA]",
+            "  - id: EDUFIN",
+            "    description: Financial sector basket",
+            "    base_value: 1000.0",
+            "    publish_interval_sec: 1.0",
+            "    history_file: data/indexes/EDUFIN_history.jsonl",
+            "    state_file: data/indexes/EDUFIN_state.json",
+            "    constituents: [JPM, BAC, GS]",
+            "",
+        ]
+    )
+
+    # api_gateways
+    lines.extend(
+        [
+            "api_gateways:",
+            "  desk:",
+            "    enabled: true",
+            "    host: 127.0.0.1",
+            "    port: 8080",
+            "    swagger_enabled: true",
+            "    log_level: info",
+            "    stats_db: data/stats.db",
+            "    credentials:",
+            "      - api_key: key-trader-demo",
+            "        gateway_id: TRADER01",
+            "        description: Demo trading client",
+            "    rate_limit:",
+            "      writes_per_second: 10",
+            "      burst: 20",
+            "    timeouts:",
+            "      engine_auth_sec: 3.0",
+            "      engine_reply_sec: 3.0",
+            "      wait_ack_sec: 3.0",
+            "  dashboards:",
+            "    enabled: true",
+            "    host: 127.0.0.1",
+            "    port: 8081",
+            "    credentials:",
+            "      - api_key: key-dashboard-demo",
+            "        gateway_id: null",
+            "        description: Read-only dashboard client",
+            "",
+        ]
+    )
+
+    # schedule
+    lines.extend(
+        [
+            "schedule:",
+            '  pre_open: "09:00"',
+            '  opening_auction_start: "09:25"',
+            '  continuous_start: "09:30"',
+            '  closing_auction_start: "16:00"',
+            '  closing_auction_end: "16:05"',
+            "",
+        ]
+    )
+
+    # =========================================================================
+    # Section 2: Field notes and accepted values
+    # =========================================================================
+    lines.extend(
+        [
+            "=============================================================================",
+            "Field Notes and Accepted Values",
+            "=============================================================================",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "mm_obligation_defaults entries",
+            "" + "-" * 30,
+            "enforce_mm_obligation: false",
+            "  Enables exchange-side market-maker compliance checks for quote width and size.",
+            "mm_max_spread_ticks: 10",
+            "  Maximum allowed bid-ask spread (in ticks) for obligated quotes.",
+            "mm_min_qty: 100",
+            "  Minimum displayed quantity required on each side of an obligated quote.",
+            "symbols:",
+            "  Per-symbol policy overrides when different instruments require different",
+            "  quoting obligations. Keys must match configured symbols.",
+            "  Effective precedence is: gateway mm_obligations >",
+            "  mm_obligation_defaults.symbols > gateway flat fields >",
+            "  mm_obligation_defaults flat fields > built-in defaults.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "risk_controls entries",
+            "" + "-" * 21,
+            "default_level: L2",
+            "  Baseline risk profile applied to symbols that do not set a symbol-specific level.",
+            "levels:",
+            "  Named risk profile catalog used by symbols and by default_level.",
+            "levels.<NAME>.collar:",
+            "  Price-band configuration for order acceptance checks:",
+            "  static_band_pct anchors to a session reference, dynamic_band_pct tracks live prices.",
+            "levels.<NAME>.collar.static_band_pct: 0.20",
+            "  Wider static guardrail around the reference price.",
+            "levels.<NAME>.collar.dynamic_band_pct: 0.02",
+            "  Tighter dynamic guardrail around near-live trading levels.",
+            "  Precedence: symbols.<SYM>.collar > symbols.<SYM>.level >",
+            "  risk_controls.default_level > built-in defaults.",
+            "  Note: levels.<NAME>.circuit_breaker is not supported; use",
+            "  circuit_breaker_defaults at the top level instead.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "circuit_breaker_defaults entries",
+            "" + "-" * 33,
+            "reference_window_ns: 300000000000",
+            "  Lookback window used to compute the rolling reference price for halt triggers.",
+            "levels:",
+            "  Halt ladder definitions applied exchange-wide unless overridden per symbol.",
+            "  Symbol-level circuit_breaker.levels entries merge field-by-field over defaults.",
+            "levels.<NAME>.price_shift_pct:",
+            "  Percent move from the rolling reference price required to trigger this halt level.",
+            "levels.<NAME>.halt_duration_ns: null",
+            "  Halt length for this level; null means halt remains active for the rest of day.",
+            "  Built-in ladder values: L1=300000000000 (5m), L2=900000000000",
+            "  (15m), L3=null.",
+            "levels.<NAME>.resumption_mode: AUCTION",
+            "  How trading resumes after the halt: AUCTION runs an uncross,",
+            "  CONTINUOUS reopens matching immediately.",
+            "  Built-in default ladder: L1=7%/5m, L2=13%/15m, L3=20%/rest-of-day.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "gateways.alf entries",
+            "" + "-" * 20,
+            "id:",
+            "  Participant session identifier used for login, permissions, and routing.",
+            "description: null",
+            "  Operator-facing label for dashboards and diagnostics.",
+            "role: TRADER",
+            "  Permission profile: TRADER submits orders, MARKET_MAKER supplies quotes,",
+            "  ADMIN can issue exchange control commands.",
+            "disconnect_behaviour: CANCEL_QUOTES_ONLY",
+            "  Cleanup action on disconnect to control stale exposure risk.",
+            "quote_refresh_policy: INACTIVATE_ON_ANY_FILL",
+            "  Determines when seeded quotes are inactivated after executions.",
+            "enforce_mm_obligation: false",
+            "  Gateway-level switch to enforce market-maker obligations for this participant.",
+            "mm_max_spread_ticks: 10",
+            "  Gateway-level quote spread cap used by obligation checks.",
+            "mm_min_qty: 100",
+            "  Gateway-level minimum quote size used by obligation checks.",
+            "mm_obligations:",
+            "  Per-symbol overrides for this gateway when obligations differ by instrument.",
+            "  Use enforce_mm_obligation, max_spread_ticks, and min_qty inside this map.",
+            "mm_obligations.<SYM>.enforce_mm_obligation: false",
+            "  Per-symbol switch enabling/disabling obligation checks for this gateway.",
+            "mm_obligations.<SYM>.max_spread_ticks: 10",
+            "  Per-symbol spread cap in ticks.",
+            "mm_obligations.<SYM>.min_qty: 100",
+            "  Per-symbol minimum quote size.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "symbols entries",
+            "" + "-" * 15,
+            "tick_decimals: 2",
+            "  Display precision and tick-size conversion for all prices of this symbol.",
+            "level:",
+            "  Symbol's assigned risk profile name from risk_controls.levels.",
+            "  If omitted, the symbol inherits risk_controls.default_level.",
+            "last_buy_price: null",
+            "last_sell_price: null",
+            "  Startup seed values for last-trade references before live or persisted history exists.",
+            "outstanding_shares: null",
+            "  Issued share count used by analytics, reporting, and index-style consumers.",
+            "collar:",
+            "  Symbol-specific collar override when this instrument needs tighter/looser bands.",
+            "collar.static_band_pct: 0.20",
+            "  Symbol-level static guardrail around reference price.",
+            "collar.dynamic_band_pct: 0.02",
+            "  Symbol-level dynamic guardrail around near-live prices.",
+            "circuit_breaker:",
+            "  Symbol-specific halt policy override layered on top of circuit_breaker_defaults.",
+            "  Levels merge field-by-field, so each symbol can override only needed fields.",
+            "circuit_breaker.reference_window_ns: 300000000000",
+            "  Symbol-specific rolling reference window for halt detection.",
+            "circuit_breaker.levels.<NAME>.price_shift_pct: 0.07",
+            "  Percent move threshold that triggers halt level <NAME>.",
+            "circuit_breaker.levels.<NAME>.halt_duration_ns: null",
+            "  Halt duration for level <NAME>; null means rest-of-day.",
+            "circuit_breaker.levels.<NAME>.resumption_mode: AUCTION",
+            "  Trading resumption behavior for level <NAME>.",
+            "  halt_duration_ns may be null for rest-of-day halts.",
+            "  reference_window_ns can override the global rolling reference window.",
+            "market_maker_quotes:",
+            "  Startup quote seeds used to initialize liquidity for this symbol.",
+            "  Required when MARKET_MAKER gateways are configured.",
+            "  gateway_id must reference a configured MARKET_MAKER gateway.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "market_maker_quotes entries (under symbols.<SYM>.market_maker_quotes)",
+            "" + "-" * 68,
+            "gateway_id:",
+            "  Market-maker session that owns and submits this seed quote.",
+            "quote_id: null",
+            "  External quote identifier for audit/reconciliation; auto-generated when omitted.",
+            "bid_price / ask_price:",
+            "  Initial two-sided quote prices used to seed the order book.",
+            "  bid_price must be less than ask_price; engine converts display prices to ticks.",
+            "bid_qty / ask_qty:",
+            "  Initial displayed quantities for each side of the seeded quote.",
+            "tif: DAY",
+            "  Time-in-force policy for the seeded quote lifecycle.",
+            "  Prefer DAY for seeds — GTC seeds can duplicate on restart if",
+            "  gtc_orders.json still contains the previous session's orders.",
+            "seed_once: true",
+            "  Prevents re-injecting the same seed quote after restart when history already exists.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "market_maker_combos entries",
+            "" + "-" * 27,
+            "combo_id:",
+            "  Stable identifier for this seeded multi-leg strategy.",
+            "combo_type: AON",
+            "  Execution rule for the combo (AON executes all legs together).",
+            "tif: DAY",
+            "  Time-in-force policy for the combo order.",
+            "legs:",
+            "  Ordered leg definitions that specify how the strategy is composed.",
+            "  Requires 2..10 legs; symbols must be configured and unique per combo.",
+            "leg.symbol:",
+            "  Instrument traded by this leg; must reference a configured symbol.",
+            "leg.side:",
+            "  Direction of this leg within the strategy (BUY or SELL).",
+            "leg.order_type:",
+            "  Execution style for this leg (MARKET, LIMIT, STOP, etc.).",
+            "leg.quantity:",
+            "  Quantity contributed by this leg to each combo execution.",
+            "leg.price:",
+            "  Tick price used by priced order types (LIMIT, STOP_LIMIT, FOK, ICEBERG, IOC).",
+            "  Example: with tick_decimals=2, display 209.50 is stored as tick 20950.",
+            "leg.stop_price:",
+            "  Trigger price in ticks for STOP, STOP_LIMIT, and TRAILING_STOP leg types.",
+            "leg.smp_action: NONE",
+            "  Self-match prevention behavior when this leg would cross own resting interest.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "post_trade_gateway entries",
+            "" + "-" * 27,
+            "name: ralf-gwy01",
+            "  Service name used in logs, telemetry, and client diagnostics.",
+            "bind_address: 0.0.0.0",
+            "  Network interface/address the post-trade server listens on for incoming clients.",
+            "port: 5580",
+            "  TCP port clients connect to for fills, drop copy, and post-trade replay.",
+            "replay_retention_sec: 86400",
+            "  How long post-trade events are retained for client replay after reconnect.",
+            "heartbeat_interval_sec: 1",
+            "  Keepalive interval used to prove connection liveness to clients.",
+            "idle_timeout_sec: 5",
+            "  Disconnect threshold when a client is silent for too long.",
+            "max_client_queue: 10000",
+            "  Per-client outbound backlog limit before applying backpressure/disconnect logic.",
+            "allowed_roles: [CLEARING, DROP_COPY, AUDIT]",
+            "  Roles authorized to subscribe to this gateway's post-trade data stream.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "market_data_gateway entries",
+            "" + "-" * 28,
+            "enabled: true",
+            "  Master switch that enables or disables the market data gateway service.",
+            "name: md-gwy01",
+            "  Service name shown in logs, monitoring, and client banners.",
+            "bind_address: 0.0.0.0",
+            "  Network interface/address the market data server binds to.",
+            "port: 5570",
+            "  TCP port clients connect to for snapshots, deltas, and replay requests.",
+            "heartbeat_interval_sec: 1",
+            "  Keepalive cadence for market-data client sessions.",
+            "idle_timeout_sec: 5",
+            "  Session timeout when no traffic is received from a client.",
+            "replay_window_sec: 30",
+            "  In-memory replay horizon available to late/reconnecting clients.",
+            "max_symbols_per_client: 200",
+            "  Subscription safety limit to prevent a single client from over-consuming fanout.",
+            "max_client_queue: 10000",
+            "  Per-client outbound queue cap before overload handling is triggered.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "api_gateways entries",
+            "" + "-" * 20,
+            "api_gateways.<NAME>:",
+            "  Named REST/WebSocket gateway process configuration.",
+            "enabled: true",
+            "  Master switch that lets pm-api-gateway start serving clients.",
+            "host: 127.0.0.1",
+            "  HTTP bind address used by uvicorn.",
+            "port: 8080",
+            "  HTTP listen port for REST and WebSocket clients.",
+            "swagger_enabled: true",
+            "  Enables /docs and /openapi.json when true.",
+            "log_level: info",
+            "  Uvicorn logging level: debug, info, warning, or error.",
+            "stats_db: data/stats.db",
+            "  SQLite stats database used by /history endpoints.",
+            "credentials:",
+            "  Bearer-token credentials accepted by REST and WebSocket auth.",
+            "credentials[].gateway_id:",
+            "  Must reference gateways.alf[].id for trading access; null means read-only.",
+            "  A non-null gateway_id may appear in only one api_gateways entry.",
+            "rate_limit.writes_per_second: 10",
+            "  Per API-key write throughput for POST/PATCH/DELETE routes.",
+            "rate_limit.burst: 20",
+            "  Per API-key burst capacity for write routes.",
+            "timeouts.engine_auth_sec: 3.0",
+            "  Intended engine-auth handshake timeout setting.",
+            "timeouts.engine_reply_sec: 3.0",
+            "  Timeout for engine request/reply read endpoints.",
+            "timeouts.wait_ack_sec: 3.0",
+            "  Timeout for write endpoints using ?wait=ack.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "schedule entries",
+            "" + "-" * 16,
+            "pre_open: 09:00",
+            "  Start of pre-open state, when participants can stage orders before opening auction.",
+            "opening_auction_start: 09:25",
+            "  Time the opening uncross begins and opening match logic takes over.",
+            "continuous_start: 09:30",
+            "  Transition from opening auction into continuous limit-order-book matching.",
+            "closing_auction_start: 16:00",
+            "  Time the closing auction phase begins and continuous matching stops.",
+            "closing_auction_end: 16:05",
+            "  End of closing auction and completion of the trading session timeline.",
+            "  Times are HH:MM in local server time and are applied in trading-day order.",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "indices entries",
+            "" + "-" * 15,
+            "id:",
+            "  Alphanumeric index identifier used in messages, file names, and CALF subscriptions.",
+            "description:",
+            "  Human-readable label shown in operator output and diagnostics.",
+            "base_value: 1000.0",
+            "  Starting level that the divisor is calibrated to at launch.",
+            "publish_interval_sec: 1.0",
+            "  Throttle: minimum seconds between consecutive index.update broadcasts.",
+            "history_file: data/indexes/<ID>_history.jsonl",
+            "  Append-only JSONL file where pm-index records LEVEL, EOD, and CORP_ACTION entries.",
+            "state_file: data/indexes/<ID>_state.json",
+            "  JSON checkpoint file used to recover divisor and last prices across restarts.",
+            "constituents:",
+            "  Ordered list of symbol IDs included in this index; each must be configured in symbols.",
+            "  Each constituent symbol must have outstanding_shares set.",
+            "  Maximum 5 indices per exchange; maximum constituents per index limited by performance.",
+            "",
+        ]
+    )
+
+    return lines

@@ -73,7 +73,7 @@ pm-index    = "edumatcher.index.main:main"
 pm-index-cli = "edumatcher.index.cli:main"
 pm-api-gateway = "edumatcher.api_gateway.main:main"
 pm-setup    = "edumatcher.setup_cmd:main"
-pm-config-gen = "edumatcher.commands.config_gen:main"
+pm-config-gen = "edumatcher.config_gen.cli:main"
 pm-cverifier  = "edumatcher.cverifier.cli:main"
 
 [tool.pytest.ini_options]

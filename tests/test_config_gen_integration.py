@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from edumatcher.commands.config_gen import main as config_gen_main
+from edumatcher.config_gen.cli import main as config_gen_main
 from edumatcher.engine.config_loader import load_engine_config
 
 
