@@ -37,7 +37,7 @@ bus**. The engine owns three sockets:
 ```mermaid
 flowchart LR
     subgraph producers["Producers (PUSH → 5555)"]
-        GW["pm-gateway\n(ALF order entry)"]
+        GW["pm-alf-console\n(ALF order entry)"]
         SCH["pm-scheduler\n(session transitions)"]
         ADM["pm-admin / pm-admin-cli\n(admin commands)"]
         AI["pm-ai-trader / pm-ai-swarm\n(AI bots)"]
@@ -187,7 +187,7 @@ pm-engine --verbose
 | Process            | Command                   | Role                                                       | Required?           |
 |--------------------|---------------------------|------------------------------------------------------------|---------------------|
 | **pm-engine**      | `pm-engine`               | Matching engine — the single writer                        | Yes                 |
-| **pm-gateway**     | `pm-gateway --id GW01`    | ALF order entry terminal (one per trader)                  | At least one        |
+| **pm-alf-console**     | `pm-alf-console --id GW01`    | ALF order entry terminal (one per trader)                  | At least one        |
 | **pm-scheduler**   | `pm-scheduler`            | Drives session phase transitions                           | No                  |
 | **pm-viewer**      | `pm-viewer --symbol AAPL` | Live order book display                                    | No                  |
 | **pm-orders**      | `pm-orders`               | Cross-gateway order status monitor                         | No                  |
@@ -248,8 +248,8 @@ pm-engine --verbose
          ```
      4. Start one or more gateways:
          ```bash
-         pm-gateway --id TRADER01
-         pm-gateway --id TRADER02
+         pm-alf-console --id TRADER01
+         pm-alf-console --id TRADER02
          ```
      5. Start optional observers/tools as needed (`pm-board`, `pm-viewer`,
          `pm-audit --terminal`, `pm-stats`, `pm-clearing`, `pm-ticker`,
@@ -342,13 +342,13 @@ The drop-copy socket is lazily bound on startup. See [Drop-Copy Feed](13-drop-co
 
 
 
-## pm-gateway — User Gateway
+## pm-alf-console — User Gateway
 
 One instance per user. Accepts ALF commands on stdin.
 See [ALF Protocol Reference](90-app-alf-protocol.md).
 
 ```bash
-pm-gateway --id <GW_ID>
+pm-alf-console --id <GW_ID>
 ```
 
 **Startup options:**
@@ -1297,7 +1297,7 @@ See [Market Index (pm-index)](22-index.md) for configuration details, calculatio
 Exposes EduMatcher order entry, order management, reference data, history, and
 market data over REST/JSON and WebSocket. It is not a second matching engine —
 it translates HTTP and WebSocket requests into the same ZMQ messages used by the
-interactive `pm-gateway` terminal. Reads configuration from the `api_gateways:`
+interactive `pm-alf-console` terminal. Reads configuration from the `api_gateways:`
 section of `engine_config.yaml`.
 
 ```bash
@@ -1634,7 +1634,7 @@ showing which process sends each message and on which socket:
 
 ```mermaid
 sequenceDiagram
-    participant GW as pm-gateway
+    participant GW as pm-alf-console
     participant ENG as pm-engine
     participant VW as pm-viewer
     participant CLR as pm-clearing

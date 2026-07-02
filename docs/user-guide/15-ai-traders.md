@@ -343,7 +343,7 @@ poetry run pm-ai-swarm \
   --profiles aggressive,cautious,many-small,few-large
 
 # Students connect individually
-poetry run pm-gateway --id ST01
+poetry run pm-alf-console --id ST01
 ```
 
 For a quick demo without scheduling, use the launch script:

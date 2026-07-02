@@ -77,8 +77,8 @@ Type HELP for commands.  Tab=complete  ↑↓=history  Ctrl-C=exit
 [GW_ADMIN|ADMIN]>
 ```
 
-The prompt is red to distinguish it from the regular `pm-gateway` prompt.
-Tab completion and arrow-key history work exactly as in `pm-gateway`.
+The prompt is red to distinguish it from the regular `pm-alf-console` prompt.
+Tab completion and arrow-key history work exactly as in `pm-alf-console`.
 
 ### Console command syntax
 

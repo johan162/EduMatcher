@@ -44,7 +44,7 @@ Protocol-specific gateway sections are expected to live under `gateways:` in
 `gateways.alf` is active; `gateways.balf` and `gateways.calf` are reserved for
 future releases.
 
-- **ALF** uses a pipe-delimited text format (`FIELD=VALUE|FIELD=VALUE`) delivered through the interactive `pm-gateway` terminal process. This is the only order-entry protocol currently available.
+- **ALF** uses a pipe-delimited text format (`FIELD=VALUE|FIELD=VALUE`) delivered through the interactive `pm-alf-console` terminal process. This is the only order-entry protocol currently available.
 - **BALF** will use fixed-width binary frames with sequence numbers and integer-scaled prices, targeting programmatic clients where text-parsing latency is undesirable. See the BALF appendix in the User Guide for the message layout specification.
 - **CALF** will provide a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection. See the CALF appendix in the User Guide for the full protocol specification.
 
@@ -1161,7 +1161,7 @@ Use this checklist when creating a new engine configuration.
    `last_buy_price` / `last_sell_price` if viewers should start with references.
 
 3. Define ALF gateways.
-   Add every expected `pm-gateway --id ...` under `gateways.alf`. Choose
+   Add every expected `pm-alf-console --id ...` under `gateways.alf`. Choose
    `TRADER`, `MARKET_MAKER`, or `ADMIN`, then choose disconnect behavior.
 
 4. Decide whether market makers exist.

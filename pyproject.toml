@@ -52,7 +52,7 @@ mkdocstrings = {extras = ["python"], version = ">=0.22.0"}
 
 [tool.poetry.scripts]
 pm-engine   = "edumatcher.engine.main:main"
-pm-gateway  = "edumatcher.gateway.main:main"
+pm-alf-console = "edumatcher.alf_console.main:main"
 pm-viewer   = "edumatcher.viewer.main:main"
 pm-board    = "edumatcher.board.main:main"
 pm-orders   = "edumatcher.orders.main:main"
@@ -168,6 +168,5 @@ executionEnvironments = [
     { root = "tools", reportUnusedImport = false, reportMissingTypeArgument = false, reportArgumentType = false, reportOptionalMemberAccess = false },
     { root = "src" },
 ]
-
 
 

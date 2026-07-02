@@ -119,7 +119,7 @@ Terminal 4:
 `pm-viewer --symbol AAPL`
 
 Terminal 5:
-`pm-gateway --id TRADER01` 
+`pm-alf-console --id TRADER01` 
 
 
 ## Upgrading the pinned version

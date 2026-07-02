@@ -18,7 +18,7 @@ EduMatcher requires two essential processes:
 1. **pm-engine** — the matching engine (reads `engine_config.yaml`).
 2. **pm-scheduler** — drives session phase transitions.
 
-A **gateway** (`pm-gateway`) connects traders to the engine.
+A **gateway** (`pm-alf-console`) connects traders to the engine.
 
  
 
@@ -161,7 +161,7 @@ automatically (or you can trigger immediate continuous with `--immediate`).
 In a **third terminal**:
 
 ```bash
-pm-gateway --id TRADER01
+pm-alf-console --id TRADER01
 ```
 
 You should see:
@@ -199,7 +199,7 @@ Repeat for `MSFT` and `TSLA` to confirm all three books are active.
 In a **fourth terminal**:
 
 ```bash
-pm-gateway --id GW_ADMIN
+pm-alf-console --id GW_ADMIN
 ```
 
 Try an admin command:

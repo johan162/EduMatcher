@@ -50,8 +50,8 @@ pm-scheduler
 Connect two trader gateways:
 
 ```bash
-pm-gateway --id TRADER01
-pm-gateway --id TRADER02
+pm-alf-console --id TRADER01
+pm-alf-console --id TRADER02
 ```
 
 Create one resting order so observers have a visible book update:

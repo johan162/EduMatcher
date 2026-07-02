@@ -53,7 +53,7 @@ Verification:
 2. Reconnect:
 
 ```bash
-pm-gateway --id TRADER02
+pm-alf-console --id TRADER02
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** gateway is disconnected and can reconnect cleanly.

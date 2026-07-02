@@ -2,7 +2,7 @@
 Gateway — user-facing terminal process.
 
 Usage:
-  poetry run pm-gateway --id GW01
+  poetry run pm-alf-console --id GW01
 
 Accepts FIX-like text commands on stdin, sends to engine, prints responses.
 
@@ -90,7 +90,7 @@ from edumatcher.models.order import (
 from edumatcher.models.price import to_ticks
 
 # Extracted submodules — re-exported here so that existing
-# ``from edumatcher.gateway.main import ...`` imports keep working.
+# ``from edumatcher.alf_console.main import ...`` imports keep working.
 from .completer import GatewayCompleter as GatewayCompleter  # noqa: F401
 from .display import _SysStdoutProxy as _SysStdoutProxy  # noqa: F401  # type: ignore
 from .display import (

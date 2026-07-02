@@ -22,7 +22,7 @@ Add a manual MM gateway to your config:
 Restart the engine and connect:
 
 ```bash
-pm-gateway --id MM_MANUAL_01
+pm-alf-console --id MM_MANUAL_01
 ```
 
  

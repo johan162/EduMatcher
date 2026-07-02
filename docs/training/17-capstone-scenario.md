@@ -63,12 +63,12 @@ pm-viewer --symbol AAPL
 Open gateway terminals:
 
 ```bash
-pm-gateway --id TRADER01
-pm-gateway --id TRADER02
-pm-gateway --id GW_ADMIN
-pm-gateway --id MM_AAPL_01
-pm-gateway --id MM_MSFT_01
-pm-gateway --id MM_TSLA_01
+pm-alf-console --id TRADER01
+pm-alf-console --id TRADER02
+pm-alf-console --id GW_ADMIN
+pm-alf-console --id MM_AAPL_01
+pm-alf-console --id MM_MSFT_01
+pm-alf-console --id MM_TSLA_01
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** all gateway identities authenticate.

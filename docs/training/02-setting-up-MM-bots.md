@@ -23,7 +23,7 @@ the order book is empty and no trader can get an immediate fill.
 
 !!! note "Manual first, automation second"
   `pm-mm-bot` is available, but this chapter starts with manual
-  `pm-gateway` + `QUOTE` so you can see quote lifecycle and operator tools
+  `pm-alf-console` + `QUOTE` so you can see quote lifecycle and operator tools
   directly before using automation.
 
  
@@ -67,7 +67,7 @@ Restart `pm-engine` to pick up the new gateways.
 In a new terminal:
 
 ```bash
-pm-gateway --id MM_AAPL_01
+pm-alf-console --id MM_AAPL_01
 ```
 
 At the prompt, submit a two-sided quote:
@@ -87,8 +87,8 @@ Expected output should include a quote acknowledgement and active status.
 Open one terminal per MM gateway:
 
 ```bash
-pm-gateway --id MM_MSFT_01
-pm-gateway --id MM_TSLA_01
+pm-alf-console --id MM_MSFT_01
+pm-alf-console --id MM_TSLA_01
 ```
 
 Submit quotes:

@@ -14,7 +14,7 @@ Check that:
     process: `lsof -i :5555 -i :5556`
 3. The gateway ID exists in `engine_config.yaml`.
 
-If the engine is down or unreachable, `pm-gateway` exits after about three
+If the engine is down or unreachable, `pm-alf-console` exits after about three
 seconds with `Gateway authentication timed out`.
 
 ---

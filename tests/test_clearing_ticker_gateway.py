@@ -179,13 +179,13 @@ class TestTickerProcess:
 
 
 # ---------------------------------------------------------------------------
-# gateway/main.py — GatewayCompleter
+# alf_console/main.py — GatewayCompleter
 # ---------------------------------------------------------------------------
 
 
 class TestGatewayCompleter:
     def _completer(self):
-        from edumatcher.gateway.main import GatewayCompleter
+        from edumatcher.alf_console.main import GatewayCompleter
 
         return GatewayCompleter(known_symbols=["AAPL", "MSFT"])
 
@@ -245,7 +245,7 @@ class TestGatewayCompleter:
         assert any("ID" in t for t in texts)
 
     def test_combo_completions_static(self) -> None:
-        from edumatcher.gateway.main import GatewayCompleter
+        from edumatcher.alf_console.main import GatewayCompleter
 
         result = GatewayCompleter._combo_completions(
             parts=["NEW", "TYPE=COMBO"],

@@ -1481,8 +1481,8 @@ orders to the engine.
 
 ```mermaid
 graph TB
-    GW1["pm-gateway GW01"]
-    GW2["pm-gateway GW02"]
+    GW1["pm-alf-console GW01"]
+    GW2["pm-alf-console GW02"]
     ENG["pm-engine
     ─────────────────────────
     Single-threaded event loop

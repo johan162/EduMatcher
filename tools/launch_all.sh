@@ -79,11 +79,11 @@ _term "${RUN:+$RUN }pm-scheduler"
 echo "  [2/$TOTAL] Session scheduler"
 sleep 0.3
 
-_term "${RUN:+$RUN }pm-gateway --id TRADER01"
+_term "${RUN:+$RUN }pm-alf-console --id TRADER01"
 echo "  [3/$TOTAL] Gateway TRADER01"
 sleep 0.3
 
-_term "${RUN:+$RUN }pm-gateway --id TRADER02"
+_term "${RUN:+$RUN }pm-alf-console --id TRADER02"
 echo "  [4/$TOTAL] Gateway TRADER02"
 sleep 0.3
 

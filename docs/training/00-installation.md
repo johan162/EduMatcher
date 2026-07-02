@@ -90,7 +90,7 @@ This command will:
 multipass shell edumatcher-vm
 pm-engine --version
 pm-scheduler --help
-pm-gateway --help
+pm-alf-console --help
 ```
 
 ### Step 4: Run a first end-to-end session inside the VM
@@ -246,7 +246,7 @@ Verify that the key commands are available:
 ```bash
 pm-engine --help
 pm-scheduler --help
-pm-gateway --help
+pm-alf-console --help
 pm-setup --help
 pm-config-gen --help
 pm-mm-bot --help

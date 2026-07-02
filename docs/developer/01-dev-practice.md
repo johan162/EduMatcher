@@ -236,10 +236,10 @@ poetry run pm-engine --verbose
 poetry run pm-scheduler --now
 
 # Terminal 3 — market maker gateway
-poetry run pm-gateway --id MM01
+poetry run pm-alf-console --id MM01
 
 # Terminal 4 — trader gateway
-poetry run pm-gateway --id TRADER01
+poetry run pm-alf-console --id TRADER01
 
 # Terminal 5 — operator console
 poetry run pm-admin --id GW_ADMIN
@@ -559,7 +559,7 @@ Most processes assume the engine sockets already exist. Start `pm-engine` first.
 
 ### Using a gateway ID that is not in `engine_config.yaml`
 
-`pm-gateway --id SOMEONE` only works if that gateway is configured.
+`pm-alf-console --id SOMEONE` only works if that gateway is configured.
 
 ### Forgetting that observer processes depend on each other
 
@@ -598,7 +598,7 @@ If you are onboarding, this is a good sequence:
 
 1. Set up Poetry and build the docs
 2. Run the minimal live system once
-3. Submit a few manual orders through `pm-gateway`
+3. Submit a few manual orders through `pm-alf-console`
 4. Run the normal test suite
 5. Read the deterministic verification page
 6. Pick one small bug fix or documentation improvement

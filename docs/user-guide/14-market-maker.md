@@ -944,7 +944,7 @@ Then if an early fill arrives before `quote.ack`, the MM can:
 Without this pending-submit buffer, the MM cannot deterministically map an
 early fill to the quote until the ack arrives.
 
-### MM operator workflow via `pm-gateway`
+### MM operator workflow via `pm-alf-console`
 
 This section is intentionally operator-oriented. It shows what a market maker
 using the interactive ALF gateway will actually type, what the gateway will

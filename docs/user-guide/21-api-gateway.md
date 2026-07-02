@@ -19,7 +19,7 @@ examples.
 
 It is not a second matching engine. The process translates HTTP and WebSocket
 requests into the same engine ZMQ/JSON messages used by the interactive
-`pm-gateway` process.
+`pm-alf-console` process.
 
 ```mermaid
 flowchart LR

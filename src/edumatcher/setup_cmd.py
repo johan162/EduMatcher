@@ -161,7 +161,7 @@ def main() -> None:
     print()
     print("    pm-engine --verbose     # terminal 1 — matching engine")
     print("    pm-scheduler            # terminal 2 — session phases (optional)")
-    print("    pm-gateway --id GW01    # terminal 3 — participant terminal")
+    print("    pm-alf-console --id GW01    # terminal 3 — participant terminal")
     print()
     print("  Or launch everything at once:")
     print()

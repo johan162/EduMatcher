@@ -32,7 +32,7 @@ connects each protocol to:
 
 | Protocol | Primary purpose | Transport/format | Runtime status | Typical gateway/process |
 |---|---|---|---|---|
-| **ALF** | Human-readable order entry and gateway control | Text line protocol (`FIELD=VALUE|...`) | Implemented and active | `pm-gateway` |
+| **ALF** | Human-readable order entry and gateway control | Text line protocol (`FIELD=VALUE|...`) | Implemented and active | `pm-alf-console` |
 | **BALF** | Low-latency binary order entry for programmatic clients | Binary framed protocol | Documented; planned gateway process | `pm-balf-gateway` (planned) |
 | **CALF** | External market-data dissemination (top/book/trade/state style channels) | Text line protocol over TCP | Implemented and active | `pm-md-gwy` |
 | **RALF** | External post-trade dissemination for clearing, drop-copy, and audit consumers | Text line protocol over TCP (`RALF1`) | Implemented and active | `pm-ralf-gwy` |
@@ -48,12 +48,12 @@ Use ALF when you need:
 
 - interactive/manual order entry
 - educational readability of commands
-- direct access to the full command set in `pm-gateway`
+- direct access to the full command set in `pm-alf-console`
 
 Where to read more:
 
 - Gateway behavior and operator workflow: [Gateway Commands](08-gateway.md)
-- Process-level role of the ALF gateway: [Processes](10-processes.md#pm-gateway-user-gateway)
+- Process-level role of the ALF gateway: [Processes](10-processes.md#pm-alf-console-user-gateway)
 - Engine configuration of allowed ALF IDs/roles: [Configuration](01-configuration.md#alf-gateway-allowlist)
 - Formal wire syntax and semantics: [Appendix - ALF Protocol](90-app-alf-protocol.md)
 

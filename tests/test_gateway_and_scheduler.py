@@ -16,12 +16,12 @@ from rich.table import Table
 
 
 def _make_gateway(gw_id: str = "GW01"):
-    from edumatcher.gateway.main import Gateway
+    from edumatcher.alf_console.main import Gateway
 
     fake_push = MagicMock()
     fake_sub = MagicMock()
-    with patch("edumatcher.gateway.main.make_pusher", return_value=fake_push):
-        with patch("edumatcher.gateway.main.make_subscriber", return_value=fake_sub):
+    with patch("edumatcher.alf_console.main.make_pusher", return_value=fake_push):
+        with patch("edumatcher.alf_console.main.make_subscriber", return_value=fake_sub):
             gw = Gateway(gw_id)
     return gw
 
@@ -49,7 +49,7 @@ def stats_proc(tmp_path: Path):
 
 class TestSysStdoutProxy:
     def test_write(self, capsys) -> None:
-        from edumatcher.gateway.main import _SysStdoutProxy
+        from edumatcher.alf_console.main import _SysStdoutProxy
 
         proxy = _SysStdoutProxy()
         proxy.write("hello")
@@ -57,33 +57,33 @@ class TestSysStdoutProxy:
         assert "hello" in captured.out
 
     def test_flush_no_error(self) -> None:
-        from edumatcher.gateway.main import _SysStdoutProxy
+        from edumatcher.alf_console.main import _SysStdoutProxy
 
         proxy = _SysStdoutProxy()
         proxy.flush()  # should not raise
 
     def test_fileno(self) -> None:
-        from edumatcher.gateway.main import _SysStdoutProxy
+        from edumatcher.alf_console.main import _SysStdoutProxy
         import sys
 
         proxy = _SysStdoutProxy()
         assert proxy.fileno() == sys.stdout.fileno()
 
     def test_isatty(self) -> None:
-        from edumatcher.gateway.main import _SysStdoutProxy
+        from edumatcher.alf_console.main import _SysStdoutProxy
 
         proxy = _SysStdoutProxy()
         result = proxy.isatty()
         assert isinstance(result, bool)
 
     def test_encoding(self) -> None:
-        from edumatcher.gateway.main import _SysStdoutProxy
+        from edumatcher.alf_console.main import _SysStdoutProxy
 
         proxy = _SysStdoutProxy()
         assert isinstance(proxy.encoding, str)
 
     def test_errors(self) -> None:
-        from edumatcher.gateway.main import _SysStdoutProxy
+        from edumatcher.alf_console.main import _SysStdoutProxy
 
         proxy = _SysStdoutProxy()
         assert isinstance(proxy.errors, str)
@@ -96,20 +96,20 @@ class TestSysStdoutProxy:
 
 class TestGatewayHelpers:
     def test_kv_parses_pairs(self) -> None:
-        from edumatcher.gateway.main import Gateway
+        from edumatcher.alf_console.main import Gateway
 
         result = Gateway._kv(["SYM=AAPL", "SIDE=BUY", "QTY=100"])
         assert result == {"SYM": "AAPL", "SIDE": "BUY", "QTY": "100"}
 
     def test_kv_ignores_no_equals(self) -> None:
-        from edumatcher.gateway.main import Gateway
+        from edumatcher.alf_console.main import Gateway
 
         result = Gateway._kv(["BAREWORD", "K=V"])
         assert "BAREWORD" not in result
         assert result["K"] == "V"
 
     def test_kv_uppercases_keys(self) -> None:
-        from edumatcher.gateway.main import Gateway
+        from edumatcher.alf_console.main import Gateway
 
         result = Gateway._kv(["sym=aapl"])
         assert "SYM" in result
@@ -229,7 +229,7 @@ class TestGatewayHelpers:
             },
         }
 
-        with patch("edumatcher.gateway.main.console.print") as mock_print:
+        with patch("edumatcher.alf_console.main.console.print") as mock_print:
             gw._handle_event("system.symbols.GW01", payload)
 
         assert gw._known_symbol_meta["AAPL"]["tick_size"] == 0.01
@@ -513,7 +513,7 @@ class TestGatewayUpdatePosition:
         assert pos["avg_cost"] == pytest.approx(105.0)
 
     def test_print_positions_with_active(self) -> None:
-        from edumatcher.gateway.display import print_positions
+        from edumatcher.alf_console.display import print_positions
 
         gw = _make_gateway()
         gw._update_position("AAPL", "BUY", 100, 100.0)
@@ -522,7 +522,7 @@ class TestGatewayUpdatePosition:
         print_positions(gw._positions, gw._last_prices)
 
     def test_print_positions_with_flat_realized(self) -> None:
-        from edumatcher.gateway.display import print_positions
+        from edumatcher.alf_console.display import print_positions
 
         gw = _make_gateway()
         gw._update_position("AAPL", "BUY", 100, 100.0)
@@ -531,7 +531,7 @@ class TestGatewayUpdatePosition:
         print_positions(gw._positions, gw._last_prices)
 
     def test_print_positions_empty(self) -> None:
-        from edumatcher.gateway.display import print_positions
+        from edumatcher.alf_console.display import print_positions
 
         gw = _make_gateway()
         print_positions(gw._positions, gw._last_prices)
@@ -980,7 +980,7 @@ class TestGatewayPrintOrders:
 
 class TestGatewayCompleterEdgeCases:
     def _completer(self):
-        from edumatcher.gateway.main import GatewayCompleter
+        from edumatcher.alf_console.main import GatewayCompleter
 
         return GatewayCompleter(known_symbols=["AAPL", "MSFT"])
 
@@ -998,7 +998,7 @@ class TestGatewayCompleterEdgeCases:
         assert "LIMIT" in texts or "STOP" in texts
 
     def test_combo_completions_with_leg_count(self) -> None:
-        from edumatcher.gateway.main import GatewayCompleter
+        from edumatcher.alf_console.main import GatewayCompleter
 
         result = GatewayCompleter._combo_completions(
             parts=["NEW", "TYPE=COMBO", "LEG_COUNT=3"],
@@ -1010,7 +1010,7 @@ class TestGatewayCompleterEdgeCases:
         assert len(leg_keys) > 0
 
     def test_combo_completions_invalid_leg_count(self) -> None:
-        from edumatcher.gateway.main import GatewayCompleter
+        from edumatcher.alf_console.main import GatewayCompleter
 
         # Invalid LEG_COUNT should default to 2
         result = GatewayCompleter._combo_completions(
@@ -1110,7 +1110,7 @@ class TestSchedulerRunScheduledFuture:
 
 class TestGatewayCompleterMoreEdgeCases:
     def _completer(self):
-        from edumatcher.gateway.main import GatewayCompleter
+        from edumatcher.alf_console.main import GatewayCompleter
 
         return GatewayCompleter(known_symbols=["AAPL", "MSFT"])
 
@@ -1190,7 +1190,7 @@ class TestGatewaySendComboLegError:
 
 class TestGatewayCompleterNewBranches:
     def _completer(self):
-        from edumatcher.gateway.main import GatewayCompleter
+        from edumatcher.alf_console.main import GatewayCompleter
 
         return GatewayCompleter(known_symbols=["AAPL", "MSFT"])
 
@@ -1668,22 +1668,22 @@ class TestKillSwitchAckRejected:
 
 class TestParseDate:
     def test_none_returns_none(self) -> None:
-        from edumatcher.gateway.main import Gateway
+        from edumatcher.alf_console.main import Gateway
 
         assert Gateway._parse_date(None) is None
 
     def test_empty_string_returns_none(self) -> None:
-        from edumatcher.gateway.main import Gateway
+        from edumatcher.alf_console.main import Gateway
 
         assert Gateway._parse_date("") is None
 
     def test_invalid_format_returns_none(self) -> None:
-        from edumatcher.gateway.main import Gateway
+        from edumatcher.alf_console.main import Gateway
 
         assert Gateway._parse_date("not-a-date") is None
 
     def test_valid_date_returns_float(self) -> None:
-        from edumatcher.gateway.main import Gateway
+        from edumatcher.alf_console.main import Gateway
 
         result = Gateway._parse_date("2024-01-15")
         assert isinstance(result, float)
@@ -1743,7 +1743,7 @@ class TestCompleterValueBranches:
     """Hit the specific value-completion elif branches that were uncovered."""
 
     def _completer(self):
-        from edumatcher.gateway.main import GatewayCompleter
+        from edumatcher.alf_console.main import GatewayCompleter
 
         return GatewayCompleter(known_symbols=["AAPL", "MSFT"])
 

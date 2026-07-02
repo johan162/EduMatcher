@@ -100,7 +100,7 @@ You should see your 200-lot bid at 149.80 below the MM's bid.
 Now from `TRADER02` (open a second gateway if not already):
 
 ```bash
-pm-gateway --id TRADER02
+pm-alf-console --id TRADER02
 ```
 
 ```
