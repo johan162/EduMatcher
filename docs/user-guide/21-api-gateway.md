@@ -419,3 +419,80 @@ engine ack:
 
 MARKET orders must not include `price` or `stop_price`. The gateway validates
 this and returns `400 VALIDATION` if either field is present.
+
+
+## Troubleshooting
+
+### Check whether the port is in use
+
+Before starting `pm-api-gateway`, or when a client cannot connect, verify that
+something is listening on the configured port (default `8080`).
+
+**macOS:**
+
+```bash
+# lsof — shows the process name and PID holding the port
+sudo lsof -iTCP:8080 -sTCP:LISTEN
+
+# BSD netstat (ships with macOS)
+netstat -an | grep LISTEN | grep 8080
+```
+
+**Linux:**
+
+```bash
+# ss — preferred on modern Linux
+ss -tlnp 'sport = :8080'
+
+# lsof
+sudo lsof -iTCP:8080 -sTCP:LISTEN
+
+# netstat (older distributions)
+netstat -tlnp | grep 8080
+```
+
+Replace `8080` with the `port` value from your `api_gateways.<name>` config block.
+If no output appears, the gateway is not running.
+
+### Test HTTP connectivity from the command line
+
+The health endpoint requires no authentication and is the fastest connectivity check:
+
+```bash
+curl -s http://127.0.0.1:8080/api/v1/healthz
+# Expected: {"ok": true}
+```
+
+Test an authenticated endpoint:
+
+```bash
+curl -s -H "Authorization: Bearer key-trader-demo" \
+     http://127.0.0.1:8080/api/v1/status
+```
+
+Test WebSocket connectivity:
+
+```bash
+# websocat (brew install websocat / apt install websocat)
+websocat ws://127.0.0.1:8080/api/v1/market-data
+
+# curl — look for HTTP 101 Switching Protocols in the response headers
+curl -v --no-buffer \
+     -H "Connection: Upgrade" -H "Upgrade: websocket" \
+     -H "Sec-WebSocket-Version: 13" \
+     -H "Sec-WebSocket-Key: dGhlc2FtcGxla2V5" \
+     http://127.0.0.1:8080/api/v1/market-data
+```
+
+### Common problems
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `Connection refused` | Gateway not started or wrong port | Confirm `pm-api-gateway` is running; check `port` in `api_gateways` config |
+| `{"ok": false}` from `/healthz` | Engine ZMQ connection not established | Start `pm-engine` first |
+| `401 Unauthorized` | Missing or wrong `Authorization` header | Use `Authorization: Bearer <key>` with a key listed in `credentials` |
+| `403 Forbidden` | Credential has no `gateway_id`; endpoint requires one | Use a credential with a non-null `gateway_id` for order-entry endpoints |
+| `404` on all endpoints | Wrong base path or wrong `--instance` flag | Check `pm-api-gateway --instance NAME` matches the config block name |
+| Swagger UI not loading | `swagger_enabled: false` | Set `swagger_enabled: true` in the config block and restart |
+| History endpoints return empty results | `pm-stats` not running or wrong `stats_db` path | Start `pm-stats`; verify the `stats_db` path in config points to the correct file |
+| WebSocket disconnects immediately | Engine not running or client rate limit hit | Start engine; check gateway logs for disconnect reason |

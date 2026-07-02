@@ -666,6 +666,102 @@ sock.close()
 | Post-trade / clearing / audit consumer | `pm-ralf-gwy` (RALF) |
 
 
+## Troubleshooting
+
+### Check whether the port is in use
+
+Before starting `pm-alf-gwy`, or when a client cannot connect, verify that
+something is actually listening on port 5565.
+
+**macOS:**
+
+```bash
+# lsof — shows the process name and PID holding the port
+sudo lsof -iTCP:5565 -sTCP:LISTEN
+
+# BSD netstat (ships with macOS)
+netstat -an | grep LISTEN | grep 5565
+```
+
+**Linux:**
+
+```bash
+# ss — preferred on modern Linux
+ss -tlnp 'sport = :5565'
+
+# lsof
+sudo lsof -iTCP:5565 -sTCP:LISTEN
+
+# netstat (older distributions)
+netstat -tlnp | grep 5565
+```
+
+If no output appears, the gateway is not running or is bound to a different port.
+Check the `alf_gateway.port` value in `engine_config.yaml`.
+
+### Test the TCP connection from the command line
+
+Use `nc` (netcat) to open a raw TCP connection and type ALF lines by hand.
+This bypasses any client library and proves the gateway is reachable end-to-end.
+
+**macOS / Linux:**
+
+```bash
+nc 127.0.0.1 5565
+```
+
+For a remote host:
+
+```bash
+nc 10.0.0.5 5565
+```
+
+Type the following lines (press Enter after each):
+
+```text
+HELLO|CLIENT=test|PROTO=ALF1|ID=TRADER01
+SYMBOLS
+EXIT
+```
+
+Expected output: `WELCOME|...`, then a `SYMBOLS|COUNT=N` block, then
+`END|TYPE=SYMBOLS`, then the connection closes.
+
+**`telnet` (macOS / Linux):**
+
+```bash
+telnet 127.0.0.1 5565
+```
+
+Type `HELLO|CLIENT=test|PROTO=ALF1|ID=TRADER01` and press Enter.  `telnet`
+echoes characters locally so the line appears duplicated in the terminal —
+the `WELCOME` response confirms the gateway accepted it.  Press `Ctrl-]`,
+then type `quit` to close.
+
+**Non-interactive test (useful in scripts or CI):**
+
+```bash
+printf 'HELLO|CLIENT=test|PROTO=ALF1|ID=TRADER01\nEXIT\n' | nc 127.0.0.1 5565
+```
+
+Expected output ends with `BYE` or a clean connection close immediately after `WELCOME`.
+
+### Common problems
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `Connection refused` | Gateway not started or wrong port | Confirm `pm-alf-gwy` is running; check `alf_gateway.port` in config |
+| Connection hangs with no output | Firewall blocking port 5565 | Test on loopback (`127.0.0.1`) first; open port in firewall for remote access |
+| `ERR\|CODE=AUTH_REQUIRED` immediately | First line was not `HELLO` | Ensure the very first line is a valid `HELLO` |
+| `ERR\|CODE=AUTH_FAILED` | Gateway ID not in `gateways.alf` | Add the ID under `gateways.alf` in `engine_config.yaml` and restart engine |
+| `ERR\|CODE=PROTO_MISMATCH` | `PROTO` field value is not `ALF1` | Fix the `HELLO` line: `HELLO\|CLIENT=...\|PROTO=ALF1\|ID=...` |
+| `ERR\|CODE=GATEWAY_ALREADY_CONNECTED` | Same gateway ID connected elsewhere | Disconnect the other session, or use a different gateway ID |
+| `WELCOME` arrives but then silence | Engine not running or ZMQ link lost | Start `pm-engine`; check gateway logs for ZMQ errors |
+| Gateway closes after ~30 s of silence | `idle_timeout_sec` elapsed | Send `PING` periodically; reduce `idle_timeout_sec` in config if needed |
+| `ERR\|CODE=RATE_LIMITED` | Commands arriving faster than `max_commands_per_second` | Throttle the client; increase `max_commands_per_second` in config |
+| Gateway not reachable from another host | `bind_address: 127.0.0.1` | Change `bind_address` to `0.0.0.0` (or the specific interface IP) |
+
+
 ## See also
 
 - [ALF Protocol Reference](90-app-alf-protocol.md) — formal wire syntax and full field/enum definitions
