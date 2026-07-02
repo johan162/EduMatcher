@@ -4,6 +4,7 @@ import socket
 from collections import deque
 
 import pytest
+import zmq
 
 from edumatcher.alf_gwy.config import AlfGatewayConfig
 from edumatcher.alf_gwy.gateway import AlfGateway, ClientSession
@@ -21,6 +22,16 @@ class _FakePush:
 
     def close(self) -> None:
         self.closed = True
+
+
+class _ClosedFakePush(_FakePush):
+    def __init__(self) -> None:
+        super().__init__()
+        self.closed = True
+
+    def send_multipart(self, frames: list[bytes]) -> None:
+        _ = frames
+        raise zmq.ZMQError()
 
 
 class _FakeSub:
@@ -78,6 +89,18 @@ def _make_session() -> tuple[ClientSession, socket.socket]:
 def test_requires_hello_first(gateway: AlfGateway) -> None:
     session, peer = _make_session()
     gateway._handle_client_line(session, "SYMBOLS")
+
+    assert session.closing is True
+    assert session.out_queue
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ERR"
+    assert frame.fields["CODE"] == "AUTH_REQUIRED"
+    peer.close()
+
+
+def test_ping_requires_hello_first(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    gateway._handle_client_line(session, "PING")
 
     assert session.closing is True
     assert session.out_queue
@@ -151,6 +174,28 @@ def test_rate_limited_after_first_command(gateway: AlfGateway) -> None:
     peer.close()
 
 
+def test_invalid_combo_type_is_invalid_value(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.role = "TRADER"
+    session.rate_tokens = 10.0
+
+    gateway._handle_client_line(
+        session,
+        "NEW|TYPE=COMBO|COMBO_ID=spread|COMBO_TYPE=BAD|LEG_COUNT=2|"
+        "LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=1|LEG0.PRICE=1|"
+        "LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=1|LEG1.PRICE=2",
+    )
+
+    assert session.out_queue
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ERR"
+    assert frame.fields["CODE"] == "INVALID_VALUE"
+    assert "COMBO_TYPE" in frame.fields["DETAIL"]
+    peer.close()
+
+
 def test_engine_event_routing_to_gateway_session(gateway: AlfGateway) -> None:
     session, peer = _make_session()
     session.authenticated = True
@@ -191,6 +236,12 @@ def test_disconnect_sends_gateway_disconnect(gateway: AlfGateway) -> None:
     topic = fake_push.sent[-1][0].decode("utf-8")
     assert topic == "system.gateway_disconnect"
     peer.close()
+
+
+def test_closed_push_during_shutdown_does_not_raise(gateway: AlfGateway) -> None:
+    gateway._push = _ClosedFakePush()
+
+    gateway._send_to_engine([b"topic", b"{}"])
 
 
 def test_line_exceeds_max_bytes_adds_bad_message(gateway: AlfGateway) -> None:

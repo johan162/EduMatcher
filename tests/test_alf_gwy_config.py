@@ -27,6 +27,7 @@ alf_gateway:
   max_client_queue: 200
   max_commands_per_second: 25
   max_errors_before_disconnect: 12
+  error_window_sec: 7
 
 gateways:
   alf:
@@ -44,6 +45,7 @@ gateways:
     assert cfg.max_client_queue == 200
     assert cfg.max_commands_per_second == 25
     assert cfg.max_errors_before_disconnect == 12
+    assert cfg.error_window_sec == 7
     assert ("TRADER01", "TRADER") in cfg.gateway_roles
     assert ("MM01", "MARKET_MAKER") in cfg.gateway_roles
 
@@ -65,6 +67,7 @@ def test_invalid_alf_gateway_mapping_raises(tmp_path: Path) -> None:
         "max_client_queue",
         "max_commands_per_second",
         "max_errors_before_disconnect",
+        "error_window_sec",
     ],
 )
 def test_positive_int_fields_enforced(tmp_path: Path, field: str) -> None:
@@ -86,4 +89,18 @@ gateways:
       role: TRADER
 """)
     with pytest.raises(ValueError):
+        load_alf_gateway_config(p)
+
+
+def test_gateway_ids_must_not_be_prefixes(tmp_path: Path) -> None:
+    p = tmp_path / "engine_config.yaml"
+    p.write_text("""
+gateways:
+  alf:
+    - id: TRADER01
+      role: TRADER
+    - id: TRADER011
+      role: TRADER
+""")
+    with pytest.raises(ValueError, match="prefixes"):
         load_alf_gateway_config(p)

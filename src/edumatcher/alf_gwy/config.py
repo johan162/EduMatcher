@@ -60,6 +60,16 @@ def _parse_gateway_roles(raw: Any) -> tuple[tuple[str, str], ...]:
         if not gw_id:
             raise ValueError(f"gateways.alf[{idx}].id must be a non-empty string")
         parsed.append((gw_id, role))
+
+    for idx, (gw_id, _role) in enumerate(parsed):
+        for other_idx, (other_id, _other_role) in enumerate(parsed):
+            if idx == other_idx:
+                continue
+            if other_id.startswith(gw_id):
+                raise ValueError(
+                    "gateways.alf IDs must not be prefixes of each other "
+                    f"({gw_id!r}, {other_id!r})"
+                )
     return tuple(parsed)
 
 
@@ -99,6 +109,7 @@ def load_alf_gateway_config(path: Path) -> AlfGatewayConfig:
         section.get("max_errors_before_disconnect", 50),
         "max_errors_before_disconnect",
     )
+    error_window_sec = _as_int(section.get("error_window_sec", 60), "error_window_sec")
 
     if port <= 0:
         raise ValueError("alf_gateway.port must be > 0")
@@ -114,6 +125,8 @@ def load_alf_gateway_config(path: Path) -> AlfGatewayConfig:
         raise ValueError("alf_gateway.max_commands_per_second must be > 0")
     if max_errors_before_disconnect <= 0:
         raise ValueError("alf_gateway.max_errors_before_disconnect must be > 0")
+    if error_window_sec <= 0:
+        raise ValueError("alf_gateway.error_window_sec must be > 0")
 
     return AlfGatewayConfig(
         enabled=enabled,
@@ -128,6 +141,7 @@ def load_alf_gateway_config(path: Path) -> AlfGatewayConfig:
         max_client_queue=max_client_queue,
         max_commands_per_second=max_commands_per_second,
         max_errors_before_disconnect=max_errors_before_disconnect,
+        error_window_sec=error_window_sec,
         gateway_roles=gw_roles,
     )
 

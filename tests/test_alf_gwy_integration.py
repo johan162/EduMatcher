@@ -741,7 +741,7 @@ def test_oversized_line_produces_error_connection_kept(
 def test_binary_garbage_does_not_crash(
     running_gateway: tuple[AlfGateway, zmq.Socket[bytes], zmq.Socket[bytes], int],
 ) -> None:
-    """Random bytes followed by a newline must produce ERR, not a crash."""
+    """Invalid UTF-8 followed by a newline must produce BAD_MESSAGE, not a crash."""
     _, pull, pub, port = running_gateway
 
     with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
@@ -751,7 +751,7 @@ def test_binary_garbage_does_not_crash(
         # NUL bytes + garbage + newline
         cli.sendall(b"\x00\xff\xfe garbage !!!\n")
         err = lb.recv_until(lambda ln: ln.startswith("ERR"), timeout=3.0)
-        assert "CODE" in parse_alf_line(err).fields
+        assert parse_alf_line(err).fields["CODE"] == "BAD_MESSAGE"
 
         # Gateway must still respond normally
         cli.sendall(b"PING\n")

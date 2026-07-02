@@ -259,7 +259,16 @@ class AlfGateway:
                 )
                 continue
 
-            line = raw.decode("utf-8", errors="replace").replace("\x00", "?")
+            try:
+                line = raw.decode("utf-8").replace("\x00", "?")
+            except UnicodeDecodeError:
+                self._register_error(
+                    session,
+                    "BAD_MESSAGE",
+                    "Line is not valid UTF-8",
+                    close_connection=False,
+                )
+                continue
             try:
                 self._handle_client_line(session, line)
             except Exception:
@@ -312,14 +321,6 @@ class AlfGateway:
         cmd = frame.command
         fields = frame.fields
 
-        if cmd == "PING":
-            self._queue_line(session, "PONG", {"TS": iso_utc(time.time())})
-            return
-
-        if cmd in {"EXIT", "QUIT"}:
-            self._close_after_flush(session)
-            return
-
         if not session.authenticated:
             if cmd != "HELLO":
                 self._register_error(
@@ -339,6 +340,14 @@ class AlfGateway:
 
         if cmd == "HELLO":
             # Ignore duplicate HELLO after successful auth.
+            return
+
+        if cmd == "PING":
+            self._queue_line(session, "PONG", {"TS": iso_utc(time.time())})
+            return
+
+        if cmd in {"EXIT", "QUIT"}:
+            self._close_after_flush(session)
             return
 
         if not self._allow_command_now(session):
@@ -567,7 +576,9 @@ class AlfGateway:
     def _handle_new_combo(self, session: ClientSession, fields: dict[str, str]) -> None:
         gateway_id = self._require_gw(session)
         combo_id = self._required_str(fields, "COMBO_ID")
-        combo_type = ComboType(self._required_str(fields, "COMBO_TYPE", default="AON"))
+        combo_type = self._parse_combo_type(
+            self._required_str(fields, "COMBO_TYPE", default="AON")
+        )
         tif = self._parse_tif(fields.get("TIF", "DAY"))
         smp_action = self._parse_smp(fields.get("SMP", "NONE"))
 
@@ -1115,6 +1126,14 @@ class AlfGateway:
                 "INVALID_VALUE", f"SMP: invalid value '{raw}'"
             ) from exc
 
+    def _parse_combo_type(self, raw: str) -> ComboType:
+        try:
+            return ComboType(raw)
+        except ValueError as exc:
+            raise ValidationError(
+                "INVALID_VALUE", f"COMBO_TYPE: invalid value '{raw}'"
+            ) from exc
+
     def _validate_symbol(self, symbol: str) -> None:
         if self._known_symbols and symbol not in self._known_symbols:
             raise ValidationError("SYMBOL_NOT_CONFIGURED", f"Unknown symbol: {symbol}")
@@ -1164,7 +1183,12 @@ class AlfGateway:
     def _send_to_engine(
         self, frames: list[bytes], *, count_as_command: bool = True
     ) -> None:
-        self._push.send_multipart(frames)
+        try:
+            self._push.send_multipart(frames)
+        except zmq.ZMQError:
+            if not self._running or self._push.closed:
+                return
+            raise
         if count_as_command:
             self._global_stats["commands_forwarded_total"] += 1
 
@@ -1219,12 +1243,10 @@ class AlfGateway:
         session.subscriptions.clear()
 
         if gateway_id and session.authenticated:
-            try:
-                self._push.send_multipart(
-                    make_gateway_disconnect_msg(gateway_id, reason=reason)
-                )
-            except Exception:
-                pass
+            self._send_to_engine(
+                make_gateway_disconnect_msg(gateway_id, reason=reason),
+                count_as_command=False,
+            )
 
         fileno = session.sock.fileno()
         session.close()
