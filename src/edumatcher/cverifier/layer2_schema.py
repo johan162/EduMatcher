@@ -24,6 +24,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_gateways(raw, results)
     _check_cb_defaults(raw, results)
     _check_risk_controls(raw, results)
+    _check_balf_gateway(raw, results)
     return results
 
 
@@ -668,3 +669,113 @@ def _get_defined_risk_levels(raw: dict[str, Any]) -> set[str]:
     if not isinstance(levels, dict):
         return set()
     return {str(k).strip().upper() for k in levels}
+
+
+# ---------------------------------------------------------------------------
+# balf_gateway section
+# ---------------------------------------------------------------------------
+
+_VALID_BALF_DUPLICATE_POLICY = {"REJECT_NEW", "EVICT_OLD"}
+
+_BALF_POSITIVE_INT_FIELDS = (
+    "max_connections",
+    "max_client_queue",
+    "max_messages_per_second",
+    "max_errors_before_disconnect",
+)
+
+_BALF_POSITIVE_FLOAT_FIELDS = (
+    "heartbeat_interval_sec",
+    "heartbeat_timeout_sec",
+    "idle_timeout_sec",
+    "auth_timeout_sec",
+    "error_window_sec",
+)
+
+
+def _check_balf_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    """Validate the optional balf_gateway section (S050–S054)."""
+    section = raw.get("balf_gateway")
+    if section is None:
+        return
+
+    if not isinstance(section, dict):
+        results.append(
+            CheckResult(
+                code="S050",
+                severity=Severity.ERROR,
+                message="'balf_gateway' must be a mapping.",
+                suggestion="Change balf_gateway to a mapping with field=value pairs.",
+                path="balf_gateway",
+            )
+        )
+        return
+
+    # port
+    port = section.get("port")
+    if port is not None:
+        if (
+            isinstance(port, bool)
+            or not isinstance(port, int)
+            or not (1 <= port <= 65535)
+        ):
+            results.append(
+                CheckResult(
+                    code="S051",
+                    severity=Severity.ERROR,
+                    message="'balf_gateway.port' must be an integer in 1\u201365535.",
+                    suggestion="Set port to a valid TCP port number, e.g. 5560.",
+                    path="balf_gateway.port",
+                )
+            )
+
+    # positive integer capacity fields
+    for field in _BALF_POSITIVE_INT_FIELDS:
+        val = section.get(field)
+        if val is not None:
+            if isinstance(val, bool) or not isinstance(val, int) or val <= 0:
+                results.append(
+                    CheckResult(
+                        code="S052",
+                        severity=Severity.ERROR,
+                        message=f"'balf_gateway.{field}' must be a positive integer.",
+                        suggestion=f"Set {field} to an integer > 0.",
+                        path=f"balf_gateway.{field}",
+                    )
+                )
+
+    # positive numeric timeout/interval fields
+    for field in _BALF_POSITIVE_FLOAT_FIELDS:
+        val = section.get(field)
+        if val is not None:
+            try:
+                fval = float(val)
+                if fval <= 0:
+                    raise ValueError
+            except (TypeError, ValueError):
+                results.append(
+                    CheckResult(
+                        code="S053",
+                        severity=Severity.ERROR,
+                        message=f"'balf_gateway.{field}' must be a positive number.",
+                        suggestion=f"Set {field} to a number > 0.",
+                        path=f"balf_gateway.{field}",
+                    )
+                )
+
+    # duplicate_session_policy
+    dup_policy = section.get("duplicate_session_policy")
+    if dup_policy is not None:
+        if str(dup_policy).upper() not in _VALID_BALF_DUPLICATE_POLICY:
+            results.append(
+                CheckResult(
+                    code="S054",
+                    severity=Severity.ERROR,
+                    message=(
+                        "'balf_gateway.duplicate_session_policy' must be "
+                        "'REJECT_NEW' or 'EVICT_OLD'."
+                    ),
+                    suggestion="Use REJECT_NEW (default) or EVICT_OLD.",
+                    path="balf_gateway.duplicate_session_policy",
+                )
+            )

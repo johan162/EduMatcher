@@ -23,6 +23,19 @@ from .defaults import (
     DEFAULT_API_GATEWAY_STATS_DB,
     DEFAULT_API_GATEWAY_SWAGGER_ENABLED,
     DEFAULT_API_GATEWAY_WAIT_ACK_SEC,
+    DEFAULT_BALF_GATEWAY_AUTH_TIMEOUT_SEC,
+    DEFAULT_BALF_GATEWAY_BIND_ADDRESS,
+    DEFAULT_BALF_GATEWAY_DUPLICATE_SESSION_POLICY,
+    DEFAULT_BALF_GATEWAY_ERROR_WINDOW_SEC,
+    DEFAULT_BALF_GATEWAY_HEARTBEAT_INTERVAL_SEC,
+    DEFAULT_BALF_GATEWAY_HEARTBEAT_TIMEOUT_SEC,
+    DEFAULT_BALF_GATEWAY_IDLE_TIMEOUT_SEC,
+    DEFAULT_BALF_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_BALF_GATEWAY_MAX_CONNECTIONS,
+    DEFAULT_BALF_GATEWAY_MAX_ERRORS_BEFORE_DISCONNECT,
+    DEFAULT_BALF_GATEWAY_MAX_MESSAGES_PER_SECOND,
+    DEFAULT_BALF_GATEWAY_NAME,
+    DEFAULT_BALF_GATEWAY_PORT,
     DEFAULT_INDEX_BASE_VALUE,
     DEFAULT_INDEX_DATA_DIR,
     DEFAULT_INDEX_PUBLISH_INTERVAL_SEC,
@@ -87,6 +100,7 @@ class ConfigSpec:
     outstanding_shares: dict[str, int] = field(default_factory=dict)
     post_trade_gateway: PostTradeGatewaySpec | None = None
     market_data_gateway: MarketDataGatewaySpec | None = None
+    balf_gateway: BalfGatewaySpec | None = None
     api_gateways: tuple[ApiGatewaySpec, ...] = ()
     indices: tuple[IndexSpec, ...] = ()
 
@@ -114,6 +128,25 @@ class MarketDataGatewaySpec:
     replay_window_sec: int = DEFAULT_MARKET_DATA_GATEWAY_REPLAY_WINDOW_SEC
     max_symbols_per_client: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_SYMBOLS_PER_CLIENT
     max_client_queue: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE
+
+
+@dataclass(frozen=True)
+class BalfGatewaySpec:
+    name: str = DEFAULT_BALF_GATEWAY_NAME
+    bind_address: str = DEFAULT_BALF_GATEWAY_BIND_ADDRESS
+    port: int = DEFAULT_BALF_GATEWAY_PORT
+    heartbeat_interval_sec: int = DEFAULT_BALF_GATEWAY_HEARTBEAT_INTERVAL_SEC
+    heartbeat_timeout_sec: int = DEFAULT_BALF_GATEWAY_HEARTBEAT_TIMEOUT_SEC
+    idle_timeout_sec: int = DEFAULT_BALF_GATEWAY_IDLE_TIMEOUT_SEC
+    auth_timeout_sec: int = DEFAULT_BALF_GATEWAY_AUTH_TIMEOUT_SEC
+    max_connections: int = DEFAULT_BALF_GATEWAY_MAX_CONNECTIONS
+    max_client_queue: int = DEFAULT_BALF_GATEWAY_MAX_CLIENT_QUEUE
+    max_messages_per_second: int = DEFAULT_BALF_GATEWAY_MAX_MESSAGES_PER_SECOND
+    max_errors_before_disconnect: int = (
+        DEFAULT_BALF_GATEWAY_MAX_ERRORS_BEFORE_DISCONNECT
+    )
+    error_window_sec: int = DEFAULT_BALF_GATEWAY_ERROR_WINDOW_SEC
+    duplicate_session_policy: str = DEFAULT_BALF_GATEWAY_DUPLICATE_SESSION_POLICY
 
 
 @dataclass(frozen=True)
@@ -182,6 +215,8 @@ class ConfigBuilder:
             cfg["post_trade_gateway"] = self._build_post_trade_gateway()
         if self.spec.market_data_gateway is not None:
             cfg["market_data_gateway"] = self._build_market_data_gateway()
+        if self.spec.balf_gateway is not None:
+            cfg["balf_gateway"] = self._build_balf_gateway()
         if self.spec.api_gateways:
             cfg["api_gateways"] = self._build_api_gateways()
         cfg["symbols"] = self._build_symbols()
@@ -231,6 +266,27 @@ class ConfigBuilder:
             "replay_window_sec": spec.replay_window_sec,
             "max_symbols_per_client": spec.max_symbols_per_client,
             "max_client_queue": spec.max_client_queue,
+        }
+
+    def _build_balf_gateway(self) -> dict[str, Any]:
+        spec = self.spec.balf_gateway
+        if spec is None:
+            return {}
+
+        return {
+            "name": spec.name,
+            "bind_address": spec.bind_address,
+            "port": spec.port,
+            "heartbeat_interval_sec": spec.heartbeat_interval_sec,
+            "heartbeat_timeout_sec": spec.heartbeat_timeout_sec,
+            "idle_timeout_sec": spec.idle_timeout_sec,
+            "auth_timeout_sec": spec.auth_timeout_sec,
+            "max_connections": spec.max_connections,
+            "max_client_queue": spec.max_client_queue,
+            "max_messages_per_second": spec.max_messages_per_second,
+            "max_errors_before_disconnect": spec.max_errors_before_disconnect,
+            "error_window_sec": spec.error_window_sec,
+            "duplicate_session_policy": spec.duplicate_session_policy,
         }
 
     def _build_api_gateways(self) -> dict[str, Any]:

@@ -486,6 +486,101 @@ def build_parser() -> argparse.ArgumentParser:
         help="api_gateway.timeouts.wait_ack_sec override (> 0).",
     )
 
+    # ── BALF gateway ──────────────────────────────────────────────────────────
+    parser.add_argument(
+        "--balf-gateway",
+        action="store_true",
+        help="Emit a top-level balf_gateway section for pm-balf-gwy.",
+    )
+    parser.add_argument(
+        "--balf-name",
+        default=None,
+        metavar="NAME",
+        help="balf_gateway.name override.",
+    )
+    parser.add_argument(
+        "--balf-bind-address",
+        default=None,
+        metavar="ADDR",
+        help="balf_gateway.bind_address override.",
+    )
+    parser.add_argument(
+        "--balf-port",
+        type=int,
+        default=None,
+        metavar="N",
+        help="balf_gateway.port override (> 0).",
+    )
+    parser.add_argument(
+        "--balf-heartbeat-interval-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="balf_gateway.heartbeat_interval_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--balf-heartbeat-timeout-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="balf_gateway.heartbeat_timeout_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--balf-idle-timeout-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="balf_gateway.idle_timeout_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--balf-auth-timeout-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="balf_gateway.auth_timeout_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--balf-max-connections",
+        type=int,
+        default=None,
+        metavar="N",
+        help="balf_gateway.max_connections override (> 0).",
+    )
+    parser.add_argument(
+        "--balf-max-client-queue",
+        type=int,
+        default=None,
+        metavar="N",
+        help="balf_gateway.max_client_queue override (> 0).",
+    )
+    parser.add_argument(
+        "--balf-max-messages-per-second",
+        type=int,
+        default=None,
+        metavar="N",
+        help="balf_gateway.max_messages_per_second override (> 0).",
+    )
+    parser.add_argument(
+        "--balf-max-errors-before-disconnect",
+        type=int,
+        default=None,
+        metavar="N",
+        help="balf_gateway.max_errors_before_disconnect override (> 0).",
+    )
+    parser.add_argument(
+        "--balf-error-window-sec",
+        type=int,
+        default=None,
+        metavar="N",
+        help="balf_gateway.error_window_sec override (> 0).",
+    )
+    parser.add_argument(
+        "--balf-duplicate-session-policy",
+        default=None,
+        choices=["REJECT_NEW", "EVICT_OLD"],
+        help="balf_gateway.duplicate_session_policy override.",
+    )
+
     sched_group = parser.add_mutually_exclusive_group()
     sched_group.add_argument(
         "--schedule",

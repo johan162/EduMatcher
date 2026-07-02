@@ -14,6 +14,7 @@ from edumatcher.models.participant import ParticipantRole
 
 from edumatcher.config_gen.builder import ConfigBuilder, ConfigSpec
 from edumatcher.config_gen.builder import ApiCredentialSpec, ApiGatewaySpec
+from edumatcher.config_gen.builder import BalfGatewaySpec
 from edumatcher.config_gen.builder import IndexSpec
 from edumatcher.config_gen.builder import MarketDataGatewaySpec
 from edumatcher.config_gen.builder import PostTradeGatewaySpec
@@ -28,6 +29,19 @@ from edumatcher.config_gen.defaults import (
     DEFAULT_API_GATEWAY_RATE_LIMIT_WRITES_PER_SECOND,
     DEFAULT_API_GATEWAY_STATS_DB,
     DEFAULT_API_GATEWAY_WAIT_ACK_SEC,
+    DEFAULT_BALF_GATEWAY_AUTH_TIMEOUT_SEC,
+    DEFAULT_BALF_GATEWAY_BIND_ADDRESS,
+    DEFAULT_BALF_GATEWAY_DUPLICATE_SESSION_POLICY,
+    DEFAULT_BALF_GATEWAY_ERROR_WINDOW_SEC,
+    DEFAULT_BALF_GATEWAY_HEARTBEAT_INTERVAL_SEC,
+    DEFAULT_BALF_GATEWAY_HEARTBEAT_TIMEOUT_SEC,
+    DEFAULT_BALF_GATEWAY_IDLE_TIMEOUT_SEC,
+    DEFAULT_BALF_GATEWAY_MAX_CLIENT_QUEUE,
+    DEFAULT_BALF_GATEWAY_MAX_CONNECTIONS,
+    DEFAULT_BALF_GATEWAY_MAX_ERRORS_BEFORE_DISCONNECT,
+    DEFAULT_BALF_GATEWAY_MAX_MESSAGES_PER_SECOND,
+    DEFAULT_BALF_GATEWAY_NAME,
+    DEFAULT_BALF_GATEWAY_PORT,
     DEFAULT_INDEX_BASE_VALUE,
     DEFAULT_INDEX_PUBLISH_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS,
@@ -143,6 +157,39 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         raise ValueError("--api-gateway-engine-reply-sec must be > 0")
     if args.api_gateway_wait_ack_sec is not None and args.api_gateway_wait_ack_sec <= 0:
         raise ValueError("--api-gateway-wait-ack-sec must be > 0")
+
+    if args.balf_port is not None and args.balf_port <= 0:
+        raise ValueError("--balf-port must be > 0")
+    if (
+        args.balf_heartbeat_interval_sec is not None
+        and args.balf_heartbeat_interval_sec <= 0
+    ):
+        raise ValueError("--balf-heartbeat-interval-sec must be > 0")
+    if (
+        args.balf_heartbeat_timeout_sec is not None
+        and args.balf_heartbeat_timeout_sec <= 0
+    ):
+        raise ValueError("--balf-heartbeat-timeout-sec must be > 0")
+    if args.balf_idle_timeout_sec is not None and args.balf_idle_timeout_sec <= 0:
+        raise ValueError("--balf-idle-timeout-sec must be > 0")
+    if args.balf_auth_timeout_sec is not None and args.balf_auth_timeout_sec <= 0:
+        raise ValueError("--balf-auth-timeout-sec must be > 0")
+    if args.balf_max_connections is not None and args.balf_max_connections <= 0:
+        raise ValueError("--balf-max-connections must be > 0")
+    if args.balf_max_client_queue is not None and args.balf_max_client_queue <= 0:
+        raise ValueError("--balf-max-client-queue must be > 0")
+    if (
+        args.balf_max_messages_per_second is not None
+        and args.balf_max_messages_per_second <= 0
+    ):
+        raise ValueError("--balf-max-messages-per-second must be > 0")
+    if (
+        args.balf_max_errors_before_disconnect is not None
+        and args.balf_max_errors_before_disconnect <= 0
+    ):
+        raise ValueError("--balf-max-errors-before-disconnect must be > 0")
+    if args.balf_error_window_sec is not None and args.balf_error_window_sec <= 0:
+        raise ValueError("--balf-error-window-sec must be > 0")
 
     if args.static_band is not None and not (0 < args.static_band < 1):
         raise ValueError("--static-band must be in (0, 1)")
@@ -537,6 +584,73 @@ def _build_market_data_gateway_spec(
     )
 
 
+def _build_balf_gateway_spec(
+    args: argparse.Namespace,
+) -> BalfGatewaySpec | None:
+    emit = any(
+        value is not None
+        for value in (
+            args.balf_name,
+            args.balf_bind_address,
+            args.balf_port,
+            args.balf_heartbeat_interval_sec,
+            args.balf_heartbeat_timeout_sec,
+            args.balf_idle_timeout_sec,
+            args.balf_auth_timeout_sec,
+            args.balf_max_connections,
+            args.balf_max_client_queue,
+            args.balf_max_messages_per_second,
+            args.balf_max_errors_before_disconnect,
+            args.balf_error_window_sec,
+            args.balf_duplicate_session_policy,
+        )
+    ) or bool(args.balf_gateway)
+
+    if not emit:
+        return None
+
+    return BalfGatewaySpec(
+        name=str(args.balf_name or DEFAULT_BALF_GATEWAY_NAME),
+        bind_address=str(args.balf_bind_address or DEFAULT_BALF_GATEWAY_BIND_ADDRESS),
+        port=int(args.balf_port or DEFAULT_BALF_GATEWAY_PORT),
+        heartbeat_interval_sec=int(
+            args.balf_heartbeat_interval_sec
+            or DEFAULT_BALF_GATEWAY_HEARTBEAT_INTERVAL_SEC
+        ),
+        heartbeat_timeout_sec=int(
+            args.balf_heartbeat_timeout_sec
+            or DEFAULT_BALF_GATEWAY_HEARTBEAT_TIMEOUT_SEC
+        ),
+        idle_timeout_sec=int(
+            args.balf_idle_timeout_sec or DEFAULT_BALF_GATEWAY_IDLE_TIMEOUT_SEC
+        ),
+        auth_timeout_sec=int(
+            args.balf_auth_timeout_sec or DEFAULT_BALF_GATEWAY_AUTH_TIMEOUT_SEC
+        ),
+        max_connections=int(
+            args.balf_max_connections or DEFAULT_BALF_GATEWAY_MAX_CONNECTIONS
+        ),
+        max_client_queue=int(
+            args.balf_max_client_queue or DEFAULT_BALF_GATEWAY_MAX_CLIENT_QUEUE
+        ),
+        max_messages_per_second=int(
+            args.balf_max_messages_per_second
+            or DEFAULT_BALF_GATEWAY_MAX_MESSAGES_PER_SECOND
+        ),
+        max_errors_before_disconnect=int(
+            args.balf_max_errors_before_disconnect
+            or DEFAULT_BALF_GATEWAY_MAX_ERRORS_BEFORE_DISCONNECT
+        ),
+        error_window_sec=int(
+            args.balf_error_window_sec or DEFAULT_BALF_GATEWAY_ERROR_WINDOW_SEC
+        ),
+        duplicate_session_policy=str(
+            args.balf_duplicate_session_policy
+            or DEFAULT_BALF_GATEWAY_DUPLICATE_SESSION_POLICY
+        ),
+    )
+
+
 def _build_api_gateway_specs(
     args: argparse.Namespace,
     gateways: list[GatewaySpec],
@@ -916,6 +1030,7 @@ def main() -> None:
             outstanding_shares=outstanding_shares,
             post_trade_gateway=_build_post_trade_gateway_spec(args),
             market_data_gateway=_build_market_data_gateway_spec(args),
+            balf_gateway=_build_balf_gateway_spec(args),
             api_gateways=_build_api_gateway_specs(args, gateways),
             indices=indices,
         )

@@ -269,6 +269,25 @@ Market-data gateway options:
 | `--market-data-max-symbols-per-client`             | int (`> 0`) | `200`                       | `market_data_gateway.max_symbols_per_client`               |
 | `--market-data-max-client-queue`                   | int (`> 0`) | `10000`                     | `market_data_gateway.max_client_queue`                     |
 
+BALF gateway options:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--balf-gateway` | Flag | off | Emit top-level `balf_gateway` block for `pm-balf-gwy` |
+| `--balf-name` | string | `balf-gwy01` | `balf_gateway.name` |
+| `--balf-bind-address` | string | `0.0.0.0` | `balf_gateway.bind_address` |
+| `--balf-port` | int (`> 0`) | `5560` | `balf_gateway.port` |
+| `--balf-heartbeat-interval-sec` | int (`> 0`) | `1` | `balf_gateway.heartbeat_interval_sec` |
+| `--balf-heartbeat-timeout-sec` | int (`> 0`) | `5` | `balf_gateway.heartbeat_timeout_sec` |
+| `--balf-idle-timeout-sec` | int (`> 0`) | `30` | `balf_gateway.idle_timeout_sec` |
+| `--balf-auth-timeout-sec` | int (`> 0`) | `10` | `balf_gateway.auth_timeout_sec` |
+| `--balf-max-connections` | int (`> 0`) | `64` | `balf_gateway.max_connections` |
+| `--balf-max-client-queue` | int (`> 0`) | `10000` | `balf_gateway.max_client_queue` |
+| `--balf-max-messages-per-second` | int (`> 0`) | `100` | `balf_gateway.max_messages_per_second` |
+| `--balf-max-errors-before-disconnect` | int (`> 0`) | `10` | `balf_gateway.max_errors_before_disconnect` |
+| `--balf-error-window-sec` | int (`> 0`) | `60` | `balf_gateway.error_window_sec` |
+| `--balf-duplicate-session-policy` | enum | `REJECT_NEW` | `balf_gateway.duplicate_session_policy`; `REJECT_NEW` or `EVICT_OLD` |
+
 API gateway options:
 
 | Option | Type | Default | Description |
@@ -586,6 +605,40 @@ of `pm-api-gateway`.
 For multiple generated processes, start a specific named entry with
 `pm-api-gateway --config engine_config.yaml --instance NAME`.
 
+BALF gateway config with explicit settings:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT \
+  --gateways TRADER01 TRADER02 \
+  --outstanding-shares AAPL:15400000000 \
+  --outstanding-shares MSFT:7430000000 \
+  --balf-gateway \
+  --balf-bind-address 127.0.0.1 \
+  --balf-port 5560 \
+  --balf-duplicate-session-policy EVICT_OLD \
+  --output engine_config.yaml
+```
+
+Expected emitted section:
+
+```yaml
+balf_gateway:
+  name: balf-gwy01
+  bind_address: 127.0.0.1
+  port: 5560
+  heartbeat_interval_sec: 1
+  heartbeat_timeout_sec: 5
+  idle_timeout_sec: 30
+  auth_timeout_sec: 10
+  max_connections: 64
+  max_client_queue: 10000
+  max_messages_per_second: 100
+  max_errors_before_disconnect: 10
+  error_window_sec: 60
+  duplicate_session_policy: EVICT_OLD
+```
+
 Index calculation config with `pm-index`:
 
 ```bash
@@ -656,6 +709,7 @@ The current parser recognizes these top-level keys:
 | `schedule`                 |                         No | Scheduler, parsed by engine too | Session transition times                                                  |
 | `post_trade_gateway`       |                         No | `pm-ralf-gwy`                   | External RALF dissemination gateway settings                              |
 | `market_data_gateway`      |                         No | `pm-md-gwy`                     | External CALF dissemination gateway settings                              |
+| `balf_gateway`             |                         No | `pm-balf-gwy`                   | External BALF binary TCP gateway settings                                 |
 | `api_gateways`             |                         No | `pm-api-gateway`                | Named REST/WebSocket order-entry and market-data gateway process settings |
 | `indices`                  |                         No | `pm-index`                      | Index calculation process configurations                                  |
 
@@ -737,6 +791,56 @@ subscribers. In the current implementation:
 If you prefer to generate this block instead of writing it by hand,
 `pm-config-gen` can emit it with `--market-data-gateway` and optional
 `--market-data-*` overrides.
+
+
+## Configuring `pm-balf-gwy`
+
+`pm-balf-gwy` reads an optional top-level `balf_gateway` block from the same
+`engine_config.yaml` file used by the engine.  This block is not consumed by
+`pm-engine`; it is consumed by the BALF binary TCP gateway process.
+
+Gateway identities and disconnect behaviour are read from the existing
+`gateways.alf` list — no separate credentials block is needed.
+
+Minimal example:
+
+```yaml
+balf_gateway:
+  name: balf-gwy01
+  bind_address: 0.0.0.0
+  port: 5560
+  heartbeat_interval_sec: 1
+  heartbeat_timeout_sec: 5
+  idle_timeout_sec: 30
+  auth_timeout_sec: 10
+  max_connections: 64
+  max_client_queue: 10000
+  max_messages_per_second: 100
+  max_errors_before_disconnect: 10
+  error_window_sec: 60
+  duplicate_session_policy: REJECT_NEW
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `name` | `balf-gwy01` | Gateway name echoed in the `LOGON_ACK` message field |
+| `bind_address` | `0.0.0.0` | TCP listen interface (`127.0.0.1` for loopback-only) |
+| `port` | `5560` | TCP listen port |
+| `heartbeat_interval_sec` | `1` | Seconds between server-initiated `HEARTBEAT` frames when no other outbound traffic |
+| `heartbeat_timeout_sec` | `5` | Disconnect session if no inbound traffic arrives within this window |
+| `idle_timeout_sec` | `30` | Additional idle-session cleanup guard |
+| `auth_timeout_sec` | `10` | Hard-close unauthenticated connections if `LOGON` is not completed within this window |
+| `max_connections` | `64` | Maximum simultaneous TCP connections |
+| `max_client_queue` | `10000` | Per-client outbound frame buffer depth before `SLOW_CLIENT` disconnect |
+| `max_messages_per_second` | `100` | Token-bucket inbound rate limit per client |
+| `max_errors_before_disconnect` | `10` | Error threshold in the sliding `error_window_sec` before forced disconnect |
+| `error_window_sec` | `60` | Sliding window length (seconds) for the error counter |
+| `duplicate_session_policy` | `REJECT_NEW` | What to do when a second `LOGON` arrives for an already-connected gateway ID: `REJECT_NEW` or `EVICT_OLD` |
+
+If you prefer to generate this block instead of writing it by hand,
+`pm-config-gen` can emit it with `--balf-gateway` and optional `--balf-*`
+overrides.  See [BALF TCP Gateway](25-balf-gateway.md) for the full
+client-facing documentation.
 
 
 ## Configuring `pm-api-gateway`
