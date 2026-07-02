@@ -170,7 +170,24 @@ Design a short automation script that:
 
 Use `ExchangeCommandClient` methods only (no manual prompt commands).
 
-:material-checkbox-blank-outline: **Checkpoint:** your script is deterministic, idempotent, and easy to rerun during drills.
+Acceptance criteria — your script passes if all of the following hold:
+
+- **Correct halt response**: the halt call returns a success/ack response for
+  the target symbol (not a generic exception or timeout).
+- **Book actually empties**: after the clear step, a book query for that
+  symbol shows zero resting orders on both sides before you resume it.
+- **Correct resume response**: the resume call returns success and a
+  subsequent `SYMBOL_STATUS`-style query (or equivalent client method) shows
+  the symbol back in a tradeable state.
+- **Idempotent rerun**: running the entire script a second time immediately
+  afterward produces the same end state (symbol active, book empty of the
+  orders your script itself cleared) without raising an error — halting an
+  already-halted symbol or clearing an already-empty book must not crash the
+  script.
+- **No orphaned state**: after the script finishes, no test order placed by
+  the script remains resting outside of what step 5 intentionally verifies.
+
+:material-checkbox-blank-outline: **Checkpoint:** your script is deterministic, idempotent, and easy to rerun during drills, and satisfies all five acceptance criteria above.
 
 ---
 
@@ -181,6 +198,13 @@ You now have advanced operational coverage for:
 - Programmatic admin orchestration with `ExchangeCommandClient`.
 - Repeatable incident-response style command sequencing.
 - Practical `pm-mm-bot` tuning for startup/bootstrap/reconciliation behavior.
+
+## Reflection
+
+Why does this chapter insist your automation scripts be idempotent (safe to
+rerun) rather than accepting "runs correctly once" as good enough? Think
+about an incident-response scenario at 3am — what goes wrong if an on-call
+engineer reruns a non-idempotent halt/clear/resume script by mistake?
 
 ## Further Reading
 

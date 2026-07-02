@@ -56,14 +56,32 @@ TRADER02> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=ATO
 When the scheduler transitions from OPENING_AUCTION → CONTINUOUS, all crossing
 orders match at the equilibrium price.
 
-Expected: fills at a single price that maximises traded volume. In this example
-the equilibrium price should be around 150.20–150.30 (the exact price depends on
-the algorithm; max-volume, then min-surplus rules apply).
+For the exact orders entered in Exercise 1, here is the full calculation
+(verified against `engine/auction.py`):
 
-What to observe: identify the one common execution price printed across all fill
-events. That repeated value is the equilibrium price selected by uncrossing.
+| Candidate price | Cumulative buy qty (bids ≥ price) | Cumulative sell qty (asks ≤ price) | Matched qty | Surplus |
+|---|---|---|---|---|
+| 149.80 | 500 (300+200) | 400 | **400** | 100 |
+| 150.20 | 500 | 400 | 400 | 100 |
+| 150.30 | 300 | 500 | 300 | 200 |
+| 150.50 | 300 | 500 | 300 | 200 |
 
-:material-checkbox-blank-outline: **Checkpoint:** all fills report the same execution price.
+Maximum matched quantity is 400, tied between 149.80 and 150.20 with equal
+surplus (100). The engine scans candidate prices from lowest to highest and
+only replaces the current best on a **strict** improvement, so the **first**
+price reached with the best (qty, surplus) pair wins. That means the
+equilibrium price here is **149.80** — the lower of the two tied prices —
+not a value in between.
+
+Expected: all fills print execution price `149.80`, for a total matched
+quantity of 400 shares.
+
+What to observe: identify the one common execution price printed across all
+fill events, and confirm it equals `149.80` and the total filled quantity
+equals `400` (300 from TRADER01's first order + 100 remaining from the
+second, against TRADER02's 400-share sell).
+
+:material-checkbox-blank-outline: **Checkpoint:** all fills report execution price `149.80` and matched quantity `400`.
 
 ---
 
@@ -116,13 +134,25 @@ CONTINUOUS trading.
 
 ## Equilibrium Price Rules
 
-The auction algorithm selects the price that:
+The auction algorithm scans candidate prices from lowest to highest and
+selects the price that:
 
 1. **Maximises traded volume** — most shares can match.
 2. **Minimises surplus** — least shares left unexecuted at that price.
-3. **Nearest to reference** — if tied, closest to last traded price.
+3. **Ties resolved by scan order** — if multiple prices tie on both volume
+   and surplus, the engine keeps the first (lowest) one it found, since it
+   only replaces the current best on a strict improvement. There is no
+   separate "nearest to last trade" tie-break — the tie always resolves to
+   the lower of the tied candidate prices.
 
 ---
+
+## Reflection
+
+Why does an auction match all crossing orders at a single equilibrium price,
+instead of walking the book and filling each order at its own limit price
+(as CONTINUOUS trading does)? What problem would arise at the open if every
+order filled at its own price instead?
 
 ## Further Reading
 

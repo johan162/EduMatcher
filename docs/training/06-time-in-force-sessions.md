@@ -35,11 +35,10 @@ Different TIF values control when orders are active and when they expire.
 
 ## Exercise 1: Observe Session Phases
 
-Start the scheduler in manual mode (if supported) or watch the automatic
-transitions:
+Start the scheduler in rapid-fire mode to see all transitions quickly:
 
 ```bash
-pm-scheduler --immediate
+pm-scheduler --now
 ```
 
 From your gateway, observe session state notifications:
@@ -54,18 +53,56 @@ From your gateway, observe session state notifications:
 
 ---
 
+## Freeze/Advance Procedure (Deterministic Session Control)
+
+The exercises below need the exchange sitting in a **specific, known** phase
+before you place an order — otherwise a TIF exercise may pass or fail purely
+by timing luck. Instead of running `pm-scheduler` continuously, use the admin
+gateway to freeze on a phase and advance only when you are ready:
+
+1. Do **not** start `pm-scheduler --now` (which free-runs through all phases).
+   Start the engine and gateways as usual, but leave the scheduler stopped —
+   the session then stays in `PRE_OPEN` until told otherwise.
+2. From the admin gateway, force the exact phase you need for the next
+   exercise:
+
+   ```
+   ADMIN01> SESSION|STATE=CONTINUOUS
+   ```
+
+3. Confirm the change took effect with:
+
+   ```
+   ADMIN01> SESSION_STATUS
+   ```
+
+4. Run the TIF exercise's orders while frozen in that phase.
+5. When the exercise calls for a transition (e.g., DAY expiry at `CLOSED`,
+   or `ATO`/`ATC` at auction phases), advance deliberately:
+
+   ```
+   ADMIN01> SESSION|STATE=CLOSING_AUCTION
+   ADMIN01> SESSION|STATE=CLOSED
+   ```
+
+Using `SESSION|STATE=` this way means each exercise below runs in a
+reproducible phase instead of racing a free-running scheduler.
+
+---
+
 ## Exercise 2: DAY Order Expiry
 
-During CONTINUOUS, place a DAY order:
+During CONTINUOUS (freeze there with `SESSION|STATE=CONTINUOUS` per the
+procedure above), place a DAY order:
 
 ```
 TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=148.00|TIF=DAY
 ```
 
-When the session transitions to CLOSED, the order is automatically cancelled.
+When you advance the session to CLOSED (`SESSION|STATE=CLOSED`), the order is
+automatically cancelled.
 
-If your scheduler moves through phases quickly, watch for the cancellation
-message.
+Watch for the cancellation message right after you issue the transition.
 
 Operational note: DAY is best for intraday intent where stale overnight orders
 must not persist.
@@ -94,7 +131,8 @@ explicitly cancelled.
 
 ## Exercise 4: ATO Order
 
-During PRE_OPEN (before the opening auction), place an At-The-Open order:
+Freeze in PRE_OPEN (`ADMIN01> SESSION|STATE=PRE_OPEN`), then place an
+At-The-Open order:
 
 ```
 TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=150.50|TIF=ATO
@@ -147,6 +185,12 @@ OPENING_AUCTION phase.
 | CLOSED | — | DAY, ATC (unfilled) |
 
 ---
+
+## Reflection
+
+Why does GTC survive every phase transition while DAY does not? If you were
+running an overnight risk desk, what would go wrong if all your hedge orders
+were accidentally submitted as DAY instead of GTC?
 
 ## Further Reading
 

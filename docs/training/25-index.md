@@ -173,10 +173,11 @@ The `INDEX` command works from any gateway role (TRADER, ADMIN, or read-only).
 
 ## Exercise 4: Watch the Index Move
 
-Start the engine session and execute a few trades:
+Move the session into `CONTINUOUS` (if the scheduler hasn't already done so)
+and execute a few trades:
 
 ```
-OPS01> SESSION|ACTION=START
+OPS01> SESSION|STATE=CONTINUOUS
 TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=500
 TRADER01> NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=300
 TRADER01> NEW|SYM=TSLA|SIDE=SELL|TYPE=MARKET|QTY=200
@@ -231,16 +232,23 @@ the divisor was adjusted in the history file:
 grep CORP_ACTION data/indexes/EDU100_history.jsonl | python3 -m json.tool
 ```
 
-You should see `old_divisor` and `new_divisor` in the record, with
-`new_divisor` approximately half of `old_divisor` (AAPL's share count doubled,
-so the aggregate cap doubled, so the divisor was adjusted upward to match).
+You should see `old_divisor` and `new_divisor` in the record, and the two
+values should be **approximately equal** (differing only by integer-rounding
+of the new share count). This is expected: a split doubles AAPL's outstanding
+shares *and* halves AAPL's price, so AAPL's contribution to the aggregate cap
+(`shares × price`) is unchanged — no divisor adjustment is needed to keep the
+index level continuous. Contrast this with `ADD`/`DELIST` (Exercise 7), where
+the aggregate cap genuinely changes and the divisor must move to compensate.
 
 !!! important "Apply during PRE_OPEN"
     Applying a corporate action mid-session means one more trade at the old
     price may be processed before the divisor update. Best practice is to apply
     all corporate actions during `PRE_OPEN`.
 
-:material-checkbox-blank-outline: **Checkpoint:** index level unchanged after split; `CORP_ACTION` record written to history.
+:material-checkbox-blank-outline: **Checkpoint:** compare the `level` field of the `CORP_ACTION`
+record to the `INDEX` reading you took just before applying the split — the
+absolute difference should be at most a few cents (rounding only), never a
+~50% jump. `CORP_ACTION` record confirmed written to history.
 
 ---
 
@@ -499,6 +507,14 @@ Returns records within the specified date range, newest last.
 | CSV export | `pm-index-cli --config … eod --format csv > out.csv` |
 
 ---
+
+## Reflection
+
+Why does a stock split leave the index divisor roughly unchanged while a
+cash dividend or shares issuance actually changes it? What would happen to
+the index's continuity (its "don't jump on non-economic events" property) if
+the divisor were recalculated the same way for all four corporate action
+types?
 
 ## See Also
 

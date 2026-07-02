@@ -161,6 +161,12 @@ mid if the trade moved the reference price).
 - **Partial fills** leave the remainder resting.
 - **Order IDs** are used for AMEND and CANCEL operations.
 
+## Reflection
+
+Why does a MARKET order carry no `PRICE` field at all, while a LIMIT order
+requires one? What risk would a MARKET order expose you to in a thin book
+that a LIMIT order would protect you from?
+
 ## Further Reading
 
 - [Your First Trade](../concepts/04-concepts-first-trade.md)

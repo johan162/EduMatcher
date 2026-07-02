@@ -111,6 +111,21 @@ Operational implication:
 
 - Downstream clients cannot request historical replay over ZMQ yet.
 
+!!! note "Current workaround vs. a future replay API"
+    **Today:** if a subscriber detects a sequence gap, it must reconstruct
+    lost events itself — cross-referencing `pm-audit`'s append-only log and
+    `pm-stats-cli` trade history (Exercise 4), because there is no message it
+    can send back to the engine asking "resend events N through M".
+
+    **If/when an external replay-request handler is added:** a subscriber
+    would instead publish a request (e.g. on a `drop_copy.replay.<recipient_id>`
+    topic) naming the missing sequence range, and the engine would push just
+    those events back — removing the need to reconstruct history from audit
+    logs and stats queries. The recovery workflow in Exercise 4 is the
+    practical stand-in for that capability until it exists; the underlying
+    goal (resume with no lost events) is the same either way, only the
+    mechanism differs.
+
 :material-checkbox-blank-outline: **Checkpoint:** you can state the exact replay limitation and its impact on downstream consumers.
 
 ---
@@ -154,6 +169,13 @@ You now understand practical drop-copy reliability operations in EduMatcher:
 - How to detect stream loss using `seq`.
 - Why external replay is currently limited.
 - How to run a safe recovery pattern using available tooling.
+
+## Reflection
+
+Why does the drop-copy feed number every event with a monotonic `seq`
+instead of relying on subscribers to just count messages received? What
+silent failure mode would go undetected if `seq` didn't exist and a
+subscriber's socket briefly dropped messages?
 
 ## Further Reading
 

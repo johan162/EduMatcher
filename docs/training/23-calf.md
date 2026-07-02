@@ -258,6 +258,21 @@ You have now covered major CALF protocol usage patterns:
 - recovering with RESUME=1/LASTSEQ semantics
 - diagnosing protocol errors operationally
 
+## Reflection
+
+You have now used both RALF (Chapter 22, post-trade dissemination:
+CLEARING/DROP_COPY/AUDIT roles) and CALF (this chapter, market-data
+dissemination: TOP/TRADE/state channels). Before moving on, answer this
+synthesis question:
+
+If you were building a downstream system, which protocol would you consume
+and why — a **risk system that needs to know every fill as it happens**, a
+**market-data terminal displaying live top-of-book**, and a **compliance
+archive that reconstructs the day's activity after the fact**? For each of
+those three consumers, state whether it needs RALF, CALF, or both, and
+justify your answer using what each protocol actually carries (trade/clearing
+events vs. price/quote state) rather than just their names.
+
 ## Further Reading
 
 - [Market Data Feed (CALF)](../user-guide/20-market-data-feed.md)

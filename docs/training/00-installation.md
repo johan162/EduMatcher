@@ -66,7 +66,7 @@ multipass version
 Run the curl bootstrap script (pinned to this release):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.12.4 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.12.5 --snapshot
 ```
 
 This command will:
@@ -81,7 +81,7 @@ This command will:
     ```bash
     curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh -o curl_setup_vm.sh
     less curl_setup_vm.sh
-    bash curl_setup_vm.sh --version 0.12.4 --snapshot
+    bash curl_setup_vm.sh --version 0.12.5 --snapshot
     ```
 
 ### Step 3: Enter the VM and verify commands
@@ -271,6 +271,25 @@ You now have:
 - A data directory for persistent state.
 - Environment variables configured.
 - A sample `engine_config.yaml` ready for customisation.
+
+## Before You Continue
+
+Confirm every item before starting Chapter 01 — each one is a prerequisite
+that chapter assumes without re-explaining:
+
+- [ ] `engine_config.yaml` exists in your working directory (`ls engine_config.yaml`).
+- [ ] `EDUMATCHER_DATA_DIR` and `EDUMATCHER_CONFIG` are set **in the shell you
+      will use for the next chapter** (`echo $EDUMATCHER_DATA_DIR`) — these do
+      not persist across new terminal windows unless added to your shell profile.
+- [ ] `pm-engine --version` and `pm-engine --help` both resolve without a
+      `command not found` error in that same shell.
+
+## Reflection
+
+Why does the training guide have you set `EDUMATCHER_DATA_DIR` explicitly in
+Exercise 3 rather than always accepting a compiled-in default? What would
+break in Chapter 16 (Persistence & Recovery) if two different terminal
+sessions ended up pointing at two different data directories?
 
 ## Further Reading
 

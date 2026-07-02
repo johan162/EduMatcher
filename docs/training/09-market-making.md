@@ -202,6 +202,14 @@ QBOOT SYM=AAPL active=false
 
 ---
 
+## Reflection
+
+Why does the engine tie the bid and ask legs of a quote together with a
+`quote_id` at all, rather than treating a market maker's two orders as
+completely independent? What could go wrong for a market maker's risk
+exposure if one leg filled and the sibling stayed resting under a
+`NEVER_INACTIVATE` policy?
+
 ## Further Reading
 
 - [Market Making](../user-guide/14-market-maker.md)

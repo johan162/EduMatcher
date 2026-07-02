@@ -17,8 +17,10 @@ trade history for analysis and reporting.
 ## Background
 
 `pm-stats` subscribes to trade and book events and records them in a SQLite
-database (`data/stats.db`). The `pm-stats-cli` tool lets you query this data
-without writing SQL.
+database at `$EDUMATCHER_DATA_DIR/stats.db` (this resolves relative to
+whatever data directory you configured in Chapter 00 — it is **not** a fixed
+`data/stats.db` path in the current working directory). The `pm-stats-cli`
+tool lets you query this data without writing SQL.
 
 ---
 
@@ -28,13 +30,27 @@ without writing SQL.
 pm-stats
 ```
 
-Expected:
+Expected (the exact path shown reflects your `EDUMATCHER_DATA_DIR`):
 
 ```
-[INFO] Stats service connected — recording to data/stats.db
+[INFO] Stats service connected — recording to <EDUMATCHER_DATA_DIR>/stats.db
 ```
 
-:material-checkbox-blank-outline: **Checkpoint:** stats service running and recording.
+To confirm the active path with a stable command rather than trusting the
+log line, run:
+
+```bash
+pm-stats --help
+```
+
+and check the default shown for `--db`, or simply verify the file exists
+after the next exercise:
+
+```bash
+ls -la "$EDUMATCHER_DATA_DIR/stats.db"
+```
+
+:material-checkbox-blank-outline: **Checkpoint:** stats service running and `$EDUMATCHER_DATA_DIR/stats.db` exists.
 
 ---
 
@@ -150,6 +166,13 @@ You can now:
 - Generate realistic flow with AI traders.
 - Record and query statistics.
 
+## Reflection
+
+Why does `pm-stats` need its own subscriber process and SQLite database
+instead of the engine writing OHLCV/VWAP data directly? What would happen to
+engine performance or reliability if it had to compute and serve statistics
+queries itself, in-process, for every connected client?
+
 ## Further Reading
 
 - [Statistics and Reporting](../user-guide/16-statistics-and-reporting.md)
@@ -158,3 +181,7 @@ You can now:
 - [Market Data Feed](../concepts/06-concepts-market-data-feed.md)
 
 **Next:** [16 — Persistence & Recovery](16-persistence-recovery.md)
+
+For a fuller hands-on tour of every viewer and observer process (including
+`pm-stats` alongside `pm-viewer`, `pm-orders`, `pm-audit`, and `pm-board`),
+see [18 — Exchange Observer Processes](18-exchange-observer-processes.md).

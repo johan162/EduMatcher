@@ -267,6 +267,49 @@ Expected behavior:
 
 ---
 
+## Exercise 8: Configure Multiple Logical API Gateways
+
+Generate two API gateway process configs, one for desk trading and one for
+algorithmic trading:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT \
+  --gateways TRADER01 ALGO01 OPS01:ADMIN \
+  --api-gateway-instance desk:TRADER01:8080 \
+  --api-gateway-instance algos:ALGO01:8081 \
+  --seed 20260624 \
+  --output engine_config.yaml
+```
+
+Start each named process in a separate terminal:
+
+```bash
+pm-api-gateway --config engine_config.yaml --instance desk
+pm-api-gateway --config engine_config.yaml --instance algos
+```
+
+Try an invalid duplicate assignment:
+
+```bash
+pm-config-gen \
+  --symbols AAPL \
+  --gateways TRADER01 \
+  --api-gateway-instance desk:TRADER01 \
+  --api-gateway-instance algos:TRADER01 \
+  --dry-run
+```
+
+Expected behavior:
+
+- `desk` listens on `8080` and owns `TRADER01`
+- `algos` listens on `8081` and owns `ALGO01`
+- duplicate non-null `gateway_id` assignment is rejected before runtime
+
+:material-checkbox-blank-outline: Checkpoint: you can run two API gateway processes and explain why a write-capable gateway ID is globally unique across them.
+
+---
+
 ## Exercise 9: Write a Python CLI Client for LIMIT Order Entry
 
 Use the `ApiGatewayClient` library from `docs/examples/REST/python` to write a
@@ -321,49 +364,6 @@ available at `docs/examples/REST/python/submit_market_order.py`.
 
 ---
 
-## Exercise 8: Configure Multiple Logical API Gateways
-
-Generate two API gateway process configs, one for desk trading and one for
-algorithmic trading:
-
-```bash
-pm-config-gen \
-  --symbols AAPL MSFT \
-  --gateways TRADER01 ALGO01 OPS01:ADMIN \
-  --api-gateway-instance desk:TRADER01:8080 \
-  --api-gateway-instance algos:ALGO01:8081 \
-  --seed 20260624 \
-  --output engine_config.yaml
-```
-
-Start each named process in a separate terminal:
-
-```bash
-pm-api-gateway --config engine_config.yaml --instance desk
-pm-api-gateway --config engine_config.yaml --instance algos
-```
-
-Try an invalid duplicate assignment:
-
-```bash
-pm-config-gen \
-  --symbols AAPL \
-  --gateways TRADER01 \
-  --api-gateway-instance desk:TRADER01 \
-  --api-gateway-instance algos:TRADER01 \
-  --dry-run
-```
-
-Expected behavior:
-
-- `desk` listens on `8080` and owns `TRADER01`
-- `algos` listens on `8081` and owns `ALGO01`
-- duplicate non-null `gateway_id` assignment is rejected before runtime
-
-:material-checkbox-blank-outline: Checkpoint: you can run two API gateway processes and explain why a write-capable gateway ID is globally unique across them.
-
----
-
 ## Support Libraries and Example Clients
 
 Reference examples used in this training chapter:
@@ -373,3 +373,29 @@ Reference examples used in this training chapter:
 
 Use these examples as small integration clients when building course labs,
 smoke tests, or external adapter prototypes.
+
+---
+
+## Summary
+
+You can now:
+
+- Generate one or more `api_gateways` process configs with trading and
+  read-only bearer credentials.
+- Start and reach `pm-api-gateway` over REST, Swagger, and WebSocket.
+- Submit, cancel, and observe orders through REST and private WebSocket events.
+- Explain why a write-capable ALF `gateway_id` must be unique across every
+  configured `api_gateways` process.
+
+## Reflection
+
+If two API gateway processes both listed the same `gateway_id` as a
+read-only (`gateway_id: null`) credential, would that be a problem? Why does
+the constraint only apply to non-null `gateway_id` values?
+
+## Handoff for Chapter 25
+
+Before starting [25 — Market Index (pm-index)](25-index.md), you can stop
+`pm-api-gateway`; it is not required there. Keep `pm-engine` and `pm-stats`
+running if you want to reuse the same session, or start fresh — Chapter 25
+generates its own config with `pm-config-gen`.

@@ -77,11 +77,13 @@ for every match. They are required for realistic risk control and add measurable
 Main documentation site [EduMatcher Documentation](https://johan162.github.io/EduMatcher/) that among other things includes:
 
 - **[How an Exchange Works](https://johan162.github.io/EduMatcher/how-exchange-works/)**: a primer on exchange mechanics and market microstructure concepts aimed at software developers with no prior financial experience
-- **[Exchange Concepts](https://johan162.github.io/EduMatcher/how-exchange-works/)**: deep dive in core technical concept of an exchange
+- **[Exchange Concepts](https://johan162.github.io/EduMatcher/concepts/01-concepts-order-book/)**: deep dive in core technical concept of an exchange
 - **[User Guide](https://johan162.github.io/EduMatcher/user-guide/00-getting-started/)**: step-by-step instructions for installation, configuration, and running EduMatcher
 - **[Training Material](https://johan162.github.io/EduMatcher/training/)**: self-paced exercises to learn how to setup and manage the Exchange
 - **[Architecture](https://johan162.github.io/EduMatcher/architecture/01-architecture/)**: an overview of the SW architecture
 - **[Developer Guide](https://johan162.github.io/EduMatcher/developer/01-dev-practice/)**: deep dive into the architecture, design decisions, and code structure. Necessary reading for anyone wanting to contribute!
+- **[Glossary](https://johan162.github.io/EduMatcher/glossary/)**: the finance world uses lot of specialized terms, this glossary lists the most important with an explanation
+
 
 ## Installing
 
@@ -100,7 +102,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/EduMatcher},
-  version = {0.12.4}
+  version = {0.12.5}
 }
 ```
 

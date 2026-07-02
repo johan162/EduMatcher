@@ -155,9 +155,18 @@ pm-mm-bot --symbol MSFT --gap 0.20 --qty 300
 pm-mm-bot --symbol TSLA --gap 0.50 --qty 200
 ```
 
-The bot will connect as `MM_<SYMBOL>_01`, quote around the current mid-price,
-reissue after fills, and use `QBOOT`/`QLEGS`-style state to avoid startup
-deadlocks and reconcile quote legs.
+The bot connects using the gateway ID `MM_<SYMBOL>_<id-suffix>` (default
+suffix `01`), quotes around the current mid-price, reissues after fills, and
+uses `QBOOT`/`QLEGS`-style state to avoid startup deadlocks and reconcile
+quote legs.
+
+!!! warning "Gateway ID must already exist in your config"
+    `pm-mm-bot` does not create a gateway — it connects under the ID it
+    computes (`MM_AAPL_01`, `MM_MSFT_01`, `MM_TSLA_01` by default) and expects
+    that ID to already be present in `engine_config.yaml` from Exercise 1. If
+    your config used different gateway IDs, either rename them to match this
+    pattern or pass `--id-suffix` to the bot so the computed ID lines up. A
+    mismatch here causes the engine to reject the bot's connection.
 
 Quick primer:
 
@@ -180,6 +189,13 @@ You now have:
 - Manual `QUOTE` liquidity in AAPL, MSFT, and TSLA.
 - Familiarity with `QLEGS` as the quote-leg inspection tool.
 - A clear picture of what `pm-mm-bot` automates.
+
+## Reflection
+
+If no market maker were quoting a symbol, what would happen to a marketable
+order sent by a regular trader in Chapter 03? Why does the training guide
+insist you set up liquidity *before* any trading exercises rather than
+letting students discover an empty book on their own?
 
 ## Further Reading
 

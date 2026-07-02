@@ -24,31 +24,51 @@ the danger of only one side of a spread filling.
 
 ## Exercise 1: Simple Two-Leg Combo
 
-Buy AAPL and sell MSFT atomically:
+To see the combo **fill atomically**, first guarantee liquidity on both legs
+with explicit counter-orders (don't rely on ambient MM quotes, which may not
+be at the exact combo prices):
+
+```
+TRADER02> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.10|TIF=DAY
+TRADER02> NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=420.50|TIF=DAY
+```
+
+Now submit the combo — buy AAPL and sell MSFT atomically:
 
 ```
 TRADER01> NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.10|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
 ```
 
-The engine tries to match both legs simultaneously. If both sides have
-sufficient liquidity, you get fills on both. Otherwise the combo rests.
+Because both counter-orders above match the combo's leg prices exactly, the
+engine can fill both legs simultaneously.
 
-:material-checkbox-blank-outline: **Checkpoint:** combo acknowledged; fills or rests as a unit.
+:material-checkbox-blank-outline: **Checkpoint:** combo acknowledged; both legs fill in the same event (check `BOOK|SYM=AAPL` and `BOOK|SYM=MSFT` for matching fill reports).
 
 Observation: atomic behavior is what removes leg risk. You should never see one
 leg fill without the other in a valid combo execution.
 
 ---
 
-## Exercise 2: Verify Atomic Behaviour
+## Exercise 2: Verify Atomic Behaviour (Resting Case)
 
-Check that you cannot get a partial combo (one leg filled, other not):
+Now check that you cannot get a partial combo (one leg filled, other not) when
+liquidity is missing on **one** leg:
 
-1. Set up a book where only AAPL has liquidity but MSFT does not have a bid
-   at 420.50.
-2. Submit the combo — it should rest (not fill AAPL alone).
+1. Confirm AAPL has a resting sell at 150.10 (from Exercise 1, or place a new
+   one: `TRADER02> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.10|TIF=DAY`).
+2. Do **not** place any MSFT buy at 420.50 — cancel or avoid resting MSFT
+   liquidity at that price so the second leg has nothing to match against.
+3. Submit a new combo with a fresh ID:
 
-:material-checkbox-blank-outline: **Checkpoint:** combo does not partially fill.
+   ```
+   TRADER01> NEW|TYPE=COMBO|COMBO_ID=PAIR-002|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=AAPL|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=150.10|LEG1.SYM=MSFT|LEG1.SIDE=SELL|LEG1.QTY=50|LEG1.PRICE=420.50
+   ```
+
+4. It should rest in full — check `BOOK|SYM=AAPL` and confirm the AAPL sell at
+   150.10 is **still resting, unfilled**, proving the combo did not execute
+   the AAPL leg alone even though a matching counter-order existed for it.
+
+:material-checkbox-blank-outline: **Checkpoint:** combo does not partially fill; AAPL counter-order remains untouched.
 
 Operational rationale: without atomicity, you could end up with accidental
 directional inventory from only one leg filling.
@@ -58,7 +78,7 @@ directional inventory from only one leg filling.
 ## Exercise 3: Cancel a Resting Combo
 
 ```
-TRADER01> CANCEL|COMBO_ID=PAIR-001
+TRADER01> CANCEL|COMBO_ID=PAIR-002
 ```
 
 All legs are cancelled together.
@@ -108,6 +128,13 @@ If price drops to 149.00 (stop triggers and fills), the limit sell is cancelled.
 | Multiple entries at different prices (only want one) | OCO |
 
 ---
+
+## Reflection
+
+Why is a Combo's atomicity a *guarantee* while an OCO's "one cancels other"
+is a *reaction* to the first fill? Could an OCO ever leave you exposed for a
+brief moment that a Combo would not — and why does that difference matter for
+a pairs trade versus a take-profit/stop-loss pair?
 
 ## Further Reading
 
