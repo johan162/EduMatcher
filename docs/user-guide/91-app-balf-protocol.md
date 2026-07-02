@@ -646,3 +646,15 @@ If you are writing another BALF client, the most important exact behaviors are:
 9. Heartbeats are bidirectional and use their own fixed 8-byte body.
 10. The gateway generates the final engine mapping; clients do not send UUIDs.
 11. The protocol uses little-endian byte order for all multi-byte numeric fields.
+
+
+
+## See also
+
+- [BALF TCP Gateway](25-balf-gateway.md) — operational user guide: setup,
+  configuration, session lifecycle, Python client example, and troubleshooting
+- [ALF TCP Gateway](24-alf-gateway.md) — text-protocol alternative when binary
+  parsing is not required
+- [Configuration](01-configuration.md) — `balf_gateway:` section reference
+- [External Protocols Overview](19-protocol-overview.md) — protocol comparison
+  and selection guide
