@@ -1972,6 +1972,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#deterministic-trigger-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deterministic Trigger Setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#exercise-1-stop-order" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2042,6 +2053,17 @@
     <span class="md-ellipsis">
       
         Order Type Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reflection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reflection
       
     </span>
   </a>
@@ -3038,61 +3060,89 @@ IOC, ICEBERG, and TRAILING_STOP — through practical exercises.</p>
 <li>At least one trader gateway connected with active MM liquidity.</li>
 </ul>
 <hr />
+<h2 id="deterministic-trigger-setup">Deterministic Trigger Setup<a class="headerlink" href="#deterministic-trigger-setup" title="Permanent link">&para;</a></h2>
+<p>Stop and stop-limit orders only trigger when the market actually trades
+through their trigger price. Vague instructions like "sell aggressively" can
+leave the trigger price behind by chance rather than by design. Use this
+procedure before each stop exercise so the trigger is guaranteed:</p>
+<ol>
+<li>Check the current best bid/offer with <code>BOOK|SYM=AAPL</code> from any gateway.</li>
+<li>Set your stop's <code>STOP</code> price <strong>inside</strong> the current spread, close to (but
+   not past) the best bid — for example, if the best bid is 149.80, use
+   <code>STOP=149.50</code> so it will not trigger immediately but is easy to reach.</li>
+<li>Place the stop order (Exercise 1/2 below).</li>
+<li>From <code>TRADER02</code>, place a <strong>marketable limit sell</strong> priced below your stop
+   trigger, sized to exceed available resting bids down to that level, e.g.:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>TRADER02&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=500|PRICE=149.00|TIF=DAY
+</code></pre></div>
+<p>This guarantees the trade prints at or below 149.50, deterministically
+   triggering your stop — rather than hoping an "aggressive" sell happens to
+   cross it.
+5. Re-check <code>BOOK|SYM=AAPL</code> to confirm the last trade price is at/below your
+   stop level before concluding the exercise.</p>
+<hr />
 <h2 id="exercise-1-stop-order">Exercise 1: Stop Order<a class="headerlink" href="#exercise-1-stop-order" title="Permanent link">&para;</a></h2>
 <p>A stop order becomes a market order when the trigger price is reached.</p>
 <p>Place a stop-sell (protect a long position if price drops):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP|QTY=100|STOP=149.50|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP|QTY=100|STOP=149.50|TIF=DAY
 </code></pre></div>
 <p>The order is dormant until AAPL trades at or below 149.50. Once triggered, it
 executes as a market order.</p>
 <p>Interpretation: 149.50 is the <strong>trigger</strong> level, not a guaranteed execution
 price.</p>
-<p>To test: from TRADER02, sell aggressively to push the price down past the stop.</p>
+<p>To test, follow the <strong>Deterministic Trigger Setup</strong> above: from TRADER02,
+place a marketable sell priced below 149.50 to force a trade through the
+trigger level.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> stop order triggered and filled after price drop.</p>
 <hr />
 <h2 id="exercise-2-stop-limit-order">Exercise 2: Stop-Limit Order<a class="headerlink" href="#exercise-2-stop-limit-order" title="Permanent link">&para;</a></h2>
 <p>Like a stop, but becomes a limit order (not market) when triggered:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP_LIMIT|QTY=100|STOP=149.50|PRICE=149.40|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=STOP_LIMIT|QTY=100|STOP=149.50|PRICE=149.40|TIF=DAY
 </code></pre></div>
 <p>When the stop triggers at 149.50, a limit sell at 149.40 is placed. If the
 market gaps below 149.40, the order may not fill (unlike a plain stop).</p>
 <p>Interpretation: <code>STOP=149.50</code> controls <strong>when</strong> the order is activated, while
 <code>PRICE=149.40</code> controls the <strong>worst acceptable execution price</strong> after trigger.</p>
+<p>Use the same <strong>Deterministic Trigger Setup</strong> procedure to force the trigger.
+To specifically observe the "gaps below and doesn't fill" case, set your
+TRADER02 counter-sell price below <code>PRICE=149.40</code> (e.g. <code>PRICE=149.00</code>) so the
+book trades through both the stop and the limit level.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> stop-limit triggers and rests as a limit order.</p>
 <hr />
 <h2 id="exercise-3-fill-or-kill-fok">Exercise 3: Fill-or-Kill (FOK)<a class="headerlink" href="#exercise-3-fill-or-kill-fok" title="Permanent link">&para;</a></h2>
 <p>FOK demands the entire quantity in a single fill or cancels:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=FOK|QTY=1000|PRICE=150.10
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=FOK|QTY=1000|PRICE=150.10
 </code></pre></div>
 <p>If the ask side doesn't have 1000 shares at or below 150.10, the order is
 immediately cancelled.</p>
 <p>Try with a smaller qty that the MM can fill:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=FOK|QTY=100|PRICE=150.10
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=FOK|QTY=100|PRICE=150.10
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> large FOK cancelled; small FOK filled.</p>
 <hr />
 <h2 id="exercise-4-immediate-or-cancel-ioc">Exercise 4: Immediate-or-Cancel (IOC)<a class="headerlink" href="#exercise-4-immediate-or-cancel-ioc" title="Permanent link">&para;</a></h2>
 <p>IOC fills as much as possible immediately, then cancels the rest:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>TRADER01&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=IOC|QTY=1000|PRICE=420.20
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>TRADER01&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=IOC|QTY=1000|PRICE=420.20
 </code></pre></div>
 <p>If only 300 are available at the ask, you get 300 filled and 700 cancelled.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> partial fill + cancellation of remainder.</p>
 <hr />
 <h2 id="exercise-5-iceberg-order">Exercise 5: Iceberg Order<a class="headerlink" href="#exercise-5-iceberg-order" title="Permanent link">&para;</a></h2>
 <p>An iceberg shows only a visible "peak" quantity while hiding the reserve:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>TRADER01&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=249.75|VISIBLE=100|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>TRADER01&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=ICEBERG|QTY=1000|PRICE=249.75|VISIBLE=100|TIF=DAY
 </code></pre></div>
 <p>The book shows only 100 visible. When those 100 fill, another 100 automatically
 appears until the full 1000 is done.</p>
 <p>Check the book:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>TRADER01&gt; BOOK|SYM=TSLA
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>TRADER01&gt; BOOK|SYM=TSLA
 </code></pre></div>
 <p>You should see a 100-lot bid, not 1000.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> only peak quantity visible in the book.</p>
 <hr />
 <h2 id="exercise-6-trailing-stop">Exercise 6: Trailing Stop<a class="headerlink" href="#exercise-6-trailing-stop" title="Permanent link">&para;</a></h2>
 <p>A trailing stop follows the market by a fixed offset:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=TRAILING_STOP|QTY=100|TRAIL=0.20|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=TRAILING_STOP|QTY=100|TRAIL=0.20|TIF=DAY
 </code></pre></div>
 <p>If AAPL rises to 150.50, the stop moves to 150.30 (150.50 − 0.20).
 If AAPL then falls to 150.30, the stop triggers and sells at market.</p>
@@ -3162,6 +3212,11 @@ you.</p>
 </tbody>
 </table>
 <hr />
+<h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
+<p>Why does STOP_LIMIT exist at all, given that a plain STOP order guarantees
+execution once triggered? What real trading scenario would make a trader
+prefer a STOP_LIMIT's "might not fill" risk over a STOP's "might fill at a
+bad price" risk?</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/04-order-types/">Order Types</a></li>

@@ -2580,6 +2580,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reflection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reflection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#further-reading" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3299,6 +3310,24 @@ integration testing.</p>
 <li>recovering with LASTSEQ replay semantics</li>
 <li>diagnosing protocol errors operationally</li>
 </ul>
+<h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
+<p>Compare the three roles you just used, from a recovery-priorities standpoint:</p>
+<ul>
+<li><strong>CLEARING</strong>: consumes trade/settlement events. A gap here directly risks
+  incorrect positions or P&amp;L — what makes this role the least tolerant of
+  missed messages, and how does LASTSEQ replay (Exercise 6) address that?</li>
+<li><strong>DROP_COPY</strong>: consumes a compliance/risk copy of activity. Is a short gap
+  here as operationally urgent as a CLEARING gap? Why or why not — consider
+  who consumes this data and on what timescale they act on it.</li>
+<li><strong>AUDIT</strong>: consumes a forensic/event journal. If AUDIT falls behind or
+  drops messages, is it recoverable after the fact from other sources
+  (e.g. the exchange's own audit log from Chapter 16), and does that change
+  how urgently you'd page an on-call engineer compared to a CLEARING gap?</li>
+</ul>
+<p>Write one sentence for each role stating its recovery priority (immediate /
+same-day / best-effort) and why — this is the kind of judgment call a real
+operations team makes when deciding which reconnect alerts to treat as
+incidents versus routine noise.</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/18-post-trade/">Post-Trade Dissemination</a></li>

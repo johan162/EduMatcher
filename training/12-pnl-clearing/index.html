@@ -2256,6 +2256,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reflection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reflection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#further-reading" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3076,31 +3087,47 @@ cost, and reports realized and unrealized P&amp;L per trader per symbol.</p>
 <li>Position: +300 AAPL</li>
 <li>Average cost: VWAP of the two fill prices</li>
 </ul>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> position building confirmed in clearing logs.</p>
+<p>Verify with a command, not just the terminal log: inspect the CSV artifact
+the clearing service appends on every trade:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>tail<span class="w"> </span>-n<span class="w"> </span><span class="m">5</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/clearing_report.csv&quot;</span>
+</code></pre></div>
+<p>You should see two new rows, one per fill, with <code>symbol=AAPL</code> and
+<code>quantity</code> of 200 and 100 respectively (the CSV logs raw trades — <code>trade_id</code>,
+<code>symbol</code>, <code>buy_order_id</code>, <code>sell_order_id</code>, <code>buy_gateway</code>, <code>sell_gateway</code>,
+<code>price</code>, <code>quantity</code>, <code>timestamp</code> — it does not carry P&amp;L, which is computed
+separately per gateway/symbol in the clearing console's P&amp;L Summary table).</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> two new rows for AAPL appear in <code>clearing_report.csv</code> with quantities 200 and 100.</p>
 <hr />
 <h2 id="exercise-3-realize-profit-by-selling">Exercise 3: Realize Profit by Selling<a class="headerlink" href="#exercise-3-realize-profit-by-selling" title="Permanent link">&para;</a></h2>
 <p>Sell some shares (hopefully at a higher price after price moves):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=100
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=100
 </code></pre></div>
 <p>The clearing service computes realized P&amp;L:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Realized P&amp;L = (sell_price - avg_cost) × qty_sold
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Realized P&amp;L = (sell_price - avg_cost) × qty_sold
 </code></pre></div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> realized P&amp;L appears in clearing output.</p>
+<p>Verify this from the clearing console's periodically-printed <strong>P&amp;L Summary</strong>
+table (not the CSV, which only logs raw trades): find the row for your
+gateway/<code>AAPL</code> and confirm the <code>Realized</code> column now shows a non-zero value
+matching the formula above.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> P&amp;L Summary table shows a non-zero <code>Realized</code> value for AAPL matching the expected calculation.</p>
 <hr />
 <h2 id="exercise-4-check-unrealized-pl">Exercise 4: Check Unrealized P&amp;L<a class="headerlink" href="#exercise-4-check-unrealized-pl" title="Permanent link">&para;</a></h2>
 <p>The remaining 200 shares have unrealized P&amp;L based on the current market price:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Unrealized P&amp;L = (current_mid - avg_cost) × position
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>Unrealized P&amp;L = (current_mid - avg_cost) × position
 </code></pre></div>
-<p>This updates continuously as the book changes.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> unrealized P&amp;L calculation understood.</p>
+<p>This updates continuously as the book changes. Verify it the same way as
+Exercise 3: in the clearing console's P&amp;L Summary table, confirm the <code>AAPL</code>
+row's <code>Position</code> column reads <code>+200</code> and its <code>Unrealized</code> column changes
+value if you re-check after the market price moves.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> P&amp;L Summary table shows AAPL position <code>+200</code> with an <code>Unrealized</code> value that changes as price moves.</p>
 <hr />
 <h2 id="exercise-5-short-position">Exercise 5: Short Position<a class="headerlink" href="#exercise-5-short-position" title="Permanent link">&para;</a></h2>
 <p>Sell shares you don't own:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>TRADER01&gt; NEW|SYM=MSFT|SIDE=SELL|TYPE=MARKET|QTY=100
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>TRADER01&gt; NEW|SYM=MSFT|SIDE=SELL|TYPE=MARKET|QTY=100
 </code></pre></div>
 <p>Position becomes −100 MSFT (short). If price drops, unrealized P&amp;L is positive.</p>
 <p>Close by buying:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>TRADER01&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=100
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>TRADER01&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=100
 </code></pre></div>
 <p>Position returns to 0; realized P&amp;L reflects the round-trip.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> short position and close works correctly.</p>
@@ -3138,6 +3165,11 @@ tracking in the clearing output.</p>
 </tbody>
 </table>
 <hr />
+<h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
+<p>Why does realized P&amp;L use the trade price at the moment of the closing sell,
+while unrealized P&amp;L keeps recalculating against the current mid-price? What
+would happen to your reported P&amp;L if the clearing service stopped updating
+<code>last_price</code> while the book kept trading?</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/07-pnl-clearing/">P&amp;L &amp; Clearing</a></li>

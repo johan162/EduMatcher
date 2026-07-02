@@ -2820,6 +2820,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reflection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reflection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#see-also" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3388,8 +3399,9 @@ Verify:</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>INDEX</code> command returns a level for <code>EDU100</code>.</p>
 <hr />
 <h2 id="exercise-4-watch-the-index-move">Exercise 4: Watch the Index Move<a class="headerlink" href="#exercise-4-watch-the-index-move" title="Permanent link">&para;</a></h2>
-<p>Start the engine session and execute a few trades:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>OPS01&gt; SESSION|ACTION=START
+<p>Move the session into <code>CONTINUOUS</code> (if the scheduler hasn't already done so)
+and execute a few trades:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>OPS01&gt; SESSION|STATE=CONTINUOUS
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=500
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>TRADER01&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=300
 <a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>TRADER01&gt; NEW|SYM=TSLA|SIDE=SELL|TYPE=MARKET|QTY=200
@@ -3424,16 +3436,23 @@ was destroyed.</p>
 the divisor was adjusted in the history file:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>grep<span class="w"> </span>CORP_ACTION<span class="w"> </span>data/indexes/EDU100_history.jsonl<span class="w"> </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>json.tool
 </code></pre></div>
-<p>You should see <code>old_divisor</code> and <code>new_divisor</code> in the record, with
-<code>new_divisor</code> approximately half of <code>old_divisor</code> (AAPL's share count doubled,
-so the aggregate cap doubled, so the divisor was adjusted upward to match).</p>
+<p>You should see <code>old_divisor</code> and <code>new_divisor</code> in the record, and the two
+values should be <strong>approximately equal</strong> (differing only by integer-rounding
+of the new share count). This is expected: a split doubles AAPL's outstanding
+shares <em>and</em> halves AAPL's price, so AAPL's contribution to the aggregate cap
+(<code>shares × price</code>) is unchanged — no divisor adjustment is needed to keep the
+index level continuous. Contrast this with <code>ADD</code>/<code>DELIST</code> (Exercise 7), where
+the aggregate cap genuinely changes and the divisor must move to compensate.</p>
 <div class="admonition important">
 <p class="admonition-title">Apply during PRE_OPEN</p>
 <p>Applying a corporate action mid-session means one more trade at the old
 price may be processed before the divisor update. Best practice is to apply
 all corporate actions during <code>PRE_OPEN</code>.</p>
 </div>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> index level unchanged after split; <code>CORP_ACTION</code> record written to history.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> compare the <code>level</code> field of the <code>CORP_ACTION</code>
+record to the <code>INDEX</code> reading you took just before applying the split — the
+absolute difference should be at most a few cents (rounding only), never a
+~50% jump. <code>CORP_ACTION</code> record confirmed written to history.</p>
 <hr />
 <h2 id="exercise-6-apply-a-cash-dividend">Exercise 6: Apply a Cash Dividend<a class="headerlink" href="#exercise-6-apply-a-cash-dividend" title="Permanent link">&para;</a></h2>
 <p>Apply a $2.50 cash dividend for MSFT:</p>
@@ -3649,6 +3668,12 @@ without going through the network.</p>
 </tbody>
 </table>
 <hr />
+<h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
+<p>Why does a stock split leave the index divisor roughly unchanged while a
+cash dividend or shares issuance actually changes it? What would happen to
+the index's continuity (its "don't jump on non-economic events" property) if
+the divisor were recalculated the same way for all four corporate action
+types?</p>
 <h2 id="see-also">See Also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/22-index/">Market Index — User Guide</a> — full reference for config fields, formulas, and history record types</li>

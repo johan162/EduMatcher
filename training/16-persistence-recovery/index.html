@@ -2368,6 +2368,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reflection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reflection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#further-reading" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3076,16 +3087,33 @@ and run <code>pm-setup</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> the GTC order is resting and visible.</p>
 <hr />
 <h2 id="exercise-3-restart-the-engine">Exercise 3: Restart the Engine<a class="headerlink" href="#exercise-3-restart-the-engine" title="Permanent link">&para;</a></h2>
-<p>Stop <code>pm-engine</code> cleanly, then start it again with the same config and data dir:</p>
+<p>GTC persistence in EduMatcher is unconditional — there is no config flag to
+enable/disable it — but it only works correctly under these conditions:</p>
+<ul>
+<li><strong>Stop the engine cleanly</strong> (<code>Ctrl+C</code> / SIGINT), not <code>kill -9</code>. The engine
+  writes <code>gtc_orders.json</code> during its graceful shutdown handler; a hard kill
+  skips that write entirely and no orders will be restored.</li>
+<li><strong>Restart with the same <code>EDUMATCHER_DATA_DIR</code></strong> (and thus the same
+  <code>gtc_orders.json</code> path) used in Exercise 2 — a different data directory has
+  nothing to restore from.</li>
+<li><strong>Restart with a config that still lists the same symbol</strong> — on restore,
+  the engine skips any persisted GTC order whose symbol is no longer in
+  <code>engine_config.yaml</code>.</li>
+</ul>
+<p>With those three conditions met, stop <code>pm-engine</code> cleanly, then start it again
+with the same config and data dir:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-engine<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>Reconnect <code>TRADER01</code> and inspect orders:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>TRADER01&gt; ORDERS
 </code></pre></div>
-<p>The GTC order should be restored if persistence is enabled for your run.</p>
+<p>The GTC order should be restored — the engine also prints a line at shutdown
+confirming how many GTC orders it saved (<code>[ENGINE] Saved N GTC order(s) to
+...</code>), which you can check as a stable confirmation instead of relying on
+<code>ORDERS</code> output alone.</p>
 <p>Compare explicitly after restart:</p>
 <ul>
-<li>GTC orders may restore from persistence.</li>
+<li>GTC orders restore from persistence (given the conditions above).</li>
 <li>DAY orders from prior session should not survive CLOSED.</li>
 <li>Stats remain in <code>stats.db</code> if <code>pm-stats</code> was writing before restart.</li>
 </ul>
@@ -3126,6 +3154,12 @@ recorded.</p>
 <li>Why GTC and DAY orders behave differently across session boundaries.</li>
 <li>How stats and audit files survive beyond the current terminal session.</li>
 </ul>
+<h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
+<p>Why does the engine persist GTC orders but deliberately discard DAY orders
+and re-seed MM quote legs from config on every restart, instead of just
+saving and restoring the entire book state wholesale? What would go wrong
+operationally if quote legs were persisted and blindly restored alongside
+GTC orders after a config change removed a market maker?</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/11-persistence/">Persistence</a></li>

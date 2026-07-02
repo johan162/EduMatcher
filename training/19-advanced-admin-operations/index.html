@@ -2441,6 +2441,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reflection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reflection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#further-reading" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3143,6 +3154,12 @@ intervention without relying on the MM terminal.</p>
 <li><code>CANCEL_SYM</code> for symbol-wide book clearing.</li>
 <li><code>SESSION|STATE=...</code> for deterministic phase management.</li>
 </ul>
+<h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
+<p>Why does <code>CANCEL_SYM</code> clear an entire symbol's book while <code>QCANCEL</code> targets
+only quote-based orders? In an incident where a single market maker's bot is
+malfunctioning, which of these tools (or <code>KICK</code>, or the Chapter 11 kill
+switch) would you reach for first, and why is that the <em>least</em> disruptive
+choice available?</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/02-commands/">Controlling the Exchange</a></li>

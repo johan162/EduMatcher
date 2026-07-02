@@ -2508,6 +2508,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reflection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reflection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#further-reading" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3166,7 +3177,24 @@ operations often require deterministic automation:</p>
 <li>Verifies top-of-book depth.</li>
 </ol>
 <p>Use <code>ExchangeCommandClient</code> methods only (no manual prompt commands).</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> your script is deterministic, idempotent, and easy to rerun during drills.</p>
+<p>Acceptance criteria — your script passes if all of the following hold:</p>
+<ul>
+<li><strong>Correct halt response</strong>: the halt call returns a success/ack response for
+  the target symbol (not a generic exception or timeout).</li>
+<li><strong>Book actually empties</strong>: after the clear step, a book query for that
+  symbol shows zero resting orders on both sides before you resume it.</li>
+<li><strong>Correct resume response</strong>: the resume call returns success and a
+  subsequent <code>SYMBOL_STATUS</code>-style query (or equivalent client method) shows
+  the symbol back in a tradeable state.</li>
+<li><strong>Idempotent rerun</strong>: running the entire script a second time immediately
+  afterward produces the same end state (symbol active, book empty of the
+  orders your script itself cleared) without raising an error — halting an
+  already-halted symbol or clearing an already-empty book must not crash the
+  script.</li>
+<li><strong>No orphaned state</strong>: after the script finishes, no test order placed by
+  the script remains resting outside of what step 5 intentionally verifies.</li>
+</ul>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> your script is deterministic, idempotent, and easy to rerun during drills, and satisfies all five acceptance criteria above.</p>
 <hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You now have advanced operational coverage for:</p>
@@ -3175,6 +3203,11 @@ operations often require deterministic automation:</p>
 <li>Repeatable incident-response style command sequencing.</li>
 <li>Practical <code>pm-mm-bot</code> tuning for startup/bootstrap/reconciliation behavior.</li>
 </ul>
+<h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
+<p>Why does this chapter insist your automation scripts be idempotent (safe to
+rerun) rather than accepting "runs correctly once" as good enough? Think
+about an incident-response scenario at 3am — what goes wrong if an on-call
+engineer reruns a non-idempotent halt/clear/resume script by mistake?</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/02-commands/">Controlling the Exchange</a></li>

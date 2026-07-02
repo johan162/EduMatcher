@@ -1970,6 +1970,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reflection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reflection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#further-reading" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3153,18 +3164,23 @@ scaffold a configuration. Try generating an equivalent config:</p>
 <p>Open a terminal and run:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-engine<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
 </code></pre></div>
-<p>Expected output includes:</p>
+<p>Expected output includes (exact wording/log format may vary by version — this
+is illustrative, not a literal match target):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[INFO] Loaded 3 symbols: AAPL, MSFT, TSLA
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>[INFO] Loaded 3 gateways
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>[INFO] Engine listening on :5555 (PULL), publishing on :5556 (PUB)
 </code></pre></div>
+<p>The stable way to confirm the engine actually loaded your config, independent
+of log wording, is to query it from a gateway once connected (Exercise 5) with
+<code>SYMBOLS</code> — if it lists <code>AAPL</code>, <code>MSFT</code>, and <code>TSLA</code>, the engine started correctly
+regardless of what the startup banner said.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> engine is running without errors.</p>
 <hr />
 <h2 id="exercise-4-start-the-scheduler">Exercise 4: Start the Scheduler<a class="headerlink" href="#exercise-4-start-the-scheduler" title="Permanent link">&para;</a></h2>
 <p>In a <strong>second terminal</strong>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-scheduler
 </code></pre></div>
-<p>Expected output:</p>
+<p>Expected output (illustrative):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[INFO] Session state: PRE_OPEN
 </code></pre></div>
 <p>The scheduler will transition through PRE_OPEN → OPENING_AUCTION → CONTINUOUS
@@ -3217,6 +3233,11 @@ obligation settings when configured.</p>
 <li>A running engine, scheduler, and at least one trader gateway.</li>
 <li>Confirmation that all symbols accept orders.</li>
 </ul>
+<h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
+<p>Why does the engine, scheduler, and each gateway all run as <strong>separate
+processes</strong> connected over ZMQ sockets, instead of one monolithic program?
+What would you lose (or gain) operationally if the scheduler crashed while
+the engine kept running?</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/01-configuration/">Configuration</a></li>

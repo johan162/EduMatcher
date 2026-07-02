@@ -2105,6 +2105,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reflection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reflection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#further-reading" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3066,12 +3077,62 @@ pauses in PRE_OPEN). You want to stay in PRE_OPEN long enough to enter orders.</
 <h2 id="exercise-2-trigger-the-auction-uncrossing">Exercise 2: Trigger the Auction Uncrossing<a class="headerlink" href="#exercise-2-trigger-the-auction-uncrossing" title="Permanent link">&para;</a></h2>
 <p>When the scheduler transitions from OPENING_AUCTION → CONTINUOUS, all crossing
 orders match at the equilibrium price.</p>
-<p>Expected: fills at a single price that maximises traded volume. In this example
-the equilibrium price should be around 150.20–150.30 (the exact price depends on
-the algorithm; max-volume, then min-surplus rules apply).</p>
-<p>What to observe: identify the one common execution price printed across all fill
-events. That repeated value is the equilibrium price selected by uncrossing.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> all fills report the same execution price.</p>
+<p>For the exact orders entered in Exercise 1, here is the full calculation
+(verified against <code>engine/auction.py</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Candidate price</th>
+<th>Cumulative buy qty (bids ≥ price)</th>
+<th>Cumulative sell qty (asks ≤ price)</th>
+<th>Matched qty</th>
+<th>Surplus</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>149.80</td>
+<td>500 (300+200)</td>
+<td>400</td>
+<td><strong>400</strong></td>
+<td>100</td>
+</tr>
+<tr>
+<td>150.20</td>
+<td>500</td>
+<td>400</td>
+<td>400</td>
+<td>100</td>
+</tr>
+<tr>
+<td>150.30</td>
+<td>300</td>
+<td>500</td>
+<td>300</td>
+<td>200</td>
+</tr>
+<tr>
+<td>150.50</td>
+<td>300</td>
+<td>500</td>
+<td>300</td>
+<td>200</td>
+</tr>
+</tbody>
+</table>
+<p>Maximum matched quantity is 400, tied between 149.80 and 150.20 with equal
+surplus (100). The engine scans candidate prices from lowest to highest and
+only replaces the current best on a <strong>strict</strong> improvement, so the <strong>first</strong>
+price reached with the best (qty, surplus) pair wins. That means the
+equilibrium price here is <strong>149.80</strong> — the lower of the two tied prices —
+not a value in between.</p>
+<p>Expected: all fills print execution price <code>149.80</code>, for a total matched
+quantity of 400 shares.</p>
+<p>What to observe: identify the one common execution price printed across all
+fill events, and confirm it equals <code>149.80</code> and the total filled quantity
+equals <code>400</code> (300 from TRADER01's first order + 100 remaining from the
+second, against TRADER02's 400-share sell).</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> all fills report execution price <code>149.80</code> and matched quantity <code>400</code>.</p>
 <hr />
 <h2 id="exercise-3-unfilled-auction-orders">Exercise 3: Unfilled Auction Orders<a class="headerlink" href="#exercise-3-unfilled-auction-orders" title="Permanent link">&para;</a></h2>
 <p>If an ATO order does not cross (e.g. a buy at 148.00 with no matching sell),
@@ -3099,13 +3160,23 @@ CONTINUOUS trading.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> GTC order fills in auction or continues resting.</p>
 <hr />
 <h2 id="equilibrium-price-rules">Equilibrium Price Rules<a class="headerlink" href="#equilibrium-price-rules" title="Permanent link">&para;</a></h2>
-<p>The auction algorithm selects the price that:</p>
+<p>The auction algorithm scans candidate prices from lowest to highest and
+selects the price that:</p>
 <ol>
 <li><strong>Maximises traded volume</strong> — most shares can match.</li>
 <li><strong>Minimises surplus</strong> — least shares left unexecuted at that price.</li>
-<li><strong>Nearest to reference</strong> — if tied, closest to last traded price.</li>
+<li><strong>Ties resolved by scan order</strong> — if multiple prices tie on both volume
+   and surplus, the engine keeps the first (lowest) one it found, since it
+   only replaces the current best on a strict improvement. There is no
+   separate "nearest to last trade" tie-break — the tie always resolves to
+   the lower of the tied candidate prices.</li>
 </ol>
 <hr />
+<h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
+<p>Why does an auction match all crossing orders at a single equilibrium price,
+instead of walking the book and filling each order at its own limit price
+(as CONTINUOUS trading does)? What problem would arise at the open if every
+order filled at its own price instead?</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/06-auctions-scheduling/">Auctions &amp; Scheduling</a></li>

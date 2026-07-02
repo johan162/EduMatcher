@@ -1976,6 +1976,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reflection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reflection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#further-reading" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3142,9 +3153,19 @@ restart or partial execution.</p>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.20<span class="w"> </span>--qty<span class="w"> </span><span class="m">300</span>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.50<span class="w"> </span>--qty<span class="w"> </span><span class="m">200</span>
 </code></pre></div>
-<p>The bot will connect as <code>MM_&lt;SYMBOL&gt;_01</code>, quote around the current mid-price,
-reissue after fills, and use <code>QBOOT</code>/<code>QLEGS</code>-style state to avoid startup
-deadlocks and reconcile quote legs.</p>
+<p>The bot connects using the gateway ID <code>MM_&lt;SYMBOL&gt;_&lt;id-suffix&gt;</code> (default
+suffix <code>01</code>), quotes around the current mid-price, reissues after fills, and
+uses <code>QBOOT</code>/<code>QLEGS</code>-style state to avoid startup deadlocks and reconcile
+quote legs.</p>
+<div class="admonition warning">
+<p class="admonition-title">Gateway ID must already exist in your config</p>
+<p><code>pm-mm-bot</code> does not create a gateway — it connects under the ID it
+computes (<code>MM_AAPL_01</code>, <code>MM_MSFT_01</code>, <code>MM_TSLA_01</code> by default) and expects
+that ID to already be present in <code>engine_config.yaml</code> from Exercise 1. If
+your config used different gateway IDs, either rename them to match this
+pattern or pass <code>--id-suffix</code> to the bot so the computed ID lines up. A
+mismatch here causes the engine to reject the bot's connection.</p>
+</div>
 <p>Quick primer:</p>
 <ul>
 <li><code>QBOOT</code> asks the engine whether a gateway+symbol already has an active quote
@@ -3163,6 +3184,11 @@ deadlocks and reconcile quote legs.</p>
 <li>Familiarity with <code>QLEGS</code> as the quote-leg inspection tool.</li>
 <li>A clear picture of what <code>pm-mm-bot</code> automates.</li>
 </ul>
+<h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
+<p>If no market maker were quoting a symbol, what would happen to a marketable
+order sent by a regular trader in Chapter 03? Why does the training guide
+insist you set up liquidity <em>before</em> any trading exercises rather than
+letting students discover an empty book on their own?</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/14-market-maker/">Market Making</a></li>

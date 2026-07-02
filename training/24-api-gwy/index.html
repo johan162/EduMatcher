@@ -2592,17 +2592,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-9-write-a-python-cli-client-for-limit-order-entry" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exercise 9: Write a Python CLI Client for LIMIT Order Entry
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#exercise-8-configure-multiple-logical-api-gateways" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2614,10 +2603,54 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#exercise-9-write-a-python-cli-client-for-limit-order-entry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 9: Write a Python CLI Client for LIMIT Order Entry
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#support-libraries-and-example-clients" class="md-nav__link">
     <span class="md-ellipsis">
       
         Support Libraries and Example Clients
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reflection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reflection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#handoff-for-chapter-25" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Handoff for Chapter 25
       
     </span>
   </a>
@@ -3252,38 +3285,69 @@ private event stream.</p>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain when to use REST responses versus WebSocket events for order outcomes.</p>
 <hr />
+<h2 id="exercise-8-configure-multiple-logical-api-gateways">Exercise 8: Configure Multiple Logical API Gateways<a class="headerlink" href="#exercise-8-configure-multiple-logical-api-gateways" title="Permanent link">&para;</a></h2>
+<p>Generate two API gateway process configs, one for desk trading and one for
+algorithmic trading:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>ALGO01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>desk:TRADER01:8080<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>algos:ALGO01:8081<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">  </span>--seed<span class="w"> </span><span class="m">20260624</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
+</code></pre></div>
+<p>Start each named process in a separate terminal:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-api-gateway<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pm-api-gateway<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>algos
+</code></pre></div>
+<p>Try an invalid duplicate assignment:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>desk:TRADER01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>algos:TRADER01<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">  </span>--dry-run
+</code></pre></div>
+<p>Expected behavior:</p>
+<ul>
+<li><code>desk</code> listens on <code>8080</code> and owns <code>TRADER01</code></li>
+<li><code>algos</code> listens on <code>8081</code> and owns <code>ALGO01</code></li>
+<li>duplicate non-null <code>gateway_id</code> assignment is rejected before runtime</li>
+</ul>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can run two API gateway processes and explain why a write-capable gateway ID is globally unique across them.</p>
+<hr />
 <h2 id="exercise-9-write-a-python-cli-client-for-limit-order-entry">Exercise 9: Write a Python CLI Client for LIMIT Order Entry<a class="headerlink" href="#exercise-9-write-a-python-cli-client-for-limit-order-entry" title="Permanent link">&para;</a></h2>
 <p>Use the <code>ApiGatewayClient</code> library from <code>docs/examples/REST/python</code> to write a
 small script that submits a LIMIT order and prints the engine response.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span><span class="o">,</span><span class="w"> </span><span class="nn">json</span><span class="o">,</span><span class="w"> </span><span class="nn">os</span><span class="o">,</span><span class="w"> </span><span class="nn">sys</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;docs/examples/REST/python&quot;</span><span class="p">)</span>
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">api_gateway_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">ApiGatewayClient</span>
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">()</span>
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--side&quot;</span><span class="p">,</span>   <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;BUY&quot;</span><span class="p">,</span> <span class="s2">&quot;SELL&quot;</span><span class="p">])</span>
-<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--symbol&quot;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--qty&quot;</span><span class="p">,</span>    <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
-<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--price&quot;</span><span class="p">,</span>  <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
-<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--wait-ack&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">)</span>
-<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
-<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>
-<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ApiGatewayClient</span><span class="p">(</span>
-<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;EDUMATCHER_API_URL&quot;</span><span class="p">,</span> <span class="s2">&quot;http://127.0.0.1:8080&quot;</span><span class="p">),</span>
-<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;EDUMATCHER_API_KEY&quot;</span><span class="p">,</span> <span class="s2">&quot;key-trader-demo&quot;</span><span class="p">),</span>
-<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a><span class="p">)</span>
-<a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a><span class="n">path</span> <span class="o">=</span> <span class="s2">&quot;/api/v1/orders&quot;</span> <span class="o">+</span> <span class="p">(</span><span class="s2">&quot;?wait=ack&quot;</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">wait_ack</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
-<a id="__codelineno-14-18" name="__codelineno-14-18" href="#__codelineno-14-18"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post_json</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="p">{</span>
-<a id="__codelineno-14-19" name="__codelineno-14-19" href="#__codelineno-14-19"></a>    <span class="s2">&quot;symbol&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">symbol</span><span class="o">.</span><span class="n">upper</span><span class="p">(),</span>
-<a id="__codelineno-14-20" name="__codelineno-14-20" href="#__codelineno-14-20"></a>    <span class="s2">&quot;side&quot;</span><span class="p">:</span>   <span class="n">args</span><span class="o">.</span><span class="n">side</span><span class="p">,</span>
-<a id="__codelineno-14-21" name="__codelineno-14-21" href="#__codelineno-14-21"></a>    <span class="s2">&quot;order_type&quot;</span><span class="p">:</span> <span class="s2">&quot;LIMIT&quot;</span><span class="p">,</span>
-<a id="__codelineno-14-22" name="__codelineno-14-22" href="#__codelineno-14-22"></a>    <span class="s2">&quot;quantity&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">qty</span><span class="p">,</span>
-<a id="__codelineno-14-23" name="__codelineno-14-23" href="#__codelineno-14-23"></a>    <span class="s2">&quot;price&quot;</span><span class="p">:</span>  <span class="n">args</span><span class="o">.</span><span class="n">price</span><span class="p">,</span>
-<a id="__codelineno-14-24" name="__codelineno-14-24" href="#__codelineno-14-24"></a><span class="p">})</span>
-<a id="__codelineno-14-25" name="__codelineno-14-25" href="#__codelineno-14-25"></a><span class="nb">print</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span><span class="o">,</span><span class="w"> </span><span class="nn">json</span><span class="o">,</span><span class="w"> </span><span class="nn">os</span><span class="o">,</span><span class="w"> </span><span class="nn">sys</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;docs/examples/REST/python&quot;</span><span class="p">)</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">api_gateway_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">ApiGatewayClient</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="n">parser</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">()</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--side&quot;</span><span class="p">,</span>   <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;BUY&quot;</span><span class="p">,</span> <span class="s2">&quot;SELL&quot;</span><span class="p">])</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--symbol&quot;</span><span class="p">,</span> <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--qty&quot;</span><span class="p">,</span>    <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--price&quot;</span><span class="p">,</span>  <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;--wait-ack&quot;</span><span class="p">,</span> <span class="n">action</span><span class="o">=</span><span class="s2">&quot;store_true&quot;</span><span class="p">)</span>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="n">args</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a>
+<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a><span class="n">client</span> <span class="o">=</span> <span class="n">ApiGatewayClient</span><span class="p">(</span>
+<a id="__codelineno-17-14" name="__codelineno-17-14" href="#__codelineno-17-14"></a>    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;EDUMATCHER_API_URL&quot;</span><span class="p">,</span> <span class="s2">&quot;http://127.0.0.1:8080&quot;</span><span class="p">),</span>
+<a id="__codelineno-17-15" name="__codelineno-17-15" href="#__codelineno-17-15"></a>    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;EDUMATCHER_API_KEY&quot;</span><span class="p">,</span> <span class="s2">&quot;key-trader-demo&quot;</span><span class="p">),</span>
+<a id="__codelineno-17-16" name="__codelineno-17-16" href="#__codelineno-17-16"></a><span class="p">)</span>
+<a id="__codelineno-17-17" name="__codelineno-17-17" href="#__codelineno-17-17"></a><span class="n">path</span> <span class="o">=</span> <span class="s2">&quot;/api/v1/orders&quot;</span> <span class="o">+</span> <span class="p">(</span><span class="s2">&quot;?wait=ack&quot;</span> <span class="k">if</span> <span class="n">args</span><span class="o">.</span><span class="n">wait_ack</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+<a id="__codelineno-17-18" name="__codelineno-17-18" href="#__codelineno-17-18"></a><span class="n">result</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post_json</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="p">{</span>
+<a id="__codelineno-17-19" name="__codelineno-17-19" href="#__codelineno-17-19"></a>    <span class="s2">&quot;symbol&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">symbol</span><span class="o">.</span><span class="n">upper</span><span class="p">(),</span>
+<a id="__codelineno-17-20" name="__codelineno-17-20" href="#__codelineno-17-20"></a>    <span class="s2">&quot;side&quot;</span><span class="p">:</span>   <span class="n">args</span><span class="o">.</span><span class="n">side</span><span class="p">,</span>
+<a id="__codelineno-17-21" name="__codelineno-17-21" href="#__codelineno-17-21"></a>    <span class="s2">&quot;order_type&quot;</span><span class="p">:</span> <span class="s2">&quot;LIMIT&quot;</span><span class="p">,</span>
+<a id="__codelineno-17-22" name="__codelineno-17-22" href="#__codelineno-17-22"></a>    <span class="s2">&quot;quantity&quot;</span><span class="p">:</span> <span class="n">args</span><span class="o">.</span><span class="n">qty</span><span class="p">,</span>
+<a id="__codelineno-17-23" name="__codelineno-17-23" href="#__codelineno-17-23"></a>    <span class="s2">&quot;price&quot;</span><span class="p">:</span>  <span class="n">args</span><span class="o">.</span><span class="n">price</span><span class="p">,</span>
+<a id="__codelineno-17-24" name="__codelineno-17-24" href="#__codelineno-17-24"></a><span class="p">})</span>
+<a id="__codelineno-17-25" name="__codelineno-17-25" href="#__codelineno-17-25"></a><span class="nb">print</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
 </code></pre></div>
 <p>Run it from the repo root:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>python3<span class="w"> </span>limit_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span><span class="w"> </span>--price<span class="w"> </span><span class="m">209</span>.50
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>python3<span class="w"> </span>limit_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span><span class="w"> </span>--price<span class="w"> </span><span class="m">209</span>.50<span class="w"> </span>--wait-ack
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>python3<span class="w"> </span>limit_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span><span class="w"> </span>--price<span class="w"> </span><span class="m">209</span>.50
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>python3<span class="w"> </span>limit_order.py<span class="w"> </span>--side<span class="w"> </span>BUY<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--qty<span class="w"> </span><span class="m">100</span><span class="w"> </span>--price<span class="w"> </span><span class="m">209</span>.50<span class="w"> </span>--wait-ack
 </code></pre></div>
 <p>Expected behavior:</p>
 <ul>
@@ -3296,37 +3360,6 @@ small script that submits a LIMIT order and prints the engine response.</p>
 available at <code>docs/examples/REST/python/submit_market_order.py</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: your script prints <code>order_id</code> and <code>status</code> from a live gateway.</p>
 <hr />
-<h2 id="exercise-8-configure-multiple-logical-api-gateways">Exercise 8: Configure Multiple Logical API Gateways<a class="headerlink" href="#exercise-8-configure-multiple-logical-api-gateways" title="Permanent link">&para;</a></h2>
-<p>Generate two API gateway process configs, one for desk trading and one for
-algorithmic trading:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span>ALGO01<span class="w"> </span>OPS01:ADMIN<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>desk:TRADER01:8080<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>algos:ALGO01:8081<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">  </span>--seed<span class="w"> </span><span class="m">20260624</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
-</code></pre></div>
-<p>Start each named process in a separate terminal:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>pm-api-gateway<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>pm-api-gateway<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>algos
-</code></pre></div>
-<p>Try an invalid duplicate assignment:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="w">  </span>--gateways<span class="w"> </span>TRADER01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>desk:TRADER01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="w">  </span>--api-gateway-instance<span class="w"> </span>algos:TRADER01<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="w">  </span>--dry-run
-</code></pre></div>
-<p>Expected behavior:</p>
-<ul>
-<li><code>desk</code> listens on <code>8080</code> and owns <code>TRADER01</code></li>
-<li><code>algos</code> listens on <code>8081</code> and owns <code>ALGO01</code></li>
-<li>duplicate non-null <code>gateway_id</code> assignment is rejected before runtime</li>
-</ul>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can run two API gateway processes and explain why a write-capable gateway ID is globally unique across them.</p>
-<hr />
 <h2 id="support-libraries-and-example-clients">Support Libraries and Example Clients<a class="headerlink" href="#support-libraries-and-example-clients" title="Permanent link">&para;</a></h2>
 <p>Reference examples used in this training chapter:</p>
 <ul>
@@ -3335,6 +3368,26 @@ algorithmic trading:</p>
 </ul>
 <p>Use these examples as small integration clients when building course labs,
 smoke tests, or external adapter prototypes.</p>
+<hr />
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<p>You can now:</p>
+<ul>
+<li>Generate one or more <code>api_gateways</code> process configs with trading and
+  read-only bearer credentials.</li>
+<li>Start and reach <code>pm-api-gateway</code> over REST, Swagger, and WebSocket.</li>
+<li>Submit, cancel, and observe orders through REST and private WebSocket events.</li>
+<li>Explain why a write-capable ALF <code>gateway_id</code> must be unique across every
+  configured <code>api_gateways</code> process.</li>
+</ul>
+<h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
+<p>If two API gateway processes both listed the same <code>gateway_id</code> as a
+read-only (<code>gateway_id: null</code>) credential, would that be a problem? Why does
+the constraint only apply to non-null <code>gateway_id</code> values?</p>
+<h2 id="handoff-for-chapter-25">Handoff for Chapter 25<a class="headerlink" href="#handoff-for-chapter-25" title="Permanent link">&para;</a></h2>
+<p>Before starting <a href="../25-index/">25 — Market Index (pm-index)</a>, you can stop
+<code>pm-api-gateway</code>; it is not required there. Keep <code>pm-engine</code> and <code>pm-stats</code>
+running if you want to reuse the same session, or start fresh — Chapter 25
+generates its own config with <code>pm-config-gen</code>.</p>
 
 
 

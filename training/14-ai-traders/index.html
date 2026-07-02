@@ -2312,6 +2312,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reflection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reflection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#further-reading" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3053,66 +3064,92 @@ demonstrations, classroom sessions, and stress testing.</p>
 <p>EduMatcher ships with AI trader bots that simulate real market participants:</p>
 <ul>
 <li><strong>pm-ai-trader</strong> — a single autonomous trader with configurable personality.</li>
-<li><strong>pm-ai-swarm</strong> — launches multiple AI traders simultaneously.</li>
+<li><strong>pm-ai-swarm</strong> — launches multiple AI traders simultaneously, distributing
+  profiles and symbols round-robin.</li>
 </ul>
-<p>Four personality profiles create diverse order flow:</p>
+<p>Bots submit only <code>LIMIT DAY</code> orders derived from the current book — they never
+send <code>MARKET</code>, <code>FOK</code>, or <code>IOC</code> orders.</p>
+<p>Four built-in personality profiles create diverse order flow:</p>
 <table>
 <thead>
 <tr>
 <th>Profile</th>
-<th>Behaviour</th>
+<th>Decision interval</th>
+<th>Order size</th>
+<th>Cross probability</th>
+<th>Character</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>frequent-small</code></td>
-<td>Many small orders, short hold times</td>
+<td><code>aggressive</code></td>
+<td>250 ms</td>
+<td>20–120</td>
+<td>35%</td>
+<td>Frequent trader; crosses the spread often</td>
 </tr>
 <tr>
-<td><code>infrequent-large</code></td>
-<td>Few large orders, longer hold</td>
+<td><code>cautious</code></td>
+<td>900 ms</td>
+<td>10–60</td>
+<td>5%</td>
+<td>Slow, patient; rarely crosses; small passive orders</td>
 </tr>
 <tr>
-<td><code>trend-follower</code></td>
-<td>Buys into rises, sells into drops</td>
+<td><code>many-small</code></td>
+<td>180 ms</td>
+<td>1–25</td>
+<td>18%</td>
+<td>High-frequency tiny orders</td>
 </tr>
 <tr>
-<td><code>mean-reverter</code></td>
-<td>Buys dips, sells rallies</td>
+<td><code>few-large</code></td>
+<td>1400 ms</td>
+<td>150–700</td>
+<td>12%</td>
+<td>Infrequent institutional-style block orders</td>
 </tr>
 </tbody>
 </table>
 <hr />
 <h2 id="exercise-1-add-ai-trader-gateways">Exercise 1: Add AI Trader Gateways<a class="headerlink" href="#exercise-1-add-ai-trader-gateways" title="Permanent link">&para;</a></h2>
-<p>Extend <code>engine_config.yaml</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AI_TRADER_01</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;AI</span><span class="nv"> </span><span class="s">bot</span><span class="nv"> </span><span class="s">—</span><span class="nv"> </span><span class="s">frequent</span><span class="nv"> </span><span class="s">small&quot;</span>
+<p><code>pm-ai-swarm</code> generates gateway IDs as <code>&lt;prefix&gt;&lt;NN&gt;</code> (default prefix <code>AI</code>,
+so <code>AI01</code>, <code>AI02</code>, <code>AI03</code>, ...). Add matching entries to <code>engine_config.yaml</code>
+so the bots can authenticate:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AI01</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;AI</span><span class="nv"> </span><span class="s">bot</span><span class="nv"> </span><span class="s">1&quot;</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AI_TRADER_02</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;AI</span><span class="nv"> </span><span class="s">bot</span><span class="nv"> </span><span class="s">—</span><span class="nv"> </span><span class="s">trend</span><span class="nv"> </span><span class="s">follower&quot;</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AI02</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;AI</span><span class="nv"> </span><span class="s">bot</span><span class="nv"> </span><span class="s">2&quot;</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AI_TRADER_03</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;AI</span><span class="nv"> </span><span class="s">bot</span><span class="nv"> </span><span class="s">—</span><span class="nv"> </span><span class="s">mean</span><span class="nv"> </span><span class="s">reverter&quot;</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AI03</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">      </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;AI</span><span class="nv"> </span><span class="s">bot</span><span class="nv"> </span><span class="s">3&quot;</span>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TRADER</span>
 </code></pre></div>
+<div class="admonition tip">
+<p class="admonition-title">Unrestricted mode</p>
+<p>If your engine is started with no <code>engine_config.yaml</code> gateway restrictions,
+any gateway ID can connect — this step can be skipped for a quick demo.</p>
+</div>
 <p>Restart the engine.</p>
-<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> 3 additional gateways loaded.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> 3 additional gateways loaded (<code>AI01</code>–<code>AI03</code>).</p>
 <hr />
 <h2 id="exercise-2-launch-a-single-ai-trader">Exercise 2: Launch a Single AI Trader<a class="headerlink" href="#exercise-2-launch-a-single-ai-trader" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-ai-trader<span class="w"> </span>--id<span class="w"> </span>AI_TRADER_01<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--personality<span class="w"> </span>frequent-small
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-ai-trader<span class="w"> </span>--id<span class="w"> </span>AI01<span class="w"> </span>--profile<span class="w"> </span>aggressive<span class="w"> </span>--symbols<span class="w"> </span>AAPL
 </code></pre></div>
-<p>Watch the gateway output or verbose mode (<code>-v</code>) — you'll see orders being
-submitted every few seconds.</p>
+<p>Watch the gateway output — you'll see orders being submitted at the profile's
+<code>decision_interval_ms</code> cadence (250 ms for <code>aggressive</code>).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> AI trader generates order flow on AAPL.</p>
 <hr />
 <h2 id="exercise-3-launch-the-ai-swarm">Exercise 3: Launch the AI Swarm<a class="headerlink" href="#exercise-3-launch-the-ai-swarm" title="Permanent link">&para;</a></h2>
-<p>Launch multiple traders across all symbols:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-ai-swarm<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
+<p>Launch multiple traders across all configured symbols with one command:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-ai-swarm<span class="w"> </span>--count<span class="w"> </span><span class="m">3</span><span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--duration<span class="w"> </span><span class="m">60</span>
 </code></pre></div>
-<p>Or manually specify:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-ai-trader<span class="w"> </span>--id<span class="w"> </span>AI_TRADER_01<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--personality<span class="w"> </span>frequent-small<span class="w"> </span><span class="p">&amp;</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-ai-trader<span class="w"> </span>--id<span class="w"> </span>AI_TRADER_02<span class="w"> </span>--symbol<span class="w"> </span>MSFT<span class="w"> </span>--personality<span class="w"> </span>trend-follower<span class="w"> </span><span class="p">&amp;</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>pm-ai-trader<span class="w"> </span>--id<span class="w"> </span>AI_TRADER_03<span class="w"> </span>--symbol<span class="w"> </span>TSLA<span class="w"> </span>--personality<span class="w"> </span>mean-reverter<span class="w"> </span><span class="p">&amp;</span>
+<p>This spawns <code>AI01</code>, <code>AI02</code>, <code>AI03</code>, cycling through all four profiles and
+symbols round-robin. Or launch bots manually with matching IDs:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-ai-trader<span class="w"> </span>--id<span class="w"> </span>AI01<span class="w"> </span>--profile<span class="w"> </span>aggressive<span class="w"> </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span><span class="p">&amp;</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-ai-trader<span class="w"> </span>--id<span class="w"> </span>AI02<span class="w"> </span>--profile<span class="w"> </span>cautious<span class="w"> </span>--symbols<span class="w"> </span>MSFT<span class="w"> </span><span class="p">&amp;</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>pm-ai-trader<span class="w"> </span>--id<span class="w"> </span>AI03<span class="w"> </span>--profile<span class="w"> </span>many-small<span class="w"> </span>--symbols<span class="w"> </span>TSLA<span class="w"> </span><span class="p">&amp;</span>
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> multiple AI traders running; books active.</p>
 <hr />
@@ -3133,17 +3170,24 @@ the MMs.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> successful trades against AI-generated liquidity.</p>
 <hr />
 <h2 id="exercise-6-stop-the-ai-swarm">Exercise 6: Stop the AI Swarm<a class="headerlink" href="#exercise-6-stop-the-ai-swarm" title="Permanent link">&para;</a></h2>
-<p>Ctrl+C on the swarm process, or kill individual traders. Your baseline
-liquidity providers (manual MM gateways or <code>pm-mm-bot</code>) continue running.</p>
+<p>Ctrl+C on the swarm process (this forwards <code>SIGINT</code> to every child bot; each
+bot cancels its pending orders and disconnects cleanly). A second Ctrl+C
+force-kills immediately if a bot hangs. Your baseline liquidity providers
+(manual MM gateways or <code>pm-mm-bot</code>) continue running.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> clean shutdown; books return to MM-only state.</p>
 <hr />
 <h2 id="classroom-tips">Classroom Tips<a class="headerlink" href="#classroom-tips" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Run 3–5 AI traders for realistic order flow without overwhelming the book.</li>
-<li>Mix personalities for diverse market dynamics.</li>
-<li>Use <code>--verbose</code> to show students what the AI is "thinking".</li>
+<li>Mix profiles (<code>--profiles aggressive,cautious</code>) for diverse market dynamics.</li>
+<li>Use <code>--seed</code> for reproducible order sequences across repeated classroom runs.</li>
 <li>Combine with circuit breakers to demonstrate halt/resume under stress.</li>
 </ul>
+<hr />
+<h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
+<p>Why does <code>aggressive</code> generate more executions per minute than <code>few-large</code>,
+even though both can trade the same symbol? What would happen to book depth
+if you launched only <code>aggressive</code> bots with no market maker running?</p>
 <hr />
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>

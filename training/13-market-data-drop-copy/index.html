@@ -2251,10 +2251,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-5-compare-public-events-and-drop-copy-purpose" class="md-nav__link">
+  <a href="#exercise-5-subscribe-to-the-drop-copy-feed-directly" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 5: Compare Public Events and Drop-Copy Purpose
+        Exercise 5: Subscribe to the Drop-Copy Feed Directly
       
     </span>
   </a>
@@ -2262,10 +2262,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-6-launch-the-market-board" class="md-nav__link">
+  <a href="#exercise-6-compare-public-events-and-drop-copy-purpose" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 6: Launch the Market Board
+        Exercise 6: Compare Public Events and Drop-Copy Purpose
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-7-launch-the-market-board" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 7: Launch the Market Board
       
     </span>
   </a>
@@ -2277,6 +2288,17 @@
     <span class="md-ellipsis">
       
         Key Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reflection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reflection
       
     </span>
   </a>
@@ -3096,7 +3118,35 @@ risk/compliance subscribers and publishes topics such as
 <code>drop_copy.event.&lt;gateway_id&gt;</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can identify the drop-copy socket in engine startup output.</p>
 <hr />
-<h2 id="exercise-5-compare-public-events-and-drop-copy-purpose">Exercise 5: Compare Public Events and Drop-Copy Purpose<a class="headerlink" href="#exercise-5-compare-public-events-and-drop-copy-purpose" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-5-subscribe-to-the-drop-copy-feed-directly">Exercise 5: Subscribe to the Drop-Copy Feed Directly<a class="headerlink" href="#exercise-5-subscribe-to-the-drop-copy-feed-directly" title="Permanent link">&para;</a></h2>
+<p><code>pm-audit</code>/<code>pm-viewer</code>/<code>pm-orders</code> all read the <em>public</em> feed on port 5556.
+None of them show you the drop-copy feed itself. To see it, connect a minimal
+ZMQ subscriber:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;PY&#39;</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="s">import json</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="s">import zmq</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="s">ctx = zmq.Context()</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="s">sock = ctx.socket(zmq.SUB)</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="s">sock.connect(&quot;tcp://127.0.0.1:5557&quot;)</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="s">sock.subscribe(b&quot;drop_copy.event.&quot;)</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="s">print(&quot;listening on drop_copy.event.*&quot;)</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="s">for _ in range(10):</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="s">    topic, payload = sock.recv_multipart()</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="s">    msg = json.loads(payload)</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="s">    print(topic.decode(), &quot;seq=&quot;, msg.get(&quot;seq&quot;), &quot;gateway=&quot;, msg.get(&quot;gateway_id&quot;),</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="s">          &quot;event_type=&quot;, msg.get(&quot;event_type&quot;))</span>
+<a id="__codelineno-6-16" name="__codelineno-6-16" href="#__codelineno-6-16"></a><span class="s">PY</span>
+</code></pre></div>
+<p>While this is running, execute a trade from <code>TRADER01</code> in another terminal:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
+</code></pre></div>
+<p>You should see one <code>drop_copy.event.&lt;gateway_id&gt;</code> message per participant on
+each side of the trade, each with its own monotonically increasing <code>seq</code>.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you received at least one drop-copy message directly from port 5557, distinct from anything <code>pm-audit</code> printed on port 5556.</p>
+<hr />
+<h2 id="exercise-6-compare-public-events-and-drop-copy-purpose">Exercise 6: Compare Public Events and Drop-Copy Purpose<a class="headerlink" href="#exercise-6-compare-public-events-and-drop-copy-purpose" title="Permanent link">&para;</a></h2>
 <p>Execute another trade and compare what each consumer is for:</p>
 <table>
 <thead>
@@ -3131,9 +3181,9 @@ risk/compliance subscribers and publishes topics such as
 </table>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> explain why drop-copy is separate from the public market-data stream.</p>
 <hr />
-<h2 id="exercise-6-launch-the-market-board">Exercise 6: Launch the Market Board<a class="headerlink" href="#exercise-6-launch-the-market-board" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-7-launch-the-market-board">Exercise 7: Launch the Market Board<a class="headerlink" href="#exercise-7-launch-the-market-board" title="Permanent link">&para;</a></h2>
 <p>Start the multi-symbol dashboard:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pm-board<span class="w"> </span>--rows<span class="w"> </span><span class="m">8</span><span class="w"> </span>--interval<span class="w"> </span><span class="m">10</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-board<span class="w"> </span>--rows<span class="w"> </span><span class="m">8</span><span class="w"> </span>--interval<span class="w"> </span><span class="m">10</span>
 </code></pre></div>
 <p>If <code>pm-stats</code> is running, <code>pm-board</code> combines live book state with recent OHLCV
 context from <code>stats.db</code>.</p>
@@ -3146,6 +3196,12 @@ context from <code>stats.db</code>.</p>
     E --&gt;|PUB :5557| DC[external drop-copy consumers]
     V --&gt; B[pm-board / pm-ticker]</code></pre>
 <hr />
+<h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
+<p>Why does the engine publish drop-copy events on a <strong>separate</strong> socket
+(<code>:5557</code>) rather than mixing them into the same <code>:5556</code> PUB feed that
+viewers, orders, audit, and stats all subscribe to? What operational problem
+would arise for a compliance drop-copy consumer if it shared a socket with
+high-volume book/viewer traffic?</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/09-messages/">Messages</a></li>

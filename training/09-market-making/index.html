@@ -2183,6 +2183,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#reflection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reflection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#further-reading" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3190,6 +3201,12 @@ instead of creating duplicates.</p>
 <li><code>order.fill</code> does <strong>not</strong> include <code>quote_id</code> — correlate via leg order IDs.</li>
 </ul>
 <hr />
+<h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
+<p>Why does the engine tie the bid and ask legs of a quote together with a
+<code>quote_id</code> at all, rather than treating a market maker's two orders as
+completely independent? What could go wrong for a market maker's risk
+exposure if one leg filled and the sibling stayed resting under a
+<code>NEVER_INACTIVATE</code> policy?</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/14-market-maker/">Market Making</a></li>

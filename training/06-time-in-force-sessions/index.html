@@ -2022,6 +2022,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#freezeadvance-procedure-deterministic-session-control" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Freeze/Advance Procedure (Deterministic Session Control)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#exercise-2-day-order-expiry" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2081,6 +2092,17 @@
     <span class="md-ellipsis">
       
         Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reflection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reflection
       
     </span>
   </a>
@@ -3087,9 +3109,8 @@ and how to use the scheduler to drive the exchange through a full trading day.</
 </table>
 <hr />
 <h2 id="exercise-1-observe-session-phases">Exercise 1: Observe Session Phases<a class="headerlink" href="#exercise-1-observe-session-phases" title="Permanent link">&para;</a></h2>
-<p>Start the scheduler in manual mode (if supported) or watch the automatic
-transitions:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-scheduler<span class="w"> </span>--immediate
+<p>Start the scheduler in rapid-fire mode to see all transitions quickly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-scheduler<span class="w"> </span>--now
 </code></pre></div>
 <p>From your gateway, observe session state notifications:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[SESSION] state=PRE_OPEN
@@ -3098,20 +3119,51 @@ transitions:</p>
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you see at least one session state transition.</p>
 <hr />
-<h2 id="exercise-2-day-order-expiry">Exercise 2: DAY Order Expiry<a class="headerlink" href="#exercise-2-day-order-expiry" title="Permanent link">&para;</a></h2>
-<p>During CONTINUOUS, place a DAY order:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=148.00|TIF=DAY
+<h2 id="freezeadvance-procedure-deterministic-session-control">Freeze/Advance Procedure (Deterministic Session Control)<a class="headerlink" href="#freezeadvance-procedure-deterministic-session-control" title="Permanent link">&para;</a></h2>
+<p>The exercises below need the exchange sitting in a <strong>specific, known</strong> phase
+before you place an order — otherwise a TIF exercise may pass or fail purely
+by timing luck. Instead of running <code>pm-scheduler</code> continuously, use the admin
+gateway to freeze on a phase and advance only when you are ready:</p>
+<ol>
+<li>Do <strong>not</strong> start <code>pm-scheduler --now</code> (which free-runs through all phases).
+   Start the engine and gateways as usual, but leave the scheduler stopped —
+   the session then stays in <code>PRE_OPEN</code> until told otherwise.</li>
+<li>From the admin gateway, force the exact phase you need for the next
+   exercise:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>ADMIN01&gt; SESSION|STATE=CONTINUOUS
 </code></pre></div>
-<p>When the session transitions to CLOSED, the order is automatically cancelled.</p>
-<p>If your scheduler moves through phases quickly, watch for the cancellation
-message.</p>
+<ol>
+<li>Confirm the change took effect with:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>ADMIN01&gt; SESSION_STATUS
+</code></pre></div>
+<ol>
+<li>Run the TIF exercise's orders while frozen in that phase.</li>
+<li>When the exercise calls for a transition (e.g., DAY expiry at <code>CLOSED</code>,
+   or <code>ATO</code>/<code>ATC</code> at auction phases), advance deliberately:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>ADMIN01&gt; SESSION|STATE=CLOSING_AUCTION
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>ADMIN01&gt; SESSION|STATE=CLOSED
+</code></pre></div>
+<p>Using <code>SESSION|STATE=</code> this way means each exercise below runs in a
+reproducible phase instead of racing a free-running scheduler.</p>
+<hr />
+<h2 id="exercise-2-day-order-expiry">Exercise 2: DAY Order Expiry<a class="headerlink" href="#exercise-2-day-order-expiry" title="Permanent link">&para;</a></h2>
+<p>During CONTINUOUS (freeze there with <code>SESSION|STATE=CONTINUOUS</code> per the
+procedure above), place a DAY order:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=148.00|TIF=DAY
+</code></pre></div>
+<p>When you advance the session to CLOSED (<code>SESSION|STATE=CLOSED</code>), the order is
+automatically cancelled.</p>
+<p>Watch for the cancellation message right after you issue the transition.</p>
 <p>Operational note: DAY is best for intraday intent where stale overnight orders
 must not persist.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> DAY order cancelled at session close.</p>
 <hr />
 <h2 id="exercise-3-gtc-order-survives">Exercise 3: GTC Order Survives<a class="headerlink" href="#exercise-3-gtc-order-survives" title="Permanent link">&para;</a></h2>
 <p>Place a GTC order:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>TRADER01&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=415.00|TIF=GTC
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>TRADER01&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=415.00|TIF=GTC
 </code></pre></div>
 <p>This order survives the CLOSED phase and will still be resting when the next
 session opens.</p>
@@ -3120,8 +3172,9 @@ explicitly cancelled.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> GTC order remains after session restart.</p>
 <hr />
 <h2 id="exercise-4-ato-order">Exercise 4: ATO Order<a class="headerlink" href="#exercise-4-ato-order" title="Permanent link">&para;</a></h2>
-<p>During PRE_OPEN (before the opening auction), place an At-The-Open order:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=150.50|TIF=ATO
+<p>Freeze in PRE_OPEN (<code>ADMIN01&gt; SESSION|STATE=PRE_OPEN</code>), then place an
+At-The-Open order:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=150.50|TIF=ATO
 </code></pre></div>
 <p>This order only participates in the opening auction. If not filled during the
 auction, it is cancelled when CONTINUOUS begins.</p>
@@ -3129,14 +3182,14 @@ auction, it is cancelled when CONTINUOUS begins.</p>
 <hr />
 <h2 id="exercise-5-atc-order">Exercise 5: ATC Order<a class="headerlink" href="#exercise-5-atc-order" title="Permanent link">&para;</a></h2>
 <p>During CONTINUOUS, place an At-The-Close order:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.00|TIF=ATC
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.00|TIF=ATC
 </code></pre></div>
 <p>This order is held until the closing auction. It only matches during that phase.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> ATC order does not match during CONTINUOUS.</p>
 <hr />
 <h2 id="exercise-6-rejected-tif">Exercise 6: Rejected TIF<a class="headerlink" href="#exercise-6-rejected-tif" title="Permanent link">&para;</a></h2>
 <p>Try submitting an ATO order during CONTINUOUS:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=ATO
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=ATO
 </code></pre></div>
 <p>Expected: rejection — ATO orders are only accepted during PRE_OPEN or
 OPENING_AUCTION phase.</p>
@@ -3180,6 +3233,10 @@ OPENING_AUCTION phase.</p>
 </tbody>
 </table>
 <hr />
+<h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
+<p>Why does GTC survive every phase transition while DAY does not? If you were
+running an overnight risk desk, what would go wrong if all your hedge orders
+were accidentally submitted as DAY instead of GTC?</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/06-auctions-scheduling/">Auctions &amp; Scheduling</a></li>

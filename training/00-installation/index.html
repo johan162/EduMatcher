@@ -1992,6 +1992,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#before-you-continue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Before You Continue
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reflection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reflection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#further-reading" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3151,7 +3173,7 @@ verify it is available:</p>
 </code></pre></div>
 <h3 id="step-2-bootstrap-the-vm-with-one-command">Step 2: Bootstrap the VM with one command<a class="headerlink" href="#step-2-bootstrap-the-vm-with-one-command" title="Permanent link">&para;</a></h3>
 <p>Run the curl bootstrap script (pinned to this release):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.12.4<span class="w"> </span>--snapshot
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.12.5<span class="w"> </span>--snapshot
 </code></pre></div>
 <p>This command will:</p>
 <ol>
@@ -3165,7 +3187,7 @@ verify it is available:</p>
 <p>If you prefer to inspect scripts before running them:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span>-o<span class="w"> </span>curl_setup_vm.sh
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>less<span class="w"> </span>curl_setup_vm.sh
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.12.4<span class="w"> </span>--snapshot
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.12.5<span class="w"> </span>--snapshot
 </code></pre></div></p>
 </div>
 <h3 id="step-3-enter-the-vm-and-verify-commands">Step 3: Enter the VM and verify commands<a class="headerlink" href="#step-3-enter-the-vm-and-verify-commands" title="Permanent link">&para;</a></h3>
@@ -3314,6 +3336,22 @@ then introduces equivalent bot-based workflow.</p>
 <li>Environment variables configured.</li>
 <li>A sample <code>engine_config.yaml</code> ready for customisation.</li>
 </ul>
+<h2 id="before-you-continue">Before You Continue<a class="headerlink" href="#before-you-continue" title="Permanent link">&para;</a></h2>
+<p>Confirm every item before starting Chapter 01 — each one is a prerequisite
+that chapter assumes without re-explaining:</p>
+<ul>
+<li>[ ] <code>engine_config.yaml</code> exists in your working directory (<code>ls engine_config.yaml</code>).</li>
+<li>[ ] <code>EDUMATCHER_DATA_DIR</code> and <code>EDUMATCHER_CONFIG</code> are set <strong>in the shell you
+      will use for the next chapter</strong> (<code>echo $EDUMATCHER_DATA_DIR</code>) — these do
+      not persist across new terminal windows unless added to your shell profile.</li>
+<li>[ ] <code>pm-engine --version</code> and <code>pm-engine --help</code> both resolve without a
+      <code>command not found</code> error in that same shell.</li>
+</ul>
+<h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
+<p>Why does the training guide have you set <code>EDUMATCHER_DATA_DIR</code> explicitly in
+Exercise 3 rather than always accepting a compiled-in default? What would
+break in Chapter 16 (Persistence &amp; Recovery) if two different terminal
+sessions ended up pointing at two different data directories?</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/00-getting-started/">Getting Started</a></li>
