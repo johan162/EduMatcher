@@ -141,9 +141,21 @@ regulated venue it would be a compliance failure.
 
 ## What this process does
 
-`pm-alf-console` is the interactive ALF trading gateway. It connects a human or bot
-operator to the matching engine for order-entry workflows: submit, amend,
-cancel, monitor order lifecycle, and inspect local position state.
+`pm-alf-console` is the **interactive ALF trading terminal** for local, in-session
+use.  It is designed for humans sitting at the same machine as the running engine:
+it connects **directly to the engine's ZMQ sockets**, reads commands from stdin,
+and prints responses to stdout.
+
+!!! warning "Local machine only"
+    `pm-alf-console` connects directly to the engine's ZMQ PUSH/SUB ports
+    (`5555` / `5556`).  It has no TCP listener of its own, so it **cannot accept
+    connections from other hosts**.  It is only suitable for demos, learning, and
+    manual testing on the same machine as the engine.
+
+    For programmatic clients or any client running on a **different host**, use
+    [`pm-alf-gwy`](24-alf-gateway.md) instead.  That process binds a TCP port
+    (default `5565`), accepts multiple ALF connections over the network, and
+    bridges them to the engine's ZMQ bus — without any client needing ZMQ access.
 
 Responsibilities of `pm-alf-console`:
 
@@ -156,23 +168,41 @@ Responsibilities of `pm-alf-console`:
 
 ## Architecture position
 
-`pm-alf-console` sits between an ALF client (human operator or automation script)
-and the matching engine. Outbound commands go to the engine request socket,
-while gateway-scoped lifecycle events and selected market events come back on
-the engine PUB stream.
+`pm-alf-console` sits **directly on the ZMQ bus**.  It holds a ZMQ PUSH socket
+(sends commands to the engine) and a ZMQ SUB socket (receives engine events).
+There is no TCP layer between the operator and the engine — commands flow
+directly over ZeroMQ, which is why the process must run on the same host or
+at least have direct network access to the engine's ZMQ ports.
 
 ```mermaid
 flowchart TB
-  CL["Operator / bot\nALF commands"]
-  GW["pm-alf-console\n(ALF interactive client)"]
+  CL["Operator at terminal\n(same machine)"]
+  GW["pm-alf-console\n(ZMQ PUSH + SUB)"]
   ENG["pm-engine\nMatching + risk"]
   EVT["Gateway event stream\norder.ack/order.fill/...\ntrade.executed"]
 
-  CL -->|"ALF commands"| GW
-  GW -->|"order/control requests"| ENG
-  ENG -->|"events + acks"| EVT
+  CL -->|"stdin ALF commands"| GW
+  GW -->|"ZMQ PUSH :5555"| ENG
+  ENG -->|"ZMQ PUB :5556"| EVT
   EVT --> GW
 ```
+
+For clients on **another host**, `pm-alf-gwy` adds a TCP accept loop in front
+of the same ZMQ bridge, so the client only needs a plain TCP socket:
+
+```mermaid
+flowchart LR
+  BOT["External bot\n(any host)"]
+  GWY["pm-alf-gwy\nTCP :5565"]
+  ENG["pm-engine\nZMQ :5555 / :5556"]
+
+  BOT -->|"TCP ALF lines"| GWY
+  GWY -->|"ZMQ PUSH :5555"| ENG
+  ENG -->|"ZMQ PUB :5556"| GWY
+  GWY -->|"TCP ALF lines"| BOT
+```
+
+See [ALF TCP Gateway](24-alf-gateway.md) for full documentation of `pm-alf-gwy`.
 
 
 ## When to use ALF — protocol comparison
@@ -181,7 +211,8 @@ EduMatcher offers multiple interfaces. Use this quick guide to choose the right 
 
 | Interface | Transport | Best for | Not suitable for |
 |----------|-----------|----------|------------------|
-| **ALF** (`pm-alf-console`) | TCP text (interactive client) | Human/manual trading workflows, command-driven testing, order-entry demos | External market-data-only consumers |
+| **ALF** (`pm-alf-console`) | ZMQ direct (local only) | Human/manual trading at the same machine — demos, learning, ad-hoc testing | Remote clients; any process on a different host |
+| **ALF** (`pm-alf-gwy`) | TCP text `:5565` | External bots, remote scripts, any language, any host | Interactive terminal workflows (no tab completion, no P&L display) |
 | **CALF** (`pm-md-gwy`) | TCP text | External market data (`TOP`, `TRADE`, `STATE`, `INDEX`) | Order entry |
 | **RALF** (`pm-ralf-gwy`) | TCP text | External post-trade feeds (`CLEARING`, `DROP_COPY`, `AUDIT`) | Pre-trade market data, order entry |
 | **REST / WebSocket** (`pm-api-gwy`) | HTTP/JSON + WS | Browser and API-native apps | Lowest-latency interactive trading |
@@ -189,13 +220,15 @@ EduMatcher offers multiple interfaces. Use this quick guide to choose the right 
 
 Rule of thumb:
 
-- Manual or scripted command-line order entry -> **ALF (`pm-alf-console`)**
-- External market data feed -> **CALF**
-- External clearing/audit feed -> **RALF**
-- Browser/web integration -> **REST/WebSocket**
+- Manual command-line order entry, **same machine** → **`pm-alf-console`**
+- Automated bot or **remote host** → **`pm-alf-gwy`**
+- External market data feed → **CALF**
+- External clearing/audit feed → **RALF**
+- Browser/web integration → **REST/WebSocket**
 
-The gateway (`pm-alf-console`) is your trading terminal. Each gateway instance represents
-one user connecting to the trading system. Multiple gateways can run simultaneously.
+The interactive gateway (`pm-alf-console`) is your trading console for demos and
+learning. Each gateway instance represents one user connecting to the trading
+system. Multiple gateways can run simultaneously.
 
 
 

@@ -110,6 +110,7 @@ nav:
     - API Gateway (REST/WebSocket): user-guide/21-api-gateway.md
     - Market Index (pm-index): user-guide/22-index.md
     - Config Verifier (pm-cverifier): user-guide/23-config-verifier.md
+    - ALF TCP Gateway (pm-alf-gwy): user-guide/24-alf-gateway.md
     - Protocol Support Library Examples: user-guide/80-examples.md
     - Example Engine Configs: user-guide/81-example-configs.md
     - Known Limitations & Bugs: user-guide/89-known-limitations-bugs.md

@@ -38,6 +38,7 @@ bus**. The engine owns three sockets:
 flowchart LR
     subgraph producers["Producers (PUSH → 5555)"]
         GW["pm-alf-console\n(ALF order entry)"]
+        ALFGWY["pm-alf-gwy\n(ALF TCP gateway)"]
         SCH["pm-scheduler\n(session transitions)"]
         ADM["pm-admin / pm-admin-cli\n(admin commands)"]
         AI["pm-ai-trader / pm-ai-swarm\n(AI bots)"]
@@ -61,11 +62,13 @@ flowchart LR
     end
 
     GW -->|PUSH| PULL
+    ALFGWY -->|PUSH| PULL
     SCH -->|PUSH| PULL
     ADM -->|PUSH| PULL
     AI -->|PUSH| PULL
     MMB -->|PUSH| PULL
     PUB -->|SUB| GW
+    PUB -->|SUB| ALFGWY
     PUB -->|SUB| VW
     PUB -->|SUB| ORD
     PUB -->|SUB| AUD
@@ -196,6 +199,7 @@ pm-engine --verbose
 | **pm-stats**       | `pm-stats`                | OHLCV statistics to SQLite                                 | No                  |
 | **pm-clearing**    | `pm-clearing`             | P&L and trade settlement                                   | No                  |
 | **pm-audit**       | `pm-audit`                | Full event log to disk                                     | No                  |
+| **pm-alf-gwy**     | `pm-alf-gwy`              | ALF TCP gateway — order entry for external bots over TCP :5565 | No              |
 | **pm-ralf-gwy**    | `pm-ralf-gwy`             | External post-trade dissemination gateway (RALF)           | No                  |
 | **pm-md-gwy**      | `pm-md-gwy`               | External market-data gateway (CALF) over TCP :5570         | No                  |
 | **pm-api-gateway** | `pm-api-gateway`          | REST/WebSocket order-entry and market-data API gateway     | No                  |
@@ -250,6 +254,8 @@ pm-engine --verbose
          ```bash
          pm-alf-console --id TRADER01
          pm-alf-console --id TRADER02
+         # or, for external / remote bots:
+         pm-alf-gwy --config engine_config.yaml
          ```
      5. Start optional observers/tools as needed (`pm-board`, `pm-viewer`,
          `pm-audit --terminal`, `pm-stats`, `pm-clearing`, `pm-ticker`,
@@ -408,6 +414,86 @@ is refused and the gateway exits.
 | `trade.executed`                   | Global trade feed for last-price / P&L display |
 
 See the [Gateway Reference](08-gateway.md) for the full command list.
+
+
+
+## pm-alf-gwy — ALF TCP Gateway
+
+Accepts ALF order-entry commands from external bots and remote processes over a
+plain TCP connection.  Uses the same ALF command vocabulary as `pm-alf-console`
+but is designed for programmatic clients, not interactive terminals.  One
+connection per gateway ID; all configured `gateways.alf` IDs may connect.
+
+```bash
+pm-alf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5565] [--engine-host HOST]
+```
+
+**Startup options:**
+
+| Flag              | Default                 | Description                                           |
+|-------------------|-------------------------|-------------------------------------------------------|
+| `--config` / `-c` | `engine_config.yaml`    | Config file with optional `alf_gateway:` section      |
+| `--bind`          | from config / `0.0.0.0` | TCP bind address for external clients                 |
+| `--port`          | from config / `5565`    | TCP listen port for ALF clients                       |
+| `--engine-host`   | from config             | Override engine host for ZMQ ports `5555` / `5556`   |
+
+**Expected runtime input arguments:**
+
+No terminal input.  External clients connect over TCP and send ALF lines:
+
+- `HELLO|CLIENT=...|PROTO=ALF1|ID=<gateway-id>` (must be first)
+- `NEW|...`, `AMEND|...`, `CANCEL|...`
+- `QUOTE|...`, `QUOTE_CANCEL|...`
+- `KILL[|SYM=...]`
+- `SYMBOLS`, `ORDERS`, `QBOOT[|SYM=...]`
+- `PING`, `EXIT` / `QUIT`
+
+**Messages sent** (PUSH → :5555):
+
+| Topic                          | Purpose                        |
+|--------------------------------|--------------------------------|
+| `system.gateway_connect`       | Authentication request         |
+| `system.gateway_disconnect`    | Graceful disconnect notice     |
+| `order.new`                    | Submit order                   |
+| `order.cancel`                 | Cancel order                   |
+| `order.amend`                  | Amend order                    |
+| `order.combo`                  | Submit combo                   |
+| `order.combo_cancel`           | Cancel combo                   |
+| `order.oco`                    | Submit OCO pair                |
+| `order.oco_cancel`             | Cancel OCO pair                |
+| `order.orders_request`         | Request order list             |
+| `quote.new`                    | Submit / replace MM quote      |
+| `quote.cancel`                 | Cancel MM quote                |
+| `risk.kill_switch`             | Gateway kill-switch            |
+| `system.symbols_request`       | Request symbol list            |
+| `system.quote_bootstrap_request` | Request quote bootstrap state |
+
+**Messages subscribed** (SUB from :5556):
+
+| Topic                                    | Purpose                               |
+|------------------------------------------|---------------------------------------|
+| `system.gateway_auth.{GW_ID}`            | Engine authentication reply           |
+| `order.ack.{GW_ID}`                      | Order accepted or rejected            |
+| `order.fill.{GW_ID}`                     | Partial or full fill                  |
+| `order.amended.{GW_ID}`                  | Amend confirmation                    |
+| `order.cancelled.{GW_ID}`               | Cancel confirmation                   |
+| `order.expired.{GW_ID}`                  | TIF expiry                            |
+| `order.orders.{GW_ID}`                   | Order list reply                      |
+| `combo.ack.{GW_ID}`                      | Combo accepted or rejected            |
+| `combo.status.{GW_ID}`                   | Combo lifecycle change                |
+| `oco.ack.{GW_ID}`                        | OCO accepted or rejected              |
+| `oco.cancelled.{GW_ID}`                  | OCO sibling-cancel notification       |
+| `quote.ack.{GW_ID}`                      | Quote accepted or rejected            |
+| `quote.status.{GW_ID}`                   | Quote lifecycle change                |
+| `risk.kill_switch_ack.{GW_ID}`           | Kill-switch acknowledgement           |
+| `system.symbols.{GW_ID}`                 | Symbol list reply                     |
+| `system.quote_bootstrap.{GW_ID}`         | Quote bootstrap state reply           |
+| `session.state`                          | Session phase changes (broadcast)     |
+| `trade.executed`                         | Trade events (broadcast)              |
+| `circuit_breaker.halt.*`                 | Symbol halt events (broadcast)        |
+| `circuit_breaker.resume.*`               | Symbol resume events (broadcast)      |
+
+See [ALF TCP Gateway](24-alf-gateway.md) for operational usage, command reference, and client examples.
 
 
 
@@ -1671,6 +1757,15 @@ available as runnable scripts.
 
 See the [BALF Protocol Reference](91-app-balf-protocol.md) for message specifications planned for future gateway implementations.
 
+## pm-alf-gwy — ALF TCP gateway
+
+`pm-alf-gwy` is implemented and provides external ALF order-entry over TCP.
+It accepts the same ALF command vocabulary as `pm-alf-console` and is designed
+for programmatic clients and remote bots.
+
+See [ALF TCP Gateway](24-alf-gateway.md) for operational usage and
+[ALF Protocol Reference](90-app-alf-protocol.md) for the wire-level contract.
+
 ## pm-md-gwy (CALF Market-Data Gateway)
 
 `pm-md-gwy` is implemented and provides external market-data distribution over
@@ -1693,6 +1788,7 @@ See [Market Data Feed (CALF)](20-market-data-feed.md) for operational usage and
 - [Post-Trade Dissemination](18-post-trade.md) — external RALF gateway usage
 - [RALF Protocol Reference](93-app-ralf-protocol.md) — official protocol appendix
 - [Market Data Feed (CALF)](20-market-data-feed.md) — external CALF gateway usage
+- [ALF TCP Gateway](24-alf-gateway.md) — external ALF order-entry gateway usage
 - [API Gateway (REST/WebSocket)](21-api-gateway.md) — REST/WebSocket gateway usage and endpoint reference
 - [Market Index (pm-index)](22-index.md) — index configuration, calculation, and corporate actions
 - [Market-Maker Bot](17-mm-bot.md) — autonomous quoting process for a single symbol
