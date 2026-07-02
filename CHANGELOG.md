@@ -1,3 +1,13 @@
+## [v0.12.5] - 2026-07-02
+
+Release Type: patch
+
+### 📋 Summary
+This patch delivers an updated trainging section matching the latest code changes.
+
+### 📚 Documentation
+- Updated training section
+
 ## [v0.12.4] - 2026-07-01
 
 Release Type: patch

@@ -102,7 +102,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/EduMatcher},
-  version = {0.12.4}
+  version = {0.12.5}
 }
 ```
 
