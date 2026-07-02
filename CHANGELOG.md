@@ -1,3 +1,36 @@
+## [v0.13.0] - 2026-07-02
+
+Release Type: minor
+
+### 📋 Summary
+This release introduces two new external-facing TCP gateways — `pm-alf-gwy`
+(text ALF1 protocol) and `pm-balf-gwy` (binary BALF protocol) — enabling
+third-party trading systems to connect directly over TCP without using the
+internal ZMQ bus. The internal trading console is renamed from `pm-gateway` to
+`pm-alf-console` to remove the naming ambiguity.
+
+### ⚠️ Breaking Changes
+- Renamed `pm-gateway` to `pm-alf-console`; any scripts, aliases, or systemd units invoking `pm-gateway` must be updated
+
+### ✨ Additions
+- Added `pm-alf-gwy`: new external-facing TCP gateway implementing the text-based ALF1 session protocol, with configurable gateway roles, rate limiting, heartbeat/idle timeouts, and `disconnect_behaviour` support
+- Added `pm-balf-gwy`: new external-facing TCP gateway implementing the BALF binary protocol using fixed-size little-endian frames, full order lifecycle (new/cancel/amend), engine event delivery (ack/fill/cancelled/amended/expired), and deterministic reject-code classification
+- Added reference C client (`alf_client.c`, `alf_parser.c`) and Python client (`alf_client.py`, `alf_parser.py`) for external ALF1 connections
+- Added `docs-design/EduMatcher-ALF-Gwy.md`: ALF gateway design specification covering session lifecycle, handshake, rate control, and disconnect semantics
+- Added `docs-design/EduMatcher-BALF_Proposal.md`: BALF binary protocol specification including frame layout, session lifecycle Mermaid diagram, reject-code classifier table, and operator configuration reference
+- Added `docs/user-guide/24-alf-gateway.md`: full ALF gateway user-guide chapter with protocol reference and operator runbook
+
+### 📚 Documentation
+- Added training chapter for the ALF gateway covering connection setup, order placement, and the full session lifecycle
+- Updated training material to use `pm-alf-console` in place of the old `pm-gateway` process name
+- Updated process reference and protocol overview to include `pm-alf-gwy`, `pm-balf-gwy`, and `pm-alf-console`
+
+### 🛠 Internal
+- Added `tests/test_balf_gwy_unit.py`: 140 pure-function unit tests covering codec frame builders/parsers, config validation, protocol field validators and reason classifier, translation functions, and CLI entry-point
+- Added `tests/test_balf_gwy_integration.py`: 39 live-socket integration tests using a real `BalfGateway` thread with a fake ZMQ PULL + PUB engine, covering session lifecycle, auth, duplicate-session policies, command forwarding, engine event delivery, heartbeat and timeout paths, and error/disconnect behaviour
+- Achieved 90.3% overall coverage for `src/edumatcher/balf_gwy` (codec 99%, config 100%, protocol 100%, translate 100%, gateway 85%)
+- All static tools clean on the new package: black, flake8, mypy, pyright
+
 ## [v0.12.5] - 2026-07-02
 
 Release Type: patch

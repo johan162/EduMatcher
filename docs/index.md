@@ -90,7 +90,7 @@ For full setup details, see [Getting Started](user-guide/00-getting-started.md).
 **Option 1: VM bootstrap mode (curl + Multipass)**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.12.5 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.13.0 --snapshot
 ```
 
 More details:
