@@ -42,6 +42,7 @@ import zmq
 from edumatcher.balf_gwy.codec import (
     BALF_MAGIC,
     BALF_VERSION,
+    CANCEL_REASON_SYSTEM,
     CLIENT_MSG_TYPES,
     FRAME_SIZE,
     HEADER_SIZE,
@@ -572,18 +573,34 @@ class BalfGateway:
         try:
             parsed = parse_new_order(body)
         except ValueError as exc:
-            raise BalfValidationError(RC_INVALID_FIELD, str(exc)[:25]) from exc
+            log.warning("BALF malformed NEW_ORDER from %s: %s", session.addr, exc)
+            self._global_stats["protocol_errors_total"] += 1
+            self._hard_close(session)
+            return
 
         gw_id = self._require_gw(session)
         engine_uuid = new_engine_order_id()
         balf_id = session.next_balf_id()
+        client_order_id = int(parsed["client_order_id"])
 
-        # Build engine order dict (raises BalfValidationError on invalid fields)
-        order_dict = build_engine_new_order(parsed, gw_id, engine_uuid)
+        try:
+            order_dict = build_engine_new_order(parsed, gw_id, engine_uuid)
+        except BalfValidationError as exc:
+            self._queue_frame(
+                session,
+                build_order_ack(
+                    client_order_id=client_order_id,
+                    balf_order_id=0,
+                    seq_no=session.next_seq(),
+                    accepted=False,
+                    reject_code=exc.reject_code,
+                    reason=exc.reason,
+                ),
+            )
+            self._register_error(session, exc)
+            return
 
-        # Register ID mapping before sending to engine
-        client_order_id_for_map = int(parsed["client_order_id"])
-        session.engine_to_balf[engine_uuid] = (balf_id, client_order_id_for_map)
+        session.engine_to_balf[engine_uuid] = (balf_id, client_order_id)
         session.balf_to_engine[balf_id] = engine_uuid
         session.order_symbol[engine_uuid] = str(parsed["symbol"])
 
@@ -594,10 +611,23 @@ class BalfGateway:
         try:
             balf_cancel_clordid, balf_order_id = parse_cancel_order(body)
         except ValueError as exc:
-            raise BalfValidationError(RC_INVALID_FIELD, str(exc)[:25]) from exc
+            log.warning("BALF malformed CANCEL_ORDER from %s: %s", session.addr, exc)
+            self._global_stats["protocol_errors_total"] += 1
+            self._hard_close(session)
+            return
 
         if balf_order_id == 0:
-            raise BalfValidationError(RC_INVALID_FIELD, "order_id 0 is invalid")
+            self._queue_frame(
+                session,
+                build_cancel_ack(
+                    client_order_id=balf_cancel_clordid,
+                    balf_order_id=0,
+                    seq_no=session.next_seq(),
+                    accepted=False,
+                    cancel_reason=0,
+                ),
+            )
+            return
 
         gw_id = self._require_gw(session)
         engine_uuid = session.balf_to_engine.get(balf_order_id)
@@ -628,15 +658,40 @@ class BalfGateway:
         try:
             parsed = parse_amend_order(body)
         except ValueError as exc:
-            raise BalfValidationError(RC_INVALID_FIELD, str(exc)[:25]) from exc
+            log.warning("BALF malformed AMEND_ORDER from %s: %s", session.addr, exc)
+            self._global_stats["protocol_errors_total"] += 1
+            self._hard_close(session)
+            return
 
         balf_order_id = int(parsed["balf_order_id"])
         balf_amend_clordid = int(parsed["client_order_id"])
 
-        validate_amend_flags(int(parsed["amend_flags"]))
+        try:
+            validate_amend_flags(int(parsed["amend_flags"]))
+        except BalfValidationError as exc:
+            self._queue_frame(
+                session,
+                build_amend_ack(
+                    client_order_id=balf_amend_clordid,
+                    balf_order_id=balf_order_id,
+                    seq_no=session.next_seq(),
+                    accepted=False,
+                ),
+            )
+            self._register_error(session, exc)
+            return
 
         if balf_order_id == 0:
-            raise BalfValidationError(RC_INVALID_FIELD, "order_id 0 is invalid")
+            self._queue_frame(
+                session,
+                build_amend_ack(
+                    client_order_id=balf_amend_clordid,
+                    balf_order_id=0,
+                    seq_no=session.next_seq(),
+                    accepted=False,
+                ),
+            )
+            return
 
         gw_id = self._require_gw(session)
         engine_uuid = session.balf_to_engine.get(balf_order_id)
@@ -666,7 +721,20 @@ class BalfGateway:
             qty = raw_qty if raw_qty > 0 else None
 
         if price_display is None and qty is None:
-            raise BalfValidationError(RC_INVALID_FIELD, "no valid amend field set")
+            no_field_exc = BalfValidationError(
+                RC_INVALID_FIELD, "no valid amend field set"
+            )
+            self._queue_frame(
+                session,
+                build_amend_ack(
+                    client_order_id=balf_amend_clordid,
+                    balf_order_id=balf_order_id,
+                    seq_no=session.next_seq(),
+                    accepted=False,
+                ),
+            )
+            self._register_error(session, no_field_exc)
+            return
 
         session.pending_amend[engine_uuid] = _PendingRequest(
             balf_client_order_id=balf_amend_clordid,
@@ -734,6 +802,8 @@ class BalfGateway:
             self._handle_cancelled_event(session, payload)
         elif topic.startswith("order.amended."):
             self._handle_amended_event(session, payload)
+        elif topic.startswith("order.expired."):
+            self._handle_expired_event(session, payload)
 
     def _handle_gateway_auth(self, gw_id: str, payload: dict[str, Any]) -> None:
         session = self._find_pending_auth_session(gw_id)
@@ -959,6 +1029,28 @@ class BalfGateway:
         self._queue_frame(
             session,
             build_amend_ack(seq_no=session.next_seq(), **params),
+        )
+
+    def _handle_expired_event(
+        self, session: ClientSession, payload: dict[str, Any]
+    ) -> None:
+        engine_uuid = str(payload.get("order_id", ""))
+        mapping = session.engine_to_balf.pop(engine_uuid, None)
+        if mapping is None:
+            return
+        balf_order_id, client_order_id = mapping
+        session.balf_to_engine.pop(balf_order_id, None)
+        session.order_symbol.pop(engine_uuid, None)
+        # Notify client: expired orders are reported as system-originated cancels
+        self._queue_frame(
+            session,
+            build_cancel_ack(
+                client_order_id=client_order_id,
+                balf_order_id=balf_order_id,
+                seq_no=session.next_seq(),
+                accepted=True,
+                cancel_reason=CANCEL_REASON_SYSTEM,
+            ),
         )
 
     # ------------------------------------------------------------------
