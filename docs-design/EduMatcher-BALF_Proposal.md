@@ -1,4 +1,4 @@
-Version: 1.0.0
+Version: 1.1.0
 
 Date: 2026-06-14
 
@@ -304,15 +304,43 @@ Offset 27  │  reason           │  u8[25]  │  Rejection reason string (ASCI
 | Code | Meaning |
 |------|---------|
 | `0x00` | Accepted |
-| `0x01` | Symbol not configured |
-| `0x02` | Invalid quantity (zero or negative) |
-| `0x03` | Price required but missing |
-| `0x04` | FOK — insufficient liquidity |
-| `0x05` | Market closed / phase rejection |
-| `0x06` | Unknown order type |
-| `0x07` | ICEBERG visible_qty ≥ quantity |
-| `0x08` | TRAILING_STOP — no prior trade price |
+| `0x01` | Gateway not configured |
+| `0x02` | Gateway not connected |
+| `0x03` | Symbol not configured |
+| `0x04` | Market is closed |
+| `0x05` | ATO outside opening auction |
+| `0x06` | ATC outside closing auction |
+| `0x07` | Halt rejection for `MARKET` / `FOK` / `IOC` |
+| `0x08` | Session-phase rejection for non-resting order types |
+| `0x09` | Trailing stop missing `STOP` and no prior trade price |
+| `0x0A` | Insufficient liquidity |
+| `0x0B` | Price collar rejection |
 | `0xFF` | Other (see `reason` field) |
+
+`reason` is the engine-authored rejection detail and remains authoritative.
+`reject_code` is a compact classification derived from that reason text.
+
+**Deterministic classifier (v1.0.0):**
+
+The gateway must classify `reject_code` using ordered prefix/contains matching
+on engine `reason` text (first match wins):
+
+| Match rule on `reason` | `reject_code` |
+|---|---|
+| startswith `Gateway not configured:` | `0x01` |
+| startswith `Gateway not connected:` | `0x02` |
+| startswith `Symbol not configured:` | `0x03` |
+| equals `Market is closed` | `0x04` |
+| startswith `ATO orders only accepted during` | `0x05` |
+| startswith `ATC orders only accepted during` | `0x06` |
+| contains `orders rejected during circuit breaker halt` | `0x07` |
+| contains `orders not accepted during` | `0x08` |
+| equals `Trailing stop requires STOP= or a prior trade price` | `0x09` |
+| equals `Insufficient liquidity` | `0x0A` |
+| contains `collar` | `0x0B` |
+| otherwise | `0xFF` |
+
+If `accepted=1`, `reject_code` must be `0x00` regardless of `reason` contents.
 
 ---
 
@@ -335,9 +363,18 @@ Offset  8  │  order_id         │  u64 LE  │  Session-scoped BALF order ID 
 Offset  0  │  client_order_id  │  u64 LE  │  Echoed from CANCEL_ORDER
 Offset  8  │  order_id         │  u64 LE  │  Order being cancelled
 Offset 16  │  accepted         │  u8      │  1 = cancelled, 0 = rejected
-Offset 17  │  cancel_reason    │  u8      │  0 = client request, 1 = SMP, 2 = session end, 3 = IOC/FOK expire
+Offset 17  │  cancel_reason    │  u8      │  0 = explicit CANCEL request confirmed, 255 = unspecified/system-originated cancel
 Offset 18  │  _reserved        │  u8[6]   │  Must be zero
 ```
+
+Notes:
+
+- A successful cancel confirmation comes from engine topic `order.cancelled.{GW}`.
+- Cancel rejects come from `order.ack.{GW}` and are translated into
+    `CANCEL_ACK(accepted=0)` by gateway request-correlation state.
+- Canonical reject reasons currently include: `Order not found`,
+    `Cannot cancel an order owned by another gateway`, and gateway auth/connect
+    failures.
 
 ---
 
@@ -373,6 +410,15 @@ Offset 32  │  accepted         │  u8      │  1 = accepted, 0 = rejected
 Offset 33  │  priority_reset   │  u8      │  1 = order lost time priority; 0 = priority preserved
 Offset 34  │  _reserved        │  u8[6]   │  Must be zero
 ```
+
+Notes:
+
+- Successful amend confirmations come from engine topic `order.amended.{GW}`.
+- Amend rejects come from `order.ack.{GW}` and are translated into
+    `AMEND_ACK(accepted=0)` by gateway request-correlation state.
+- Canonical reject reasons currently include: `Amend requires at least PRICE or QTY`,
+    `Order not found`, `Cannot amend an order owned by another gateway`, and
+    symbol/session validation failures returned by `book.amend_order()`.
 
 ---
 
@@ -435,30 +481,93 @@ any pending outbound messages and then close the connection on its side.
 
 ## 6. Session Lifecycle
 
+```mermaid
+sequenceDiagram
+        participant C as Client
+        participant G as pm-balf-gateway
+
+        C->>G: TCP SYN
+        G-->>C: TCP SYN-ACK
+
+        C->>G: LOGON (seq=0)
+        Note over G: gateway authenticates with engine
+        G-->>C: LOGON_ACK (seq=0, accepted=1 or 0)
+        Note over C: if accepted=0, client should close TCP
+
+        C->>G: NEW_ORDER (seq=1)
+        G-->>C: ORDER_ACK (seq=1)
+        G-->>C: EXECUTION_REPORT (seq=2, if immediate fill)
+
+        C->>G: CANCEL_ORDER (seq=2)
+        G-->>C: CANCEL_ACK (seq=3)
+
+        G-->>C: HEARTBEAT (seq=N)
+        Note over G,C: server-initiated liveness check
+        C->>G: HEARTBEAT_ACK (seq=M)
+
+        C->>G: LOGOUT (seq=K)
+        Note over G: server closes TCP after flushing pending outbound messages
 ```
-Client                                    pm-balf-gateway
-  │                                               │
-  │──── TCP SYN ────────────────────────────────►│
-  │◄─── TCP SYN-ACK ────────────────────────────│
-  │                                               │
-  │──── LOGON (seq=0) ──────────────────────────►│  gateway authenticates with engine
-  │◄─── LOGON_ACK (seq=0) ──────────────────────│  accepted=1 or 0
-  │                                               │
-  │  (accepted=0 → client should close TCP)       │
-  │                                               │
-  │──── NEW_ORDER (seq=1) ──────────────────────►│
-  │◄─── ORDER_ACK (seq=1) ──────────────────────│
-  │◄─── EXECUTION_REPORT (seq=2) ───────────────│  if immediate fill
-  │                                               │
-  │──── CANCEL_ORDER (seq=2) ───────────────────►│
-  │◄─── CANCEL_ACK (seq=3) ─────────────────────│
-  │                                               │
-  │◄─── HEARTBEAT (seq=N) ──────────────────────│  server-initiated liveness check
-  │──── HEARTBEAT_ACK (seq=M) ─────────────────►│
-  │                                               │
-  │──── LOGOUT (seq=K) ─────────────────────────►│
-  │ (server closes TCP after flushing)            │
+
+### 6.1 Handshake and authentication contract
+
+`pm-balf-gateway` must follow the same engine authentication bridge used by
+`pm-alf-gwy`:
+
+1. Client connects over TCP and sends `LOGON`.
+2. Gateway validates BALF frame-level fields (`magic`, `version`, body size,
+     zeroed reserved bits).
+3. Gateway sends `system.gateway_connect` to the engine for `gateway_id`.
+4. Gateway waits for `system.gateway_auth.{gateway_id}`.
+5. Gateway sends `LOGON_ACK(accepted=1|0)` to client and only accepts order
+     traffic after `accepted=1`.
+
+This keeps BALF auth semantics aligned with ALF gateway and API gateway.
+
+### 6.2 Disconnect semantics and passive-order policy
+
+BALF disconnect behavior is config-driven by the gateway identity's
+`disconnect_behaviour` in engine config. The BALF gateway must not implement a
+separate policy engine.
+
+Disconnect trigger classes:
+
+- Graceful client logout (`LOGOUT`).
+- Heartbeat timeout (no inbound traffic within `heartbeat_timeout_sec`).
+- Idle timeout / liveness expiry.
+- Transport break (TCP FIN/RST, peer closed).
+- Protocol safety disconnect (bad framing, sequence gap, repeated invalid
+    messages, outbound queue overflow).
+
+On every disconnect trigger, gateway must send:
+
+```text
+system.gateway_disconnect|gateway_id=<GW>|reason=<REASON>
 ```
+
+The engine applies `disconnect_behaviour`:
+
+| `disconnect_behaviour` | Engine action on disconnect |
+|---|---|
+| `LEAVE_ALL` | Leave quotes and resting non-quote orders untouched |
+| `CANCEL_QUOTES_ONLY` | Cancel all active quotes for gateway; keep non-quote resting orders |
+| `CANCEL_ALL` | Cancel all active quotes and all resting non-quote orders |
+
+This explicitly covers outstanding passive orders and keeps BALF behavior
+coherent with existing engine semantics.
+
+### 6.3 Duplicate session policy
+
+Default policy for BALF `1.0.0` is `REJECT_NEW`: if a gateway ID is already
+connected, a second `LOGON` is rejected with `LOGON_ACK(accepted=0,
+reject_code=0x02)`.
+
+Future-compatible config key:
+
+- `duplicate_session_policy: REJECT_NEW | EVICT_OLD`
+
+`EVICT_OLD` is optional for later phases and should only be enabled when
+operationally required.
 
 ### Sequence number rules
 
@@ -1729,42 +1838,113 @@ gateways:
     - id: TRADER01
       description: Human trader workstation
       role: TRADER
+            disconnect_behaviour: CANCEL_ALL
+        - id: ALGO01
+            description: Market-making algorithm
+            role: MARKET_MAKER
+            disconnect_behaviour: CANCEL_QUOTES_ONLY
+            mm_max_spread_ticks: 5
+            mm_min_qty: 50
 
-  # New BALF section — same allowlist model, separate role config
-  balf:
-    - id: TRADER01
-      description: HFT algo — same identity as ALF TRADER01
-      role: TRADER
-    - id: ALGO01
-      description: Market-making algorithm
-      role: MARKET_MAKER
-      mm_max_spread_ticks: 5
-      mm_min_qty: 50
-
+# BALF gateway runtime settings
 balf_gateway:
-  bind_address: "0.0.0.0"
-  port: 5560
-  heartbeat_interval_sec: 1
-  heartbeat_timeout_sec:  5
+    enabled: true
+    name: "balf-gwy01"
+    bind_address: "0.0.0.0"
+    port: 5560
+    heartbeat_interval_sec: 1
+    heartbeat_timeout_sec: 5
+    idle_timeout_sec: 30
+    max_connections: 64
+    max_client_queue: 10000
+    max_messages_per_second: 100
+    duplicate_session_policy: REJECT_NEW
 ```
 
-A BALF gateway ID does **not** need to match an ALF gateway ID. Both use the
-same engine allowlist enforcement, but the `balf:` section is checked
-independently of `alf:`.
+For BALF `1.0.0`, gateway identity allowlist and per-gateway behavior are read
+from `gateways.alf` to match current engine behavior and keep Phase 1 engine
+changes at zero. BALF is a transport/protocol alternative, not a separate
+identity namespace in v1.
+
+If a future release introduces `gateways.balf`, that is a deliberate engine
+configuration extension and should be versioned as such.
 
 ---
 
 ## 13. Implementation Plan (proposed)
 
+### 13.1 Reuse-first scaffolding from `alf_gwy/`
+
+To keep maintenance low and behavior consistent, `pm-balf-gateway` should reuse
+the same process shape as `pm-alf-gwy`.
+
+Recommended package layout:
+
+```text
+src/edumatcher/balf_gwy/
+    main.py         # CLI and config resolution (mirror alf_gwy.main)
+    config.py       # balf_gateway section loader and validation
+    gateway.py      # runtime loop, sessions, engine bridge
+    codec.py        # BALF frame parse/build (header, body structs)
+    protocol.py     # field/domain validation + reject-code mapping
+    translate.py    # BALF message <-> engine make_*_msg helpers
+```
+
+Runtime loop should stay structurally identical to `alf_gwy`:
+
+1. accept new clients
+2. read/parse inbound frames
+3. dispatch authenticated commands
+4. poll engine SUB events
+5. send heartbeats
+6. flush outbound queues
+7. drop idle/slow/erroring sessions
+
+### 13.2 Message mapping contract (normative)
+
+| BALF message | Engine message/topic |
+|---|---|
+| `LOGON` | `system.gateway_connect` |
+| disconnect trigger (`LOGOUT`, timeout, socket close, protocol close) | `system.gateway_disconnect` |
+| `NEW_ORDER` | `order.new` |
+| `CANCEL_ORDER` | `order.cancel` |
+| `AMEND_ORDER` | `order.amend` |
+
+| Engine topic | BALF outbound |
+|---|---|
+| `order.ack.{GW}` | `ORDER_ACK` for `NEW_ORDER` results, `CANCEL_ACK(accepted=0)` for cancel rejects, `AMEND_ACK(accepted=0)` for amend rejects |
+| `order.fill.{GW}` | `EXECUTION_REPORT` |
+| `order.cancelled.{GW}` | `CANCEL_ACK(accepted=1)` |
+| `order.amended.{GW}` | `AMEND_ACK(accepted=1)` |
+| `system.gateway_auth.{GW}` | `LOGON_ACK` |
+
+### 13.3 Implementation phases
+
 | Phase | Deliverable |
 |-------|-------------|
-| **Phase 1** | `pm-balf-gateway` process: TCP accept loop, LOGON/LOGON_ACK, `NEW_ORDER` → `ORDER_ACK` + `EXECUTION_REPORT`, `CANCEL_ORDER` → `CANCEL_ACK`, `AMEND_ORDER` → `AMEND_ACK`, heartbeat, logout |
+| **Phase 1** | `pm-balf-gateway` skeleton cloned from `alf_gwy` lifecycle: TCP accept loop, LOGON/LOGON_ACK, engine auth bridge, `NEW_ORDER`/`CANCEL_ORDER`/`AMEND_ORDER`, heartbeat, logout, disconnect-policy integration |
 | **Phase 2** | `QUOTE_NEW` / `QUOTE_CANCEL` for market-maker gateways; `KILL_SWITCH` message; optional study of combo/OCO wire models (not in `1.0.0`) |
 | **Phase 3** | TLS support; optional session recovery extension (resend request / retransmit semantics) |
 | **Phase 4** | Benchmark harness comparing ALF vs BALF round-trip latency under load |
 
 Phase 1 requires no changes to the matching engine — only a new process that
 speaks BALF on one side and the existing ZeroMQ/JSON engine API on the other.
+
+### 13.4 Junior-focused acceptance tests
+
+Minimum tests required before Phase 1 is considered complete:
+
+1. `LOGON` accepted path (engine auth accepted) and rejected path (unknown
+     gateway / duplicate gateway).
+2. `NEW_ORDER` to `ORDER_ACK` and `EXECUTION_REPORT` happy path.
+3. `CANCEL_ORDER` to `CANCEL_ACK` happy path and already-terminal-order reject.
+4. `AMEND_ORDER` to `AMEND_ACK` with both price and quantity variants.
+5. Heartbeat timeout triggers `system.gateway_disconnect`.
+6. Socket-close disconnect triggers `system.gateway_disconnect`.
+7. Per-gateway `disconnect_behaviour` validation:
+     - `LEAVE_ALL`
+     - `CANCEL_QUOTES_ONLY`
+     - `CANCEL_ALL`
 
 ---
 

@@ -1,4 +1,4 @@
-CC := cc
+CC := gcc
 
 # Default flags
 CFLAGS := -O2 -Wall -Wextra -std=gnu11 -D_POSIX_C_SOURCE=200809L
