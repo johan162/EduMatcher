@@ -52,11 +52,9 @@ jobs:
           poetry run mkdocs build
 
       - name: Upload documentation artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-pages-artifact@v4
         with:
-          name: documentation
           path: site/
-          retention-days: 7
 
   publish-docs:
     needs: build-docs
@@ -66,17 +64,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Download documentation artifact
-        uses: actions/download-artifact@v5
-        with:
-          name: documentation
-          path: site
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: site
-
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
