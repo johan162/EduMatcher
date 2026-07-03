@@ -12,8 +12,10 @@ MERMAID_FILTER_WIDTH ?= 600
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
     PUPPETEER_EXECUTABLE_PATH ?= /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+	SED_INPLACE := -i ''
 else
     PUPPETEER_EXECUTABLE_PATH ?= /usr/bin/google-chrome
+	SED_INPLACE := -i
 endif
 
 .PHONY: docs pdf-docs training-pdf clean really-clean serve check-latex-engine
@@ -251,16 +253,16 @@ $$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$($1_TEMPLATE) $$
 	@rm -f $$($1_TEMPLATE).bak
 	@echo -e "$$(DARKYELLOW)- Building $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(DARKYELLOW) via LaTeX report pipeline...$$(NC)"
 	@mkdir -p $$(USER_GUIDE_BUILD_DIR)
-	@echo -e "$$(DARKYELLOW)  - Expanding shell command outputs in markdown sources...$$(NC)"
+	@echo -e "$$(DARKYELLOW)  - Expanding shell command outputs in user-guide markdown sources...$$(NC)"
 	@mkdir -p $$($1_EXPANDED_DIR)
 	@poetry run python $$(SCRIPTS_DIR)/expand-shell-outputs.py \
 		--output-dir $$($1_EXPANDED_DIR) \
 		--cwd $$(SCRIPTS_DIR)/.. \
 		--format $(2) \
 		$$(USER_GUIDE_MD_SOURCES)
-	@echo -e "$$(DARKYELLOW)  - Concatenating markdown sources...$$(NC)"
+	@echo -e "$$(DARKYELLOW)  - Concatenating user-guide markdown sources...$$(NC)"
 	@awk 'FNR==1 && NR!=1{print ""; print ""}1' $$(foreach f,$$(USER_GUIDE_MD_SOURCES),$$($1_EXPANDED_DIR)/$$(notdir $$f)) > $$($1_CONCAT_MD)
-	@echo -e "$$(DARKYELLOW)  - Converting concatenated markdown to LaTeX body...$$(NC)"
+	@echo -e "$$(DARKYELLOW)  - Converting user-guide markdown to LaTeX body...$$(NC)"
 	@mkdir -p $$($1_EXPANDED_DIR)/.mermaid-img
 	@PUPPETEER_EXECUTABLE_PATH="$(PUPPETEER_EXECUTABLE_PATH)" \
 	MERMAID_FILTER_FORMAT="$(MERMAID_FILTER_FORMAT)" \
@@ -269,7 +271,7 @@ $$($1_PDF): $$(USER_GUIDE_MD_SOURCES) $$(USER_GUIDE_PDF_DEPS) $$($1_TEMPLATE) $$
 	pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none --filter "$(MERMAID_FILTER)" $$(USER_GUIDE_LUA_FILTER_FLAGS) --metadata paper_format=$(2) $$($1_CONCAT_MD) -o $$($1_BODY_TEX)
 	@sed -i.bak 's/\\def\\LTcaptype{none}/\\def\\LTcaptype{table}/g' $$($1_BODY_TEX)
 	@rm -f $$($1_BODY_TEX).bak
-	@echo -e "$$(DARKYELLOW)  - Injecting body into handcrafted LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW) ...$$(NC)"
+	@echo -e "$$(DARKYELLOW)  - Injecting user-guide body into LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$(DARKYELLOW) ...$$(NC)"
 	@awk -v body="$$($1_BODY_TEX)" '\
 		/%%__USER_GUIDE_CONTENT__%%/ { while ((getline line < body) > 0) print line; close(body); inserted=1; next } \
 		{ print } \
@@ -309,16 +311,16 @@ $$($1_PDF): $$(TRAINING_GUIDE_MD_SOURCES) $$(TRAINING_GUIDE_PDF_DEPS) $$($1_TEMP
 	@rm -f $$($1_TEMPLATE).bak
 	@echo -e "$$(DARKYELLOW)- Building $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$$(DARKYELLOW) via LaTeX report pipeline...$$(NC)"
 	@mkdir -p $$(TRAINING_GUIDE_BUILD_DIR)
-	@echo -e "$$(DARKYELLOW)  - Expanding shell command outputs in markdown sources...$$(NC)"
+	@echo -e "$$(DARKYELLOW)  - Expanding shell command outputs in training markdown sources...$$(NC)"
 	@mkdir -p $$($1_EXPANDED_DIR)
 	@poetry run python $$(SCRIPTS_DIR)/expand-shell-outputs.py \
 		--output-dir $$($1_EXPANDED_DIR) \
 		--cwd $$(SCRIPTS_DIR)/.. \
 		--format $(2) \
 		$$(TRAINING_GUIDE_MD_SOURCES)
-	@echo -e "$$(DARKYELLOW)  - Concatenating markdown sources...$$(NC)"
+	@echo -e "$$(DARKYELLOW)  - Concatenating training markdown sources...$$(NC)"
 	@awk 'FNR==1 && NR!=1{print ""; print ""}1' $$(foreach f,$$(TRAINING_GUIDE_MD_SOURCES),$$($1_EXPANDED_DIR)/$$(notdir $$f)) > $$($1_CONCAT_MD)
-	@echo -e "$$(DARKYELLOW)  - Converting concatenated markdown to LaTeX body...$$(NC)"
+	@echo -e "$$(DARKYELLOW)  - Converting concatenated training markdown to LaTeX body...$$(NC)"
 	@mkdir -p $$($1_EXPANDED_DIR)/.mermaid-img
 	@PUPPETEER_EXECUTABLE_PATH="$(PUPPETEER_EXECUTABLE_PATH)" \
 	MERMAID_FILTER_FORMAT="$(MERMAID_FILTER_FORMAT)" \
@@ -327,7 +329,7 @@ $$($1_PDF): $$(TRAINING_GUIDE_MD_SOURCES) $$(TRAINING_GUIDE_PDF_DEPS) $$($1_TEMP
 	pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none --filter "$(MERMAID_FILTER)" $$(USER_GUIDE_LUA_FILTER_FLAGS) --metadata paper_format=$(2) $$($1_CONCAT_MD) -o $$($1_BODY_TEX)
 	@sed -i.bak 's/\\def\\LTcaptype{none}/\\def\\LTcaptype{table}/g' $$($1_BODY_TEX)
 	@rm -f $$($1_BODY_TEX).bak
-	@echo -e "$$(DARKYELLOW)  - Injecting body into handcrafted LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$$(DARKYELLOW) ...$$(NC)"
+	@echo -e "$$(DARKYELLOW)  - Injecting training body into LaTeX template $$(BRIGHTCYAN)\"$$(notdir $$($1_TEMPLATE))\"$$(DARKYELLOW) ...$$(NC)"
 	@awk -v body="$$($1_BODY_TEX)" '\
 		/%%__USER_GUIDE_CONTENT__%%/ { while ((getline line < body) > 0) print line; close(body); inserted=1; next } \
 		{ print } \
@@ -498,7 +500,7 @@ serve: docs ## Serve the project documentation locally with MkDocs
 
 mp-bump: ## Bump the version for the documented multipass bootstrap sctip to the current project version
 	@echo -e "$(DARKYELLOW)- Bumping multipass bootstrap script version to $(BRIGHTCYAN)$(VERSION)$(DARKYELLOW)...$(NC)"
-	@sed -E -i '' "s/(--version[[:space:]]+)[0-9]+\.[0-9]+\.[0-9]+/\1${VERSION}/g" ./**/*.md *.md ../README.md
+	@sed -E $(SED_INPLACE) "s/(--version[[:space:]]+)[0-9]+\.[0-9]+\.[0-9]+/\1${VERSION}/g" ./**/*.md *.md ../README.md
 	@echo -e "$(GREEN)✓ All multipass bootstrap scripts version updated to $(BRIGHTCYAN)$(VERSION)$(GREEN)$(NC)"
 
 
