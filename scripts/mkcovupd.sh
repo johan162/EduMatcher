@@ -224,7 +224,10 @@ print_step_colored ""
 
 # Extract line-rate from coverage.xml
 # The coverage XML format: <coverage line-rate="0.8345" ...>
+
+print_sub_step "Extracting line-rate from coverage.xml"
 line_rate=$(grep -o '<coverage[^>]*line-rate="[0-9.]*"' "$COVERAGE_XML" | grep -o 'line-rate="[0-9.]*"' | cut -d'"' -f2)
+print_info_colored "Extracted line-rate: '${line_rate}'"
 
 if [ -z "$line_rate" ]; then
     print_error_colored "Could not extract line-rate from coverage.xml"
@@ -232,7 +235,9 @@ if [ -z "$line_rate" ]; then
 fi
 
 # Convert to percentage and round to 2 decimal places
-coverage_percent=$(echo "$line_rate * 100" | bc -l | xargs printf "%.0f")
+print_sub_step "Calculating coverage percentage"
+coverage_percent=$(echo "$line_rate * 100" | bc -l | LC_ALL=C xargs printf "%.0f")
+print_info_colored "Calculated coverage percentage: ${coverage_percent}"
 
 echo -e "📊 Coverage line-rate: ${MAGENTA}${line_rate}${NC}"
 echo -e "📊 Coverage percentage: ${MAGENTA}${coverage_percent}%${NC}"
