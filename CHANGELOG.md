@@ -1,3 +1,21 @@
+## [v0.13.1] - 2026-07-03
+
+Release Type: patch
+
+### 📋 Summary
+This patch release focuses on documentation quality and cross-platform doc build reliability after the 0.13.0 gateway release. The build system is now full compatible for Linux.
+
+### 🚀 Improvements
+- Improved documentation build portability by making the docs Makefile work on Linux environments
+
+### 🐛 Bug Fixes
+- Fixed decimal-mark interpretation so dot-based numeric parsing is handled correctly
+
+### 📚 Documentation
+- Added BALF training chapter content to expand external gateway training coverage
+- Updated README with performance metrics captured from a Linux server
+
+
 ## [v0.13.0] - 2026-07-02
 
 Release Type: minor
