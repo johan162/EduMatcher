@@ -76,51 +76,12 @@ Better prices execute first; at the same price, earlier orders execute first.
 
 > Next step: Complete steps 1 to 4 first, then run a session and return for steps 5 and 6.
 
-## Quick Start (Minimal)
+## Installation
 
-For full setup details, see [Getting Started](user-guide/00-getting-started.md).
+See [User Guide: Installation](https://johan162.github.io/EduMatcher/user-guide/00-getting-started/#installation)
 
-### Prerequisites
+***Note:** Running an exchange is an inherent complex task and unfortunately it is only so much that can be simplified. However, going throught the user guide and training material should give a great start!*
 
-- Python 3.13+
-- Either pipx (recommended for students/instructors) or Poetry (developer mode)
-
-### Install
-
-**Option 1: VM bootstrap mode (curl + Multipass)**
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.13.0 --snapshot
-```
-
-More details:
-- [Getting Started](user-guide/00-getting-started.md)
-- [VM runtime image](developer/05-vm-runtime-image.md)
-
-**Option 2: Installed mode (pipx)**
-
-```bash
-pipx install edumatcher
-pm-setup
-```
-
-### Run a minimal session
-
-Open five terminals and run one process in each:
-
-```bash
-pm-engine --verbose
-pm-audit --terminal
-pm-clearing
-pm-viewer --symbol AAPL
-pm-alf-console --id GW01
-```
-
-If you use Poetry, prefix commands with `poetry run`.
-
-`GW01` must exist under `gateways.alf` in `engine_config.yaml`.
-
-> Next step: Continue with [Running the Engine](user-guide/03-running-the-engine.md) for full process orchestration and troubleshooting.
 
 ## Self Paced Training
 
