@@ -48,24 +48,27 @@ matching logic, and exchange architecture through runnable code.
 ## Performance
 
 EduMatcher does not aim to match venues like NYSE or LSE, but it is still fairly
-fast for a pure Python educational project. The figures below reflect the performance on an Intel MacBook Pro.
-On an ARM M1 MacBook the throughput is roughly 150,000 TPS (an improvement of almost 150%). Latencies are about 25% lower.
+fast for a purely Python educational project. 
+The figures below reflect the performance on an high end Linux server
+with risk checks enabled (price collar and circuit-breaker).
 
-It would be an interesting exercise rewriting this project in Rust.
+On an ARM M1 MacBook the throughput is roughly 115,000 TPS and latencies are about 35% lower.
 
 
 ### Latency (engine-only, n=1,000 each)
 
 | Order type | min (µs) | median (µs) | P80 (µs) | P90 (µs) | max (µs) |
 | ---------- | -------: | ----------: | -------: | -------: | -------: |
-| Limit      |      8.1 |         8.5 |      9.6 |     10.0 |       18 |
-| Market     |      8.1 |         8.5 |      8.8 |      9.3 |       45 |
+| Limit      |     13.1 |        15.0 |     15.4 |     15.7 |    155.7 |
+| Market     |     12.1 |        13.9 |     15.2 |     15.7 |     73.6 |
+
 
 ### Throughput
 
 | Metric        | Value                                               |
 |---------------|-----------------------------------------------------|
-| **Max TPS**   | ~60,000 orders/second                               |
+| **Max TPS**   | ~81,000 orders/second                               |
+| **µs / order (mean)** | 12.4 µs                                     |
 | **Order mix** | 20% Market, 30% aggressive Limit, 50% passive Limit |
 
 *Performance note:* price-collar and circuit-breaker checks run in the hot path
