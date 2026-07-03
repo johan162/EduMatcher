@@ -1,3 +1,17 @@
+## [v0.13.2] - 2026-07-04
+
+Release Type: patch
+
+### 📋 Summary
+This patch release stabilizes documentation publishing by fixing the GitHub Pages deployment workflow due to deprecated deployment verbs.
+
+### 🐛 Bug Fixes
+- Fixed GitHub Pages documentation deployment by switching to the supported artifact-based actions flow
+
+### 🛠 Internal
+- Updated `.github/workflows/docs.yml` to remove legacy deployment steps and use the current GitHub Pages action pattern
+
+
 ## [v0.13.1] - 2026-07-03
 
 Release Type: patch
