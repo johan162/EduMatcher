@@ -17,7 +17,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
   build-docs:
@@ -60,35 +62,21 @@ jobs:
     needs: build-docs
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+      - name: Download documentation artifact
+        uses: actions/download-artifact@v5
         with:
-          fetch-depth: 0
+          name: documentation
+          path: site
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
         with:
-          python-version: '3.13'
-
-      - name: Install Poetry
-        run: |
-          pipx install poetry
-
-      - name: Install dependencies
-        run: |
-          poetry install --with docs
-
-      - name: Create CHANGELOG symlink
-        run: |
-          ln -sf  ../CHANGELOG.md docs/CHANGELOG.md
-
-      - name: Configure Git
-        run: |
-          # Required for mkdocs gh-deploy to create commits on gh-pages branch
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          path: site
 
       - name: Deploy to GitHub Pages
-        run: |
-          poetry run mkdocs gh-deploy --force --message "Deploy documentation from ${GITHUB_SHA}"
+        id: deployment
+        uses: actions/deploy-pages@v5
