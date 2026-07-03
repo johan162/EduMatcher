@@ -5,14 +5,14 @@
 Understand how Time-in-Force (TIF) controls order lifetime across session phases,
 and how to use the scheduler to drive the exchange through a full trading day.
 
----
+ 
 
 ## Prerequisites
 
 - Chapters 01–05 completed.
 - `pm-engine`, `pm-scheduler`, and at least one trader gateway running.
 
----
+ 
 
 ## Background
 
@@ -31,7 +31,7 @@ Different TIF values control when orders are active and when they expire.
 | `ATO` | At-The-Open only; participates in opening auction | OPENING_AUCTION |
 | `ATC` | At-The-Close only; participates in closing auction | CLOSING_AUCTION |
 
----
+ 
 
 ## Exercise 1: Observe Session Phases
 
@@ -51,7 +51,7 @@ From your gateway, observe session state notifications:
 
 :material-checkbox-blank-outline: **Checkpoint:** you see at least one session state transition.
 
----
+ 
 
 ## Freeze/Advance Procedure (Deterministic Session Control)
 
@@ -88,7 +88,7 @@ gateway to freeze on a phase and advance only when you are ready:
 Using `SESSION|STATE=` this way means each exercise below runs in a
 reproducible phase instead of racing a free-running scheduler.
 
----
+ 
 
 ## Exercise 2: DAY Order Expiry
 
@@ -109,7 +109,7 @@ must not persist.
 
 :material-checkbox-blank-outline: **Checkpoint:** DAY order cancelled at session close.
 
----
+ 
 
 ## Exercise 3: GTC Order Survives
 
@@ -127,7 +127,7 @@ explicitly cancelled.
 
 :material-checkbox-blank-outline: **Checkpoint:** GTC order remains after session restart.
 
----
+ 
 
 ## Exercise 4: ATO Order
 
@@ -143,7 +143,7 @@ auction, it is cancelled when CONTINUOUS begins.
 
 :material-checkbox-blank-outline: **Checkpoint:** ATO order participates in auction or is cancelled.
 
----
+ 
 
 ## Exercise 5: ATC Order
 
@@ -157,7 +157,7 @@ This order is held until the closing auction. It only matches during that phase.
 
 :material-checkbox-blank-outline: **Checkpoint:** ATC order does not match during CONTINUOUS.
 
----
+ 
 
 ## Exercise 6: Rejected TIF
 
@@ -172,7 +172,7 @@ OPENING_AUCTION phase.
 
 :material-checkbox-blank-outline: **Checkpoint:** engine rejects out-of-phase TIF correctly.
 
----
+ 
 
 ## Summary
 
@@ -184,7 +184,7 @@ OPENING_AUCTION phase.
 | CLOSING_AUCTION | ATC, GTC | — |
 | CLOSED | — | DAY, ATC (unfilled) |
 
----
+ 
 
 ## Reflection
 
@@ -198,6 +198,6 @@ were accidentally submitted as DAY instead of GTC?
 - [Persistence](../user-guide/11-persistence.md)
 - [A Full Trading Day](../concepts/05-concepts-trading-day.md)
 
----
+ 
 
 **Next:** [07 — Auctions](07-auctions.md)

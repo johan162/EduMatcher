@@ -17,7 +17,7 @@ from edumatcher.engine.config_loader import (
     SymbolConfig,
 )
 from edumatcher.engine.main import Engine
-from edumatcher.gateway.main import Gateway
+from edumatcher.alf_console.main import Gateway
 from edumatcher.models.combo import ComboLeg, ComboOrder, ComboType
 from edumatcher.models.message import decode
 from edumatcher.models.order import Order, OrderType, Side, TIF

@@ -6,14 +6,14 @@ Configure and trigger the exchange's safety mechanisms: price collars, circuit
 breakers, symbol halts, and the kill switch. You will use both the interactive
 `pm-admin` console and the one-shot `pm-admin-cli` tool.
 
----
+ 
 
 ## Prerequisites
 
 - Chapters 01–10 completed.
 - `GW_ADMIN` configured with `role: ADMIN` and connected.
 
----
+ 
 
 ## Background
 
@@ -35,7 +35,7 @@ preferred operator tools are:
 Both require a gateway configured with `role: ADMIN`, such as the `GW_ADMIN`
 gateway from chapter 01.
 
----
+ 
 
 ## Exercise 1: Configure Price Collars
 
@@ -55,7 +55,7 @@ Restart the engine.
 
 :material-checkbox-blank-outline: **Checkpoint:** engine loads risk control configuration.
 
----
+ 
 
 ## Exercise 2: Trigger a Static Collar Rejection
 
@@ -72,7 +72,7 @@ Expected: rejection — price outside static collar.
 
 :material-checkbox-blank-outline: **Checkpoint:** out-of-range order rejected with collar error.
 
----
+ 
 
 ## Exercise 3: Configure Circuit Breakers
 
@@ -87,7 +87,7 @@ Restart the engine.
 
 :material-checkbox-blank-outline: **Checkpoint:** circuit breaker config loaded.
 
----
+ 
 
 ## Exercise 4: Trigger a Circuit Breaker
 
@@ -107,7 +107,7 @@ Verification drill:
 
 :material-checkbox-blank-outline: **Checkpoint:** AAPL halted by circuit breaker.
 
----
+ 
 
 ## Exercise 5: Open the Admin Console
 
@@ -134,7 +134,7 @@ Use `BOOK|SYM=AAPL` to confirm the console can query market state:
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-admin` authenticates as `GW_ADMIN` and can show symbols, session status, gateways, and book state.
 
----
+ 
 
 ## Exercise 6: Manual Symbol Halt and Resume
 
@@ -160,7 +160,7 @@ Resume:
 
 :material-checkbox-blank-outline: **Checkpoint:** halt prevents trading; resume restores it.
 
----
+ 
 
 ## Exercise 7: Exchange-Wide Halt with pm-admin-cli
 
@@ -186,7 +186,7 @@ pm-admin-cli --id GW_ADMIN resume
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-admin-cli` halts and resumes the exchange without entering a REPL.
 
----
+ 
 
 ## Exercise 8: Query and Manage with pm-admin-cli
 
@@ -209,7 +209,7 @@ pm-admin-cli --id GW_ADMIN resume-sym --sym TSLA
 
 :material-checkbox-blank-outline: **Checkpoint:** you can choose `pm-admin` for interactive operation and `pm-admin-cli` for repeatable one-shot commands.
 
----
+ 
 
 ## Exercise 9: Exchange-Wide Halt from the Admin Console
 
@@ -225,7 +225,7 @@ All symbols stop matching. Then:
 
 :material-checkbox-blank-outline: **Checkpoint:** full halt and resume works across all symbols.
 
----
+ 
 
 ## Exercise 10: Kill Switch
 
@@ -251,7 +251,7 @@ pm-admin-cli --id GW_ADMIN kill --gw TRADER02 --sym AAPL
 
 :material-checkbox-blank-outline: **Checkpoint:** kill switch cancels targeted orders.
 
----
+ 
 
 ## Risk Control Summary
 
@@ -264,7 +264,7 @@ pm-admin-cli --id GW_ADMIN kill --gw TRADER02 --sym AAPL
 | Exchange halt | All symbols | `pm-admin` / `pm-admin-cli` | All trading paused |
 | Kill switch | Per gateway | `pm-admin` / `pm-admin-cli` | All orders cancelled |
 
----
+ 
 
 ## Reflection
 
@@ -281,6 +281,6 @@ designed to stop that per-order collars cannot?
 - [Drop Copy](../user-guide/13-drop-copy.md)
 - [A Full Trading Day](../concepts/05-concepts-trading-day.md)
 
----
+ 
 
 **Next:** [12 — P&L & Clearing](12-pnl-clearing.md)

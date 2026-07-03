@@ -8,7 +8,7 @@ example parser/subscriber libraries for external market-data consumers.
 You will practice connection, subscription, snapshots, live market-data
 consumption, heartbeats, replay checkpoints, and recovery/error behavior.
 
----
+ 
 
 ## Prerequisites
 
@@ -25,7 +25,7 @@ Recommended startup terminals:
 2. CALF gateway: `pm-md-gwy`
 3. One or more client terminals for subscriber exercises
 
----
+ 
 
 ## Background
 
@@ -41,7 +41,7 @@ In this chapter, the most important operational ideas are:
 - Liveness with HB and PING/PONG
 - Replay with RESUME=1 / LASTSEQ and REPLAY_MISS handling
 
----
+ 
 
 ## Exercise 1: Prepare a Config That Enables CALF
 
@@ -70,7 +70,7 @@ pm-md-gwy --config engine_config.yaml
 
 :material-checkbox-blank-outline: Checkpoint: gateway starts and listens on the configured port.
 
----
+ 
 
 ## Exercise 2: Use the Python Example as a TOP/TRADE Consumer
 
@@ -93,7 +93,7 @@ Observe:
 
 :material-checkbox-blank-outline: Checkpoint: subscriber prints parsed MD/TRADE events with expected symbol and sequence fields.
 
----
+ 
 
 ## Exercise 2B: Manual Handshake Probe with nc
 
@@ -118,7 +118,7 @@ Expected behavior:
 
 :material-checkbox-blank-outline: Checkpoint: manual nc session can establish, subscribe, and receive at least one live market-data line.
 
----
+ 
 
 ## Exercise 3: Use the C Example Subscriber
 
@@ -138,7 +138,7 @@ Observe in output:
 
 :material-checkbox-blank-outline: Checkpoint: C subscriber connects, parses, and prints live CALF events.
 
----
+ 
 
 ## Exercise 4: State Channel and Wildcard Behavior
 
@@ -159,7 +159,7 @@ Expected behavior:
 
 :material-checkbox-blank-outline: Checkpoint: you can explain why wildcard symbols are valid only for STATE.
 
----
+ 
 
 ## Exercise 5: Protocol Control Messages (PING, UNSUB, EXIT)
 
@@ -187,7 +187,7 @@ Expected behavior:
 
 :material-checkbox-blank-outline: Checkpoint: you can manually drive and verify control flow.
 
----
+ 
 
 ## Exercise 6: Replay and Recovery with RESUME=1
 
@@ -207,7 +207,7 @@ Observe replay behavior:
 
 :material-checkbox-blank-outline: Checkpoint: you can describe recovery for both replay-hit and replay-miss cases.
 
----
+ 
 
 ## Exercise 7: Error Conditions and Operational Interpretation
 
@@ -231,7 +231,7 @@ Map observed ERR codes to operator action:
 
 :material-checkbox-blank-outline: Checkpoint: you can convert each ERR code into a practical remediation step.
 
----
+ 
 
 ## Support Libraries and Example Clients
 
@@ -245,7 +245,7 @@ Reference implementations used in this training chapter:
 
 Use these to bootstrap both quick lab subscribers and production-like integration test harnesses.
 
----
+ 
 
 ## Summary
 

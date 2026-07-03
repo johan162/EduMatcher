@@ -5,14 +5,14 @@
 Run opening and closing auctions, understand equilibrium price calculation, and
 observe how auction orders are collected and matched in a single uncrossing event.
 
----
+ 
 
 ## Prerequisites
 
 - Chapters 01–06 completed.
 - Scheduler control available so you can observe auction phases.
 
----
+ 
 
 ## Background
 
@@ -26,7 +26,7 @@ Key properties:
 - All fills happen at the same price.
 - Prevents manipulation via timing advantages.
 
----
+ 
 
 ## Exercise 1: Set Up for an Opening Auction
 
@@ -49,7 +49,7 @@ TRADER02> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=ATO
 
 :material-checkbox-blank-outline: **Checkpoint:** orders accepted, resting in auction book.
 
----
+ 
 
 ## Exercise 2: Trigger the Auction Uncrossing
 
@@ -83,7 +83,7 @@ second, against TRADER02's 400-share sell).
 
 :material-checkbox-blank-outline: **Checkpoint:** all fills report execution price `149.80` and matched quantity `400`.
 
----
+ 
 
 ## Exercise 3: Unfilled Auction Orders
 
@@ -100,7 +100,7 @@ After auction uncrossing, this should be cancelled (no sell at 400.00).
 
 :material-checkbox-blank-outline: **Checkpoint:** out-of-range ATO order cancelled.
 
----
+ 
 
 ## Exercise 4: Closing Auction
 
@@ -115,7 +115,7 @@ On transition to CLOSED, the auction uncrosses and fills are generated.
 
 :material-checkbox-blank-outline: **Checkpoint:** closing auction produces fills.
 
----
+ 
 
 ## Exercise 5: GTC Orders in Auctions
 
@@ -130,7 +130,7 @@ CONTINUOUS trading.
 
 :material-checkbox-blank-outline: **Checkpoint:** GTC order fills in auction or continues resting.
 
----
+ 
 
 ## Equilibrium Price Rules
 
@@ -145,7 +145,7 @@ selects the price that:
    separate "nearest to last trade" tie-break — the tie always resolves to
    the lower of the tied candidate prices.
 
----
+ 
 
 ## Reflection
 
@@ -160,6 +160,6 @@ order filled at its own price instead?
 - [Auction Equilibrium Concepts](../concepts/05-concepts-trading-day.md)
 - [Order Types](../user-guide/04-order-types.md)
 
----
+ 
 
 **Next:** [08 — Cancelling & Managing Orders](08-cancelling-orders.md)

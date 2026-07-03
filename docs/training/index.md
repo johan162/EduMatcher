@@ -32,7 +32,7 @@ later chapters build on configuration and positions established in earlier ones.
 - `[output]` — expected output from the system (may vary slightly).
 - :material-checkbox-blank-outline: — exercise checkpoint; verify before continuing.
 
----
+ 
 
 ## Training Plan
 
@@ -64,8 +64,10 @@ later chapters build on configuration and positions established in earlier ones.
 | 23 | [CALF Market-Data Gateway Protocol](23-calf.md) | pm-md-gwy, CALF handshake/subscriptions, snapshots, replay and recovery |
 | 24 | [API Gateway REST/WebSocket](24-api-gwy.md) | pm-api-gateway, bearer tokens, REST endpoints, WebSocket streams, multi-instance split |
 | 25 | [Market Index (pm-index)](25-index.md) | Index config, cap-weighted formula, divisor, corporate actions, INDEX command, pm-index-cli |
+| 26 | [ALF TCP Gateway Protocol](26-alf-gwy.md) | pm-alf-gwy, port verification with CLI tools, nc/telnet handshake, Python and C example clients, order lifecycle over raw TCP |
+| 27 | [BALF TCP Gateway Protocol](27-balf-gwy.md) | pm-balf-gwy, binary LOGON/LOGON_ACK session flow, raw frame order lifecycle, heartbeat handling, parser validation |
 
----
+ 
 
 ## User Guide Cross-Reference by Chapter
 
@@ -100,8 +102,10 @@ training chapter.
 | 23 | [Market Data Feed (CALF)](../user-guide/20-market-data-feed.md), [Appendix: CALF Protocol Reference](../user-guide/92-app-calf-protocol.md) |
 | 24 | [pm-api-gateway processes](../user-guide/10-processes.md#pm-api-gateway-restwebsocket-api-gateway), [API Gateway Config](../user-guide/21-api-gateway.md) |
 | 25 | [Market Index (pm-index)](../user-guide/22-index.md), [pm-index-cli reference](../user-guide/02-commands.md), [pm-index process](../user-guide/10-processes.md#pm-index-index-calculation-process) |
+| 26 | [ALF TCP Gateway](../user-guide/24-alf-gateway.md), [ALF Protocol Reference](../user-guide/90-app-alf-protocol.md), [Gateway Commands](../user-guide/08-gateway.md) |
+| 27 | [BALF TCP Gateway](../user-guide/25-balf-gateway.md), [BALF Protocol Reference](../user-guide/91-app-balf-protocol.md), [Configuration](../user-guide/01-configuration.md#balf-gateway-configuration) |
 
----
+ 
 
 ## Quick Reference
 

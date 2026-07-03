@@ -32,8 +32,8 @@ that all other processes subscribe to.
 
 ```mermaid
 flowchart LR
-    GW1["pm-gateway\nParticipant A"]
-    GW2["pm-gateway\nParticipant B"]
+    GW1["pm-alf-console\nParticipant A"]
+    GW2["pm-alf-console\nParticipant B"]
     AI["pm-ai-trader\nAutonomous bot"]
     ENG["pm-engine\nMatching engine\nPULL :5555 / PUB :5556"]
     ADM["pm-admin\nOperator console"]
@@ -89,7 +89,7 @@ macOS, Linux, or Windows.
 **Bootstrap with one command**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.12.5 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.13.0 --snapshot
 ```
 
 This command downloads the VM setup scripts, launches a Multipass VM,
@@ -106,14 +106,14 @@ pm-engine --verbose
 ```
 
 Open additional host terminals and run `multipass shell edumatcher-vm` in each
-terminal to start `pm-gateway`, `pm-viewer`, `pm-clearing`, and `pm-audit`.
+terminal to start `pm-alf-console`, `pm-viewer`, `pm-clearing`, and `pm-audit`.
 
 **Useful bootstrap options**
 
 ```bash
 # Different VM name and version
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
-    bash -s -- --name edumatcher-vm --version 0.12.5 --snapshot
+    bash -s -- --name edumatcher-vm --version 0.13.0 --snapshot
 
 # Tune resources
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
@@ -125,7 +125,7 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_se
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.12.5 --snapshot
+bash curl_setup_vm.sh --version 0.13.0 --snapshot
 ```
 
 ### End-user / student mode — `pipx install` (recommended)
@@ -242,7 +242,7 @@ All commands are prefixed with `poetry run`:
 
 ```bash
 poetry run pm-engine --verbose
-poetry run pm-gateway --id GW01
+poetry run pm-alf-console --id GW01
 ```
 
 !!! tip "Switching from developer to end-user mode"
@@ -282,7 +282,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | Command | Interactivity | Purpose | More information |
 |---|---|---|---|
 | `pm-engine` | Background | Matching engine; central order-book writer | [Processes](10-processes.md), [Running the Engine](03-running-the-engine.md), [Configuration](01-configuration.md) |
-| `pm-gateway` | Interactive terminal | ALF participant terminal and order entry | [Processes](10-processes.md), [Gateway](08-gateway.md), [ALF Protocol](90-app-alf-protocol.md) |
+| `pm-alf-console` | Interactive terminal | ALF participant terminal and order entry | [Processes](10-processes.md), [Gateway](08-gateway.md), [ALF Protocol](90-app-alf-protocol.md) |
 | `pm-scheduler` | Background | Session phase transitions by schedule | [Processes](10-processes.md), [Auctions and Scheduling](06-auctions-scheduling.md) |
 | `pm-viewer` | Terminal display | Single-symbol live order book view | [Processes](10-processes.md), [Order Types](04-order-types.md) |
 | `pm-orders` | Terminal display | Live cross-gateway order status monitor | [Processes](10-processes.md), [Messages](09-messages.md) |
@@ -389,13 +389,13 @@ Open a second terminal:
 **"Installed (pipx)" mode**
 
 ```bash
-pm-gateway --id GW01
+pm-alf-console --id GW01
 ```
 
 **"Developer (Poetry)" mode**
 
 ```bash
-poetry run pm-gateway --id GW01
+poetry run pm-alf-console --id GW01
 ```
 
 You should see a prompt after the connection banner:
@@ -412,12 +412,12 @@ Open a third terminal:
 **"Installed (pipx)"** mode
 
  ```bash
- pm-gateway --id GW02
+ pm-alf-console --id GW02
  ```
 
 **"Developer (Poetry)"** mode
 ```bash
-poetry run pm-gateway --id GW02
+poetry run pm-alf-console --id GW02
 ```
 
 ```
@@ -567,9 +567,9 @@ flowchart TD
     end
     subgraph Student terminals
         direction TB
-        GW1["pm-gateway --id ST01"]
-        GW2["pm-gateway --id ST02"]
-        GWN["pm-gateway --id STnn"]
+        GW1["pm-alf-console --id ST01"]
+        GW2["pm-alf-console --id ST02"]
+        GWN["pm-alf-console --id STnn"]
     end
 
     ADM -- "halt / resume / session" --> ENG
@@ -613,7 +613,7 @@ Use the table below to decide what to read based on your goal.
 | Term                | Meaning                                                                                            |
 |---------------------|----------------------------------------------------------------------------------------------------|
 | **Engine**          | The `pm-engine` matching engine process — the authoritative order book                             |
-| **Gateway**         | A `pm-gateway` participant terminal; one per trader                                                |
+| **Gateway**         | A `pm-alf-console` participant terminal; one per trader                                                |
 | **Symbol**          | A tradeable instrument, e.g. `AAPL`, `MSFT`                                                        |
 | **Order book**      | Sorted list of resting bids and asks for one symbol                                                |
 | **Fill**            | An execution — the result of two orders matching                                                   |

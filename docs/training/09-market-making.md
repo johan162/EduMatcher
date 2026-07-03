@@ -5,7 +5,7 @@
 Understand the QUOTE command from a human operator's perspective, explore quote
 lifecycle, inactivation policies, QLEGS inspection, and MM obligations.
 
----
+ 
 
 ## Prerequisites
 
@@ -22,10 +22,10 @@ Add a manual MM gateway to your config:
 Restart the engine and connect:
 
 ```bash
-pm-gateway --id MM_MANUAL_01
+pm-alf-console --id MM_MANUAL_01
 ```
 
----
+ 
 
 ## Exercise 1: Submit a Two-Sided Quote
 
@@ -44,7 +44,7 @@ Note both leg IDs — you'll need them to identify fills.
 
 :material-checkbox-blank-outline: **Checkpoint:** quote acknowledged and active.
 
----
+ 
 
 ## Exercise 2: Inspect Quote Legs with QLEGS
 
@@ -70,7 +70,7 @@ How to read it:
 
 :material-checkbox-blank-outline: **Checkpoint:** QLEGS shows both bid and ask legs.
 
----
+ 
 
 ## Exercise 3: Get Filled and Observe Inactivation
 
@@ -92,7 +92,7 @@ Under `INACTIVATE_ON_ANY_FILL`, both legs are pulled after any fill.
 
 :material-checkbox-blank-outline: **Checkpoint:** fill + sibling cancel + INACTIVE status.
 
----
+ 
 
 ## Exercise 4: Re-quote After Inactivation
 
@@ -104,7 +104,7 @@ MM_MANUAL_01> QUOTE|SYM=AAPL|BID=149.92|ASK=150.08|BID_QTY=500|ASK_QTY=500|TIF=D
 
 :material-checkbox-blank-outline: **Checkpoint:** new quote active; QLEGS shows fresh legs.
 
----
+ 
 
 ## Exercise 5: Replace a Quote Without Cancelling
 
@@ -124,7 +124,7 @@ QUOTE ACTIVE  Q003
 
 :material-checkbox-blank-outline: **Checkpoint:** old quote cancelled, new quote active in one step.
 
----
+ 
 
 ## Exercise 6: Explicit Cancel
 
@@ -145,7 +145,7 @@ QUOTE CANCELLED  Q003
 
 :material-checkbox-blank-outline: **Checkpoint:** quote fully cancelled.
 
----
+ 
 
 ## Exercise 7: Check Quote Bootstrap State (QBOOT)
 
@@ -179,7 +179,7 @@ QBOOT SYM=AAPL active=false
 
 :material-checkbox-blank-outline: **Checkpoint:** QBOOT shows active quote or empty slot.
 
----
+ 
 
 ## Exercise 8: Understand Inactivation Policies
 
@@ -189,7 +189,7 @@ QBOOT SYM=AAPL active=false
 | `INACTIVATE_ON_FULL_FILL` | Sibling cancelled only when filled leg fully consumed |
 | `NEVER_INACTIVATE` | No automatic sibling cancel; MM must manage manually |
 
----
+ 
 
 ## Key Takeaways
 
@@ -200,7 +200,7 @@ QBOOT SYM=AAPL active=false
 - Replacement quotes don't require explicit cancel first.
 - `order.fill` does **not** include `quote_id` — correlate via leg order IDs.
 
----
+ 
 
 ## Reflection
 
@@ -219,6 +219,6 @@ exposure if one leg filled and the sibling stayed resting under a
 - [MM Quotes Concept](../concepts/03-concepts-mm-quotes.md)
 - [ALF Protocol Reference](../user-guide/90-app-alf-protocol.md)
 
----
+ 
 
 **Next:** [10 — Combo Orders](10-combo-orders.md)

@@ -14,7 +14,7 @@ You will practice:
 - receiving private and market-data events over WebSocket
 - splitting API gateway processes by ALF `gateway_id`
 
----
+ 
 
 ## Prerequisites
 
@@ -30,7 +30,7 @@ Recommended startup order:
 3. Start `pm-stats --config engine_config.yaml`.
 4. Start `pm-api-gateway --config engine_config.yaml --instance desk`.
 
----
+ 
 
 ## Background
 
@@ -60,7 +60,7 @@ A non-null `gateway_id` may appear in only one `api_gateways` entry. This keeps
 private session and event state owned by one API gateway process. Read-only
 `gateway_id: null` credentials may appear in multiple entries.
 
----
+ 
 
 ## Exercise 1: Generate a Single API Gateway Config
 
@@ -95,7 +95,7 @@ Expected behavior:
 
 :material-checkbox-blank-outline: Checkpoint: you can identify one trading key and one read-only key in the config.
 
----
+ 
 
 ## Exercise 2: Start the API Gateway Process
 
@@ -118,7 +118,7 @@ Expected behavior:
 
 :material-checkbox-blank-outline: Checkpoint: `GET /api/v1/status` is reachable once the process is running.
 
----
+ 
 
 ## Exercise 3: Explore Swagger with a Bearer Key
 
@@ -148,7 +148,7 @@ Expected behavior:
 
 :material-checkbox-blank-outline: Checkpoint: you can authenticate in Swagger and explain which key is allowed to submit orders.
 
----
+ 
 
 ## Exercise 4: Submit and Cancel an Order over REST
 
@@ -183,7 +183,7 @@ Expected behavior:
 
 :material-checkbox-blank-outline: Checkpoint: you can submit an order and observe its cancel path or explain the engine-side validation error.
 
----
+ 
 
 ## Exercise 5: Use the Python REST Example
 
@@ -202,7 +202,7 @@ calls to a test harness.
 
 :material-checkbox-blank-outline: Checkpoint: the Python client reaches the gateway and sends authenticated requests.
 
----
+ 
 
 ## Exercise 6: Use the C REST Example
 
@@ -222,7 +222,7 @@ Expected behavior:
 
 :material-checkbox-blank-outline: Checkpoint: the C example can call the running API gateway with a configured key.
 
----
+ 
 
 ## Exercise 7: Observe WebSocket Events
 
@@ -265,7 +265,7 @@ Expected behavior:
 
 :material-checkbox-blank-outline: Checkpoint: you can explain when to use REST responses versus WebSocket events for order outcomes.
 
----
+ 
 
 ## Exercise 8: Configure Multiple Logical API Gateways
 
@@ -308,7 +308,7 @@ Expected behavior:
 
 :material-checkbox-blank-outline: Checkpoint: you can run two API gateway processes and explain why a write-capable gateway ID is globally unique across them.
 
----
+ 
 
 ## Exercise 9: Write a Python CLI Client for LIMIT Order Entry
 
@@ -362,7 +362,7 @@ available at `docs/examples/REST/python/submit_market_order.py`.
 
 :material-checkbox-blank-outline: Checkpoint: your script prints `order_id` and `status` from a live gateway.
 
----
+ 
 
 ## Support Libraries and Example Clients
 
@@ -374,7 +374,7 @@ Reference examples used in this training chapter:
 Use these examples as small integration clients when building course labs,
 smoke tests, or external adapter prototypes.
 
----
+ 
 
 ## Summary
 

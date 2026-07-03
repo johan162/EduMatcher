@@ -5,14 +5,14 @@
 Learn what EduMatcher persists, where persistent files live, and how to verify
 state across restart scenarios.
 
----
+ 
 
 ## Prerequisites
 
 - Chapters 01–15 completed.
 - Consistent `EDUMATCHER_DATA_DIR` configured for all processes.
 
----
+ 
 
 ## Background
 
@@ -23,7 +23,7 @@ files include:
 - `stats.db` — SQLite database written by `pm-stats`.
 - `audit.log` — event log if `pm-audit` writes to disk.
 
----
+ 
 
 ## Exercise 1: Locate the Data Directory
 
@@ -37,7 +37,7 @@ and run `pm-setup`.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can locate the persistent data directory.
 
----
+ 
 
 ## Exercise 2: Create a GTC Order
 
@@ -55,7 +55,7 @@ TRADER01> ORDERS
 
 :material-checkbox-blank-outline: **Checkpoint:** the GTC order is resting and visible.
 
----
+ 
 
 ## Exercise 3: Restart the Engine
 
@@ -98,7 +98,7 @@ Compare explicitly after restart:
 
 :material-checkbox-blank-outline: **Checkpoint:** verify whether the GTC order survives restart.
 
----
+ 
 
 ## Exercise 4: Compare DAY and GTC Behaviour
 
@@ -114,7 +114,7 @@ expire at session close; GTC orders are the ones designed to survive.
 
 :material-checkbox-blank-outline: **Checkpoint:** explain the different lifecycle of DAY and GTC orders.
 
----
+ 
 
 ## Exercise 5: Persist Statistics
 
@@ -131,7 +131,7 @@ recorded.
 
 :material-checkbox-blank-outline: **Checkpoint:** `stats.db` exists and contains recent trades.
 
----
+ 
 
 ## Exercise 6: Audit to Disk
 
@@ -149,7 +149,7 @@ tail -20 "$EDUMATCHER_DATA_DIR/audit.log"
 
 :material-checkbox-blank-outline: **Checkpoint:** audit log contains events from your trading session.
 
----
+ 
 
 ## Summary
 

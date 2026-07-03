@@ -5,14 +5,14 @@
 Master the `STATUS`, `ORDERS`, and `CANCEL` commands for understanding gateway
 state, inspecting resting orders, and managing the order lifecycle.
 
----
+ 
 
 ## Prerequisites
 
 - Chapters 01–07 completed.
 - At least one connected trader gateway with resting orders to manage.
 
----
+ 
 
 ## Exercise 1: Cancel a Resting Order
 
@@ -32,7 +32,7 @@ Expected: cancellation confirmed.
 
 :material-checkbox-blank-outline: **Checkpoint:** order cancelled; `ORDERS` no longer lists it as resting.
 
----
+ 
 
 ## Exercise 2: Cancel a Partially Filled Order
 
@@ -50,7 +50,7 @@ Expected: the unfilled portion is cancelled; the filled portion remains executed
 
 :material-checkbox-blank-outline: **Checkpoint:** cancel succeeds; filled qty preserved.
 
----
+ 
 
 ## Exercise 3: Compare STATUS and ORDERS
 
@@ -85,7 +85,7 @@ debugging one specific order lifecycle.
 
 :material-checkbox-blank-outline: **Checkpoint:** `STATUS` shows summary counts; `ORDERS` shows the full order row and ID.
 
----
+ 
 
 ## Exercise 4: Inspect Resting Order Details
 
@@ -102,7 +102,7 @@ Find your order in the table. The response includes:
 
 :material-checkbox-blank-outline: **Checkpoint:** `ORDERS` returns full details for each resting order.
 
----
+ 
 
 ## Exercise 5: Cancel a Non-Existent Order
 
@@ -114,7 +114,7 @@ Expected: rejection — order not found.
 
 :material-checkbox-blank-outline: **Checkpoint:** error message returned cleanly.
 
----
+ 
 
 ## Exercise 6: Cancel Another Gateway's Order
 
@@ -128,7 +128,7 @@ Expected: rejection — you can only cancel your own orders.
 
 :material-checkbox-blank-outline: **Checkpoint:** cross-gateway cancel rejected.
 
----
+ 
 
 ## Exercise 7: Admin Kill Switch
 
@@ -148,7 +148,7 @@ GW_ADMIN> CANCEL_SYM|SYM=TSLA
 
 :material-checkbox-blank-outline: **Checkpoint:** admin commands successfully cancel orders.
 
----
+ 
 
 ## Exercise 8: Inspect SYMBOLS Metadata from Gateway
 
@@ -163,7 +163,7 @@ Look for metadata fields exposed in the gateway output (for example
 
 :material-checkbox-blank-outline: **Checkpoint:** you can explain how `SYMBOLS` complements config-file inspection during operations.
 
----
+ 
 
 ## Order Lifecycle Summary
 
@@ -177,7 +177,7 @@ stateDiagram-v2
     PARTIAL --> CANCELLED : cancel remainder
 ```
 
----
+ 
 
 ## Reflection
 
@@ -192,6 +192,6 @@ matter most?
 - [Message Types (system.symbols)](../user-guide/09-messages.md)
 - [ALF Protocol — Cancellation Semantics](../user-guide/90-app-alf-protocol.md)
 
----
+ 
 
 **Next:** [09 — Market Making](09-market-making.md)

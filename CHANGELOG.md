@@ -1,3 +1,28 @@
+## [v0.13.0] - 2026-07-02
+
+Release Type: minor
+
+### 📋 Summary
+This release introduces two new external-facing TCP gateways 
+1) `pm-alf-gwy` (text ALF1 protocol) and 
+2) `pm-balf-gwy` (binary BALF protocol). 
+These new Gateways enable third-party trading systems to connect from external hosts over defined protocols without using the internal ZMQ bus. 
+The internal trading console is renamed from `pm-gateway` to `pm-alf-console` to claify its role.
+
+### ⚠️ Breaking Changes
+- Renamed `pm-gateway` to `pm-alf-console`; any scripts, aliases, or systemd units invoking `pm-gateway` must be updated
+
+### ✨ Additions
+- Added `pm-alf-gwy`: new external-facing TCP gateway implementing the text-based ALF1 session protocol, with configurable gateway roles, rate limiting, heartbeat/idle timeouts, and `disconnect_behaviour` support
+- Added `pm-balf-gwy`: new external-facing TCP gateway implementing the BALF binary protocol using fixed-size little-endian frames, full order lifecycle (new/cancel/amend), engine event delivery (ack/fill/cancelled/amended/expired), and deterministic reject-code classification
+- Added reference C client (`alf_client.c`, `alf_parser.c`) and Python client (`alf_client.py`, `alf_parser.py`) for external ALF1 connections
+- Added `docs/user-guide/24-alf-gateway.md`: full ALF gateway user-guide chapter with protocol reference and operator runbook
+- Added `BALF` support to `pm-config-gen` and `pm-cverifier` 
+
+### 📚 Documentation
+- Updated user guide to cover the new BALF and ALF gateways
+
+
 ## [v0.12.5] - 2026-07-02
 
 Release Type: patch

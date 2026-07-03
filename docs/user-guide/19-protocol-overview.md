@@ -32,7 +32,7 @@ connects each protocol to:
 
 | Protocol | Primary purpose | Transport/format | Runtime status | Typical gateway/process |
 |---|---|---|---|---|
-| **ALF** | Human-readable order entry and gateway control | Text line protocol (`FIELD=VALUE|...`) | Implemented and active | `pm-gateway` |
+| **ALF** | Human-readable order entry and gateway control | Text line protocol (`FIELD=VALUE|...`) | Implemented and active | `pm-alf-console` (interactive) · `pm-alf-gwy` (TCP) |
 | **BALF** | Low-latency binary order entry for programmatic clients | Binary framed protocol | Documented; planned gateway process | `pm-balf-gateway` (planned) |
 | **CALF** | External market-data dissemination (top/book/trade/state style channels) | Text line protocol over TCP | Implemented and active | `pm-md-gwy` |
 | **RALF** | External post-trade dissemination for clearing, drop-copy, and audit consumers | Text line protocol over TCP (`RALF1`) | Implemented and active | `pm-ralf-gwy` |
@@ -44,16 +44,25 @@ ALF is EduMatcher's active, user-facing order-entry protocol. It is used by
 interactive participant gateways and is the primary way traders submit and
 manage orders in current deployments.
 
+ALF is available in two runtime forms:
+
+| Process | Purpose | Transport |
+|---------|---------|----------|
+| `pm-alf-console` | Interactive REPL for a human at a terminal — stdin/stdout, tab completion, P&L display | Local process; stdin/stdout |
+| `pm-alf-gwy` | TCP gateway for external bots and remote clients — same ALF protocol over a plain TCP socket | TCP (default port `5565`) |
+
 Use ALF when you need:
 
-- interactive/manual order entry
+- interactive/manual order entry → `pm-alf-console`
 - educational readability of commands
-- direct access to the full command set in `pm-gateway`
+- direct access to the full command set
+- an external bot or remote process submitting orders → `pm-alf-gwy`
 
 Where to read more:
 
+- ALF TCP gateway operational guide: [ALF TCP Gateway](24-alf-gateway.md)
 - Gateway behavior and operator workflow: [Gateway Commands](08-gateway.md)
-- Process-level role of the ALF gateway: [Processes](10-processes.md#pm-gateway-user-gateway)
+- Process-level role of both ALF processes: [Processes](10-processes.md#pm-alf-gwy-alf-tcp-gateway)
 - Engine configuration of allowed ALF IDs/roles: [Configuration](01-configuration.md#alf-gateway-allowlist)
 - Formal wire syntax and semantics: [Appendix - ALF Protocol](90-app-alf-protocol.md)
 
@@ -128,7 +137,8 @@ Where to read more:
 
 | If you need to...                                    | Protocol to start with |
 |------------------------------------------------------|------------------------|
-| Enter and manage orders from participant terminals   | **ALF**                |
+| Enter and manage orders from participant terminals   | **ALF** (`pm-alf-console`) |
+| Submit orders from an external bot or remote process | **ALF** (`pm-alf-gwy`) |
 | Plan binary low-latency order-entry integrations     | **BALF**               |
 | Consume market-data channels externally              | **CALF**               |
 | Consume post-trade/clearing/audit streams externally | **RALF**               |
@@ -138,6 +148,7 @@ Where to read more:
 
 - [Getting Started](00-getting-started.md)
 - [Processes](10-processes.md)
+- [ALF TCP Gateway](24-alf-gateway.md)
 - [Post-Trade Dissemination (RALF)](18-post-trade.md)
 - [Appendix - ALF Protocol](90-app-alf-protocol.md)
 - [Appendix - BALF Protocol](91-app-balf-protocol.md)

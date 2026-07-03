@@ -18,7 +18,7 @@ You will practice:
 - querying level, EOD, and event history with `pm-index-cli`
 - exporting history to CSV and JSON for offline analysis
 
----
+ 
 
 ## Prerequisites
 
@@ -32,7 +32,7 @@ Recommended startup order for this chapter:
 3. Start `pm-index`.
 4. Connect two gateway terminals (one TRADER, one ADMIN).
 
----
+ 
 
 ## Background
 
@@ -62,7 +62,7 @@ pm-engine  PUB :5556  ──► pm-index  PUB :5558  ──► pm-md-gwy  ──
 ADMIN gateways send corporate-action and history-request commands to `pm-index`
 on the PULL socket (port 5559).
 
----
+ 
 
 ## Exercise 1: Configure an Index
 
@@ -106,7 +106,7 @@ indices:
 
 :material-checkbox-blank-outline: **Checkpoint:** `engine_config.yaml` contains a valid `indices:` block with all three symbols.
 
----
+ 
 
 ## Exercise 2: Start `pm-index`
 
@@ -138,7 +138,7 @@ cat data/indexes/EDU100_history.jsonl
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-index` running, INIT record visible in history file.
 
----
+ 
 
 ## Exercise 3: Query the Live Index Level
 
@@ -169,7 +169,7 @@ The `INDEX` command works from any gateway role (TRADER, ADMIN, or read-only).
 
 :material-checkbox-blank-outline: **Checkpoint:** `INDEX` command returns a level for `EDU100`.
 
----
+ 
 
 ## Exercise 4: Watch the Index Move
 
@@ -199,7 +199,7 @@ recalculated on every trade but published at most once per second (the
 
 :material-checkbox-blank-outline: **Checkpoint:** index level changed after trades; querying `INDEX` shows the new value.
 
----
+ 
 
 ## Exercise 5: Apply a Stock Split
 
@@ -250,7 +250,7 @@ record to the `INDEX` reading you took just before applying the split — the
 absolute difference should be at most a few cents (rounding only), never a
 ~50% jump. `CORP_ACTION` record confirmed written to history.
 
----
+ 
 
 ## Exercise 6: Apply a Cash Dividend
 
@@ -273,7 +273,7 @@ OPS01> INDEX        (after)
 
 :material-checkbox-blank-outline: **Checkpoint:** index level preserved across dividend adjustment.
 
----
+ 
 
 ## Exercise 7: Add and Remove a Constituent
 
@@ -309,7 +309,7 @@ Run `INDEX` again and confirm TSLA no longer appears in the constituent listing.
 
 :material-checkbox-blank-outline: **Checkpoint:** AMZN added and TSLA removed without visible discontinuity in the index level.
 
----
+ 
 
 ## Exercise 8: Query History with `pm-index-cli`
 
@@ -364,7 +364,7 @@ pm-index-cli --config engine_config.yaml events --index EDU100 --type CORP_ACTIO
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-index-cli` returns level, EOD, and event records.
 
----
+ 
 
 ## Exercise 9: Export and Analyse Data
 
@@ -401,7 +401,7 @@ pm-index-cli --config engine_config.yaml level \
 
 :material-checkbox-blank-outline: **Checkpoint:** CSV and JSON exports contain the expected data.
 
----
+ 
 
 ## Exercise 10: Two Indices
 
@@ -458,7 +458,7 @@ With no `--index` filter, all configured indices are queried.
 
 :material-checkbox-blank-outline: **Checkpoint:** both `EDU100` and `TECH2` reported by `INDEX` command and `pm-index-cli`.
 
----
+ 
 
 ## Exercise 11: History Query via the Gateway
 
@@ -485,7 +485,7 @@ Returns records within the specified date range, newest last.
 
 :material-checkbox-blank-outline: **Checkpoint:** `INDEX|HISTORY` returns records; date-range filter works.
 
----
+ 
 
 ## Summary
 
@@ -506,7 +506,7 @@ Returns records within the specified date range, newest last.
 | Structural events | `pm-index-cli --config … events [--type TYPE]` |
 | CSV export | `pm-index-cli --config … eod --format csv > out.csv` |
 
----
+ 
 
 ## Reflection
 

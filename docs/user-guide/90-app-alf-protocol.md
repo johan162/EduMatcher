@@ -4,7 +4,7 @@
     After reading this appendix you will understand:
 
     - what **ALF** means and how it differs from real FIX
-    - the exact token-level syntax accepted by `pm-gateway`
+    - the exact token-level syntax accepted by `pm-alf-console`
     - which fields are required for each supported command
     - how all single-leg order types are expressed in ALF
     - how amendments, cancels, quotes, OCO orders, and combo orders are encoded
@@ -17,7 +17,7 @@
 **ALF** stands for **ALmost Fix**.
 
 It is EduMatcher's compact text command protocol for entering orders through
-`pm-gateway`. ALF borrows the **field=value** idea from FIX, but it is **not**
+`pm-alf-console`. ALF borrows the **field=value** idea from FIX, but it is **not**
 FIX:
 
 - there are no numeric tags
@@ -41,7 +41,7 @@ correct source to follow.
 
 ## Scope and boundaries
 
-ALF is the **text command language accepted by `pm-gateway`**. It is not the
+ALF is the **text command language accepted by `pm-alf-console`**. It is not the
 internal engine wire format. The gateway converts ALF commands into the engine's
 ZeroMQ + JSON message payloads.
 
@@ -894,7 +894,7 @@ will cancel all of the above gateway-owned resting exposure across all symbols.
 
 ##  Informational gateway commands
 
-These commands are part of the ALF command language accepted by `pm-gateway`,
+These commands are part of the ALF command language accepted by `pm-alf-console`,
 but they are not order-entry messages in the strict sense.
 
 ### `STATUS`
@@ -1052,7 +1052,7 @@ All supported ALF gateway configuration fields are listed below.
 
 | Field | Type / allowed range | Default | Description |
 |---|---|---|---|
-| `gateways.alf[].id` | Non-empty string | None (required) | Gateway identity used by `pm-gateway --id ...` and engine allowlist checks. |
+| `gateways.alf[].id` | Non-empty string | None (required) | Gateway identity used by `pm-alf-console --id ...` and engine allowlist checks. |
 | `gateways.alf[].description` | String | Empty string | Human-readable gateway description. |
 | `gateways.alf[].role` | Enum: `TRADER`, `MARKET_MAKER`, `ADMIN` | `TRADER` | Participant role used for authorization/policy checks. |
 | `gateways.alf[].disconnect_behaviour` | Enum: `CANCEL_QUOTES_ONLY`, `CANCEL_ALL`, `LEAVE_ALL` | `CANCEL_QUOTES_ONLY` | Engine behavior applied when that gateway disconnects. |

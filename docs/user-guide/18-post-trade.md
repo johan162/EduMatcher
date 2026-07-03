@@ -28,7 +28,7 @@ RALF is intended for external parties such as:
 - risk and compliance drop-copy consumers
 - audit and surveillance tooling
 
-Unlike the interactive `pm-gateway`, `pm-ralf-gwy` is not used for order entry.
+Unlike the interactive `pm-alf-console`, `pm-ralf-gwy` is not used for order entry.
 It is a read-only event dissemination process.
 
 

@@ -48,12 +48,12 @@ poetry run pm-clearing
 
 ```bash
 # Window 4 — First trader
-poetry run pm-gateway --id GW01
+poetry run pm-alf-console --id GW01
 ```
 
 ```bash
 # Window 5 — Second trader
-poetry run pm-gateway --id GW02
+poetry run pm-alf-console --id GW02
 ```
 
 When the gateways start, you should see:

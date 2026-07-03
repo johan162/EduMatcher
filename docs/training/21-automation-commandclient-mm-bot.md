@@ -5,7 +5,7 @@
 Use EduMatcher's programmatic command client for repeatable admin workflows and
 practice advanced `pm-mm-bot` runtime tuning for startup and reconciliation.
 
----
+ 
 
 ## Prerequisites
 
@@ -13,7 +13,7 @@ practice advanced `pm-mm-bot` runtime tuning for startup and reconciliation.
 - Engine running with `GW_ADMIN` and at least one MM gateway configured.
 - Python environment able to import `edumatcher.commands`.
 
----
+ 
 
 ## Background
 
@@ -30,7 +30,7 @@ This chapter combines two advanced surfaces:
 2. Advanced `pm-mm-bot` runtime flags such as bootstrap timeout and QLEGS
    reconciliation interval.
 
----
+ 
 
 ## Exercise 1: Run a Minimal CommandClient Session
 
@@ -52,7 +52,7 @@ PY
 
 :material-checkbox-blank-outline: **Checkpoint:** you can connect, read symbols, and read session status programmatically.
 
----
+ 
 
 ## Exercise 2: Script a Safe Symbol-Protection Runbook
 
@@ -77,7 +77,7 @@ This is easier to run consistently than a manual multi-step console sequence.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can automate halt/cancel/verify/resume for one symbol.
 
----
+ 
 
 ## Exercise 3: Automate Gateway Exposure Cleanup
 
@@ -104,7 +104,7 @@ Optional extension:
 
 :material-checkbox-blank-outline: **Checkpoint:** you can explain when to use kill-switch only vs. kill-switch + kick.
 
----
+ 
 
 ## Exercise 4: Tune pm-mm-bot Startup Reliability
 
@@ -137,7 +137,7 @@ Representative startup sequence:
 
 :material-checkbox-blank-outline: **Checkpoint:** you can identify and tune the timeout knobs that control startup behavior.
 
----
+ 
 
 ## Exercise 5: Empty-Book Bootstrap Drill
 
@@ -156,7 +156,7 @@ Expected understanding:
 
 :material-checkbox-blank-outline: **Checkpoint:** you can choose a bootstrap strategy appropriate for your environment.
 
----
+ 
 
 ## Exercise 6: Build a Combined Automation Flow
 
@@ -189,7 +189,7 @@ Acceptance criteria — your script passes if all of the following hold:
 
 :material-checkbox-blank-outline: **Checkpoint:** your script is deterministic, idempotent, and easy to rerun during drills, and satisfies all five acceptance criteria above.
 
----
+ 
 
 ## Summary
 

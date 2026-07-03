@@ -6,7 +6,7 @@ Learn how to operate drop-copy consumers safely when connectivity gaps occur,
 how sequence numbers are used for loss detection, and what replay support does
 and does not exist in the current EduMatcher runtime.
 
----
+ 
 
 ## Prerequisites
 
@@ -14,7 +14,7 @@ and does not exist in the current EduMatcher runtime.
 - Engine running with drop-copy PUB enabled on `:5557`.
 - Basic Python command-line familiarity.
 
----
+ 
 
 ## Background
 
@@ -37,7 +37,7 @@ So operationally, reconnect handling is currently:
 2. Recover from available audit/statistics artifacts.
 3. Re-establish live stream and continue from new high-water mark.
 
----
+ 
 
 ## Exercise 1: Subscribe and Print Sequence Numbers
 
@@ -65,7 +65,7 @@ Generate a few trades from gateways while this runs.
 
 :material-checkbox-blank-outline: **Checkpoint:** you can observe increasing `seq` values on live drop-copy events.
 
----
+ 
 
 ## Exercise 2: Detect a Synthetic Gap
 
@@ -97,7 +97,7 @@ Interrupt/restart the subscriber while trades are flowing to simulate missed eve
 
 :material-checkbox-blank-outline: **Checkpoint:** you can explain how consumer-side gap detection works.
 
----
+ 
 
 ## Exercise 3: Validate Current Replay Constraint
 
@@ -128,7 +128,7 @@ Operational implication:
 
 :material-checkbox-blank-outline: **Checkpoint:** you can state the exact replay limitation and its impact on downstream consumers.
 
----
+ 
 
 ## Exercise 4: Recovery Workflow with Audit + Stats
 
@@ -147,7 +147,7 @@ tail -40 "$EDUMATCHER_DATA_DIR/audit.log"
 
 :material-checkbox-blank-outline: **Checkpoint:** you can recover operational confidence after a subscriber interruption even without external replay requests.
 
----
+ 
 
 ## Exercise 5: Design a Consumer Gap Policy
 
@@ -160,7 +160,7 @@ Write a short policy for your drop-copy consumer:
 
 :material-checkbox-blank-outline: **Checkpoint:** your policy defines deterministic behavior for normal, degraded, and recovery modes.
 
----
+ 
 
 ## Summary
 

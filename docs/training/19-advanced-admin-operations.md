@@ -6,7 +6,7 @@ Practice advanced exchange-operator controls that are documented but were not
 covered in earlier training chapters: `KICK`, `QCANCEL`, `CANCEL_SYM`, and
 manual session overrides via `SESSION|STATE=...`.
 
----
+ 
 
 ## Prerequisites
 
@@ -14,7 +14,7 @@ manual session overrides via `SESSION|STATE=...`.
 - `GW_ADMIN` configured with `role: ADMIN`.
 - Engine and at least one trader and one MM gateway connected.
 
----
+ 
 
 ## Background
 
@@ -31,7 +31,7 @@ These controls exist in both:
 - Interactive admin console (`pm-admin` / ALF commands).
 - One-shot scripting CLI (`pm-admin-cli`).
 
----
+ 
 
 ## Exercise 1: Disconnect a Gateway with KICK
 
@@ -53,12 +53,12 @@ Verification:
 2. Reconnect:
 
 ```bash
-pm-gateway --id TRADER02
+pm-alf-console --id TRADER02
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** gateway is disconnected and can reconnect cleanly.
 
----
+ 
 
 ## Exercise 2: Cancel One MM Quote with QCANCEL
 
@@ -90,7 +90,7 @@ intervention without relying on the MM terminal.
 
 :material-checkbox-blank-outline: **Checkpoint:** one-symbol MM quote is cancelled without mass-cancelling all gateway orders.
 
----
+ 
 
 ## Exercise 3: Clear One Symbol Book with CANCEL_SYM
 
@@ -118,7 +118,7 @@ Confirm TSLA resting orders were cleared while other symbols remain unchanged.
 
 :material-checkbox-blank-outline: **Checkpoint:** symbol-scoped cancel works across gateways.
 
----
+ 
 
 ## Exercise 4: Force Session State for Controlled Drills
 
@@ -145,7 +145,7 @@ Use this to reproduce auction and close transitions deterministically in trainin
 
 :material-checkbox-blank-outline: **Checkpoint:** forced session transitions are visible and verifiable.
 
----
+ 
 
 ## Exercise 5: Run an Incident Micro-Runbook
 
@@ -168,7 +168,7 @@ pm-admin-cli --id GW_ADMIN session-status
 
 :material-checkbox-blank-outline: **Checkpoint:** you can explain when to use each control and why they are not interchangeable.
 
----
+ 
 
 ## Summary
 

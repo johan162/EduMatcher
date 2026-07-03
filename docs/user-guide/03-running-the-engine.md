@@ -157,7 +157,7 @@ it either exits with a timeout error or silently drops its first messages.
 flowchart TD
     ENG["1. pm-engine\n(binds :5555 :5556 :5557)"]
     SCH["2. pm-scheduler\n(optional)"]
-    GW["3. pm-gateway(s)\none per participant"]
+    GW["3. pm-alf-console(s)\none per participant"]
     OBS["4. Observer processes\npm-viewer, pm-orders,\npm-audit, pm-clearing,\npm-stats, pm-admin"]
     STAT_DEP["5. pm-ticker, pm-board\n(need pm-stats running)"]
 
@@ -217,9 +217,9 @@ pm-scheduler --now --delay 5   # 5-second pause between phases
 **Step 3 — gateways (one per participant)**
 
 ```bash
-pm-gateway --id TRADER01
-pm-gateway --id TRADER02
-pm-gateway --id MM01
+pm-alf-console --id TRADER01
+pm-alf-console --id TRADER02
+pm-alf-console --id MM01
 ```
 
 The gateway ID must exactly match a configured entry in `engine_config.yaml`.
@@ -269,7 +269,7 @@ pm-mm-bot --symbol AAPL    # autonomous market-maker bot
 | Process | Mandatory? | Ports | Purpose |
 |---------|-----------|-------|---------|
 | `pm-engine` | **Yes** | PULL :5555, PUB :5556, PUB :5557 | Matching engine — the single writer of the order book. All orders flow in through :5555; all events flow out through :5556. Also publishes per-participant drop-copy fills on :5557. |
-| `pm-gateway` | At least one | PUSH :5555, SUB :5556 | Interactive ALF order entry terminal. One per trader, market maker, or operator. Handles authentication, order submission, amend, cancel, and displays acks/fills in real time. See [ALF Protocol Reference](90-app-alf-protocol.md). |
+| `pm-alf-console` | At least one | PUSH :5555, SUB :5556 | Interactive ALF order entry terminal. One per trader, market maker, or operator. Handles authentication, order submission, amend, cancel, and displays acks/fills in real time. See [ALF Protocol Reference](90-app-alf-protocol.md). |
 | `pm-scheduler` | No (manual mode) | PUSH :5555 | Drives automatic session-phase transitions (`PRE_OPEN → OPENING_AUCTION → CONTINUOUS → CLOSING_AUCTION → CLOSED`) at the wall-clock times defined in `engine_config.yaml`. Omit this process if you want to advance phases manually with `SESSION\|STATE=...` in `pm-admin`. |
 | `pm-viewer` | No | SUB :5556, PUSH :5555 | Live L1/L2 order-book display for one symbol. Uses a push request to fetch the initial snapshot on connect; then updates on every `book.<SYMBOL>` event. |
 | `pm-orders` | No | SUB :5556 | Cross-gateway resting-order monitor. Subscribes to all `order.*` events and displays a live table of every active order regardless of which gateway submitted it. |
@@ -316,8 +316,8 @@ sleep delays (1 second after the engine, 0.3 seconds between the rest):
 ```bash
 pm-engine --verbose          # window 1
 pm-scheduler                 # window 2  (after 1 s)
-pm-gateway --id TRADER01     # window 3
-pm-gateway --id TRADER02     # window 4
+pm-alf-console --id TRADER01     # window 3
+pm-alf-console --id TRADER02     # window 4
 pm-viewer  --symbol <SYM>    # one window per SYM argument
 pm-orders                    # next window
 pm-audit   --terminal        # next window
@@ -337,8 +337,8 @@ pm-board                     # last window
 The bundled script covers the two-trader demo configuration. You will need
 to extend it when adding:
 
-- **More traders** — add `_term "poetry run pm-gateway --id TRADER03"` lines
-- **Market makers** — add `_term "poetry run pm-gateway --id MM01"` (the role is
+- **More traders** — add `_term "poetry run pm-alf-console --id TRADER03"` lines
+- **Market makers** — add `_term "poetry run pm-alf-console --id MM01"` (the role is
   in the config, not the command line)
 - **An ADMIN console** — add `_term "poetry run pm-admin --id GW_ADMIN"` after the
   engine is up
@@ -370,12 +370,12 @@ _term "pm-scheduler"
 sleep 0.3
 
 # Traders
-_term "pm-gateway --id TRADER01"
-_term "pm-gateway --id TRADER02"
+_term "pm-alf-console --id TRADER01"
+_term "pm-alf-console --id TRADER02"
 sleep 0.3
 
 # Market maker
-_term "pm-gateway --id MM01"
+_term "pm-alf-console --id MM01"
 sleep 0.3
 
 # ADMIN operator console
@@ -416,7 +416,7 @@ troubleshooting section.
 
 **b) Gateways authenticate successfully**
 
-Each `pm-gateway` terminal shows:
+Each `pm-alf-console` terminal shows:
 
 ```
 Gateway TRADER01 connected and authenticated.
@@ -464,7 +464,7 @@ Python  12345   ljp   13u  IPv4       *:5557 (LISTEN)
 
 **e) Submit a test order end-to-end**
 
-From a `pm-gateway` terminal:
+From a `pm-alf-console` terminal:
 
 ```
 [TRADER01]> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
@@ -477,7 +477,7 @@ matching logic → engine PUB → gateway SUB) is working:
 
 ```mermaid
 sequenceDiagram
-    participant GW as pm-gateway (TRADER01)
+    participant GW as pm-alf-console (TRADER01)
     participant ENG as pm-engine
     participant VW as pm-viewer
     participant AUD as pm-audit
@@ -833,7 +833,7 @@ You can override this at runtime with `KICK|GW=<gw>` from the ADMIN console.
 ```
 1. pm-engine    — binds sockets, loads config
 2. pm-scheduler — connects to engine; waits for the first scheduled time
-3. pm-gateway   — one per participant
+3. pm-alf-console   — one per participant
 4. (optional observers)
 ```
 

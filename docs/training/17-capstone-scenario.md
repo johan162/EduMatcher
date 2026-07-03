@@ -5,14 +5,14 @@
 Run a complete exchange session that combines configuration, market making,
 trading, risk controls, clearing, market data, persistence, and reporting.
 
----
+ 
 
 ## Prerequisites
 
 - Chapters 01–16 completed.
 - Ability to run multiple terminals/processes simultaneously.
 
----
+ 
 
 ## Scenario
 
@@ -21,7 +21,7 @@ two human traders, one admin/operator, and one manual market maker per symbol.
 Your goal is to open the market, provide liquidity, generate trades, trigger a
 risk event, inspect P&L/statistics, and verify persistence.
 
----
+ 
 
 ## Exercise 1: Generate a Fresh Config
 
@@ -39,7 +39,7 @@ Open the file and confirm the symbol and gateway sections are present.
 
 :material-checkbox-blank-outline: **Checkpoint:** config contains 3 symbols, 2 traders, 1 admin, and 3 MMs.
 
----
+ 
 
 ## Exercise 2: Start the Exchange Stack
 
@@ -56,24 +56,24 @@ pm-viewer --symbol AAPL
 
 :material-checkbox-blank-outline: **Checkpoint:** every process starts cleanly and connects.
 
----
+ 
 
 ## Exercise 3: Connect Gateways
 
 Open gateway terminals:
 
 ```bash
-pm-gateway --id TRADER01
-pm-gateway --id TRADER02
-pm-gateway --id GW_ADMIN
-pm-gateway --id MM_AAPL_01
-pm-gateway --id MM_MSFT_01
-pm-gateway --id MM_TSLA_01
+pm-alf-console --id TRADER01
+pm-alf-console --id TRADER02
+pm-alf-console --id GW_ADMIN
+pm-alf-console --id MM_AAPL_01
+pm-alf-console --id MM_MSFT_01
+pm-alf-console --id MM_TSLA_01
 ```
 
 :material-checkbox-blank-outline: **Checkpoint:** all gateway identities authenticate.
 
----
+ 
 
 ## Exercise 4: Provide Manual MM Liquidity
 
@@ -89,7 +89,7 @@ Verify with `QLEGS|SHOW=ALL` on each MM gateway and `BOOK|SYM=...` from a trader
 
 :material-checkbox-blank-outline: **Checkpoint:** every symbol has a live two-sided market.
 
----
+ 
 
 ## Exercise 5: Generate Trades and Amendments
 
@@ -110,7 +110,7 @@ TRADER02> NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=419.70|TIF=DAY
 
 :material-checkbox-blank-outline: **Checkpoint:** you have at least one market fill, one amended order, and one cross-trader fill.
 
----
+ 
 
 ## Exercise 6: Trigger an Operator Action
 
@@ -128,7 +128,7 @@ GW_ADMIN> RESUME_SYM|SYM=TSLA
 
 :material-checkbox-blank-outline: **Checkpoint:** symbol halt blocks trading and resume restores it.
 
----
+ 
 
 ## Exercise 7: Inspect P&L, Audit, and Stats
 
@@ -148,7 +148,7 @@ Explain what each observer showed:
 
 :material-checkbox-blank-outline: **Checkpoint:** you can trace one trade through all observers.
 
----
+ 
 
 ## Exercise 8: Persistence Check
 
@@ -166,7 +166,7 @@ TRADER01> ORDERS
 
 :material-checkbox-blank-outline: **Checkpoint:** you can explain what persisted and what expired.
 
----
+ 
 
 ## Final Review Questions
 
@@ -192,7 +192,7 @@ Review map:
 - Q6: [Time-in-Force & Session Lifecycle](../user-guide/06-auctions-scheduling.md)
 - Q7: [Controlling the Exchange](../user-guide/02-commands.md)
 
----
+ 
 
 ## Further Reading
 

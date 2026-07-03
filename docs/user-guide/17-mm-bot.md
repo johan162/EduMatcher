@@ -110,7 +110,7 @@ flowchart LR
     E["pm-engine\nPULL :5555 / PUB :5556"]
     B1["pm-mm-bot\nMM_AAPL_01"]
     B2["pm-mm-bot\nMM_MSFT_01"]
-    GW["pm-gateway\nTrader"]
+    GW["pm-alf-console\nTrader"]
 
     B1 -- "QUOTE / CANCEL → PUSH" --> E
     B2 -- "QUOTE / CANCEL → PUSH" --> E

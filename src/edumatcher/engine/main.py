@@ -133,6 +133,7 @@ class Engine:
         self.verbose = verbose
         self.books: dict[str, OrderBook] = {}  # symbol → OrderBook
         self._running = False
+        self._error_count = 0
         # If None → no symbol restrictions (backward-compat mode)
         self._allowed_symbols: frozenset[str] | None = None
         self._allowed_fix_gateways: frozenset[str] | None = None
@@ -3233,7 +3234,12 @@ class Engine:
                     elif topic == "system.position_request":
                         self._handle_position_request(payload)
                 except Exception as exc:
-                    print(f"[ENGINE] Error processing {topic}: {exc}", file=sys.stderr)
+                    self._error_count += 1
+                    print(
+                        f"[ENGINE] Error processing {topic} "
+                        f"(#{self._error_count}): {exc}",
+                        file=sys.stderr,
+                    )
             # Throttled snapshot publish — runs every poll tick (max 200ms)
             self._flush_snapshots()
             # Check circuit breaker timers — resume halted symbols

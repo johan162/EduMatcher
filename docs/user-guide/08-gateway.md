@@ -141,11 +141,23 @@ regulated venue it would be a compliance failure.
 
 ## What this process does
 
-`pm-gateway` is the interactive ALF trading gateway. It connects a human or bot
-operator to the matching engine for order-entry workflows: submit, amend,
-cancel, monitor order lifecycle, and inspect local position state.
+`pm-alf-console` is the **interactive ALF trading terminal** for local, in-session
+use.  It is designed for humans sitting at the same machine as the running engine:
+it connects **directly to the engine's ZMQ sockets**, reads commands from stdin,
+and prints responses to stdout.
 
-Responsibilities of `pm-gateway`:
+!!! warning "Local machine only"
+    `pm-alf-console` connects directly to the engine's ZMQ PUSH/SUB ports
+    (`5555` / `5556`).  It has no TCP listener of its own, so it **cannot accept
+    connections from other hosts**.  It is only suitable for demos, learning, and
+    manual testing on the same machine as the engine.
+
+    For programmatic clients or any client running on a **different host**, use
+    [`pm-alf-gwy`](24-alf-gateway.md) instead.  That process binds a TCP port
+    (default `5565`), accepts multiple ALF connections over the network, and
+    bridges them to the engine's ZMQ bus — without any client needing ZMQ access.
+
+Responsibilities of `pm-alf-console`:
 
 - authenticates the gateway ID against `gateways.alf`
 - parses ALF command lines into validated engine requests
@@ -156,23 +168,41 @@ Responsibilities of `pm-gateway`:
 
 ## Architecture position
 
-`pm-gateway` sits between an ALF client (human operator or automation script)
-and the matching engine. Outbound commands go to the engine request socket,
-while gateway-scoped lifecycle events and selected market events come back on
-the engine PUB stream.
+`pm-alf-console` sits **directly on the ZMQ bus**.  It holds a ZMQ PUSH socket
+(sends commands to the engine) and a ZMQ SUB socket (receives engine events).
+There is no TCP layer between the operator and the engine — commands flow
+directly over ZeroMQ, which is why the process must run on the same host or
+at least have direct network access to the engine's ZMQ ports.
 
 ```mermaid
 flowchart TB
-  CL["Operator / bot\nALF commands"]
-  GW["pm-gateway\n(ALF interactive client)"]
+  CL["Operator at terminal\n(same machine)"]
+  GW["pm-alf-console\n(ZMQ PUSH + SUB)"]
   ENG["pm-engine\nMatching + risk"]
   EVT["Gateway event stream\norder.ack/order.fill/...\ntrade.executed"]
 
-  CL -->|"ALF commands"| GW
-  GW -->|"order/control requests"| ENG
-  ENG -->|"events + acks"| EVT
+  CL -->|"stdin ALF commands"| GW
+  GW -->|"ZMQ PUSH :5555"| ENG
+  ENG -->|"ZMQ PUB :5556"| EVT
   EVT --> GW
 ```
+
+For clients on **another host**, `pm-alf-gwy` adds a TCP accept loop in front
+of the same ZMQ bridge, so the client only needs a plain TCP socket:
+
+```mermaid
+flowchart LR
+  BOT["External bot\n(any host)"]
+  GWY["pm-alf-gwy\nTCP :5565"]
+  ENG["pm-engine\nZMQ :5555 / :5556"]
+
+  BOT -->|"TCP ALF lines"| GWY
+  GWY -->|"ZMQ PUSH :5555"| ENG
+  ENG -->|"ZMQ PUB :5556"| GWY
+  GWY -->|"TCP ALF lines"| BOT
+```
+
+See [ALF TCP Gateway](24-alf-gateway.md) for full documentation of `pm-alf-gwy`.
 
 
 ## When to use ALF — protocol comparison
@@ -181,7 +211,8 @@ EduMatcher offers multiple interfaces. Use this quick guide to choose the right 
 
 | Interface | Transport | Best for | Not suitable for |
 |----------|-----------|----------|------------------|
-| **ALF** (`pm-gateway`) | TCP text (interactive client) | Human/manual trading workflows, command-driven testing, order-entry demos | External market-data-only consumers |
+| **ALF** (`pm-alf-console`) | ZMQ direct (local only) | Human/manual trading at the same machine — demos, learning, ad-hoc testing | Remote clients; any process on a different host |
+| **ALF** (`pm-alf-gwy`) | TCP text `:5565` | External bots, remote scripts, any language, any host | Interactive terminal workflows (no tab completion, no P&L display) |
 | **CALF** (`pm-md-gwy`) | TCP text | External market data (`TOP`, `TRADE`, `STATE`, `INDEX`) | Order entry |
 | **RALF** (`pm-ralf-gwy`) | TCP text | External post-trade feeds (`CLEARING`, `DROP_COPY`, `AUDIT`) | Pre-trade market data, order entry |
 | **REST / WebSocket** (`pm-api-gwy`) | HTTP/JSON + WS | Browser and API-native apps | Lowest-latency interactive trading |
@@ -189,13 +220,15 @@ EduMatcher offers multiple interfaces. Use this quick guide to choose the right 
 
 Rule of thumb:
 
-- Manual or scripted command-line order entry -> **ALF (`pm-gateway`)**
-- External market data feed -> **CALF**
-- External clearing/audit feed -> **RALF**
-- Browser/web integration -> **REST/WebSocket**
+- Manual command-line order entry, **same machine** → **`pm-alf-console`**
+- Automated bot or **remote host** → **`pm-alf-gwy`**
+- External market data feed → **CALF**
+- External clearing/audit feed → **RALF**
+- Browser/web integration → **REST/WebSocket**
 
-The gateway (`pm-gateway`) is your trading terminal. Each gateway instance represents
-one user connecting to the trading system. Multiple gateways can run simultaneously.
+The interactive gateway (`pm-alf-console`) is your trading console for demos and
+learning. Each gateway instance represents one user connecting to the trading
+system. Multiple gateways can run simultaneously.
 
 
 
@@ -203,7 +236,7 @@ one user connecting to the trading system. Multiple gateways can run simultaneou
 ## Starting a Gateway
 
 ```bash
-poetry run pm-gateway --id GW01
+poetry run pm-alf-console --id GW01
 ```
 
 The `--id` flag sets your gateway identifier. It appears on all orders and fills.
@@ -221,7 +254,7 @@ On startup, the gateway:
 
 ```mermaid
 sequenceDiagram
-    participant GW as pm-gateway --id TRADER01
+    participant GW as pm-alf-console --id TRADER01
     participant ENG as pm-engine
 
     GW->>ENG: PUSH :5555  system.gateway_connect {gateway_id: "TRADER01"}
@@ -264,10 +297,10 @@ Every gateway session follows this operator lifecycle:
 ```mermaid
 sequenceDiagram
   participant U as Operator
-  participant GW as pm-gateway
+  participant GW as pm-alf-console
   participant ENG as pm-engine
 
-  U->>GW: Start pm-gateway --id TRADER01
+  U->>GW: Start pm-alf-console --id TRADER01
   GW->>ENG: system.gateway_connect
   ENG-->>GW: system.gateway_auth.TRADER01 accepted=true
   U->>GW: NEW / AMEND / CANCEL / QUOTE ...
@@ -600,7 +633,7 @@ If the LIMIT leg fills at 148.00, the engine automatically cancels the STOP leg.
 
 ```mermaid
 sequenceDiagram
-    participant GW as pm-gateway
+    participant GW as pm-alf-console
     participant ENG as pm-engine
 
     GW->>ENG: NEW|TYPE=OCO|OCO_ID=BRACKET-001|SYM=AAPL|QTY=100|...<br/>LEG1=LIMIT BUY @148.00  LEG2=STOP BUY @155.00
@@ -655,7 +688,7 @@ ORDERS
 
 Prints a rich table of all **single-leg** orders submitted in this gateway session with
 full order ID, current status, remaining quantity, and last update time. This is
-the primary command for order inspection inside `pm-gateway`.
+the primary command for order inspection inside `pm-alf-console`.
 
 !!! note
     Combo orders are not shown in the `ORDERS` table. Their lifecycle is tracked
@@ -840,7 +873,7 @@ This transcript shows a realistic manual session from connect to disconnect.
 
 ```text
 # Start gateway
-$ poetry run pm-gateway --id TRADER01
+$ poetry run pm-alf-console --id TRADER01
 
 TRADER01> SYMBOLS
 # confirms AAPL/MSFT active
@@ -879,13 +912,13 @@ Run as many gateways as needed — each in its own terminal window:
 
 ```bash
 # Terminal A
-poetry run pm-gateway --id TRADER01
+poetry run pm-alf-console --id TRADER01
 
 # Terminal B  
-poetry run pm-gateway --id TRADER02
+poetry run pm-alf-console --id TRADER02
 
 # Terminal C
-poetry run pm-gateway --id TRADER03
+poetry run pm-alf-console --id TRADER03
 ```
 
 Before starting a new gateway ID (for example `TRADER03`), add it to
@@ -949,4 +982,4 @@ the command prompt. You can continue typing while events arrive.
 - [ALF Protocol Reference](90-app-alf-protocol.md) — formal ABNF grammar and field rules for the pipe-delimited syntax
 - [Messages](09-messages.md) — the ZeroMQ messages the gateway publishes and subscribes to
 - [Risk Controls](12-risk-controls.md) — how the engine enforces collars, halts, and kill switches on gateway flow
-- [Running the Engine](03-running-the-engine.md) — how to start `pm-gateway` and verify the connection
+- [Running the Engine](03-running-the-engine.md) — how to start `pm-alf-console` and verify the connection

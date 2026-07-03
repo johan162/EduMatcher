@@ -21,27 +21,27 @@ Quick index of all defined message topics with publisher and purpose.
 
 | Topic | Published by | Short description |
 |---|---|---|
-| `system.gateway_connect` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by an ALF gateway at startup to authenticate its gateway ID against `engine_config.yaml`. |
-| `order.new` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to submit a new order for matching. |
-| `order.cancel` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to cancel a resting order. |
-| `order.amend` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to amend the price and/or quantity of a resting order. |
-| `quote.new` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a market-maker gateway to submit or replace a two-sided quote. |
+| `system.gateway_connect` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by an ALF gateway at startup to authenticate its gateway ID against `engine_config.yaml`. |
+| `order.new` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to submit a new order for matching. |
+| `order.cancel` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to cancel a resting order. |
+| `order.amend` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to amend the price and/or quantity of a resting order. |
+| `quote.new` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a market-maker gateway to submit or replace a two-sided quote. |
 | `quote.ack.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Acknowledgement of a `quote.new` submission. |
 | `quote.status.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Published when the quote's lifecycle state changes (e.g. |
-| `quote.cancel` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Cancel the active quote for one symbol. |
-| `order.oco` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Links two existing resting orders into an OCO pair. |
-| `order.oco_cancel` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Cancel both legs of an OCO pair. |
+| `quote.cancel` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Cancel the active quote for one symbol. |
+| `order.oco` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Links two existing resting orders into an OCO pair. |
+| `order.oco_cancel` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Cancel both legs of an OCO pair. |
 | `oco.ack.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Acknowledgement of an `order.oco` request. |
 | `oco.cancelled.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Notifies the gateway when the engine cancels the sibling leg of an OCO pair (because the other leg filled or was cancelled). |
-| `risk.kill_switch` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Cancels all resting orders and quotes for the specified gateway. |
-| `risk.symbol_halt` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Operator command to halt a single symbol. |
-| `risk.symbol_resume` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Resume trading on a single previously halted symbol. |
-| `risk.cancel_symbol` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Cancel all resting orders and quotes on a single symbol across all gateways. |
-| `risk.circuit_breaker_halt_all` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Administrative global halt request. |
-| `risk.circuit_breaker_resume_all` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Administrative global resume request. |
-| `system.gateway_disconnect` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Graceful disconnect notice from gateway to engine. |
-| `order.combo` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to submit a combo (multi-leg) order. |
-| `order.combo_cancel` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to cancel a combo and all its child legs. |
+| `risk.kill_switch` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Cancels all resting orders and quotes for the specified gateway. |
+| `risk.symbol_halt` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Operator command to halt a single symbol. |
+| `risk.symbol_resume` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Resume trading on a single previously halted symbol. |
+| `risk.cancel_symbol` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Cancel all resting orders and quotes on a single symbol across all gateways. |
+| `risk.circuit_breaker_halt_all` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Administrative global halt request. |
+| `risk.circuit_breaker_resume_all` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Administrative global resume request. |
+| `system.gateway_disconnect` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Graceful disconnect notice from gateway to engine. |
+| `order.combo` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to submit a combo (multi-leg) order. |
+| `order.combo_cancel` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to cancel a combo and all its child legs. |
 | `order.ack.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Acknowledgement of an `order.new` submission. |
 | `order.fill.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Notifies a gateway (and the order monitor) of a partial or full fill. |
 | `order.cancelled.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Confirms a cancel request or a Self-Match Prevention (SMP) forced cancellation. |
@@ -53,16 +53,16 @@ Quick index of all defined message topics with publisher and purpose.
 | `trade.executed` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Published once per matched trade pair. |
 | `book.{SYMBOL}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Full order-book snapshot published after every state change for the named symbol. |
 | `depth.{SYMBOL}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Published alongside `book.{SYMBOL}` after every state change (same throttle). |
-| `book.snapshot_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the current book snapshot for a symbol (used by viewers on startup to avoid waiting for the next update). |
-| `system.symbols_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the list of configured symbols from the engine. |
-| `order.orders_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the current order list for a specific gateway. |
-| `system.quote_bootstrap_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Request active quote bootstrap state for a gateway. |
-| `system.session_state_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the current session state and whether session enforcement is enabled. |
-| `system.session_schedule_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the configured session schedule (the times the scheduler will send phase transitions). |
-| `system.gateways_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the list of configured gateways and their connection status. |
-| `system.volume_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests cumulative traded volume for all symbols in the current session. |
-| `system.halt_status_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests a snapshot of all symbols that are currently halted. |
-| `system.position_request` | Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests a per-symbol position snapshot (net qty and average cost) for a specific gateway. |
+| `book.snapshot_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the current book snapshot for a symbol (used by viewers on startup to avoid waiting for the next update). |
+| `system.symbols_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the list of configured symbols from the engine. |
+| `order.orders_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the current order list for a specific gateway. |
+| `system.quote_bootstrap_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Request active quote bootstrap state for a gateway. |
+| `system.session_state_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the current session state and whether session enforcement is enabled. |
+| `system.session_schedule_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the configured session schedule (the times the scheduler will send phase transitions). |
+| `system.gateways_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the list of configured gateways and their connection status. |
+| `system.volume_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests cumulative traded volume for all symbols in the current session. |
+| `system.halt_status_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests a snapshot of all symbols that are currently halted. |
+| `system.position_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests a per-symbol position snapshot (net qty and average cost) for a specific gateway. |
 | `session.state` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Broadcast whenever the engine transitions between session phases (for example, OPENING_AUCTION to CONTINUOUS). |
 | `auction.result.{SYMBOL}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Broadcast once per symbol after an auction uncross completes and reports equilibrium outcome. |
 | `system.eod` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Broadcast by the engine at shutdown before sockets are closed. |
@@ -219,7 +219,7 @@ The dedicated drop-copy channel is implemented in
 
 ```mermaid
 flowchart LR
-    GW["pm-gateway"] -- "PUSH\n:5555" --> ENG["pm-engine"]
+    GW["pm-alf-console"] -- "PUSH\n:5555" --> ENG["pm-engine"]
     SCH["pm-scheduler"] -- "PUSH\n:5555" --> ENG
     ADM["pm-admin"] -- "PUSH\n:5555" --> ENG
     ENG -- "PUB\n:5556" --> GW
@@ -234,14 +234,14 @@ flowchart LR
 ### `system.gateway_connect`
 
 **Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Sent by an ALF gateway at startup to authenticate its gateway ID against
 `engine_config.yaml`.
 
 ```mermaid
 sequenceDiagram
-    participant GW as pm-gateway
+    participant GW as pm-alf-console
     participant ENG as pm-engine
 
     GW->>ENG: system.gateway_connect\n{gateway_id: "TRADER01"} (PUSH :5555)
@@ -274,7 +274,7 @@ When `accepted=false`, the gateway must terminate and MUST NOT submit orders.
 ### `order.new`
 
 **Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Sent by a gateway to submit a new order for matching.
 
@@ -316,7 +316,7 @@ Sent by a gateway to submit a new order for matching.
 ### `order.cancel`
 
 **Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Sent by a gateway to cancel a resting order.
 
@@ -330,7 +330,7 @@ Sent by a gateway to cancel a resting order.
 ### `order.amend`
 
 **Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Sent by a gateway to amend the price and/or quantity of a resting order.
 
@@ -355,7 +355,7 @@ At least one of `price` or `qty` must be present.
 ### `quote.new`
 
 **Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Sent by a market-maker gateway to submit or replace a two-sided quote.
 Role requirements and MM obligation controls are documented in
@@ -417,7 +417,7 @@ Published when the quote's lifecycle state changes (e.g. a fill inactivates the 
 ### `quote.cancel`
 
 **Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Cancel the active quote for one symbol.
 
@@ -435,7 +435,7 @@ A **One-Cancels-Other (OCO)** pair links two resting orders so that when one fil
 ### `order.oco`
 
 **Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Links two existing resting orders into an OCO pair.
 
@@ -453,7 +453,7 @@ Both orders must already be resting on the book and must belong to the same gate
 ### `order.oco_cancel`
 
 **Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Cancel both legs of an OCO pair.
 
@@ -497,7 +497,7 @@ Notifies the gateway when the engine cancels the sibling leg of an OCO pair (bec
 ### `risk.kill_switch`
 
 **Motivation:** Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Cancels all resting orders and quotes for the specified gateway. Does not halt the symbol; trading continues normally for other participants.
 
@@ -517,7 +517,7 @@ Cancels all resting orders and quotes for the specified gateway. Does not halt t
 ### `risk.symbol_halt`
 
 **Motivation:** Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Operator command to halt a single symbol. Any authenticated connected gateway may send this; no ADMIN role is required.
 
@@ -539,7 +539,7 @@ The engine also publishes `circuit_breaker.halt.{SYMBOL}` with `resumption_mode 
 ### `risk.symbol_resume`
 
 **Motivation:** Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Resume trading on a single previously halted symbol.
 
@@ -560,7 +560,7 @@ The engine publishes `circuit_breaker.resume.{SYMBOL}` with `mode = "MANUAL"` wh
 ### `risk.cancel_symbol`
 
 **Motivation:** Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Cancel all resting orders and quotes on a single symbol across all gateways. The symbol remains active; only resting interest is cleared.
 
@@ -581,7 +581,7 @@ Cancel all resting orders and quotes on a single symbol across all gateways. The
 ### `risk.circuit_breaker_halt_all`
 
 **Motivation:** Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Administrative global halt request. This sets all known symbols to halted.
 Only gateways configured with `role: ADMIN` are authorized.
@@ -617,7 +617,7 @@ Ack payload fields:
 ### `risk.circuit_breaker_resume_all`
 
 **Motivation:** Provides operational risk controls (halt/resume/kill/cancel) with auditable command semantics.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Administrative global resume request. Clears the halt on every symbol that was
 halted by a preceding `risk.circuit_breaker_halt_all`.
@@ -734,7 +734,7 @@ symbols. Market-maker quote obligations are enforced again immediately.
 ### `system.gateway_disconnect`
 
 **Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Graceful disconnect notice from gateway to engine.
 
@@ -748,7 +748,7 @@ Graceful disconnect notice from gateway to engine.
 ### `order.combo`
 
 **Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Sent by a gateway to submit a combo (multi-leg) order.
 
@@ -768,7 +768,7 @@ Sent by a gateway to submit a combo (multi-leg) order.
 ### `order.combo_cancel`
 
 **Motivation:** Keeps order/quote lifecycle state synchronized between the initiating client and all interested subscribers.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Sent by a gateway to cancel a combo and all its child legs.
 
@@ -1038,7 +1038,7 @@ These messages travel over the PUSH/PULL channel (port 5555) and the reply is pu
 ### `book.snapshot_request`
 
 **Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Requests the current book snapshot for a symbol (used by viewers on startup to avoid waiting for the next update).
 
@@ -1053,7 +1053,7 @@ Requests the current book snapshot for a symbol (used by viewers on startup to a
 ### `system.symbols_request`
 
 **Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Requests the list of configured symbols from the engine.
 Used by gateways on connect and by the statistics process at startup to discover
@@ -1083,7 +1083,7 @@ When present, each `symbol_meta.{SYMBOL}` entry may include:
 ### `order.orders_request`
 
 **Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Requests the current order list for a specific gateway.
 
@@ -1096,7 +1096,7 @@ Requests the current order list for a specific gateway.
 ### `system.quote_bootstrap_request`
 
 **Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Request active quote bootstrap state for a gateway. This is useful for market-
 maker startup/reconnect flows to discover currently active quote slots (for
@@ -1127,7 +1127,7 @@ Each element in `quotes` includes:
 ### `system.session_state_request`
 
 **Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Requests the current session state and whether session enforcement is enabled.
 
@@ -1147,7 +1147,7 @@ Requests the current session state and whether session enforcement is enabled.
 ### `system.session_schedule_request`
 
 **Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Requests the configured session schedule (the times the scheduler will send phase transitions).
 
@@ -1167,7 +1167,7 @@ Requests the configured session schedule (the times the scheduler will send phas
 ### `system.gateways_request`
 
 **Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Requests the list of configured gateways and their connection status.
 
@@ -1195,7 +1195,7 @@ Each gateway entry:
 ### `system.volume_request`
 
 **Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Requests cumulative traded volume for all symbols in the current session.
 
@@ -1204,7 +1204,7 @@ Requests cumulative traded volume for all symbols in the current session.
 ### `system.halt_status_request`
 
 **Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Requests a snapshot of all symbols that are currently halted. Useful for any
 process that connects or reconnects mid-session and cannot know the halt state
@@ -1255,7 +1255,7 @@ Each per-symbol entry in `symbols`:
 ### `system.position_request`
 
 **Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
-**Published by:** Requesting client process (for example pm-gateway, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
+**Published by:** Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555
 
 Requests a snapshot of the per-symbol position held by the engine for a
 specific gateway.  The engine derives positions by tracking every fill

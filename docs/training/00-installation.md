@@ -6,7 +6,7 @@ Install EduMatcher from PyPI, configure environment variables for config and
 data directories, and use the `pm-setup` helper to bootstrap your workspace.
 
 
----
+ 
 
 ## Exercise 0: Read the [How an Exchange Works](../how-exchange-works.md)
 
@@ -14,7 +14,7 @@ This is not strictly required, but it will give you a solid mental model of the 
 
 Once you read that introduction, you can refer back to it at any time during the training. The concepts will become clearer as you see them in action.
 
----
+ 
 
 ## Exercise 1: Install EduMatcher
 
@@ -44,7 +44,7 @@ pm-engine --version
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-engine --version` prints a version number.
 
----
+ 
 
 ## Exercise 1 (Alternative): Multipass VM Setup
 
@@ -66,7 +66,7 @@ multipass version
 Run the curl bootstrap script (pinned to this release):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.12.5 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.13.0 --snapshot
 ```
 
 This command will:
@@ -81,7 +81,7 @@ This command will:
     ```bash
     curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh -o curl_setup_vm.sh
     less curl_setup_vm.sh
-    bash curl_setup_vm.sh --version 0.12.5 --snapshot
+    bash curl_setup_vm.sh --version 0.13.0 --snapshot
     ```
 
 ### Step 3: Enter the VM and verify commands
@@ -90,7 +90,7 @@ This command will:
 multipass shell edumatcher-vm
 pm-engine --version
 pm-scheduler --help
-pm-gateway --help
+pm-alf-console --help
 ```
 
 ### Step 4: Run a first end-to-end session inside the VM
@@ -131,7 +131,7 @@ multipass purge
 :material-checkbox-blank-outline: **Checkpoint:** You can enter
 `edumatcher-vm` and `pm-engine --version` succeeds inside the VM.
 
----
+ 
 
 
 
@@ -169,7 +169,7 @@ Add the following to your shell profile (~/.zshrc or ~/.bashrc):
 
 :material-checkbox-blank-outline: **Checkpoint:** data directory exists; sample config in place.
 
----
+ 
 
 ## Exercise 3: Set Environment Variables
 
@@ -204,7 +204,7 @@ source ~/.zshrc   # or source ~/.bashrc
 
 :material-checkbox-blank-outline: **Checkpoint:** `echo $EDUMATCHER_DATA_DIR` prints the correct path.
 
----
+ 
 
 ## Exercise 4: Verify the Data Directory
 
@@ -222,7 +222,7 @@ This directory will hold:
 
 :material-checkbox-blank-outline: **Checkpoint:** directory exists and is writable.
 
----
+ 
 
 ## Exercise 5: Inspect the Sample Configuration
 
@@ -237,7 +237,7 @@ you will customise in the next chapter.
 
 :material-checkbox-blank-outline: **Checkpoint:** sample config contains symbols and gateways.
 
----
+ 
 
 ## Exercise 6: Confirm All Entry Points
 
@@ -246,7 +246,7 @@ Verify that the key commands are available:
 ```bash
 pm-engine --help
 pm-scheduler --help
-pm-gateway --help
+pm-alf-console --help
 pm-setup --help
 pm-config-gen --help
 pm-mm-bot --help
@@ -261,7 +261,7 @@ Each should print usage information without errors.
 
 :material-checkbox-blank-outline: **Checkpoint:** all commands respond to `--help`.
 
----
+ 
 
 ## Summary
 

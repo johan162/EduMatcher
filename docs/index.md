@@ -46,9 +46,9 @@ EduMatcher reproduces that stack as separate processes communicating over a mess
 
 ```mermaid
 flowchart TD
-  GW1[Your terminal<br/>pm-gateway]
+  GW1[Your terminal<br/>pm-alf-console]
   ENG[Matching engine<br/>pm-engine]
-  GW2[Other participants<br/>other pm-gateways]
+  GW2[Other participants<br/>other pm-alf-consoles]
   VIEW[pm-viewer<br/>live order book]
   CLR[pm-clearing<br/>P&L accounting]
   AUD[pm-audit<br/>full event log]
@@ -90,7 +90,7 @@ For full setup details, see [Getting Started](user-guide/00-getting-started.md).
 **Option 1: VM bootstrap mode (curl + Multipass)**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.12.5 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.13.0 --snapshot
 ```
 
 More details:
@@ -113,7 +113,7 @@ pm-engine --verbose
 pm-audit --terminal
 pm-clearing
 pm-viewer --symbol AAPL
-pm-gateway --id GW01
+pm-alf-console --id GW01
 ```
 
 If you use Poetry, prefix commands with `poetry run`.

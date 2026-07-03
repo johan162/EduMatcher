@@ -42,7 +42,7 @@ from rich.table import Table
 from edumatcher.commands import CommandTimeoutError, ExchangeCommandClient
 
 # ---------------------------------------------------------------------------
-# prompt_toolkit / rich integration (same pattern as pm-gateway)
+# prompt_toolkit / rich integration (same pattern as pm-alf-console)
 # ---------------------------------------------------------------------------
 
 

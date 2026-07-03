@@ -98,6 +98,8 @@ class DropCopyPublisher:
         self._pub.bind(bind_addr)
         # Bounded deque: when full, oldest messages are silently dropped
         self._log: deque[DropCopyMessage] = deque(maxlen=DROP_COPY_BUFFER_SIZE)
+        # Per-gateway topic bytes cache — avoids f-string + .encode() per publish
+        self._topic_cache: dict[str, bytes] = {}
 
     def publish(
         self,
@@ -133,7 +135,10 @@ class DropCopyPublisher:
         )
         self._log.append(msg)
 
-        topic_bytes = f"drop_copy.event.{gateway_id}".encode()
+        topic_bytes = self._topic_cache.get(gateway_id)
+        if topic_bytes is None:
+            topic_bytes = f"drop_copy.event.{gateway_id}".encode()
+            self._topic_cache[gateway_id] = topic_bytes
         self._pub.send_multipart(
             [
                 topic_bytes,

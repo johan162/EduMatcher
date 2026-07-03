@@ -38,6 +38,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_combos(raw, results)
     _check_admin_gateway(raw, results)
     _check_post_trade_admin(raw, results)
+    _check_balf_gateway_semantic(raw, results)
     return results
 
 
@@ -504,3 +505,74 @@ def _check_post_trade_admin(raw: dict[str, Any], results: list[CheckResult]) -> 
                 path="post_trade_gateway",
             )
         )
+
+
+def _check_balf_gateway_semantic(
+    raw: dict[str, Any], results: list[CheckResult]
+) -> None:
+    """Semantic cross-field checks for the balf_gateway section (M017–M018)."""
+    section = raw.get("balf_gateway")
+    if section is None or not isinstance(section, dict):
+        return
+
+    # M017 — heartbeat timeout should exceed heartbeat interval
+    interval_raw = section.get("heartbeat_interval_sec")
+    timeout_raw = section.get("heartbeat_timeout_sec")
+    if interval_raw is not None and timeout_raw is not None:
+        try:
+            f_interval = float(interval_raw)
+            f_timeout = float(timeout_raw)
+            if f_timeout <= f_interval:
+                results.append(
+                    CheckResult(
+                        code="M017",
+                        severity=Severity.WARN,
+                        message=(
+                            f"balf_gateway.heartbeat_timeout_sec ({f_timeout}) must be "
+                            f"greater than heartbeat_interval_sec ({f_interval})."
+                        ),
+                        suggestion=(
+                            "Set heartbeat_timeout_sec to at least 2\u00d7 "
+                            "heartbeat_interval_sec so a single missed heartbeat "
+                            "triggers the timeout."
+                        ),
+                        path="balf_gateway.heartbeat_timeout_sec",
+                    )
+                )
+        except (TypeError, ValueError):
+            pass  # type errors already reported by layer 2
+
+    # M018 — port collision with other gateway sections
+    balf_port = section.get("port")
+    if not isinstance(balf_port, int) or isinstance(balf_port, bool):
+        return
+
+    _BALF_PORT_PEERS = (
+        ("post_trade_gateway", "pm-ralf-gwy"),
+        ("market_data_gateway", "pm-md-gwy"),
+    )
+    for peer_key, peer_name in _BALF_PORT_PEERS:
+        peer = raw.get(peer_key)
+        if not isinstance(peer, dict):
+            continue
+        peer_port = peer.get("port")
+        if (
+            isinstance(peer_port, int)
+            and not isinstance(peer_port, bool)
+            and peer_port == balf_port
+        ):
+            results.append(
+                CheckResult(
+                    code="M018",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"balf_gateway.port ({balf_port}) conflicts with "
+                        f"{peer_key}.port ({peer_port})."
+                    ),
+                    suggestion=(
+                        f"Each gateway process must bind to a unique TCP port. "
+                        f"Change balf_gateway.port or {peer_key}.port ({peer_name})."
+                    ),
+                    path="balf_gateway.port",
+                )
+            )

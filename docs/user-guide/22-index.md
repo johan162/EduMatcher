@@ -361,7 +361,7 @@ provide a permanent audit trail.
 
 ### From a gateway terminal (`INDEX` command)
 
-Connect through any `pm-gateway` session (including `ADMIN` role) and run:
+Connect through any `pm-alf-console` session (including `ADMIN` role) and run:
 
 ```
 INDEX

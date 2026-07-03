@@ -5,14 +5,14 @@
 Observe real-time market data with the current EduMatcher tools and understand
 where the engine's drop-copy feed fits into the architecture.
 
----
+ 
 
 ## Prerequisites
 
 - Chapters 01–12 completed.
 - Engine and at least one trader gateway active so events are visible.
 
----
+ 
 
 ## Background
 
@@ -25,7 +25,7 @@ EduMatcher publishes two event streams from `pm-engine`:
 There is no separate `pm-drop-copy` process. The engine binds the drop-copy feed
 itself when it starts.
 
----
+ 
 
 ## Exercise 1: Open a Live Book Viewer
 
@@ -43,7 +43,7 @@ TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.80|TIF=DAY
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-viewer` changes when the book changes.
 
----
+ 
 
 ## Exercise 2: Run the Cross-Gateway Order Monitor
 
@@ -58,7 +58,7 @@ resting order state across gateways.
 
 :material-checkbox-blank-outline: **Checkpoint:** `pm-orders` shows orders from multiple gateways.
 
----
+ 
 
 ## Exercise 3: Capture Events with pm-audit
 
@@ -79,7 +79,7 @@ way to observe the event stream without writing a custom ZMQ subscriber.
 
 :material-checkbox-blank-outline: **Checkpoint:** audit output shows the trade/order lifecycle events.
 
----
+ 
 
 ## Exercise 4: Confirm the Drop-Copy Feed Is Bound
 
@@ -95,7 +95,7 @@ risk/compliance subscribers and publishes topics such as
 
 :material-checkbox-blank-outline: **Checkpoint:** you can identify the drop-copy socket in engine startup output.
 
----
+ 
 
 ## Exercise 5: Subscribe to the Drop-Copy Feed Directly
 
@@ -133,7 +133,7 @@ each side of the trade, each with its own monotonically increasing `seq`.
 
 :material-checkbox-blank-outline: **Checkpoint:** you received at least one drop-copy message directly from port 5557, distinct from anything `pm-audit` printed on port 5556.
 
----
+ 
 
 ## Exercise 6: Compare Public Events and Drop-Copy Purpose
 
@@ -148,7 +148,7 @@ Execute another trade and compare what each consumer is for:
 
 :material-checkbox-blank-outline: **Checkpoint:** explain why drop-copy is separate from the public market-data stream.
 
----
+ 
 
 ## Exercise 7: Launch the Market Board
 
@@ -163,7 +163,7 @@ context from `stats.db`.
 
 :material-checkbox-blank-outline: **Checkpoint:** board shows AAPL, MSFT, and TSLA in one view.
 
----
+ 
 
 ## Key Architecture
 
@@ -175,7 +175,7 @@ flowchart LR
     V --> B[pm-board / pm-ticker]
 ```
 
----
+ 
 
 ## Reflection
 
