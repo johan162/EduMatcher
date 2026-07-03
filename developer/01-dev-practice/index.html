@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3749,10 +3805,10 @@ configuration can look like this:</p>
 <a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-scheduler<span class="w"> </span>--now
 <a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
 <a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># Terminal 3 — market maker gateway</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>MM01
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM01
 <a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
 <a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="c1"># Terminal 4 — trader gateway</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
 <a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>
 <a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="c1"># Terminal 5 — operator console</span>
 <a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-admin<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
@@ -4075,7 +4131,7 @@ references. Always sanity-check:</p>
 <h3 id="starting-clients-before-the-engine">Starting clients before the engine<a class="headerlink" href="#starting-clients-before-the-engine" title="Permanent link">&para;</a></h3>
 <p>Most processes assume the engine sockets already exist. Start <code>pm-engine</code> first.</p>
 <h3 id="using-a-gateway-id-that-is-not-in-engine_configyaml">Using a gateway ID that is not in <code>engine_config.yaml</code><a class="headerlink" href="#using-a-gateway-id-that-is-not-in-engine_configyaml" title="Permanent link">&para;</a></h3>
-<p><code>pm-gateway --id SOMEONE</code> only works if that gateway is configured.</p>
+<p><code>pm-alf-console --id SOMEONE</code> only works if that gateway is configured.</p>
 <h3 id="forgetting-that-observer-processes-depend-on-each-other">Forgetting that observer processes depend on each other<a class="headerlink" href="#forgetting-that-observer-processes-depend-on-each-other" title="Permanent link">&para;</a></h3>
 <p><code>pm-ticker</code> and <code>pm-board</code> rely on statistics written by <code>pm-stats</code>.</p>
 <h3 id="assuming-docs-only-changes-need-no-validation">Assuming docs-only changes need no validation<a class="headerlink" href="#assuming-docs-only-changes-need-no-validation" title="Permanent link">&para;</a></h3>
@@ -4100,7 +4156,7 @@ history. Read before relying on them.</p>
 <ol>
 <li>Set up Poetry and build the docs</li>
 <li>Run the minimal live system once</li>
-<li>Submit a few manual orders through <code>pm-gateway</code></li>
+<li>Submit a few manual orders through <code>pm-alf-console</code></li>
 <li>Run the normal test suite</li>
 <li>Read the deterministic verification page</li>
 <li>Pick one small bug fix or documentation improvement</li>

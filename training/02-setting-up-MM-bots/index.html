@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3054,14 +3110,12 @@
 <p>Configure market-maker gateways and use manual <code>QUOTE</code> commands to provide
 two-sided liquidity for all three symbols. You will also compare this manual
 workflow with <code>pm-mm-bot</code>, which automates the same lifecycle.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 00–01 completed.</li>
 <li><code>pm-engine</code> and <code>pm-scheduler</code> running.</li>
 <li>At least one trader gateway connected (for book checks).</li>
 </ul>
-<hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>A market maker posts simultaneous buy (bid) and sell (ask) prices. Without one,
 the order book is empty and no trader can get an immediate fill.</p>
@@ -3069,9 +3123,8 @@ the order book is empty and no trader can get an immediate fill.</p>
 <p class="admonition-title">Manual first, automation second</p>
 </div>
 <p><code>pm-mm-bot</code> is available, but this chapter starts with manual
-  <code>pm-gateway</code> + <code>QUOTE</code> so you can see quote lifecycle and operator tools
+  <code>pm-alf-console</code> + <code>QUOTE</code> so you can see quote lifecycle and operator tools
   directly before using automation.</p>
-<hr />
 <h2 id="exercise-1-add-mm-gateways-to-configuration">Exercise 1: Add MM Gateways to Configuration<a class="headerlink" href="#exercise-1-add-mm-gateways-to-configuration" title="Permanent link">&para;</a></h2>
 <p>Extend your <code>engine_config.yaml</code> gateways section:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">gateways</span><span class="p">:</span>
@@ -3098,28 +3151,25 @@ the order book is empty and no trader can get an immediate fill.</p>
 </code></pre></div>
 <p>Restart <code>pm-engine</code> to pick up the new gateways.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> engine logs show 6 gateways loaded.</p>
-<hr />
 <h2 id="exercise-2-connect-the-aapl-market-maker">Exercise 2: Connect the AAPL Market Maker<a class="headerlink" href="#exercise-2-connect-the-aapl-market-maker" title="Permanent link">&para;</a></h2>
 <p>In a new terminal:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>MM_AAPL_01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM_AAPL_01
 </code></pre></div>
 <p>At the prompt, submit a two-sided quote:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>MM_AAPL_01&gt; QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-MM-001
 </code></pre></div>
 <p>Expected output should include a quote acknowledgement and active status.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> AAPL quote acknowledged and active.</p>
-<hr />
 <h2 id="exercise-3-quote-msft-and-tsla">Exercise 3: Quote MSFT and TSLA<a class="headerlink" href="#exercise-3-quote-msft-and-tsla" title="Permanent link">&para;</a></h2>
 <p>Open one terminal per MM gateway:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>MM_MSFT_01
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>MM_TSLA_01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM_MSFT_01
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM_TSLA_01
 </code></pre></div>
 <p>Submit quotes:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>MM_MSFT_01&gt; QUOTE|SYM=MSFT|BID=419.90|ASK=420.10|BID_QTY=300|ASK_QTY=300|TIF=DAY|QUOTE_ID=MSFT-MM-001
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>MM_TSLA_01&gt; QUOTE|SYM=TSLA|BID=249.75|ASK=250.25|BID_QTY=200|ASK_QTY=200|TIF=DAY|QUOTE_ID=TSLA-MM-001
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> all three market makers report active quotes.</p>
-<hr />
 <h2 id="exercise-4-verify-liquidity-from-the-trader-gateway">Exercise 4: Verify Liquidity from the Trader Gateway<a class="headerlink" href="#exercise-4-verify-liquidity-from-the-trader-gateway" title="Permanent link">&para;</a></h2>
 <p>From <code>TRADER01</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>TRADER01&gt; BOOK|SYM=AAPL
@@ -3129,7 +3179,6 @@ the order book is empty and no trader can get an immediate fill.</p>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>TRADER01&gt; BOOK|SYM=TSLA
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> all three books show two-sided liquidity.</p>
-<hr />
 <h2 id="exercise-5-inspect-quote-state-with-qlegs">Exercise 5: Inspect Quote State with QLEGS<a class="headerlink" href="#exercise-5-inspect-quote-state-with-qlegs" title="Permanent link">&para;</a></h2>
 <p>From each market-maker gateway, inspect quote legs:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>MM_AAPL_01&gt; QLEGS|SYM=AAPL|SHOW=ALL
@@ -3146,7 +3195,6 @@ restart or partial execution.</p>
 <li><code>status</code> shows state such as ACTIVE, PARTIAL, or FILLED.</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> QLEGS shows both quote legs for each symbol.</p>
-<hr />
 <h2 id="exercise-6-run-the-equivalent-bot-workflow-optional">Exercise 6: Run the Equivalent Bot Workflow (Optional)<a class="headerlink" href="#exercise-6-run-the-equivalent-bot-workflow-optional" title="Permanent link">&para;</a></h2>
 <p>The manual quote sequence above can be automated with one bot per symbol:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--gap<span class="w"> </span><span class="m">0</span>.10<span class="w"> </span>--qty<span class="w"> </span><span class="m">500</span>
@@ -3175,7 +3223,6 @@ mismatch here causes the engine to reject the bot's connection.</p>
 </ul>
 <p>See the detailed walkthrough in <a href="../09-market-making/">09 — Market Making</a>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> explain what the bot automates compared with your manual <code>QUOTE</code> workflow.</p>
-<hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You now have:</p>
 <ul>

@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3053,13 +3109,11 @@
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Learn what EduMatcher persists, where persistent files live, and how to verify
 state across restart scenarios.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01–15 completed.</li>
 <li>Consistent <code>EDUMATCHER_DATA_DIR</code> configured for all processes.</li>
 </ul>
-<hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>EduMatcher stores persistent runtime data under <code>EDUMATCHER_DATA_DIR</code>. Common
 files include:</p>
@@ -3068,7 +3122,6 @@ files include:</p>
 <li><code>stats.db</code> — SQLite database written by <code>pm-stats</code>.</li>
 <li><code>audit.log</code> — event log if <code>pm-audit</code> writes to disk.</li>
 </ul>
-<hr />
 <h2 id="exercise-1-locate-the-data-directory">Exercise 1: Locate the Data Directory<a class="headerlink" href="#exercise-1-locate-the-data-directory" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>ls<span class="w"> </span>-la<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>
@@ -3076,7 +3129,6 @@ files include:</p>
 <p>If the variable is empty, revisit <a href="../00-installation/">00 — Installation &amp; Setup</a>
 and run <code>pm-setup</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can locate the persistent data directory.</p>
-<hr />
 <h2 id="exercise-2-create-a-gtc-order">Exercise 2: Create a GTC Order<a class="headerlink" href="#exercise-2-create-a-gtc-order" title="Permanent link">&para;</a></h2>
 <p>Start the exchange and place a GTC order away from the market:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=140.00|TIF=GTC
@@ -3085,7 +3137,6 @@ and run <code>pm-setup</code>.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>TRADER01&gt; ORDERS
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> the GTC order is resting and visible.</p>
-<hr />
 <h2 id="exercise-3-restart-the-engine">Exercise 3: Restart the Engine<a class="headerlink" href="#exercise-3-restart-the-engine" title="Permanent link">&para;</a></h2>
 <p>GTC persistence in EduMatcher is unconditional — there is no config flag to
 enable/disable it — but it only works correctly under these conditions:</p>
@@ -3118,7 +3169,6 @@ confirming how many GTC orders it saved (<code>[ENGINE] Saved N GTC order(s) to
 <li>Stats remain in <code>stats.db</code> if <code>pm-stats</code> was writing before restart.</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> verify whether the GTC order survives restart.</p>
-<hr />
 <h2 id="exercise-4-compare-day-and-gtc-behaviour">Exercise 4: Compare DAY and GTC Behaviour<a class="headerlink" href="#exercise-4-compare-day-and-gtc-behaviour" title="Permanent link">&para;</a></h2>
 <p>Place one DAY and one GTC order at non-marketable prices:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>TRADER01&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=400.00|TIF=DAY
@@ -3127,7 +3177,6 @@ confirming how many GTC orders it saved (<code>[ENGINE] Saved N GTC order(s) to
 <p>Move the session to CLOSED, then restart and inspect <code>ORDERS</code>. DAY orders should
 expire at session close; GTC orders are the ones designed to survive.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> explain the different lifecycle of DAY and GTC orders.</p>
-<hr />
 <h2 id="exercise-5-persist-statistics">Exercise 5: Persist Statistics<a class="headerlink" href="#exercise-5-persist-statistics" title="Permanent link">&para;</a></h2>
 <p>Start <code>pm-stats</code>, execute a few trades, and inspect the stats database:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pm-stats
@@ -3137,7 +3186,6 @@ expire at session close; GTC orders are the ones designed to survive.</p>
 <p>You should see <code>stats.db</code> in the data directory once statistics have been
 recorded.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>stats.db</code> exists and contains recent trades.</p>
-<hr />
 <h2 id="exercise-6-audit-to-disk">Exercise 6: Audit to Disk<a class="headerlink" href="#exercise-6-audit-to-disk" title="Permanent link">&para;</a></h2>
 <p>Start audit logging to a file:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-audit<span class="w"> </span>--log-file<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/audit.log&quot;</span><span class="w"> </span>--terminal
@@ -3146,7 +3194,6 @@ recorded.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>tail<span class="w"> </span>-20<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/audit.log&quot;</span>
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> audit log contains events from your trading session.</p>
-<hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You now understand:</p>
 <ul>

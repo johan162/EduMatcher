@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3054,7 +3110,6 @@
 <p>Execute your first buy and sell trades against the market-maker quotes and
 understand fill messages, clearing records, order IDs, and the order book
 lifecycle.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Engine and scheduler running from chapters 01–02.</li>
@@ -3062,7 +3117,6 @@ lifecycle.</p>
 <li><code>TRADER01</code> gateway connected.</li>
 <li>One spare terminal for the clearing process.</li>
 </ul>
-<hr />
 <h2 id="exercise-1-start-clearing">Exercise 1: Start Clearing<a class="headerlink" href="#exercise-1-start-clearing" title="Permanent link">&para;</a></h2>
 <p>In a new terminal, start the clearing process before you trade:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-clearing
@@ -3071,7 +3125,6 @@ lifecycle.</p>
 P&amp;L, and appends trades to <code>clearing_report.csv</code> in the data directory. Leave it
 running while you work through this chapter.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> clearing is running and waiting for trades.</p>
-<hr />
 <h2 id="exercise-2-buy-at-market-lift-the-ask">Exercise 2: Buy at Market — Lift the Ask<a class="headerlink" href="#exercise-2-buy-at-market-lift-the-ask" title="Permanent link">&para;</a></h2>
 <p>From <code>TRADER01</code>, send a market buy order for AAPL:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
@@ -3084,7 +3137,6 @@ running while you work through this chapter.</p>
 the clearing output: <code>TRADER01</code> has bought AAPL, the market-maker gateway has
 sold AAPL, and positions/P&amp;L are updated from the execution price.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you received a fill confirmation and can see the trade in <code>pm-clearing</code>.</p>
-<hr />
 <h2 id="exercise-3-sell-at-market-hit-the-bid">Exercise 3: Sell at Market — Hit the Bid<a class="headerlink" href="#exercise-3-sell-at-market-hit-the-bid" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=100
 </code></pre></div>
@@ -3092,7 +3144,6 @@ sold AAPL, and positions/P&amp;L are updated from the execution price.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>[FILL] order_id=... AAPL SELL 100@149.95 status=FILLED
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> sell fill at the bid price.</p>
-<hr />
 <h2 id="exercise-4-place-a-limit-buy-order">Exercise 4: Place a Limit Buy Order<a class="headerlink" href="#exercise-4-place-a-limit-buy-order" title="Permanent link">&para;</a></h2>
 <p>Place a buy order below the current bid — it should rest on the book:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=200|PRICE=149.80|TIF=DAY
@@ -3103,10 +3154,9 @@ sold AAPL, and positions/P&amp;L are updated from the execution price.</p>
 </code></pre></div>
 <p>You should see your 200-lot bid at 149.80 below the MM's bid.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> limit order visible in the book.</p>
-<hr />
 <h2 id="exercise-5-place-a-limit-sell-and-get-a-fill">Exercise 5: Place a Limit Sell and Get a Fill<a class="headerlink" href="#exercise-5-place-a-limit-sell-and-get-a-fill" title="Permanent link">&para;</a></h2>
 <p>Now from <code>TRADER02</code> (open a second gateway if not already):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER02
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
 </code></pre></div>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>TRADER02&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=50|PRICE=149.80|TIF=DAY
 </code></pre></div>
@@ -3117,7 +3167,6 @@ sold AAPL, and positions/P&amp;L are updated from the execution price.</p>
 <li>TRADER02: full fill (50 filled)</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> cross-gateway fill confirmed on both sides.</p>
-<hr />
 <h2 id="exercise-6-check-order-state">Exercise 6: Check Order State<a class="headerlink" href="#exercise-6-check-order-state" title="Permanent link">&para;</a></h2>
 <p>From TRADER01, inspect the partially filled order:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>TRADER01&gt; ORDERS
@@ -3125,7 +3174,6 @@ sold AAPL, and positions/P&amp;L are updated from the execution price.</p>
 <p>Expected: the order from Exercise 4 appears with filled and remaining quantity
 showing the partial fill.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> ORDERS shows partial fill state correctly.</p>
-<hr />
 <p><strong>Optional:</strong> If you have <code>pm-viewer</code> running on AAPL, you should see the bid size drop from 200 to 150 after the fill.</p>
 <h2 id="exercise-7-optional-observe-automatic-re-quoting-with-pm-mm-bot">Exercise 7 (Optional): Observe Automatic Re-Quoting with pm-mm-bot<a class="headerlink" href="#exercise-7-optional-observe-automatic-re-quoting-with-pm-mm-bot" title="Permanent link">&para;</a></h2>
 <p>If you are running <code>pm-mm-bot</code> for AAPL (instead of manual quoting), your
@@ -3135,7 +3183,6 @@ market order in Exercise 2 should trigger automatic re-quoting. Run BOOK again:<
 <p>The MM should have a fresh two-sided quote (possibly at a slightly different
 mid if the trade moved the reference price).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> MM has re-quoted after being filled.</p>
-<hr />
 <h2 id="key-concepts-learned">Key Concepts Learned<a class="headerlink" href="#key-concepts-learned" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Market orders</strong> execute immediately against the best available price.</li>
@@ -3155,7 +3202,6 @@ that a LIMIT order would protect you from?</p>
 <li><a href="../../concepts/01-concepts-order-book/">The Order Book</a></li>
 <li><a href="../../user-guide/08-gateway/">Gateway Commands</a></li>
 </ul>
-<hr />
 <p><strong>Next:</strong> <a href="../04-amending-orders/">04 — Amending Orders</a></p>
 
 

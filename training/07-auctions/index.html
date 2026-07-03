@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3042,13 +3098,11 @@
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Run opening and closing auctions, understand equilibrium price calculation, and
 observe how auction orders are collected and matched in a single uncrossing event.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01–06 completed.</li>
 <li>Scheduler control available so you can observe auction phases.</li>
 </ul>
-<hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>Auctions concentrate liquidity at a single price. All orders are collected
 during the auction phase, then matched at the <strong>equilibrium price</strong> — the price
@@ -3059,7 +3113,6 @@ that maximises the quantity traded.</p>
 <li>All fills happen at the same price.</li>
 <li>Prevents manipulation via timing advantages.</li>
 </ul>
-<hr />
 <h2 id="exercise-1-set-up-for-an-opening-auction">Exercise 1: Set Up for an Opening Auction<a class="headerlink" href="#exercise-1-set-up-for-an-opening-auction" title="Permanent link">&para;</a></h2>
 <p>Stop the scheduler and restart with manual phase control (or use a config that
 pauses in PRE_OPEN). You want to stay in PRE_OPEN long enough to enter orders.</p>
@@ -3073,7 +3126,6 @@ pauses in PRE_OPEN). You want to stay in PRE_OPEN long enough to enter orders.</
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>TRADER02&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=150.30|TIF=ATO
 </code></pre></div></p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> orders accepted, resting in auction book.</p>
-<hr />
 <h2 id="exercise-2-trigger-the-auction-uncrossing">Exercise 2: Trigger the Auction Uncrossing<a class="headerlink" href="#exercise-2-trigger-the-auction-uncrossing" title="Permanent link">&para;</a></h2>
 <p>When the scheduler transitions from OPENING_AUCTION → CONTINUOUS, all crossing
 orders match at the equilibrium price.</p>
@@ -3133,7 +3185,6 @@ fill events, and confirm it equals <code>149.80</code> and the total filled quan
 equals <code>400</code> (300 from TRADER01's first order + 100 remaining from the
 second, against TRADER02's 400-share sell).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> all fills report execution price <code>149.80</code> and matched quantity <code>400</code>.</p>
-<hr />
 <h2 id="exercise-3-unfilled-auction-orders">Exercise 3: Unfilled Auction Orders<a class="headerlink" href="#exercise-3-unfilled-auction-orders" title="Permanent link">&para;</a></h2>
 <p>If an ATO order does not cross (e.g. a buy at 148.00 with no matching sell),
 it is cancelled when CONTINUOUS begins.</p>
@@ -3142,7 +3193,6 @@ it is cancelled when CONTINUOUS begins.</p>
 </code></pre></div>
 <p>After auction uncrossing, this should be cancelled (no sell at 400.00).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> out-of-range ATO order cancelled.</p>
-<hr />
 <h2 id="exercise-4-closing-auction">Exercise 4: Closing Auction<a class="headerlink" href="#exercise-4-closing-auction" title="Permanent link">&para;</a></h2>
 <p>When the session reaches CLOSING_AUCTION:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.80|TIF=ATC
@@ -3150,7 +3200,6 @@ it is cancelled when CONTINUOUS begins.</p>
 </code></pre></div>
 <p>On transition to CLOSED, the auction uncrosses and fills are generated.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> closing auction produces fills.</p>
-<hr />
 <h2 id="exercise-5-gtc-orders-in-auctions">Exercise 5: GTC Orders in Auctions<a class="headerlink" href="#exercise-5-gtc-orders-in-auctions" title="Permanent link">&para;</a></h2>
 <p>GTC orders participate in auctions alongside ATO/ATC orders:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=150.00|TIF=GTC
@@ -3158,7 +3207,6 @@ it is cancelled when CONTINUOUS begins.</p>
 <p>This order participates in both opening and closing auctions, and rests during
 CONTINUOUS trading.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> GTC order fills in auction or continues resting.</p>
-<hr />
 <h2 id="equilibrium-price-rules">Equilibrium Price Rules<a class="headerlink" href="#equilibrium-price-rules" title="Permanent link">&para;</a></h2>
 <p>The auction algorithm scans candidate prices from lowest to highest and
 selects the price that:</p>
@@ -3171,7 +3219,6 @@ selects the price that:</p>
    separate "nearest to last trade" tie-break — the tie always resolves to
    the lower of the tied candidate prices.</li>
 </ol>
-<hr />
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p>Why does an auction match all crossing orders at a single equilibrium price,
 instead of walking the book and filling each order at its own limit price
@@ -3183,7 +3230,6 @@ order filled at its own price instead?</p>
 <li><a href="../../concepts/05-concepts-trading-day/">Auction Equilibrium Concepts</a></li>
 <li><a href="../../user-guide/04-order-types/">Order Types</a></li>
 </ul>
-<hr />
 <p><strong>Next:</strong> <a href="../08-cancelling-orders/">08 — Cancelling &amp; Managing Orders</a></p>
 
 

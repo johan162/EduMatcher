@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3064,13 +3120,11 @@
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Observe real-time market data with the current EduMatcher tools and understand
 where the engine's drop-copy feed fits into the architecture.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01–12 completed.</li>
 <li>Engine and at least one trader gateway active so events are visible.</li>
 </ul>
-<hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>EduMatcher publishes two event streams from <code>pm-engine</code>:</p>
 <ul>
@@ -3080,7 +3134,6 @@ where the engine's drop-copy feed fits into the architecture.</p>
 </ul>
 <p>There is no separate <code>pm-drop-copy</code> process. The engine binds the drop-copy feed
 itself when it starts.</p>
-<hr />
 <h2 id="exercise-1-open-a-live-book-viewer">Exercise 1: Open a Live Book Viewer<a class="headerlink" href="#exercise-1-open-a-live-book-viewer" title="Permanent link">&para;</a></h2>
 <p>Start a live viewer for AAPL:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--depth<span class="w"> </span><span class="m">10</span>
@@ -3089,7 +3142,6 @@ itself when it starts.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.80|TIF=DAY
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-viewer</code> changes when the book changes.</p>
-<hr />
 <h2 id="exercise-2-run-the-cross-gateway-order-monitor">Exercise 2: Run the Cross-Gateway Order Monitor<a class="headerlink" href="#exercise-2-run-the-cross-gateway-order-monitor" title="Permanent link">&para;</a></h2>
 <p>Start the order monitor:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-orders
@@ -3097,7 +3149,6 @@ itself when it starts.</p>
 <p>Now place orders from both <code>TRADER01</code> and <code>TRADER02</code>. The monitor should show
 resting order state across gateways.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-orders</code> shows orders from multiple gateways.</p>
-<hr />
 <h2 id="exercise-3-capture-events-with-pm-audit">Exercise 3: Capture Events with pm-audit<a class="headerlink" href="#exercise-3-capture-events-with-pm-audit" title="Permanent link">&para;</a></h2>
 <p>Start the audit logger in terminal mode:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-audit<span class="w"> </span>--terminal
@@ -3108,7 +3159,6 @@ resting order state across gateways.</p>
 <p>Watch <code>pm-audit</code> print the resulting events. This is the easiest training-safe
 way to observe the event stream without writing a custom ZMQ subscriber.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> audit output shows the trade/order lifecycle events.</p>
-<hr />
 <h2 id="exercise-4-confirm-the-drop-copy-feed-is-bound">Exercise 4: Confirm the Drop-Copy Feed Is Bound<a class="headerlink" href="#exercise-4-confirm-the-drop-copy-feed-is-bound" title="Permanent link">&para;</a></h2>
 <p>Restart <code>pm-engine --verbose</code> and look for this startup line:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>[ENGINE] Drop copy PUB bound on port 5557
@@ -3117,7 +3167,6 @@ way to observe the event stream without writing a custom ZMQ subscriber.</p>
 risk/compliance subscribers and publishes topics such as
 <code>drop_copy.event.&lt;gateway_id&gt;</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can identify the drop-copy socket in engine startup output.</p>
-<hr />
 <h2 id="exercise-5-subscribe-to-the-drop-copy-feed-directly">Exercise 5: Subscribe to the Drop-Copy Feed Directly<a class="headerlink" href="#exercise-5-subscribe-to-the-drop-copy-feed-directly" title="Permanent link">&para;</a></h2>
 <p><code>pm-audit</code>/<code>pm-viewer</code>/<code>pm-orders</code> all read the <em>public</em> feed on port 5556.
 None of them show you the drop-copy feed itself. To see it, connect a minimal
@@ -3145,7 +3194,6 @@ ZMQ subscriber:</p>
 <p>You should see one <code>drop_copy.event.&lt;gateway_id&gt;</code> message per participant on
 each side of the trade, each with its own monotonically increasing <code>seq</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you received at least one drop-copy message directly from port 5557, distinct from anything <code>pm-audit</code> printed on port 5556.</p>
-<hr />
 <h2 id="exercise-6-compare-public-events-and-drop-copy-purpose">Exercise 6: Compare Public Events and Drop-Copy Purpose<a class="headerlink" href="#exercise-6-compare-public-events-and-drop-copy-purpose" title="Permanent link">&para;</a></h2>
 <p>Execute another trade and compare what each consumer is for:</p>
 <table>
@@ -3180,7 +3228,6 @@ each side of the trade, each with its own monotonically increasing <code>seq</co
 </tbody>
 </table>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> explain why drop-copy is separate from the public market-data stream.</p>
-<hr />
 <h2 id="exercise-7-launch-the-market-board">Exercise 7: Launch the Market Board<a class="headerlink" href="#exercise-7-launch-the-market-board" title="Permanent link">&para;</a></h2>
 <p>Start the multi-symbol dashboard:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-board<span class="w"> </span>--rows<span class="w"> </span><span class="m">8</span><span class="w"> </span>--interval<span class="w"> </span><span class="m">10</span>
@@ -3188,14 +3235,12 @@ each side of the trade, each with its own monotonically increasing <code>seq</co
 <p>If <code>pm-stats</code> is running, <code>pm-board</code> combines live book state with recent OHLCV
 context from <code>stats.db</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> board shows AAPL, MSFT, and TSLA in one view.</p>
-<hr />
 <h2 id="key-architecture">Key Architecture<a class="headerlink" href="#key-architecture" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>flowchart LR
     E[pm-engine]
     E --&gt;|PUB :5556| V[pm-viewer / pm-orders / pm-audit / pm-stats]
     E --&gt;|PUB :5557| DC[external drop-copy consumers]
     V --&gt; B[pm-board / pm-ticker]</code></pre>
-<hr />
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p>Why does the engine publish drop-copy events on a <strong>separate</strong> socket
 (<code>:5557</code>) rather than mixing them into the same <code>:5556</code> PUB feed that

@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3053,14 +3109,12 @@
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Use EduMatcher's programmatic command client for repeatable admin workflows and
 practice advanced <code>pm-mm-bot</code> runtime tuning for startup and reconciliation.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01-20 completed.</li>
 <li>Engine running with <code>GW_ADMIN</code> and at least one MM gateway configured.</li>
 <li>Python environment able to import <code>edumatcher.commands</code>.</li>
 </ul>
-<hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>The interactive tools are excellent for manual operation, but production-like
 operations often require deterministic automation:</p>
@@ -3075,7 +3129,6 @@ operations often require deterministic automation:</p>
 <li>Advanced <code>pm-mm-bot</code> runtime flags such as bootstrap timeout and QLEGS
    reconciliation interval.</li>
 </ol>
-<hr />
 <h2 id="exercise-1-run-a-minimal-commandclient-session">Exercise 1: Run a Minimal CommandClient Session<a class="headerlink" href="#exercise-1-run-a-minimal-commandclient-session" title="Permanent link">&para;</a></h2>
 <p>Execute a short Python script:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>python<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;PY&#39;</span>
@@ -3091,7 +3144,6 @@ operations often require deterministic automation:</p>
 <a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="s">PY</span>
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can connect, read symbols, and read session status programmatically.</p>
-<hr />
 <h2 id="exercise-2-script-a-safe-symbol-protection-runbook">Exercise 2: Script a Safe Symbol-Protection Runbook<a class="headerlink" href="#exercise-2-script-a-safe-symbol-protection-runbook" title="Permanent link">&para;</a></h2>
 <p>Run a scripted sequence:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;PY&#39;</span>
@@ -3109,7 +3161,6 @@ operations often require deterministic automation:</p>
 </code></pre></div>
 <p>This is easier to run consistently than a manual multi-step console sequence.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can automate halt/cancel/verify/resume for one symbol.</p>
-<hr />
 <h2 id="exercise-3-automate-gateway-exposure-cleanup">Exercise 3: Automate Gateway Exposure Cleanup<a class="headerlink" href="#exercise-3-automate-gateway-exposure-cleanup" title="Permanent link">&para;</a></h2>
 <p>Use API methods to clear one participant and verify no resting orders remain:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>python<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;PY&#39;</span>
@@ -3130,7 +3181,6 @@ operations often require deterministic automation:</p>
   policy requires immediate disconnect.</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can explain when to use kill-switch only vs. kill-switch + kick.</p>
-<hr />
 <h2 id="exercise-4-tune-pm-mm-bot-startup-reliability">Exercise 4: Tune pm-mm-bot Startup Reliability<a class="headerlink" href="#exercise-4-tune-pm-mm-bot-startup-reliability" title="Permanent link">&para;</a></h2>
 <p>Run one bot with explicit startup controls:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-mm-bot<span class="w"> </span><span class="se">\</span>
@@ -3154,7 +3204,6 @@ operations often require deterministic automation:</p>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>[INFO] Session state CONTINUOUS; issuing initial quote
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can identify and tune the timeout knobs that control startup behavior.</p>
-<hr />
 <h2 id="exercise-5-empty-book-bootstrap-drill">Exercise 5: Empty-Book Bootstrap Drill<a class="headerlink" href="#exercise-5-empty-book-bootstrap-drill" title="Permanent link">&para;</a></h2>
 <p>Simulate sparse startup conditions and run bot with explicit bootstrap range:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-mm-bot<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--initial_min<span class="w"> </span><span class="m">95</span>.00<span class="w"> </span>--initial_max<span class="w"> </span><span class="m">105</span>.00<span class="w"> </span>-v
@@ -3166,7 +3215,6 @@ operations often require deterministic automation:</p>
 <li>Without any bootstrap source: bot fails fast with clear reason.</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can choose a bootstrap strategy appropriate for your environment.</p>
-<hr />
 <h2 id="exercise-6-build-a-combined-automation-flow">Exercise 6: Build a Combined Automation Flow<a class="headerlink" href="#exercise-6-build-a-combined-automation-flow" title="Permanent link">&para;</a></h2>
 <p>Design a short automation script that:</p>
 <ol>
@@ -3195,7 +3243,6 @@ operations often require deterministic automation:</p>
   the script remains resting outside of what step 5 intentionally verifies.</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> your script is deterministic, idempotent, and easy to rerun during drills, and satisfies all five acceptance criteria above.</p>
-<hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You now have advanced operational coverage for:</p>
 <ul>

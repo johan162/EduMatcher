@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3053,13 +3109,11 @@
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Understand how the clearing service tracks positions, computes VWAP average
 cost, and reports realized and unrealized P&amp;L per trader per symbol.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01–11 completed.</li>
 <li>Live trading activity available (manual trading, AI traders, or both).</li>
 </ul>
-<hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p><code>pm-clearing</code> subscribes to all <code>trade.executed</code> events and maintains:</p>
 <ul>
@@ -3068,7 +3122,6 @@ cost, and reports realized and unrealized P&amp;L per trader per symbol.</p>
 <li><strong>Realized P&amp;L</strong> — profit/loss locked in by closing trades.</li>
 <li><strong>Unrealized P&amp;L</strong> — paper profit/loss on open positions (mark-to-market).</li>
 </ul>
-<hr />
 <h2 id="exercise-1-start-the-clearing-service">Exercise 1: Start the Clearing Service<a class="headerlink" href="#exercise-1-start-the-clearing-service" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-clearing
 </code></pre></div>
@@ -3076,7 +3129,6 @@ cost, and reports realized and unrealized P&amp;L per trader per symbol.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>[INFO] Clearing connected — listening for trade events
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> clearing service running.</p>
-<hr />
 <h2 id="exercise-2-build-a-position">Exercise 2: Build a Position<a class="headerlink" href="#exercise-2-build-a-position" title="Permanent link">&para;</a></h2>
 <p>From TRADER01, buy AAPL shares:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=200
@@ -3097,7 +3149,6 @@ the clearing service appends on every trade:</p>
 <code>price</code>, <code>quantity</code>, <code>timestamp</code> — it does not carry P&amp;L, which is computed
 separately per gateway/symbol in the clearing console's P&amp;L Summary table).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> two new rows for AAPL appear in <code>clearing_report.csv</code> with quantities 200 and 100.</p>
-<hr />
 <h2 id="exercise-3-realize-profit-by-selling">Exercise 3: Realize Profit by Selling<a class="headerlink" href="#exercise-3-realize-profit-by-selling" title="Permanent link">&para;</a></h2>
 <p>Sell some shares (hopefully at a higher price after price moves):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=MARKET|QTY=100
@@ -3110,7 +3161,6 @@ table (not the CSV, which only logs raw trades): find the row for your
 gateway/<code>AAPL</code> and confirm the <code>Realized</code> column now shows a non-zero value
 matching the formula above.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> P&amp;L Summary table shows a non-zero <code>Realized</code> value for AAPL matching the expected calculation.</p>
-<hr />
 <h2 id="exercise-4-check-unrealized-pl">Exercise 4: Check Unrealized P&amp;L<a class="headerlink" href="#exercise-4-check-unrealized-pl" title="Permanent link">&para;</a></h2>
 <p>The remaining 200 shares have unrealized P&amp;L based on the current market price:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>Unrealized P&amp;L = (current_mid - avg_cost) × position
@@ -3120,7 +3170,6 @@ Exercise 3: in the clearing console's P&amp;L Summary table, confirm the <code>A
 row's <code>Position</code> column reads <code>+200</code> and its <code>Unrealized</code> column changes
 value if you re-check after the market price moves.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> P&amp;L Summary table shows AAPL position <code>+200</code> with an <code>Unrealized</code> value that changes as price moves.</p>
-<hr />
 <h2 id="exercise-5-short-position">Exercise 5: Short Position<a class="headerlink" href="#exercise-5-short-position" title="Permanent link">&para;</a></h2>
 <p>Sell shares you don't own:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>TRADER01&gt; NEW|SYM=MSFT|SIDE=SELL|TYPE=MARKET|QTY=100
@@ -3131,12 +3180,10 @@ value if you re-check after the market price moves.</p>
 </code></pre></div>
 <p>Position returns to 0; realized P&amp;L reflects the round-trip.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> short position and close works correctly.</p>
-<hr />
 <h2 id="exercise-6-multiple-symbols">Exercise 6: Multiple Symbols<a class="headerlink" href="#exercise-6-multiple-symbols" title="Permanent link">&para;</a></h2>
 <p>Build positions in all three symbols and observe per-symbol and total P&amp;L
 tracking in the clearing output.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> clearing tracks each symbol independently.</p>
-<hr />
 <h2 id="key-formulas">Key Formulas<a class="headerlink" href="#key-formulas" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -3164,7 +3211,6 @@ tracking in the clearing output.</p>
 </tr>
 </tbody>
 </table>
-<hr />
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p>Why does realized P&amp;L use the trade price at the moment of the closing sell,
 while unrealized P&amp;L keeps recalculating against the current mid-price? What
@@ -3177,7 +3223,6 @@ would happen to your reported P&amp;L if the clearing service stopped updating
 <li><a href="../../user-guide/16-statistics-and-reporting/">Statistics and Reporting</a></li>
 <li><a href="../../concepts/04-concepts-first-trade/">Your First Trade</a></li>
 </ul>
-<hr />
 <p><strong>Next:</strong> <a href="../13-market-data-drop-copy/">13 — Market Data &amp; Drop Copy</a></p>
 
 

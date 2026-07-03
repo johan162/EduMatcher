@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3064,7 +3120,6 @@
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Understand the QUOTE command from a human operator's perspective, explore quote
 lifecycle, inactivation policies, QLEGS inspection, and MM obligations.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <p>Add a manual MM gateway to your config:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MM_MANUAL_01</span>
@@ -3074,9 +3129,8 @@ lifecycle, inactivation policies, QLEGS inspection, and MM obligations.</p>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">      </span><span class="nt">quote_refresh_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INACTIVATE_ON_ANY_FILL</span>
 </code></pre></div>
 <p>Restart the engine and connect:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>MM_MANUAL_01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM_MANUAL_01
 </code></pre></div>
-<hr />
 <h2 id="exercise-1-submit-a-two-sided-quote">Exercise 1: Submit a Two-Sided Quote<a class="headerlink" href="#exercise-1-submit-a-two-sided-quote" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>MM_MANUAL_01&gt; QUOTE|SYM=AAPL|BID=149.90|ASK=150.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q001
 </code></pre></div>
@@ -3086,7 +3140,6 @@ lifecycle, inactivation policies, QLEGS inspection, and MM obligations.</p>
 </code></pre></div>
 <p>Note both leg IDs — you'll need them to identify fills.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> quote acknowledged and active.</p>
-<hr />
 <h2 id="exercise-2-inspect-quote-legs-with-qlegs">Exercise 2: Inspect Quote Legs with QLEGS<a class="headerlink" href="#exercise-2-inspect-quote-legs-with-qlegs" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>MM_MANUAL_01&gt; QLEGS|SYM=AAPL|SHOW=ALL
 </code></pre></div>
@@ -3103,7 +3156,6 @@ lifecycle, inactivation policies, QLEGS inspection, and MM obligations.</p>
 <li><code>status</code> helps classify lifecycle (<code>ACTIVE</code>, <code>PARTIAL</code>, <code>FILLED</code>, etc.).</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> QLEGS shows both bid and ask legs.</p>
-<hr />
 <h2 id="exercise-3-get-filled-and-observe-inactivation">Exercise 3: Get Filled and Observe Inactivation<a class="headerlink" href="#exercise-3-get-filled-and-observe-inactivation" title="Permanent link">&para;</a></h2>
 <p>From TRADER01, buy into the MM's ask:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
@@ -3115,13 +3167,11 @@ lifecycle, inactivation policies, QLEGS inspection, and MM obligations.</p>
 </code></pre></div>
 <p>Under <code>INACTIVATE_ON_ANY_FILL</code>, both legs are pulled after any fill.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> fill + sibling cancel + INACTIVE status.</p>
-<hr />
 <h2 id="exercise-4-re-quote-after-inactivation">Exercise 4: Re-quote After Inactivation<a class="headerlink" href="#exercise-4-re-quote-after-inactivation" title="Permanent link">&para;</a></h2>
 <p>Submit a fresh quote:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>MM_MANUAL_01&gt; QUOTE|SYM=AAPL|BID=149.92|ASK=150.08|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q002
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> new quote active; QLEGS shows fresh legs.</p>
-<hr />
 <h2 id="exercise-5-replace-a-quote-without-cancelling">Exercise 5: Replace a Quote Without Cancelling<a class="headerlink" href="#exercise-5-replace-a-quote-without-cancelling" title="Permanent link">&para;</a></h2>
 <p>You can replace directly — the engine handles the swap:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>MM_MANUAL_01&gt; QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q003
@@ -3132,7 +3182,6 @@ lifecycle, inactivation policies, QLEGS inspection, and MM obligations.</p>
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>QUOTE ACTIVE  Q003
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> old quote cancelled, new quote active in one step.</p>
-<hr />
 <h2 id="exercise-6-explicit-cancel">Exercise 6: Explicit Cancel<a class="headerlink" href="#exercise-6-explicit-cancel" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>MM_MANUAL_01&gt; QUOTE_CANCEL|SYM=AAPL
 </code></pre></div>
@@ -3146,7 +3195,6 @@ lifecycle, inactivation policies, QLEGS inspection, and MM obligations.</p>
 <p><code>QUOTE_CANCEL</code> is keyed by symbol, not by <code>quote_id</code>.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> quote fully cancelled.</p>
-<hr />
 <h2 id="exercise-7-check-quote-bootstrap-state-qboot">Exercise 7: Check Quote Bootstrap State (QBOOT)<a class="headerlink" href="#exercise-7-check-quote-bootstrap-state-qboot" title="Permanent link">&para;</a></h2>
 <p>After submitting a quote, inspect the bootstrap state:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>MM_MANUAL_01&gt; QBOOT|SYM=AAPL
@@ -3166,7 +3214,6 @@ instead of creating duplicates.</p>
 <a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>QBOOT SYM=AAPL active=false
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> QBOOT shows active quote or empty slot.</p>
-<hr />
 <h2 id="exercise-8-understand-inactivation-policies">Exercise 8: Understand Inactivation Policies<a class="headerlink" href="#exercise-8-understand-inactivation-policies" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -3190,7 +3237,6 @@ instead of creating duplicates.</p>
 </tr>
 </tbody>
 </table>
-<hr />
 <h2 id="key-takeaways">Key Takeaways<a class="headerlink" href="#key-takeaways" title="Permanent link">&para;</a></h2>
 <ul>
 <li>The QUOTE command creates two linked limit orders (bid + ask).</li>
@@ -3200,7 +3246,6 @@ instead of creating duplicates.</p>
 <li>Replacement quotes don't require explicit cancel first.</li>
 <li><code>order.fill</code> does <strong>not</strong> include <code>quote_id</code> — correlate via leg order IDs.</li>
 </ul>
-<hr />
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p>Why does the engine tie the bid and ask legs of a quote together with a
 <code>quote_id</code> at all, rather than treating a market maker's two orders as
@@ -3216,7 +3261,6 @@ exposure if one leg filled and the sibling stayed resting under a
 <li><a href="../../concepts/03-concepts-mm-quotes/">MM Quotes Concept</a></li>
 <li><a href="../../user-guide/90-app-alf-protocol/">ALF Protocol Reference</a></li>
 </ul>
-<hr />
 <p><strong>Next:</strong> <a href="../10-combo-orders/">10 — Combo Orders</a></p>
 
 

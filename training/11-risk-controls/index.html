@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3098,13 +3154,11 @@
 <p>Configure and trigger the exchange's safety mechanisms: price collars, circuit
 breakers, symbol halts, and the kill switch. You will use both the interactive
 <code>pm-admin</code> console and the one-shot <code>pm-admin-cli</code> tool.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01–10 completed.</li>
 <li><code>GW_ADMIN</code> configured with <code>role: ADMIN</code> and connected.</li>
 </ul>
-<hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>Risk controls prevent erroneous or manipulative orders from distorting the market:</p>
 <ul>
@@ -3123,7 +3177,6 @@ preferred operator tools are:</p>
 </ul>
 <p>Both require a gateway configured with <code>role: ADMIN</code>, such as the <code>GW_ADMIN</code>
 gateway from chapter 01.</p>
-<hr />
 <h2 id="exercise-1-configure-price-collars">Exercise 1: Configure Price Collars<a class="headerlink" href="#exercise-1-configure-price-collars" title="Permanent link">&para;</a></h2>
 <p>Add risk controls to <code>engine_config.yaml</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">risk_controls</span><span class="p">:</span>
@@ -3136,7 +3189,6 @@ gateway from chapter 01.</p>
 </code></pre></div>
 <p>Restart the engine.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> engine loads risk control configuration.</p>
-<hr />
 <h2 id="exercise-2-trigger-a-static-collar-rejection">Exercise 2: Trigger a Static Collar Rejection<a class="headerlink" href="#exercise-2-trigger-a-static-collar-rejection" title="Permanent link">&para;</a></h2>
 <p>Place an order far outside the allowed range:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=200.00|TIF=DAY
@@ -3145,7 +3197,6 @@ gateway from chapter 01.</p>
 or below 135.00 is rejected.</p>
 <p>Expected: rejection — price outside static collar.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> out-of-range order rejected with collar error.</p>
-<hr />
 <h2 id="exercise-3-configure-circuit-breakers">Exercise 3: Configure Circuit Breakers<a class="headerlink" href="#exercise-3-configure-circuit-breakers" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">risk_controls</span><span class="p">:</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">AAPL</span><span class="p">:</span>
@@ -3154,7 +3205,6 @@ or below 135.00 is rejected.</p>
 </code></pre></div>
 <p>Restart the engine.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> circuit breaker config loaded.</p>
-<hr />
 <h2 id="exercise-4-trigger-a-circuit-breaker">Exercise 4: Trigger a Circuit Breaker<a class="headerlink" href="#exercise-4-trigger-a-circuit-breaker" title="Permanent link">&para;</a></h2>
 <p>Push AAPL's price 5% by trading aggressively (you may need to adjust MM bot
 gap or trade in volume). When the threshold is breached:</p>
@@ -3167,7 +3217,6 @@ gap or trade in volume). When the threshold is breached:</p>
 <li>Submit a fresh AAPL order and confirm rejection while halted.</li>
 </ol>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> AAPL halted by circuit breaker.</p>
-<hr />
 <h2 id="exercise-5-open-the-admin-console">Exercise 5: Open the Admin Console<a class="headerlink" href="#exercise-5-open-the-admin-console" title="Permanent link">&para;</a></h2>
 <p>In a new terminal, start the interactive admin console:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pm-admin<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
@@ -3182,7 +3231,6 @@ gap or trade in volume). When the threshold is breached:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[GW_ADMIN|ADMIN]&gt; BOOK|SYM=AAPL
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-admin</code> authenticates as <code>GW_ADMIN</code> and can show symbols, session status, gateways, and book state.</p>
-<hr />
 <h2 id="exercise-6-manual-symbol-halt-and-resume">Exercise 6: Manual Symbol Halt and Resume<a class="headerlink" href="#exercise-6-manual-symbol-halt-and-resume" title="Permanent link">&para;</a></h2>
 <p>From the <code>pm-admin</code> console:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>[GW_ADMIN|ADMIN]&gt; HALT_SYM|SYM=MSFT
@@ -3195,7 +3243,6 @@ gap or trade in volume). When the threshold is breached:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>[GW_ADMIN|ADMIN]&gt; RESUME_SYM|SYM=MSFT
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> halt prevents trading; resume restores it.</p>
-<hr />
 <h2 id="exercise-7-exchange-wide-halt-with-pm-admin-cli">Exercise 7: Exchange-Wide Halt with pm-admin-cli<a class="headerlink" href="#exercise-7-exchange-wide-halt-with-pm-admin-cli" title="Permanent link">&para;</a></h2>
 <p>Use the one-shot CLI form when you want an operation to run from a script or
 checklist without opening an interactive console:</p>
@@ -3209,7 +3256,6 @@ checklist without opening an interactive console:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>resume
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-admin-cli</code> halts and resumes the exchange without entering a REPL.</p>
-<hr />
 <h2 id="exercise-8-query-and-manage-with-pm-admin-cli">Exercise 8: Query and Manage with pm-admin-cli<a class="headerlink" href="#exercise-8-query-and-manage-with-pm-admin-cli" title="Permanent link">&para;</a></h2>
 <p>Try the read-only commands first:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>book<span class="w"> </span>--sym<span class="w"> </span>AAPL
@@ -3223,7 +3269,6 @@ checklist without opening an interactive console:</p>
 <a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>resume-sym<span class="w"> </span>--sym<span class="w"> </span>TSLA
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can choose <code>pm-admin</code> for interactive operation and <code>pm-admin-cli</code> for repeatable one-shot commands.</p>
-<hr />
 <h2 id="exercise-9-exchange-wide-halt-from-the-admin-console">Exercise 9: Exchange-Wide Halt from the Admin Console<a class="headerlink" href="#exercise-9-exchange-wide-halt-from-the-admin-console" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>[GW_ADMIN|ADMIN]&gt; HALT
 </code></pre></div>
@@ -3231,7 +3276,6 @@ checklist without opening an interactive console:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>[GW_ADMIN|ADMIN]&gt; RESUME
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> full halt and resume works across all symbols.</p>
-<hr />
 <h2 id="exercise-10-kill-switch">Exercise 10: Kill Switch<a class="headerlink" href="#exercise-10-kill-switch" title="Permanent link">&para;</a></h2>
 <p>Cancel all orders for a misbehaving gateway:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>[GW_ADMIN|ADMIN]&gt; KILL|GW=TRADER02
@@ -3244,7 +3288,6 @@ checklist without opening an interactive console:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span><span class="nb">kill</span><span class="w"> </span>--gw<span class="w"> </span>TRADER02<span class="w"> </span>--sym<span class="w"> </span>AAPL
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> kill switch cancels targeted orders.</p>
-<hr />
 <h2 id="risk-control-summary">Risk Control Summary<a class="headerlink" href="#risk-control-summary" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -3294,7 +3337,6 @@ checklist without opening an interactive console:</p>
 </tr>
 </tbody>
 </table>
-<hr />
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p>Why does a circuit breaker halt the whole symbol rather than just rejecting
 new orders like the collars do? What failure mode (think: a runaway
@@ -3308,7 +3350,6 @@ designed to stop that per-order collars cannot?</p>
 <li><a href="../../user-guide/13-drop-copy/">Drop Copy</a></li>
 <li><a href="../../concepts/05-concepts-trading-day/">A Full Trading Day</a></li>
 </ul>
-<hr />
 <p><strong>Next:</strong> <a href="../12-pnl-clearing/">12 — P&amp;L &amp; Clearing</a></p>
 
 

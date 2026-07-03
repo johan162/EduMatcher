@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3043,14 +3099,12 @@
 <p>Learn how to operate drop-copy consumers safely when connectivity gaps occur,
 how sequence numbers are used for loss detection, and what replay support does
 and does not exist in the current EduMatcher runtime.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01-19 completed.</li>
 <li>Engine running with drop-copy PUB enabled on <code>:5557</code>.</li>
 <li>Basic Python command-line familiarity.</li>
 </ul>
-<hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>Drop copy publishes per-participant fill events on:</p>
 <ul>
@@ -3070,7 +3124,6 @@ to detect gaps and de-duplicate messages.</p>
 <li>Recover from available audit/statistics artifacts.</li>
 <li>Re-establish live stream and continue from new high-water mark.</li>
 </ol>
-<hr />
 <h2 id="exercise-1-subscribe-and-print-sequence-numbers">Exercise 1: Subscribe and Print Sequence Numbers<a class="headerlink" href="#exercise-1-subscribe-and-print-sequence-numbers" title="Permanent link">&para;</a></h2>
 <p>Run a minimal drop-copy subscriber:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>python<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;PY&#39;</span>
@@ -3091,7 +3144,6 @@ to detect gaps and de-duplicate messages.</p>
 </code></pre></div>
 <p>Generate a few trades from gateways while this runs.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can observe increasing <code>seq</code> values on live drop-copy events.</p>
-<hr />
 <h2 id="exercise-2-detect-a-synthetic-gap">Exercise 2: Detect a Synthetic Gap<a class="headerlink" href="#exercise-2-detect-a-synthetic-gap" title="Permanent link">&para;</a></h2>
 <p>Use a subscriber with simple gap detection:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python<span class="w"> </span>-<span class="w"> </span><span class="s">&lt;&lt;&#39;PY&#39;</span>
@@ -3116,7 +3168,6 @@ to detect gaps and de-duplicate messages.</p>
 </code></pre></div>
 <p>Interrupt/restart the subscriber while trades are flowing to simulate missed events.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can explain how consumer-side gap detection works.</p>
-<hr />
 <h2 id="exercise-3-validate-current-replay-constraint">Exercise 3: Validate Current Replay Constraint<a class="headerlink" href="#exercise-3-validate-current-replay-constraint" title="Permanent link">&para;</a></h2>
 <p>Confirm current behavior from docs:</p>
 <ol>
@@ -3144,7 +3195,6 @@ goal (resume with no lost events) is the same either way, only the
 mechanism differs.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can state the exact replay limitation and its impact on downstream consumers.</p>
-<hr />
 <h2 id="exercise-4-recovery-workflow-with-audit-stats">Exercise 4: Recovery Workflow with Audit + Stats<a class="headerlink" href="#exercise-4-recovery-workflow-with-audit-stats" title="Permanent link">&para;</a></h2>
 <p>When a gap is detected, run a practical recovery checklist:</p>
 <ol>
@@ -3157,7 +3207,6 @@ mechanism differs.</p>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>tail<span class="w"> </span>-40<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/audit.log&quot;</span>
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can recover operational confidence after a subscriber interruption even without external replay requests.</p>
-<hr />
 <h2 id="exercise-5-design-a-consumer-gap-policy">Exercise 5: Design a Consumer Gap Policy<a class="headerlink" href="#exercise-5-design-a-consumer-gap-policy" title="Permanent link">&para;</a></h2>
 <p>Write a short policy for your drop-copy consumer:</p>
 <ul>
@@ -3167,7 +3216,6 @@ mechanism differs.</p>
 <li>Alerting threshold (for example, gap size &gt; N triggers operator page).</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> your policy defines deterministic behavior for normal, degraded, and recovery modes.</p>
-<hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You now understand practical drop-copy reliability operations in EduMatcher:</p>
 <ul>

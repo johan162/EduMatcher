@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3106,7 +3162,6 @@ separation.</p>
 <li>receiving private and market-data events over WebSocket</li>
 <li>splitting API gateway processes by ALF <code>gateway_id</code></li>
 </ul>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01-23 completed.</li>
@@ -3121,7 +3176,6 @@ separation.</p>
 <li>Start <code>pm-stats --config engine_config.yaml</code>.</li>
 <li>Start <code>pm-api-gateway --config engine_config.yaml --instance desk</code>.</li>
 </ol>
-<hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p><code>pm-api-gateway</code> is an HTTP and WebSocket wrapper around the matching engine. It
 uses bearer tokens from <code>api_gateways.&lt;NAME&gt;.credentials</code>. A credential with a
@@ -3144,7 +3198,6 @@ market-data, history, and public WebSocket paths.</p>
 <p>A non-null <code>gateway_id</code> may appear in only one <code>api_gateways</code> entry. This keeps
 private session and event state owned by one API gateway process. Read-only
 <code>gateway_id: null</code> credentials may appear in multiple entries.</p>
-<hr />
 <h2 id="exercise-1-generate-a-single-api-gateway-config">Exercise 1: Generate a Single API Gateway Config<a class="headerlink" href="#exercise-1-generate-a-single-api-gateway-config" title="Permanent link">&para;</a></h2>
 <p>Generate a local lab config with trading keys and one read-only dashboard key:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
@@ -3170,7 +3223,6 @@ private session and event state owned by one API gateway process. Read-only
 <li>generated credentials exist for <code>TRADER01</code>, <code>TRADER02</code>, <code>OPS01</code>, and one read-only key</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can identify one trading key and one read-only key in the config.</p>
-<hr />
 <h2 id="exercise-2-start-the-api-gateway-process">Exercise 2: Start the API Gateway Process<a class="headerlink" href="#exercise-2-start-the-api-gateway-process" title="Permanent link">&para;</a></h2>
 <p>Start the core processes with the generated config:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-engine<span class="w"> </span>--verbose<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
@@ -3186,7 +3238,6 @@ Use it anyway in labs so the selected process is explicit.</p>
 <li>startup fails if the same non-null <code>gateway_id</code> is assigned to two named entries</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: <code>GET /api/v1/status</code> is reachable once the process is running.</p>
-<hr />
 <h2 id="exercise-3-explore-swagger-with-a-bearer-key">Exercise 3: Explore Swagger with a Bearer Key<a class="headerlink" href="#exercise-3-explore-swagger-with-a-bearer-key" title="Permanent link">&para;</a></h2>
 <p>Open Swagger in a browser:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>http://127.0.0.1:8080/docs
@@ -3205,7 +3256,6 @@ read-only key.</p>
 <li>Swagger lists the same route shapes exposed by <code>/openapi.json</code></li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can authenticate in Swagger and explain which key is allowed to submit orders.</p>
-<hr />
 <h2 id="exercise-4-submit-and-cancel-an-order-over-rest">Exercise 4: Submit and Cancel an Order over REST<a class="headerlink" href="#exercise-4-submit-and-cancel-an-order-over-rest" title="Permanent link">&para;</a></h2>
 <p>Submit a limit order with a trading key:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8080/api/v1/orders<span class="w"> </span><span class="se">\</span>
@@ -3231,7 +3281,6 @@ read-only key.</p>
 <li>read-only keys cannot submit or cancel orders</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can submit an order and observe its cancel path or explain the engine-side validation error.</p>
-<hr />
 <h2 id="exercise-5-use-the-python-rest-example">Exercise 5: Use the Python REST Example<a class="headerlink" href="#exercise-5-use-the-python-rest-example" title="Permanent link">&para;</a></h2>
 <p>From the REST example directory, run the Python client or adapt it with the key
 and port from your config:</p>
@@ -3243,7 +3292,6 @@ and port from your config:</p>
 <p>Use the example source as a reference for adding status, order-entry, and cancel
 calls to a test harness.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: the Python client reaches the gateway and sends authenticated requests.</p>
-<hr />
 <h2 id="exercise-6-use-the-c-rest-example">Exercise 6: Use the C REST Example<a class="headerlink" href="#exercise-6-use-the-c-rest-example" title="Permanent link">&para;</a></h2>
 <p>Build and run the C example from the REST example directory:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/REST/c
@@ -3257,7 +3305,6 @@ calls to a test harness.</p>
 <li>connection errors identify an unavailable gateway process or wrong port</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: the C example can call the running API gateway with a configured key.</p>
-<hr />
 <h2 id="exercise-7-observe-websocket-events">Exercise 7: Observe WebSocket Events<a class="headerlink" href="#exercise-7-observe-websocket-events" title="Permanent link">&para;</a></h2>
 <p>Connect to private events before submitting new orders:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>websockets<span class="w"> </span>ws://127.0.0.1:8080/api/v1/events
@@ -3284,7 +3331,6 @@ private event stream.</p>
 <li>stale or unknown bearer keys are rejected</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain when to use REST responses versus WebSocket events for order outcomes.</p>
-<hr />
 <h2 id="exercise-8-configure-multiple-logical-api-gateways">Exercise 8: Configure Multiple Logical API Gateways<a class="headerlink" href="#exercise-8-configure-multiple-logical-api-gateways" title="Permanent link">&para;</a></h2>
 <p>Generate two API gateway process configs, one for desk trading and one for
 algorithmic trading:</p>
@@ -3315,7 +3361,6 @@ algorithmic trading:</p>
 <li>duplicate non-null <code>gateway_id</code> assignment is rejected before runtime</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can run two API gateway processes and explain why a write-capable gateway ID is globally unique across them.</p>
-<hr />
 <h2 id="exercise-9-write-a-python-cli-client-for-limit-order-entry">Exercise 9: Write a Python CLI Client for LIMIT Order Entry<a class="headerlink" href="#exercise-9-write-a-python-cli-client-for-limit-order-entry" title="Permanent link">&para;</a></h2>
 <p>Use the <code>ApiGatewayClient</code> library from <code>docs/examples/REST/python</code> to write a
 small script that submits a LIMIT order and prints the engine response.</p>
@@ -3359,7 +3404,6 @@ small script that submits a LIMIT order and prints the engine response.</p>
 <p>A fully documented <code>MARKET</code> order version that follows the same pattern is
 available at <code>docs/examples/REST/python/submit_market_order.py</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: your script prints <code>order_id</code> and <code>status</code> from a live gateway.</p>
-<hr />
 <h2 id="support-libraries-and-example-clients">Support Libraries and Example Clients<a class="headerlink" href="#support-libraries-and-example-clients" title="Permanent link">&para;</a></h2>
 <p>Reference examples used in this training chapter:</p>
 <ul>
@@ -3368,7 +3412,6 @@ available at <code>docs/examples/REST/python/submit_market_order.py</code>.</p>
 </ul>
 <p>Use these examples as small integration clients when building course labs,
 smoke tests, or external adapter prototypes.</p>
-<hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You can now:</p>
 <ul>

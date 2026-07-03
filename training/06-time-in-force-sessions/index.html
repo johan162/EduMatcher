@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3064,13 +3120,11 @@
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Understand how Time-in-Force (TIF) controls order lifetime across session phases,
 and how to use the scheduler to drive the exchange through a full trading day.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01–05 completed.</li>
 <li><code>pm-engine</code>, <code>pm-scheduler</code>, and at least one trader gateway running.</li>
 </ul>
-<hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>Session phases progress as:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>PRE_OPEN → OPENING_AUCTION → CONTINUOUS → CLOSING_AUCTION → CLOSED
@@ -3107,7 +3161,6 @@ and how to use the scheduler to drive the exchange through a full trading day.</
 </tr>
 </tbody>
 </table>
-<hr />
 <h2 id="exercise-1-observe-session-phases">Exercise 1: Observe Session Phases<a class="headerlink" href="#exercise-1-observe-session-phases" title="Permanent link">&para;</a></h2>
 <p>Start the scheduler in rapid-fire mode to see all transitions quickly:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-scheduler<span class="w"> </span>--now
@@ -3118,7 +3171,6 @@ and how to use the scheduler to drive the exchange through a full trading day.</
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>[SESSION] state=CONTINUOUS
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you see at least one session state transition.</p>
-<hr />
 <h2 id="freezeadvance-procedure-deterministic-session-control">Freeze/Advance Procedure (Deterministic Session Control)<a class="headerlink" href="#freezeadvance-procedure-deterministic-session-control" title="Permanent link">&para;</a></h2>
 <p>The exercises below need the exchange sitting in a <strong>specific, known</strong> phase
 before you place an order — otherwise a TIF exercise may pass or fail purely
@@ -3148,7 +3200,6 @@ gateway to freeze on a phase and advance only when you are ready:</p>
 </code></pre></div>
 <p>Using <code>SESSION|STATE=</code> this way means each exercise below runs in a
 reproducible phase instead of racing a free-running scheduler.</p>
-<hr />
 <h2 id="exercise-2-day-order-expiry">Exercise 2: DAY Order Expiry<a class="headerlink" href="#exercise-2-day-order-expiry" title="Permanent link">&para;</a></h2>
 <p>During CONTINUOUS (freeze there with <code>SESSION|STATE=CONTINUOUS</code> per the
 procedure above), place a DAY order:</p>
@@ -3160,7 +3211,6 @@ automatically cancelled.</p>
 <p>Operational note: DAY is best for intraday intent where stale overnight orders
 must not persist.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> DAY order cancelled at session close.</p>
-<hr />
 <h2 id="exercise-3-gtc-order-survives">Exercise 3: GTC Order Survives<a class="headerlink" href="#exercise-3-gtc-order-survives" title="Permanent link">&para;</a></h2>
 <p>Place a GTC order:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>TRADER01&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=50|PRICE=415.00|TIF=GTC
@@ -3170,7 +3220,6 @@ session opens.</p>
 <p>Operational note: GTC is used for standing instructions that remain valid until
 explicitly cancelled.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> GTC order remains after session restart.</p>
-<hr />
 <h2 id="exercise-4-ato-order">Exercise 4: ATO Order<a class="headerlink" href="#exercise-4-ato-order" title="Permanent link">&para;</a></h2>
 <p>Freeze in PRE_OPEN (<code>ADMIN01&gt; SESSION|STATE=PRE_OPEN</code>), then place an
 At-The-Open order:</p>
@@ -3179,14 +3228,12 @@ At-The-Open order:</p>
 <p>This order only participates in the opening auction. If not filled during the
 auction, it is cancelled when CONTINUOUS begins.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> ATO order participates in auction or is cancelled.</p>
-<hr />
 <h2 id="exercise-5-atc-order">Exercise 5: ATC Order<a class="headerlink" href="#exercise-5-atc-order" title="Permanent link">&para;</a></h2>
 <p>During CONTINUOUS, place an At-The-Close order:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.00|TIF=ATC
 </code></pre></div>
 <p>This order is held until the closing auction. It only matches during that phase.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> ATC order does not match during CONTINUOUS.</p>
-<hr />
 <h2 id="exercise-6-rejected-tif">Exercise 6: Rejected TIF<a class="headerlink" href="#exercise-6-rejected-tif" title="Permanent link">&para;</a></h2>
 <p>Try submitting an ATO order during CONTINUOUS:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=ATO
@@ -3194,7 +3241,6 @@ auction, it is cancelled when CONTINUOUS begins.</p>
 <p>Expected: rejection — ATO orders are only accepted during PRE_OPEN or
 OPENING_AUCTION phase.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> engine rejects out-of-phase TIF correctly.</p>
-<hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -3232,7 +3278,6 @@ OPENING_AUCTION phase.</p>
 </tr>
 </tbody>
 </table>
-<hr />
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p>Why does GTC survive every phase transition while DAY does not? If you were
 running an overnight risk desk, what would go wrong if all your hedge orders
@@ -3243,7 +3288,6 @@ were accidentally submitted as DAY instead of GTC?</p>
 <li><a href="../../user-guide/11-persistence/">Persistence</a></li>
 <li><a href="../../concepts/05-concepts-trading-day/">A Full Trading Day</a></li>
 </ul>
-<hr />
 <p><strong>Next:</strong> <a href="../07-auctions/">07 — Auctions</a></p>
 
 

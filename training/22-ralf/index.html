@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3104,7 +3160,6 @@ example parser/subscriber libraries for the three main external party roles:</p>
 </ul>
 <p>You will practice connection, subscription, live event handling, heartbeats,
 replay checkpoints, and recovery/error behavior.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01-21 completed.</li>
@@ -3120,7 +3175,6 @@ replay checkpoints, and recovery/error behavior.</p>
 <li>RALF gateway: <code>pm-ralf-gwy</code></li>
 <li>One or more client terminals for subscriber exercises</li>
 </ol>
-<hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>RALF is a line-oriented protocol over TCP used for post-trade dissemination.
 Clients connect to pm-ralf-gwy, perform HELLO and SUB, then consume events.</p>
@@ -3132,7 +3186,6 @@ Clients connect to pm-ralf-gwy, perform HELLO and SUB, then consume events.</p>
 <li>Replay with LASTSEQ and REPLAY_MISS handling</li>
 <li>Role/channel design for different external consumers</li>
 </ul>
-<hr />
 <h2 id="exercise-1-prepare-a-config-that-enables-ralf">Exercise 1: Prepare a Config That Enables RALF<a class="headerlink" href="#exercise-1-prepare-a-config-that-enables-ralf" title="Permanent link">&para;</a></h2>
 <p>Generate <code>engine_config.yaml</code> with a post_trade_gateway section:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
@@ -3150,7 +3203,6 @@ Clients connect to pm-ralf-gwy, perform HELLO and SUB, then consume events.</p>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pm-ralf-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: gateway starts and listens on the configured port.</p>
-<hr />
 <h2 id="exercise-2-use-the-python-example-as-a-clearing-consumer">Exercise 2: Use the Python Example as a CLEARING Consumer<a class="headerlink" href="#exercise-2-use-the-python-example-as-a-clearing-consumer" title="Permanent link">&para;</a></h2>
 <p>From the example directory:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/ralf
@@ -3168,7 +3220,6 @@ Clients connect to pm-ralf-gwy, perform HELLO and SUB, then consume events.</p>
 <li>incoming EXEC and EOD messages for CLEARING</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: subscriber prints parsed EXEC events with expected symbols and sequence values.</p>
-<hr />
 <h2 id="exercise-2b-manual-handshake-probe-with-nc">Exercise 2B: Manual Handshake Probe with nc<a class="headerlink" href="#exercise-2b-manual-handshake-probe-with-nc" title="Permanent link">&para;</a></h2>
 <p>Before continuing with richer clients, validate a minimal manual protocol flow:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5580</span>
@@ -3184,7 +3235,6 @@ Clients connect to pm-ralf-gwy, perform HELLO and SUB, then consume events.</p>
 <li>live <code>EXEC|...</code> / <code>EOD|...</code> once trades are produced</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: manual nc session can establish, subscribe, and receive at least one post-trade message.</p>
-<hr />
 <h2 id="exercise-3-use-the-c-example-as-a-drop_copy-consumer">Exercise 3: Use the C Example as a DROP_COPY Consumer<a class="headerlink" href="#exercise-3-use-the-c-example-as-a-drop_copy-consumer" title="Permanent link">&para;</a></h2>
 <p>Build and run the C subscriber:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/ralf
@@ -3200,7 +3250,6 @@ Clients connect to pm-ralf-gwy, perform HELLO and SUB, then consume events.</p>
 <p>Even though the example subscribes broadly for demonstration, run it with a
 DROP_COPY role argument and validate that role is accepted.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: C subscriber connects, parses, and prints live RALF events.</p>
-<hr />
 <h2 id="exercise-4-run-an-audit-session-and-compare-view-semantics">Exercise 4: Run an AUDIT Session and Compare View Semantics<a class="headerlink" href="#exercise-4-run-an-audit-session-and-compare-view-semantics" title="Permanent link">&para;</a></h2>
 <p>Run another Python subscriber in a second client terminal:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python3<span class="w"> </span>docs/examples/ralf/ralf_subscriber.py<span class="w"> </span><span class="se">\</span>
@@ -3219,7 +3268,6 @@ new trades.</p>
 <li>symbol filtering behavior</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain why separate external roles may consume different channel sets.</p>
-<hr />
 <h2 id="exercise-5-protocol-control-messages-ping-unsub-exit">Exercise 5: Protocol Control Messages (PING, UNSUB, EXIT)<a class="headerlink" href="#exercise-5-protocol-control-messages-ping-unsub-exit" title="Permanent link">&para;</a></h2>
 <p>Use netcat or telnet for manual control-message testing:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5580</span>
@@ -3238,7 +3286,6 @@ new trades.</p>
 <li>EXIT closes session cleanly</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can manually drive and verify protocol control flow.</p>
-<hr />
 <h2 id="support-libraries-and-example-clients">Support Libraries and Example Clients<a class="headerlink" href="#support-libraries-and-example-clients" title="Permanent link">&para;</a></h2>
 <p>Reference implementations used in this training chapter:</p>
 <ul>
@@ -3249,7 +3296,6 @@ new trades.</p>
 <li>docs/examples/ralf/ralf_subscriber.c</li>
 </ul>
 <p>Use these to bootstrap both quick lab subscribers and production-like integration test harnesses.</p>
-<hr />
 <h2 id="exercise-6-replay-and-recovery-with-lastseq">Exercise 6: Replay and Recovery with LASTSEQ<a class="headerlink" href="#exercise-6-replay-and-recovery-with-lastseq" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Start a subscriber and note the highest SEQ seen.</li>
@@ -3265,7 +3311,6 @@ new trades.</p>
 <li>REPLAY_MISS plus SNAP baseline when outside retention window</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can describe the recovery path for both replay-hit and replay-miss cases.</p>
-<hr />
 <h2 id="exercise-7-error-conditions-and-operational-interpretation">Exercise 7: Error Conditions and Operational Interpretation<a class="headerlink" href="#exercise-7-error-conditions-and-operational-interpretation" title="Permanent link">&para;</a></h2>
 <p>Test typical protocol errors with malformed lines:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>SUB|CH=CLEARING|SYM=*                (before HELLO)
@@ -3282,7 +3327,6 @@ new trades.</p>
 <li>SLOW_CLIENT: consumer cannot keep up with delivery rate</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can convert each ERR code into a practical remediation step.</p>
-<hr />
 <h2 id="suggested-lab-pattern-for-the-three-external-parties">Suggested Lab Pattern for the Three External Parties<a class="headerlink" href="#suggested-lab-pattern-for-the-three-external-parties" title="Permanent link">&para;</a></h2>
 <p>Run three long-lived sessions in parallel:</p>
 <ol>
@@ -3299,7 +3343,6 @@ new trades.</p>
 </ul>
 <p>This produces a realistic external-party operating model for classroom or
 integration testing.</p>
-<hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You have now covered major RALF protocol usage patterns:</p>
 <ul>

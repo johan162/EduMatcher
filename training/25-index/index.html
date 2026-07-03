@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3266,7 +3322,6 @@ disrupting the index level, and analyse historical data offline with
 <li>querying level, EOD, and event history with <code>pm-index-cli</code></li>
 <li>exporting history to CSV and JSON for offline analysis</li>
 </ul>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01–03 completed (engine running, at least one gateway, a few trades).</li>
@@ -3279,7 +3334,6 @@ disrupting the index level, and analyse historical data offline with
 <li>Start <code>pm-index</code>.</li>
 <li>Connect two gateway terminals (one TRADER, one ADMIN).</li>
 </ol>
-<hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p><code>pm-index</code> is a <strong>standalone</strong> process — it never sends commands to the engine.
 It subscribes to trade events published by <code>pm-engine</code> on port 5556 and
@@ -3298,7 +3352,6 @@ index level <strong>continuous</strong> across structural events.</p>
 </code></pre></div>
 <p>ADMIN gateways send corporate-action and history-request commands to <code>pm-index</code>
 on the PULL socket (port 5559).</p>
-<hr />
 <h2 id="exercise-1-configure-an-index">Exercise 1: Configure an Index<a class="headerlink" href="#exercise-1-configure-an-index" title="Permanent link">&para;</a></h2>
 <p>Generate a complete config with one index, three constituents, and outstanding
 shares:</p>
@@ -3334,7 +3387,6 @@ The default <code>pm-config-gen</code> behaviour adds this from <code>--outstand
 Without it <code>pm-index</code> will refuse to start.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>engine_config.yaml</code> contains a valid <code>indices:</code> block with all three symbols.</p>
-<hr />
 <h2 id="exercise-2-start-pm-index">Exercise 2: Start <code>pm-index</code><a class="headerlink" href="#exercise-2-start-pm-index" title="Permanent link">&para;</a></h2>
 <p>In a dedicated terminal, start the index calculation process:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-index<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
@@ -3352,7 +3404,6 @@ Verify:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;INIT&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="err">...</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;index_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EDU100&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;base_value&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1000.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;divisor&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">7007100000.0</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;constituents&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;AAPL&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;MSFT&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;TSLA&quot;</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;level&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1000.0</span><span class="p">}</span>
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-index</code> running, INIT record visible in history file.</p>
-<hr />
 <h2 id="exercise-3-query-the-live-index-level">Exercise 3: Query the Live Index Level<a class="headerlink" href="#exercise-3-query-the-live-index-level" title="Permanent link">&para;</a></h2>
 <p>Connect your TRADER01 gateway and run the <code>INDEX</code> command:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>TRADER01&gt; INDEX
@@ -3397,7 +3448,6 @@ Verify:</p>
 </table>
 <p>The <code>INDEX</code> command works from any gateway role (TRADER, ADMIN, or read-only).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>INDEX</code> command returns a level for <code>EDU100</code>.</p>
-<hr />
 <h2 id="exercise-4-watch-the-index-move">Exercise 4: Watch the Index Move<a class="headerlink" href="#exercise-4-watch-the-index-move" title="Permanent link">&para;</a></h2>
 <p>Move the session into <code>CONTINUOUS</code> (if the scheduler hasn't already done so)
 and execute a few trades:</p>
@@ -3418,7 +3468,6 @@ recalculated on every trade but published at most once per second (the
 the level updates, but the published timestamp advances at most once per second.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> index level changed after trades; querying <code>INDEX</code> shows the new value.</p>
-<hr />
 <h2 id="exercise-5-apply-a-stock-split">Exercise 5: Apply a Stock Split<a class="headerlink" href="#exercise-5-apply-a-stock-split" title="Permanent link">&para;</a></h2>
 <p>Suppose AAPL announces a 2-for-1 stock split. Without adjustment, the index
 would drop by ~50% when AAPL's price halves — which is wrong because no value
@@ -3453,7 +3502,6 @@ all corporate actions during <code>PRE_OPEN</code>.</p>
 record to the <code>INDEX</code> reading you took just before applying the split — the
 absolute difference should be at most a few cents (rounding only), never a
 ~50% jump. <code>CORP_ACTION</code> record confirmed written to history.</p>
-<hr />
 <h2 id="exercise-6-apply-a-cash-dividend">Exercise 6: Apply a Cash Dividend<a class="headerlink" href="#exercise-6-apply-a-cash-dividend" title="Permanent link">&para;</a></h2>
 <p>Apply a $2.50 cash dividend for MSFT:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>OPS01&gt; CORP_ACTION|INDEX=EDU100|SYM=MSFT|ACTION=CASH_DIVIDEND|DIV=2.50
@@ -3466,7 +3514,6 @@ is adjusted to compensate so the index level is preserved.</p>
 <a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>OPS01&gt; INDEX        (after)
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> index level preserved across dividend adjustment.</p>
-<hr />
 <h2 id="exercise-7-add-and-remove-a-constituent">Exercise 7: Add and Remove a Constituent<a class="headerlink" href="#exercise-7-add-and-remove-a-constituent" title="Permanent link">&para;</a></h2>
 <h3 id="add-amzn-to-the-index">Add AMZN to the index<a class="headerlink" href="#add-amzn-to-the-index" title="Permanent link">&para;</a></h3>
 <p>Adding a constituent adjusts the divisor so the level does not jump at the
@@ -3485,7 +3532,6 @@ AMZN's price updates from the seeded reference.</p>
 </code></pre></div>
 <p>Run <code>INDEX</code> again and confirm TSLA no longer appears in the constituent listing.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> AMZN added and TSLA removed without visible discontinuity in the index level.</p>
-<hr />
 <h2 id="exercise-8-query-history-with-pm-index-cli">Exercise 8: Query History with <code>pm-index-cli</code><a class="headerlink" href="#exercise-8-query-history-with-pm-index-cli" title="Permanent link">&para;</a></h2>
 <p><code>pm-index-cli</code> reads history files directly from disk — <code>pm-index</code> does <strong>not</strong>
 need to be running.</p>
@@ -3516,7 +3562,6 @@ You should see the split, dividend, add, and delist from earlier exercises.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>events<span class="w"> </span>--index<span class="w"> </span>EDU100<span class="w"> </span>--type<span class="w"> </span>CORP_ACTION
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-index-cli</code> returns level, EOD, and event records.</p>
-<hr />
 <h2 id="exercise-9-export-and-analyse-data">Exercise 9: Export and Analyse Data<a class="headerlink" href="#exercise-9-export-and-analyse-data" title="Permanent link">&para;</a></h2>
 <h3 id="export-eod-data-to-csv">Export EOD data to CSV<a class="headerlink" href="#export-eod-data-to-csv" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-index-cli<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>eod<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>&gt;<span class="w"> </span>edu100_eod.csv
@@ -3541,7 +3586,6 @@ You should see the split, dividend, add, and delist from earlier exercises.</p>
 <a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="w">  </span>--limit<span class="w"> </span><span class="m">500</span>
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> CSV and JSON exports contain the expected data.</p>
-<hr />
 <h2 id="exercise-10-two-indices">Exercise 10: Two Indices<a class="headerlink" href="#exercise-10-two-indices" title="Permanent link">&para;</a></h2>
 <p>Configure a second, narrower index alongside <code>EDU100</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
@@ -3581,7 +3625,6 @@ you intentionally want a clean slate.</p>
 </code></pre></div>
 <p>With no <code>--index</code> filter, all configured indices are queried.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> both <code>EDU100</code> and <code>TECH2</code> reported by <code>INDEX</code> command and <code>pm-index-cli</code>.</p>
-<hr />
 <h2 id="exercise-11-history-query-via-the-gateway">Exercise 11: History Query via the Gateway<a class="headerlink" href="#exercise-11-history-query-via-the-gateway" title="Permanent link">&para;</a></h2>
 <p><code>pm-index</code> also accepts history requests directly through the ADMIN gateway.
 These go over the PULL socket (port 5559) and return records inline:</p>
@@ -3599,7 +3642,6 @@ or scripting workflows, use <code>pm-index-cli</code> instead — it reads files
 without going through the network.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>INDEX|HISTORY</code> returns records; date-range filter works.</p>
-<hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -3667,7 +3709,6 @@ without going through the network.</p>
 </tr>
 </tbody>
 </table>
-<hr />
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p>Why does a stock split leave the index divisor roughly unchanged while a
 cash dividend or shares issuance actually changes it? What would happen to

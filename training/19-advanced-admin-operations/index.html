@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3043,14 +3099,12 @@
 <p>Practice advanced exchange-operator controls that are documented but were not
 covered in earlier training chapters: <code>KICK</code>, <code>QCANCEL</code>, <code>CANCEL_SYM</code>, and
 manual session overrides via <code>SESSION|STATE=...</code>.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01-18 completed.</li>
 <li><code>GW_ADMIN</code> configured with <code>role: ADMIN</code>.</li>
 <li>Engine and at least one trader and one MM gateway connected.</li>
 </ul>
-<hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>Earlier risk-control exercises focused on halt/resume and kill switch. In live
 operations, admins also need targeted controls for:</p>
@@ -3065,7 +3119,6 @@ operations, admins also need targeted controls for:</p>
 <li>Interactive admin console (<code>pm-admin</code> / ALF commands).</li>
 <li>One-shot scripting CLI (<code>pm-admin-cli</code>).</li>
 </ul>
-<hr />
 <h2 id="exercise-1-disconnect-a-gateway-with-kick">Exercise 1: Disconnect a Gateway with KICK<a class="headerlink" href="#exercise-1-disconnect-a-gateway-with-kick" title="Permanent link">&para;</a></h2>
 <p>From admin console:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[GW_ADMIN|ADMIN]&gt; KICK|GW=TRADER02|REASON=Training_disconnect_check
@@ -3078,10 +3131,9 @@ operations, admins also need targeted controls for:</p>
 <li>In the <code>TRADER02</code> terminal, confirm disconnect occurred.</li>
 <li>Reconnect:</li>
 </ol>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER02
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> gateway is disconnected and can reconnect cleanly.</p>
-<hr />
 <h2 id="exercise-2-cancel-one-mm-quote-with-qcancel">Exercise 2: Cancel One MM Quote with QCANCEL<a class="headerlink" href="#exercise-2-cancel-one-mm-quote-with-qcancel" title="Permanent link">&para;</a></h2>
 <p>First ensure an MM has an active quote on AAPL.</p>
 <p>From admin console:</p>
@@ -3098,7 +3150,6 @@ operations, admins also need targeted controls for:</p>
 the MM process is unresponsive or when operations needs immediate symbol-scoped
 intervention without relying on the MM terminal.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> one-symbol MM quote is cancelled without mass-cancelling all gateway orders.</p>
-<hr />
 <h2 id="exercise-3-clear-one-symbol-book-with-cancel_sym">Exercise 3: Clear One Symbol Book with CANCEL_SYM<a class="headerlink" href="#exercise-3-clear-one-symbol-book-with-cancel_sym" title="Permanent link">&para;</a></h2>
 <p>Create a few resting orders on TSLA from multiple gateways, then run:</p>
 <p>From admin console:</p>
@@ -3112,7 +3163,6 @@ intervention without relying on the MM terminal.</p>
 </code></pre></div>
 <p>Confirm TSLA resting orders were cleared while other symbols remain unchanged.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> symbol-scoped cancel works across gateways.</p>
-<hr />
 <h2 id="exercise-4-force-session-state-for-controlled-drills">Exercise 4: Force Session State for Controlled Drills<a class="headerlink" href="#exercise-4-force-session-state-for-controlled-drills" title="Permanent link">&para;</a></h2>
 <p>Set session state explicitly:</p>
 <p>From admin console:</p>
@@ -3128,7 +3178,6 @@ intervention without relying on the MM terminal.</p>
 </code></pre></div>
 <p>Use this to reproduce auction and close transitions deterministically in training.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> forced session transitions are visible and verifiable.</p>
-<hr />
 <h2 id="exercise-5-run-an-incident-micro-runbook">Exercise 5: Run an Incident Micro-Runbook<a class="headerlink" href="#exercise-5-run-an-incident-micro-runbook" title="Permanent link">&para;</a></h2>
 <p>Simulate a short incident response sequence:</p>
 <ol>
@@ -3145,7 +3194,6 @@ intervention without relying on the MM terminal.</p>
 <a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>pm-admin-cli<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN<span class="w"> </span>session-status
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can explain when to use each control and why they are not interchangeable.</p>
-<hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You can now operate advanced admin controls beyond halt/resume:</p>
 <ul>

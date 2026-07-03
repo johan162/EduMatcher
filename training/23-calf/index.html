@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3088,7 +3144,6 @@
 example parser/subscriber libraries for external market-data consumers.</p>
 <p>You will practice connection, subscription, snapshots, live market-data
 consumption, heartbeats, replay checkpoints, and recovery/error behavior.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01-22 completed.</li>
@@ -3104,7 +3159,6 @@ consumption, heartbeats, replay checkpoints, and recovery/error behavior.</p>
 <li>CALF gateway: <code>pm-md-gwy</code></li>
 <li>One or more client terminals for subscriber exercises</li>
 </ol>
-<hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>CALF is a line-oriented protocol over TCP used for external market-data
  dissemination.
@@ -3117,7 +3171,6 @@ Clients connect to pm-md-gwy, perform HELLO and SUB, then consume stream data.</
 <li>Liveness with HB and PING/PONG</li>
 <li>Replay with RESUME=1 / LASTSEQ and REPLAY_MISS handling</li>
 </ul>
-<hr />
 <h2 id="exercise-1-prepare-a-config-that-enables-calf">Exercise 1: Prepare a Config That Enables CALF<a class="headerlink" href="#exercise-1-prepare-a-config-that-enables-calf" title="Permanent link">&para;</a></h2>
 <p>Generate <code>engine_config.yaml</code> with a market_data_gateway section:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
@@ -3137,7 +3190,6 @@ Clients connect to pm-md-gwy, perform HELLO and SUB, then consume stream data.</
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pm-md-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: gateway starts and listens on the configured port.</p>
-<hr />
 <h2 id="exercise-2-use-the-python-example-as-a-toptrade-consumer">Exercise 2: Use the Python Example as a TOP/TRADE Consumer<a class="headerlink" href="#exercise-2-use-the-python-example-as-a-toptrade-consumer" title="Permanent link">&para;</a></h2>
 <p>From the example directory:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/calf
@@ -3154,7 +3206,6 @@ Clients connect to pm-md-gwy, perform HELLO and SUB, then consume stream data.</
 <li>incoming MD and TRADE messages for subscribed symbols</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: subscriber prints parsed MD/TRADE events with expected symbol and sequence fields.</p>
-<hr />
 <h2 id="exercise-2b-manual-handshake-probe-with-nc">Exercise 2B: Manual Handshake Probe with nc<a class="headerlink" href="#exercise-2b-manual-handshake-probe-with-nc" title="Permanent link">&para;</a></h2>
 <p>Before continuing with richer clients, validate a minimal manual protocol flow:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5570</span>
@@ -3170,7 +3221,6 @@ Clients connect to pm-md-gwy, perform HELLO and SUB, then consume stream data.</
 <li>live MD and TRADE once market activity occurs</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: manual nc session can establish, subscribe, and receive at least one live market-data line.</p>
-<hr />
 <h2 id="exercise-3-use-the-c-example-subscriber">Exercise 3: Use the C Example Subscriber<a class="headerlink" href="#exercise-3-use-the-c-example-subscriber" title="Permanent link">&para;</a></h2>
 <p>Build and run the C subscriber:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>docs/examples/calf
@@ -3184,7 +3234,6 @@ Clients connect to pm-md-gwy, perform HELLO and SUB, then consume stream data.</
 <li>MSG lines for live traffic</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: C subscriber connects, parses, and prints live CALF events.</p>
-<hr />
 <h2 id="exercise-4-state-channel-and-wildcard-behavior">Exercise 4: State Channel and Wildcard Behavior<a class="headerlink" href="#exercise-4-state-channel-and-wildcard-behavior" title="Permanent link">&para;</a></h2>
 <p>Run a subscriber for state transitions:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python3<span class="w"> </span>docs/examples/calf/calf_subscriber.py<span class="w"> </span><span class="se">\</span>
@@ -3199,7 +3248,6 @@ Clients connect to pm-md-gwy, perform HELLO and SUB, then consume stream data.</
 <li>STATE updates when session phase or halt/resume transitions occur</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can explain why wildcard symbols are valid only for STATE.</p>
-<hr />
 <h2 id="exercise-5-protocol-control-messages-ping-unsub-exit">Exercise 5: Protocol Control Messages (PING, UNSUB, EXIT)<a class="headerlink" href="#exercise-5-protocol-control-messages-ping-unsub-exit" title="Permanent link">&para;</a></h2>
 <p>Use netcat for manual control-message testing:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>nc<span class="w"> </span><span class="m">127</span>.0.0.1<span class="w"> </span><span class="m">5570</span>
@@ -3218,7 +3266,6 @@ Clients connect to pm-md-gwy, perform HELLO and SUB, then consume stream data.</
 <li>EXIT closes session cleanly</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can manually drive and verify control flow.</p>
-<hr />
 <h2 id="exercise-6-replay-and-recovery-with-resume1">Exercise 6: Replay and Recovery with RESUME=1<a class="headerlink" href="#exercise-6-replay-and-recovery-with-resume1" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Start a subscriber and note the highest SEQ for (TOP, AAPL).</li>
@@ -3234,7 +3281,6 @@ Clients connect to pm-md-gwy, perform HELLO and SUB, then consume stream data.</
 <li>REPLAY_MISS plus SNAP baseline when outside replay window</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can describe recovery for both replay-hit and replay-miss cases.</p>
-<hr />
 <h2 id="exercise-7-error-conditions-and-operational-interpretation">Exercise 7: Error Conditions and Operational Interpretation<a class="headerlink" href="#exercise-7-error-conditions-and-operational-interpretation" title="Permanent link">&para;</a></h2>
 <p>Test typical protocol errors with malformed lines:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>SUB|CH=TOP|SYM=AAPL                 (before HELLO)
@@ -3252,7 +3298,6 @@ Clients connect to pm-md-gwy, perform HELLO and SUB, then consume stream data.</
 <li>SLOW_CLIENT: consumer cannot keep up with delivery rate</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> Checkpoint: you can convert each ERR code into a practical remediation step.</p>
-<hr />
 <h2 id="support-libraries-and-example-clients">Support Libraries and Example Clients<a class="headerlink" href="#support-libraries-and-example-clients" title="Permanent link">&para;</a></h2>
 <p>Reference implementations used in this training chapter:</p>
 <ul>
@@ -3263,7 +3308,6 @@ Clients connect to pm-md-gwy, perform HELLO and SUB, then consume stream data.</
 <li>docs/examples/calf/calf_subscriber.c</li>
 </ul>
 <p>Use these to bootstrap both quick lab subscribers and production-like integration test harnesses.</p>
-<hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You have now covered major CALF protocol usage patterns:</p>
 <ul>

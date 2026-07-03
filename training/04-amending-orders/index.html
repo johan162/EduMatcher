@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3042,20 +3098,17 @@
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Learn to modify resting orders — change price, quantity, or both — and
 understand how amendments affect queue priority.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Exchange running with two-sided liquidity from previous chapters
     (manual MM gateways or <code>pm-mm-bot</code>).</li>
 <li><code>TRADER01</code> connected with at least one resting limit order.</li>
 </ul>
-<hr />
 <h2 id="exercise-1-place-a-resting-order-to-amend">Exercise 1: Place a Resting Order to Amend<a class="headerlink" href="#exercise-1-place-a-resting-order-to-amend" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>TRADER01&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=300|PRICE=419.50|TIF=DAY
 </code></pre></div>
 <p>Note the <code>order_id</code> returned.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> order resting; <code>ORDERS</code> confirms qty=300, price=419.50.</p>
-<hr />
 <h2 id="exercise-2-amend-quantity-down">Exercise 2: Amend Quantity Down<a class="headerlink" href="#exercise-2-amend-quantity-down" title="Permanent link">&para;</a></h2>
 <p>Reduce the order to 200 shares:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>TRADER01&gt; AMEND|ID=&lt;order_id&gt;|QTY=200
@@ -3069,7 +3122,6 @@ place in the queue.</p>
 claim at the same price level.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>ORDERS</code> shows qty=200, same price.</p>
-<hr />
 <h2 id="exercise-3-amend-price">Exercise 3: Amend Price<a class="headerlink" href="#exercise-3-amend-price" title="Permanent link">&para;</a></h2>
 <p>Move the order to a more aggressive price:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>TRADER01&gt; AMEND|ID=&lt;order_id&gt;|PRICE=419.70
@@ -3083,12 +3135,10 @@ of the queue at the new price level.</p>
 re-entering at the back.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>ORDERS</code> shows price=419.70.</p>
-<hr />
 <h2 id="exercise-4-amend-both-price-and-quantity">Exercise 4: Amend Both Price and Quantity<a class="headerlink" href="#exercise-4-amend-both-price-and-quantity" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>TRADER01&gt; AMEND|ID=&lt;order_id&gt;|PRICE=419.60|QTY=150
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> both fields updated in one command.</p>
-<hr />
 <h2 id="exercise-5-attempt-an-invalid-amendment">Exercise 5: Attempt an Invalid Amendment<a class="headerlink" href="#exercise-5-attempt-an-invalid-amendment" title="Permanent link">&para;</a></h2>
 <p>Try setting quantity to zero:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>TRADER01&gt; AMEND|ID=&lt;order_id&gt;|QTY=0
@@ -3099,7 +3149,6 @@ re-entering at the back.</p>
 </code></pre></div>
 <p>Expected: rejection — order not found.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> both invalid amendments rejected with clear errors.</p>
-<hr />
 <h2 id="exercise-6-amend-after-partial-fill">Exercise 6: Amend After Partial Fill<a class="headerlink" href="#exercise-6-amend-after-partial-fill" title="Permanent link">&para;</a></h2>
 <ol>
 <li>
@@ -3120,7 +3169,6 @@ re-entering at the back.</p>
 what has already been executed.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> amendment accepted on partially filled order.</p>
-<hr />
 <h2 id="key-rules">Key Rules<a class="headerlink" href="#key-rules" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -3148,7 +3196,6 @@ what has already been executed.</p>
 </tr>
 </tbody>
 </table>
-<hr />
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p>Why does reducing quantity preserve time priority, but increasing it does
 not? What unfair advantage would a trader gain if increasing quantity kept
@@ -3158,7 +3205,6 @@ their original priority in a busy book?</p>
 <li><a href="../../user-guide/08-gateway/">Gateway Commands</a></li>
 <li><a href="../../user-guide/90-app-alf-protocol/">ALF Protocol — AMEND</a></li>
 </ul>
-<hr />
 <p><strong>Next:</strong> <a href="../05-order-types/">05 — Order Types Deep Dive</a></p>
 
 

@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3064,13 +3120,11 @@
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Master the <code>STATUS</code>, <code>ORDERS</code>, and <code>CANCEL</code> commands for understanding gateway
 state, inspecting resting orders, and managing the order lifecycle.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01–07 completed.</li>
 <li>At least one connected trader gateway with resting orders to manage.</li>
 </ul>
-<hr />
 <h2 id="exercise-1-cancel-a-resting-order">Exercise 1: Cancel a Resting Order<a class="headerlink" href="#exercise-1-cancel-a-resting-order" title="Permanent link">&para;</a></h2>
 <p>Place an order and then cancel it:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>TRADER01&gt; NEW|SYM=TSLA|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=248.00|TIF=DAY
@@ -3080,7 +3134,6 @@ state, inspecting resting orders, and managing the order lifecycle.</p>
 </code></pre></div>
 <p>Expected: cancellation confirmed.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> order cancelled; <code>ORDERS</code> no longer lists it as resting.</p>
-<hr />
 <h2 id="exercise-2-cancel-a-partially-filled-order">Exercise 2: Cancel a Partially Filled Order<a class="headerlink" href="#exercise-2-cancel-a-partially-filled-order" title="Permanent link">&para;</a></h2>
 <ol>
 <li>
@@ -3096,7 +3149,6 @@ state, inspecting resting orders, and managing the order lifecycle.</p>
 </ol>
 <p>Expected: the unfilled portion is cancelled; the filled portion remains executed.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> cancel succeeds; filled qty preserved.</p>
-<hr />
 <h2 id="exercise-3-compare-status-and-orders">Exercise 3: Compare STATUS and ORDERS<a class="headerlink" href="#exercise-3-compare-status-and-orders" title="Permanent link">&para;</a></h2>
 <p>Place a fresh resting order so the gateway has something to inspect:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>TRADER01&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=25|PRICE=419.00|TIF=DAY
@@ -3116,7 +3168,6 @@ orders belonging to your gateway.</p>
 <p>Use <code>STATUS</code> when you need a quick health pulse. Use <code>ORDERS</code> when you are
 debugging one specific order lifecycle.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>STATUS</code> shows summary counts; <code>ORDERS</code> shows the full order row and ID.</p>
-<hr />
 <h2 id="exercise-4-inspect-resting-order-details">Exercise 4: Inspect Resting Order Details<a class="headerlink" href="#exercise-4-inspect-resting-order-details" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>TRADER01&gt; ORDERS
 </code></pre></div>
@@ -3128,20 +3179,17 @@ debugging one specific order lifecycle.</p>
 <li><code>tif</code>, last update time</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>ORDERS</code> returns full details for each resting order.</p>
-<hr />
 <h2 id="exercise-5-cancel-a-non-existent-order">Exercise 5: Cancel a Non-Existent Order<a class="headerlink" href="#exercise-5-cancel-a-non-existent-order" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>TRADER01&gt; CANCEL|ID=DOES_NOT_EXIST
 </code></pre></div>
 <p>Expected: rejection — order not found.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> error message returned cleanly.</p>
-<hr />
 <h2 id="exercise-6-cancel-another-gateways-order">Exercise 6: Cancel Another Gateway's Order<a class="headerlink" href="#exercise-6-cancel-another-gateways-order" title="Permanent link">&para;</a></h2>
 <p>Try cancelling an order belonging to TRADER02:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>TRADER01&gt; CANCEL|ID=&lt;trader02_order_id&gt;
 </code></pre></div>
 <p>Expected: rejection — you can only cancel your own orders.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> cross-gateway cancel rejected.</p>
-<hr />
 <h2 id="exercise-7-admin-kill-switch">Exercise 7: Admin Kill Switch<a class="headerlink" href="#exercise-7-admin-kill-switch" title="Permanent link">&para;</a></h2>
 <p>From the admin gateway, cancel all orders for a specific gateway:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>GW_ADMIN&gt; KILL|GW=TRADER01
@@ -3151,7 +3199,6 @@ debugging one specific order lifecycle.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>GW_ADMIN&gt; CANCEL_SYM|SYM=TSLA
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> admin commands successfully cancel orders.</p>
-<hr />
 <h2 id="exercise-8-inspect-symbols-metadata-from-gateway">Exercise 8: Inspect SYMBOLS Metadata from Gateway<a class="headerlink" href="#exercise-8-inspect-symbols-metadata-from-gateway" title="Permanent link">&para;</a></h2>
 <p>Request the symbol catalog:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>TRADER01&gt; SYMBOLS
@@ -3159,7 +3206,6 @@ debugging one specific order lifecycle.</p>
 <p>Look for metadata fields exposed in the gateway output (for example
 <code>description</code>, <code>tick_size</code>, and any MM policy fields configured by the engine).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can explain how <code>SYMBOLS</code> complements config-file inspection during operations.</p>
-<hr />
 <h2 id="order-lifecycle-summary">Order Lifecycle Summary<a class="headerlink" href="#order-lifecycle-summary" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>stateDiagram-v2
     [*] --&gt; NEW : accepted
@@ -3168,7 +3214,6 @@ debugging one specific order lifecycle.</p>
     NEW --&gt; CANCELLED : cancel/expire
     PARTIAL --&gt; FILLED : remaining filled
     PARTIAL --&gt; CANCELLED : cancel remainder</code></pre>
-<hr />
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p>Why does <code>KILL|GW=&lt;gateway_id&gt;</code> cancel every order for an entire gateway
 rather than requiring one CANCEL per order? In what operational scenario
@@ -3180,7 +3225,6 @@ matter most?</p>
 <li><a href="../../user-guide/09-messages/">Message Types (system.symbols)</a></li>
 <li><a href="../../user-guide/90-app-alf-protocol/">ALF Protocol — Cancellation Semantics</a></li>
 </ul>
-<hr />
 <p><strong>Next:</strong> <a href="../09-market-making/">09 — Market Making</a></p>
 
 

@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3075,7 +3131,6 @@
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>By the end of this chapter you will have a working exchange with at least one
 gateway and three tradeable symbols, ready to accept orders.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>EduMatcher installed and <code>pm-setup</code> completed (see <a href="../00-installation/">00 — Installation &amp; Setup</a>).</li>
@@ -3086,8 +3141,7 @@ gateway and three tradeable symbols, ready to accept orders.</p>
 <li><strong>pm-engine</strong> — the matching engine (reads <code>engine_config.yaml</code>).</li>
 <li><strong>pm-scheduler</strong> — drives session phase transitions.</li>
 </ol>
-<p>A <strong>gateway</strong> (<code>pm-gateway</code>) connects traders to the engine.</p>
-<hr />
+<p>A <strong>gateway</strong> (<code>pm-alf-console</code>) connects traders to the engine.</p>
 <h2 id="exercise-1-create-a-minimal-configuration">Exercise 1: Create a Minimal Configuration<a class="headerlink" href="#exercise-1-create-a-minimal-configuration" title="Permanent link">&para;</a></h2>
 <p>Create a file called <code>engine_config.yaml</code> in your working directory:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">symbols</span><span class="p">:</span>
@@ -3117,7 +3171,6 @@ gateway and three tradeable symbols, ready to accept orders.</p>
 <a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">      </span><span class="nt">role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ADMIN</span>
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> file saved, YAML is valid (no tabs!).</p>
-<hr />
 <h2 id="exercise-2-generate-a-config-with-pm-config-gen">Exercise 2: Generate a Config with pm-config-gen<a class="headerlink" href="#exercise-2-generate-a-config-with-pm-config-gen" title="Permanent link">&para;</a></h2>
 <p>Instead of writing YAML by hand, you can use the <code>pm-config-gen</code> helper to
 scaffold a configuration. Try generating an equivalent config:</p>
@@ -3159,7 +3212,6 @@ scaffold a configuration. Try generating an equivalent config:</p>
 </code></pre></div></p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> generated config matches the manual one; symbols and gateways present.</p>
-<hr />
 <h2 id="exercise-3-start-the-engine">Exercise 3: Start the Engine<a class="headerlink" href="#exercise-3-start-the-engine" title="Permanent link">&para;</a></h2>
 <p>Open a terminal and run:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-engine<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
@@ -3175,7 +3227,6 @@ of log wording, is to query it from a gateway once connected (Exercise 5) with
 <code>SYMBOLS</code> — if it lists <code>AAPL</code>, <code>MSFT</code>, and <code>TSLA</code>, the engine started correctly
 regardless of what the startup banner said.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> engine is running without errors.</p>
-<hr />
 <h2 id="exercise-4-start-the-scheduler">Exercise 4: Start the Scheduler<a class="headerlink" href="#exercise-4-start-the-scheduler" title="Permanent link">&para;</a></h2>
 <p>In a <strong>second terminal</strong>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-scheduler
@@ -3186,10 +3237,9 @@ regardless of what the startup banner said.</p>
 <p>The scheduler will transition through PRE_OPEN → OPENING_AUCTION → CONTINUOUS
 automatically (or you can trigger immediate continuous with <code>--immediate</code>).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> scheduler reports session state changes.</p>
-<hr />
 <h2 id="exercise-5-connect-a-gateway">Exercise 5: Connect a Gateway<a class="headerlink" href="#exercise-5-connect-a-gateway" title="Permanent link">&para;</a></h2>
 <p>In a <strong>third terminal</strong>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
 </code></pre></div>
 <p>You should see:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[INFO] Connected as TRADER01
@@ -3197,7 +3247,6 @@ automatically (or you can trigger immediate continuous with <code>--immediate</c
 </code></pre></div>
 <p>Try typing <code>ORDERS</code> — it should report no resting orders for this gateway.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> gateway prompt is interactive and connected.</p>
-<hr />
 <h2 id="exercise-6-verify-the-setup">Exercise 6: Verify the Setup<a class="headerlink" href="#exercise-6-verify-the-setup" title="Permanent link">&para;</a></h2>
 <p>From the gateway prompt, confirm the three symbols are available by attempting
 a tiny limit order:</p>
@@ -3206,17 +3255,15 @@ a tiny limit order:</p>
 <p>You should see an acknowledgement (the order rests since no matching ask exists).</p>
 <p>Repeat for <code>MSFT</code> and <code>TSLA</code> to confirm all three books are active.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> all three symbols accept orders.</p>
-<hr />
 <h2 id="exercise-7-connect-the-admin-gateway">Exercise 7: Connect the Admin Gateway<a class="headerlink" href="#exercise-7-connect-the-admin-gateway" title="Permanent link">&para;</a></h2>
 <p>In a <strong>fourth terminal</strong>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
 </code></pre></div>
 <p>Try an admin command:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>GW_ADMIN&gt; BOOK|SYM=AAPL
 </code></pre></div>
 <p>You should see a book snapshot (possibly with the 1-lot bid from Exercise 5).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> admin gateway works; BOOK command shows data.</p>
-<hr />
 <h2 id="exercise-8-inspect-enriched-symbols-metadata">Exercise 8: Inspect Enriched SYMBOLS Metadata<a class="headerlink" href="#exercise-8-inspect-enriched-symbols-metadata" title="Permanent link">&para;</a></h2>
 <p>From any connected gateway:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>TRADER01&gt; SYMBOLS
@@ -3225,7 +3272,6 @@ a tiny limit order:</p>
 including symbol description and matching constraints such as tick size and MM
 obligation settings when configured.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can identify at least <code>description</code> and <code>tick_size</code> for each symbol from <code>SYMBOLS</code> output.</p>
-<hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You now have:</p>
 <ul>

@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3064,19 +3120,16 @@
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Run a complete exchange session that combines configuration, market making,
 trading, risk controls, clearing, market data, persistence, and reporting.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01–16 completed.</li>
 <li>Ability to run multiple terminals/processes simultaneously.</li>
 </ul>
-<hr />
 <h2 id="scenario">Scenario<a class="headerlink" href="#scenario" title="Permanent link">&para;</a></h2>
 <p>You are running a classroom exchange with three symbols (<code>AAPL</code>, <code>MSFT</code>, <code>TSLA</code>),
 two human traders, one admin/operator, and one manual market maker per symbol.
 Your goal is to open the market, provide liquidity, generate trades, trigger a
 risk event, inspect P&amp;L/statistics, and verify persistence.</p>
-<hr />
 <h2 id="exercise-1-generate-a-fresh-config">Exercise 1: Generate a Fresh Config<a class="headerlink" href="#exercise-1-generate-a-fresh-config" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span>TSLA<span class="w"> </span><span class="se">\</span>
@@ -3088,7 +3141,6 @@ risk event, inspect P&amp;L/statistics, and verify persistence.</p>
 </code></pre></div>
 <p>Open the file and confirm the symbol and gateway sections are present.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> config contains 3 symbols, 2 traders, 1 admin, and 3 MMs.</p>
-<hr />
 <h2 id="exercise-2-start-the-exchange-stack">Exercise 2: Start the Exchange Stack<a class="headerlink" href="#exercise-2-start-the-exchange-stack" title="Permanent link">&para;</a></h2>
 <p>Use separate terminals:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-engine<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--verbose
@@ -3099,18 +3151,16 @@ risk event, inspect P&amp;L/statistics, and verify persistence.</p>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> every process starts cleanly and connects.</p>
-<hr />
 <h2 id="exercise-3-connect-gateways">Exercise 3: Connect Gateways<a class="headerlink" href="#exercise-3-connect-gateways" title="Permanent link">&para;</a></h2>
 <p>Open gateway terminals:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER01
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER02
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>MM_AAPL_01
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>MM_MSFT_01
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>MM_TSLA_01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM_AAPL_01
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM_MSFT_01
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM_TSLA_01
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> all gateway identities authenticate.</p>
-<hr />
 <h2 id="exercise-4-provide-manual-mm-liquidity">Exercise 4: Provide Manual MM Liquidity<a class="headerlink" href="#exercise-4-provide-manual-mm-liquidity" title="Permanent link">&para;</a></h2>
 <p>Submit quotes:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>MM_AAPL_01&gt; QUOTE|SYM=AAPL|BID=149.95|ASK=150.05|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=AAPL-CAP-001
@@ -3119,7 +3169,6 @@ risk event, inspect P&amp;L/statistics, and verify persistence.</p>
 </code></pre></div>
 <p>Verify with <code>QLEGS|SHOW=ALL</code> on each MM gateway and <code>BOOK|SYM=...</code> from a trader.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> every symbol has a live two-sided market.</p>
-<hr />
 <h2 id="exercise-5-generate-trades-and-amendments">Exercise 5: Generate Trades and Amendments<a class="headerlink" href="#exercise-5-generate-trades-and-amendments" title="Permanent link">&para;</a></h2>
 <p>From <code>TRADER01</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
@@ -3131,7 +3180,6 @@ risk event, inspect P&amp;L/statistics, and verify persistence.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>TRADER02&gt; NEW|SYM=MSFT|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=419.70|TIF=DAY
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you have at least one market fill, one amended order, and one cross-trader fill.</p>
-<hr />
 <h2 id="exercise-6-trigger-an-operator-action">Exercise 6: Trigger an Operator Action<a class="headerlink" href="#exercise-6-trigger-an-operator-action" title="Permanent link">&para;</a></h2>
 <p>From the admin gateway:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>GW_ADMIN&gt; HALT_SYM|SYM=TSLA
@@ -3140,7 +3188,6 @@ risk event, inspect P&amp;L/statistics, and verify persistence.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>GW_ADMIN&gt; RESUME_SYM|SYM=TSLA
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> symbol halt blocks trading and resume restores it.</p>
-<hr />
 <h2 id="exercise-7-inspect-pl-audit-and-stats">Exercise 7: Inspect P&amp;L, Audit, and Stats<a class="headerlink" href="#exercise-7-inspect-pl-audit-and-stats" title="Permanent link">&para;</a></h2>
 <p>Check the observer terminals and run:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-stats-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--limit<span class="w"> </span><span class="m">10</span>
@@ -3154,7 +3201,6 @@ risk event, inspect P&amp;L/statistics, and verify persistence.</p>
 <li><code>pm-viewer</code>: current book state.</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can trace one trade through all observers.</p>
-<hr />
 <h2 id="exercise-8-persistence-check">Exercise 8: Persistence Check<a class="headerlink" href="#exercise-8-persistence-check" title="Permanent link">&para;</a></h2>
 <p>Place a GTC order, restart the engine, and confirm whether it restores:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=140.00|TIF=GTC
@@ -3163,7 +3209,6 @@ risk event, inspect P&amp;L/statistics, and verify persistence.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>TRADER01&gt; ORDERS
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can explain what persisted and what expired.</p>
-<hr />
 <h2 id="final-review-questions">Final Review Questions<a class="headerlink" href="#final-review-questions" title="Permanent link">&para;</a></h2>
 <p>Answer these without looking at earlier chapters:</p>
 <ol>
@@ -3186,7 +3231,6 @@ risk event, inspect P&amp;L/statistics, and verify persistence.</p>
 <li>Q6: <a href="../../user-guide/06-auctions-scheduling/">Time-in-Force &amp; Session Lifecycle</a></li>
 <li>Q7: <a href="../../user-guide/02-commands/">Controlling the Exchange</a></li>
 </ul>
-<hr />
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../how-exchange-works/">How an Exchange Works</a></li>

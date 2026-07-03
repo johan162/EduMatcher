@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3136,11 +3192,9 @@
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Install EduMatcher from PyPI, configure environment variables for config and
 data directories, and use the <code>pm-setup</code> helper to bootstrap your workspace.</p>
-<hr />
 <h2 id="exercise-0-read-the-how-an-exchange-works">Exercise 0: Read the <a href="../../how-exchange-works/">How an Exchange Works</a><a class="headerlink" href="#exercise-0-read-the-how-an-exchange-works" title="Permanent link">&para;</a></h2>
 <p>This is not strictly required, but it will give you a solid mental model of the core components and data flows in an exchange. It will make the training exercises more intuitive and meaningful. This is especially recommended if you are new to how exchanges operate under the hood or lack a financial background.</p>
 <p>Once you read that introduction, you can refer back to it at any time during the training. The concepts will become clearer as you see them in action.</p>
-<hr />
 <h2 id="exercise-1-install-edumatcher">Exercise 1: Install EduMatcher<a class="headerlink" href="#exercise-1-install-edumatcher" title="Permanent link">&para;</a></h2>
 <p>The recommended way to install is via <code>pipx</code> (isolates the package in its own
 virtual environment while making all <code>pm-*</code> commands globally available):</p>
@@ -3161,7 +3215,6 @@ virtual environment while making all <code>pm-*</code> commands globally availab
 All commands must be prefixed with <code>poetry run</code> (e.g. <code>poetry run pm-engine</code>).</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-engine --version</code> prints a version number.</p>
-<hr />
 <h2 id="exercise-1-alternative-multipass-vm-setup">Exercise 1 (Alternative): Multipass VM Setup<a class="headerlink" href="#exercise-1-alternative-multipass-vm-setup" title="Permanent link">&para;</a></h2>
 <p>If you want a ready-to-run Linux environment without installing Python tooling
 on your host, use the Multipass bootstrap flow. This creates an Ubuntu VM,
@@ -3173,7 +3226,7 @@ verify it is available:</p>
 </code></pre></div>
 <h3 id="step-2-bootstrap-the-vm-with-one-command">Step 2: Bootstrap the VM with one command<a class="headerlink" href="#step-2-bootstrap-the-vm-with-one-command" title="Permanent link">&para;</a></h3>
 <p>Run the curl bootstrap script (pinned to this release):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.12.5<span class="w"> </span>--snapshot
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.13.0<span class="w"> </span>--snapshot
 </code></pre></div>
 <p>This command will:</p>
 <ol>
@@ -3187,14 +3240,14 @@ verify it is available:</p>
 <p>If you prefer to inspect scripts before running them:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span>-o<span class="w"> </span>curl_setup_vm.sh
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>less<span class="w"> </span>curl_setup_vm.sh
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.12.5<span class="w"> </span>--snapshot
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.13.0<span class="w"> </span>--snapshot
 </code></pre></div></p>
 </div>
 <h3 id="step-3-enter-the-vm-and-verify-commands">Step 3: Enter the VM and verify commands<a class="headerlink" href="#step-3-enter-the-vm-and-verify-commands" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>multipass<span class="w"> </span>shell<span class="w"> </span>edumatcher-vm
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>pm-engine<span class="w"> </span>--version
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>pm-scheduler<span class="w"> </span>--help
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>pm-gateway<span class="w"> </span>--help
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>pm-alf-console<span class="w"> </span>--help
 </code></pre></div>
 <h3 id="step-4-run-a-first-end-to-end-session-inside-the-vm">Step 4: Run a first end-to-end session inside the VM<a class="headerlink" href="#step-4-run-a-first-end-to-end-session-inside-the-vm" title="Permanent link">&para;</a></h3>
 <p>Open several host terminals and attach each to the same VM:</p>
@@ -3221,7 +3274,6 @@ and clients) following the run order from the User Guide. </p>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> You can enter
 <code>edumatcher-vm</code> and <code>pm-engine --version</code> succeeds inside the VM.</p>
-<hr />
 <h2 id="exercise-2-run-pm-setup">Exercise 2: Run pm-setup<a class="headerlink" href="#exercise-2-run-pm-setup" title="Permanent link">&para;</a></h2>
 <p><strong><em>If you have used the VM (Multipass) this step can be skipped as it has already been done as part of the VM setup.</em></strong></p>
 <p>The <code>pm-setup</code> helper bootstraps your local environment in one command:</p>
@@ -3248,7 +3300,6 @@ and clients) following the run order from the User Guide. </p>
 latest version from the package.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> data directory exists; sample config in place.</p>
-<hr />
 <h2 id="exercise-3-set-environment-variables">Exercise 3: Set Environment Variables<a class="headerlink" href="#exercise-3-set-environment-variables" title="Permanent link">&para;</a></h2>
 <p><strong><em>If you have used the VM (Multipass) this step can be skipped as it has already been done as part of the VM setup.</em></strong></p>
 <p>Add the exports to your shell profile:</p>
@@ -3289,7 +3340,6 @@ The <code>--config</code> flag on <code>pm-engine</code> and <code>pm-scheduler<
 over the environment variable.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>echo $EDUMATCHER_DATA_DIR</code> prints the correct path.</p>
-<hr />
 <h2 id="exercise-4-verify-the-data-directory">Exercise 4: Verify the Data Directory<a class="headerlink" href="#exercise-4-verify-the-data-directory" title="Permanent link">&para;</a></h2>
 <p>Check that the data directory was created and is writable:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>ls<span class="w"> </span>-la<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">&quot;</span>
@@ -3301,7 +3351,6 @@ over the environment variable.</p>
 <li>Log files (if file logging is enabled).</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> directory exists and is writable.</p>
-<hr />
 <h2 id="exercise-5-inspect-the-sample-configuration">Exercise 5: Inspect the Sample Configuration<a class="headerlink" href="#exercise-5-inspect-the-sample-configuration" title="Permanent link">&para;</a></h2>
 <p>Open the generated config:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>cat<span class="w"> </span>engine_config.yaml
@@ -3309,12 +3358,11 @@ over the environment variable.</p>
 <p>You should see a <code>symbols:</code> section and a <code>gateways:</code> section. This is the file
 you will customise in the next chapter.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> sample config contains symbols and gateways.</p>
-<hr />
 <h2 id="exercise-6-confirm-all-entry-points">Exercise 6: Confirm All Entry Points<a class="headerlink" href="#exercise-6-confirm-all-entry-points" title="Permanent link">&para;</a></h2>
 <p>Verify that the key commands are available:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>pm-engine<span class="w"> </span>--help
 <a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>pm-scheduler<span class="w"> </span>--help
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>pm-gateway<span class="w"> </span>--help
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>pm-alf-console<span class="w"> </span>--help
 <a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>pm-setup<span class="w"> </span>--help
 <a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>pm-config-gen<span class="w"> </span>--help
 <a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>pm-mm-bot<span class="w"> </span>--help
@@ -3327,7 +3375,6 @@ with manual market-maker quotes so you understand quote mechanics first,
 then introduces equivalent bot-based workflow.</p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> all commands respond to <code>--help</code>.</p>
-<hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You now have:</p>
 <ul>

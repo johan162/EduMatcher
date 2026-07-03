@@ -2012,6 +2012,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../80-examples/" class="md-nav__link">
         
   
@@ -3618,7 +3674,7 @@ it either exits with a timeout error or silently drops its first messages.</p>
 <pre class="mermaid"><code>flowchart TD
     ENG["1. pm-engine\n(binds :5555 :5556 :5557)"]
     SCH["2. pm-scheduler\n(optional)"]
-    GW["3. pm-gateway(s)\none per participant"]
+    GW["3. pm-alf-console(s)\none per participant"]
     OBS["4. Observer processes\npm-viewer, pm-orders,\npm-audit, pm-clearing,\npm-stats, pm-admin"]
     STAT_DEP["5. pm-ticker, pm-board\n(need pm-stats running)"]
 
@@ -3663,9 +3719,9 @@ stagger between processes gives sockets time to fully connect.</p>
 <a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>pm-scheduler<span class="w"> </span>--now<span class="w"> </span>--delay<span class="w"> </span><span class="m">5</span><span class="w">   </span><span class="c1"># 5-second pause between phases</span>
 </code></pre></div>
 <p><strong>Step 3 — gateways (one per participant)</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER01
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER02
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>MM01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>MM01
 </code></pre></div>
 <p>The gateway ID must exactly match a configured entry in <code>engine_config.yaml</code>.
 Each gateway gets its own terminal — the prompt is where a trader types orders.</p>
@@ -3721,7 +3777,7 @@ Each gateway gets its own terminal — the prompt is where a trader types orders
 <td>Matching engine — the single writer of the order book. All orders flow in through :5555; all events flow out through :5556. Also publishes per-participant drop-copy fills on :5557.</td>
 </tr>
 <tr>
-<td><code>pm-gateway</code></td>
+<td><code>pm-alf-console</code></td>
 <td>At least one</td>
 <td>PUSH :5555, SUB :5556</td>
 <td>Interactive ALF order entry terminal. One per trader, market maker, or operator. Handles authentication, order submission, amend, cancel, and displays acks/fills in real time. See <a href="../90-app-alf-protocol/">ALF Protocol Reference</a>.</td>
@@ -3848,8 +3904,8 @@ two-trader configuration with all observer processes in one command:</p>
 sleep delays (1 second after the engine, 0.3 seconds between the rest):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-engine<span class="w"> </span>--verbose<span class="w">          </span><span class="c1"># window 1</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pm-scheduler<span class="w">                 </span><span class="c1"># window 2  (after 1 s)</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER01<span class="w">     </span><span class="c1"># window 3</span>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER02<span class="w">     </span><span class="c1"># window 4</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01<span class="w">     </span><span class="c1"># window 3</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02<span class="w">     </span><span class="c1"># window 4</span>
 <a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>pm-viewer<span class="w">  </span>--symbol<span class="w"> </span>&lt;SYM&gt;<span class="w">    </span><span class="c1"># one window per SYM argument</span>
 <a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>pm-orders<span class="w">                    </span><span class="c1"># next window</span>
 <a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>pm-audit<span class="w">   </span>--terminal<span class="w">        </span><span class="c1"># next window</span>
@@ -3868,8 +3924,8 @@ process supervisor (see the Troubleshooting section).</p>
 <p>The bundled script covers the two-trader demo configuration. You will need
 to extend it when adding:</p>
 <ul>
-<li><strong>More traders</strong> — add <code>_term "poetry run pm-gateway --id TRADER03"</code> lines</li>
-<li><strong>Market makers</strong> — add <code>_term "poetry run pm-gateway --id MM01"</code> (the role is
+<li><strong>More traders</strong> — add <code>_term "poetry run pm-alf-console --id TRADER03"</code> lines</li>
+<li><strong>Market makers</strong> — add <code>_term "poetry run pm-alf-console --id MM01"</code> (the role is
   in the config, not the command line)</li>
 <li><strong>An ADMIN console</strong> — add <code>_term "poetry run pm-admin --id GW_ADMIN"</code> after the
   engine is up</li>
@@ -3899,12 +3955,12 @@ to extend it when adding:</p>
 <a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a>sleep<span class="w"> </span><span class="m">0</span>.3
 <a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a>
 <a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a><span class="c1"># Traders</span>
-<a id="__codelineno-12-21" name="__codelineno-12-21" href="#__codelineno-12-21"></a>_term<span class="w"> </span><span class="s2">&quot;pm-gateway --id TRADER01&quot;</span>
-<a id="__codelineno-12-22" name="__codelineno-12-22" href="#__codelineno-12-22"></a>_term<span class="w"> </span><span class="s2">&quot;pm-gateway --id TRADER02&quot;</span>
+<a id="__codelineno-12-21" name="__codelineno-12-21" href="#__codelineno-12-21"></a>_term<span class="w"> </span><span class="s2">&quot;pm-alf-console --id TRADER01&quot;</span>
+<a id="__codelineno-12-22" name="__codelineno-12-22" href="#__codelineno-12-22"></a>_term<span class="w"> </span><span class="s2">&quot;pm-alf-console --id TRADER02&quot;</span>
 <a id="__codelineno-12-23" name="__codelineno-12-23" href="#__codelineno-12-23"></a>sleep<span class="w"> </span><span class="m">0</span>.3
 <a id="__codelineno-12-24" name="__codelineno-12-24" href="#__codelineno-12-24"></a>
 <a id="__codelineno-12-25" name="__codelineno-12-25" href="#__codelineno-12-25"></a><span class="c1"># Market maker</span>
-<a id="__codelineno-12-26" name="__codelineno-12-26" href="#__codelineno-12-26"></a>_term<span class="w"> </span><span class="s2">&quot;pm-gateway --id MM01&quot;</span>
+<a id="__codelineno-12-26" name="__codelineno-12-26" href="#__codelineno-12-26"></a>_term<span class="w"> </span><span class="s2">&quot;pm-alf-console --id MM01&quot;</span>
 <a id="__codelineno-12-27" name="__codelineno-12-27" href="#__codelineno-12-27"></a>sleep<span class="w"> </span><span class="m">0</span>.3
 <a id="__codelineno-12-28" name="__codelineno-12-28" href="#__codelineno-12-28"></a>
 <a id="__codelineno-12-29" name="__codelineno-12-29" href="#__codelineno-12-29"></a><span class="c1"># ADMIN operator console</span>
@@ -3936,7 +3992,7 @@ new-window command depending on your terminal emulator.</p>
 bound socket addresses.  If it prints nothing or exits immediately, see the
 troubleshooting section.</p>
 <p><strong>b) Gateways authenticate successfully</strong></p>
-<p>Each <code>pm-gateway</code> terminal shows:</p>
+<p>Each <code>pm-alf-console</code> terminal shows:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>Gateway TRADER01 connected and authenticated.
 <a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>[TRADER01]&gt;
 </code></pre></div>
@@ -3967,14 +4023,14 @@ troubleshooting section.</p>
 <a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>Python  12345   ljp   13u  IPv4       *:5557 (LISTEN)
 </code></pre></div>
 <p><strong>e) Submit a test order end-to-end</strong></p>
-<p>From a <code>pm-gateway</code> terminal:</p>
+<p>From a <code>pm-alf-console</code> terminal:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>[TRADER01]&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
 </code></pre></div>
 <p>Expected response: <code>ACK  order_id=...  status=NEW</code></p>
 <p>If the order is acknowledged, the full path (gateway → engine PULL → engine
 matching logic → engine PUB → gateway SUB) is working:</p>
 <pre class="mermaid"><code>sequenceDiagram
-    participant GW as pm-gateway (TRADER01)
+    participant GW as pm-alf-console (TRADER01)
     participant ENG as pm-engine
     participant VW as pm-viewer
     participant AUD as pm-audit
@@ -4310,7 +4366,7 @@ expire.  GTC orders are saved on clean shutdown and reloaded on the next start.<
 <h3 id="what-is-the-correct-order-if-i-want-to-use-the-scheduler">What is the correct order if I want to use the scheduler?<a class="headerlink" href="#what-is-the-correct-order-if-i-want-to-use-the-scheduler" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>1. pm-engine    — binds sockets, loads config
 <a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a>2. pm-scheduler — connects to engine; waits for the first scheduled time
-<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>3. pm-gateway   — one per participant
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a>3. pm-alf-console   — one per participant
 <a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a>4. (optional observers)
 </code></pre></div>
 <p>The scheduler must connect before the first scheduled transition time arrives,

@@ -2143,6 +2143,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../80-examples/" class="md-nav__link">
         
   
@@ -3717,10 +3773,22 @@ ZeroMQ arrival order with no timestamps beyond the wall clock of the machine
 running the test.  For a learning system on localhost this is irrelevant; for a
 regulated venue it would be a compliance failure.</p>
 <h2 id="what-this-process-does">What this process does<a class="headerlink" href="#what-this-process-does" title="Permanent link">&para;</a></h2>
-<p><code>pm-gateway</code> is the interactive ALF trading gateway. It connects a human or bot
-operator to the matching engine for order-entry workflows: submit, amend,
-cancel, monitor order lifecycle, and inspect local position state.</p>
-<p>Responsibilities of <code>pm-gateway</code>:</p>
+<p><code>pm-alf-console</code> is the <strong>interactive ALF trading terminal</strong> for local, in-session
+use.  It is designed for humans sitting at the same machine as the running engine:
+it connects <strong>directly to the engine's ZMQ sockets</strong>, reads commands from stdin,
+and prints responses to stdout.</p>
+<div class="admonition warning">
+<p class="admonition-title">Local machine only</p>
+<p><code>pm-alf-console</code> connects directly to the engine's ZMQ PUSH/SUB ports
+(<code>5555</code> / <code>5556</code>).  It has no TCP listener of its own, so it <strong>cannot accept
+connections from other hosts</strong>.  It is only suitable for demos, learning, and
+manual testing on the same machine as the engine.</p>
+<p>For programmatic clients or any client running on a <strong>different host</strong>, use
+<a href="../24-alf-gateway/"><code>pm-alf-gwy</code></a> instead.  That process binds a TCP port
+(default <code>5565</code>), accepts multiple ALF connections over the network, and
+bridges them to the engine's ZMQ bus — without any client needing ZMQ access.</p>
+</div>
+<p>Responsibilities of <code>pm-alf-console</code>:</p>
 <ul>
 <li>authenticates the gateway ID against <code>gateways.alf</code></li>
 <li>parses ALF command lines into validated engine requests</li>
@@ -3729,20 +3797,33 @@ cancel, monitor order lifecycle, and inspect local position state.</p>
 <li>provides interactive terminal ergonomics (history, tab completion, live events)</li>
 </ul>
 <h2 id="architecture-position">Architecture position<a class="headerlink" href="#architecture-position" title="Permanent link">&para;</a></h2>
-<p><code>pm-gateway</code> sits between an ALF client (human operator or automation script)
-and the matching engine. Outbound commands go to the engine request socket,
-while gateway-scoped lifecycle events and selected market events come back on
-the engine PUB stream.</p>
+<p><code>pm-alf-console</code> sits <strong>directly on the ZMQ bus</strong>.  It holds a ZMQ PUSH socket
+(sends commands to the engine) and a ZMQ SUB socket (receives engine events).
+There is no TCP layer between the operator and the engine — commands flow
+directly over ZeroMQ, which is why the process must run on the same host or
+at least have direct network access to the engine's ZMQ ports.</p>
 <pre class="mermaid"><code>flowchart TB
-  CL["Operator / bot\nALF commands"]
-  GW["pm-gateway\n(ALF interactive client)"]
+  CL["Operator at terminal\n(same machine)"]
+  GW["pm-alf-console\n(ZMQ PUSH + SUB)"]
   ENG["pm-engine\nMatching + risk"]
   EVT["Gateway event stream\norder.ack/order.fill/...\ntrade.executed"]
 
-  CL --&gt;|"ALF commands"| GW
-  GW --&gt;|"order/control requests"| ENG
-  ENG --&gt;|"events + acks"| EVT
+  CL --&gt;|"stdin ALF commands"| GW
+  GW --&gt;|"ZMQ PUSH :5555"| ENG
+  ENG --&gt;|"ZMQ PUB :5556"| EVT
   EVT --&gt; GW</code></pre>
+<p>For clients on <strong>another host</strong>, <code>pm-alf-gwy</code> adds a TCP accept loop in front
+of the same ZMQ bridge, so the client only needs a plain TCP socket:</p>
+<pre class="mermaid"><code>flowchart LR
+  BOT["External bot\n(any host)"]
+  GWY["pm-alf-gwy\nTCP :5565"]
+  ENG["pm-engine\nZMQ :5555 / :5556"]
+
+  BOT --&gt;|"TCP ALF lines"| GWY
+  GWY --&gt;|"ZMQ PUSH :5555"| ENG
+  ENG --&gt;|"ZMQ PUB :5556"| GWY
+  GWY --&gt;|"TCP ALF lines"| BOT</code></pre>
+<p>See <a href="../24-alf-gateway/">ALF TCP Gateway</a> for full documentation of <code>pm-alf-gwy</code>.</p>
 <h2 id="when-to-use-alf-protocol-comparison">When to use ALF — protocol comparison<a class="headerlink" href="#when-to-use-alf-protocol-comparison" title="Permanent link">&para;</a></h2>
 <p>EduMatcher offers multiple interfaces. Use this quick guide to choose the right one.</p>
 <table>
@@ -3756,10 +3837,16 @@ the engine PUB stream.</p>
 </thead>
 <tbody>
 <tr>
-<td><strong>ALF</strong> (<code>pm-gateway</code>)</td>
-<td>TCP text (interactive client)</td>
-<td>Human/manual trading workflows, command-driven testing, order-entry demos</td>
-<td>External market-data-only consumers</td>
+<td><strong>ALF</strong> (<code>pm-alf-console</code>)</td>
+<td>ZMQ direct (local only)</td>
+<td>Human/manual trading at the same machine — demos, learning, ad-hoc testing</td>
+<td>Remote clients; any process on a different host</td>
+</tr>
+<tr>
+<td><strong>ALF</strong> (<code>pm-alf-gwy</code>)</td>
+<td>TCP text <code>:5565</code></td>
+<td>External bots, remote scripts, any language, any host</td>
+<td>Interactive terminal workflows (no tab completion, no P&amp;L display)</td>
 </tr>
 <tr>
 <td><strong>CALF</strong> (<code>pm-md-gwy</code>)</td>
@@ -3789,15 +3876,17 @@ the engine PUB stream.</p>
 </table>
 <p>Rule of thumb:</p>
 <ul>
-<li>Manual or scripted command-line order entry -&gt; <strong>ALF (<code>pm-gateway</code>)</strong></li>
-<li>External market data feed -&gt; <strong>CALF</strong></li>
-<li>External clearing/audit feed -&gt; <strong>RALF</strong></li>
-<li>Browser/web integration -&gt; <strong>REST/WebSocket</strong></li>
+<li>Manual command-line order entry, <strong>same machine</strong> → <strong><code>pm-alf-console</code></strong></li>
+<li>Automated bot or <strong>remote host</strong> → <strong><code>pm-alf-gwy</code></strong></li>
+<li>External market data feed → <strong>CALF</strong></li>
+<li>External clearing/audit feed → <strong>RALF</strong></li>
+<li>Browser/web integration → <strong>REST/WebSocket</strong></li>
 </ul>
-<p>The gateway (<code>pm-gateway</code>) is your trading terminal. Each gateway instance represents
-one user connecting to the trading system. Multiple gateways can run simultaneously.</p>
+<p>The interactive gateway (<code>pm-alf-console</code>) is your trading console for demos and
+learning. Each gateway instance represents one user connecting to the trading
+system. Multiple gateways can run simultaneously.</p>
 <h2 id="starting-a-gateway">Starting a Gateway<a class="headerlink" href="#starting-a-gateway" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>GW01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>GW01
 </code></pre></div>
 <p>The <code>--id</code> flag sets your gateway identifier. It appears on all orders and fills.
 The ID must be preconfigured in <code>engine_config.yaml</code> under <code>gateways.alf</code>.</p>
@@ -3812,7 +3901,7 @@ The ID must be preconfigured in <code>engine_config.yaml</code> under <code>gate
 <li>If timeout (engine not running): exits with "Gateway authentication timed out"</li>
 </ol>
 <pre class="mermaid"><code>sequenceDiagram
-    participant GW as pm-gateway --id TRADER01
+    participant GW as pm-alf-console --id TRADER01
     participant ENG as pm-engine
 
     GW-&gt;&gt;ENG: PUSH :5555  system.gateway_connect {gateway_id: "TRADER01"}
@@ -3843,10 +3932,10 @@ the connection and the gateway exits.</p>
 <p>Every gateway session follows this operator lifecycle:</p>
 <pre class="mermaid"><code>sequenceDiagram
   participant U as Operator
-  participant GW as pm-gateway
+  participant GW as pm-alf-console
   participant ENG as pm-engine
 
-  U-&gt;&gt;GW: Start pm-gateway --id TRADER01
+  U-&gt;&gt;GW: Start pm-alf-console --id TRADER01
   GW-&gt;&gt;ENG: system.gateway_connect
   ENG--&gt;&gt;GW: system.gateway_auth.TRADER01 accepted=true
   U-&gt;&gt;GW: NEW / AMEND / CANCEL / QUOTE ...
@@ -4407,7 +4496,7 @@ manually: <code>TIF=ATO</code> or <code>TIF=ATC</code>. These orders are only va
 </code></pre></div>
 <p>If the LIMIT leg fills at 148.00, the engine automatically cancels the STOP leg. If the STOP triggers at 155.00, the LIMIT leg is cancelled.</p>
 <pre class="mermaid"><code>sequenceDiagram
-    participant GW as pm-gateway
+    participant GW as pm-alf-console
     participant ENG as pm-engine
 
     GW-&gt;&gt;ENG: NEW|TYPE=OCO|OCO_ID=BRACKET-001|SYM=AAPL|QTY=100|...&lt;br/&gt;LEG1=LIMIT BUY @148.00  LEG2=STOP BUY @155.00
@@ -4444,7 +4533,7 @@ IDs, quantities, remaining quantity, price, TIF, and current status — use
 </code></pre></div>
 <p>Prints a rich table of all <strong>single-leg</strong> orders submitted in this gateway session with
 full order ID, current status, remaining quantity, and last update time. This is
-the primary command for order inspection inside <code>pm-gateway</code>.</p>
+the primary command for order inspection inside <code>pm-alf-console</code>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Combo orders are not shown in the <code>ORDERS</code> table. Their lifecycle is tracked
@@ -4699,7 +4788,7 @@ the engine refuses the connection.</p>
 <h2 id="end-to-end-operator-walkthrough">End-to-end operator walkthrough<a class="headerlink" href="#end-to-end-operator-walkthrough" title="Permanent link">&para;</a></h2>
 <p>This transcript shows a realistic manual session from connect to disconnect.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a># Start gateway
-<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>$ poetry run pm-gateway --id TRADER01
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>$ poetry run pm-alf-console --id TRADER01
 <a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>
 <a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a>TRADER01&gt; SYMBOLS
 <a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a># confirms AAPL/MSFT active
@@ -4732,13 +4821,13 @@ the engine refuses the connection.</p>
 <h2 id="multiple-gateways">Multiple Gateways<a class="headerlink" href="#multiple-gateways" title="Permanent link">&para;</a></h2>
 <p>Run as many gateways as needed — each in its own terminal window:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="c1"># Terminal A</span>
-<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
 <a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>
 <a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="c1"># Terminal B  </span>
-<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER02
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
 <a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>
 <a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="c1"># Terminal C</span>
-<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER03
+<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER03
 </code></pre></div>
 <p>Before starting a new gateway ID (for example <code>TRADER03</code>), add it to
 <code>engine_config.yaml</code> in <code>gateways.alf</code> and restart the engine.</p>
@@ -4877,7 +4966,7 @@ the command prompt. You can continue typing while events arrive.</p>
 <li><a href="../90-app-alf-protocol/">ALF Protocol Reference</a> — formal ABNF grammar and field rules for the pipe-delimited syntax</li>
 <li><a href="../09-messages/">Messages</a> — the ZeroMQ messages the gateway publishes and subscribes to</li>
 <li><a href="../12-risk-controls/">Risk Controls</a> — how the engine enforces collars, halts, and kill switches on gateway flow</li>
-<li><a href="../03-running-the-engine/">Running the Engine</a> — how to start <code>pm-gateway</code> and verify the connection</li>
+<li><a href="../03-running-the-engine/">Running the Engine</a> — how to start <code>pm-alf-console</code> and verify the connection</li>
 </ul>
 
 

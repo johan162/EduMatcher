@@ -1465,6 +1465,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../80-examples/" class="md-nav__link">
         
   
@@ -3891,7 +3947,7 @@
 <p>After reading this appendix you will understand:</p>
 <ul>
 <li>what <strong>ALF</strong> means and how it differs from real FIX</li>
-<li>the exact token-level syntax accepted by <code>pm-gateway</code></li>
+<li>the exact token-level syntax accepted by <code>pm-alf-console</code></li>
 <li>which fields are required for each supported command</li>
 <li>how all single-leg order types are expressed in ALF</li>
 <li>how amendments, cancels, quotes, OCO orders, and combo orders are encoded</li>
@@ -3901,7 +3957,7 @@
 <h2 id="what-alf-is">What ALF is<a class="headerlink" href="#what-alf-is" title="Permanent link">&para;</a></h2>
 <p><strong>ALF</strong> stands for <strong>ALmost Fix</strong>.</p>
 <p>It is EduMatcher's compact text command protocol for entering orders through
-<code>pm-gateway</code>. ALF borrows the <strong>field=value</strong> idea from FIX, but it is <strong>not</strong>
+<code>pm-alf-console</code>. ALF borrows the <strong>field=value</strong> idea from FIX, but it is <strong>not</strong>
 FIX:</p>
 <ul>
 <li>there are no numeric tags</li>
@@ -3918,7 +3974,7 @@ FIX:</p>
 another tool, bot, or GUI wants to generate ALF commands, this document is the
 correct source to follow.</p>
 <h2 id="scope-and-boundaries">Scope and boundaries<a class="headerlink" href="#scope-and-boundaries" title="Permanent link">&para;</a></h2>
-<p>ALF is the <strong>text command language accepted by <code>pm-gateway</code></strong>. It is not the
+<p>ALF is the <strong>text command language accepted by <code>pm-alf-console</code></strong>. It is not the
 internal engine wire format. The gateway converts ALF commands into the engine's
 ZeroMQ + JSON message payloads.</p>
 <p>That distinction matters:</p>
@@ -4816,7 +4872,7 @@ two-sided quote typically contributes up to <strong>2</strong> to this count.</p
 </code></pre></div>
 <p>will cancel all of the above gateway-owned resting exposure across all symbols.</p>
 <h2 id="informational-gateway-commands">Informational gateway commands<a class="headerlink" href="#informational-gateway-commands" title="Permanent link">&para;</a></h2>
-<p>These commands are part of the ALF command language accepted by <code>pm-gateway</code>,
+<p>These commands are part of the ALF command language accepted by <code>pm-alf-console</code>,
 but they are not order-entry messages in the strict sense.</p>
 <h3 id="status"><code>STATUS</code><a class="headerlink" href="#status" title="Permanent link">&para;</a></h3>
 <p>Purpose: quick local gateway/session summary.</p>
@@ -4939,7 +4995,7 @@ configuration file (<code>engine_config.yaml</code>), under the <code>gateways.a
 <td><code>gateways.alf[].id</code></td>
 <td>Non-empty string</td>
 <td>None (required)</td>
-<td>Gateway identity used by <code>pm-gateway --id ...</code> and engine allowlist checks.</td>
+<td>Gateway identity used by <code>pm-alf-console --id ...</code> and engine allowlist checks.</td>
 </tr>
 <tr>
 <td><code>gateways.alf[].description</code></td>

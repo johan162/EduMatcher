@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -2987,7 +3043,6 @@ later chapters build on configuration and positions established in earlier ones.
 <li><code>[output]</code> — expected output from the system (may vary slightly).</li>
 <li><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> — exercise checkpoint; verify before continuing.</li>
 </ul>
-<hr />
 <h2 id="training-plan">Training Plan<a class="headerlink" href="#training-plan" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -3128,9 +3183,18 @@ later chapters build on configuration and positions established in earlier ones.
 <td><a href="25-index/">Market Index (pm-index)</a></td>
 <td>Index config, cap-weighted formula, divisor, corporate actions, INDEX command, pm-index-cli</td>
 </tr>
+<tr>
+<td>26</td>
+<td><a href="26-alf-gwy/">ALF TCP Gateway Protocol</a></td>
+<td>pm-alf-gwy, port verification with CLI tools, nc/telnet handshake, Python and C example clients, order lifecycle over raw TCP</td>
+</tr>
+<tr>
+<td>27</td>
+<td><a href="27-balf-gwy/">BALF TCP Gateway Protocol</a></td>
+<td>pm-balf-gwy, binary LOGON/LOGON_ACK session flow, raw frame order lifecycle, heartbeat handling, parser validation</td>
+</tr>
 </tbody>
 </table>
-<hr />
 <h2 id="user-guide-cross-reference-by-chapter">User Guide Cross-Reference by Chapter<a class="headerlink" href="#user-guide-cross-reference-by-chapter" title="Permanent link">&para;</a></h2>
 <p>Use these links when you want the authoritative user-guide section behind each
 training chapter.</p>
@@ -3246,9 +3310,16 @@ training chapter.</p>
 <td>25</td>
 <td><a href="../user-guide/22-index/">Market Index (pm-index)</a>, <a href="../user-guide/02-commands/">pm-index-cli reference</a>, <a href="../user-guide/10-processes/#pm-index-index-calculation-process">pm-index process</a></td>
 </tr>
+<tr>
+<td>26</td>
+<td><a href="../user-guide/24-alf-gateway/">ALF TCP Gateway</a>, <a href="../user-guide/90-app-alf-protocol/">ALF Protocol Reference</a>, <a href="../user-guide/08-gateway/">Gateway Commands</a></td>
+</tr>
+<tr>
+<td>27</td>
+<td><a href="../user-guide/25-balf-gateway/">BALF TCP Gateway</a>, <a href="../user-guide/91-app-balf-protocol/">BALF Protocol Reference</a>, <a href="../user-guide/01-configuration/#balf-gateway-configuration">Configuration</a></td>
+</tr>
 </tbody>
 </table>
-<hr />
 <h2 id="quick-reference">Quick Reference<a class="headerlink" href="#quick-reference" title="Permanent link">&para;</a></h2>
 <p>After completing the training, use the <a href="../user-guide/00-getting-started/">User Guide</a>
 and <a href="../glossary/">Glossary</a> for day-to-day reference.</p>

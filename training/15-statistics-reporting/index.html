@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3075,20 +3131,17 @@
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Use the statistics service to record market data and query OHLCV, VWAP, and
 trade history for analysis and reporting.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01–14 completed.</li>
 <li><code>pm-stats</code> running and at least a few trades executed.</li>
 </ul>
-<hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p><code>pm-stats</code> subscribes to trade and book events and records them in a SQLite
 database at <code>$EDUMATCHER_DATA_DIR/stats.db</code> (this resolves relative to
 whatever data directory you configured in Chapter 00 — it is <strong>not</strong> a fixed
 <code>data/stats.db</code> path in the current working directory). The <code>pm-stats-cli</code>
 tool lets you query this data without writing SQL.</p>
-<hr />
 <h2 id="exercise-1-start-the-statistics-service">Exercise 1: Start the Statistics Service<a class="headerlink" href="#exercise-1-start-the-statistics-service" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-stats
 </code></pre></div>
@@ -3104,7 +3157,6 @@ after the next exercise:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>ls<span class="w"> </span>-la<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$EDUMATCHER_DATA_DIR</span><span class="s2">/stats.db&quot;</span>
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> stats service running and <code>$EDUMATCHER_DATA_DIR/stats.db</code> exists.</p>
-<hr />
 <h2 id="exercise-2-generate-some-trading-activity">Exercise 2: Generate Some Trading Activity<a class="headerlink" href="#exercise-2-generate-some-trading-activity" title="Permanent link">&para;</a></h2>
 <p>Ensure MMs and (optionally) AI traders are running. Execute a few manual trades:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=MARKET|QTY=100
@@ -3112,7 +3164,6 @@ after the next exercise:</p>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>TRADER01&gt; NEW|SYM=MSFT|SIDE=BUY|TYPE=MARKET|QTY=200
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> trades executed and recorded by stats service.</p>
-<hr />
 <h2 id="exercise-3-query-ohlcv-data">Exercise 3: Query OHLCV Data<a class="headerlink" href="#exercise-3-query-ohlcv-data" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-stats-cli<span class="w"> </span>ohlcv<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--interval<span class="w"> </span>1m
 </code></pre></div>
@@ -3121,19 +3172,16 @@ after the next exercise:</p>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>2026-06-18 09:30:00 | 150.05 | 150.10 | 149.95 | 150.05 | 350
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> OHLCV data returned for AAPL.</p>
-<hr />
 <h2 id="exercise-4-query-vwap">Exercise 4: Query VWAP<a class="headerlink" href="#exercise-4-query-vwap" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-stats-cli<span class="w"> </span>vwap<span class="w"> </span>--symbol<span class="w"> </span>AAPL
 </code></pre></div>
 <p>Shows the volume-weighted average price across all trades in the current session.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> VWAP value returned.</p>
-<hr />
 <h2 id="exercise-5-query-trade-log">Exercise 5: Query Trade Log<a class="headerlink" href="#exercise-5-query-trade-log" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-stats-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--limit<span class="w"> </span><span class="m">20</span>
 </code></pre></div>
 <p>Shows the last 20 trades with timestamp, price, quantity, and aggressor side.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> trade log visible.</p>
-<hr />
 <h2 id="exercise-6-multi-symbol-summary">Exercise 6: Multi-Symbol Summary<a class="headerlink" href="#exercise-6-multi-symbol-summary" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-stats-cli<span class="w"> </span>summary
 </code></pre></div>
@@ -3145,13 +3193,11 @@ after the next exercise:</p>
 <li>Current spread</li>
 </ul>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> summary covers all active symbols.</p>
-<hr />
 <h2 id="exercise-7-export-data">Exercise 7: Export Data<a class="headerlink" href="#exercise-7-export-data" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-stats-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>&gt;<span class="w"> </span>aapl_trades.csv
 </code></pre></div>
 <p>The CSV can be imported into Excel or a Jupyter notebook for further analysis.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> CSV export generated.</p>
-<hr />
 <h2 id="what-gets-recorded">What Gets Recorded<a class="headerlink" href="#what-gets-recorded" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -3179,7 +3225,6 @@ after the next exercise:</p>
 </tr>
 </tbody>
 </table>
-<hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You can now:</p>
 <ul>

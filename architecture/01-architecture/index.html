@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3754,7 +3810,7 @@ The matching engine is the only process that <em>binds</em> sockets — all othe
 No ZMQ broker daemon, no message queue server, no external dependencies beyond ZMQ itself.</p>
 <h2 id="zmq-topology">ZMQ Topology<a class="headerlink" href="#zmq-topology" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>graph TD
-    ALF["pm-gateway\nALF"]
+    ALF["pm-alf-console\nALF"]
     APIGW["pm-api-gateway"]
     MMBOT["pm-mm-bot"]
     SCH["pm-scheduler"]
@@ -3765,7 +3821,7 @@ No ZMQ broker daemon, no message queue server, no external dependencies beyond Z
         PUB57["PUB :5557\ndrop-copy"]
     end
 
-    GW_R["pm-gateway\nprivate events"]
+    GW_R["pm-alf-console\nprivate events"]
     APIR["pm-api-gateway\nWebSocket bridge"]
     OPS["pm-stats · pm-clearing · pm-audit"]
     UI["pm-viewer · pm-board · pm-ticker · pm-orders"]
@@ -4146,7 +4202,7 @@ It subscribes to the engine PUB at :5556 and publishes index events independentl
 <td>Matching, session state, combo/OCO/quote tracking, drop-copy</td>
 </tr>
 <tr>
-<td>pm-gateway (ALF)</td>
+<td>pm-alf-console (ALF)</td>
 <td>PUSH→:5555, SUB→:5556, SUB→:5558, PUSH→:5559</td>
 <td>Connects</td>
 <td>Interactive order entry; ALF line protocol; index data display</td>
@@ -4248,7 +4304,7 @@ other process connects to the engine.  This has three practical consequences:</p
 because it is a second-tier publisher, not a consumer of the engine.</p>
 <h3 id="two-tiers-of-gateways">Two Tiers of Gateways<a class="headerlink" href="#two-tiers-of-gateways" title="Permanent link">&para;</a></h3>
 <p>EduMatcher has two distinct gateway roles:</p>
-<p><strong>Order-entry gateways</strong> (<code>pm-gateway</code>, <code>pm-api-gateway</code>, <code>pm-mm-bot</code>) connect
+<p><strong>Order-entry gateways</strong> (<code>pm-alf-console</code>, <code>pm-api-gateway</code>, <code>pm-mm-bot</code>) connect
 directly to the engine over ZMQ PUSH/PULL.  They authenticate via
 <code>system.gateway_connect</code> and receive personalised events on their subscribed
 <code>order.*</code>, <code>quote.*</code>, and <code>system.*</code> topics.  These processes are internal to the

@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3042,18 +3098,15 @@
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>Create multi-leg orders that execute atomically and understand OCO (One-Cancels-
 Other) linked orders.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01–09 completed.</li>
 <li>Two trader gateways connected so you can stage opposing liquidity.</li>
 </ul>
-<hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>A <strong>combo order</strong> bundles two or more legs (different symbols or sides) into a
 single atomic unit. Either all legs fill or none do. This eliminates "leg risk" —
 the danger of only one side of a spread filling.</p>
-<hr />
 <h2 id="exercise-1-simple-two-leg-combo">Exercise 1: Simple Two-Leg Combo<a class="headerlink" href="#exercise-1-simple-two-leg-combo" title="Permanent link">&para;</a></h2>
 <p>To see the combo <strong>fill atomically</strong>, first guarantee liquidity on both legs
 with explicit counter-orders (don't rely on ambient MM quotes, which may not
@@ -3069,7 +3122,6 @@ engine can fill both legs simultaneously.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> combo acknowledged; both legs fill in the same event (check <code>BOOK|SYM=AAPL</code> and <code>BOOK|SYM=MSFT</code> for matching fill reports).</p>
 <p>Observation: atomic behavior is what removes leg risk. You should never see one
 leg fill without the other in a valid combo execution.</p>
-<hr />
 <h2 id="exercise-2-verify-atomic-behaviour-resting-case">Exercise 2: Verify Atomic Behaviour (Resting Case)<a class="headerlink" href="#exercise-2-verify-atomic-behaviour-resting-case" title="Permanent link">&para;</a></h2>
 <p>Now check that you cannot get a partial combo (one leg filled, other not) when
 liquidity is missing on <strong>one</strong> leg:</p>
@@ -3090,13 +3142,11 @@ liquidity is missing on <strong>one</strong> leg:</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> combo does not partially fill; AAPL counter-order remains untouched.</p>
 <p>Operational rationale: without atomicity, you could end up with accidental
 directional inventory from only one leg filling.</p>
-<hr />
 <h2 id="exercise-3-cancel-a-resting-combo">Exercise 3: Cancel a Resting Combo<a class="headerlink" href="#exercise-3-cancel-a-resting-combo" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>TRADER01&gt; CANCEL|COMBO_ID=PAIR-002
 </code></pre></div>
 <p>All legs are cancelled together.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> full combo cancellation confirmed.</p>
-<hr />
 <h2 id="exercise-4-oco-one-cancels-other">Exercise 4: OCO — One-Cancels-Other<a class="headerlink" href="#exercise-4-oco-one-cancels-other" title="Permanent link">&para;</a></h2>
 <p>Link two independent orders so that when one fills or is cancelled, the other
 is automatically cancelled:</p>
@@ -3105,7 +3155,6 @@ is automatically cancelled:</p>
 <p>When the first order fills (price drops to 149.50), the second order at 148.00
 is automatically cancelled.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> filling one OCO leg cancels the other.</p>
-<hr />
 <h2 id="exercise-5-oco-with-different-sides">Exercise 5: OCO with Different Sides<a class="headerlink" href="#exercise-5-oco-with-different-sides" title="Permanent link">&para;</a></h2>
 <p>A common pattern — bracket order (take-profit + stop-loss):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>TRADER01&gt; NEW|TYPE=OCO|OCO_ID=BRACKET-AAPL-001|SYM=AAPL|QTY=100|TIF=DAY|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=151.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=149.00
@@ -3113,7 +3162,6 @@ is automatically cancelled.</p>
 <p>If price rises to 151.00 (take-profit fills), the stop is cancelled.
 If price drops to 149.00 (stop triggers and fills), the limit sell is cancelled.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> bracket order behaves as expected.</p>
-<hr />
 <h2 id="when-to-use-combos-vs-oco">When to Use Combos vs OCO<a class="headerlink" href="#when-to-use-combos-vs-oco" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -3141,7 +3189,6 @@ If price drops to 149.00 (stop triggers and fills), the limit sell is cancelled.
 </tr>
 </tbody>
 </table>
-<hr />
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
 <p>Why is a Combo's atomicity a <em>guarantee</em> while an OCO's "one cancels other"
 is a <em>reaction</em> to the first fill? Could an OCO ever leave you exposed for a
@@ -3152,7 +3199,6 @@ a pairs trade versus a take-profit/stop-loss pair?</p>
 <li><a href="../../user-guide/05-combos/">Combo Orders</a></li>
 <li><a href="../../user-guide/90-app-alf-protocol/">ALF Protocol — OCO and Combo Orders</a></li>
 </ul>
-<hr />
 <p><strong>Next:</strong> <a href="../11-risk-controls/">11 — Risk Controls</a></p>
 
 

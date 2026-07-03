@@ -1462,6 +1462,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../../user-guide/24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../user-guide/80-examples/" class="md-nav__link">
         
   
@@ -3087,7 +3143,6 @@
 <p>Run the viewer and observer processes side by side so you can see the same
 exchange activity from different operational viewpoints: book depth, cross-gateway
 orders, ticker tape, market board, audit trail, statistics, and clearing/P&amp;L.</p>
-<hr />
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Chapters 01–03 completed, with <code>pm-engine</code>, <code>pm-scheduler</code>, and at least
@@ -3097,7 +3152,6 @@ orders, ticker tape, market board, audit trail, statistics, and clearing/P&amp;L
 <li>Several terminals available. These observer processes are intentionally separate
   so you can start, stop, and compare them independently.</li>
 </ul>
-<hr />
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>EduMatcher observers subscribe to the engine's market-data stream. They do not
 own the order book and they do not submit orders. Their job is to make activity
@@ -3153,21 +3207,19 @@ visible from different angles.</p>
 </tr>
 </tbody>
 </table>
-<hr />
 <h2 id="exercise-1-start-the-baseline-exchange">Exercise 1: Start the Baseline Exchange<a class="headerlink" href="#exercise-1-start-the-baseline-exchange" title="Permanent link">&para;</a></h2>
 <p>Start the engine and scheduler if they are not already running:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>pm-engine<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>pm-scheduler
 </code></pre></div>
 <p>Connect two trader gateways:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER01
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pm-gateway<span class="w"> </span>--id<span class="w"> </span>TRADER02
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER02
 </code></pre></div>
 <p>Create one resting order so observers have a visible book update:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=149.80|TIF=DAY
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>TRADER01</code> receives an acknowledgement and <code>ORDERS</code> shows the order.</p>
-<hr />
 <h2 id="exercise-2-watch-one-book-with-pm-viewer">Exercise 2: Watch One Book with pm-viewer<a class="headerlink" href="#exercise-2-watch-one-book-with-pm-viewer" title="Permanent link">&para;</a></h2>
 <p>In a new terminal, start the single-symbol book viewer:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-viewer<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--depth<span class="w"> </span><span class="m">10</span>
@@ -3178,7 +3230,6 @@ visible from different angles.</p>
 <p><code>pm-viewer</code> should update the bid/ask depth and recent trade area when market
 data changes.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can identify best bid, best ask, spread, and recent trades in <code>pm-viewer</code>.</p>
-<hr />
 <h2 id="exercise-3-monitor-orders-across-gateways-with-pm-orders">Exercise 3: Monitor Orders Across Gateways with pm-orders<a class="headerlink" href="#exercise-3-monitor-orders-across-gateways-with-pm-orders" title="Permanent link">&para;</a></h2>
 <p>Start the cross-gateway order monitor:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-orders
@@ -3193,7 +3244,6 @@ data changes.</p>
 <p>Compare this process with the gateway-local <code>ORDERS</code> command. <code>ORDERS</code> is useful
 inside one gateway; <code>pm-orders</code> is useful when you want an exchange-wide monitor.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-orders</code> shows orders from both gateways, while <code>ORDERS</code> shows only the current gateway's cache.</p>
-<hr />
 <h2 id="exercise-4-record-the-event-stream-with-pm-audit">Exercise 4: Record the Event Stream with pm-audit<a class="headerlink" href="#exercise-4-record-the-event-stream-with-pm-audit" title="Permanent link">&para;</a></h2>
 <p>Start the audit logger in terminal mode:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-audit<span class="w"> </span>--terminal
@@ -3207,7 +3257,6 @@ inside one gateway; <code>pm-orders</code> is useful when you want an exchange-w
 <p>Watch the raw topics and payloads printed by <code>pm-audit</code>. This is the most direct
 view of what the engine publishes.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can find the order acknowledgement, fill, trade, and book update events in the audit output.</p>
-<hr />
 <h2 id="exercise-5-build-persistent-statistics-with-pm-stats">Exercise 5: Build Persistent Statistics with pm-stats<a class="headerlink" href="#exercise-5-build-persistent-statistics-with-pm-stats" title="Permanent link">&para;</a></h2>
 <p>Start the statistics recorder:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-stats
@@ -3221,7 +3270,6 @@ view of what the engine publishes.</p>
 <p><code>pm-stats</code> is a long-running subscriber. <code>pm-stats-cli</code> is a read-only query tool
 for the SQLite database written by <code>pm-stats</code>.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-stats-cli</code> shows recent trades and at least one aggregate statistic after activity occurs.</p>
-<hr />
 <h2 id="exercise-6-launch-the-scrolling-ticker">Exercise 6: Launch the Scrolling Ticker<a class="headerlink" href="#exercise-6-launch-the-scrolling-ticker" title="Permanent link">&para;</a></h2>
 <p>Start the ticker with short intervals for training:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-ticker<span class="w"> </span>--interval<span class="w"> </span><span class="m">5</span><span class="w"> </span>--db-interval<span class="w"> </span><span class="m">30</span>
@@ -3232,7 +3280,6 @@ gateway.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=20|PRICE=149.70|TIF=DAY
 </code></pre></div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-ticker</code> prints periodic lines with symbols, last price or best bid/ask, and statistics when available.</p>
-<hr />
 <h2 id="exercise-7-launch-the-multi-symbol-board">Exercise 7: Launch the Multi-Symbol Board<a class="headerlink" href="#exercise-7-launch-the-multi-symbol-board" title="Permanent link">&para;</a></h2>
 <p>Start the market board:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-board<span class="w"> </span>--rows<span class="w"> </span><span class="m">8</span><span class="w"> </span>--interval<span class="w"> </span><span class="m">10</span>
@@ -3241,7 +3288,6 @@ gateway.</p>
 <code>trade.executed</code> events arrive. Press Enter to advance pages manually if you have
 more symbols than rows.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-board</code> shows AAPL, MSFT, and TSLA in a single market overview.</p>
-<hr />
 <h2 id="exercise-8-track-positions-and-pl-with-pm-clearing">Exercise 8: Track Positions and P&amp;L with pm-clearing<a class="headerlink" href="#exercise-8-track-positions-and-pl-with-pm-clearing" title="Permanent link">&para;</a></h2>
 <p>Start clearing in a separate terminal:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-clearing
@@ -3253,7 +3299,6 @@ more symbols than rows.</p>
 <p><code>pm-clearing</code> consumes <code>trade.executed</code> events and maintains per-gateway position
 and P&amp;L. It also writes a clearing report CSV in the data directory.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> <code>pm-clearing</code> shows the changed position or records the trade in its report.</p>
-<hr />
 <h2 id="exercise-9-compare-the-views">Exercise 9: Compare the Views<a class="headerlink" href="#exercise-9-compare-the-views" title="Permanent link">&para;</a></h2>
 <p>For one trade, identify where each process shows it:</p>
 <table>
@@ -3291,7 +3336,6 @@ and P&amp;L. It also writes a clearing report CSV in the data directory.</p>
 </tbody>
 </table>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> explain why no single observer replaces the others.</p>
-<hr />
 <h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
 <p>You have now run the main exchange observer processes and seen how each one
 answers a different operational question. In normal use, start only the observers

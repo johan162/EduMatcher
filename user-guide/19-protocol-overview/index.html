@@ -1600,6 +1600,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../24-alf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../25-balf-gateway/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../80-examples/" class="md-nav__link">
         
   
@@ -3050,7 +3106,7 @@ connects each protocol to:</p>
 <td>Human-readable order entry and gateway control</td>
 <td>Text line protocol (<code>FIELD=VALUE|...</code>)</td>
 <td>Implemented and active</td>
-<td><code>pm-gateway</code></td>
+<td><code>pm-alf-console</code> (interactive) · <code>pm-alf-gwy</code> (TCP)</td>
 </tr>
 <tr>
 <td><strong>BALF</strong></td>
@@ -3079,16 +3135,40 @@ connects each protocol to:</p>
 <p>ALF is EduMatcher's active, user-facing order-entry protocol. It is used by
 interactive participant gateways and is the primary way traders submit and
 manage orders in current deployments.</p>
+<p>ALF is available in two runtime forms:</p>
+<table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Purpose</th>
+<th>Transport</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pm-alf-console</code></td>
+<td>Interactive REPL for a human at a terminal — stdin/stdout, tab completion, P&amp;L display</td>
+<td>Local process; stdin/stdout</td>
+</tr>
+<tr>
+<td><code>pm-alf-gwy</code></td>
+<td>TCP gateway for external bots and remote clients — same ALF protocol over a plain TCP socket</td>
+<td>TCP (default port <code>5565</code>)</td>
+</tr>
+</tbody>
+</table>
 <p>Use ALF when you need:</p>
 <ul>
-<li>interactive/manual order entry</li>
+<li>interactive/manual order entry → <code>pm-alf-console</code></li>
 <li>educational readability of commands</li>
-<li>direct access to the full command set in <code>pm-gateway</code></li>
+<li>direct access to the full command set</li>
+<li>an external bot or remote process submitting orders → <code>pm-alf-gwy</code></li>
 </ul>
 <p>Where to read more:</p>
 <ul>
+<li>ALF TCP gateway operational guide: <a href="../24-alf-gateway/">ALF TCP Gateway</a></li>
 <li>Gateway behavior and operator workflow: <a href="../08-gateway/">Gateway Commands</a></li>
-<li>Process-level role of the ALF gateway: <a href="../10-processes/#pm-gateway-user-gateway">Processes</a></li>
+<li>Process-level role of both ALF processes: <a href="../10-processes/#pm-alf-gwy-alf-tcp-gateway">Processes</a></li>
 <li>Engine configuration of allowed ALF IDs/roles: <a href="../01-configuration/#alf-gateway-allowlist">Configuration</a></li>
 <li>Formal wire syntax and semantics: <a href="../90-app-alf-protocol/">Appendix - ALF Protocol</a></li>
 </ul>
@@ -3158,7 +3238,11 @@ drop-copy, and audit consumers.</p>
 <tbody>
 <tr>
 <td>Enter and manage orders from participant terminals</td>
-<td><strong>ALF</strong></td>
+<td><strong>ALF</strong> (<code>pm-alf-console</code>)</td>
+</tr>
+<tr>
+<td>Submit orders from an external bot or remote process</td>
+<td><strong>ALF</strong> (<code>pm-alf-gwy</code>)</td>
 </tr>
 <tr>
 <td>Plan binary low-latency order-entry integrations</td>
@@ -3178,6 +3262,7 @@ drop-copy, and audit consumers.</p>
 <ul>
 <li><a href="../00-getting-started/">Getting Started</a></li>
 <li><a href="../10-processes/">Processes</a></li>
+<li><a href="../24-alf-gateway/">ALF TCP Gateway</a></li>
 <li><a href="../18-post-trade/">Post-Trade Dissemination (RALF)</a></li>
 <li><a href="../90-app-alf-protocol/">Appendix - ALF Protocol</a></li>
 <li><a href="../91-app-balf-protocol/">Appendix - BALF Protocol</a></li>
