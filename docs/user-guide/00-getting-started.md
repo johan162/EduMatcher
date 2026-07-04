@@ -58,7 +58,7 @@ flowchart LR
 
 Running the exchange is complex enough that you really **need** to read the documentation and follow the instructions in the User Guide to get a full exchange up and running. The installation below is just the very first step to get started. The rest of the User Guide will explain how to configure the exchange, start and stop processes, and run the system in a realistic way. 
 
-This might seem overwhelming at first and the best way to get started is to skim through the entirety of the user-guide. After the installation a good way to get started is through the self-paced [training sections](training/index.md)
+This might seem overwhelming at first and the best way to get started is to skim through the entirety of the user-guide. After the installation a good way to get started is through the self-paced [training sections](../training/index.md)
 
 
 ## Installation
