@@ -225,7 +225,11 @@ def test_python_example_subscribes_and_parses_gateway_exec(
         ]
         assert snap_types == ["SNAP", "SNAP", "SNAP"]
 
-        _send_trade_executed(pub, "EX-PY-1")
+        # PUB/SUB startup can drop early messages until subscriptions propagate.
+        # Send a short burst so at least one EXEC lands deterministically.
+        for _ in range(10):
+            _send_trade_executed(pub, "EX-PY-1")
+            time.sleep(0.02)
 
         exec_msg = _recv_exec(reader, parser_module)
         assert exec_msg.fields["EXEC_ID"] == "EX-PY-1"

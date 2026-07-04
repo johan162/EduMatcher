@@ -1,3 +1,26 @@
+## [v0.13.4] - 2026-07-04
+
+Release Type: patch
+
+### 📋 Summary
+This patch release hardens configuration verification and improves documentation for configuration workflows. It also fixes a flaky RALF example test timeout caused by PUB/SUB timing.
+
+### 🚀 Improvements
+- Improved `pm-cverifier` semantic and schema validation around market-maker settings and BALF gateway checks
+- Improved verifier robustness for malformed config shapes to avoid crashes and return actionable findings
+
+### 🐛 Bug Fixes
+- Fixed intermittent timeout in `test_python_example_subscribes_and_parses_gateway_exec` by making the RALF PUB/SUB test resilient to subscription propagation timing
+
+### 📚 Documentation
+- Updated config verifier user-guide content with current checks and BALF gateway validation guidance
+- Added startup training exercises for validating configs with `pm-cverifier`, including strict and JSON workflows
+- Updated README structure and overview details for performance, protocols, and documentation navigation
+
+### 🛠 Internal
+- Added broad `pm-cverifier` regression coverage for BALF, market-maker, and malformed-input edge cases
+
+
 ## [v0.13.3] - 2026-07-04
 
 Release Type: patch

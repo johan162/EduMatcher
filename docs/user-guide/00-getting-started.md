@@ -89,7 +89,7 @@ macOS, Linux, or Windows.
 **Bootstrap with one command**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.13.3 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.13.4 --snapshot
 ```
 
 This command downloads the VM setup scripts, launches a Multipass VM,
@@ -113,7 +113,7 @@ terminal to start `pm-alf-console`, `pm-viewer`, `pm-clearing`, and `pm-audit`.
 ```bash
 # Different VM name and version
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
-    bash -s -- --name edumatcher-vm --version 0.13.3 --snapshot
+    bash -s -- --name edumatcher-vm --version 0.13.4 --snapshot
 
 # Tune resources
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
@@ -125,7 +125,7 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_se
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.13.3 --snapshot
+bash curl_setup_vm.sh --version 0.13.4 --snapshot
 ```
 
 ### End-user / student mode — `pipx install` (recommended)

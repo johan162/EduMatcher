@@ -31,6 +31,7 @@ _TIME_FIELDS = (
 def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     """Run Layer 3 semantic checks."""
     results: list[CheckResult] = []
+    _check_mm_obligation_symbols(raw, results)
     _check_mm_seeds(raw, results)
     _check_sessions_schedule(raw, results)
     _check_enforce_flags(raw, results)
@@ -50,6 +51,20 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
 def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
     mm_gateways = gateway_ids_by_role(raw, "MARKET_MAKER")
     all_ids = all_gateway_ids(raw)
+    gateways_by_role: dict[str, str] = {}
+    gateways = raw.get("gateways")
+    if isinstance(gateways, dict):
+        alf = gateways.get("alf")
+        if isinstance(alf, list):
+            for gw in alf:
+                if not isinstance(gw, dict):
+                    continue
+                gw_id = gw.get("id")
+                if not isinstance(gw_id, str) or not gw_id.strip():
+                    continue
+                gateways_by_role[gw_id.strip().upper()] = str(
+                    gw.get("role", "TRADER")
+                ).upper()
 
     symbols = raw.get("symbols", {})
     if not isinstance(symbols, dict):
@@ -115,6 +130,23 @@ def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
                             path=f"symbols.{sym}.market_maker_quotes[{i}].gateway_id",
                         )
                     )
+                elif gw_id not in mm_gateways:
+                    role = gateways_by_role.get(gw_id, "TRADER")
+                    results.append(
+                        CheckResult(
+                            code="M020",
+                            severity=Severity.ERROR,
+                            message=(
+                                f"Symbol '{sym}': market_maker_quotes gateway_id "
+                                f"'{gw_id}' has role {role}, not MARKET_MAKER."
+                            ),
+                            suggestion=(
+                                "Point this quote seed to a MARKET_MAKER gateway or "
+                                "change the gateway role to MARKET_MAKER."
+                            ),
+                            path=f"symbols.{sym}.market_maker_quotes[{i}].gateway_id",
+                        )
+                    )
 
             # M003: spread exceeds MM max spread ticks
             if mm_max_spread is not None:
@@ -145,6 +177,36 @@ def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
                             )
                     except (TypeError, ValueError):
                         pass
+
+
+def _check_mm_obligation_symbols(
+    raw: dict[str, Any], results: list[CheckResult]
+) -> None:
+    symbols = symbol_cfg_by_upper_name(raw)
+    mm_defaults = raw.get("mm_obligation_defaults")
+    if not isinstance(mm_defaults, dict):
+        return
+    sym_overrides = mm_defaults.get("symbols")
+    if not isinstance(sym_overrides, dict):
+        return
+
+    for sym_raw in sym_overrides:
+        sym = str(sym_raw).upper()
+        if sym not in symbols:
+            results.append(
+                CheckResult(
+                    code="M019",
+                    severity=Severity.ERROR,
+                    message=(
+                        "mm_obligation_defaults.symbols references unknown symbol "
+                        f"'{sym}'."
+                    ),
+                    suggestion=(
+                        f"Add symbol '{sym}' under symbols, or remove the override entry."
+                    ),
+                    path=f"mm_obligation_defaults.symbols.{sym}",
+                )
+            )
 
 
 # ---------------------------------------------------------------------------
