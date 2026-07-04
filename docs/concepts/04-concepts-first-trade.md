@@ -17,13 +17,17 @@ explained as it appears.
 
 ## Prerequisites
 
-Install EduMatcher if you haven't yet:
+Install EduMatcher if you haven't yet, see [User Guide: Installation](https://johan162.github.io/EduMatcher/user-guide/00-getting-started/#installation)
+
+We will assume you have installed it, either as as VM or using `pipx` so that all entrypoints are directly available on the command line as `pm-*` 
+
+Verify this, for example with
 
 ```bash
-cd EduMatcher
-poetry install
+pm-enginer --version
 ```
 
+If this is not working re-read the installation guide and read the troubleshooting section.
 
 
 ## Step 1 — Start the system
@@ -33,27 +37,27 @@ Open five terminal windows. Run one command per window, **in this order**
 
 ```bash
 # Window 1 — Matching engine
-poetry run pm-engine --verbose
+pm-engine --verbose
 ```
 
 ```bash
 # Window 2 — Order book viewer (watch AAPL)
-poetry run pm-viewer --symbol AAPL
+pm-viewer --symbol AAPL
 ```
 
 ```bash
 # Window 3 — Clearing / P&L tracker
-poetry run pm-clearing
+pm-clearing
 ```
 
 ```bash
 # Window 4 — First trader
-poetry run pm-alf-console --id GW01
+pm-alf-console --id GW01
 ```
 
 ```bash
 # Window 5 — Second trader
-poetry run pm-alf-console --id GW02
+pm-alf-console --id GW02
 ```
 
 When the gateways start, you should see:
