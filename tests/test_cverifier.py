@@ -211,6 +211,51 @@ class TestLayer2Symbols:
         results = layer2_schema.check(raw, Path("x.yaml"))
         assert "S015" in _codes(results)
 
+    def test_s017_mm_quotes_not_list(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL:\n    tick_decimals: 2\n"
+            "    market_maker_quotes: not_a_list\n"
+            "gateways:\n  alf:\n    - id: MM01\n      role: MARKET_MAKER\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S017" in _codes(results)
+
+    def test_s018_mm_quote_item_not_mapping(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL:\n    tick_decimals: 2\n"
+            "    market_maker_quotes:\n      - bad\n"
+            "gateways:\n  alf:\n    - id: MM01\n      role: MARKET_MAKER\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S018" in _codes(results)
+
+    def test_s019_mm_quote_gateway_id_blank(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL:\n    tick_decimals: 2\n"
+            "    market_maker_quotes:\n"
+            "      - gateway_id: ''\n        bid_price: 149.9\n"
+            "        ask_price: 150.1\n        bid_qty: 100\n        ask_qty: 100\n"
+            "gateways:\n  alf:\n    - id: MM01\n      role: MARKET_MAKER\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S019" in _codes(results)
+
+    def test_symbol_entry_not_mapping_is_ignored(self) -> None:
+        raw = _raw("symbols:\n  AAPL: bad\n" "gateways:\n  alf:\n    - id: GW01\n")
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert isinstance(results, list)
+
+    def test_s016_qty_non_integer(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL:\n    tick_decimals: 2\n"
+            "    market_maker_quotes:\n"
+            "      - gateway_id: MM01\n        bid_price: 149.9\n"
+            "        ask_price: 150.1\n        bid_qty: bad\n        ask_qty: 100\n"
+            "gateways:\n  alf:\n    - id: MM01\n      role: MARKET_MAKER\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S016" in _codes(results)
+
 
 class TestLayer2Gateways:
     def test_s020_missing_id(self) -> None:
@@ -241,6 +286,259 @@ class TestLayer2Gateways:
         )
         results = layer2_schema.check(raw, Path("x.yaml"))
         assert "S023" in _codes(results)
+
+    def test_s024_invalid_quote_refresh_policy(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n"
+            "    - id: MM01\n      role: MARKET_MAKER\n"
+            "      quote_refresh_policy: UNKNOWN\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S024" in _codes(results)
+
+    def test_s025_gateway_enforce_mm_not_bool(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n"
+            "    - id: MM01\n      role: MARKET_MAKER\n"
+            "      enforce_mm_obligation: maybe\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S025" in _codes(results)
+
+    def test_s026_gateway_mm_limits_invalid(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n"
+            "    - id: MM01\n      role: MARKET_MAKER\n"
+            "      mm_max_spread_ticks: 0\n"
+            "      mm_min_qty: bad\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S026" in _codes(results)
+
+    def test_s027_mm_obligations_not_mapping(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n"
+            "    - id: MM01\n      role: MARKET_MAKER\n"
+            "      mm_obligations: not_a_mapping\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S027" in _codes(results)
+
+    def test_s028_mm_obligations_entry_invalid(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n"
+            "    - id: MM01\n      role: MARKET_MAKER\n"
+            "      mm_obligations:\n"
+            "        AAPL:\n"
+            "          enforce_mm_obligation: bad\n"
+            "          max_spread_ticks: 0\n"
+            "          min_qty: -1\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S028" in _codes(results)
+
+    def test_gateways_non_mapping_skips_gateway_checks(self) -> None:
+        raw = _raw("symbols:\n  AAPL: {}\ngateways: bad\n")
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S002" in _codes(results)
+
+    def test_alf_non_list_skips_gateway_checks(self) -> None:
+        raw = _raw("symbols:\n  AAPL: {}\ngateways:\n  alf: bad\n")
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S003" in _codes(results)
+
+    def test_non_mapping_gateway_entry_is_ignored(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n"
+            "  alf:\n"
+            "    - bad\n"
+            "    - id: GW01\n      role: TRADER\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S020" not in _codes(results)
+
+    def test_s028_mm_obligation_symbol_value_not_mapping(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n"
+            "    - id: MM01\n      role: MARKET_MAKER\n"
+            "      mm_obligations:\n"
+            "        AAPL: bad\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S028" in _codes(results)
+
+    def test_mm_obligation_fields_missing_are_ignored(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n"
+            "    - id: MM01\n      role: MARKET_MAKER\n"
+            "      mm_obligations:\n"
+            "        AAPL: {}\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S028" not in _codes(results)
+
+
+class TestLayer2RuntimeAndMMDefaults:
+    def test_s060_sessions_enabled_not_bool(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "sessions_enabled: maybe\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S060" in _codes(results)
+
+    def test_s061_snapshot_interval_invalid(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "snapshot_interval_sec: 0\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S061" in _codes(results)
+
+    def test_s062_enforce_collars_not_bool(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "enforce_collars: maybe\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S062" in _codes(results)
+
+    def test_s063_enforce_cb_not_bool(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "enforce_circuit_breakers: maybe\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S063" in _codes(results)
+
+    def test_s064_schedule_not_mapping(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "schedule: bad\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S064" in _codes(results)
+
+    def test_s070_mm_defaults_not_mapping(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "mm_obligation_defaults: bad\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S070" in _codes(results)
+
+    def test_s071_mm_defaults_enforce_not_bool(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "mm_obligation_defaults:\n  enforce_mm_obligation: bad\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S071" in _codes(results)
+
+    def test_s072_s073_mm_defaults_invalid_limits(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "mm_obligation_defaults:\n"
+            "  mm_max_spread_ticks: 0\n"
+            "  mm_min_qty: bad\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S072" in _codes(results)
+        assert "S073" in _codes(results)
+
+    def test_s074_mm_defaults_symbols_not_mapping(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "mm_obligation_defaults:\n"
+            "  symbols: bad\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S074" in _codes(results)
+
+    def test_s075_s076_s077_mm_defaults_symbol_entry_invalid(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "mm_obligation_defaults:\n"
+            "  symbols:\n"
+            "    AAPL:\n"
+            "      enforce_mm_obligation: bad\n"
+            "      mm_max_spread_ticks: 0\n"
+            "      mm_min_qty: -1\n"
+            "    TSLA: bad\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S075" in _codes(results)
+        assert "S076" in _codes(results)
+        assert "S077" in _codes(results)
+
+
+class TestLayer2BalfGatewaySchema:
+    def test_s050_balf_not_mapping(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "balf_gateway: bad\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S050" in _codes(results)
+
+    def test_s051_balf_port_invalid(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "balf_gateway:\n  port: 70000\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S051" in _codes(results)
+
+    def test_s052_balf_positive_int_fields_invalid(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "balf_gateway:\n"
+            "  max_connections: 0\n"
+            "  max_client_queue: true\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S052" in _codes(results)
+
+    def test_s053_balf_positive_float_fields_invalid(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "balf_gateway:\n"
+            "  heartbeat_interval_sec: 0\n"
+            "  error_window_sec: bad\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S053" in _codes(results)
+
+    def test_s054_balf_duplicate_policy_invalid(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "balf_gateway:\n  duplicate_session_policy: BAD\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S054" in _codes(results)
 
 
 class TestLayer2CBDefaults:
@@ -325,6 +623,28 @@ class TestLayer2CBDefaults:
         assert "M014" not in codes
         assert "S031" not in codes
 
+    def test_levels_absent_is_accepted(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "circuit_breaker_defaults: {}\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S030" not in _codes(results)
+
+    def test_non_mapping_cb_level_entry_is_ignored(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "circuit_breaker_defaults:\n"
+            "  levels:\n"
+            "    L1: bad\n"
+            "    L2:\n"
+            "      price_shift_pct: 0.2\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S031" not in _codes(results)
+
 
 class TestLayer2RiskControls:
     def test_s040_default_level_undefined(self) -> None:
@@ -360,6 +680,36 @@ class TestLayer2RiskControls:
         )
         results = layer2_schema.check(raw, Path("x.yaml"))
         assert "S042" in _codes(results)
+
+    def test_risk_controls_non_mapping_is_ignored(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "risk_controls: bad\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S040" not in _codes(results)
+
+    def test_risk_levels_non_mapping_is_ignored(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "risk_controls:\n  levels: bad\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S040" not in _codes(results)
+
+    def test_non_mapping_risk_level_entry_is_ignored(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "risk_controls:\n"
+            "  levels:\n"
+            "    DEFAULT: bad\n"
+            "  default_level: DEFAULT\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S041" not in _codes(results)
 
 
 # ---------------------------------------------------------------------------
@@ -398,6 +748,81 @@ class TestLayer3MMSeeds:
         )
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert "M003" in _codes(results)
+
+    def test_m019_mm_defaults_unknown_symbol(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL:\n    tick_decimals: 2\n"
+            "gateways:\n  alf:\n    - id: MM01\n      role: MARKET_MAKER\n"
+            "mm_obligation_defaults:\n"
+            "  symbols:\n"
+            "    GHOST:\n"
+            "      mm_max_spread_ticks: 10\n"
+            "      mm_min_qty: 100\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M019" in _codes(results)
+
+    def test_m020_seed_gateway_not_market_maker(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL:\n    tick_decimals: 2\n"
+            "    market_maker_quotes:\n"
+            "      - gateway_id: TRADER01\n        bid_price: 149.9\n"
+            "        ask_price: 150.1\n        bid_qty: 100\n        ask_qty: 100\n"
+            "gateways:\n  alf:\n    - id: TRADER01\n      role: TRADER\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M020" in _codes(results)
+
+    def test_mm_seeds_tolerates_non_mapping_gateway_and_quote_entries(self) -> None:
+        raw = _raw(
+            "symbols:\n"
+            "  AAPL:\n"
+            "    market_maker_quotes:\n"
+            "      - bad\n"
+            "      - gateway_id: MM01\n        bid_price: bad\n        ask_price: 150.1\n"
+            "gateways:\n"
+            "  alf:\n"
+            "    - bad\n"
+            "    - id: MM01\n      role: MARKET_MAKER\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert isinstance(results, list)
+
+    def test_mm_max_spread_invalid_type_uses_default_limit(self) -> None:
+        raw = _raw(
+            "symbols:\n"
+            "  AAPL:\n"
+            "    tick_decimals: 2\n"
+            "    market_maker_quotes:\n"
+            "      - gateway_id: MM01\n        bid_price: 100\n        ask_price: 100.2\n"
+            "gateways:\n"
+            "  alf:\n"
+            "    - id: MM01\n      role: MARKET_MAKER\n"
+            "mm_obligation_defaults:\n"
+            "  mm_max_spread_ticks: bad\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M003" in _codes(results)
+
+    def test_mm_seeds_symbols_non_mapping_returns_early(self) -> None:
+        raw = _raw(
+            "symbols: bad\ngateways:\n  alf:\n    - id: MM01\n      role: MARKET_MAKER\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert isinstance(results, list)
+
+    def test_mm_seeds_non_mapping_symbol_cfg_and_quotes_non_list(self) -> None:
+        raw = _raw(
+            "symbols:\n"
+            "  AAPL: bad\n"
+            "  TSLA:\n"
+            "    market_maker_quotes: bad\n"
+            "gateways:\n"
+            "  alf:\n"
+            "    - id: MM01\n      role: MARKET_MAKER\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M001" in _codes(results)
 
 
 class TestLayer3Sessions:
@@ -449,6 +874,11 @@ class TestLayer3Sessions:
         )
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert "M006" not in _codes(results)
+
+    def test_parse_hhmm_invalid_formats(self) -> None:
+        assert layer3_semantic._parse_hhmm(123) is None
+        assert layer3_semantic._parse_hhmm("09") is None
+        assert layer3_semantic._parse_hhmm("aa:bb") is None
 
 
 class TestLayer3EnforceFlags:
@@ -504,6 +934,35 @@ class TestLayer3Indices:
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert "M011" in _codes(results)
 
+    def test_indices_non_list_ignored(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "indices: bad\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M009" not in _codes(results)
+
+    def test_index_item_non_mapping_ignored(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "indices:\n  - bad\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M009" not in _codes(results)
+
+    def test_index_constituents_non_list_ignored(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "indices:\n"
+            "  - id: IDX1\n"
+            "    constituents: bad\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M009" not in _codes(results)
+
 
 class TestLayer3Combos:
     def test_m012_gtc_combo(self) -> None:
@@ -522,6 +981,21 @@ class TestLayer3Combos:
         )
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert "M015" in _codes(results)
+
+    def test_combo_and_leg_non_mapping_entries_ignored(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "market_maker_combos:\n"
+            "  - bad\n"
+            "  - combo_id: C2\n"
+            "    legs: bad\n"
+            "  - combo_id: C3\n"
+            "    legs:\n"
+            "      - bad\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M015" not in _codes(results)
 
 
 class TestLayer3AdminGateway:
@@ -548,6 +1022,68 @@ class TestLayer3AdminGateway:
         )
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert "M016" in _codes(results)
+
+    def test_admin_gateway_checks_tolerate_bad_gateway_shape(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n"
+            "  alf:\n"
+            "    - bad\n"
+            "post_trade_gateway:\n"
+            "  port: 5570\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M013" in _codes(results)
+        assert "M016" in _codes(results)
+
+    def test_admin_gateway_checks_return_on_invalid_gateway_container(self) -> None:
+        raw = _raw("symbols:\n  AAPL: {}\ngateways: bad\n")
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M013" in _codes(results)
+
+
+class TestLayer3BalfSemantic:
+    def test_m017_balf_timeout_not_greater_than_interval(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: OPS01\n      role: ADMIN\n"
+            "balf_gateway:\n"
+            "  heartbeat_interval_sec: 5\n"
+            "  heartbeat_timeout_sec: 5\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M017" in _codes(results)
+
+    def test_m018_balf_port_conflict_market_data(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: OPS01\n      role: ADMIN\n"
+            "balf_gateway:\n  port: 5560\n"
+            "market_data_gateway:\n  port: 5560\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M018" in _codes(results)
+
+    def test_balf_semantic_ignores_non_int_port(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: OPS01\n      role: ADMIN\n"
+            "balf_gateway:\n  port: bad\n"
+            "post_trade_gateway:\n  port: 5580\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M018" not in _codes(results)
+
+    def test_balf_semantic_ignores_non_numeric_heartbeat_values(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: OPS01\n      role: ADMIN\n"
+            "balf_gateway:\n"
+            "  heartbeat_interval_sec: bad\n"
+            "  heartbeat_timeout_sec: still_bad\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M017" not in _codes(results)
 
 
 # ---------------------------------------------------------------------------
@@ -681,6 +1217,31 @@ class TestLayer4:
         assert "C013" in _codes(results)
 
 
+class TestLayer4EdgeCases:
+    def test_handles_non_mapping_symbols(self) -> None:
+        raw = _raw("symbols: []\ngateways:\n  alf:\n    - id: GW01\n")
+        results = layer4_complete.check(raw, Path("x.yaml"))
+        assert isinstance(results, list)
+
+    def test_handles_non_mapping_risk_controls(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "risk_controls: bad\n"
+        )
+        results = layer4_complete.check(raw, Path("x.yaml"))
+        assert isinstance(results, list)
+
+    def test_handles_non_mapping_index_entries(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "indices:\n  - bad\n"
+        )
+        results = layer4_complete.check(raw, Path("x.yaml"))
+        assert isinstance(results, list)
+
+
 # ---------------------------------------------------------------------------
 # Risk summary
 # ---------------------------------------------------------------------------
@@ -786,6 +1347,39 @@ class TestRiskSummary:
         rs = risk_summary_mod.build(raw)
         assert "L1" in rs.cb_description
         assert "built-in defaults" not in rs.cb_description
+
+    def test_handles_invalid_collar_values(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL:\n    tick_decimals: 2\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "enforce_collars: true\n"
+            "risk_controls:\n  levels:\n    DEFAULT:\n"
+            "      collar:\n        static_band_pct: bad\n        dynamic_band_pct: also_bad\n"
+        )
+        rs = risk_summary_mod.build(raw)
+        assert rs.collars_configured is True
+
+    def test_handles_invalid_cb_values(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL:\n    tick_decimals: 2\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "enforce_circuit_breakers: true\n"
+            "circuit_breaker_defaults:\n  levels:\n"
+            "    L1:\n      price_shift_pct: bad\n      halt_duration_ns: bad\n"
+        )
+        rs = risk_summary_mod.build(raw)
+        assert "L1" in rs.cb_description
+
+    def test_ignores_non_mapping_cb_levels(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL:\n    tick_decimals: 2\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "circuit_breaker_defaults:\n"
+            "  levels:\n"
+            "    BAD: oops\n"
+        )
+        rs = risk_summary_mod.build(raw)
+        assert rs.circuit_breakers_configured is True
 
 
 # ---------------------------------------------------------------------------
@@ -897,6 +1491,48 @@ class TestFormatter:
         report = self._make_report()
         text = format_text(report, color=True)
         assert "\033[" in text  # ANSI codes present
+
+    def test_text_color_output_for_all_severities_and_gateway_truncation(self) -> None:
+        rs = RiskSummary(
+            symbols=["AAPL"],
+            gateways={
+                "GW01": "TRADER",
+                "GW02": "TRADER",
+                "GW03": "TRADER",
+                "GW04": "TRADER",
+                "GW05": "ADMIN",
+            },
+            sessions_enabled=False,
+            schedule_summary="always CONTINUOUS",
+            collars_enforced=False,
+            collars_configured=False,
+            collar_description="disabled",
+            circuit_breakers_enforced=False,
+            circuit_breakers_configured=False,
+            cb_description="disabled",
+            mm_obligations_enforced=False,
+            admin_gateway="GW05",
+        )
+        report = VerificationReport(
+            file="x.yaml",
+            results=[
+                CheckResult(
+                    code="S001", severity=Severity.ERROR, message="e", suggestion=""
+                ),
+                CheckResult(
+                    code="M013", severity=Severity.WARN, message="w", suggestion=""
+                ),
+                CheckResult(
+                    code="C009", severity=Severity.INFO, message="i", suggestion=""
+                ),
+            ],
+            summary={"errors": 1, "warnings": 1, "info": 1},
+            risk_summary=rs,
+            verdict="ERROR",
+        )
+        text = format_text(report, color=True)
+        assert "\033[" in text
+        assert "+1 more" in text
 
     def test_text_many_symbols_truncated(self) -> None:
         rs = RiskSummary(
@@ -1370,3 +2006,162 @@ class TestJsonCBKey:
         data = json.loads(format_json(report))
         assert data["risk_summary"]["circuit_breakers_using_defaults"] is True
         assert "circuit_breakers_configured" not in data["risk_summary"]
+
+
+class TestHelpers:
+    def test_gateway_ids_by_role_handles_non_mapping(self) -> None:
+        raw = _raw("symbols: {}\ngateways: bad\n")
+        from edumatcher.cverifier.helpers import gateway_ids_by_role
+
+        assert gateway_ids_by_role(raw, "ADMIN") == []
+
+    def test_gateway_ids_by_role_handles_non_list_alf(self) -> None:
+        raw = _raw("symbols: {}\ngateways:\n  alf: bad\n")
+        from edumatcher.cverifier.helpers import gateway_ids_by_role
+
+        assert gateway_ids_by_role(raw, "ADMIN") == []
+
+    def test_all_gateway_ids_handles_non_mapping(self) -> None:
+        raw = _raw("symbols: {}\ngateways: bad\n")
+        from edumatcher.cverifier.helpers import all_gateway_ids
+
+        assert all_gateway_ids(raw) == set()
+
+    def test_all_gateway_ids_handles_non_list_alf(self) -> None:
+        raw = _raw("symbols: {}\ngateways:\n  alf: bad\n")
+        from edumatcher.cverifier.helpers import all_gateway_ids
+
+        assert all_gateway_ids(raw) == set()
+
+    def test_symbol_cfg_by_upper_name_handles_non_mapping(self) -> None:
+        raw = _raw("symbols: bad\n")
+        from edumatcher.cverifier.helpers import symbol_cfg_by_upper_name
+
+        assert symbol_cfg_by_upper_name(raw) == {}
+
+
+class TestLayer2InternalGuards:
+    def test_check_symbols_returns_when_symbols_not_mapping(self) -> None:
+        raw: dict[str, Any] = {"symbols": []}
+        results: list[CheckResult] = []
+        layer2_schema._check_symbols(raw, results)
+        assert results == []
+
+    def test_check_gateways_returns_when_gateways_not_mapping(self) -> None:
+        raw: dict[str, Any] = {"gateways": []}
+        results: list[CheckResult] = []
+        layer2_schema._check_gateways(raw, results)
+        assert results == []
+
+    def test_check_gateways_returns_when_alf_not_list(self) -> None:
+        raw = {"gateways": {"alf": "bad"}}
+        results: list[CheckResult] = []
+        layer2_schema._check_gateways(raw, results)
+        assert results == []
+
+    def test_mm_defaults_symbol_field_missing_is_ignored(self) -> None:
+        raw = {
+            "mm_obligation_defaults": {
+                "symbols": {
+                    "AAPL": {
+                        "mm_max_spread_ticks": 10,
+                    }
+                }
+            }
+        }
+        results: list[CheckResult] = []
+        layer2_schema._check_mm_obligation_defaults_schema(raw, results)
+        assert "S077" not in _codes(results)
+
+
+class TestLayer3InternalGuards:
+    def test_mm_seed_gateway_blank_id_is_skipped_in_role_map(self) -> None:
+        raw = _raw(
+            "symbols:\n"
+            "  AAPL:\n"
+            "    market_maker_quotes:\n"
+            "      - gateway_id: MM01\n        bid_price: 100\n        ask_price: 100.1\n"
+            "gateways:\n"
+            "  alf:\n"
+            "    - id: ''\n"
+            "    - id: MM01\n      role: MARKET_MAKER\n"
+        )
+        results: list[CheckResult] = []
+        layer3_semantic._check_mm_seeds(raw, results)
+        assert "M020" not in _codes(results)
+
+    def test_mm_seed_spread_parse_error_is_ignored(self) -> None:
+        raw = _raw(
+            "symbols:\n"
+            "  AAPL:\n"
+            "    tick_decimals: 2\n"
+            "    market_maker_quotes:\n"
+            "      - gateway_id: MM01\n        bid_price: bad\n        ask_price: also_bad\n"
+            "gateways:\n"
+            "  alf:\n"
+            "    - id: MM01\n      role: MARKET_MAKER\n"
+            "mm_obligation_defaults:\n"
+            "  mm_max_spread_ticks: 5\n"
+        )
+        results: list[CheckResult] = []
+        layer3_semantic._check_mm_seeds(raw, results)
+        assert "M003" not in _codes(results)
+
+    def test_admin_gateway_returns_when_alf_not_list(self) -> None:
+        raw = {"gateways": {"alf": "bad"}}
+        results: list[CheckResult] = []
+        layer3_semantic._check_admin_gateway(raw, results)
+        assert "M013" in _codes(results)
+
+
+class TestLayer4InternalGuards:
+    def test_reference_prices_handles_non_mapping_symbol_cfg(self) -> None:
+        raw = _raw("symbols:\n  AAPL: bad\n")
+        results: list[CheckResult] = []
+        layer4_complete._check_reference_prices(raw, results)
+        assert "C001" in _codes(results)
+
+    def test_cb_completeness_returns_when_disabled(self) -> None:
+        raw = _raw("enforce_circuit_breakers: false\n")
+        results: list[CheckResult] = []
+        layer4_complete._check_cb_completeness(raw, results)
+        assert results == []
+
+    def test_snapshot_interval_invalid_type_returns(self) -> None:
+        raw = _raw("snapshot_interval_sec: bad\n")
+        results: list[CheckResult] = []
+        layer4_complete._check_snapshot_interval(raw, results)
+        assert results == []
+
+    def test_index_prices_returns_when_symbols_not_mapping(self) -> None:
+        raw = _raw("indices:\n  - id: IDX1\n    constituents: [AAPL]\nsymbols: bad\n")
+        results: list[CheckResult] = []
+        layer4_complete._check_index_constituents_prices(raw, results)
+        assert results == []
+
+    def test_index_prices_ignores_non_list_constituents(self) -> None:
+        raw = _raw(
+            "indices:\n"
+            "  - id: IDX1\n"
+            "    constituents: bad\n"
+            "symbols:\n"
+            "  AAPL:\n"
+            "    last_buy_price: 100\n"
+        )
+        results: list[CheckResult] = []
+        layer4_complete._check_index_constituents_prices(raw, results)
+        assert results == []
+
+    def test_unused_levels_detects_symbol_level_usage(self) -> None:
+        raw = _raw(
+            "risk_controls:\n"
+            "  levels:\n"
+            "    DEFAULT: {}\n"
+            "    ALT: {}\n"
+            "symbols:\n"
+            "  AAPL:\n"
+            "    level: ALT\n"
+        )
+        results: list[CheckResult] = []
+        layer4_complete._check_unused_risk_levels(raw, results)
+        assert not any(r.path == "risk_controls.levels.ALT" for r in results)

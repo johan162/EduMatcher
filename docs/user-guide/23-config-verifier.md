@@ -189,7 +189,7 @@ reporting scripts.
 | `Y003` | YAML parse error                    |
 | `Y004` | Top-level document is not a mapping |
 
-### Layer 2 — Schema (`S001`–`S054`)
+### Layer 2 — Schema (`S001`–`S077`)
 
 **Top-level structure**
 
@@ -212,6 +212,9 @@ reporting scripts.
 | `S014` | `market_maker_quotes[n]` missing required fields                                                      |
 | `S015` | `market_maker_quotes[n].bid_price >= ask_price`                                                       |
 | `S016` | `market_maker_quotes[n]` has a non-numeric price, non-positive/non-integer quantity, or invalid `tif` |
+| `S017` | `market_maker_quotes` is present but not a list                                                       |
+| `S018` | `market_maker_quotes[n]` is not a mapping                                                             |
+| `S019` | `market_maker_quotes[n].gateway_id` is blank when provided                                            |
 
 **Gateway fields**
 
@@ -221,6 +224,11 @@ reporting scripts.
 | `S021` | Duplicate gateway ID                             |
 | `S022` | `role` is not a recognised value                 |
 | `S023` | `disconnect_behaviour` is not a recognised value |
+| `S024` | `quote_refresh_policy` is not a recognised value |
+| `S025` | `enforce_mm_obligation` is not a boolean         |
+| `S026` | `mm_max_spread_ticks` or `mm_min_qty` invalid    |
+| `S027` | `mm_obligations` is present but not a mapping    |
+| `S028` | `mm_obligations.<symbol>` entry is invalid        |
 
 **Circuit breaker fields**
 
@@ -241,6 +249,29 @@ reporting scripts.
 | `S041` | `collar.static_band_pct` not in `(0, 1)`                    |
 | `S042` | `collar.dynamic_band_pct` not in `(0, 1)`                   |
 
+**Runtime / schedule / top-level flags**
+
+| Code   | Condition                                                   |
+|--------|-------------------------------------------------------------|
+| `S060` | `sessions_enabled` present but not a boolean                |
+| `S061` | `snapshot_interval_sec` present but not a positive number   |
+| `S062` | `enforce_collars` present but not a boolean                 |
+| `S063` | `enforce_circuit_breakers` present but not a boolean        |
+| `S064` | `schedule` present but not a mapping                        |
+
+**MM obligation defaults (`mm_obligation_defaults`)**
+
+| Code   | Condition                                                                 |
+|--------|---------------------------------------------------------------------------|
+| `S070` | `mm_obligation_defaults` is present but not a mapping                     |
+| `S071` | `mm_obligation_defaults.enforce_mm_obligation` is not a boolean           |
+| `S072` | `mm_obligation_defaults.mm_max_spread_ticks` invalid                      |
+| `S073` | `mm_obligation_defaults.mm_min_qty` invalid                               |
+| `S074` | `mm_obligation_defaults.symbols` is present but not a mapping             |
+| `S075` | `mm_obligation_defaults.symbols.<symbol>` is not a mapping                |
+| `S076` | `mm_obligation_defaults.symbols.<symbol>.enforce_mm_obligation` invalid   |
+| `S077` | `mm_obligation_defaults.symbols.<symbol>.mm_max_spread_ticks/min_qty` invalid |
+
 **BALF gateway fields (`balf_gateway`)**
 
 | Code   | Condition                                                                 |
@@ -251,7 +282,7 @@ reporting scripts.
 | `S053` | BALF timeout/interval fields not positive numbers                         |
 | `S054` | `balf_gateway.duplicate_session_policy` not `REJECT_NEW` or `EVICT_OLD`  |
 
-### Layer 3 — Semantic (`M001`–`M018`)
+### Layer 3 — Semantic (`M001`–`M020`)
 
 `M014` is currently emitted during the schema pass because CB threshold ordering
 is validated while parsing `circuit_breaker_defaults`.
@@ -276,6 +307,8 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M016` | WARN     | `post_trade_gateway` configured but no ADMIN gateway          |
 | `M017` | WARN     | `balf_gateway.heartbeat_timeout_sec <= heartbeat_interval_sec` |
 | `M018` | ERROR    | `balf_gateway.port` conflicts with another gateway port       |
+| `M019` | ERROR    | `mm_obligation_defaults.symbols` references an unknown symbol |
+| `M020` | ERROR    | MM seed `gateway_id` exists but is not a `MARKET_MAKER` gateway |
 
 ### Layer 4 — Completeness (`C001`–`C013`)
 

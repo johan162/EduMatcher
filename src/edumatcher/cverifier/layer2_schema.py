@@ -1,4 +1,4 @@
-"""Layer 2 — Schema validation: required fields, correct types, value ranges (S001–S042)."""
+"""Layer 2 — Schema validation: required fields, correct types, value ranges."""
 
 from __future__ import annotations
 
@@ -11,6 +11,11 @@ _VALID_ROLES = {"TRADER", "MARKET_MAKER", "ADMIN"}
 _VALID_DISCONNECT = {"CANCEL_ALL", "CANCEL_QUOTES_ONLY", "LEAVE_ALL"}
 _VALID_RESUMPTION = {"AUCTION", "CONTINUOUS"}
 _VALID_TIF = {"DAY", "GTC"}
+_VALID_QUOTE_REFRESH = {
+    "INACTIVATE_ON_ANY_FILL",
+    "INACTIVATE_ON_FULL_FILL",
+    "NEVER_INACTIVATE",
+}
 
 
 def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
@@ -20,6 +25,8 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     if any(r.severity is Severity.ERROR for r in results):
         # No point checking symbols/gateways if top-level structure is missing
         return results
+    _check_runtime_flags(raw, results)
+    _check_mm_obligation_defaults_schema(raw, results)
     _check_symbols(raw, results)
     _check_gateways(raw, results)
     _check_cb_defaults(raw, results)
@@ -242,10 +249,50 @@ def _check_symbol_mm_quotes(
     if mm_quotes is None:
         return
     if not isinstance(mm_quotes, list):
+        results.append(
+            CheckResult(
+                code="S017",
+                severity=Severity.ERROR,
+                message=(
+                    f"Symbol '{sym}': market_maker_quotes must be a list. "
+                    f"Got {type(mm_quotes).__name__}."
+                ),
+                suggestion="Set market_maker_quotes to a YAML list or remove it.",
+                path=f"symbols.{sym}.market_maker_quotes",
+            )
+        )
         return
     for i, quote in enumerate(mm_quotes):
         if not isinstance(quote, dict):
+            results.append(
+                CheckResult(
+                    code="S018",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"Symbol '{sym}': market_maker_quotes[{i}] must be a mapping. "
+                        f"Got {type(quote).__name__}."
+                    ),
+                    suggestion="Each quote seed must be a YAML mapping with required fields.",
+                    path=f"symbols.{sym}.market_maker_quotes[{i}]",
+                )
+            )
             continue
+        gateway_id_raw = quote.get("gateway_id")
+        if gateway_id_raw is not None and (
+            not isinstance(gateway_id_raw, str) or not gateway_id_raw.strip()
+        ):
+            results.append(
+                CheckResult(
+                    code="S019",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"Symbol '{sym}': market_maker_quotes[{i}].gateway_id "
+                        "must be a non-empty string when present."
+                    ),
+                    suggestion="Use a configured gateway id, e.g. MM01.",
+                    path=f"symbols.{sym}.market_maker_quotes[{i}].gateway_id",
+                )
+            )
         # Required fields
         for required in ("gateway_id", "bid_price", "ask_price", "bid_qty", "ask_qty"):
             if required not in quote:
@@ -420,6 +467,133 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                     path=f"gateways.alf[{n}].disconnect_behaviour",
                 )
             )
+
+        quote_refresh = gw.get("quote_refresh_policy")
+        if (
+            quote_refresh is not None
+            and str(quote_refresh).upper() not in _VALID_QUOTE_REFRESH
+        ):
+            results.append(
+                CheckResult(
+                    code="S024",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"Gateway '{gw_id}': quote_refresh_policy '{quote_refresh}' is not valid."
+                    ),
+                    suggestion=(
+                        "Accepted values: "
+                        + ", ".join(sorted(_VALID_QUOTE_REFRESH))
+                        + "."
+                    ),
+                    path=f"gateways.alf[{n}].quote_refresh_policy",
+                )
+            )
+
+        enforce_mm = gw.get("enforce_mm_obligation")
+        if enforce_mm is not None and not isinstance(enforce_mm, bool):
+            results.append(
+                CheckResult(
+                    code="S025",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"Gateway '{gw_id}': enforce_mm_obligation must be a boolean. "
+                        f"Got '{enforce_mm}'."
+                    ),
+                    suggestion="Set to true or false.",
+                    path=f"gateways.alf[{n}].enforce_mm_obligation",
+                )
+            )
+
+        for field in ("mm_max_spread_ticks", "mm_min_qty"):
+            val = gw.get(field)
+            if val is None:
+                continue
+            try:
+                parsed = int(val)
+                if parsed <= 0:
+                    raise ValueError
+            except (TypeError, ValueError):
+                results.append(
+                    CheckResult(
+                        code="S026",
+                        severity=Severity.ERROR,
+                        message=(
+                            f"Gateway '{gw_id}': {field} must be a positive integer. "
+                            f"Got '{val}'."
+                        ),
+                        suggestion=f"Set gateways.alf[{n}].{field} to an integer > 0.",
+                        path=f"gateways.alf[{n}].{field}",
+                    )
+                )
+
+        mm_obligations = gw.get("mm_obligations")
+        if mm_obligations is not None and not isinstance(mm_obligations, dict):
+            results.append(
+                CheckResult(
+                    code="S027",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"Gateway '{gw_id}': mm_obligations must be a mapping when present."
+                    ),
+                    suggestion="Use symbol keys under mm_obligations, each with a mapping value.",
+                    path=f"gateways.alf[{n}].mm_obligations",
+                )
+            )
+        elif isinstance(mm_obligations, dict):
+            for sym_raw, obl_raw in mm_obligations.items():
+                sym = str(sym_raw).upper()
+                if not isinstance(obl_raw, dict):
+                    results.append(
+                        CheckResult(
+                            code="S028",
+                            severity=Severity.ERROR,
+                            message=(
+                                f"Gateway '{gw_id}': mm_obligations.{sym} must be a mapping."
+                            ),
+                            suggestion="Provide enforce_mm_obligation, max_spread_ticks, min_qty fields.",
+                            path=f"gateways.alf[{n}].mm_obligations.{sym}",
+                        )
+                    )
+                    continue
+
+                enforce = obl_raw.get("enforce_mm_obligation")
+                if enforce is not None and not isinstance(enforce, bool):
+                    results.append(
+                        CheckResult(
+                            code="S028",
+                            severity=Severity.ERROR,
+                            message=(
+                                f"Gateway '{gw_id}': mm_obligations.{sym}.enforce_mm_obligation "
+                                "must be a boolean."
+                            ),
+                            suggestion="Set enforce_mm_obligation to true or false.",
+                            path=(
+                                f"gateways.alf[{n}].mm_obligations.{sym}.enforce_mm_obligation"
+                            ),
+                        )
+                    )
+
+                for field in ("max_spread_ticks", "min_qty"):
+                    val = obl_raw.get(field)
+                    if val is None:
+                        continue
+                    try:
+                        parsed = int(val)
+                        if parsed <= 0:
+                            raise ValueError
+                    except (TypeError, ValueError):
+                        results.append(
+                            CheckResult(
+                                code="S028",
+                                severity=Severity.ERROR,
+                                message=(
+                                    f"Gateway '{gw_id}': mm_obligations.{sym}.{field} "
+                                    f"must be a positive integer. Got '{val}'."
+                                ),
+                                suggestion=f"Set {field} to an integer > 0.",
+                                path=f"gateways.alf[{n}].mm_obligations.{sym}.{field}",
+                            )
+                        )
 
 
 # ---------------------------------------------------------------------------
@@ -669,6 +843,215 @@ def _get_defined_risk_levels(raw: dict[str, Any]) -> set[str]:
     if not isinstance(levels, dict):
         return set()
     return {str(k).strip().upper() for k in levels}
+
+
+def _check_runtime_flags(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    sessions_enabled = raw.get("sessions_enabled")
+    if sessions_enabled is not None and not isinstance(sessions_enabled, bool):
+        results.append(
+            CheckResult(
+                code="S060",
+                severity=Severity.ERROR,
+                message=(
+                    f"'sessions_enabled' must be a boolean when provided. Got '{sessions_enabled}'."
+                ),
+                suggestion="Set sessions_enabled to true or false.",
+                path="sessions_enabled",
+            )
+        )
+
+    snapshot_interval = raw.get("snapshot_interval_sec")
+    if snapshot_interval is not None:
+        try:
+            snap = float(snapshot_interval)
+            if snap <= 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            results.append(
+                CheckResult(
+                    code="S061",
+                    severity=Severity.ERROR,
+                    message=(
+                        "'snapshot_interval_sec' must be a positive number. "
+                        f"Got '{snapshot_interval}'."
+                    ),
+                    suggestion="Set snapshot_interval_sec to a value > 0, e.g. 0.5.",
+                    path="snapshot_interval_sec",
+                )
+            )
+
+    enforce_collars = raw.get("enforce_collars")
+    if enforce_collars is not None and not isinstance(enforce_collars, bool):
+        results.append(
+            CheckResult(
+                code="S062",
+                severity=Severity.ERROR,
+                message=(
+                    f"'enforce_collars' must be a boolean when provided. Got '{enforce_collars}'."
+                ),
+                suggestion="Set enforce_collars to true or false.",
+                path="enforce_collars",
+            )
+        )
+
+    enforce_cb = raw.get("enforce_circuit_breakers")
+    if enforce_cb is not None and not isinstance(enforce_cb, bool):
+        results.append(
+            CheckResult(
+                code="S063",
+                severity=Severity.ERROR,
+                message=(
+                    "'enforce_circuit_breakers' must be a boolean when provided. "
+                    f"Got '{enforce_cb}'."
+                ),
+                suggestion="Set enforce_circuit_breakers to true or false.",
+                path="enforce_circuit_breakers",
+            )
+        )
+
+    schedule = raw.get("schedule")
+    if schedule is not None and not isinstance(schedule, dict):
+        results.append(
+            CheckResult(
+                code="S064",
+                severity=Severity.ERROR,
+                message=f"'schedule' must be a mapping when provided. Got '{schedule}'.",
+                suggestion="Set schedule to a YAML mapping with HH:MM fields.",
+                path="schedule",
+            )
+        )
+
+
+def _check_mm_obligation_defaults_schema(
+    raw: dict[str, Any], results: list[CheckResult]
+) -> None:
+    section = raw.get("mm_obligation_defaults")
+    if section is None:
+        return
+
+    if not isinstance(section, dict):
+        results.append(
+            CheckResult(
+                code="S070",
+                severity=Severity.ERROR,
+                message="'mm_obligation_defaults' must be a mapping.",
+                suggestion="Set mm_obligation_defaults to a mapping with policy fields.",
+                path="mm_obligation_defaults",
+            )
+        )
+        return
+
+    enforce = section.get("enforce_mm_obligation")
+    if enforce is not None and not isinstance(enforce, bool):
+        results.append(
+            CheckResult(
+                code="S071",
+                severity=Severity.ERROR,
+                message=(
+                    "'mm_obligation_defaults.enforce_mm_obligation' must be a boolean. "
+                    f"Got '{enforce}'."
+                ),
+                suggestion="Set to true or false.",
+                path="mm_obligation_defaults.enforce_mm_obligation",
+            )
+        )
+
+    for field, code in (
+        ("mm_max_spread_ticks", "S072"),
+        ("mm_min_qty", "S073"),
+    ):
+        val = section.get(field)
+        if val is None:
+            continue
+        try:
+            parsed = int(val)
+            if parsed <= 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            results.append(
+                CheckResult(
+                    code=code,
+                    severity=Severity.ERROR,
+                    message=(
+                        f"'mm_obligation_defaults.{field}' must be a positive integer. "
+                        f"Got '{val}'."
+                    ),
+                    suggestion=f"Set {field} to an integer > 0.",
+                    path=f"mm_obligation_defaults.{field}",
+                )
+            )
+
+    sym_map = section.get("symbols")
+    if sym_map is not None and not isinstance(sym_map, dict):
+        results.append(
+            CheckResult(
+                code="S074",
+                severity=Severity.ERROR,
+                message="'mm_obligation_defaults.symbols' must be a mapping.",
+                suggestion="Use symbol keys (e.g. AAPL) with mapping values.",
+                path="mm_obligation_defaults.symbols",
+            )
+        )
+        return
+
+    if not isinstance(sym_map, dict):
+        return
+
+    for sym_raw, sym_cfg in sym_map.items():
+        sym = str(sym_raw).upper()
+        if not isinstance(sym_cfg, dict):
+            results.append(
+                CheckResult(
+                    code="S075",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"'mm_obligation_defaults.symbols.{sym}' must be a mapping."
+                    ),
+                    suggestion=(
+                        "Set symbol override to a mapping with enforce_mm_obligation, "
+                        "mm_max_spread_ticks, and mm_min_qty."
+                    ),
+                    path=f"mm_obligation_defaults.symbols.{sym}",
+                )
+            )
+            continue
+
+        sym_enforce = sym_cfg.get("enforce_mm_obligation")
+        if sym_enforce is not None and not isinstance(sym_enforce, bool):
+            results.append(
+                CheckResult(
+                    code="S076",
+                    severity=Severity.ERROR,
+                    message=(
+                        "'mm_obligation_defaults.symbols."
+                        f"{sym}.enforce_mm_obligation' must be a boolean."
+                    ),
+                    suggestion="Set enforce_mm_obligation to true or false.",
+                    path=f"mm_obligation_defaults.symbols.{sym}.enforce_mm_obligation",
+                )
+            )
+
+        for field in ("mm_max_spread_ticks", "mm_min_qty"):
+            val = sym_cfg.get(field)
+            if val is None:
+                continue
+            try:
+                parsed = int(val)
+                if parsed <= 0:
+                    raise ValueError
+            except (TypeError, ValueError):
+                results.append(
+                    CheckResult(
+                        code="S077",
+                        severity=Severity.ERROR,
+                        message=(
+                            "'mm_obligation_defaults.symbols."
+                            f"{sym}.{field}' must be a positive integer. Got '{val}'."
+                        ),
+                        suggestion=f"Set {field} to an integer > 0.",
+                        path=f"mm_obligation_defaults.symbols.{sym}.{field}",
+                    )
+                )
 
 
 # ---------------------------------------------------------------------------
