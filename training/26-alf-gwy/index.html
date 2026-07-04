@@ -15,6 +15,10 @@
         <link rel="canonical" href="https://github.com/johan162/EduMatcher/training/26-alf-gwy/">
       
       
+        <link rel="prev" href="../25-index/">
+      
+      
+        <link rel="next" href="../27-balf-gwy/">
       
       
         
@@ -25,7 +29,7 @@
     
     
       
-        <title>ALF TCP Gateway Protocol Training - EduMatcher — Educational Trading System</title>
+        <title>26 - ALF TCP Gateway (pm-alf-gwy) - EduMatcher — Educational Trading System</title>
       
     
     
@@ -110,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              ALF TCP Gateway Protocol Training
+              26 - ALF TCP Gateway (pm-alf-gwy)
             
           </span>
         </div>
@@ -299,10 +303,12 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
+      <li class="md-tabs__item md-tabs__item--active">
         <a href="../" class="md-tabs__link">
           
   
@@ -1712,28 +1718,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
         
           
-        
-        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
-        
-          
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
             
   
   
@@ -1751,7 +1760,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -2505,6 +2514,346 @@
     
   
     25 — Market Index (pm-index)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    26 - ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    26 - ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#objective" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Objective
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#background" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Background
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-1-generate-a-config-that-enables-pm-alf-gwy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 1: Generate a Config That Enables pm-alf-gwy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-2-verify-the-port-is-listening-with-cli-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 2: Verify the Port Is Listening with CLI Tools
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-3-manual-handshake-probe-with-nc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 3: Manual Handshake Probe with nc
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-3b-telnet-and-non-interactive-one-liner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 3B: telnet and Non-Interactive One-Liner
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-4-submit-and-cancel-an-order-over-nc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 4: Submit and Cancel an Order over nc
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-5-use-the-python-interactive-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 5: Use the Python Interactive Client
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-6-use-the-python-library-directly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 6: Use the Python Library Directly
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-7-build-and-run-the-c-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 7: Build and Run the C Client
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-8-control-commands-and-the-kill-switch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 8: Control Commands and the Kill-Switch
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Exercise 8: Control Commands and the Kill-Switch">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ping-pong" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PING / PONG
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qboot-quote-bootstrap-state-market_maker-role" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        QBOOT — quote bootstrap state (MARKET_MAKER role)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kill-cancel-all-resting-orders-and-active-quotes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KILL — cancel all resting orders and active quotes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-9-error-conditions-and-operational-interpretation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 9: Error Conditions and Operational Interpretation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#support-libraries-and-example-clients" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Support Libraries and Example Clients
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reflection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reflection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#handoff-for-chapter-27" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Handoff for Chapter 27
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#further-reading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Further Reading
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../27-balf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    27 - BALF TCP Gateway (pm-balf-gwy)
   
 
     

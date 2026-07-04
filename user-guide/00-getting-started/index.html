@@ -2635,6 +2635,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/26-alf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    26 - ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/27-balf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    27 - BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3086,7 +3142,7 @@ that all other processes subscribe to.</p>
     SCH -- "session state" --&gt; ENG</code></pre>
 <h2 id="how-to-get-started">How to get started<a class="headerlink" href="#how-to-get-started" title="Permanent link">&para;</a></h2>
 <p>Running the exchange is complex enough that you really <strong>need</strong> to read the documentation and follow the instructions in the User Guide to get a full exchange up and running. The installation below is just the very first step to get started. The rest of the User Guide will explain how to configure the exchange, start and stop processes, and run the system in a realistic way. </p>
-<p>This might seem overwhelming at first and the best way to get started is to skim through the entirety of the user-guide. After the installation a good way to get started is through the self-paced <a href="training/index.md">training sections</a></p>
+<p>This might seem overwhelming at first and the best way to get started is to skim through the entirety of the user-guide. After the installation a good way to get started is through the self-paced <a href="../../training/">training sections</a></p>
 <h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h2>
 <p>EduMatcher supports two installation modes. Choose the one that matches your role.</p>
 <h3 id="vm-bootstrap-mode-curl-multipass-no-repo-clone">VM bootstrap mode — <code>curl</code> + Multipass (no repo clone)<a class="headerlink" href="#vm-bootstrap-mode-curl-multipass-no-repo-clone" title="Permanent link">&para;</a></h3>
@@ -3124,7 +3180,7 @@ macOS, Linux, or Windows.</p>
 </tbody>
 </table>
 <p><strong>Bootstrap with one command</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.13.1<span class="w"> </span>--snapshot
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.13.3<span class="w"> </span>--snapshot
 </code></pre></div>
 <p>This command downloads the VM setup scripts, launches a Multipass VM,
 installs EduMatcher in the VM, links all <code>pm-*</code> commands into
@@ -3140,7 +3196,7 @@ terminal to start <code>pm-alf-console</code>, <code>pm-viewer</code>, <code>pm-
 <p><strong>Useful bootstrap options</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Different VM name and version</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--name<span class="w"> </span>edumatcher-vm<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.13.1<span class="w"> </span>--snapshot
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--name<span class="w"> </span>edumatcher-vm<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.13.3<span class="w"> </span>--snapshot
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1"># Tune resources</span>
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="se">\</span>
@@ -3149,7 +3205,7 @@ terminal to start <code>pm-alf-console</code>, <code>pm-viewer</code>, <code>pm-
 <p><strong>Optional: inspect script before execution</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span>-o<span class="w"> </span>curl_setup_vm.sh
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>less<span class="w"> </span>curl_setup_vm.sh
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.13.1<span class="w"> </span>--snapshot
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>bash<span class="w"> </span>curl_setup_vm.sh<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.13.3<span class="w"> </span>--snapshot
 </code></pre></div>
 <h3 id="end-user-student-mode-pipx-install-recommended">End-user / student mode — <code>pipx install</code> (recommended)<a class="headerlink" href="#end-user-student-mode-pipx-install-recommended" title="Permanent link">&para;</a></h3>
 <p>This is the quickest path if you just want to <em>run</em> an exchange session —

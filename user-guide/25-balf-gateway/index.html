@@ -2984,6 +2984,62 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/26-alf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    26 - ALF TCP Gateway (pm-alf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../training/27-balf-gwy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    27 - BALF TCP Gateway (pm-balf-gwy)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -3763,7 +3819,7 @@ exactly the expected byte count using a loop, as shown above.</p>
 </ul>
 <p>If the first frame is not a valid <code>LOGON</code>, the gateway hard-closes the TCP
 connection immediately.</p>
-<p>See <a href="../91-app-balf-protocol/#logon-0x01---client-server">LOGON frame layout</a> in
+<p>See <a href="../91-app-balf-protocol/#logon-0x01-client-server">LOGON frame layout</a> in
 the protocol reference.</p>
 <h3 id="step-2-receive-logon_ack">Step 2 — Receive LOGON_ACK<a class="headerlink" href="#step-2-receive-logon_ack" title="Permanent link">&para;</a></h3>
 <p>The gateway authenticates with the engine and replies with <code>LOGON_ACK</code> (msg_type
@@ -3801,7 +3857,7 @@ the protocol reference.</p>
 <p>The <code>msg</code> field carries a human-readable description on success (e.g. the
 gateway name and configured heartbeat interval) and the engine rejection reason
 on failure.</p>
-<p>See <a href="../91-app-balf-protocol/#logon_ack-0x02---server-client">LOGON_ACK frame layout</a>
+<p>See <a href="../91-app-balf-protocol/#logon_ack-0x02-server-client">LOGON_ACK frame layout</a>
 for the exact body structure.</p>
 <h3 id="step-3-send-order-messages">Step 3 — Send order messages<a class="headerlink" href="#step-3-send-order-messages" title="Permanent link">&para;</a></h3>
 <p>After <code>accepted = 1</code>, the client may send <code>NEW_ORDER</code>, <code>CANCEL_ORDER</code>,
@@ -3989,7 +4045,7 @@ loop needs to do.  See <a href="../91-app-balf-protocol/#summary-table">Message 
 </tr>
 </tbody>
 </table>
-<p>See <a href="../91-app-balf-protocol/#new_order-0x10---client-server">NEW_ORDER message layout</a>
+<p>See <a href="../91-app-balf-protocol/#new_order-0x10-client-server">NEW_ORDER message layout</a>
 for TIF, SMP, and all field offset tables.</p>
 <h3 id="price-encoding">Price encoding<a class="headerlink" href="#price-encoding" title="Permanent link">&para;</a></h3>
 <p>All prices and price-like offsets are <code>i64</code>, little-endian, scaled by 10⁸:</p>
@@ -4064,7 +4120,7 @@ reference.</p>
 <p>The <code>reason</code> field (25 bytes, ASCII) always contains the authoritative engine
 text, regardless of <code>reject_code</code>.  Use <code>reason</code> for logging and <code>reject_code</code>
 for programmatic branching.</p>
-<p>See <a href="../91-app-balf-protocol/#order_ack-0x11---server-client">ORDER_ACK reject codes</a>
+<p>See <a href="../91-app-balf-protocol/#order_ack-0x11-server-client">ORDER_ACK reject codes</a>
 in the protocol reference.</p>
 <h2 id="server-initiated-messages">Server-initiated messages<a class="headerlink" href="#server-initiated-messages" title="Permanent link">&para;</a></h2>
 <p>These frames arrive <strong>unsolicited</strong> at any point during the session.  The
@@ -4079,8 +4135,8 @@ client's receive loop must handle them without waiting for a prior request.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>HEARTBEAT      →  fill orig_send_time_ns with send_time_ns
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>HEARTBEAT_ACK  →  echo back orig_send_time_ns
 </code></pre></div>
-<p>See <a href="../91-app-balf-protocol/#heartbeat-0x30---bidirectional">HEARTBEAT</a> and
-<a href="../91-app-balf-protocol/#heartbeat_ack-0x31---bidirectional">HEARTBEAT_ACK</a>
+<p>See <a href="../91-app-balf-protocol/#heartbeat-0x30-bidirectional">HEARTBEAT</a> and
+<a href="../91-app-balf-protocol/#heartbeat_ack-0x31-bidirectional">HEARTBEAT_ACK</a>
 in the protocol reference.</p>
 <h3 id="execution_report">EXECUTION_REPORT<a class="headerlink" href="#execution_report" title="Permanent link">&para;</a></h3>
 <p>Sent when a resting order is partially or fully filled.  Multiple
