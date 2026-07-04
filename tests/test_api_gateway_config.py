@@ -17,30 +17,32 @@ def test_defaults_when_api_gateway_block_missing(tmp_path: Path) -> None:
     assert cfg.credentials == ()
 
 
-def test_load_central_api_gateway_block(tmp_path: Path) -> None:
+def test_load_single_named_api_gateway_block(tmp_path: Path) -> None:
     path = tmp_path / "engine_config.yaml"
     path.write_text("""
-api_gateway:
-  enabled: true
-  host: 0.0.0.0
-  port: 9090
-  swagger_enabled: false
-  stats_db: /tmp/stats.db
-  credentials:
-    - api_key: key-trader
-      gateway_id: GW01
-      description: Desk
-    - api_key: key-viewer
-      gateway_id: null
-  rate_limit:
-    writes_per_second: 5
-    burst: 7
-  timeouts:
-    engine_auth_sec: 1.5
-    engine_reply_sec: 2.5
-    wait_ack_sec: 3.5
+api_gateways:
+  desk:
+    enabled: true
+    host: 0.0.0.0
+    port: 9090
+    swagger_enabled: false
+    stats_db: /tmp/stats.db
+    credentials:
+      - api_key: key-trader
+        gateway_id: GW01
+        description: Desk
+      - api_key: key-viewer
+        gateway_id: null
+    rate_limit:
+      writes_per_second: 5
+      burst: 7
+    timeouts:
+      engine_auth_sec: 1.5
+      engine_reply_sec: 2.5
+      wait_ack_sec: 3.5
 """)
     cfg = load_api_gateway_config(path)
+    assert cfg.name == "desk"
     assert cfg.host == "0.0.0.0"
     assert cfg.port == 9090
     assert cfg.swagger_enabled is False
@@ -109,12 +111,13 @@ api_gateways:
 def test_duplicate_api_key_rejected(tmp_path: Path) -> None:
     path = tmp_path / "engine_config.yaml"
     path.write_text("""
-api_gateway:
-  credentials:
-    - api_key: dup
-      gateway_id: GW01
-    - api_key: dup
-      gateway_id: GW02
+api_gateways:
+  desk:
+    credentials:
+      - api_key: dup
+        gateway_id: GW01
+      - api_key: dup
+        gateway_id: GW02
 """)
     with pytest.raises(ValueError, match="duplicate"):
         load_api_gateway_config(path)
@@ -123,29 +126,55 @@ api_gateway:
 def test_positive_integer_validation(tmp_path: Path) -> None:
     path = tmp_path / "engine_config.yaml"
     path.write_text("""
-api_gateway:
-  rate_limit:
-    writes_per_second: 0
+api_gateways:
+  desk:
+    rate_limit:
+      writes_per_second: 0
 """)
     with pytest.raises(ValueError, match="writes_per_second"):
+        load_api_gateway_config(path)
+
+
+def test_legacy_api_gateway_block_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "engine_config.yaml"
+    path.write_text("api_gateway:\n  host: 127.0.0.1\n")
+    with pytest.raises(ValueError, match="api_gateway is not supported"):
         load_api_gateway_config(path)
 
 
 @pytest.mark.parametrize(
     "yaml_text, message",
     [
-        ("api_gateway: 1\n", "api_gateway must be a mapping"),
-        ("api_gateway:\n  credentials: nope\n", "credentials must be a list"),
-        ("api_gateway:\n  credentials:\n    - nope\n", "must be a mapping"),
-        ("api_gateway:\n  credentials:\n    - api_key: ''\n", "api_key is required"),
-        ("api_gateway:\n  rate_limit: 1\n", "rate_limit must be a mapping"),
-        ("api_gateway:\n  rate_limit:\n    burst: 0\n", "burst must be > 0"),
-        ("api_gateway:\n  timeouts: 1\n", "timeouts must be a mapping"),
+        ("api_gateways: 1\n", "api_gateways must be a mapping"),
         (
-            "api_gateway:\n  timeouts:\n    wait_ack_sec: 0\n",
+            "api_gateways:\n  desk:\n    credentials: nope\n",
+            "credentials must be a list",
+        ),
+        (
+            "api_gateways:\n  desk:\n    credentials:\n      - nope\n",
+            "must be a mapping",
+        ),
+        (
+            "api_gateways:\n  desk:\n    credentials:\n      - api_key: ''\n",
+            "api_key is required",
+        ),
+        (
+            "api_gateways:\n  desk:\n    rate_limit: 1\n",
+            "rate_limit must be a mapping",
+        ),
+        (
+            "api_gateways:\n  desk:\n    rate_limit:\n      burst: 0\n",
+            "burst must be > 0",
+        ),
+        (
+            "api_gateways:\n  desk:\n    timeouts: 1\n",
+            "timeouts must be a mapping",
+        ),
+        (
+            "api_gateways:\n  desk:\n    timeouts:\n      wait_ack_sec: 0\n",
             "wait_ack_sec must be > 0",
         ),
-        ("api_gateway:\n  port: 0\n", "port must be > 0"),
+        ("api_gateways:\n  desk:\n    port: 0\n", "port must be > 0"),
     ],
 )
 def test_invalid_config_shapes_raise(

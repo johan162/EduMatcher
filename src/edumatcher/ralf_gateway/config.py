@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -35,15 +36,7 @@ def _as_int(raw: object, field: str) -> int:
     return val
 
 
-def load_ralf_gateway_config(path: Path) -> RalfGatewayConfig:
-    """Load optional post_trade_gateway section from engine_config.yaml."""
-    if not path.exists():
-        return RalfGatewayConfig()
-
-    raw = yaml.safe_load(path.read_text())
-    if not isinstance(raw, dict):
-        return RalfGatewayConfig()
-
+def _load_ralf_gateway_config_from_raw(raw: dict[str, Any]) -> RalfGatewayConfig:
     pg = raw.get("post_trade_gateway")
     if pg is None:
         return RalfGatewayConfig()
@@ -91,6 +84,24 @@ def load_ralf_gateway_config(path: Path) -> RalfGatewayConfig:
         max_client_queue=max_client_queue,
         allowed_roles=allowed_roles,
     )
+
+
+def load_ralf_gateway_config(path: Path) -> RalfGatewayConfig:
+    """Load optional post_trade_gateway section from engine_config.yaml."""
+    if not path.exists():
+        return RalfGatewayConfig()
+
+    raw = yaml.safe_load(path.read_text())
+    if not isinstance(raw, dict):
+        return RalfGatewayConfig()
+
+    return _load_ralf_gateway_config_from_raw(raw)
+
+
+def validate_ralf_gateway_section(raw: dict[str, Any]) -> None:
+    """Validate post_trade_gateway section using runtime loader semantics."""
+
+    _load_ralf_gateway_config_from_raw(raw)
 
 
 def load_default_ralf_gateway_config() -> RalfGatewayConfig:

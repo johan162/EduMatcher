@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -42,15 +43,9 @@ def _as_int(raw: object, field: str) -> int:
         raise ValueError(f"market_data_gateway.{field} must be an integer") from exc
 
 
-def load_market_data_gateway_config(path: Path) -> MarketDataGatewayConfig:
-    """Load optional ``market_data_gateway`` block from engine config YAML."""
-    if not path.exists():
-        return MarketDataGatewayConfig()
-
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict):
-        return MarketDataGatewayConfig()
-
+def _load_market_data_gateway_config_from_raw(
+    raw: dict[str, Any],
+) -> MarketDataGatewayConfig:
     md_raw = raw.get("market_data_gateway")
     if md_raw is None:
         return MarketDataGatewayConfig()
@@ -105,6 +100,24 @@ def load_market_data_gateway_config(path: Path) -> MarketDataGatewayConfig:
         max_symbols_per_client=max_symbols_per_client,
         max_client_queue=max_client_queue,
     )
+
+
+def load_market_data_gateway_config(path: Path) -> MarketDataGatewayConfig:
+    """Load optional ``market_data_gateway`` block from engine config YAML."""
+    if not path.exists():
+        return MarketDataGatewayConfig()
+
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        return MarketDataGatewayConfig()
+
+    return _load_market_data_gateway_config_from_raw(raw)
+
+
+def validate_market_data_gateway_section(raw: dict[str, Any]) -> None:
+    """Validate market_data_gateway section using runtime loader semantics."""
+
+    _load_market_data_gateway_config_from_raw(raw)
 
 
 def load_default_market_data_gateway_config() -> MarketDataGatewayConfig:

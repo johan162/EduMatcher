@@ -140,7 +140,7 @@ api_gateways:
 def test_main_cli_success(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple[str, Any]] = []
     config = ApiGatewayConfig(host="127.0.0.9", port=9191, log_level="debug")
-    monkeypatch.setattr(sys, "argv", ["pm-api-gateway"])
+    monkeypatch.setattr(sys, "argv", ["pm-api-gwy"])
     monkeypatch.setattr(main, "_config_with_overrides", lambda _args: config)
     monkeypatch.setattr(main, "create_app", lambda cfg: {"config": cfg})
     monkeypatch.setattr(
@@ -155,7 +155,7 @@ def test_main_cli_success(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_main_cli_config_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(sys, "argv", ["pm-api-gateway"])
+    monkeypatch.setattr(sys, "argv", ["pm-api-gwy"])
 
     def fail(_args: argparse.Namespace) -> ApiGatewayConfig:
         raise ValueError("bad config")
@@ -167,7 +167,7 @@ def test_main_cli_config_error(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_main_cli_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(sys, "argv", ["pm-api-gateway"])
+    monkeypatch.setattr(sys, "argv", ["pm-api-gwy"])
     monkeypatch.setattr(
         main, "_config_with_overrides", lambda _args: ApiGatewayConfig(enabled=False)
     )
