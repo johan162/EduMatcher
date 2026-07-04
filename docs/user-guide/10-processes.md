@@ -202,7 +202,7 @@ pm-engine --verbose
 | **pm-alf-gwy**     | `pm-alf-gwy`              | ALF TCP gateway — order entry for external bots over TCP :5565 | No              |
 | **pm-ralf-gwy**    | `pm-ralf-gwy`             | External post-trade dissemination gateway (RALF)           | No                  |
 | **pm-md-gwy**      | `pm-md-gwy`               | External market-data gateway (CALF) over TCP :5570         | No                  |
-| **pm-api-gateway** | `pm-api-gateway`          | REST/WebSocket order-entry and market-data API gateway     | No                  |
+| **pm-api-gwy** | `pm-api-gwy`          | REST/WebSocket order-entry and market-data API gateway     | No                  |
 | **pm-index**       | `pm-index`                | Real-time cap-weighted index calculation and dissemination | No                  |
 
 **Admin tools:**
@@ -1378,7 +1378,7 @@ See [Market Index (pm-index)](22-index.md) for configuration details, calculatio
 
 
 
-## pm-api-gateway — REST/WebSocket API Gateway
+## pm-api-gwy — REST/WebSocket API Gateway
 
 Exposes EduMatcher order entry, order management, reference data, history, and
 market data over REST/JSON and WebSocket. It is not a second matching engine —
@@ -1387,7 +1387,7 @@ interactive `pm-alf-console` terminal. Reads configuration from the `api_gateway
 section of `engine_config.yaml`.
 
 ```bash
-pm-api-gateway [--config engine_config.yaml] [--instance NAME] [options]
+pm-api-gwy [--config engine_config.yaml] [--instance NAME] [options]
 ```
 
 **Startup options:**

@@ -434,7 +434,7 @@ API gateway with matching config:
 ```bash
 pm-engine --verbose --config engine_config.yaml
 pm-stats --db data/stats.db
-pm-api-gateway --config engine_config.yaml --instance desk
+pm-api-gwy --config engine_config.yaml --instance desk
 ```
 
 Then query order lifecycle history through HTTP with a trading API key:

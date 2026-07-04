@@ -2,7 +2,7 @@
 
 ## Objective
 
-Train on configuring and using `pm-api-gateway` for REST order entry,
+Train on configuring and using `pm-api-gwy` for REST order entry,
 Swagger/OpenAPI exploration, WebSocket event handling, and multi-process logical
 separation.
 
@@ -21,20 +21,20 @@ You will practice:
 - Chapters 01-23 completed.
 - Engine and stats commands available from the current environment.
 - REST examples available in `docs/examples/REST`.
-- A terminal for `pm-engine`, one for `pm-stats`, one for `pm-api-gateway`, and one or more client terminals.
+- A terminal for `pm-engine`, one for `pm-stats`, one for `pm-api-gwy`, and one or more client terminals.
 
 Recommended startup order:
 
 1. Generate `engine_config.yaml`.
 2. Start `pm-engine --verbose --config engine_config.yaml`.
 3. Start `pm-stats --config engine_config.yaml`.
-4. Start `pm-api-gateway --config engine_config.yaml --instance desk`.
+4. Start `pm-api-gwy --config engine_config.yaml --instance desk`.
 
  
 
 ## Background
 
-`pm-api-gateway` is an HTTP and WebSocket wrapper around the matching engine. It
+`pm-api-gwy` is an HTTP and WebSocket wrapper around the matching engine. It
 uses bearer tokens from `api_gateways.<NAME>.credentials`. A credential with a
 non-null `gateway_id` can submit and manage orders for that ALF gateway. A
 credential with `gateway_id: null` is read-only and can use status, reference,
@@ -104,7 +104,7 @@ Start the core processes with the generated config:
 ```bash
 pm-engine --verbose --config engine_config.yaml
 pm-stats --config engine_config.yaml
-pm-api-gateway --config engine_config.yaml --instance desk
+pm-api-gwy --config engine_config.yaml --instance desk
 ```
 
 If the config contains only one `api_gateways` entry, `--instance` can be omitted.
@@ -112,7 +112,7 @@ Use it anyway in labs so the selected process is explicit.
 
 Expected behavior:
 
-- `pm-api-gateway` binds to `127.0.0.1:8080`
+- `pm-api-gwy` binds to `127.0.0.1:8080`
 - startup fails if `api_gateways.desk.enabled` is `false`
 - startup fails if the same non-null `gateway_id` is assigned to two named entries
 
@@ -285,8 +285,8 @@ pm-config-gen \
 Start each named process in a separate terminal:
 
 ```bash
-pm-api-gateway --config engine_config.yaml --instance desk
-pm-api-gateway --config engine_config.yaml --instance algos
+pm-api-gwy --config engine_config.yaml --instance desk
+pm-api-gwy --config engine_config.yaml --instance algos
 ```
 
 Try an invalid duplicate assignment:
@@ -382,7 +382,7 @@ You can now:
 
 - Generate one or more `api_gateways` process configs with trading and
   read-only bearer credentials.
-- Start and reach `pm-api-gateway` over REST, Swagger, and WebSocket.
+- Start and reach `pm-api-gwy` over REST, Swagger, and WebSocket.
 - Submit, cancel, and observe orders through REST and private WebSocket events.
 - Explain why a write-capable ALF `gateway_id` must be unique across every
   configured `api_gateways` process.
@@ -396,6 +396,6 @@ the constraint only apply to non-null `gateway_id` values?
 ## Handoff for Chapter 25
 
 Before starting [25 — Market Index (pm-index)](25-index.md), you can stop
-`pm-api-gateway`; it is not required there. Keep `pm-engine` and `pm-stats`
+`pm-api-gwy`; it is not required there. Keep `pm-engine` and `pm-stats`
 running if you want to reuse the same session, or start fresh — Chapter 25
 generates its own config with `pm-config-gen`.

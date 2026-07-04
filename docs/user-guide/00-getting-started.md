@@ -297,7 +297,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | `pm-ai-swarm` | Background | Multi-agent autonomous trading swarm | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
 | `pm-mm-bot` | Background | Autonomous market-maker quoting bot | [Processes](10-processes.md), [Market-Maker Bot](17-mm-bot.md) |
 | `pm-md-gwy` | Background | Market-data distribution gateway (CALF) | [Processes](10-processes.md#pm-md-gwy-calf-market-data-gateway), [Market Data Feed](20-market-data-feed.md), [CALF Protocol](92-app-calf-protocol.md) |
-| `pm-api-gateway` | Background | REST/WebSocket order-entry and market-data API gateway | [Processes](10-processes.md#pm-api-gateway-restwebsocket-api-gateway), [API Gateway](21-api-gateway.md) |
+| `pm-api-gwy` | Background | REST/WebSocket order-entry and market-data API gateway | [Processes](10-processes.md#pm-api-gwy-restwebsocket-api-gateway), [API Gateway](21-api-gateway.md) |
 | `pm-index` | Background | Real-time cap-weighted index calculation and dissemination | [Processes](10-processes.md#pm-index-index-calculation-process), [Market Index](22-index.md) |
 
 ### CLI utilities (runnable)

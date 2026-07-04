@@ -349,7 +349,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--api-gateway",
         action="store_true",
-        help="Emit a top-level api_gateways section for pm-api-gateway.",
+        help="Emit a top-level api_gateways section for pm-api-gwy.",
     )
     parser.add_argument(
         "--api-gateway-name",

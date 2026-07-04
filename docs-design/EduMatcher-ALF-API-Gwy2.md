@@ -5,13 +5,13 @@ Date: 2026-06-23
 Status: Design Specification
 
 
-# EduMatcher API Gateway (`pm-api-gateway`)
+# EduMatcher API Gateway (`pm-api-gwy`)
 
 ---
 
 ## 1. Purpose and Scope
 
-`pm-api-gateway` is a non-interactive gateway that exposes EduMatcher's
+`pm-api-gwy` is a non-interactive gateway that exposes EduMatcher's
 order-entry and order-manipulation capabilities over a REST/JSON + WebSocket
 interface, intended for third-party software rather than human operators.
 
@@ -54,15 +54,15 @@ fastapi = ">=0.115"
 uvicorn = { version = ">=0.34", extras = ["standard"] }
 
 [tool.poetry.scripts]
-pm-api-gateway = "edumatcher.api_gateway.main:main"
+pm-api-gwy = "edumatcher.api_gateway.main:main"
 ```
 
-After `poetry install`, the `pm-api-gateway` command is available.
+After `poetry install`, the `pm-api-gwy` command is available.
 
 ### 2.2 Command-line options
 
 ```
-pm-api-gateway [OPTIONS]
+pm-api-gwy [OPTIONS]
 ```
 
 | Option | Default | Description |
@@ -84,7 +84,7 @@ pm-api-gateway [OPTIONS]
 **Example:**
 
 ```bash
-pm-api-gateway --port 9090 --engine-host 10.0.1.5 --log-level debug
+pm-api-gwy --port 9090 --engine-host 10.0.1.5 --log-level debug
 ```
 
 ### 2.3 Configuration file (`api_gateway_config.yaml`)
@@ -130,7 +130,7 @@ timeouts:
 
 ### 3.1 Process topology
 
-`pm-api-gateway` is a single long-running ASGI process (FastAPI + uvicorn). It
+`pm-api-gwy` is a single long-running ASGI process (FastAPI + uvicorn). It
 holds one pair of ZMQ engine sockets and fans many HTTP/WebSocket clients in and
 out over those two sockets.
 
@@ -147,7 +147,7 @@ flowchart LR
     UI -->|"WSS /market-data"| MD
     DASH -->|"WSS /market-data"| MD
 
-    subgraph GW["pm-api-gateway (ASGI process)"]
+    subgraph GW["pm-api-gwy (ASGI process)"]
         API["REST + private WS\n(FastAPI / uvicorn)"]
         MD["Public market-data WS\n(read-only fan-out)"]
         SESS["Session + auth registry"]
@@ -173,7 +173,7 @@ These addresses come from `ENGINE_PULL_ADDR` and `ENGINE_PUB_ADDR` in
 ### 3.3 Multi-tenancy model
 
 Unlike `pm-gateway` (single-tenant: one process = one `gateway_id`),
-`pm-api-gateway` is multi-tenant: one process serves many clients, each mapped
+`pm-api-gwy` is multi-tenant: one process serves many clients, each mapped
 to a `gateway_id`.
 
 - Each API key resolves to one `gateway_id`.
@@ -982,7 +982,7 @@ Create PULL + PUB sockets on random ports simulating the engine:
 
 ### 12.3 End-to-end tests (real engine)
 
-Start `pm-engine` + `pm-api-gateway` in subprocesses. Submit order, verify ack
+Start `pm-engine` + `pm-api-gwy` in subprocesses. Submit order, verify ack
 and fill arrive on WebSocket. Use `httpx.AsyncClient` for REST, `websockets`
 library for WS.
 
@@ -1031,7 +1031,7 @@ design phase:
    SSE rejected (no bidirectional control). Long-poll rejected (latency).
 3. **Shared code:** Extract `build_order` / leg parsing into a shared module
    (`edumatcher.models.builders`) used by both `pm-gateway` and
-   `pm-api-gateway`.
+   `pm-api-gwy`.
 4. **Credential store:** YAML config file, 1:1 API key to gateway_id mapping.
 5. **History:** Extend `pm-stats` with `order_events` table (not a new
    service).

@@ -1,11 +1,12 @@
-"""Configuration loading for ``pm-api-gateway``.
+"""Configuration loading for ``pm-api-gwy``.
 
-The original design used a separate ``api_gateway_config.yaml``.  The project
+The original design used a separate ``api_gateway_config.yaml``. The project
 already keeps CALF and RALF gateway settings in ``engine_config.yaml``, so this
 implementation follows that established pattern and reads optional
-``api_gateway``/``api_gateways`` blocks from the central engine config.  API keys are plain bearer
-tokens because EduMatcher is an educational system; the loader keeps the parsing
-rules explicit so switching to hashed keys later is localised to this module.
+``api_gateways`` blocks from the central engine config. API keys are plain
+bearer tokens because EduMatcher is an educational system; the loader keeps the
+parsing rules explicit so switching to hashed keys later is localised to this
+module.
 """
 
 from __future__ import annotations
@@ -52,7 +53,7 @@ class TimeoutConfig:
 
 @dataclass(frozen=True)
 class ApiGatewayConfig:
-    """Runtime configuration for ``pm-api-gateway``."""
+    """Runtime configuration for ``pm-api-gwy``."""
 
     name: str = "default"
     enabled: bool = True
@@ -222,35 +223,30 @@ def _load_named_api_gateways(raw: dict[str, Any]) -> dict[str, ApiGatewayConfig]
 
 
 def validate_api_gateway_sections(raw: dict[str, Any]) -> None:
-    """Validate api_gateway/api_gateways sections using runtime loader rules.
+    """Validate api_gateways section using runtime loader rules.
 
     Raises ValueError with the same messages the runtime loader would emit.
     """
 
-    _load_named_api_gateways(raw)
+    if "api_gateway" in raw:
+        raise ValueError("api_gateway is not supported; use api_gateways")
 
-    section = raw.get("api_gateway")
-    if section is None:
-        return
-    if not isinstance(section, dict):
-        raise ValueError("api_gateway must be a mapping")
-    _load_api_gateway_section(section, "api_gateway", "default")
+    _load_named_api_gateways(raw)
 
 
 def load_api_gateway_config(
     path: Path, instance: str | None = None
 ) -> ApiGatewayConfig:
-    """Load one API gateway config from central engine config.
-
-    ``api_gateways`` is the preferred multi-process form.  The older singular
-    ``api_gateway`` block is still accepted as a compatibility default.
-    """
+    """Load one API gateway config from central engine config."""
     if not path.exists():
         return ApiGatewayConfig()
 
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         return ApiGatewayConfig()
+
+    if "api_gateway" in raw:
+        raise ValueError("api_gateway is not supported; use api_gateways")
 
     named_configs = _load_named_api_gateways(raw)
     if named_configs:
@@ -268,16 +264,11 @@ def load_api_gateway_config(
             "multiple api_gateways entries are configured; pass --instance to select one"
         )
 
-    section = raw.get("api_gateway")
-    if section is None:
-        if instance is not None:
-            raise ValueError(
-                f"api_gateway instance {instance!r} requested, but no api_gateways block is configured"
-            )
-        return ApiGatewayConfig()
-    if not isinstance(section, dict):
-        raise ValueError("api_gateway must be a mapping")
-    return _load_api_gateway_section(section, "api_gateway", "default")
+    if instance is not None:
+        raise ValueError(
+            f"api_gateways instance {instance!r} requested, but no api_gateways block is configured"
+        )
+    return ApiGatewayConfig()
 
 
 def load_default_api_gateway_config() -> ApiGatewayConfig:

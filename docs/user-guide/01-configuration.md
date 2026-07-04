@@ -6,7 +6,7 @@
     - Which `engine_config.yaml` sections are required when a config file exists
     - How to generate a starter config with `pm-config-gen`
     - Which fields the current engine and scheduler parsers recognize
-    - How to configure the optional `pm-ralf-gwy`, `pm-md-gwy`, and `pm-api-gateway` blocks
+    - How to configure the optional `pm-ralf-gwy`, `pm-md-gwy`, and `pm-api-gwy` blocks
     - How to configure symbols, gateways, risk controls, market-maker seeds, combo seeds, and schedules
     - How to choose between minimal, medium, and fully featured configurations
     - Which checks to perform before using a config in a class, demo, or test
@@ -19,7 +19,7 @@ engine uses it to define the symbol universe, authenticated ALF gateway IDs,
 session mode, risk controls, market-maker policy, per-symbol outstanding shares,
 and startup seeds. The scheduler uses only the optional `schedule` section.
 The optional `post_trade_gateway`, `market_data_gateway`, and `api_gateways`
-sections are read by `pm-ralf-gwy`, `pm-md-gwy`, and `pm-api-gateway`
+sections are read by `pm-ralf-gwy`, `pm-md-gwy`, and `pm-api-gwy`
 respectively.
 
 If the config file is absent, `pm-engine` starts in unrestricted mode: any symbol
@@ -292,7 +292,7 @@ API gateway options:
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `--api-gateway` | Flag | off | Emit top-level `api_gateways` block for `pm-api-gateway` |
+| `--api-gateway` | Flag | off | Emit top-level `api_gateways` block for `pm-api-gwy` |
 | `--api-gateway-name NAME` | string | `default` | Name of the generated `api_gateways.<NAME>` entry for single-process generation |
 | `--api-gateway-instance NAME:GATEWAY[,GATEWAY...][:PORT]` | Repeatable | none | Emit one named API gateway process per option, optionally limiting generated keys to listed ALF gateways |
 | `--api-gateway-enabled` / `--api-gateway-disabled` | Flag pair | unset (`true` when emitted) | Set each generated API gateway `enabled` field |
@@ -600,10 +600,10 @@ pm-config-gen \
 market-data access or match an ID from `gateways.alf`. Generated keys are plain
 YAML bearer tokens for local labs and teaching setups; production deployments
 should manage secrets with the surrounding platform and terminate TLS in front
-of `pm-api-gateway`.
+of `pm-api-gwy`.
 
 For multiple generated processes, start a specific named entry with
-`pm-api-gateway --config engine_config.yaml --instance NAME`.
+`pm-api-gwy --config engine_config.yaml --instance NAME`.
 
 BALF gateway config with explicit settings:
 
@@ -710,7 +710,7 @@ The current parser recognizes these top-level keys:
 | `post_trade_gateway`       |                         No | `pm-ralf-gwy`                   | External RALF dissemination gateway settings                              |
 | `market_data_gateway`      |                         No | `pm-md-gwy`                     | External CALF dissemination gateway settings                              |
 | `balf_gateway`             |                         No | `pm-balf-gwy`                   | External BALF binary TCP gateway settings                                 |
-| `api_gateways`             |                         No | `pm-api-gateway`                | Named REST/WebSocket order-entry and market-data gateway process settings |
+| `api_gateways`             |                         No | `pm-api-gwy`                | Named REST/WebSocket order-entry and market-data gateway process settings |
 | `indices`                  |                         No | `pm-index`                      | Index calculation process configurations                                  |
 
 The nested sections below document every field currently parsed under these
@@ -843,9 +843,9 @@ overrides.  See [BALF TCP Gateway](25-balf-gateway.md) for the full
 client-facing documentation.
 
 
-## Configuring `pm-api-gateway`
+## Configuring `pm-api-gwy`
 
-`pm-api-gateway` reads an optional top-level `api_gateways` block from the same
+`pm-api-gwy` reads an optional top-level `api_gateways` block from the same
 `engine_config.yaml` file. This block is not consumed by `pm-engine`; it is
 consumed by the REST/WebSocket API gateway process.
 
@@ -880,7 +880,7 @@ Use this block to control where the REST API listens, whether Swagger is
 available, which bearer tokens are accepted, and how write rate limits and
 engine reply waits are applied. In the current implementation:
 
-- `enabled` lets `pm-api-gateway` refuse startup when set to `false`
+- `enabled` lets `pm-api-gwy` refuse startup when set to `false`
 - `host` and `port` define the uvicorn HTTP listener
 - `swagger_enabled` controls `/docs` and `/openapi.json`
 - `stats_db` points history endpoints at the `pm-stats` SQLite database
@@ -897,7 +897,7 @@ dashboard-style key with `gateway_id: null`, or pass explicit `--api-key`
 entries when you need known token values.
 
 When more than one named API gateway is configured, start each process with its
-entry name, for example `pm-api-gateway --config engine_config.yaml --instance desk`.
+entry name, for example `pm-api-gwy --config engine_config.yaml --instance desk`.
 
 
 ## Configuring `pm-index`

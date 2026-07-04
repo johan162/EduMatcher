@@ -580,7 +580,7 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "api_gateways.<NAME>:",
             "  Named REST/WebSocket gateway process configuration.",
             "enabled: true",
-            "  Master switch that lets pm-api-gateway start serving clients.",
+            "  Master switch that lets pm-api-gwy start serving clients.",
             "host: 127.0.0.1",
             "  HTTP bind address used by uvicorn.",
             "port: 8080",

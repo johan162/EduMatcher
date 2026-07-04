@@ -76,7 +76,7 @@ flowchart TB
 | Encryption at the protocol level | Use TLS or a tunnel |
 
 For interactive operator use, `pm-alf-console` remains the right tool.
-For external market-data consumers, use `pm-md-gwy` (CALF) or `pm-api-gateway`.
+For external market-data consumers, use `pm-md-gwy` (CALF) or `pm-api-gwy`.
 
 
 ## Prerequisites
@@ -718,7 +718,7 @@ LOGOUT sent — closing connection
 | Human operator on the same machine | `pm-alf-console` (tab completion, history, P&L display) |
 | Python / any-language bot, simple scripts | `pm-alf-gwy` (text lines, easy to debug with nc/telnet) |
 | Latency-sensitive algo in C, C++, or Rust | `pm-balf-gwy` (fixed frames, no text parsing) |
-| Browser UI / REST stack | `pm-api-gateway` |
+| Browser UI / REST stack | `pm-api-gwy` |
 | Read-only market-data consumer | `pm-md-gwy` (CALF) |
 | Post-trade / clearing / audit consumer | `pm-ralf-gwy` (RALF) |
 

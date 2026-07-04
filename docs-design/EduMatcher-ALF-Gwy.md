@@ -87,7 +87,7 @@ to send ALF commands today must either:
 
 1. Spawn a `pm-alf-console` subprocess and drive it via stdin/stdout piping — fragile,
    latency-prone, and impossible from a remote host.
-2. Use the REST API gateway (`pm-api-gateway`) — which speaks JSON, not ALF, and
+2. Use the REST API gateway (`pm-api-gwy`) — which speaks JSON, not ALF, and
    adds HTTP overhead that some integrations do not want.
 3. Implement a direct ZMQ client — which requires knowledge of internal message
    formats and cannot be offered safely to external parties.
@@ -875,7 +875,7 @@ flowchart LR
     HUM["pm-alf-console\n(human REPL, local)"]
     ALF["pm-alf-gwy\n(TCP :5565, external)"]
     BALF["pm-balf-gwy\n(TCP :5560, binary)"]
-    API["pm-api-gateway\n(HTTP :8080, REST/WS)"]
+    API["pm-api-gwy\n(HTTP :8080, REST/WS)"]
     ENG["pm-engine\nPULL :5555 / PUB :5556"]
     CALF["pm-md-gwy\n(TCP :5570, market data)"]
     RALF["pm-ralf-gwy\n(TCP :5580, post-trade)"]
