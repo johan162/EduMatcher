@@ -189,7 +189,7 @@ reporting scripts.
 | `Y003` | YAML parse error                    |
 | `Y004` | Top-level document is not a mapping |
 
-### Layer 2 — Schema (`S001`–`S042`)
+### Layer 2 — Schema (`S001`–`S054`)
 
 **Top-level structure**
 
@@ -241,7 +241,20 @@ reporting scripts.
 | `S041` | `collar.static_band_pct` not in `(0, 1)`                    |
 | `S042` | `collar.dynamic_band_pct` not in `(0, 1)`                   |
 
-### Layer 3 — Semantic (`M001`–`M016`)
+**BALF gateway fields (`balf_gateway`)**
+
+| Code   | Condition                                                                 |
+|--------|---------------------------------------------------------------------------|
+| `S050` | `balf_gateway` is present but not a mapping                               |
+| `S051` | `balf_gateway.port` not an integer in `1..65535`                          |
+| `S052` | BALF capacity fields not positive integers (`max_connections`, etc.)      |
+| `S053` | BALF timeout/interval fields not positive numbers                         |
+| `S054` | `balf_gateway.duplicate_session_policy` not `REJECT_NEW` or `EVICT_OLD`  |
+
+### Layer 3 — Semantic (`M001`–`M018`)
+
+`M014` is currently emitted during the schema pass because CB threshold ordering
+is validated while parsing `circuit_breaker_defaults`.
 
 | Code   | Severity | Condition                                                     |
 |--------|----------|---------------------------------------------------------------|
@@ -261,8 +274,13 @@ reporting scripts.
 | `M014` | WARN     | CB level thresholds not strictly increasing                   |
 | `M015` | ERROR    | Combo leg references symbol not in `symbols`                  |
 | `M016` | WARN     | `post_trade_gateway` configured but no ADMIN gateway          |
+| `M017` | WARN     | `balf_gateway.heartbeat_timeout_sec <= heartbeat_interval_sec` |
+| `M018` | ERROR    | `balf_gateway.port` conflicts with another gateway port       |
 
 ### Layer 4 — Completeness (`C001`–`C013`)
+
+`C010` is emitted during the semantic pass (Layer 3) but kept in the `C` code
+family because it is an operational-completeness warning.
 
 | Code   | Severity | Condition                                                           |
 |--------|----------|---------------------------------------------------------------------|
@@ -314,8 +332,9 @@ actually do at runtime?"*
 | Admin gateway    | Which gateway (if any) has role `ADMIN`          |
 | Indices          | Index IDs if any are configured                  |
 
-A ⚠ next to a Risk Summary line means a completeness issue was detected for that
-subsystem — even if the overall verdict is `OK`.
+A ⚠ next to a Risk Summary line marks a potentially risky or incomplete
+subsystem configuration (for example missing ADMIN gateway or missing collar
+configuration), even if the overall verdict is `OK`.
 
 
 ## Relationship to Other Tools

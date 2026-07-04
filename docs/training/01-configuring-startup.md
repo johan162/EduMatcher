@@ -4,6 +4,10 @@
 
 By the end of this chapter you will have a working exchange with at least one
 gateway and three tradeable symbols, ready to accept orders.
+In addition you have become familiar with the two tools:
+
+- **`pm-config-gen`** used to automatically generate configuration file based on options and flags. 
+- **`pm-cverifier`**  used to verify an existing (possibly hand-crafterd) configuration file for errors or missing settings
 
  
 
@@ -109,7 +113,68 @@ cat engine_config.yaml
 
  
 
-## Exercise 3: Start the Engine
+## Exercise 3: Validate the Config with pm-cverifier
+
+Before starting runtime processes, verify the file:
+
+```bash
+pm-cverifier engine_config.yaml
+```
+
+Check the verdict and exit code:
+
+```bash
+echo $?
+```
+
+Expected for this chapter config:
+
+- Verdict is `OK` or `WARN` (depending on optional sections you did or did not add).
+- Exit code is `0` when there are no warnings/errors, `1` when warnings exist, and `2` when hard errors exist.
+
+!!! tip "CI-style validation"
+    Treat warnings as failures and emit machine-readable output:
+    ```bash
+    pm-cverifier --strict --format json engine_config.yaml
+    ```
+
+!!! tip "Focus only on actionable items"
+    Hide info-level advisories while iterating:
+    ```bash
+    pm-cverifier --level warn engine_config.yaml
+    ```
+
+:material-checkbox-blank-outline: **Checkpoint:** you can run `pm-cverifier`, read the verdict, and interpret its exit code.
+
+## Exercise 4: Practice Fixing Verifier Findings
+
+Create a temporary broken config and use `pm-cverifier` to diagnose it:
+
+```bash
+cp engine_config.yaml engine_config.bad.yaml
+```
+
+Edit `engine_config.bad.yaml` and intentionally introduce two issues:
+
+1. Remove the `GW_ADMIN` gateway entry.
+2. Set one symbol's `tick_decimals` to an invalid value like `12`.
+
+Run verifier:
+
+```bash
+pm-cverifier engine_config.bad.yaml
+```
+
+You should see at least:
+
+- `M013` warning (no ADMIN gateway).
+- `S010` error (invalid `tick_decimals`).
+
+Now fix the file and rerun until verdict is `OK` or your expected warning-only state.
+
+:material-checkbox-blank-outline: **Checkpoint:** you can reproduce a verifier finding, map it to a check code, and clear it by fixing the config.
+
+## Exercise 5: Start the Engine
 
 Open a terminal and run:
 
@@ -127,7 +192,7 @@ is illustrative, not a literal match target):
 ```
 
 The stable way to confirm the engine actually loaded your config, independent
-of log wording, is to query it from a gateway once connected (Exercise 5) with
+of log wording, is to query it from a gateway once connected (Exercise 7) with
 `SYMBOLS` — if it lists `AAPL`, `MSFT`, and `TSLA`, the engine started correctly
 regardless of what the startup banner said.
 
@@ -135,7 +200,7 @@ regardless of what the startup banner said.
 
  
 
-## Exercise 4: Start the Scheduler
+## Exercise 6: Start the Scheduler
 
 In a **second terminal**:
 
@@ -156,7 +221,7 @@ automatically (or you can trigger immediate continuous with `--immediate`).
 
  
 
-## Exercise 5: Connect a Gateway
+## Exercise 7: Connect a Gateway
 
 In a **third terminal**:
 
@@ -177,7 +242,7 @@ Try typing `ORDERS` — it should report no resting orders for this gateway.
 
  
 
-## Exercise 6: Verify the Setup
+## Exercise 8: Verify the Setup
 
 From the gateway prompt, confirm the three symbols are available by attempting
 a tiny limit order:
@@ -194,7 +259,7 @@ Repeat for `MSFT` and `TSLA` to confirm all three books are active.
 
  
 
-## Exercise 7: Connect the Admin Gateway
+## Exercise 9: Connect the Admin Gateway
 
 In a **fourth terminal**:
 
@@ -208,13 +273,13 @@ Try an admin command:
 GW_ADMIN> BOOK|SYM=AAPL
 ```
 
-You should see a book snapshot (possibly with the 1-lot bid from Exercise 5).
+You should see a book snapshot (possibly with the 1-lot bid from Exercise 8).
 
 :material-checkbox-blank-outline: **Checkpoint:** admin gateway works; BOOK command shows data.
 
  
 
-## Exercise 8: Inspect Enriched SYMBOLS Metadata
+## Exercise 10: Inspect Enriched SYMBOLS Metadata
 
 From any connected gateway:
 
@@ -235,6 +300,7 @@ obligation settings when configured.
 You now have:
 
 - A configuration file defining 3 symbols and 3 gateways.
+- A repeatable verifier workflow (`pm-cverifier`) to catch config problems before startup.
 - A running engine, scheduler, and at least one trader gateway.
 - Confirmation that all symbols accept orders.
 
@@ -248,6 +314,7 @@ the engine kept running?
 ## Further Reading
 
 - [Configuration](../user-guide/01-configuration.md)
+- [Config Verifier (`pm-cverifier`)](../user-guide/23-config-verifier.md)
 - [Running the Engine](../user-guide/03-running-the-engine.md)
 - [Gateway Commands](../user-guide/08-gateway.md)
 - [Message Types (system.symbols)](../user-guide/09-messages.md)
