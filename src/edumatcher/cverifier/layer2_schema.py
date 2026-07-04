@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from edumatcher.api_gateway.config import validate_api_gateway_sections
 from edumatcher.cverifier.models import CheckResult, Severity
 
 _VALID_ROLES = {"TRADER", "MARKET_MAKER", "ADMIN"}
@@ -32,6 +33,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_cb_defaults(raw, results)
     _check_risk_controls(raw, results)
     _check_balf_gateway(raw, results)
+    _check_api_gateway_sections(raw, results)
     return results
 
 
@@ -1162,3 +1164,42 @@ def _check_balf_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None
                     path="balf_gateway.duplicate_session_policy",
                 )
             )
+
+
+def _check_api_gateway_sections(
+    raw: dict[str, Any], results: list[CheckResult]
+) -> None:
+    """Validate api_gateway/api_gateways using the runtime loader semantics."""
+
+    try:
+        validate_api_gateway_sections(raw)
+    except ValueError as exc:
+        msg = str(exc)
+        if "api_gateway" in msg and "api_gateways" not in msg:
+            results.append(
+                CheckResult(
+                    code="S081",
+                    severity=Severity.ERROR,
+                    message=f"'api_gateway' section is invalid: {msg}",
+                    suggestion=(
+                        "Match the pm-api-gateway loader schema for api_gateway "
+                        "(mapping shape, credentials, rate_limit, timeouts, and port)."
+                    ),
+                    path="api_gateway",
+                )
+            )
+            return
+
+        results.append(
+            CheckResult(
+                code="S080",
+                severity=Severity.ERROR,
+                message=f"'api_gateways' section is invalid: {msg}",
+                suggestion=(
+                    "Match the pm-api-gateway loader schema for api_gateways "
+                    "(named mapping entries, unique non-null gateway_id ownership, "
+                    "and valid credentials/rate_limit/timeouts/port values)."
+                ),
+                path="api_gateways",
+            )
+        )

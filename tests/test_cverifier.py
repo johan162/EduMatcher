@@ -541,6 +541,73 @@ class TestLayer2BalfGatewaySchema:
         assert "S054" in _codes(results)
 
 
+class TestLayer2ApiGatewaySchema:
+    def test_s080_api_gateways_not_mapping(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "api_gateways: bad\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S080" in _codes(results)
+
+    def test_s080_api_gateways_invalid_by_loader(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "api_gateways:\n"
+            "  desk:\n"
+            "    credentials:\n"
+            "      - api_key: key1\n"
+            "        gateway_id: GW01\n"
+            "      - api_key: key2\n"
+            "        gateway_id: GW01\n"
+            "  algo:\n"
+            "    credentials:\n"
+            "      - api_key: key3\n"
+            "        gateway_id: GW01\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S080" in _codes(results)
+
+    def test_s081_api_gateway_invalid_by_loader(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "api_gateway:\n"
+            "  timeouts:\n"
+            "    wait_ack_sec: 0\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S081" in _codes(results)
+
+    def test_valid_api_gateways_schema_has_no_new_errors(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n"
+            "  alf:\n"
+            "    - id: TRADER01\n"
+            "      role: TRADER\n"
+            "api_gateways:\n"
+            "  desk:\n"
+            "    host: 127.0.0.1\n"
+            "    port: 8080\n"
+            "    credentials:\n"
+            "      - api_key: desk-key\n"
+            "        gateway_id: TRADER01\n"
+            "    rate_limit:\n"
+            "      writes_per_second: 10\n"
+            "      burst: 20\n"
+            "    timeouts:\n"
+            "      engine_auth_sec: 3.0\n"
+            "      engine_reply_sec: 3.0\n"
+            "      wait_ack_sec: 3.0\n"
+        )
+        codes = _codes(layer2_schema.check(raw, Path("x.yaml")))
+        assert "S080" not in codes
+        assert "S081" not in codes
+
+
 class TestLayer2CBDefaults:
     def test_s030_cb_not_mapping(self) -> None:
         raw = _raw(
@@ -1084,6 +1151,65 @@ class TestLayer3BalfSemantic:
         )
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert "M017" not in _codes(results)
+
+
+class TestLayer3ApiGatewaySemantic:
+    def test_m021_warns_when_legacy_and_named_blocks_coexist(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n      role: TRADER\n"
+            "api_gateway:\n"
+            "  credentials:\n"
+            "    - api_key: key-legacy\n"
+            "      gateway_id: GW01\n"
+            "api_gateways:\n"
+            "  desk:\n"
+            "    credentials:\n"
+            "      - api_key: key-named\n"
+            "        gateway_id: GW01\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M021" in _codes(results)
+
+    def test_m022_detects_unknown_gateway_id_in_named_credentials(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n      role: TRADER\n"
+            "api_gateways:\n"
+            "  desk:\n"
+            "    credentials:\n"
+            "      - api_key: desk-key\n"
+            "        gateway_id: MISSING\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M022" in _codes(results)
+
+    def test_m022_detects_unknown_gateway_id_in_legacy_credentials(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n      role: TRADER\n"
+            "api_gateway:\n"
+            "  credentials:\n"
+            "    - api_key: legacy-key\n"
+            "      gateway_id: MISSING\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M022" in _codes(results)
+
+    def test_known_and_read_only_credentials_do_not_trigger_m022(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n      role: TRADER\n"
+            "api_gateways:\n"
+            "  desk:\n"
+            "    credentials:\n"
+            "      - api_key: desk-key\n"
+            "        gateway_id: GW01\n"
+            "      - api_key: dashboard-key\n"
+            "        gateway_id: null\n"
+        )
+        codes = _codes(layer3_semantic.check(raw, Path("x.yaml")))
+        assert "M022" not in codes
 
 
 # ---------------------------------------------------------------------------

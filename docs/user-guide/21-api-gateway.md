@@ -25,8 +25,8 @@ requests into the same engine ZMQ/JSON messages used by the interactive
 flowchart LR
     UI[Trading UI] -->|REST /api/v1| API[pm-api-gateway]
     BOT[Bot] -->|REST /api/v1| API
-    UI -->|WS /events| API
-    DASH[Dashboard] -->|WS /market-data| API
+  UI -->|WS /api/v1/events| API
+  DASH[Dashboard] -->|WS /api/v1/market-data| API
     API -->|ZMQ PUSH :5555| ENG[pm-engine]
     ENG -->|ZMQ PUB :5556| API
     STATS[pm-stats\nstats.db] -->|read-only history| API
@@ -37,6 +37,9 @@ flowchart LR
 
 API gateway configuration lives in the central `engine_config.yaml`, matching
 the existing CALF and RALF gateway pattern.
+
+Use the top-level key `api_gateways` (underscore). The dashed form
+`api-gateways` is not valid.
 
 ```yaml
 api_gateways:

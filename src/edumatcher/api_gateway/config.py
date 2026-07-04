@@ -221,6 +221,22 @@ def _load_named_api_gateways(raw: dict[str, Any]) -> dict[str, ApiGatewayConfig]
     return configs
 
 
+def validate_api_gateway_sections(raw: dict[str, Any]) -> None:
+    """Validate api_gateway/api_gateways sections using runtime loader rules.
+
+    Raises ValueError with the same messages the runtime loader would emit.
+    """
+
+    _load_named_api_gateways(raw)
+
+    section = raw.get("api_gateway")
+    if section is None:
+        return
+    if not isinstance(section, dict):
+        raise ValueError("api_gateway must be a mapping")
+    _load_api_gateway_section(section, "api_gateway", "default")
+
+
 def load_api_gateway_config(
     path: Path, instance: str | None = None
 ) -> ApiGatewayConfig:
