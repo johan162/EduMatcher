@@ -521,13 +521,13 @@ You can now:
 
 ## Reflection
 
-`pm-alf-gwy` (this chapter) and `pm-api-gateway` (Chapter 24) both allow
+`pm-alf-gwy` (this chapter) and `pm-api-gwy` (Chapter 24) both allow
 external clients to submit orders to the same matching engine. Answer the
 following:
 
 1. A Python bot connecting to `pm-alf-gwy` receives a `FILL` event pushed
    directly over its persistent TCP connection. A Python bot connecting to
-   `pm-api-gateway` learns about the same fill through a WebSocket `events`
+   `pm-api-gwy` learns about the same fill through a WebSocket `events`
    stream. Both need to act on fills within milliseconds. Which transport has
    lower latency overhead and why?
 

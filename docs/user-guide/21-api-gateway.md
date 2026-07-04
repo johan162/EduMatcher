@@ -3,7 +3,7 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
-    - What `pm-api-gateway` does in the EduMatcher process model
+    - What `pm-api-gwy` does in the EduMatcher process model
     - How to configure API keys in the central `engine_config.yaml`
     - How to call the REST API and inspect Swagger documentation
     - How private and public WebSocket streams work
@@ -12,7 +12,7 @@
 
 ## What this process is
 
-`pm-api-gateway` exposes EduMatcher order entry, order management, reference
+`pm-api-gwy` exposes EduMatcher order entry, order management, reference
 data, history, and market data over REST/JSON and WebSocket. It is intended for
 third-party software: browser UIs, dashboards, simple bots, and teaching
 examples.
@@ -23,10 +23,10 @@ requests into the same engine ZMQ/JSON messages used by the interactive
 
 ```mermaid
 flowchart LR
-    UI[Trading UI] -->|REST /api/v1| API[pm-api-gateway]
+    UI[Trading UI] -->|REST /api/v1| API[pm-api-gwy]
     BOT[Bot] -->|REST /api/v1| API
-    UI -->|WS /events| API
-    DASH[Dashboard] -->|WS /market-data| API
+  UI -->|WS /api/v1/events| API
+  DASH[Dashboard] -->|WS /api/v1/market-data| API
     API -->|ZMQ PUSH :5555| ENG[pm-engine]
     ENG -->|ZMQ PUB :5556| API
     STATS[pm-stats\nstats.db] -->|read-only history| API
@@ -37,6 +37,9 @@ flowchart LR
 
 API gateway configuration lives in the central `engine_config.yaml`, matching
 the existing CALF and RALF gateway pattern.
+
+Use the top-level key `api_gateways` (underscore). The dashed form
+`api-gateways` is not valid.
 
 ```yaml
 api_gateways:
@@ -94,7 +97,7 @@ Installed mode:
 ```bash
 pm-engine --verbose
 pm-stats
-pm-api-gateway --config engine_config.yaml --instance desk
+pm-api-gwy --config engine_config.yaml --instance desk
 ```
 
 Developer mode:
@@ -102,7 +105,7 @@ Developer mode:
 ```bash
 poetry run pm-engine --verbose
 poetry run pm-stats
-poetry run pm-api-gateway --config engine_config.yaml --instance desk
+poetry run pm-api-gwy --config engine_config.yaml --instance desk
 ```
 
 Useful options:
@@ -121,7 +124,7 @@ Uvicorn writes access and application logs to stdout/stderr. Redirect them with
 your shell or service manager:
 
 ```bash
-poetry run pm-api-gateway --config engine_config.yaml --instance desk --log-level debug \
+poetry run pm-api-gwy --config engine_config.yaml --instance desk --log-level debug \
   > api-gateway.log 2>&1
 ```
 
@@ -358,7 +361,7 @@ created and populated the configured database.
 
 1. Confirm `api_gateways.<NAME>.credentials` maps to gateways allowed under `gateways.alf`
 2. Confirm each non-null `gateway_id` appears in only one API gateway entry
-3. Start `pm-engine`, `pm-stats`, then `pm-api-gateway --instance NAME`
+3. Start `pm-engine`, `pm-stats`, then `pm-api-gwy --instance NAME`
 4. Open `/docs` if Swagger is enabled
 5. Test `GET /api/v1/healthz` (no auth required) — returns `{"ok": true}` when the engine listener is running
 6. Test `GET /api/v1/status` with a bearer token
@@ -425,7 +428,7 @@ this and returns `400 VALIDATION` if either field is present.
 
 ### Check whether the port is in use
 
-Before starting `pm-api-gateway`, or when a client cannot connect, verify that
+Before starting `pm-api-gwy`, or when a client cannot connect, verify that
 something is listening on the configured port (default `8080`).
 
 **macOS:**
@@ -488,11 +491,11 @@ curl -v --no-buffer \
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `Connection refused` | Gateway not started or wrong port | Confirm `pm-api-gateway` is running; check `port` in `api_gateways` config |
+| `Connection refused` | Gateway not started or wrong port | Confirm `pm-api-gwy` is running; check `port` in `api_gateways` config |
 | `{"ok": false}` from `/healthz` | Engine ZMQ connection not established | Start `pm-engine` first |
 | `401 Unauthorized` | Missing or wrong `Authorization` header | Use `Authorization: Bearer <key>` with a key listed in `credentials` |
 | `403 Forbidden` | Credential has no `gateway_id`; endpoint requires one | Use a credential with a non-null `gateway_id` for order-entry endpoints |
-| `404` on all endpoints | Wrong base path or wrong `--instance` flag | Check `pm-api-gateway --instance NAME` matches the config block name |
+| `404` on all endpoints | Wrong base path or wrong `--instance` flag | Check `pm-api-gwy --instance NAME` matches the config block name |
 | Swagger UI not loading | `swagger_enabled: false` | Set `swagger_enabled: true` in the config block and restart |
 | History endpoints return empty results | `pm-stats` not running or wrong `stats_db` path | Start `pm-stats`; verify the `stats_db` path in config points to the correct file |
 | WebSocket disconnects immediately | Engine not running or client rate limit hit | Start engine; check gateway logs for disconnect reason |

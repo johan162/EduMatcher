@@ -89,7 +89,7 @@ macOS, Linux, or Windows.
 **Bootstrap with one command**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.13.4 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.13.5 --snapshot
 ```
 
 This command downloads the VM setup scripts, launches a Multipass VM,
@@ -113,7 +113,7 @@ terminal to start `pm-alf-console`, `pm-viewer`, `pm-clearing`, and `pm-audit`.
 ```bash
 # Different VM name and version
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
-    bash -s -- --name edumatcher-vm --version 0.13.4 --snapshot
+    bash -s -- --name edumatcher-vm --version 0.13.5 --snapshot
 
 # Tune resources
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
@@ -125,7 +125,7 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_se
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.13.4 --snapshot
+bash curl_setup_vm.sh --version 0.13.5 --snapshot
 ```
 
 ### End-user / student mode — `pipx install` (recommended)
@@ -297,7 +297,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | `pm-ai-swarm` | Background | Multi-agent autonomous trading swarm | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
 | `pm-mm-bot` | Background | Autonomous market-maker quoting bot | [Processes](10-processes.md), [Market-Maker Bot](17-mm-bot.md) |
 | `pm-md-gwy` | Background | Market-data distribution gateway (CALF) | [Processes](10-processes.md#pm-md-gwy-calf-market-data-gateway), [Market Data Feed](20-market-data-feed.md), [CALF Protocol](92-app-calf-protocol.md) |
-| `pm-api-gateway` | Background | REST/WebSocket order-entry and market-data API gateway | [Processes](10-processes.md#pm-api-gateway-restwebsocket-api-gateway), [API Gateway](21-api-gateway.md) |
+| `pm-api-gwy` | Background | REST/WebSocket order-entry and market-data API gateway | [Processes](10-processes.md#pm-api-gwy-restwebsocket-api-gateway), [API Gateway](21-api-gateway.md) |
 | `pm-index` | Background | Real-time cap-weighted index calculation and dissemination | [Processes](10-processes.md#pm-index-index-calculation-process), [Market Index](22-index.md) |
 
 ### CLI utilities (runnable)

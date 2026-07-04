@@ -108,7 +108,7 @@ No ZMQ broker daemon, no message queue server, no external dependencies beyond Z
 ```mermaid
 graph TD
     ALF["pm-alf-console\nALF"]
-    APIGW["pm-api-gateway"]
+    APIGW["pm-api-gwy"]
     MMBOT["pm-mm-bot"]
     SCH["pm-scheduler"]
 
@@ -119,7 +119,7 @@ graph TD
     end
 
     GW_R["pm-alf-console\nprivate events"]
-    APIR["pm-api-gateway\nWebSocket bridge"]
+    APIR["pm-api-gwy\nWebSocket bridge"]
     OPS["pm-stats · pm-clearing · pm-audit"]
     UI["pm-viewer · pm-board · pm-ticker · pm-orders"]
     IDX["pm-index"]
@@ -256,7 +256,7 @@ It subscribes to the engine PUB at :5556 and publishes index events independentl
 |---------|------------|----------------|------|
 | pm-engine | PULL :5555, PUB :5556, PUB :5557 | **Binds** all three | Matching, session state, combo/OCO/quote tracking, drop-copy |
 | pm-alf-console (ALF) | PUSH→:5555, SUB→:5556, SUB→:5558, PUSH→:5559 | Connects | Interactive order entry; ALF line protocol; index data display |
-| pm-api-gateway | PUSH→:5555, SUB→:5556, SUB→:5558, PUSH→:5559 | Connects | REST and WebSocket order gateway for programmatic clients |
+| pm-api-gwy | PUSH→:5555, SUB→:5556, SUB→:5558, PUSH→:5559 | Connects | REST and WebSocket order gateway for programmatic clients |
 | pm-mm-bot | PUSH→:5555, SUB→:5556 | Connects | Automated market-maker; manages two-sided quotes |
 | pm-scheduler | PUSH→:5555 | Connects | Drives session phase transitions on a time schedule |
 | pm-viewer | SUB→:5556 | Connects | Real-time order book display for one symbol |
@@ -294,7 +294,7 @@ because it is a second-tier publisher, not a consumer of the engine.
 
 EduMatcher has two distinct gateway roles:
 
-**Order-entry gateways** (`pm-alf-console`, `pm-api-gateway`, `pm-mm-bot`) connect
+**Order-entry gateways** (`pm-alf-console`, `pm-api-gwy`, `pm-mm-bot`) connect
 directly to the engine over ZMQ PUSH/PULL.  They authenticate via
 `system.gateway_connect` and receive personalised events on their subscribed
 `order.*`, `quote.*`, and `system.*` topics.  These processes are internal to the

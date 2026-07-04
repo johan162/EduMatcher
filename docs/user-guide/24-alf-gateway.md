@@ -661,7 +661,7 @@ sock.close()
 |----------|------------|
 | Human operator on the same machine | `pm-alf-console` (tab completion, history, P&L display) |
 | External bot in Python / any language on the same or a remote host | `pm-alf-gwy` |
-| Browser UI / REST-native stack | `pm-api-gateway` |
+| Browser UI / REST-native stack | `pm-api-gwy` |
 | Read-only market-data consumer | `pm-md-gwy` (CALF) |
 | Post-trade / clearing / audit consumer | `pm-ralf-gwy` (RALF) |
 

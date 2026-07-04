@@ -1,4 +1,4 @@
-"""Command-line entry point and FastAPI app factory for ``pm-api-gateway``."""
+"""Command-line entry point and FastAPI app factory for ``pm-api-gwy``."""
 
 from __future__ import annotations
 
@@ -150,7 +150,7 @@ def main() -> None:
         print(f"[API-GW] FATAL: {exc}", file=sys.stderr)
         sys.exit(1)
     if not config.enabled:
-        print("[API-GW] api_gateway.enabled is false", file=sys.stderr)
+        print("[API-GW] selected api_gateways entry is disabled", file=sys.stderr)
         sys.exit(1)
     app = create_app(config)
     uvicorn.run(app, host=config.host, port=config.port, log_level=config.log_level)

@@ -40,6 +40,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_admin_gateway(raw, results)
     _check_post_trade_admin(raw, results)
     _check_balf_gateway_semantic(raw, results)
+    _check_api_gateway_semantic(raw, results)
     return results
 
 
@@ -119,7 +120,7 @@ def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
                     results.append(
                         CheckResult(
                             code="M002",
-                            severity=Severity.WARN,
+                            severity=Severity.ERROR,
                             message=(
                                 f"Symbol '{sym}': market_maker_quotes gateway_id "
                                 f"'{gw_id}' is not listed in gateways.alf."
@@ -421,7 +422,7 @@ def _check_indices(raw: dict[str, Any], results: list[CheckResult]) -> None:
                     results.append(
                         CheckResult(
                             code="M010",
-                            severity=Severity.WARN,
+                            severity=Severity.ERROR,
                             message=(
                                 f"Index '{idx_id}': constituent '{sym}' has no outstanding_shares."
                             ),
@@ -638,3 +639,61 @@ def _check_balf_gateway_semantic(
                     path="balf_gateway.port",
                 )
             )
+
+
+def _check_api_gateway_semantic(
+    raw: dict[str, Any], results: list[CheckResult]
+) -> None:
+    """Cross-field checks for api_gateways sections."""
+
+    known_gateway_ids = all_gateway_ids(raw)
+    if not known_gateway_ids:
+        return
+
+    for path, gateway_id in _iter_api_gateway_credential_ids(raw):
+        if gateway_id not in known_gateway_ids:
+            results.append(
+                CheckResult(
+                    code="M022",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"API gateway credential gateway_id '{gateway_id}' is not "
+                        "defined in gateways.alf."
+                    ),
+                    suggestion=(
+                        f"Add gateway '{gateway_id}' under gateways.alf or update "
+                        "the credential to an existing ALF gateway id."
+                    ),
+                    path=path,
+                )
+            )
+
+
+def _iter_api_gateway_credential_ids(raw: dict[str, Any]) -> list[tuple[str, str]]:
+    items: list[tuple[str, str]] = []
+
+    named = raw.get("api_gateways")
+    if isinstance(named, dict):
+        for name, section in named.items():
+            if not isinstance(section, dict):
+                continue
+            entry = str(name).strip() or str(name)
+            creds = section.get("credentials")
+            if not isinstance(creds, list):
+                continue
+            for index, cred in enumerate(creds):
+                if not isinstance(cred, dict):
+                    continue
+                gateway = cred.get("gateway_id")
+                if gateway is None:
+                    continue
+                gateway_id = str(gateway).strip().upper()
+                if gateway_id:
+                    items.append(
+                        (
+                            f"api_gateways.{entry}.credentials[{index}].gateway_id",
+                            gateway_id,
+                        )
+                    )
+
+    return items

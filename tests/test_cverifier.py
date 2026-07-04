@@ -361,7 +361,18 @@ class TestLayer2Gateways:
             "    - id: GW01\n      role: TRADER\n"
         )
         results = layer2_schema.check(raw, Path("x.yaml"))
-        assert "S020" not in _codes(results)
+        assert "S029" in _codes(results)
+
+    def test_s084_gateway_id_prefix_conflict(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n"
+            "  alf:\n"
+            "    - id: GW1\n      role: TRADER\n"
+            "    - id: GW10\n      role: ADMIN\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S084" in _codes(results)
 
     def test_s028_mm_obligation_symbol_value_not_mapping(self) -> None:
         raw = _raw(
@@ -539,6 +550,213 @@ class TestLayer2BalfGatewaySchema:
         )
         results = layer2_schema.check(raw, Path("x.yaml"))
         assert "S054" in _codes(results)
+
+
+class TestLayer2PostTradeAndMarketDataGatewaySchema:
+    def test_s082_post_trade_invalid(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "post_trade_gateway:\n"
+            "  allowed_roles: bad\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S082" in _codes(results)
+
+    def test_s083_market_data_invalid(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "market_data_gateway:\n"
+            "  max_client_queue: 0\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S083" in _codes(results)
+
+
+class TestLayer2IndicesAndCombosSchema:
+    def test_s043_indices_not_list(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "indices: bad\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S043" in _codes(results)
+
+    def test_s044_index_item_not_mapping(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "indices:\n"
+            "  - bad\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S044" in _codes(results)
+
+    def test_s045_s046_s047_s048_s049_index_fields_invalid(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "indices:\n"
+            "  - id: IDX-1\n"
+            "    description: ''\n"
+            "    base_value: 0\n"
+            "    publish_interval_sec: bad\n"
+            "    history_file: ''\n"
+            "    state_file: ''\n"
+            "    constituents: []\n"
+        )
+        codes = _codes(layer2_schema.check(raw, Path("x.yaml")))
+        assert "S045" in codes
+        assert "S046" in codes
+        assert "S047" in codes
+        assert "S048" in codes
+        assert "S049" in codes
+
+    def test_s055_market_maker_combos_not_list(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "market_maker_combos: bad\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S055" in _codes(results)
+
+    def test_s056_combo_not_mapping_or_missing_combo_id(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "market_maker_combos:\n"
+            "  - bad\n"
+            "  - legs: []\n"
+        )
+        codes = _codes(layer2_schema.check(raw, Path("x.yaml")))
+        assert "S056" in codes
+
+    def test_s057_combo_type_or_tif_invalid(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "market_maker_combos:\n"
+            "  - combo_id: C1\n"
+            "    combo_type: BAD\n"
+            "    tif: BAD\n"
+            "    legs:\n"
+            "      - symbol: AAPL\n"
+            "        side: BUY\n"
+            "        order_type: LIMIT\n"
+            "        quantity: 1\n"
+            "        price: 100\n"
+            "      - symbol: AAPL\n"
+            "        side: SELL\n"
+            "        order_type: LIMIT\n"
+            "        quantity: 1\n"
+            "        price: 101\n"
+        )
+        assert "S057" in _codes(layer2_schema.check(raw, Path("x.yaml")))
+
+    def test_s058_legs_invalid_shape(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "market_maker_combos:\n"
+            "  - combo_id: C1\n"
+            "    legs: bad\n"
+        )
+        assert "S058" in _codes(layer2_schema.check(raw, Path("x.yaml")))
+
+    def test_s059_leg_invalid_duplicate_or_unknown_symbol(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "market_maker_combos:\n"
+            "  - combo_id: C1\n"
+            "    legs:\n"
+            "      - bad\n"
+            "      - symbol: AAPL\n"
+            "        side: BUY\n"
+            "        order_type: LIMIT\n"
+            "        quantity: 1\n"
+            "        price: 100\n"
+            "      - symbol: AAPL\n"
+            "        side: SELL\n"
+            "        order_type: LIMIT\n"
+            "        quantity: 1\n"
+            "        price: 101\n"
+            "      - symbol: GHOST\n"
+            "        side: SELL\n"
+            "        order_type: LIMIT\n"
+            "        quantity: 1\n"
+            "        price: 102\n"
+        )
+        assert "S059" in _codes(layer2_schema.check(raw, Path("x.yaml")))
+
+
+class TestLayer2ApiGatewaySchema:
+    def test_s080_api_gateways_not_mapping(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "api_gateways: bad\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S080" in _codes(results)
+
+    def test_s080_api_gateways_invalid_by_loader(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "api_gateways:\n"
+            "  desk:\n"
+            "    credentials:\n"
+            "      - api_key: key1\n"
+            "        gateway_id: GW01\n"
+            "      - api_key: key2\n"
+            "        gateway_id: GW01\n"
+            "  algo:\n"
+            "    credentials:\n"
+            "      - api_key: key3\n"
+            "        gateway_id: GW01\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S080" in _codes(results)
+
+    def test_s080_rejects_legacy_api_gateway_block(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n"
+            "api_gateway:\n"
+            "  timeouts:\n"
+            "    wait_ack_sec: 0\n"
+        )
+        results = layer2_schema.check(raw, Path("x.yaml"))
+        assert "S080" in _codes(results)
+
+    def test_valid_api_gateways_schema_has_no_new_errors(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n"
+            "  alf:\n"
+            "    - id: TRADER01\n"
+            "      role: TRADER\n"
+            "api_gateways:\n"
+            "  desk:\n"
+            "    host: 127.0.0.1\n"
+            "    port: 8080\n"
+            "    credentials:\n"
+            "      - api_key: desk-key\n"
+            "        gateway_id: TRADER01\n"
+            "    rate_limit:\n"
+            "      writes_per_second: 10\n"
+            "      burst: 20\n"
+            "    timeouts:\n"
+            "      engine_auth_sec: 3.0\n"
+            "      engine_reply_sec: 3.0\n"
+            "      wait_ack_sec: 3.0\n"
+        )
+        codes = _codes(layer2_schema.check(raw, Path("x.yaml")))
+        assert "S080" not in codes
 
 
 class TestLayer2CBDefaults:
@@ -736,6 +954,7 @@ class TestLayer3MMSeeds:
         )
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert "M002" in _codes(results)
+        assert any(r.code == "M002" and r.severity is Severity.ERROR for r in results)
 
     def test_m003_spread_too_wide(self) -> None:
         raw = _raw(
@@ -921,6 +1140,7 @@ class TestLayer3Indices:
         )
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert "M010" in _codes(results)
+        assert any(r.code == "M010" and r.severity is Severity.ERROR for r in results)
 
     def test_m011_too_many_indices(self) -> None:
         indices_yaml = "\n".join(
@@ -1084,6 +1304,48 @@ class TestLayer3BalfSemantic:
         )
         results = layer3_semantic.check(raw, Path("x.yaml"))
         assert "M017" not in _codes(results)
+
+
+class TestLayer3ApiGatewaySemantic:
+    def test_m022_detects_unknown_gateway_id_in_named_credentials(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n      role: TRADER\n"
+            "api_gateways:\n"
+            "  desk:\n"
+            "    credentials:\n"
+            "      - api_key: desk-key\n"
+            "        gateway_id: MISSING\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M022" in _codes(results)
+
+    def test_legacy_api_gateway_block_is_ignored_for_m022(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n      role: TRADER\n"
+            "api_gateway:\n"
+            "  credentials:\n"
+            "    - api_key: legacy-key\n"
+            "      gateway_id: MISSING\n"
+        )
+        results = layer3_semantic.check(raw, Path("x.yaml"))
+        assert "M022" not in _codes(results)
+
+    def test_known_and_read_only_credentials_do_not_trigger_m022(self) -> None:
+        raw = _raw(
+            "symbols:\n  AAPL: {}\n"
+            "gateways:\n  alf:\n    - id: GW01\n      role: TRADER\n"
+            "api_gateways:\n"
+            "  desk:\n"
+            "    credentials:\n"
+            "      - api_key: desk-key\n"
+            "        gateway_id: GW01\n"
+            "      - api_key: dashboard-key\n"
+            "        gateway_id: null\n"
+        )
+        codes = _codes(layer3_semantic.check(raw, Path("x.yaml")))
+        assert "M022" not in codes
 
 
 # ---------------------------------------------------------------------------

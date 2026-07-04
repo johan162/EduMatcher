@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
+from edumatcher.api_gateway.config import validate_api_gateway_sections
+from edumatcher.md_gateway.config import validate_market_data_gateway_section
+from edumatcher.models.combo import ComboLeg, ComboType
+from edumatcher.models.order import TIF
+from edumatcher.ralf_gateway.config import validate_ralf_gateway_section
 from edumatcher.cverifier.models import CheckResult, Severity
 
 _VALID_ROLES = {"TRADER", "MARKET_MAKER", "ADMIN"}
@@ -29,9 +34,14 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_mm_obligation_defaults_schema(raw, results)
     _check_symbols(raw, results)
     _check_gateways(raw, results)
+    _check_market_maker_combos(raw, results)
+    _check_indices(raw, results)
     _check_cb_defaults(raw, results)
     _check_risk_controls(raw, results)
     _check_balf_gateway(raw, results)
+    _check_post_trade_gateway(raw, results)
+    _check_market_data_gateway(raw, results)
+    _check_api_gateway_sections(raw, results)
     return results
 
 
@@ -408,8 +418,21 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
         return
 
     seen_ids: dict[str, int] = {}
+    gateway_ids: list[tuple[int, str]] = []
     for n, gw in enumerate(alf):
         if not isinstance(gw, dict):
+            results.append(
+                CheckResult(
+                    code="S029",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"gateways.alf[{n}] must be a mapping. "
+                        f"Got {type(gw).__name__}."
+                    ),
+                    suggestion="Each gateways.alf entry must be a YAML mapping.",
+                    path=f"gateways.alf[{n}]",
+                )
+            )
             continue
         gw_id = gw.get("id")
         if not gw_id or not isinstance(gw_id, str) or not str(gw_id).strip():
@@ -439,6 +462,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
             )
         else:
             seen_ids[gw_id] = n
+            gateway_ids.append((n, gw_id))
 
         role = gw.get("role", "TRADER")
         if str(role).upper() not in _VALID_ROLES:
@@ -594,6 +618,354 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                                 path=f"gateways.alf[{n}].mm_obligations.{sym}.{field}",
                             )
                         )
+
+    for i, (idx_a, gw_a) in enumerate(gateway_ids):
+        for _idx_b, gw_b in gateway_ids[i + 1 :]:
+            if gw_a.startswith(gw_b) or gw_b.startswith(gw_a):
+                results.append(
+                    CheckResult(
+                        code="S084",
+                        severity=Severity.ERROR,
+                        message=(
+                            "gateways.alf IDs must not be prefixes of each other "
+                            f"('{gw_a}', '{gw_b}')."
+                        ),
+                        suggestion=(
+                            "Rename one of the gateway IDs so neither ID is a "
+                            "prefix of another."
+                        ),
+                        path=f"gateways.alf[{idx_a}].id",
+                    )
+                )
+
+
+def _check_market_maker_combos(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    combos = raw.get("market_maker_combos")
+    if combos is None:
+        return
+    if not isinstance(combos, list):
+        results.append(
+            CheckResult(
+                code="S055",
+                severity=Severity.ERROR,
+                message="'market_maker_combos' must be a list.",
+                suggestion="Set market_maker_combos to a YAML list of combo mappings.",
+                path="market_maker_combos",
+            )
+        )
+        return
+
+    symbol_names = {str(sym).upper() for sym in raw.get("symbols", {})}
+    for i, combo in enumerate(combos):
+        if not isinstance(combo, dict):
+            results.append(
+                CheckResult(
+                    code="S056",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"market_maker_combos[{i}] must be a mapping. "
+                        f"Got {type(combo).__name__}."
+                    ),
+                    suggestion="Each combo seed entry must be a YAML mapping.",
+                    path=f"market_maker_combos[{i}]",
+                )
+            )
+            continue
+
+        combo_id = combo.get("combo_id")
+        if not isinstance(combo_id, str) or not combo_id.strip():
+            results.append(
+                CheckResult(
+                    code="S056",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"market_maker_combos[{i}].combo_id must be a non-empty string."
+                    ),
+                    suggestion="Set combo_id to a non-empty identifier.",
+                    path=f"market_maker_combos[{i}].combo_id",
+                )
+            )
+
+        try:
+            ComboType(str(combo.get("combo_type", ComboType.AON.value)).upper())
+        except ValueError:
+            results.append(
+                CheckResult(
+                    code="S057",
+                    severity=Severity.ERROR,
+                    message=f"market_maker_combos[{i}].combo_type is invalid.",
+                    suggestion="Use a valid combo_type value (currently AON).",
+                    path=f"market_maker_combos[{i}].combo_type",
+                )
+            )
+
+        try:
+            TIF(str(combo.get("tif", TIF.DAY.value)).upper())
+        except ValueError:
+            results.append(
+                CheckResult(
+                    code="S057",
+                    severity=Severity.ERROR,
+                    message=f"market_maker_combos[{i}].tif is invalid.",
+                    suggestion="Use one of DAY, GTC, ATO, or ATC.",
+                    path=f"market_maker_combos[{i}].tif",
+                )
+            )
+
+        legs = combo.get("legs")
+        if not isinstance(legs, list):
+            results.append(
+                CheckResult(
+                    code="S058",
+                    severity=Severity.ERROR,
+                    message=f"market_maker_combos[{i}].legs must be a list.",
+                    suggestion="Set legs to a YAML list with 2 to 10 leg entries.",
+                    path=f"market_maker_combos[{i}].legs",
+                )
+            )
+            continue
+        if len(legs) < 2 or len(legs) > 10:
+            results.append(
+                CheckResult(
+                    code="S058",
+                    severity=Severity.ERROR,
+                    message=f"market_maker_combos[{i}] must have 2 to 10 legs.",
+                    suggestion="Adjust the legs list length to be within 2..10.",
+                    path=f"market_maker_combos[{i}].legs",
+                )
+            )
+
+        seen_symbols: set[str] = set()
+        for j, leg in enumerate(legs):
+            if not isinstance(leg, dict):
+                results.append(
+                    CheckResult(
+                        code="S059",
+                        severity=Severity.ERROR,
+                        message=(
+                            f"market_maker_combos[{i}].legs[{j}] must be a mapping. "
+                            f"Got {type(leg).__name__}."
+                        ),
+                        suggestion="Each combo leg must be a YAML mapping.",
+                        path=f"market_maker_combos[{i}].legs[{j}]",
+                    )
+                )
+                continue
+
+            payload = dict(leg)
+            if "symbol" in payload:
+                payload["symbol"] = str(payload["symbol"]).upper()
+            if "side" in payload:
+                payload["side"] = str(payload["side"]).upper()
+            if "order_type" in payload:
+                payload["order_type"] = str(payload["order_type"]).upper()
+            if "smp_action" in payload and payload["smp_action"] is not None:
+                payload["smp_action"] = str(payload["smp_action"]).upper()
+
+            try:
+                parsed_leg = ComboLeg.from_dict(payload)
+            except (KeyError, TypeError, ValueError):
+                results.append(
+                    CheckResult(
+                        code="S059",
+                        severity=Severity.ERROR,
+                        message=f"market_maker_combos[{i}].legs[{j}] is invalid.",
+                        suggestion=(
+                            "Use valid combo leg fields (symbol, side, order_type, "
+                            "quantity, and required price/stop fields)."
+                        ),
+                        path=f"market_maker_combos[{i}].legs[{j}]",
+                    )
+                )
+                continue
+
+            if parsed_leg.symbol in seen_symbols:
+                results.append(
+                    CheckResult(
+                        code="S059",
+                        severity=Severity.ERROR,
+                        message=(
+                            f"market_maker_combos[{i}] contains duplicate symbol "
+                            f"'{parsed_leg.symbol}'."
+                        ),
+                        suggestion="Each symbol may appear at most once per combo.",
+                        path=f"market_maker_combos[{i}].legs[{j}].symbol",
+                    )
+                )
+            seen_symbols.add(parsed_leg.symbol)
+
+            if parsed_leg.symbol not in symbol_names:
+                results.append(
+                    CheckResult(
+                        code="S059",
+                        severity=Severity.ERROR,
+                        message=(
+                            f"market_maker_combos[{i}] references unknown symbol "
+                            f"'{parsed_leg.symbol}'."
+                        ),
+                        suggestion=(
+                            f"Add '{parsed_leg.symbol}' under symbols or update the leg symbol."
+                        ),
+                        path=f"market_maker_combos[{i}].legs[{j}].symbol",
+                    )
+                )
+
+
+def _check_indices(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    indices = raw.get("indices")
+    if indices is None:
+        return
+    if not isinstance(indices, list):
+        results.append(
+            CheckResult(
+                code="S043",
+                severity=Severity.ERROR,
+                message="'indices' must be a list.",
+                suggestion="Set indices to a YAML list of index mappings.",
+                path="indices",
+            )
+        )
+        return
+
+    seen_ids: set[str] = set()
+    for i, idx in enumerate(indices):
+        if not isinstance(idx, dict):
+            results.append(
+                CheckResult(
+                    code="S044",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"indices[{i}] must be a mapping. Got {type(idx).__name__}."
+                    ),
+                    suggestion="Each index entry must be a YAML mapping.",
+                    path=f"indices[{i}]",
+                )
+            )
+            continue
+
+        idx_id_raw = idx.get("id")
+        idx_id = str(idx_id_raw).strip().upper() if isinstance(idx_id_raw, str) else ""
+        if not idx_id:
+            results.append(
+                CheckResult(
+                    code="S045",
+                    severity=Severity.ERROR,
+                    message=f"indices[{i}].id must be a non-empty string.",
+                    suggestion="Set id to a non-empty alphanumeric string.",
+                    path=f"indices[{i}].id",
+                )
+            )
+        elif not idx_id.isalnum():
+            results.append(
+                CheckResult(
+                    code="S045",
+                    severity=Severity.ERROR,
+                    message=f"indices[{i}].id must be alphanumeric.",
+                    suggestion="Use only letters and digits in the index id.",
+                    path=f"indices[{i}].id",
+                )
+            )
+        elif idx_id in seen_ids:
+            results.append(
+                CheckResult(
+                    code="S045",
+                    severity=Severity.ERROR,
+                    message=f"Duplicate index id in indices: {idx_id}",
+                    suggestion="Ensure each index id is unique.",
+                    path=f"indices[{i}].id",
+                )
+            )
+        else:
+            seen_ids.add(idx_id)
+
+        desc = idx.get("description")
+        if not isinstance(desc, str) or not desc.strip():
+            results.append(
+                CheckResult(
+                    code="S046",
+                    severity=Severity.ERROR,
+                    message=f"indices[{i}].description must be a non-empty string.",
+                    suggestion="Provide a human-readable index description.",
+                    path=f"indices[{i}].description",
+                )
+            )
+
+        for field in ("base_value", "publish_interval_sec"):
+            if field not in idx:
+                continue
+            raw_val = cast(object, idx[field])
+            if isinstance(raw_val, bool) or not isinstance(raw_val, (int, float, str)):
+                results.append(
+                    CheckResult(
+                        code="S047",
+                        severity=Severity.ERROR,
+                        message=f"indices[{i}].{field} must be a number > 0.",
+                        suggestion=f"Set {field} to a positive numeric value.",
+                        path=f"indices[{i}].{field}",
+                    )
+                )
+                continue
+            try:
+                num_val = float(raw_val)
+                if num_val <= 0:
+                    raise ValueError
+            except ValueError:
+                results.append(
+                    CheckResult(
+                        code="S047",
+                        severity=Severity.ERROR,
+                        message=f"indices[{i}].{field} must be a number > 0.",
+                        suggestion=f"Set {field} to a positive numeric value.",
+                        path=f"indices[{i}].{field}",
+                    )
+                )
+
+        for field in ("history_file", "state_file"):
+            path_val = idx.get(field)
+            if path_val is None:
+                continue
+            if not isinstance(path_val, str) or not path_val.strip():
+                results.append(
+                    CheckResult(
+                        code="S048",
+                        severity=Severity.ERROR,
+                        message=f"indices[{i}].{field} must be a non-empty string.",
+                        suggestion=f"Set {field} to a non-empty path string.",
+                        path=f"indices[{i}].{field}",
+                    )
+                )
+
+        constituents = idx.get("constituents")
+        if constituents is None:
+            continue
+        if not isinstance(constituents, list) or not constituents:
+            results.append(
+                CheckResult(
+                    code="S049",
+                    severity=Severity.ERROR,
+                    message=f"indices[{i}].constituents must be a non-empty list.",
+                    suggestion="Provide a non-empty list of symbol ids.",
+                    path=f"indices[{i}].constituents",
+                )
+            )
+            continue
+
+        seen_constituents: set[str] = set()
+        for sym in constituents:
+            sym_id = str(sym).upper()
+            if sym_id in seen_constituents:
+                results.append(
+                    CheckResult(
+                        code="S049",
+                        severity=Severity.ERROR,
+                        message=(
+                            f"indices[{i}].constituents contains duplicate symbol '{sym_id}'."
+                        ),
+                        suggestion="Remove duplicate symbol entries from constituents.",
+                        path=f"indices[{i}].constituents",
+                    )
+                )
+            seen_constituents.add(sym_id)
 
 
 # ---------------------------------------------------------------------------
@@ -1162,3 +1534,65 @@ def _check_balf_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None
                     path="balf_gateway.duplicate_session_policy",
                 )
             )
+
+
+def _check_api_gateway_sections(
+    raw: dict[str, Any], results: list[CheckResult]
+) -> None:
+    """Validate api_gateways using the runtime loader semantics."""
+
+    try:
+        validate_api_gateway_sections(raw)
+    except ValueError as exc:
+        msg = str(exc)
+        path = "api_gateway" if "api_gateway" in msg else "api_gateways"
+        section = "api_gateway" if path == "api_gateway" else "api_gateways"
+        results.append(
+            CheckResult(
+                code="S080",
+                severity=Severity.ERROR,
+                message=f"'{section}' section is invalid: {msg}",
+                suggestion=(
+                    "Match the pm-api-gwy loader schema for api_gateways "
+                    "(named mapping entries, unique non-null gateway_id ownership, "
+                    "and valid credentials/rate_limit/timeouts/port values)."
+                ),
+                path=path,
+            )
+        )
+
+
+def _check_post_trade_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    try:
+        validate_ralf_gateway_section(raw)
+    except ValueError as exc:
+        results.append(
+            CheckResult(
+                code="S082",
+                severity=Severity.ERROR,
+                message=f"'post_trade_gateway' section is invalid: {exc}",
+                suggestion=(
+                    "Match the pm-ralf-gwy loader schema for post_trade_gateway "
+                    "(mapping shape, allowed_roles list, and positive integer limits)."
+                ),
+                path="post_trade_gateway",
+            )
+        )
+
+
+def _check_market_data_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    try:
+        validate_market_data_gateway_section(raw)
+    except ValueError as exc:
+        results.append(
+            CheckResult(
+                code="S083",
+                severity=Severity.ERROR,
+                message=f"'market_data_gateway' section is invalid: {exc}",
+                suggestion=(
+                    "Match the pm-md-gwy loader schema for market_data_gateway "
+                    "(mapping shape and positive integer limits)."
+                ),
+                path="market_data_gateway",
+            )
+        )
