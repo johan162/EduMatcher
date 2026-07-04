@@ -279,6 +279,9 @@ class ClearingProcess:
 
 
 def main() -> None:
+    from edumatcher.cli_version import maybe_print_version_and_exit
+
+    maybe_print_version_and_exit("pm-clearing")
     try:
         process = ClearingProcess()
     except Exception as exc:

@@ -111,6 +111,9 @@ class AuditProcess:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="EduMatcher audit logger")
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-audit")
     parser.add_argument(
         "--log-file",
         default=str(AUDIT_LOG_FILE),

@@ -185,6 +185,9 @@ class OrderMonitor:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="EduMatcher order status monitor")
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-orders")
     parser.add_argument(
         "--gateway",
         "-g",

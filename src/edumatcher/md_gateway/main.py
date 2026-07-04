@@ -21,6 +21,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="EduMatcher CALF market data gateway",
     )
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-md-gwy")
     parser.add_argument(
         "--config",
         "-c",

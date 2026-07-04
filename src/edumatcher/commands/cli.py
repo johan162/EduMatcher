@@ -50,6 +50,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "  pm-admin-cli --id GW_ADMIN volume\n"
         ),
     )
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-admin-cli")
 
     # Global flags
     parser.add_argument(

@@ -609,6 +609,9 @@ def _event_type_from_topic(topic: str, payload: dict[str, Any]) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="EduMatcher statistics recorder")
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-stats")
     parser.add_argument(
         "--db",
         default=str(STATS_DB_FILE),

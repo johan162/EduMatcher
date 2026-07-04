@@ -18,6 +18,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="EduMatcher RALF dissemination gateway"
     )
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-ralf-gwy")
     parser.add_argument(
         "--config",
         "-c",

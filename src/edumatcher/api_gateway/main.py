@@ -113,6 +113,9 @@ def _config_with_overrides(args: argparse.Namespace) -> ApiGatewayConfig:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="EduMatcher REST API gateway")
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-api-gwy")
     parser.add_argument(
         "--host", default=None, metavar="ADDR", help="HTTP bind address"
     )

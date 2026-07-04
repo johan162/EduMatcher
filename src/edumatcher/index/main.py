@@ -523,6 +523,9 @@ class IndexProcess:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher index process")
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-index")
     parser.add_argument(
         "--config",
         "-c",

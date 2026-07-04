@@ -314,6 +314,9 @@ class TickerProcess:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="EduMatcher scrolling market ticker")
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-ticker")
     parser.add_argument(
         "--db",
         default=str(STATS_DB_FILE),

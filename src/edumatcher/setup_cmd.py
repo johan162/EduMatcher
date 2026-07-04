@@ -65,6 +65,9 @@ def main() -> None:
             "Creates the data dir and copies a sample engine_config.yaml."
         ),
     )
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-setup")
     parser.add_argument(
         "--data-dir",
         metavar="PATH",

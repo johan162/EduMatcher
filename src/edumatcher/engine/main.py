@@ -39,6 +39,7 @@ from edumatcher.engine.auction import (
     compute_equilibrium,
     execute_uncross,
 )
+from edumatcher.cli_version import add_version_argument
 from edumatcher.engine.config_loader import EngineConfig, load_engine_config
 from edumatcher.engine.order_book import OrderBook
 from edumatcher.engine.persistence import (
@@ -3250,6 +3251,7 @@ class Engine:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="EduMatcher matching engine")
+    add_version_argument(parser, "pm-engine")
     parser.add_argument(
         "--verbose",
         "-v",

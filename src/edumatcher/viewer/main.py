@@ -103,6 +103,9 @@ def _build_display(snapshot: dict[str, Any], symbol: str, depth: int) -> Panel:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="EduMatcher order book viewer")
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-viewer")
     parser.add_argument(
         "--symbol",
         "-s",
