@@ -1,3 +1,27 @@
+## [v0.13.5] - 2026-07-04
+
+Release Type: patch
+
+### 📋 Summary
+This patch release tightens API gateway configuration handling and strengthens `pm-cverifier` checks for gateway-related sections. 
+It also standardizes the API gateway process command name to match the gateway naming convention used across the project.
+
+### ⚠️ Breaking Changes
+- Renamed the API gateway process command from `pm-api-gateway` to `pm-api-gwy`; update scripts, automation, and operational runbooks that invoke the old command name
+- Removed legacy singular `api_gateway` config compatibility and now require top-level `api_gateways` in `engine_config.yaml`
+
+### 🚀 Improvements
+- Improved `pm-cverifier` schema coverage for API gateway sections by validating `api_gateways` with runtime-loader semantics
+- Improved config verification parity for post-trade and market-data gateway sections and tightened market-maker schema checks
+
+### 📚 Documentation
+- Updated user-guide, training, architecture, and design documents to consistently use `pm-api-gwy`
+- Updated configuration and verifier documentation to reflect `api_gateways`-only support
+
+### 🛠 Internal
+- Expanded regression tests for API gateway config loading and verifier behavior around gateway section validation and legacy-key rejection
+
+
 ## [v0.13.4] - 2026-07-04
 
 Release Type: patch
