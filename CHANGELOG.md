@@ -1,3 +1,14 @@
+## [v0.13.3] - 2026-07-04
+
+Release Type: patch
+
+### 📋 Summary
+Fix a few broken links in the User Guide
+
+### 📚 Documentation
+- Fix broken links in BALF User Guide to normative protocol sections
+
+
 ## [v0.13.2] - 2026-07-04
 
 Release Type: patch

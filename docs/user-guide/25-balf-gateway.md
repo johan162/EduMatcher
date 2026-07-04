@@ -274,7 +274,7 @@ The **first frame** must be a `LOGON` (msg_type `0x01`, 32 bytes total):
 If the first frame is not a valid `LOGON`, the gateway hard-closes the TCP
 connection immediately.
 
-See [LOGON frame layout](91-app-balf-protocol.md#logon-0x01---client-server) in
+See [LOGON frame layout](91-app-balf-protocol.md#logon-0x01-client-server) in
 the protocol reference.
 
 ### Step 2 — Receive LOGON_ACK
@@ -296,7 +296,7 @@ The `msg` field carries a human-readable description on success (e.g. the
 gateway name and configured heartbeat interval) and the engine rejection reason
 on failure.
 
-See [LOGON_ACK frame layout](91-app-balf-protocol.md#logon_ack-0x02---server-client)
+See [LOGON_ACK frame layout](91-app-balf-protocol.md#logon_ack-0x02-server-client)
 for the exact body structure.
 
 ### Step 3 — Send order messages
@@ -371,7 +371,7 @@ byte layouts, offset tables, and encoding rules for all messages.
 | `0x07` | `ICEBERG` | `price` and `visible_qty` |
 | `0x08` | `TRAILING_STOP` | `trail_offset`; optionally `stop_price` |
 
-See [NEW_ORDER message layout](91-app-balf-protocol.md#new_order-0x10---client-server)
+See [NEW_ORDER message layout](91-app-balf-protocol.md#new_order-0x10-client-server)
 for TIF, SMP, and all field offset tables.
 
 ### Price encoding
@@ -412,7 +412,7 @@ The `reason` field (25 bytes, ASCII) always contains the authoritative engine
 text, regardless of `reject_code`.  Use `reason` for logging and `reject_code`
 for programmatic branching.
 
-See [ORDER_ACK reject codes](91-app-balf-protocol.md#order_ack-0x11---server-client)
+See [ORDER_ACK reject codes](91-app-balf-protocol.md#order_ack-0x11-server-client)
 in the protocol reference.
 
 
@@ -437,8 +437,8 @@ HEARTBEAT      →  fill orig_send_time_ns with send_time_ns
 HEARTBEAT_ACK  →  echo back orig_send_time_ns
 ```
 
-See [HEARTBEAT](91-app-balf-protocol.md#heartbeat-0x30---bidirectional) and
-[HEARTBEAT_ACK](91-app-balf-protocol.md#heartbeat_ack-0x31---bidirectional)
+See [HEARTBEAT](91-app-balf-protocol.md#heartbeat-0x30-bidirectional) and
+[HEARTBEAT_ACK](91-app-balf-protocol.md#heartbeat_ack-0x31-bidirectional)
 in the protocol reference.
 
 ### EXECUTION_REPORT

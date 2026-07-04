@@ -147,6 +147,8 @@ nav:
     - "23 — CALF Market-Data Gateway Protocol": training/23-calf.md
     - "24 — API Gateway (REST/WebSocket)": training/24-api-gwy.md
     - "25 — Market Index (pm-index)": training/25-index.md
+    - "26 - ALF TCP Gateway (pm-alf-gwy)": training/26-alf-gwy.md
+    - "27 - BALF TCP Gateway (pm-balf-gwy)": training/27-balf-gwy.md
   - Architecture: 
     - Overview: architecture/01-architecture.md
     - Detailed Walkthrough: architecture/02-architecture-guide.md

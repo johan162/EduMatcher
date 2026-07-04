@@ -58,7 +58,7 @@ flowchart LR
 
 Running the exchange is complex enough that you really **need** to read the documentation and follow the instructions in the User Guide to get a full exchange up and running. The installation below is just the very first step to get started. The rest of the User Guide will explain how to configure the exchange, start and stop processes, and run the system in a realistic way. 
 
-This might seem overwhelming at first and the best way to get started is to skim through the entirety of the user-guide. After the installation a good way to get started is through the self-paced [training sections](training/index.md)
+This might seem overwhelming at first and the best way to get started is to skim through the entirety of the user-guide. After the installation a good way to get started is through the self-paced [training sections](../training/index.md)
 
 
 ## Installation
@@ -89,7 +89,7 @@ macOS, Linux, or Windows.
 **Bootstrap with one command**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.13.1 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.13.3 --snapshot
 ```
 
 This command downloads the VM setup scripts, launches a Multipass VM,
@@ -113,7 +113,7 @@ terminal to start `pm-alf-console`, `pm-viewer`, `pm-clearing`, and `pm-audit`.
 ```bash
 # Different VM name and version
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
-    bash -s -- --name edumatcher-vm --version 0.13.1 --snapshot
+    bash -s -- --name edumatcher-vm --version 0.13.3 --snapshot
 
 # Tune resources
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | \
@@ -125,7 +125,7 @@ curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_se
 ```bash
 curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh -o curl_setup_vm.sh
 less curl_setup_vm.sh
-bash curl_setup_vm.sh --version 0.13.1 --snapshot
+bash curl_setup_vm.sh --version 0.13.3 --snapshot
 ```
 
 ### End-user / student mode — `pipx install` (recommended)

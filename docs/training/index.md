@@ -103,7 +103,7 @@ training chapter.
 | 24 | [pm-api-gateway processes](../user-guide/10-processes.md#pm-api-gateway-restwebsocket-api-gateway), [API Gateway Config](../user-guide/21-api-gateway.md) |
 | 25 | [Market Index (pm-index)](../user-guide/22-index.md), [pm-index-cli reference](../user-guide/02-commands.md), [pm-index process](../user-guide/10-processes.md#pm-index-index-calculation-process) |
 | 26 | [ALF TCP Gateway](../user-guide/24-alf-gateway.md), [ALF Protocol Reference](../user-guide/90-app-alf-protocol.md), [Gateway Commands](../user-guide/08-gateway.md) |
-| 27 | [BALF TCP Gateway](../user-guide/25-balf-gateway.md), [BALF Protocol Reference](../user-guide/91-app-balf-protocol.md), [Configuration](../user-guide/01-configuration.md#balf-gateway-configuration) |
+| 27 | [BALF TCP Gateway](../user-guide/25-balf-gateway.md), [BALF Protocol Reference](../user-guide/91-app-balf-protocol.md), [Configuration](../user-guide/01-configuration.md#configuring-pm-balf-gwy) |
 
  
 
