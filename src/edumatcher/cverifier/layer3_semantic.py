@@ -120,7 +120,7 @@ def _check_mm_seeds(raw: dict[str, Any], results: list[CheckResult]) -> None:
                     results.append(
                         CheckResult(
                             code="M002",
-                            severity=Severity.WARN,
+                            severity=Severity.ERROR,
                             message=(
                                 f"Symbol '{sym}': market_maker_quotes gateway_id "
                                 f"'{gw_id}' is not listed in gateways.alf."
@@ -422,7 +422,7 @@ def _check_indices(raw: dict[str, Any], results: list[CheckResult]) -> None:
                     results.append(
                         CheckResult(
                             code="M010",
-                            severity=Severity.WARN,
+                            severity=Severity.ERROR,
                             message=(
                                 f"Index '{idx_id}': constituent '{sym}' has no outstanding_shares."
                             ),
@@ -644,26 +644,7 @@ def _check_balf_gateway_semantic(
 def _check_api_gateway_semantic(
     raw: dict[str, Any], results: list[CheckResult]
 ) -> None:
-    """Cross-field checks for api_gateway/api_gateways sections."""
-
-    has_named = isinstance(raw.get("api_gateways"), dict)
-    has_legacy = isinstance(raw.get("api_gateway"), dict)
-    if has_named and has_legacy:
-        results.append(
-            CheckResult(
-                code="M021",
-                severity=Severity.WARN,
-                message=(
-                    "Both 'api_gateways' and legacy 'api_gateway' are configured. "
-                    "The runtime loader prioritizes 'api_gateways'."
-                ),
-                suggestion=(
-                    "Use only 'api_gateways' for clarity, or remove 'api_gateways' "
-                    "if you intentionally run the single legacy block."
-                ),
-                path="api_gateways",
-            )
-        )
+    """Cross-field checks for api_gateways sections."""
 
     known_gateway_ids = all_gateway_ids(raw)
     if not known_gateway_ids:
@@ -690,22 +671,6 @@ def _check_api_gateway_semantic(
 
 def _iter_api_gateway_credential_ids(raw: dict[str, Any]) -> list[tuple[str, str]]:
     items: list[tuple[str, str]] = []
-
-    legacy = raw.get("api_gateway")
-    if isinstance(legacy, dict):
-        creds = legacy.get("credentials")
-        if isinstance(creds, list):
-            for index, cred in enumerate(creds):
-                if not isinstance(cred, dict):
-                    continue
-                gateway = cred.get("gateway_id")
-                if gateway is None:
-                    continue
-                gateway_id = str(gateway).strip().upper()
-                if gateway_id:
-                    items.append(
-                        (f"api_gateway.credentials[{index}].gateway_id", gateway_id)
-                    )
 
     named = raw.get("api_gateways")
     if isinstance(named, dict):

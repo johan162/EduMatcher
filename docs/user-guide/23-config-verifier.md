@@ -189,7 +189,7 @@ reporting scripts.
 | `Y003` | YAML parse error                    |
 | `Y004` | Top-level document is not a mapping |
 
-### Layer 2 — Schema (`S001`–`S077`)
+### Layer 2 — Schema (`S001`–`S084`)
 
 **Top-level structure**
 
@@ -229,6 +229,8 @@ reporting scripts.
 | `S026` | `mm_max_spread_ticks` or `mm_min_qty` invalid    |
 | `S027` | `mm_obligations` is present but not a mapping    |
 | `S028` | `mm_obligations.<symbol>` entry is invalid        |
+| `S029` | `gateways.alf[n]` is not a mapping                |
+| `S084` | Two `gateways.alf` IDs are prefixes of each other |
 
 **Circuit breaker fields**
 
@@ -248,6 +250,28 @@ reporting scripts.
 | `S040` | `risk_controls.default_level` references an undefined level |
 | `S041` | `collar.static_band_pct` not in `(0, 1)`                    |
 | `S042` | `collar.dynamic_band_pct` not in `(0, 1)`                   |
+
+**Indices (`indices`)**
+
+| Code   | Condition                                              |
+|--------|--------------------------------------------------------|
+| `S043` | `indices` is present but not a list                    |
+| `S044` | `indices[n]` is not a mapping                          |
+| `S045` | `indices[n].id` invalid (empty, non-alnum, or duplicate) |
+| `S046` | `indices[n].description` is empty or not a string      |
+| `S047` | `indices[n].base_value` or `publish_interval_sec` invalid |
+| `S048` | `indices[n].history_file` or `state_file` invalid      |
+| `S049` | `indices[n].constituents` invalid shape or duplicates  |
+
+**Combo seeds (`market_maker_combos`)**
+
+| Code   | Condition                                              |
+|--------|--------------------------------------------------------|
+| `S055` | `market_maker_combos` is present but not a list        |
+| `S056` | `market_maker_combos[n]` invalid mapping/combo_id      |
+| `S057` | `market_maker_combos[n].combo_type` or `.tif` invalid  |
+| `S058` | `market_maker_combos[n].legs` invalid shape/length     |
+| `S059` | `market_maker_combos[n].legs[m]` invalid, duplicate, or unknown symbol |
 
 **Runtime / schedule / top-level flags**
 
@@ -272,6 +296,19 @@ reporting scripts.
 | `S076` | `mm_obligation_defaults.symbols.<symbol>.enforce_mm_obligation` invalid   |
 | `S077` | `mm_obligation_defaults.symbols.<symbol>.mm_max_spread_ticks/min_qty` invalid |
 
+**API gateway sections**
+
+| Code   | Condition                                              |
+|--------|--------------------------------------------------------|
+| `S080` | `api_gateways` section fails runtime-loader validation |
+
+**RALF and market-data gateway sections**
+
+| Code   | Condition                                              |
+|--------|--------------------------------------------------------|
+| `S082` | `post_trade_gateway` section fails runtime-loader validation |
+| `S083` | `market_data_gateway` section fails runtime-loader validation |
+
 **BALF gateway fields (`balf_gateway`)**
 
 | Code   | Condition                                                                 |
@@ -282,7 +319,7 @@ reporting scripts.
 | `S053` | BALF timeout/interval fields not positive numbers                         |
 | `S054` | `balf_gateway.duplicate_session_policy` not `REJECT_NEW` or `EVICT_OLD`  |
 
-### Layer 3 — Semantic (`M001`–`M020`)
+### Layer 3 — Semantic (`M001`–`M022`)
 
 `M014` is currently emitted during the schema pass because CB threshold ordering
 is validated while parsing `circuit_breaker_defaults`.
@@ -290,7 +327,7 @@ is validated while parsing `circuit_breaker_defaults`.
 | Code   | Severity | Condition                                                     |
 |--------|----------|---------------------------------------------------------------|
 | `M001` | ERROR    | MM gateway present but a symbol has no seed quotes            |
-| `M002` | WARN     | MM seed references a gateway ID not in `gateways.alf`         |
+| `M002` | ERROR    | MM seed references a gateway ID not in `gateways.alf`         |
 | `M003` | WARN     | MM seed spread exceeds `mm_max_spread_ticks`                  |
 | `M004` | ERROR    | `sessions_enabled: true` but no `schedule`                    |
 | `M005` | WARN     | `sessions_enabled: false` but a `schedule` is present         |
@@ -298,7 +335,7 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M007` | WARN     | `enforce_collars: false` while collars are defined            |
 | `M008` | WARN     | `enforce_circuit_breakers: false` while CB levels are defined |
 | `M009` | ERROR    | Index constituent not in `symbols`                            |
-| `M010` | WARN     | Index constituent missing `outstanding_shares`                |
+| `M010` | ERROR    | Index constituent missing `outstanding_shares`                |
 | `M011` | ERROR    | More than 5 indices defined                                   |
 | `M012` | WARN     | Combo uses `tif: GTC`                                         |
 | `M013` | WARN     | No ADMIN gateway configured                                   |
@@ -309,6 +346,7 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M018` | ERROR    | `balf_gateway.port` conflicts with another gateway port       |
 | `M019` | ERROR    | `mm_obligation_defaults.symbols` references an unknown symbol |
 | `M020` | ERROR    | MM seed `gateway_id` exists but is not a `MARKET_MAKER` gateway |
+| `M022` | ERROR    | API credential `gateway_id` is not defined in `gateways.alf` |
 
 ### Layer 4 — Completeness (`C001`–`C013`)
 
