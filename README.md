@@ -19,8 +19,8 @@ matching logic, and exchange architecture through runnable code.
 
 - Real exchange mechanics: order books, auctions, clearing, and risk controls
 - Multi-process architecture: gateway, engine, audit, clearing, stats, and tooling
-- Performance-aware implementation: ~60,000 orders/second with microsecond latency
-- Practical protocol design: ALF (ALmost Fix) command language for gateway order entry, RALF (Reconciliation ALF) for post trade consumers and CALF (Channel ALF) to serve market data to subscribers
+- Performance-aware implementation: ~80,000 orders/second with microsecond latency on a Linux server
+- Practical protocol design: ALF (ALmost Fix) command language for gateway order entry, RALF (Reconciliation ALF) for post trade consumers and CALF (Channel ALF) to serve market data to subscribers, and finally BALF (Binary ALF) for high performance trade clients
 - Strong engineering discipline: type hints, linting, and high test coverage
 
 ## Key Features
@@ -44,6 +44,26 @@ matching logic, and exchange architecture through runnable code.
 - No load balancing
 - Limited replay for participants that lose the connection
 
+## Documentation
+
+Main documentation site [EduMatcher Documentation](https://johan162.github.io/EduMatcher/) that among other things includes:
+
+- **[How an Exchange Works](https://johan162.github.io/EduMatcher/how-exchange-works/)**: a primer on exchange mechanics and market microstructure concepts aimed at software developers with no prior financial experience
+- **[Exchange Concepts](https://johan162.github.io/EduMatcher/concepts/01-concepts-order-book/)**: deep dive in core technical concept of an exchange
+- **[User Guide](https://johan162.github.io/EduMatcher/user-guide/00-getting-started/)**: step-by-step instructions for installation, configuration, and running EduMatcher
+- **[Training Material](https://johan162.github.io/EduMatcher/training/)**: self-paced exercises to learn how to setup and manage the Exchange
+- **[Architecture](https://johan162.github.io/EduMatcher/architecture/01-architecture/)**: an overview of the SW architecture
+- **[Developer Guide](https://johan162.github.io/EduMatcher/developer/01-dev-practice/)**: deep dive into the architecture, design decisions, and code structure. Necessary reading for anyone wanting to contribute!
+- **[Glossary](https://johan162.github.io/EduMatcher/glossary/)**: the finance world uses lot of specialized terms, this glossary lists the most important with an explanation
+
+
+## Installing
+
+See [User Guide: Installation](https://johan162.github.io/EduMatcher/user-guide/00-getting-started/#installation)
+
+***Note:** Running an exchange is an inherent complex task and unfortunately it is only so much that can be simplified. However, going throught the user guide and training material should give a great start!*
+
+
 
 ## Performance
 
@@ -51,9 +71,6 @@ EduMatcher does not aim to match venues like NYSE or LSE, but it is still fairly
 fast for a purely Python educational project. 
 The figures below reflect the performance on an high end Linux server
 with risk checks enabled (price collar and circuit-breaker).
-
-On an ARM M1 MacBook the throughput is roughly 115,000 TPS and latencies are about 35% lower.
-
 
 ### Latency (engine-only, n=1,000 each)
 
@@ -74,25 +91,6 @@ On an ARM M1 MacBook the throughput is roughly 115,000 TPS and latencies are abo
 *Performance note:* price-collar and circuit-breaker checks run in the hot path
 for every match. They are required for realistic risk control and add measurable cost.
 
-
-## Documentation
-
-Main documentation site [EduMatcher Documentation](https://johan162.github.io/EduMatcher/) that among other things includes:
-
-- **[How an Exchange Works](https://johan162.github.io/EduMatcher/how-exchange-works/)**: a primer on exchange mechanics and market microstructure concepts aimed at software developers with no prior financial experience
-- **[Exchange Concepts](https://johan162.github.io/EduMatcher/concepts/01-concepts-order-book/)**: deep dive in core technical concept of an exchange
-- **[User Guide](https://johan162.github.io/EduMatcher/user-guide/00-getting-started/)**: step-by-step instructions for installation, configuration, and running EduMatcher
-- **[Training Material](https://johan162.github.io/EduMatcher/training/)**: self-paced exercises to learn how to setup and manage the Exchange
-- **[Architecture](https://johan162.github.io/EduMatcher/architecture/01-architecture/)**: an overview of the SW architecture
-- **[Developer Guide](https://johan162.github.io/EduMatcher/developer/01-dev-practice/)**: deep dive into the architecture, design decisions, and code structure. Necessary reading for anyone wanting to contribute!
-- **[Glossary](https://johan162.github.io/EduMatcher/glossary/)**: the finance world uses lot of specialized terms, this glossary lists the most important with an explanation
-
-
-## Installing
-
-See [User Guide: Installation](https://johan162.github.io/EduMatcher/user-guide/00-getting-started/#installation)
-
-***Note:** Running an exchange is an inherent complex task and unfortunately it is only so much that can be simplified. However, going throught the user guide and training material should give a great start!*
 
 
 ## Citation
