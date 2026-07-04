@@ -1949,10 +1949,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-3-start-the-engine" class="md-nav__link">
+  <a href="#exercise-3-validate-the-config-with-pm-cverifier" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 3: Start the Engine
+        Exercise 3: Validate the Config with pm-cverifier
       
     </span>
   </a>
@@ -1960,10 +1960,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-4-start-the-scheduler" class="md-nav__link">
+  <a href="#exercise-4-practice-fixing-verifier-findings" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 4: Start the Scheduler
+        Exercise 4: Practice Fixing Verifier Findings
       
     </span>
   </a>
@@ -1971,10 +1971,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-5-connect-a-gateway" class="md-nav__link">
+  <a href="#exercise-5-start-the-engine" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 5: Connect a Gateway
+        Exercise 5: Start the Engine
       
     </span>
   </a>
@@ -1982,10 +1982,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-6-verify-the-setup" class="md-nav__link">
+  <a href="#exercise-6-start-the-scheduler" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 6: Verify the Setup
+        Exercise 6: Start the Scheduler
       
     </span>
   </a>
@@ -1993,10 +1993,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-7-connect-the-admin-gateway" class="md-nav__link">
+  <a href="#exercise-7-connect-a-gateway" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 7: Connect the Admin Gateway
+        Exercise 7: Connect a Gateway
       
     </span>
   </a>
@@ -2004,10 +2004,32 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#exercise-8-inspect-enriched-symbols-metadata" class="md-nav__link">
+  <a href="#exercise-8-verify-the-setup" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Exercise 8: Inspect Enriched SYMBOLS Metadata
+        Exercise 8: Verify the Setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-9-connect-the-admin-gateway" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 9: Connect the Admin Gateway
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exercise-10-inspect-enriched-symbols-metadata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exercise 10: Inspect Enriched SYMBOLS Metadata
       
     </span>
   </a>
@@ -3186,7 +3208,12 @@
 <h1 id="configuring-starting-up">Configuring &amp; Starting Up<a class="headerlink" href="#configuring-starting-up" title="Permanent link">&para;</a></h1>
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
 <p>By the end of this chapter you will have a working exchange with at least one
-gateway and three tradeable symbols, ready to accept orders.</p>
+gateway and three tradeable symbols, ready to accept orders.
+In addition you have become familiar with the two tools:</p>
+<ul>
+<li><strong><code>pm-config-gen</code></strong> used to automatically generate configuration file based on options and flags. </li>
+<li><strong><code>pm-cverifier</code></strong>  used to verify an existing (possibly hand-crafterd) configuration file for errors or missing settings</li>
+</ul>
 <h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h2>
 <ul>
 <li>EduMatcher installed and <code>pm-setup</code> completed (see <a href="../00-installation/">00 — Installation &amp; Setup</a>).</li>
@@ -3268,61 +3295,105 @@ scaffold a configuration. Try generating an equivalent config:</p>
 </code></pre></div></p>
 </div>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> generated config matches the manual one; symbols and gateways present.</p>
-<h2 id="exercise-3-start-the-engine">Exercise 3: Start the Engine<a class="headerlink" href="#exercise-3-start-the-engine" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-3-validate-the-config-with-pm-cverifier">Exercise 3: Validate the Config with pm-cverifier<a class="headerlink" href="#exercise-3-validate-the-config-with-pm-cverifier" title="Permanent link">&para;</a></h2>
+<p>Before starting runtime processes, verify the file:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-cverifier<span class="w"> </span>engine_config.yaml
+</code></pre></div>
+<p>Check the verdict and exit code:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">echo</span><span class="w"> </span><span class="nv">$?</span>
+</code></pre></div>
+<p>Expected for this chapter config:</p>
+<ul>
+<li>Verdict is <code>OK</code> or <code>WARN</code> (depending on optional sections you did or did not add).</li>
+<li>Exit code is <code>0</code> when there are no warnings/errors, <code>1</code> when warnings exist, and <code>2</code> when hard errors exist.</li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">CI-style validation</p>
+<p>Treat warnings as failures and emit machine-readable output:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-cverifier<span class="w"> </span>--strict<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>engine_config.yaml
+</code></pre></div></p>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Focus only on actionable items</p>
+<p>Hide info-level advisories while iterating:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>pm-cverifier<span class="w"> </span>--level<span class="w"> </span>warn<span class="w"> </span>engine_config.yaml
+</code></pre></div></p>
+</div>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can run <code>pm-cverifier</code>, read the verdict, and interpret its exit code.</p>
+<h2 id="exercise-4-practice-fixing-verifier-findings">Exercise 4: Practice Fixing Verifier Findings<a class="headerlink" href="#exercise-4-practice-fixing-verifier-findings" title="Permanent link">&para;</a></h2>
+<p>Create a temporary broken config and use <code>pm-cverifier</code> to diagnose it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>cp<span class="w"> </span>engine_config.yaml<span class="w"> </span>engine_config.bad.yaml
+</code></pre></div>
+<p>Edit <code>engine_config.bad.yaml</code> and intentionally introduce two issues:</p>
+<ol>
+<li>Remove the <code>GW_ADMIN</code> gateway entry.</li>
+<li>Set one symbol's <code>tick_decimals</code> to an invalid value like <code>12</code>.</li>
+</ol>
+<p>Run verifier:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>pm-cverifier<span class="w"> </span>engine_config.bad.yaml
+</code></pre></div>
+<p>You should see at least:</p>
+<ul>
+<li><code>M013</code> warning (no ADMIN gateway).</li>
+<li><code>S010</code> error (invalid <code>tick_decimals</code>).</li>
+</ul>
+<p>Now fix the file and rerun until verdict is <code>OK</code> or your expected warning-only state.</p>
+<p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> you can reproduce a verifier finding, map it to a check code, and clear it by fixing the config.</p>
+<h2 id="exercise-5-start-the-engine">Exercise 5: Start the Engine<a class="headerlink" href="#exercise-5-start-the-engine" title="Permanent link">&para;</a></h2>
 <p>Open a terminal and run:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>pm-engine<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>pm-engine<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>Expected output includes (exact wording/log format may vary by version — this
 is illustrative, not a literal match target):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[INFO] Loaded 3 symbols: AAPL, MSFT, TSLA
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>[INFO] Loaded 3 gateways
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>[INFO] Engine listening on :5555 (PULL), publishing on :5556 (PUB)
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>[INFO] Loaded 3 symbols: AAPL, MSFT, TSLA
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>[INFO] Loaded 3 gateways
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>[INFO] Engine listening on :5555 (PULL), publishing on :5556 (PUB)
 </code></pre></div>
 <p>The stable way to confirm the engine actually loaded your config, independent
-of log wording, is to query it from a gateway once connected (Exercise 5) with
+of log wording, is to query it from a gateway once connected (Exercise 7) with
 <code>SYMBOLS</code> — if it lists <code>AAPL</code>, <code>MSFT</code>, and <code>TSLA</code>, the engine started correctly
 regardless of what the startup banner said.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> engine is running without errors.</p>
-<h2 id="exercise-4-start-the-scheduler">Exercise 4: Start the Scheduler<a class="headerlink" href="#exercise-4-start-the-scheduler" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-6-start-the-scheduler">Exercise 6: Start the Scheduler<a class="headerlink" href="#exercise-6-start-the-scheduler" title="Permanent link">&para;</a></h2>
 <p>In a <strong>second terminal</strong>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>pm-scheduler
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>pm-scheduler
 </code></pre></div>
 <p>Expected output (illustrative):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[INFO] Session state: PRE_OPEN
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>[INFO] Session state: PRE_OPEN
 </code></pre></div>
 <p>The scheduler will transition through PRE_OPEN → OPENING_AUCTION → CONTINUOUS
 automatically (or you can trigger immediate continuous with <code>--immediate</code>).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> scheduler reports session state changes.</p>
-<h2 id="exercise-5-connect-a-gateway">Exercise 5: Connect a Gateway<a class="headerlink" href="#exercise-5-connect-a-gateway" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-7-connect-a-gateway">Exercise 7: Connect a Gateway<a class="headerlink" href="#exercise-7-connect-a-gateway" title="Permanent link">&para;</a></h2>
 <p>In a <strong>third terminal</strong>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>TRADER01
 </code></pre></div>
 <p>You should see:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>[INFO] Connected as TRADER01
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>TRADER01&gt;
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>[INFO] Connected as TRADER01
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>TRADER01&gt;
 </code></pre></div>
 <p>Try typing <code>ORDERS</code> — it should report no resting orders for this gateway.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> gateway prompt is interactive and connected.</p>
-<h2 id="exercise-6-verify-the-setup">Exercise 6: Verify the Setup<a class="headerlink" href="#exercise-6-verify-the-setup" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-8-verify-the-setup">Exercise 8: Verify the Setup<a class="headerlink" href="#exercise-8-verify-the-setup" title="Permanent link">&para;</a></h2>
 <p>From the gateway prompt, confirm the three symbols are available by attempting
 a tiny limit order:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=0.01|TIF=DAY
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>TRADER01&gt; NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=0.01|TIF=DAY
 </code></pre></div>
 <p>You should see an acknowledgement (the order rests since no matching ask exists).</p>
 <p>Repeat for <code>MSFT</code> and <code>TSLA</code> to confirm all three books are active.</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> all three symbols accept orders.</p>
-<h2 id="exercise-7-connect-the-admin-gateway">Exercise 7: Connect the Admin Gateway<a class="headerlink" href="#exercise-7-connect-the-admin-gateway" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-9-connect-the-admin-gateway">Exercise 9: Connect the Admin Gateway<a class="headerlink" href="#exercise-9-connect-the-admin-gateway" title="Permanent link">&para;</a></h2>
 <p>In a <strong>fourth terminal</strong>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>pm-alf-console<span class="w"> </span>--id<span class="w"> </span>GW_ADMIN
 </code></pre></div>
 <p>Try an admin command:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>GW_ADMIN&gt; BOOK|SYM=AAPL
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>GW_ADMIN&gt; BOOK|SYM=AAPL
 </code></pre></div>
-<p>You should see a book snapshot (possibly with the 1-lot bid from Exercise 5).</p>
+<p>You should see a book snapshot (possibly with the 1-lot bid from Exercise 8).</p>
 <p><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg></span> <strong>Checkpoint:</strong> admin gateway works; BOOK command shows data.</p>
-<h2 id="exercise-8-inspect-enriched-symbols-metadata">Exercise 8: Inspect Enriched SYMBOLS Metadata<a class="headerlink" href="#exercise-8-inspect-enriched-symbols-metadata" title="Permanent link">&para;</a></h2>
+<h2 id="exercise-10-inspect-enriched-symbols-metadata">Exercise 10: Inspect Enriched SYMBOLS Metadata<a class="headerlink" href="#exercise-10-inspect-enriched-symbols-metadata" title="Permanent link">&para;</a></h2>
 <p>From any connected gateway:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>TRADER01&gt; SYMBOLS
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>TRADER01&gt; SYMBOLS
 </code></pre></div>
 <p>In addition to symbol IDs, inspect metadata fields exposed by the gateway view,
 including symbol description and matching constraints such as tick size and MM
@@ -3332,6 +3403,7 @@ obligation settings when configured.</p>
 <p>You now have:</p>
 <ul>
 <li>A configuration file defining 3 symbols and 3 gateways.</li>
+<li>A repeatable verifier workflow (<code>pm-cverifier</code>) to catch config problems before startup.</li>
 <li>A running engine, scheduler, and at least one trader gateway.</li>
 <li>Confirmation that all symbols accept orders.</li>
 </ul>
@@ -3343,6 +3415,7 @@ the engine kept running?</p>
 <h2 id="further-reading">Further Reading<a class="headerlink" href="#further-reading" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../user-guide/01-configuration/">Configuration</a></li>
+<li><a href="../../user-guide/23-config-verifier/">Config Verifier (<code>pm-cverifier</code>)</a></li>
 <li><a href="../../user-guide/03-running-the-engine/">Running the Engine</a></li>
 <li><a href="../../user-guide/08-gateway/">Gateway Commands</a></li>
 <li><a href="../../user-guide/09-messages/">Message Types (system.symbols)</a></li>

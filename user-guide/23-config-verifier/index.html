@@ -1603,10 +1603,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#layer-2-schema-s001s042" class="md-nav__link">
+  <a href="#layer-2-schema-s001s077" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Layer 2 — Schema (S001–S042)
+        Layer 2 — Schema (S001–S077)
       
     </span>
   </a>
@@ -1614,10 +1614,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#layer-3-semantic-m001m016" class="md-nav__link">
+  <a href="#layer-3-semantic-m001m020" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Layer 3 — Semantic (M001–M016)
+        Layer 3 — Semantic (M001–M020)
       
     </span>
   </a>
@@ -3424,7 +3424,7 @@ reporting scripts.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="layer-2-schema-s001s042">Layer 2 — Schema (<code>S001</code>–<code>S042</code>)<a class="headerlink" href="#layer-2-schema-s001s042" title="Permanent link">&para;</a></h3>
+<h3 id="layer-2-schema-s001s077">Layer 2 — Schema (<code>S001</code>–<code>S077</code>)<a class="headerlink" href="#layer-2-schema-s001s077" title="Permanent link">&para;</a></h3>
 <p><strong>Top-level structure</strong></p>
 <table>
 <thead>
@@ -3493,6 +3493,18 @@ reporting scripts.</p>
 <td><code>S016</code></td>
 <td><code>market_maker_quotes[n]</code> has a non-numeric price, non-positive/non-integer quantity, or invalid <code>tif</code></td>
 </tr>
+<tr>
+<td><code>S017</code></td>
+<td><code>market_maker_quotes</code> is present but not a list</td>
+</tr>
+<tr>
+<td><code>S018</code></td>
+<td><code>market_maker_quotes[n]</code> is not a mapping</td>
+</tr>
+<tr>
+<td><code>S019</code></td>
+<td><code>market_maker_quotes[n].gateway_id</code> is blank when provided</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Gateway fields</strong></p>
@@ -3519,6 +3531,26 @@ reporting scripts.</p>
 <tr>
 <td><code>S023</code></td>
 <td><code>disconnect_behaviour</code> is not a recognised value</td>
+</tr>
+<tr>
+<td><code>S024</code></td>
+<td><code>quote_refresh_policy</code> is not a recognised value</td>
+</tr>
+<tr>
+<td><code>S025</code></td>
+<td><code>enforce_mm_obligation</code> is not a boolean</td>
+</tr>
+<tr>
+<td><code>S026</code></td>
+<td><code>mm_max_spread_ticks</code> or <code>mm_min_qty</code> invalid</td>
+</tr>
+<tr>
+<td><code>S027</code></td>
+<td><code>mm_obligations</code> is present but not a mapping</td>
+</tr>
+<tr>
+<td><code>S028</code></td>
+<td><code>mm_obligations.&lt;symbol&gt;</code> entry is invalid</td>
 </tr>
 </tbody>
 </table>
@@ -3580,7 +3612,114 @@ reporting scripts.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="layer-3-semantic-m001m016">Layer 3 — Semantic (<code>M001</code>–<code>M016</code>)<a class="headerlink" href="#layer-3-semantic-m001m016" title="Permanent link">&para;</a></h3>
+<p><strong>Runtime / schedule / top-level flags</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>S060</code></td>
+<td><code>sessions_enabled</code> present but not a boolean</td>
+</tr>
+<tr>
+<td><code>S061</code></td>
+<td><code>snapshot_interval_sec</code> present but not a positive number</td>
+</tr>
+<tr>
+<td><code>S062</code></td>
+<td><code>enforce_collars</code> present but not a boolean</td>
+</tr>
+<tr>
+<td><code>S063</code></td>
+<td><code>enforce_circuit_breakers</code> present but not a boolean</td>
+</tr>
+<tr>
+<td><code>S064</code></td>
+<td><code>schedule</code> present but not a mapping</td>
+</tr>
+</tbody>
+</table>
+<p><strong>MM obligation defaults (<code>mm_obligation_defaults</code>)</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>S070</code></td>
+<td><code>mm_obligation_defaults</code> is present but not a mapping</td>
+</tr>
+<tr>
+<td><code>S071</code></td>
+<td><code>mm_obligation_defaults.enforce_mm_obligation</code> is not a boolean</td>
+</tr>
+<tr>
+<td><code>S072</code></td>
+<td><code>mm_obligation_defaults.mm_max_spread_ticks</code> invalid</td>
+</tr>
+<tr>
+<td><code>S073</code></td>
+<td><code>mm_obligation_defaults.mm_min_qty</code> invalid</td>
+</tr>
+<tr>
+<td><code>S074</code></td>
+<td><code>mm_obligation_defaults.symbols</code> is present but not a mapping</td>
+</tr>
+<tr>
+<td><code>S075</code></td>
+<td><code>mm_obligation_defaults.symbols.&lt;symbol&gt;</code> is not a mapping</td>
+</tr>
+<tr>
+<td><code>S076</code></td>
+<td><code>mm_obligation_defaults.symbols.&lt;symbol&gt;.enforce_mm_obligation</code> invalid</td>
+</tr>
+<tr>
+<td><code>S077</code></td>
+<td><code>mm_obligation_defaults.symbols.&lt;symbol&gt;.mm_max_spread_ticks/min_qty</code> invalid</td>
+</tr>
+</tbody>
+</table>
+<p><strong>BALF gateway fields (<code>balf_gateway</code>)</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>S050</code></td>
+<td><code>balf_gateway</code> is present but not a mapping</td>
+</tr>
+<tr>
+<td><code>S051</code></td>
+<td><code>balf_gateway.port</code> not an integer in <code>1..65535</code></td>
+</tr>
+<tr>
+<td><code>S052</code></td>
+<td>BALF capacity fields not positive integers (<code>max_connections</code>, etc.)</td>
+</tr>
+<tr>
+<td><code>S053</code></td>
+<td>BALF timeout/interval fields not positive numbers</td>
+</tr>
+<tr>
+<td><code>S054</code></td>
+<td><code>balf_gateway.duplicate_session_policy</code> not <code>REJECT_NEW</code> or <code>EVICT_OLD</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="layer-3-semantic-m001m020">Layer 3 — Semantic (<code>M001</code>–<code>M020</code>)<a class="headerlink" href="#layer-3-semantic-m001m020" title="Permanent link">&para;</a></h3>
+<p><code>M014</code> is currently emitted during the schema pass because CB threshold ordering
+is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 <table>
 <thead>
 <tr>
@@ -3670,9 +3809,31 @@ reporting scripts.</p>
 <td>WARN</td>
 <td><code>post_trade_gateway</code> configured but no ADMIN gateway</td>
 </tr>
+<tr>
+<td><code>M017</code></td>
+<td>WARN</td>
+<td><code>balf_gateway.heartbeat_timeout_sec &lt;= heartbeat_interval_sec</code></td>
+</tr>
+<tr>
+<td><code>M018</code></td>
+<td>ERROR</td>
+<td><code>balf_gateway.port</code> conflicts with another gateway port</td>
+</tr>
+<tr>
+<td><code>M019</code></td>
+<td>ERROR</td>
+<td><code>mm_obligation_defaults.symbols</code> references an unknown symbol</td>
+</tr>
+<tr>
+<td><code>M020</code></td>
+<td>ERROR</td>
+<td>MM seed <code>gateway_id</code> exists but is not a <code>MARKET_MAKER</code> gateway</td>
+</tr>
 </tbody>
 </table>
 <h3 id="layer-4-completeness-c001c013">Layer 4 — Completeness (<code>C001</code>–<code>C013</code>)<a class="headerlink" href="#layer-4-completeness-c001c013" title="Permanent link">&para;</a></h3>
+<p><code>C010</code> is emitted during the semantic pass (Layer 3) but kept in the <code>C</code> code
+family because it is an operational-completeness warning.</p>
 <table>
 <thead>
 <tr>
@@ -3806,8 +3967,9 @@ actually do at runtime?"</em></p>
 </tr>
 </tbody>
 </table>
-<p>A ⚠ next to a Risk Summary line means a completeness issue was detected for that
-subsystem — even if the overall verdict is <code>OK</code>.</p>
+<p>A ⚠ next to a Risk Summary line marks a potentially risky or incomplete
+subsystem configuration (for example missing ADMIN gateway or missing collar
+configuration), even if the overall verdict is <code>OK</code>.</p>
 <h2 id="relationship-to-other-tools">Relationship to Other Tools<a class="headerlink" href="#relationship-to-other-tools" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
