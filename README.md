@@ -33,13 +33,10 @@ matching logic, and exchange architecture through runnable code.
 - Implement real risk controls such as prioce-collar, kill-switch, circuit-breaker, and mass-cancel
 - Easy to understand configuration through single source `engine_config.yaml` which acts as the system reference data. To simplify its creation a CLI tool `pm-config-gen` can be used and a handwritten config file can be verified with `pm-cverifier` 
 
-## Key Functional Limitations
+## Key Functional and Infrastructure Limitations
 
 - No spread-order books
 - No implied (synthetic) orders
-
-## Key Infrastructure Limitations
-
 - No primary-secondary automatic site failover
 - No load balancing
 - Limited replay for participants that lose the connection
