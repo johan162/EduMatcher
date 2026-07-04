@@ -3867,7 +3867,7 @@ No ZMQ broker daemon, no message queue server, no external dependencies beyond Z
 <h2 id="zmq-topology">ZMQ Topology<a class="headerlink" href="#zmq-topology" title="Permanent link">&para;</a></h2>
 <pre class="mermaid"><code>graph TD
     ALF["pm-alf-console\nALF"]
-    APIGW["pm-api-gateway"]
+    APIGW["pm-api-gwy"]
     MMBOT["pm-mm-bot"]
     SCH["pm-scheduler"]
 
@@ -3878,7 +3878,7 @@ No ZMQ broker daemon, no message queue server, no external dependencies beyond Z
     end
 
     GW_R["pm-alf-console\nprivate events"]
-    APIR["pm-api-gateway\nWebSocket bridge"]
+    APIR["pm-api-gwy\nWebSocket bridge"]
     OPS["pm-stats · pm-clearing · pm-audit"]
     UI["pm-viewer · pm-board · pm-ticker · pm-orders"]
     IDX["pm-index"]
@@ -4264,7 +4264,7 @@ It subscribes to the engine PUB at :5556 and publishes index events independentl
 <td>Interactive order entry; ALF line protocol; index data display</td>
 </tr>
 <tr>
-<td>pm-api-gateway</td>
+<td>pm-api-gwy</td>
 <td>PUSH→:5555, SUB→:5556, SUB→:5558, PUSH→:5559</td>
 <td>Connects</td>
 <td>REST and WebSocket order gateway for programmatic clients</td>
@@ -4360,7 +4360,7 @@ other process connects to the engine.  This has three practical consequences:</p
 because it is a second-tier publisher, not a consumer of the engine.</p>
 <h3 id="two-tiers-of-gateways">Two Tiers of Gateways<a class="headerlink" href="#two-tiers-of-gateways" title="Permanent link">&para;</a></h3>
 <p>EduMatcher has two distinct gateway roles:</p>
-<p><strong>Order-entry gateways</strong> (<code>pm-alf-console</code>, <code>pm-api-gateway</code>, <code>pm-mm-bot</code>) connect
+<p><strong>Order-entry gateways</strong> (<code>pm-alf-console</code>, <code>pm-api-gwy</code>, <code>pm-mm-bot</code>) connect
 directly to the engine over ZMQ PUSH/PULL.  They authenticate via
 <code>system.gateway_connect</code> and receive personalised events on their subscribed
 <code>order.*</code>, <code>quote.*</code>, and <code>system.*</code> topics.  These processes are internal to the

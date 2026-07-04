@@ -3135,11 +3135,11 @@
 <p>pipx remains a strong choice for per-user workstation installs, but this VM image has a system-wide command-link requirement.</p>
 <h2 id="build-the-vm-image">Build the VM image<a class="headerlink" href="#build-the-vm-image" title="Permanent link">&para;</a></h2>
 <p>Without cloning the repository:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.13.4<span class="w"> </span>--snapshot
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-fsSL<span class="w"> </span>https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>bash<span class="w"> </span>-s<span class="w"> </span>--<span class="w"> </span>--version<span class="w"> </span><span class="m">0</span>.13.5<span class="w"> </span>--snapshot
 </code></pre></div>
 <p>With a local repository checkout:</p>
 <p>From repository root:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>./vm/build_multipass_vm.sh --version 0.13.4
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>./vm/build_multipass_vm.sh --version 0.13.5
 </code></pre></div>
 <p>Useful options:</p>
 <table>
@@ -3226,12 +3226,12 @@
 <code>pm-alf-console --id TRADER01</code> </p>
 <h2 id="upgrading-the-pinned-version">Upgrading the pinned version<a class="headerlink" href="#upgrading-the-pinned-version" title="Permanent link">&para;</a></h2>
 <p>Preferred approach is immutable rebuild with a new VM name:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./vm/build_multipass_vm.sh --name edumatcher-072 --version 0.13.4 --snapshot
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>./vm/build_multipass_vm.sh --name edumatcher-072 --version 0.13.5 --snapshot
 </code></pre></div>
 <p>If you need in-place reprovisioning:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>multipass transfer vm/install_edumatcher_runtime.sh edumatcher-071:/tmp/install_edumatcher_runtime.sh
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>multipass exec edumatcher-071 -- sudo chmod +x /tmp/install_edumatcher_runtime.sh
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>multipass exec edumatcher-071 -- sudo /tmp/install_edumatcher_runtime.sh --version 0.13.4
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>multipass exec edumatcher-071 -- sudo /tmp/install_edumatcher_runtime.sh --version 0.13.5
 </code></pre></div>
 
 

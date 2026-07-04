@@ -3645,14 +3645,14 @@ and read newline-delimited text.</p>
 <li>Map <code>ERR|CODE=...</code> values to the correct config or client-side fix.</li>
 </ul>
 <h2 id="reflection">Reflection<a class="headerlink" href="#reflection" title="Permanent link">&para;</a></h2>
-<p><code>pm-alf-gwy</code> (this chapter) and <code>pm-api-gateway</code> (Chapter 24) both allow
+<p><code>pm-alf-gwy</code> (this chapter) and <code>pm-api-gwy</code> (Chapter 24) both allow
 external clients to submit orders to the same matching engine. Answer the
 following:</p>
 <ol>
 <li>
 <p>A Python bot connecting to <code>pm-alf-gwy</code> receives a <code>FILL</code> event pushed
    directly over its persistent TCP connection. A Python bot connecting to
-   <code>pm-api-gateway</code> learns about the same fill through a WebSocket <code>events</code>
+   <code>pm-api-gwy</code> learns about the same fill through a WebSocket <code>events</code>
    stream. Both need to act on fills within milliseconds. Which transport has
    lower latency overhead and why?</p>
 </li>

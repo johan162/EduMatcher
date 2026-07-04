@@ -4327,7 +4327,7 @@ private history for its authenticated trading credential.</p>
 API gateway with matching config:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-engine<span class="w"> </span>--verbose<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
 <a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>pm-stats<span class="w"> </span>--db<span class="w"> </span>data/stats.db
-<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>pm-api-gateway<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>pm-api-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
 </code></pre></div>
 <p>Then query order lifecycle history through HTTP with a trading API key:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">&#39;Authorization: Bearer key-trader-demo&#39;</span><span class="w"> </span><span class="se">\</span>

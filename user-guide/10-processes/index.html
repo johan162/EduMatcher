@@ -1448,10 +1448,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#pm-api-gateway-restwebsocket-api-gateway" class="md-nav__link">
+  <a href="#pm-api-gwy-restwebsocket-api-gateway" class="md-nav__link">
     <span class="md-ellipsis">
       
-        pm-api-gateway — REST/WebSocket API Gateway
+        pm-api-gwy — REST/WebSocket API Gateway
       
     </span>
   </a>
@@ -3824,8 +3824,8 @@ environment variable and the default.</p>
 <td>No</td>
 </tr>
 <tr>
-<td><strong>pm-api-gateway</strong></td>
-<td><code>pm-api-gateway</code></td>
+<td><strong>pm-api-gwy</strong></td>
+<td><code>pm-api-gwy</code></td>
 <td>REST/WebSocket order-entry and market-data API gateway</td>
 <td>No</td>
 </tr>
@@ -6171,13 +6171,13 @@ over the CALF <code>INDEX</code> channel.</p>
 </tbody>
 </table>
 <p>See <a href="../22-index/">Market Index (pm-index)</a> for configuration details, calculation explanation, and corporate action procedures.</p>
-<h2 id="pm-api-gateway-restwebsocket-api-gateway">pm-api-gateway — REST/WebSocket API Gateway<a class="headerlink" href="#pm-api-gateway-restwebsocket-api-gateway" title="Permanent link">&para;</a></h2>
+<h2 id="pm-api-gwy-restwebsocket-api-gateway">pm-api-gwy — REST/WebSocket API Gateway<a class="headerlink" href="#pm-api-gwy-restwebsocket-api-gateway" title="Permanent link">&para;</a></h2>
 <p>Exposes EduMatcher order entry, order management, reference data, history, and
 market data over REST/JSON and WebSocket. It is not a second matching engine —
 it translates HTTP and WebSocket requests into the same ZMQ messages used by the
 interactive <code>pm-alf-console</code> terminal. Reads configuration from the <code>api_gateways:</code>
 section of <code>engine_config.yaml</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-api-gateway<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--instance<span class="w"> </span>NAME<span class="o">]</span><span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a>pm-api-gwy<span class="w"> </span><span class="o">[</span>--config<span class="w"> </span>engine_config.yaml<span class="o">]</span><span class="w"> </span><span class="o">[</span>--instance<span class="w"> </span>NAME<span class="o">]</span><span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <p><strong>Startup options:</strong></p>
 <table>

@@ -1603,10 +1603,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#layer-2-schema-s001s077" class="md-nav__link">
+  <a href="#layer-2-schema-s001s084" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Layer 2 — Schema (S001–S077)
+        Layer 2 — Schema (S001–S084)
       
     </span>
   </a>
@@ -1614,10 +1614,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#layer-3-semantic-m001m020" class="md-nav__link">
+  <a href="#layer-3-semantic-m001m022" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Layer 3 — Semantic (M001–M020)
+        Layer 3 — Semantic (M001–M022)
       
     </span>
   </a>
@@ -3424,7 +3424,7 @@ reporting scripts.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="layer-2-schema-s001s077">Layer 2 — Schema (<code>S001</code>–<code>S077</code>)<a class="headerlink" href="#layer-2-schema-s001s077" title="Permanent link">&para;</a></h3>
+<h3 id="layer-2-schema-s001s084">Layer 2 — Schema (<code>S001</code>–<code>S084</code>)<a class="headerlink" href="#layer-2-schema-s001s084" title="Permanent link">&para;</a></h3>
 <p><strong>Top-level structure</strong></p>
 <table>
 <thead>
@@ -3552,6 +3552,14 @@ reporting scripts.</p>
 <td><code>S028</code></td>
 <td><code>mm_obligations.&lt;symbol&gt;</code> entry is invalid</td>
 </tr>
+<tr>
+<td><code>S029</code></td>
+<td><code>gateways.alf[n]</code> is not a mapping</td>
+</tr>
+<tr>
+<td><code>S084</code></td>
+<td>Two <code>gateways.alf</code> IDs are prefixes of each other</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Circuit breaker fields</strong></p>
@@ -3609,6 +3617,76 @@ reporting scripts.</p>
 <tr>
 <td><code>S042</code></td>
 <td><code>collar.dynamic_band_pct</code> not in <code>(0, 1)</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Indices (<code>indices</code>)</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>S043</code></td>
+<td><code>indices</code> is present but not a list</td>
+</tr>
+<tr>
+<td><code>S044</code></td>
+<td><code>indices[n]</code> is not a mapping</td>
+</tr>
+<tr>
+<td><code>S045</code></td>
+<td><code>indices[n].id</code> invalid (empty, non-alnum, or duplicate)</td>
+</tr>
+<tr>
+<td><code>S046</code></td>
+<td><code>indices[n].description</code> is empty or not a string</td>
+</tr>
+<tr>
+<td><code>S047</code></td>
+<td><code>indices[n].base_value</code> or <code>publish_interval_sec</code> invalid</td>
+</tr>
+<tr>
+<td><code>S048</code></td>
+<td><code>indices[n].history_file</code> or <code>state_file</code> invalid</td>
+</tr>
+<tr>
+<td><code>S049</code></td>
+<td><code>indices[n].constituents</code> invalid shape or duplicates</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Combo seeds (<code>market_maker_combos</code>)</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>S055</code></td>
+<td><code>market_maker_combos</code> is present but not a list</td>
+</tr>
+<tr>
+<td><code>S056</code></td>
+<td><code>market_maker_combos[n]</code> invalid mapping/combo_id</td>
+</tr>
+<tr>
+<td><code>S057</code></td>
+<td><code>market_maker_combos[n].combo_type</code> or <code>.tif</code> invalid</td>
+</tr>
+<tr>
+<td><code>S058</code></td>
+<td><code>market_maker_combos[n].legs</code> invalid shape/length</td>
+</tr>
+<tr>
+<td><code>S059</code></td>
+<td><code>market_maker_combos[n].legs[m]</code> invalid, duplicate, or unknown symbol</td>
 </tr>
 </tbody>
 </table>
@@ -3686,6 +3764,40 @@ reporting scripts.</p>
 </tr>
 </tbody>
 </table>
+<p><strong>API gateway sections</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>S080</code></td>
+<td><code>api_gateways</code> section fails runtime-loader validation</td>
+</tr>
+</tbody>
+</table>
+<p><strong>RALF and market-data gateway sections</strong></p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>S082</code></td>
+<td><code>post_trade_gateway</code> section fails runtime-loader validation</td>
+</tr>
+<tr>
+<td><code>S083</code></td>
+<td><code>market_data_gateway</code> section fails runtime-loader validation</td>
+</tr>
+</tbody>
+</table>
 <p><strong>BALF gateway fields (<code>balf_gateway</code>)</strong></p>
 <table>
 <thead>
@@ -3717,7 +3829,7 @@ reporting scripts.</p>
 </tr>
 </tbody>
 </table>
-<h3 id="layer-3-semantic-m001m020">Layer 3 — Semantic (<code>M001</code>–<code>M020</code>)<a class="headerlink" href="#layer-3-semantic-m001m020" title="Permanent link">&para;</a></h3>
+<h3 id="layer-3-semantic-m001m022">Layer 3 — Semantic (<code>M001</code>–<code>M022</code>)<a class="headerlink" href="#layer-3-semantic-m001m022" title="Permanent link">&para;</a></h3>
 <p><code>M014</code> is currently emitted during the schema pass because CB threshold ordering
 is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 <table>
@@ -3736,7 +3848,7 @@ is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 </tr>
 <tr>
 <td><code>M002</code></td>
-<td>WARN</td>
+<td>ERROR</td>
 <td>MM seed references a gateway ID not in <code>gateways.alf</code></td>
 </tr>
 <tr>
@@ -3776,7 +3888,7 @@ is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 </tr>
 <tr>
 <td><code>M010</code></td>
-<td>WARN</td>
+<td>ERROR</td>
 <td>Index constituent missing <code>outstanding_shares</code></td>
 </tr>
 <tr>
@@ -3828,6 +3940,11 @@ is validated while parsing <code>circuit_breaker_defaults</code>.</p>
 <td><code>M020</code></td>
 <td>ERROR</td>
 <td>MM seed <code>gateway_id</code> exists but is not a <code>MARKET_MAKER</code> gateway</td>
+</tr>
+<tr>
+<td><code>M022</code></td>
+<td>ERROR</td>
+<td>API credential <code>gateway_id</code> is not defined in <code>gateways.alf</code></td>
 </tr>
 </tbody>
 </table>

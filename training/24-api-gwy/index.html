@@ -3207,7 +3207,7 @@
 
 <h1 id="api-gateway-restwebsocket-training">API Gateway REST/WebSocket Training<a class="headerlink" href="#api-gateway-restwebsocket-training" title="Permanent link">&para;</a></h1>
 <h2 id="objective">Objective<a class="headerlink" href="#objective" title="Permanent link">&para;</a></h2>
-<p>Train on configuring and using <code>pm-api-gateway</code> for REST order entry,
+<p>Train on configuring and using <code>pm-api-gwy</code> for REST order entry,
 Swagger/OpenAPI exploration, WebSocket event handling, and multi-process logical
 separation.</p>
 <p>You will practice:</p>
@@ -3223,17 +3223,17 @@ separation.</p>
 <li>Chapters 01-23 completed.</li>
 <li>Engine and stats commands available from the current environment.</li>
 <li>REST examples available in <code>docs/examples/REST</code>.</li>
-<li>A terminal for <code>pm-engine</code>, one for <code>pm-stats</code>, one for <code>pm-api-gateway</code>, and one or more client terminals.</li>
+<li>A terminal for <code>pm-engine</code>, one for <code>pm-stats</code>, one for <code>pm-api-gwy</code>, and one or more client terminals.</li>
 </ul>
 <p>Recommended startup order:</p>
 <ol>
 <li>Generate <code>engine_config.yaml</code>.</li>
 <li>Start <code>pm-engine --verbose --config engine_config.yaml</code>.</li>
 <li>Start <code>pm-stats --config engine_config.yaml</code>.</li>
-<li>Start <code>pm-api-gateway --config engine_config.yaml --instance desk</code>.</li>
+<li>Start <code>pm-api-gwy --config engine_config.yaml --instance desk</code>.</li>
 </ol>
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
-<p><code>pm-api-gateway</code> is an HTTP and WebSocket wrapper around the matching engine. It
+<p><code>pm-api-gwy</code> is an HTTP and WebSocket wrapper around the matching engine. It
 uses bearer tokens from <code>api_gateways.&lt;NAME&gt;.credentials</code>. A credential with a
 non-null <code>gateway_id</code> can submit and manage orders for that ALF gateway. A
 credential with <code>gateway_id: null</code> is read-only and can use status, reference,
@@ -3283,13 +3283,13 @@ private session and event state owned by one API gateway process. Read-only
 <p>Start the core processes with the generated config:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-engine<span class="w"> </span>--verbose<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>pm-stats<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>pm-api-gateway<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>pm-api-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
 </code></pre></div>
 <p>If the config contains only one <code>api_gateways</code> entry, <code>--instance</code> can be omitted.
 Use it anyway in labs so the selected process is explicit.</p>
 <p>Expected behavior:</p>
 <ul>
-<li><code>pm-api-gateway</code> binds to <code>127.0.0.1:8080</code></li>
+<li><code>pm-api-gwy</code> binds to <code>127.0.0.1:8080</code></li>
 <li>startup fails if <code>api_gateways.desk.enabled</code> is <code>false</code></li>
 <li>startup fails if the same non-null <code>gateway_id</code> is assigned to two named entries</li>
 </ul>
@@ -3399,8 +3399,8 @@ algorithmic trading:</p>
 <a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">  </span>--output<span class="w"> </span>engine_config.yaml
 </code></pre></div>
 <p>Start each named process in a separate terminal:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-api-gateway<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pm-api-gateway<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>algos
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>pm-api-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pm-api-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>algos
 </code></pre></div>
 <p>Try an invalid duplicate assignment:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
@@ -3473,7 +3473,7 @@ smoke tests, or external adapter prototypes.</p>
 <ul>
 <li>Generate one or more <code>api_gateways</code> process configs with trading and
   read-only bearer credentials.</li>
-<li>Start and reach <code>pm-api-gateway</code> over REST, Swagger, and WebSocket.</li>
+<li>Start and reach <code>pm-api-gwy</code> over REST, Swagger, and WebSocket.</li>
 <li>Submit, cancel, and observe orders through REST and private WebSocket events.</li>
 <li>Explain why a write-capable ALF <code>gateway_id</code> must be unique across every
   configured <code>api_gateways</code> process.</li>
@@ -3484,7 +3484,7 @@ read-only (<code>gateway_id: null</code>) credential, would that be a problem? W
 the constraint only apply to non-null <code>gateway_id</code> values?</p>
 <h2 id="handoff-for-chapter-25">Handoff for Chapter 25<a class="headerlink" href="#handoff-for-chapter-25" title="Permanent link">&para;</a></h2>
 <p>Before starting <a href="../25-index/">25 — Market Index (pm-index)</a>, you can stop
-<code>pm-api-gateway</code>; it is not required there. Keep <code>pm-engine</code> and <code>pm-stats</code>
+<code>pm-api-gwy</code>; it is not required there. Keep <code>pm-engine</code> and <code>pm-stats</code>
 running if you want to reuse the same session, or start fresh — Chapter 25
 generates its own config with <code>pm-config-gen</code>.</p>
 

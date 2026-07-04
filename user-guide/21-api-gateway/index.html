@@ -3255,7 +3255,7 @@
 <p class="admonition-title">Learning objectives</p>
 <p>After reading this page you will understand:</p>
 <ul>
-<li>What <code>pm-api-gateway</code> does in the EduMatcher process model</li>
+<li>What <code>pm-api-gwy</code> does in the EduMatcher process model</li>
 <li>How to configure API keys in the central <code>engine_config.yaml</code></li>
 <li>How to call the REST API and inspect Swagger documentation</li>
 <li>How private and public WebSocket streams work</li>
@@ -3263,7 +3263,7 @@
 </ul>
 </div>
 <h2 id="what-this-process-is">What this process is<a class="headerlink" href="#what-this-process-is" title="Permanent link">&para;</a></h2>
-<p><code>pm-api-gateway</code> exposes EduMatcher order entry, order management, reference
+<p><code>pm-api-gwy</code> exposes EduMatcher order entry, order management, reference
 data, history, and market data over REST/JSON and WebSocket. It is intended for
 third-party software: browser UIs, dashboards, simple bots, and teaching
 examples.</p>
@@ -3271,16 +3271,18 @@ examples.</p>
 requests into the same engine ZMQ/JSON messages used by the interactive
 <code>pm-alf-console</code> process.</p>
 <pre class="mermaid"><code>flowchart LR
-    UI[Trading UI] --&gt;|REST /api/v1| API[pm-api-gateway]
+    UI[Trading UI] --&gt;|REST /api/v1| API[pm-api-gwy]
     BOT[Bot] --&gt;|REST /api/v1| API
-    UI --&gt;|WS /events| API
-    DASH[Dashboard] --&gt;|WS /market-data| API
+  UI --&gt;|WS /api/v1/events| API
+  DASH[Dashboard] --&gt;|WS /api/v1/market-data| API
     API --&gt;|ZMQ PUSH :5555| ENG[pm-engine]
     ENG --&gt;|ZMQ PUB :5556| API
     STATS[pm-stats\nstats.db] --&gt;|read-only history| API</code></pre>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
 <p>API gateway configuration lives in the central <code>engine_config.yaml</code>, matching
 the existing CALF and RALF gateway pattern.</p>
+<p>Use the top-level key <code>api_gateways</code> (underscore). The dashed form
+<code>api-gateways</code> is not valid.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">api_gateways</span><span class="p">:</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">desk</span><span class="p">:</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
@@ -3357,12 +3359,12 @@ credentials can appear in more than one entry.</p>
 <p>Installed mode:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pm-engine<span class="w"> </span>--verbose
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>pm-stats
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>pm-api-gateway<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>pm-api-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
 </code></pre></div>
 <p>Developer mode:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-engine<span class="w"> </span>--verbose
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-stats
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-api-gateway<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-api-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk
 </code></pre></div>
 <p>Useful options:</p>
 <table>
@@ -3413,7 +3415,7 @@ credentials can appear in more than one entry.</p>
 </table>
 <p>Uvicorn writes access and application logs to stdout/stderr. Redirect them with
 your shell or service manager:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-api-gateway<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk<span class="w"> </span>--log-level<span class="w"> </span>debug<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>poetry<span class="w"> </span>run<span class="w"> </span>pm-api-gwy<span class="w"> </span>--config<span class="w"> </span>engine_config.yaml<span class="w"> </span>--instance<span class="w"> </span>desk<span class="w"> </span>--log-level<span class="w"> </span>debug<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>&gt;<span class="w"> </span>api-gateway.log<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span>
 </code></pre></div>
 <h2 id="swagger-interface">Swagger interface<a class="headerlink" href="#swagger-interface" title="Permanent link">&para;</a></h2>
@@ -3824,7 +3826,7 @@ created and populated the configured database.</p>
 <ol>
 <li>Confirm <code>api_gateways.&lt;NAME&gt;.credentials</code> maps to gateways allowed under <code>gateways.alf</code></li>
 <li>Confirm each non-null <code>gateway_id</code> appears in only one API gateway entry</li>
-<li>Start <code>pm-engine</code>, <code>pm-stats</code>, then <code>pm-api-gateway --instance NAME</code></li>
+<li>Start <code>pm-engine</code>, <code>pm-stats</code>, then <code>pm-api-gwy --instance NAME</code></li>
 <li>Open <code>/docs</code> if Swagger is enabled</li>
 <li>Test <code>GET /api/v1/healthz</code> (no auth required) — returns <code>{"ok": true}</code> when the engine listener is running</li>
 <li>Test <code>GET /api/v1/status</code> with a bearer token</li>
@@ -3911,7 +3913,7 @@ and reuses the same <code>ApiGatewayClient</code> library used by <code>demo_inf
 this and returns <code>400 VALIDATION</code> if either field is present.</p>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <h3 id="check-whether-the-port-is-in-use">Check whether the port is in use<a class="headerlink" href="#check-whether-the-port-is-in-use" title="Permanent link">&para;</a></h3>
-<p>Before starting <code>pm-api-gateway</code>, or when a client cannot connect, verify that
+<p>Before starting <code>pm-api-gwy</code>, or when a client cannot connect, verify that
 something is listening on the configured port (default <code>8080</code>).</p>
 <p><strong>macOS:</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="c1"># lsof — shows the process name and PID holding the port</span>
@@ -3965,7 +3967,7 @@ If no output appears, the gateway is not running.</p>
 <tr>
 <td><code>Connection refused</code></td>
 <td>Gateway not started or wrong port</td>
-<td>Confirm <code>pm-api-gateway</code> is running; check <code>port</code> in <code>api_gateways</code> config</td>
+<td>Confirm <code>pm-api-gwy</code> is running; check <code>port</code> in <code>api_gateways</code> config</td>
 </tr>
 <tr>
 <td><code>{"ok": false}</code> from <code>/healthz</code></td>
@@ -3985,7 +3987,7 @@ If no output appears, the gateway is not running.</p>
 <tr>
 <td><code>404</code> on all endpoints</td>
 <td>Wrong base path or wrong <code>--instance</code> flag</td>
-<td>Check <code>pm-api-gateway --instance NAME</code> matches the config block name</td>
+<td>Check <code>pm-api-gwy --instance NAME</code> matches the config block name</td>
 </tr>
 <tr>
 <td>Swagger UI not loading</td>

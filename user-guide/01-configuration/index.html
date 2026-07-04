@@ -1058,10 +1058,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configuring-pm-api-gateway" class="md-nav__link">
+  <a href="#configuring-pm-api-gwy" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Configuring pm-api-gateway
+        Configuring pm-api-gwy
       
     </span>
   </a>
@@ -3767,7 +3767,7 @@
 <li>Which <code>engine_config.yaml</code> sections are required when a config file exists</li>
 <li>How to generate a starter config with <code>pm-config-gen</code></li>
 <li>Which fields the current engine and scheduler parsers recognize</li>
-<li>How to configure the optional <code>pm-ralf-gwy</code>, <code>pm-md-gwy</code>, and <code>pm-api-gateway</code> blocks</li>
+<li>How to configure the optional <code>pm-ralf-gwy</code>, <code>pm-md-gwy</code>, and <code>pm-api-gwy</code> blocks</li>
 <li>How to configure symbols, gateways, risk controls, market-maker seeds, combo seeds, and schedules</li>
 <li>How to choose between minimal, medium, and fully featured configurations</li>
 <li>Which checks to perform before using a config in a class, demo, or test</li>
@@ -3779,7 +3779,7 @@ engine uses it to define the symbol universe, authenticated ALF gateway IDs,
 session mode, risk controls, market-maker policy, per-symbol outstanding shares,
 and startup seeds. The scheduler uses only the optional <code>schedule</code> section.
 The optional <code>post_trade_gateway</code>, <code>market_data_gateway</code>, and <code>api_gateways</code>
-sections are read by <code>pm-ralf-gwy</code>, <code>pm-md-gwy</code>, and <code>pm-api-gateway</code>
+sections are read by <code>pm-ralf-gwy</code>, <code>pm-md-gwy</code>, and <code>pm-api-gwy</code>
 respectively.</p>
 <p>If the config file is absent, <code>pm-engine</code> starts in unrestricted mode: any symbol
 and gateway can be used, and no startup seeds are loaded. If the config file is
@@ -4457,7 +4457,7 @@ for each MM quote seed at generation time.</p>
 <td><code>--api-gateway</code></td>
 <td>Flag</td>
 <td>off</td>
-<td>Emit top-level <code>api_gateways</code> block for <code>pm-api-gateway</code></td>
+<td>Emit top-level <code>api_gateways</code> block for <code>pm-api-gwy</code></td>
 </tr>
 <tr>
 <td><code>--api-gateway-name NAME</code></td>
@@ -4883,9 +4883,9 @@ run the validation command.</p>
 market-data access or match an ID from <code>gateways.alf</code>. Generated keys are plain
 YAML bearer tokens for local labs and teaching setups; production deployments
 should manage secrets with the surrounding platform and terminate TLS in front
-of <code>pm-api-gateway</code>.</p>
+of <code>pm-api-gwy</code>.</p>
 <p>For multiple generated processes, start a specific named entry with
-<code>pm-api-gateway --config engine_config.yaml --instance NAME</code>.</p>
+<code>pm-api-gwy --config engine_config.yaml --instance NAME</code>.</p>
 <p>BALF gateway config with explicit settings:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-config-gen<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span>--symbols<span class="w"> </span>AAPL<span class="w"> </span>MSFT<span class="w"> </span><span class="se">\</span>
@@ -5059,7 +5059,7 @@ of <code>pm-api-gateway</code>.</p>
 <tr>
 <td><code>api_gateways</code></td>
 <td style="text-align: right;">No</td>
-<td><code>pm-api-gateway</code></td>
+<td><code>pm-api-gwy</code></td>
 <td>Named REST/WebSocket order-entry and market-data gateway process settings</td>
 </tr>
 <tr>
@@ -5237,8 +5237,8 @@ subscribers. In the current implementation:</p>
 <code>pm-config-gen</code> can emit it with <code>--balf-gateway</code> and optional <code>--balf-*</code>
 overrides.  See <a href="../25-balf-gateway/">BALF TCP Gateway</a> for the full
 client-facing documentation.</p>
-<h2 id="configuring-pm-api-gateway">Configuring <code>pm-api-gateway</code><a class="headerlink" href="#configuring-pm-api-gateway" title="Permanent link">&para;</a></h2>
-<p><code>pm-api-gateway</code> reads an optional top-level <code>api_gateways</code> block from the same
+<h2 id="configuring-pm-api-gwy">Configuring <code>pm-api-gwy</code><a class="headerlink" href="#configuring-pm-api-gwy" title="Permanent link">&para;</a></h2>
+<p><code>pm-api-gwy</code> reads an optional top-level <code>api_gateways</code> block from the same
 <code>engine_config.yaml</code> file. This block is not consumed by <code>pm-engine</code>; it is
 consumed by the REST/WebSocket API gateway process.</p>
 <p>Minimal generated example:</p>
@@ -5269,7 +5269,7 @@ consumed by the REST/WebSocket API gateway process.</p>
 available, which bearer tokens are accepted, and how write rate limits and
 engine reply waits are applied. In the current implementation:</p>
 <ul>
-<li><code>enabled</code> lets <code>pm-api-gateway</code> refuse startup when set to <code>false</code></li>
+<li><code>enabled</code> lets <code>pm-api-gwy</code> refuse startup when set to <code>false</code></li>
 <li><code>host</code> and <code>port</code> define the uvicorn HTTP listener</li>
 <li><code>swagger_enabled</code> controls <code>/docs</code> and <code>/openapi.json</code></li>
 <li><code>stats_db</code> points history endpoints at the <code>pm-stats</code> SQLite database</li>
@@ -5285,7 +5285,7 @@ credential per configured ALF gateway. Add <code>--api-gateway-readonly-key</cod
 dashboard-style key with <code>gateway_id: null</code>, or pass explicit <code>--api-key</code>
 entries when you need known token values.</p>
 <p>When more than one named API gateway is configured, start each process with its
-entry name, for example <code>pm-api-gateway --config engine_config.yaml --instance desk</code>.</p>
+entry name, for example <code>pm-api-gwy --config engine_config.yaml --instance desk</code>.</p>
 <h2 id="configuring-pm-index">Configuring <code>pm-index</code><a class="headerlink" href="#configuring-pm-index" title="Permanent link">&para;</a></h2>
 <p><code>pm-index</code> reads an optional top-level <code>indices</code> block from the same
 <code>engine_config.yaml</code> file. This block is not consumed by <code>pm-engine</code>; it is
