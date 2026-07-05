@@ -8,7 +8,7 @@ Subscribes to trade.executed events and maintains per-user (gateway) P&L:
   position    — net quantity (positive = long, negative = short)
   avg_cost    — VWAP-updated cost basis
   realized_pnl   — from closed/reduced position legs
-  unrealized_pnl — position × (last_price − avg_cost)
+  unrealized_pnl — position * (last_price - avg_cost)
 
 All trades are appended to data/clearing_report.csv.
 A rich P&L summary table is printed every CLEARING_PRINT_EVERY trades
