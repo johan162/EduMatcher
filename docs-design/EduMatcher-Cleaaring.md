@@ -18,7 +18,7 @@ This is useful for demos but has operational limitations:
 - no robust ad-hoc reporting surface for operations/compliance teams
 - no controlled write batching for high-throughput trade bursts
 
-Cleaaring v2 redesigns the process around SQLite-first persistence while keeping
+Clearing v2 redesigns the process around SQLite-first persistence while keeping
 the educational simplicity of the existing process.
 
 
@@ -57,6 +57,12 @@ We need a durable clearing subsystem that:
 - No changes to matching-engine trade semantics.
 - No attempt to replace dedicated accounting or settlement systems.
 - No cross-process distributed transaction guarantees.
+- No bilateral netting across gateways for the same participant; P&L is always
+  tracked per individual gateway ID.
+- No settlement date tracking (T+1 / T+2); all positions are marked intraday.
+- No position limit enforcement or breach blocking; breaches may be reported
+  but will not block trade ingestion in v2.
+- No fee or commission tracking; P&L figures are gross of transaction costs.
 
 
 
@@ -331,6 +337,22 @@ Recommended policy:
   - `PRAGMA wal_checkpoint(TRUNCATE);` to limit WAL growth.
   - `VACUUM;` after large deletes to reclaim disk space.
 
+**Retention pruning SQL** (run on startup and/or via `pm-clearing-cli prune`):
+
+```sql
+-- Step 1: remove raw events older than 90 days
+DELETE FROM trade_events
+WHERE trade_date < date('now', '-90 days');
+
+-- Step 2: reclaim freed space (run after the DELETE commits)
+PRAGMA wal_checkpoint(TRUNCATE);
+VACUUM;
+```
+
+Aggregate tables (`gateway_daily_summary`, `gateway_symbol_positions`) are
+not pruned by default — they are compact and provide long-running reporting
+value beyond the 90-day raw-event window.
+
 Why this is preferred over weekly rotation:
 
 - Weekly files add operational overhead (file discovery, cross-file querying,
@@ -354,6 +376,26 @@ needed.
 
 
 ## 7. P&L Calculation Model
+
+### 7.0 Position state machine
+
+Each `(gateway_id, symbol)` key moves through these states as fills arrive:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Flat : no fills yet
+    Flat --> Long : BUY fill (+qty)
+    Flat --> Short : SELL fill (-qty)
+    Long --> Long : BUY fill (adds to position)
+    Long --> Flat : SELL fill, closed_qty == net_qty
+    Long --> Short : SELL fill, closed_qty > net_qty (cross-zero)
+    Short --> Short : SELL fill (adds to short)
+    Short --> Flat : BUY fill, closed_qty == ABS(net_qty)
+    Short --> Long : BUY fill, closed_qty > ABS(net_qty) (cross-zero)
+```
+
+On every state transition that reduces an open position, realized P&L is
+calculated for the closed quantity before updating `avg_cost`.
 
 ### 7.1 Running position logic
 
@@ -380,6 +422,16 @@ When reducing an opposite-side open position, realize P&L on closed quantity:
 
 When crossing through zero, reset `avg_cost` to fill price for the newly opened
 side quantity, same as current engine-side position accounting semantics.
+
+**Worked example — long position, partial close, then cross-zero to short:**
+
+| Step | Event | Calculation | Result |
+|---|---|---|---|
+| 1 | BUY 10 @ 100.0 | Open long. `avg_cost = 100.0` | `net_qty = +10`, `avg_cost = 100.0`, `realized_pnl = 0` |
+| 2 | BUY 10 @ 110.0 | Add to long. New avg: `(10×100 + 10×110) / 20 = 105.0` | `net_qty = +20`, `avg_cost = 105.0`, `realized_pnl = 0` |
+| 3 | SELL 20 @ 115.0 | Full close. Realized: `(115 - 105) × 20 = 200` | `net_qty = 0`, `realized_pnl = 200`, position is **Flat** |
+| 4 | SELL 15 @ 108.0 | Cross-zero from flat. Closed qty = 0 (was flat). Open short 15 @ 108.0 | `net_qty = -15`, `avg_cost = 108.0`, `realized_pnl = 200` |
+| 5 | BUY 20 @ 105.0 | Reduce short by 15, realize P&L, open long remainder. Realized: `(108 - 105) × 15 = 45`. Open long 5 @ 105.0 | `net_qty = +5`, `avg_cost = 105.0`, `realized_pnl = 245` |
 
 ### 7.3 Mark price source
 
@@ -412,6 +464,75 @@ Flush transaction steps:
 3. UPSERT into `gateway_symbol_positions`
 4. UPSERT into `gateway_daily_summary`
 5. commit
+
+**Flush sequence diagram:**
+
+```mermaid
+sequenceDiagram
+    participant EV as trade.executed events
+    participant BUF as in-memory buffer
+    participant DB as SQLite (WAL)
+
+    EV->>BUF: append normalized event
+    alt buffer size >= 100
+        BUF->>DB: BEGIN TRANSACTION
+        BUF->>DB: INSERT OR IGNORE INTO trade_events
+        BUF->>DB: compute deltas in memory
+        BUF->>DB: INSERT OR REPLACE INTO gateway_symbol_positions
+        BUF->>DB: INSERT OR REPLACE INTO gateway_daily_summary
+        BUF->>DB: COMMIT
+        BUF->>BUF: clear buffer
+    else timer tick >= 5s AND buffer not empty
+        BUF->>DB: BEGIN TRANSACTION
+        BUF->>DB: (same steps as above)
+        BUF->>DB: COMMIT
+        BUF->>BUF: clear buffer
+    end
+```
+
+**`gateway_daily_summary` UPSERT SQL:**
+
+This is the most complex write because it must atomically increment running
+totals and update end-of-day snapshot columns.
+
+```sql
+INSERT INTO gateway_daily_summary (
+  trade_date, gateway_id, symbol,
+  traded_qty, traded_notional,
+  buy_qty, sell_qty, buy_notional, sell_notional, net_amount,
+  realized_pnl,
+  end_net_qty, end_avg_cost, end_unrealized_pnl,
+  last_trade_ts_ns, updated_ts_ns
+) VALUES (
+  :trade_date, :gateway_id, :symbol,
+  :delta_qty, :delta_notional,
+  :delta_buy_qty, :delta_sell_qty,
+  :delta_buy_notional, :delta_sell_notional,
+  :delta_buy_notional - :delta_sell_notional,
+  :delta_realized_pnl,
+  :snap_net_qty, :snap_avg_cost, :snap_unrealized_pnl,
+  :last_ts_ns, :now_ts_ns
+)
+ON CONFLICT(trade_date, gateway_id, symbol) DO UPDATE SET
+  traded_qty        = traded_qty + excluded.traded_qty,
+  traded_notional   = traded_notional + excluded.traded_notional,
+  buy_qty           = buy_qty + excluded.buy_qty,
+  sell_qty          = sell_qty + excluded.sell_qty,
+  buy_notional      = buy_notional + excluded.buy_notional,
+  sell_notional     = sell_notional + excluded.sell_notional,
+  net_amount        = buy_notional + excluded.buy_notional
+                      - (sell_notional + excluded.sell_notional),
+  realized_pnl      = realized_pnl + excluded.realized_pnl,
+  end_net_qty       = excluded.end_net_qty,
+  end_avg_cost      = excluded.end_avg_cost,
+  end_unrealized_pnl = excluded.end_unrealized_pnl,
+  last_trade_ts_ns  = MAX(last_trade_ts_ns, excluded.last_trade_ts_ns),
+  updated_ts_ns     = excluded.updated_ts_ns;
+```
+
+The `:delta_*` bind values are computed in memory from the current batch before
+the transaction is opened. The `:snap_*` values are taken from the latest
+in-memory position state after applying all fills in the batch.
 
 On shutdown:
 
@@ -473,6 +594,9 @@ Global options:
     and net amount via `--with-totals`
 - `health`
   - DB metadata (last update, row counts, last flush time)
+- `reconcile`
+  - compare computed aggregates against raw `trade_events` totals to detect
+    any discrepancy between source facts and summary tables
 
 ### 10.2 Proposed option reference
 
@@ -504,7 +628,7 @@ When `--format json` or `--format csv` is selected, fields are explicit and stab
 - **`pnl`:**
   `gateway_id`, `symbol`, `realized_pnl`, `unrealized_pnl`, `total_pnl`, `net_qty`, `mark_price`
 - **`daily`:**
-  `trade_date`, `gateway_id`, `symbol`, `traded_qty`, `traded_notional`, `realized_pnl`, `end_net_qty`, `end_avg_cost`, `end_unrealized_pnl`, `last_trade_ts_ns`, `updated_ts_ns`
+  `trade_date`, `gateway_id`, `symbol`, `traded_qty`, `traded_notional`, `buy_qty`, `sell_qty`, `buy_notional`, `sell_notional`, `net_amount`, `realized_pnl`, `end_net_qty`, `end_avg_cost`, `end_unrealized_pnl`, `last_trade_ts_ns`, `updated_ts_ns`
 - **`trades`:**
   `id`, `ts_ns`, `trade_date`, `symbol`, `quantity`, `price`, `buy_order_id`, `sell_order_id`, `buy_gateway_id`, `sell_gateway_id`, `aggressor_side`, `ingest_ts_ns`
 - **`exposure`:**
@@ -676,6 +800,11 @@ SELECT
   symbol,
   traded_qty,
   traded_notional,
+  buy_qty,
+  sell_qty,
+  buy_notional,
+  sell_notional,
+  net_amount,
   realized_pnl,
   end_net_qty,
   end_avg_cost,
@@ -788,6 +917,16 @@ Optional filters:
 | `--symbol` | `:symbol` | exact match on `symbol` |
 | `--limit` | `:limit` | `LIMIT :limit` |
 
+Allowed `--sort` values for `exposure`:
+
+| CLI sort value | ORDER BY clause |
+|---|---|
+| `gross_notional` | `ABS(net_qty * mark_price) DESC` (default) |
+| `net_notional` | `(net_qty * mark_price) DESC` |
+| `realized_pnl` | `realized_pnl DESC` |
+| `unrealized_pnl` | `unrealized_pnl DESC` |
+| `total_pnl` | `(realized_pnl + unrealized_pnl) DESC` |
+
 ---
 
 #### G) COMMAND VERB: `symbols`
@@ -842,6 +981,16 @@ Optional filters:
 | `--from` | `:from_date` | `trade_date >= :from_date` |
 | `--to` | `:to_date` | `trade_date <= :to_date` |
 | `--limit` | `:limit` | `LIMIT :limit` |
+
+Allowed `--sort` values for `symbols`:
+
+| CLI sort value | ORDER BY clause |
+|---|---|
+| `symbol` | `d.symbol ASC` (default) |
+| `traded_qty` | `d.traded_qty DESC` |
+| `traded_notional` | `d.traded_notional DESC` |
+| `realized_pnl` | `d.realized_pnl DESC` |
+| `open_net_qty` | `o.open_net_qty DESC` |
 
 ---
 
@@ -941,6 +1090,77 @@ Implementation note for `health`:
 - `:wal_mode` should be populated from a separate `PRAGMA journal_mode;` query.
 - `:db_path` should be set from the resolved runtime path.
 
+---
+
+#### J) COMMAND VERB: `reconcile`
+
+| Item | Value |
+|---|---|
+| Primary source | `trade_events` (ground truth) vs `gateway_daily_summary` (aggregates) |
+| Primary goal | Detect any discrepancy between raw fact totals and summary table totals |
+| Default ordering | `trade_date ASC, gateway_id ASC, symbol ASC` |
+
+Principal SQL:
+
+```sql
+WITH raw_totals AS (
+  SELECT
+    trade_date,
+    buy_gateway_id AS gateway_id,
+    symbol,
+    SUM(quantity) AS raw_buy_qty,
+    SUM(quantity * price) AS raw_buy_notional
+  FROM trade_events
+  WHERE (:from_date IS NULL OR trade_date >= :from_date)
+    AND (:to_date IS NULL OR trade_date <= :to_date)
+    AND (:gateway IS NULL OR buy_gateway_id = :gateway)
+    AND (:symbol IS NULL OR symbol = :symbol)
+  GROUP BY trade_date, buy_gateway_id, symbol
+),
+summary_totals AS (
+  SELECT
+    trade_date,
+    gateway_id,
+    symbol,
+    buy_qty AS summary_buy_qty,
+    buy_notional AS summary_buy_notional
+  FROM gateway_daily_summary
+  WHERE (:from_date IS NULL OR trade_date >= :from_date)
+    AND (:to_date IS NULL OR trade_date <= :to_date)
+    AND (:gateway IS NULL OR gateway_id = :gateway)
+    AND (:symbol IS NULL OR symbol = :symbol)
+)
+SELECT
+  r.trade_date,
+  r.gateway_id,
+  r.symbol,
+  r.raw_buy_qty,
+  s.summary_buy_qty,
+  (r.raw_buy_qty - COALESCE(s.summary_buy_qty, 0)) AS qty_diff,
+  ROUND(r.raw_buy_notional - COALESCE(s.summary_buy_notional, 0), 8) AS notional_diff
+FROM raw_totals r
+LEFT JOIN summary_totals s
+  ON s.trade_date = r.trade_date
+  AND s.gateway_id = r.gateway_id
+  AND s.symbol = r.symbol
+WHERE ABS(r.raw_buy_qty - COALESCE(s.summary_buy_qty, 0)) > 0
+   OR ABS(r.raw_buy_notional - COALESCE(s.summary_buy_notional, 0)) > 0.0001
+ORDER BY r.trade_date ASC, r.gateway_id ASC, r.symbol ASC;
+```
+
+If the query returns zero rows the dataset is consistent. Any returned row
+identifies a `(trade_date, gateway_id, symbol)` key where the aggregates
+diverge from the source facts.
+
+Optional filters:
+
+| CLI option | SQL parameter | Applied as |
+|---|---|---|
+| `--gateway` | `:gateway` | restrict reconciliation to one gateway |
+| `--symbol` | `:symbol` | restrict reconciliation to one symbol |
+| `--from` | `:from_date` | `trade_date >= :from_date` |
+| `--to` | `:to_date` | `trade_date <= :to_date` |
+
 
 
 ## 11. Query Workflows and Examples
@@ -989,9 +1209,10 @@ the next major version of pm-clearing.
 
 ## 13. Migration Plan
 
-1. Introduce v2 DB writer as a clean break in v0.14.0 completely replacing the existing pm-clearing which is renamed to pm-clearing-v1
-2. The new clearing process take sthe anem `pm-clearing` 
-3. Introduce `pm-clearing-cli` in v0.14.0
+1. Introduce v2 DB writer as a clean break in v0.14.0 completely replacing the
+   existing `pm-clearing`, which is renamed to `pm-clearing-v1` during transition.
+2. The new clearing process takes the name `pm-clearing`.
+3. Introduce `pm-clearing-cli` in v0.14.0.
 
 
 
@@ -1000,7 +1221,8 @@ the next major version of pm-clearing.
 1. Add `edumatcher/clearing/store.py` (schema, migrations, transactions).
 2. Add `edumatcher/clearing/ledger.py` (position + realized/unrealized logic).
 3. Refactor `pm-clearing` runtime to buffered ingestion + timed flush.
-4. Add `pm-clearing-cli` parser and query modules in style of `pm-stats-cli`.
+4. Add `edumatcher/clearing/cli.py` with all verb handlers; wire as `pm-clearing-cli`
+   entrypoint in `pyproject.toml`.
 5. Add docs/user-guide section and training references.
 
 
@@ -1008,15 +1230,21 @@ the next major version of pm-clearing.
 ## 15. Testing Plan
 
 1. Unit tests:
-- ledger math for long/short/open/close/cross-zero cases
-- SQL UPSERT correctness for aggregates
+- ledger math: flat→long, long close, flat→short, short close, long cross-zero
+  to short, short cross-zero to long, duplicate trade ID (idempotency)
+- SQL UPSERT correctness for `gateway_symbol_positions` and `gateway_daily_summary`
 - flush trigger logic (size=100, interval=5s)
-- Test coverage must be >= 87%
+- retention DELETE removes rows older than 90 days and leaves newer rows intact
+- `reconcile` verb detects injected discrepancy between raw and aggregates
+- `ledger.py` must reach 100% branch coverage; overall target >= 87%
 
 2. Integration tests:
 - replay synthetic `trade.executed` streams and compare against expected totals
-- restart process and confirm persistent continuity
-- CLI verb output correctness for filters/date ranges
+- restart process and confirm persistent continuity (positions and daily summaries
+  survive without recalculation from raw events)
+- CLI verb output correctness for all filters and date ranges
+- WAL concurrency: hold an open writer transaction, run a CLI read in a subprocess,
+  assert the read returns without blocking
 
 3. Performance tests:
 - burst of high-frequency trade events validates batching and commit cadence
@@ -1033,4 +1261,6 @@ the next major version of pm-clearing.
 - write batching flushes on `100 trades OR 5s`
 - path override via `--datapath` works and matches EduMatcher conventions
 - `pm-clearing-cli` provides verb-based no-SQL workflows
+- `reconcile` verb reports no discrepancy on a clean dataset
+- retention pruning removes `trade_events` rows older than 90 days on demand
 - operator can answer daily clearing questions using CLI only
