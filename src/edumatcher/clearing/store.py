@@ -135,6 +135,30 @@ SELECT
   SUM(realized_pnl)     AS realized_pnl_total
 FROM gateway_daily_summary
 GROUP BY trade_date;
+
+CREATE TABLE IF NOT EXISTS session_events (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_type   TEXT    NOT NULL,
+  ts_ns        INTEGER NOT NULL,
+  trade_date   TEXT    NOT NULL,
+  payload_json TEXT
+);
+
+CREATE INDEX IF NOT EXISTS ix_session_events_date
+  ON session_events(trade_date);
+CREATE INDEX IF NOT EXISTS ix_session_events_type
+  ON session_events(event_type);
+
+CREATE TABLE IF NOT EXISTS gateway_sessions (
+  gateway_id        TEXT    NOT NULL,
+  connected_at_ns   INTEGER NOT NULL,
+  disconnected_at_ns INTEGER,
+  disconnect_reason TEXT,
+  PRIMARY KEY (gateway_id, connected_at_ns)
+);
+
+CREATE INDEX IF NOT EXISTS ix_gateway_sessions_gateway
+  ON gateway_sessions(gateway_id);
 """
 
 # ---------------------------------------------------------------------------
@@ -233,6 +257,55 @@ def apply_schema(conn: sqlite3.Connection) -> None:
         "tick_decimals",
         "INTEGER NOT NULL DEFAULT 2",
     )
+    # Ensure session / gateway-lifecycle tables exist on DB files created
+    # before these tables were added to SCHEMA.
+    _create_table_if_missing(
+        conn,
+        "session_events",
+        """
+        CREATE TABLE IF NOT EXISTS session_events (
+          id           INTEGER PRIMARY KEY AUTOINCREMENT,
+          event_type   TEXT    NOT NULL,
+          ts_ns        INTEGER NOT NULL,
+          trade_date   TEXT    NOT NULL,
+          payload_json TEXT
+        );
+        CREATE INDEX IF NOT EXISTS ix_session_events_date
+          ON session_events(trade_date);
+        CREATE INDEX IF NOT EXISTS ix_session_events_type
+          ON session_events(event_type);
+        """,
+    )
+    _create_table_if_missing(
+        conn,
+        "gateway_sessions",
+        """
+        CREATE TABLE IF NOT EXISTS gateway_sessions (
+          gateway_id         TEXT    NOT NULL,
+          connected_at_ns    INTEGER NOT NULL,
+          disconnected_at_ns INTEGER,
+          disconnect_reason  TEXT,
+          PRIMARY KEY (gateway_id, connected_at_ns)
+        );
+        CREATE INDEX IF NOT EXISTS ix_gateway_sessions_gateway
+          ON gateway_sessions(gateway_id);
+        """,
+    )
+
+
+def _create_table_if_missing(
+    conn: sqlite3.Connection,
+    table: str,
+    ddl: str,
+) -> None:
+    existing = {
+        row[0]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+    }
+    if table not in existing:
+        conn.executescript(ddl)
 
 
 def _add_column_if_missing(
@@ -401,6 +474,62 @@ def prune_old_events(conn: sqlite3.Connection, retention_days: int = 90) -> int:
     )
     conn.commit()
     return cur.rowcount
+
+
+# ---------------------------------------------------------------------------
+# Session-event and gateway-lifecycle write helpers
+# ---------------------------------------------------------------------------
+
+
+def record_session_event(
+    conn: sqlite3.Connection,
+    *,
+    event_type: str,
+    ts_ns: int,
+    trade_date: str,
+    payload_json: str | None = None,
+) -> None:
+    """Insert one row into session_events (EOD marker, phase transition, etc.)."""
+    conn.execute(
+        "INSERT INTO session_events (event_type, ts_ns, trade_date, payload_json)"
+        " VALUES (?, ?, ?, ?)",
+        (event_type, ts_ns, trade_date, payload_json),
+    )
+    conn.commit()
+
+
+def record_gateway_connect(
+    conn: sqlite3.Connection,
+    *,
+    gateway_id: str,
+    connected_at_ns: int,
+) -> None:
+    """Insert a connect row into gateway_sessions."""
+    conn.execute(
+        "INSERT OR IGNORE INTO gateway_sessions"
+        " (gateway_id, connected_at_ns)"
+        " VALUES (?, ?)",
+        (gateway_id, connected_at_ns),
+    )
+    conn.commit()
+
+
+def record_gateway_disconnect(
+    conn: sqlite3.Connection,
+    *,
+    gateway_id: str,
+    connected_at_ns: int,
+    disconnected_at_ns: int,
+    reason: str | None,
+) -> None:
+    """Update the matching connect row with disconnect timestamp and reason."""
+    conn.execute(
+        "UPDATE gateway_sessions"
+        " SET disconnected_at_ns = ?, disconnect_reason = ?"
+        " WHERE gateway_id = ? AND connected_at_ns = ?",
+        (disconnected_at_ns, reason, gateway_id, connected_at_ns),
+    )
+    conn.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -809,6 +938,83 @@ def query_health(
     result["db_path"] = str(db_path)
     result["wal_mode"] = wal_mode
     return [result]
+
+
+def query_session_events(
+    conn: sqlite3.Connection,
+    *,
+    event_type: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    limit: int = 500,
+) -> list[dict[str, Any]]:
+    """
+    Return rows from session_events (EOD markers, phase transitions).
+
+    Filtering by event_type allows targeted queries such as:
+      event_type='EOD'   — end-of-day markers only
+      event_type='PHASE' — session-phase transitions only
+    """
+    sql = (
+        "SELECT id, event_type, ts_ns, trade_date, payload_json"
+        " FROM session_events"
+        " WHERE (:event_type IS NULL OR event_type = :event_type)"
+        "   AND (:from_date IS NULL OR trade_date >= :from_date)"
+        "   AND (:to_date IS NULL OR trade_date <= :to_date)"
+        " ORDER BY ts_ns DESC"
+        " LIMIT :limit"
+    )
+    rows = conn.execute(
+        sql,
+        {
+            "event_type": event_type,
+            "from_date": from_date,
+            "to_date": to_date,
+            "limit": limit,
+        },
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def query_sessions(
+    conn: sqlite3.Connection,
+    *,
+    gateway: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    connected_only: bool = False,
+    limit: int = 500,
+) -> list[dict[str, Any]]:
+    """
+    Return gateway connection/disconnection history from gateway_sessions.
+
+    connected_only=True filters to sessions where disconnected_at_ns IS NULL
+    (gateways still connected or whose disconnect was not recorded).
+    """
+    sql = (
+        "SELECT gateway_id, connected_at_ns, disconnected_at_ns, disconnect_reason,"
+        "  date(connected_at_ns / 1000000000, 'unixepoch') AS connect_date"
+        " FROM gateway_sessions"
+        " WHERE (:gateway IS NULL OR gateway_id = :gateway)"
+        "   AND (:connected_only = 0 OR disconnected_at_ns IS NULL)"
+        "   AND (:from_date IS NULL"
+        "       OR date(connected_at_ns / 1000000000, 'unixepoch') >= :from_date)"
+        "   AND (:to_date IS NULL"
+        "       OR date(connected_at_ns / 1000000000, 'unixepoch') <= :to_date)"
+        " ORDER BY connected_at_ns DESC"
+        " LIMIT :limit"
+    )
+    rows = conn.execute(
+        sql,
+        {
+            "gateway": gateway,
+            "connected_only": 1 if connected_only else 0,
+            "from_date": from_date,
+            "to_date": to_date,
+            "limit": limit,
+        },
+    ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def query_reconcile(

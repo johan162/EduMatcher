@@ -38,6 +38,9 @@ from edumatcher.clearing.store import (
     flush_batch,
     open_writer_connection,
     prune_old_events,
+    record_gateway_connect,
+    record_gateway_disconnect,
+    record_session_event,
 )
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.clock import now_ns  # used in _flush
@@ -162,6 +165,10 @@ class ClearingProcess:
         self._lock = threading.Lock()
         self._last_flush_mono = time.monotonic()
 
+        # Track the latest connect_at_ns per gateway so we can match the
+        # corresponding row when a disconnect message arrives.
+        self._gw_connect_ts: dict[str, int] = {}
+
         self._conn = open_writer_connection(self._db_path)
 
     # ------------------------------------------------------------------
@@ -196,7 +203,13 @@ class ClearingProcess:
         )
         timer.start()
 
-        sub = make_subscriber(self._pub_addr, "trade.executed")
+        sub = make_subscriber(
+            self._pub_addr,
+            "trade.executed",
+            "system.eod",
+            "system.gateway_connect",
+            "system.gateway_disconnect",
+        )
         try:
             self._receive_loop(sub)
         finally:
@@ -238,24 +251,44 @@ class ClearingProcess:
 
             frames = sub.recv_multipart()
             try:
-                _, payload = decode(frames)
-                trade = _trade_from_payload(payload)
+                topic, payload = decode(frames)
             except Exception as exc:
                 console.print(
-                    f"[CLEARING] WARNING: failed to decode message: {exc}",
+                    f"[CLEARING] WARNING: failed to decode frame: {exc}",
                     style="yellow",
                 )
                 continue
 
-            with self._lock:
-                self._buffer.append(trade)
-                self._trade_count += 1
+            if topic == "trade.executed":
+                try:
+                    trade = _trade_from_payload(payload)
+                except Exception as exc:
+                    console.print(
+                        f"[CLEARING] WARNING: failed to parse trade: {exc}",
+                        style="yellow",
+                    )
+                    continue
 
-                if len(self._buffer) >= self._flush_size:
-                    self._flush()
+                with self._lock:
+                    self._buffer.append(trade)
+                    self._trade_count += 1
+                    if len(self._buffer) >= self._flush_size:
+                        self._flush()
 
-            if self._print_every > 0 and self._trade_count % self._print_every == 0:
-                self._print_pnl_table()
+                if (
+                    self._print_every > 0
+                    and self._trade_count % self._print_every == 0
+                ):
+                    self._print_pnl_table()
+
+            elif topic == "system.eod":
+                self._handle_eod(payload)
+
+            elif topic == "system.gateway_connect":
+                self._handle_gateway_connect(payload)
+
+            elif topic == "system.gateway_disconnect":
+                self._handle_gateway_disconnect(payload)
 
     # ------------------------------------------------------------------
     # Timer loop
@@ -311,6 +344,139 @@ class ClearingProcess:
         """Flush remaining buffer on shutdown (called without lock)."""
         with self._lock:
             self._flush()
+
+    # ------------------------------------------------------------------
+    # Secondary event handlers
+    # ------------------------------------------------------------------
+
+    def _handle_eod(self, payload: dict[str, Any]) -> None:
+        """
+        Handle system.eod — engine end-of-day shutdown event.
+
+        Actions:
+        1. Force-flush any buffered trades immediately.
+        2. Perform a final mark-to-market pass using EOD last-traded prices
+           from the payload and write updated positions to the DB.
+        3. Write an EOD sentinel row to session_events so pm-clearing-cli
+           can report exact session close times.
+        """
+        try:
+            import json
+
+            ts_ns = now_ns()
+            trade_date = trade_date_utc(ts_ns)
+
+            # 1. Flush all buffered trades first.
+            with self._lock:
+                self._flush()
+
+            # 2. EOD mark-to-market: update mark_price from EOD snapshot.
+            # payload typically carries a list of book snapshots under key
+            # 'books', each with 'symbol', 'last_trade_price', 'best_bid',
+            # 'best_ask'.  Apply whatever is present.
+            eod_marks: dict[str, int] = {}
+            books = payload.get("books") or []
+            for book in books:
+                sym = book.get("symbol", "")
+                ltp = book.get("last_trade_price")
+                best_bid = book.get("best_bid")
+                best_ask = book.get("best_ask")
+                if sym and ltp is not None:
+                    eod_marks[sym] = int(ltp)
+                elif sym and best_bid is not None and best_ask is not None:
+                    eod_marks[sym] = (int(best_bid) + int(best_ask)) // 2
+
+            if eod_marks:
+                with self._lock:
+                    for pos in self._ledger.all_positions():
+                        mark = eod_marks.get(pos.symbol)
+                        if mark is not None:
+                            pos.mark_price = mark
+                            pos.unrealized_pnl = pos.net_qty * (
+                                float(mark) - pos.avg_cost
+                            )
+                    # Flush updated position snapshots to DB.
+                    position_rows, daily_rows = self._ledger.get_flush_rows(
+                        updated_ts_ns=ts_ns
+                    )
+                    flush_batch(self._conn, [], position_rows, daily_rows)
+                    self._ledger.clear_batch()
+
+            # 3. Write EOD sentinel row.
+            record_session_event(
+                self._conn,
+                event_type="EOD",
+                ts_ns=ts_ns,
+                trade_date=trade_date,
+                payload_json=json.dumps({
+                    "eod_marks": eod_marks,
+                    "symbols_count": len(eod_marks),
+                }),
+            )
+            console.print(
+                f"[CLEARING] EOD received — {len(eod_marks)} symbol mark(s) applied,"
+                f" session_events row written for {trade_date}."
+            )
+        except Exception as exc:
+            console.print(
+                f"[CLEARING] WARNING: error handling system.eod: {exc}",
+                style="yellow",
+            )
+
+    def _handle_gateway_connect(self, payload: dict[str, Any]) -> None:
+        """
+        Handle system.gateway_connect — record connect timestamp in DB.
+        """
+        try:
+            gateway_id = str(payload.get("gateway_id", "")).upper()
+            if not gateway_id:
+                return
+            ts_ns = now_ns()
+            self._gw_connect_ts[gateway_id] = ts_ns
+            record_gateway_connect(
+                self._conn,
+                gateway_id=gateway_id,
+                connected_at_ns=ts_ns,
+            )
+        except Exception as exc:
+            console.print(
+                f"[CLEARING] WARNING: error handling gateway_connect: {exc}",
+                style="yellow",
+            )
+
+    def _handle_gateway_disconnect(self, payload: dict[str, Any]) -> None:
+        """
+        Handle system.gateway_disconnect — update disconnect timestamp and reason.
+        Also force-flush buffered trades for that gateway before the engine
+        cancels its resting orders.
+        """
+        try:
+            gateway_id = str(payload.get("gateway_id", "")).upper()
+            if not gateway_id:
+                return
+
+            # Force flush so any buffered fills for this gateway are persisted
+            # before the engine-side order cancellations arrive.
+            with self._lock:
+                self._flush()
+
+            ts_ns = now_ns()
+            reason = payload.get("reason") or payload.get("disconnect_reason")
+            connect_ts = self._gw_connect_ts.pop(gateway_id, 0)
+
+            if connect_ts:
+                record_gateway_disconnect(
+                    self._conn,
+                    gateway_id=gateway_id,
+                    connected_at_ns=connect_ts,
+                    disconnected_at_ns=ts_ns,
+                    reason=str(reason) if reason else None,
+                )
+        except Exception as exc:
+            console.print(
+                f"[CLEARING] WARNING: error handling gateway_disconnect: {exc}",
+                style="yellow",
+            )
 
     # ------------------------------------------------------------------
     # Console P&L table
@@ -412,6 +578,16 @@ def main() -> None:
         metavar="N",
         help="Print P&L summary every N trades (0 = never, default: 100)",
     )
+    parser.add_argument(
+        "--retention-days",
+        type=int,
+        default=_RETENTION_DAYS,
+        metavar="N",
+        help=(
+            f"Delete trade_events rows older than N days on startup"
+            f" (default: {_RETENTION_DAYS}; 0 = disable pruning)"
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -420,6 +596,9 @@ def main() -> None:
         raise SystemExit(2)
     if args.flush_interval < 0.1:
         print("[ERROR] --flush-interval must be >= 0.1", file=sys.stderr)
+        raise SystemExit(2)
+    if args.retention_days < 0:
+        print("[ERROR] --retention-days must be >= 0", file=sys.stderr)
         raise SystemExit(2)
 
     if args.datapath is not None:
@@ -435,6 +614,7 @@ def main() -> None:
             flush_size=args.flush_size,
             flush_interval_sec=args.flush_interval,
             print_every=args.print_every,
+            retention_days=args.retention_days,
         )
     except Exception as exc:
         print(f"[CLEARING] FATAL: {exc}", file=sys.stderr)

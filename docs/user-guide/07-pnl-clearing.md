@@ -6,8 +6,10 @@
     - What P&L and clearing mean in an exchange context
     - How long and short positions are tracked and how VWAP average cost works
     - The difference between realized and unrealized P&L
-    - How the `pm-clearing` process subscribes to trades and writes to SQLite
+    - How the `pm-clearing` process subscribes to trade and lifecycle events
+    - The SQLite database schema and what each table stores
     - How to query clearing data using every `pm-clearing-cli` command verb
+    - How to inspect end-of-day marks and gateway session history
     - A practical cookbook for answering clearing-house questions from the command line
 
     **Prerequisite**: Complete [Your First Trade](../concepts/04-concepts-first-trade.md).
@@ -61,6 +63,17 @@ sequenceDiagram
     C->>DB: UPSERT → gateway_daily_summary
     C->>DB: COMMIT
 
+    E->>C: system.eod (EOD book snapshots)
+    C->>C: force-flush buffer, apply EOD marks to positions
+    C->>DB: UPSERT updated positions + EOD row → session_events
+
+    E->>C: system.gateway_connect
+    C->>DB: INSERT → gateway_sessions (connect row)
+
+    E->>C: system.gateway_disconnect
+    C->>C: force-flush buffered trades for that gateway
+    C->>DB: UPDATE gateway_sessions (disconnect time + reason)
+
     Q->>DB: SELECT (read-only, WAL allows concurrent reads)
     DB-->>Q: rows
 ```
@@ -75,27 +88,49 @@ pm-clearing [OPTIONS]
   --flush-size N         Max buffered trades before flush (1..100, default: 100)
   --flush-interval SEC   Max seconds between flushes (>=0.1, default: 5)
   --print-every N        Print P&L summary every N trades (0 = never, default: 100)
+  --retention-days N     Prune trade_events rows older than N days on startup
+                         (default: 90; use 0 to disable startup pruning)
   --version              Show version and exit
   --help                 Show help and exit
 ```
 
 ### What pm-clearing subscribes to
 
-`trade.executed` is the only required subscription for P&L. `pm-clearing`
-converts incoming display prices to integer ticks using
-`trade.executed.tick_decimals`, then stores both `price` (ticks) and
-`tick_decimals` in SQLite for lossless accounting plus deterministic output
-normalization.
+`pm-clearing` subscribes to four topics on the engine PUB socket:
 
-The engine also
-emits these messages, which `pm-clearing` does not yet subscribe to (planned
-for a future version):
+| Topic | Required | Action |
+|---|---|---|
+| `trade.executed` | Yes | Buffer trade, apply to ledger, batch-write to DB |
+| `system.eod` | No (secondary) | Force-flush, apply EOD marks, write `session_events` row |
+| `system.gateway_connect` | No (secondary) | Insert a row in `gateway_sessions` |
+| `system.gateway_disconnect` | No (secondary) | Force-flush that gateway's trades, update `gateway_sessions` row |
 
-| Topic | Purpose |
-|---|---|
-| `system.eod` | Finalize end-of-day state |
-| `system.gateway_connect` / `gateway_disconnect` | Audit trail |
-| `session.state` | Trading phase annotation |
+The secondary subscriptions add contextual information without affecting the core
+P&L accuracy. If they are not received (for example, engine was killed hard
+rather than gracefully shut down), position data is still complete.
+
+#### `system.eod` — end-of-day finalisation
+
+On receipt, `pm-clearing`:
+
+1. **Force-flushes** any buffered trades immediately, bypassing the 100-trade
+   and 5-second thresholds.
+2. Applies EOD **mark-to-market** — uses the `last_trade_price` (or
+   `(best_bid + best_ask) / 2` when no trade occurred) from the EOD snapshot
+   to update `mark_price` and `unrealized_pnl` in every open position.
+3. Writes the updated positions to `gateway_symbol_positions` so
+   `gateway_daily_summary.end_unrealized_pnl` reflects the official EOD mark.
+4. Inserts an `EOD` sentinel row into `session_events` with the timestamp and
+   the mark prices applied. This lets `pm-clearing-cli eod` report exact
+   session-close times.
+
+#### `system.gateway_connect` / `system.gateway_disconnect` — gateway lifecycle
+
+On **connect**, `pm-clearing` inserts a row into `gateway_sessions` recording
+`gateway_id` and the ingestion timestamp. On **disconnect**, it updates that
+row with `disconnected_at_ns` and the disconnect reason, and immediately
+force-flushes any buffered trades for the disconnecting gateway so no fill is
+lost before the engine processes its order cancellations.
 
 
 ## Data folder location
@@ -117,6 +152,122 @@ pm-clearing --datapath ~/trading/sessions/morning
 # Use an explicit db file
 pm-clearing --datapath ~/trading/clearing_2026.db
 ```
+
+
+## SQLite database schema
+
+`pm-clearing` creates and maintains five tables and two views in `clearing.db`.
+All tables are created idempotently on startup so the same DB file can be
+re-opened safely across process restarts.
+
+### Table overview
+
+| Table | Purpose |
+|---|---|
+| `trade_events` | Append-only fact table; one row per `trade.executed` event |
+| `gateway_symbol_positions` | Running position state; one row per `(gateway_id, symbol)` |
+| `gateway_daily_summary` | Daily rollup aggregates; one row per `(trade_date, gateway_id, symbol)` |
+| `session_events` | Clearing-significant lifecycle events (`EOD`, future: `PHASE`) |
+| `gateway_sessions` | Gateway connect / disconnect history |
+
+### `trade_events`
+
+Append-only audit log. Populated by `pm-clearing` from `trade.executed` using
+`INSERT OR IGNORE` (idempotent on `id`).
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | TEXT PK | Unique trade identifier |
+| `ts_ns` | INTEGER | Engine event timestamp in nanoseconds |
+| `trade_date` | TEXT | UTC date (`YYYY-MM-DD`) derived from `ts_ns` |
+| `symbol` | TEXT | Instrument symbol |
+| `quantity` | INTEGER | Matched trade size |
+| `price` | INTEGER | Execution price in ticks |
+| `tick_decimals` | INTEGER | Symbol precision (`10^-d`) |
+| `buy_order_id` | TEXT | Buy-side order reference |
+| `sell_order_id` | TEXT | Sell-side order reference |
+| `buy_gateway_id` | TEXT | Gateway credited with the buy fill |
+| `sell_gateway_id` | TEXT | Gateway credited with the sell fill |
+| `aggressor_side` | TEXT | `BUY`, `SELL`, or NULL |
+| `ingest_ts_ns` | INTEGER | Ingestion timestamp (local wall clock) |
+
+Retention: rows older than `--retention-days` (default 90) are deleted on
+startup and on demand via `pm-clearing-cli prune`.
+
+### `gateway_symbol_positions`
+
+Live running state for every `(gateway_id, symbol)` key seen so far.
+Replaced wholesale on every flush via `INSERT OR REPLACE`.
+
+| Column | Type | Description |
+|---|---|---|
+| `gateway_id` | TEXT | Gateway identifier |
+| `symbol` | TEXT | Instrument symbol |
+| `net_qty` | INTEGER | Signed net quantity (+ long, − short) |
+| `avg_cost` | REAL | VWAP average entry cost (display units) |
+| `realized_pnl` | REAL | Cumulative realized P&L (display units) |
+| `unrealized_pnl` | REAL | Current open mark-to-market (display units) |
+| `mark_price` | INTEGER | Latest trade price in ticks; updated on `system.eod` if enabled |
+| `tick_decimals` | INTEGER | Precision for this symbol |
+| `buy_qty` | INTEGER | Cumulative buy-side filled quantity |
+| `sell_qty` | INTEGER | Cumulative sell-side filled quantity |
+| `buy_notional` | INTEGER | Cumulative buy-side notional in ticks |
+| `sell_notional` | INTEGER | Cumulative sell-side notional in ticks |
+| `last_trade_ts_ns` | INTEGER | Latest trade timestamp for this key |
+| `updated_ts_ns` | INTEGER | Flush timestamp |
+
+### `gateway_daily_summary`
+
+Daily incremental aggregates. Updated in the same transaction as
+`gateway_symbol_positions`.
+
+| Column | Type | Description |
+|---|---|---|
+| `trade_date` | TEXT | UTC date (`YYYY-MM-DD`) |
+| `gateway_id` | TEXT | Gateway identifier |
+| `symbol` | TEXT | Instrument symbol |
+| `traded_qty` | INTEGER | Daily total filled quantity for this key |
+| `traded_notional` | INTEGER | Daily total notional in ticks |
+| `buy_qty` | INTEGER | Daily buy-side filled quantity |
+| `sell_qty` | INTEGER | Daily sell-side filled quantity |
+| `buy_notional` | INTEGER | Daily buy-side notional in ticks |
+| `sell_notional` | INTEGER | Daily sell-side notional in ticks |
+| `net_amount` | INTEGER | `buy_notional − sell_notional` |
+| `realized_pnl` | REAL | Daily realized P&L contribution |
+| `end_net_qty` | INTEGER | Net quantity at last flush for this date |
+| `end_avg_cost` | REAL | Average cost at last flush |
+| `end_unrealized_pnl` | REAL | Unrealized P&L at last flush; updated by `system.eod` mark pass |
+| `tick_decimals` | INTEGER | Symbol precision |
+| `last_trade_ts_ns` | INTEGER | Latest trade timestamp |
+| `updated_ts_ns` | INTEGER | Flush timestamp |
+
+### `session_events`
+
+Append-only log of clearing-significant engine lifecycle events.
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | INTEGER (autoincrement) | Surrogate key |
+| `event_type` | TEXT | `EOD` (written on graceful engine shutdown) |
+| `ts_ns` | INTEGER | Ingestion timestamp |
+| `trade_date` | TEXT | UTC date derived from `ts_ns` |
+| `payload_json` | TEXT | Event-specific JSON. For `EOD`: `{"eod_marks": {symbol: price_ticks, ...}, "symbols_count": N}` |
+
+Query with `pm-clearing-cli eod`.
+
+### `gateway_sessions`
+
+One row per gateway connection attempt. Updated with disconnect time when
+`system.gateway_disconnect` is received.
+
+| Column | Type | Description |
+|---|---|---|
+| `gateway_id` | TEXT | Gateway identifier |
+| `connected_at_ns` | INTEGER | Ingestion timestamp of connect event |
+| `disconnected_at_ns` | INTEGER | Ingestion timestamp of disconnect; NULL if session still open |
+| `disconnect_reason` | TEXT | Reason string from disconnect message; NULL if not provided |
+
+Query with `pm-clearing-cli sessions`.
 
 
 ## Position tracking
@@ -225,9 +376,36 @@ Global options:
   --help
 ```
 
+
+
+### Command verb reference
+
+| Verb | Primary source table | What it returns | Key options |
+|---|---|---|---|
+| `gateways` | `gateway_pnl_totals` view | One row per gateway with total realized, unrealized, and total P&L | `--gateway`, `--limit` |
+| `positions` | `gateway_symbol_positions` | Live position state for every `(gateway, symbol)` key | `--gateway`, `--symbol`, `--limit` |
+| `pnl` | `gateway_symbol_positions` | Realized / unrealized / total P&L, one row per `(gateway, symbol)` | `--gateway`, `--symbol`, `--limit` |
+| `daily` | `gateway_daily_summary` | Daily rollup totals and end-of-day snapshots | `--gateway`, `--symbol`, `--date`, `--from`, `--to`, `--limit` |
+| `trades` | `trade_events` | Raw trade-level audit log | `--gateway`, `--symbol`, `--date`, `--from`, `--to`, `--limit` |
+| `exposure` | `gateway_symbol_positions` | Net and gross notional exposure, sorted by size | `--gateway`, `--symbol`, `--sort`, `--limit` |
+| `symbols` | `gateway_daily_summary` + `gateway_symbol_positions` | Symbol-level cleared volume, notional, P&L, and open position | `--date`, `--from`, `--to`, `--sort`, `--limit` |
+| `dates` | `trade_events` / `daily_exchange_totals` | Available trading dates; add `--with-totals` for per-date volume and net amount | `--gateway`, `--symbol`, `--from`, `--to`, `--with-totals`, `--limit` |
+| `health` | Three tables + WAL pragma | Row counts, last trade timestamp, last flush timestamp, WAL mode | — |
+| `reconcile` | `trade_events` vs `gateway_daily_summary` | Discrepancies between raw facts and aggregates, both BUY and SELL sides | `--gateway`, `--symbol`, `--from`, `--to` |
+| `sessions` | `gateway_sessions` | Gateway connect and disconnect history written from `system.gateway_*` events | `--gateway`, `--from`, `--to`, `--connected-only`, `--limit` |
+| `eod` | `session_events` | End-of-day sentinel rows written on `system.eod`, including mark prices applied | `--from`, `--to`, `--limit` |
+| `prune` | `trade_events` | Deletes rows older than N days (default 90) and VACUUMs; write-access verb | `--days`, `--dry-run` |
+
+
 ### gateways — live gateway P&L totals
 
-Returns one row per gateway with cumulative P&L and net position.
+Returns the cumulative P&L and net position for every gateway that has traded. A clearing house uses this as the **top-level risk snapshot**: it answers "who is exposed and by how much" in a single query, without needing to filter by symbol or date.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--gateway GW_ID` | string | all gateways | Return only this gateway |
+| `--limit N` | integer | 1000 | Maximum rows returned |
+| `--format FMT` | `table`\|`json`\|`csv` | `table` | Output format |
 
 ```bash
 # All gateways
@@ -245,6 +423,16 @@ Output fields: `gateway_id`, `realized_pnl_total`, `unrealized_pnl_total`,
 
 
 ### positions — current positions by gateway and symbol
+
+Returns the full live position state for every `(gateway, symbol)` key. A clearing house uses this to **drill into the detail behind a gateway's aggregate P&L**: it shows exact quantities, average cost, mark price, and the breakdown between buy-side and sell-side notional, which is the starting point for any margin or exposure calculation.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--gateway GW_ID` | string | all | Filter to one gateway |
+| `--symbol SYMBOL` | string | all | Filter to one symbol |
+| `--limit N` | integer | 10 000 | Maximum rows returned |
+| `--format FMT` | `table`\|`json`\|`csv` | `table` | Output format |
+| `--raw-output` | flag | off | Show raw tick-unit values instead of display units |
 
 ```bash
 # All positions
@@ -269,6 +457,15 @@ Price-derived fields in CLI output are normalized using each row's
 
 ### pnl — realized/unrealized/total P&L
 
+Returns a focused P&L view without the quantity and notional detail of `positions`. A clearing house uses this as a **daily P&L report**: compliance and risk officers can see at a glance which gateways or symbols are profitable, which are running losses, and whether unrealized exposure is within acceptable bounds.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--gateway GW_ID` | string | all | Filter to one gateway |
+| `--symbol SYMBOL` | string | all | Filter to one symbol |
+| `--limit N` | integer | 10 000 | Maximum rows returned |
+| `--format FMT` | `table`\|`json`\|`csv` | `table` | Output format |
+
 ```bash
 # Exchange-wide P&L
 pm-clearing-cli pnl
@@ -282,6 +479,18 @@ pm-clearing-cli pnl --symbol MSFT
 
 
 ### daily — daily rollup summaries
+
+Returns per-day aggregates for every `(gateway, symbol)` key, including end-of-day position snapshots. A clearing house uses this for **day-end reconciliation and settlement records**: it provides the official closing quantities, average costs, and P&L figures that feed downstream reporting, fee calculation, and regulatory filings.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--gateway GW_ID` | string | all | Filter to one gateway |
+| `--symbol SYMBOL` | string | all | Filter to one symbol |
+| `--date YYYY-MM-DD` | date | — | Exact date match |
+| `--from YYYY-MM-DD` | date | — | Inclusive start date |
+| `--to YYYY-MM-DD` | date | — | Inclusive end date |
+| `--limit N` | integer | 1 000 | Maximum rows returned |
+| `--format FMT` | `table`\|`json`\|`csv` | `table` | Output format |
 
 ```bash
 # Today's summary for all gateways
@@ -299,6 +508,19 @@ pm-clearing-cli --format json daily --date 2026-07-05 > daily_2026-07-05.json
 
 
 ### trades — raw trade events
+
+Returns the append-only trade fact log exactly as captured from the engine. A clearing house uses this as the **primary audit and investigation tool**: it provides an immutable, timestamped record of every matched fill, which is the source of truth for dispute resolution, trade reconstruction, and regulatory trade reporting.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--gateway GW_ID` | string | all | Match either the buy-side or sell-side gateway |
+| `--symbol SYMBOL` | string | all | Filter to one symbol |
+| `--date YYYY-MM-DD` | date | — | Exact date match |
+| `--from YYYY-MM-DD` | date | — | Inclusive start date |
+| `--to YYYY-MM-DD` | date | — | Inclusive end date |
+| `--limit N` | integer | 200 | Maximum rows returned |
+| `--format FMT` | `table`\|`json`\|`csv` | `table` | Output format |
+| `--raw-output` | flag | off | Show raw tick-unit prices instead of display units |
 
 ```bash
 # All trades today
@@ -320,7 +542,15 @@ units using that precision for all output formats.
 
 ### exposure — net and gross notional exposure
 
-Useful for spotting large concentrated positions.
+Returns net and gross notional exposure ranked by size. A clearing house uses this for **real-time risk concentration monitoring**: large gross notional positions signal potential margin pressure, while a high gross-to-net ratio indicates a participant is running offsetting positions that could unwind rapidly.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--gateway GW_ID` | string | all | Filter to one gateway |
+| `--symbol SYMBOL` | string | all | Filter to one symbol |
+| `--sort FIELD` | string | `gross_notional` | Order rows; see allowed values below |
+| `--limit N` | integer | 1 000 | Maximum rows returned |
+| `--format FMT` | `table`\|`json`\|`csv` | `table` | Output format |
 
 ```bash
 # Largest exposures first (default sort: gross_notional)
@@ -342,6 +572,17 @@ Allowed `--sort` values: `gross_notional`, `net_notional`, `realized_pnl`,
 
 ### symbols — symbol-level clearing totals
 
+Aggregates all gateways together to show exchange-wide traded volume, notional, and open interest per symbol. A clearing house uses this for **market-level overview and settlement totalling**: it answers which instruments drove the most activity and identifies symbols with large aggregate open positions that may carry overnight risk.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--date YYYY-MM-DD` | date | — | Restrict daily rollup to an exact date |
+| `--from YYYY-MM-DD` | date | — | Inclusive start date for daily rollup |
+| `--to YYYY-MM-DD` | date | — | Inclusive end date for daily rollup |
+| `--sort FIELD` | string | `symbol` | Order rows; see allowed values below |
+| `--limit N` | integer | 1 000 | Maximum rows returned |
+| `--format FMT` | `table`\|`json`\|`csv` | `table` | Output format |
+
 ```bash
 # All symbols traded
 pm-clearing-cli symbols
@@ -358,6 +599,18 @@ Allowed `--sort` values: `symbol`, `traded_qty`, `traded_notional`,
 
 
 ### dates — available trading dates
+
+Lists every date for which clearing data exists in the DB. A clearing house uses this as an **index for date-range reporting**: before running a `daily` or `trades` query over a period, use `dates` to confirm which days have data and, with `--with-totals`, to get a quick exchange-wide volume summary per day without querying the full trade log.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--gateway GW_ID` | string | all | Restrict dates to those where this gateway traded |
+| `--symbol SYMBOL` | string | all | Restrict dates to those where this symbol traded |
+| `--from YYYY-MM-DD` | date | — | Inclusive start date |
+| `--to YYYY-MM-DD` | date | — | Inclusive end date |
+| `--with-totals` | flag | off | Add `traded_qty_total`, `traded_notional_total`, `net_amount_total` columns per date |
+| `--limit N` | integer | 1 000 | Maximum rows returned |
+| `--format FMT` | `table`\|`json`\|`csv` | `table` | Output format |
 
 ```bash
 # List all dates in the DB
@@ -376,7 +629,13 @@ pm-clearing-cli dates --from 2026-07-01 --to 2026-07-05 --with-totals
 
 ### health — DB metadata and freshness
 
-Use this to verify that `pm-clearing` is running and writing.
+Returns a single-row operational summary of the clearing database. A clearing house uses this as a **liveness and monitoring check**: it confirms that `pm-clearing` is actively writing, reports how many records are stored, and shows when the last flush occurred so operators can detect a stalled or disconnected clearing process before it causes a data gap.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--format FMT` | `table`\|`json`\|`csv` | `table` | Output format |
+
+No filter options — `health` always returns a single summary row.
 
 ```bash
 pm-clearing-cli health
@@ -386,17 +645,26 @@ Output fields: `db_path`, `trade_events_rows`, `gateway_symbol_positions_rows`,
 `gateway_daily_summary_rows`, `last_trade_ts_ns`, `last_flush_ts_ns`, `wal_mode`
 
 
-### reconcile — verify aggregate consistency
+### reconcile — verify aggregate consistency (buy and sell sides)
 
-Compares raw `trade_events` buy-side totals against `gateway_daily_summary`
-aggregates. Zero rows means the DB is internally consistent. Any returned row
-shows exactly where a discrepancy exists.
+Cross-checks raw `trade_events` fact totals against the pre-computed aggregates in `gateway_daily_summary` for both the buy side and the sell side. A clearing house uses this as a **data integrity gate**: it should return zero rows on a healthy DB, and any discrepancy identifies exactly which date, gateway, symbol, and direction has diverged — pointing directly to the rows that need investigation.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--gateway GW_ID` | string | both sides | Restrict to one gateway on either buy or sell side |
+| `--symbol SYMBOL` | string | all | Restrict to one symbol |
+| `--from YYYY-MM-DD` | date | — | Inclusive start date |
+| `--to YYYY-MM-DD` | date | — | Inclusive end date |
+| `--format FMT` | `table`\|`json`\|`csv` | `table` | Output format |
+
+Output columns: `side` (`BUY` or `SELL`), `trade_date`, `gateway_id`, `symbol`,
+`raw_qty`, `summary_qty`, `qty_diff`, `raw_notional`, `summary_notional`, `notional_diff`.
 
 ```bash
-# Full reconciliation
+# Full reconciliation (both sides)
 pm-clearing-cli reconcile
 
-# Scope to one gateway or date
+# Scope to one gateway or date range
 pm-clearing-cli reconcile --gateway TRADER01
 pm-clearing-cli reconcile --from 2026-07-01 --to 2026-07-05
 
@@ -405,10 +673,103 @@ pm-clearing-cli --format json reconcile
 ```
 
 
+### sessions — gateway connection and disconnection history
+
+Returns the timeline of every gateway connection recorded by `pm-clearing` from `system.gateway_connect` and `system.gateway_disconnect` messages. A clearing house uses this for **participant access auditing**: it establishes exactly when each participant was active, how long they were connected, and whether a disconnect was clean or forced — context that is essential when investigating missing trades or unexpected position changes.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--gateway GW_ID` | string | all | Filter to one gateway |
+| `--from YYYY-MM-DD` | date | — | Inclusive start date (matched on `connect_date`) |
+| `--to YYYY-MM-DD` | date | — | Inclusive end date (matched on `connect_date`) |
+| `--connected-only` | flag | off | Return only sessions where `disconnected_at_ns` is NULL |
+| `--limit N` | integer | 500 | Maximum rows returned |
+| `--format FMT` | `table`\|`json`\|`csv` | `table` | Output format |
+
+```bash
+# All sessions today
+pm-clearing-cli sessions --from 2026-07-05
+
+# History for one gateway
+pm-clearing-cli sessions --gateway TRADER07
+
+# Only currently-open sessions (no recorded disconnect)
+pm-clearing-cli sessions --connected-only
+
+# Date range
+pm-clearing-cli sessions --from 2026-07-01 --to 2026-07-05
+
+# JSON export
+pm-clearing-cli --format json sessions > sessions.json
+```
+
+Output fields: `gateway_id`, `connect_date`, `connected_at_ns`,
+`disconnected_at_ns`, `disconnect_reason`
+
+!!! tip
+    If a gateway has trades in `trade_events` but no row in `gateway_sessions`,
+    `pm-clearing` was not running (or not subscribed to gateway events) when
+    the connection occurred. Restart `pm-clearing` to start capturing session
+    history going forward.
+
+
+### eod — end-of-day sentinel events
+
+Returns the end-of-day sentinel rows written to `session_events` when `pm-clearing` receives `system.eod` from a graceful engine shutdown. A clearing house uses this to **confirm official session close and validate end-of-day marks**: it answers exactly when the day closed, which mark prices were applied to all open positions at that moment, and provides the authoritative reference point for overnight P&L, margin calls, and daily settlement statements.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--from YYYY-MM-DD` | date | — | Inclusive start date |
+| `--to YYYY-MM-DD` | date | — | Inclusive end date |
+| `--limit N` | integer | 100 | Maximum rows returned |
+| `--format FMT` | `table`\|`json`\|`csv` | `table` | Output format |
+
+```bash
+# Latest EOD markers
+pm-clearing-cli eod
+
+# Date range
+pm-clearing-cli eod --from 2026-07-01 --to 2026-07-05
+
+# Most recent session close
+pm-clearing-cli eod --limit 1
+```
+
+Output fields: `id`, `event_type` (always `EOD`), `ts_ns`, `trade_date`,
+`payload_json` (JSON object with `eod_marks` dict and `symbols_count`).
+
+To extract the EOD mark prices for AAPL from the JSON payload:
+
+```bash
+pm-clearing-cli --format json eod --limit 1 \
+  | python3 -c "
+import json, sys
+row = json.load(sys.stdin)[0]
+marks = json.loads(row['payload_json'])['eod_marks']
+print('AAPL EOD mark:', marks.get('AAPL', 'n/a'))
+"
+```
+
+!!! note
+    `EOD` rows are only written when `pm-clearing` receives `system.eod` from a
+    graceful engine shutdown. If the engine was killed hard (e.g. `kill -9`),
+    no EOD row is written and the positions retain the last intraday mark.
+
+
 ### prune — remove old raw trade events
 
-Deletes `trade_events` rows older than the retention window (default 90 days).
-Aggregate tables are **not** pruned.
+Deletes `trade_events` rows older than the configured retention window and runs `VACUUM` to reclaim disk space. A clearing house uses this for **storage lifecycle management**: raw fill records accumulate indefinitely; periodic pruning keeps the DB file at a manageable size while preserving all aggregate tables (`gateway_daily_summary`, `gateway_symbol_positions`) that hold the long-running reporting value beyond the raw-event window.
+
+!!! warning
+    `prune` is the only write-access verb. It opens `clearing.db` in read/write mode
+    and runs `DELETE` + `VACUUM`. It does not need `pm-clearing` to be stopped first
+    because SQLite WAL mode allows concurrent writers, but for safety prefer running
+    it during a quiet period.
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `--days N` | integer | 90 | Delete rows older than N days; minimum 1 |
+| `--dry-run` | flag | off | Report how many rows would be deleted without deleting any |
 
 ```bash
 # Delete rows older than 90 days and VACUUM
@@ -479,6 +840,50 @@ pm-clearing-cli health
 Compare `last_flush_ts_ns` against the current time. If it is more than a few
 minutes stale during active trading, `pm-clearing` may have stopped.
 
+### "What was the official EOD mark for AAPL yesterday?"
+
+```bash
+pm-clearing-cli eod --from 2026-07-04 --to 2026-07-04
+```
+
+This returns the sentinel row written by `pm-clearing` on `system.eod`,
+including the exact close timestamp and the `payload_json` field which
+contains the EOD mark prices applied to each symbol.
+
+### "When did TRADER07 connect and disconnect today?"
+
+```bash
+pm-clearing-cli sessions --gateway TRADER07 --from 2026-07-05
+```
+
+### "Which gateways were connected during today's session?"
+
+```bash
+pm-clearing-cli sessions --from 2026-07-05
+```
+
+### "Which gateways are currently connected (no recorded disconnect)?"
+
+```bash
+pm-clearing-cli sessions --connected-only
+```
+
+### "Why does TRADER07 have no trades today — was it ever connected?"
+
+Run the session history first:
+
+```bash
+pm-clearing-cli sessions --gateway TRADER07 --from 2026-07-05
+```
+
+This tells you whether the gateway connected at all. If no rows are returned,
+TRADER07 never authenticated. If a row is present with a rapid
+`disconnected_at_ns`, the gateway was kicked mid-session. Then check trades:
+
+```bash
+pm-clearing-cli trades --gateway TRADER07 --date 2026-07-05
+```
+
 ### "Export today's daily summary for the finance team"
 
 ```bash
@@ -513,9 +918,13 @@ pm-clearing-cli pnl  # reads morning/clearing.db
   participant) is not supported; P&L is tracked per individual gateway ID.
 - Settlement date tracking (T+1/T+2) is not implemented; all positions are
   marked intraday.
-- `mark_price` is the most recent `trade.executed` price for that symbol.
-  Positions that have not been touched since the market opened may show stale
-  marks.
+- `mark_price` is the most recent `trade.executed` price for that symbol during
+  a trading session. On graceful engine shutdown, `pm-clearing` updates
+  `mark_price` to the official EOD snapshot price from `system.eod`.
+- `session_events` and `gateway_sessions` are populated only if `pm-clearing`
+  is running at the time the corresponding messages arrive. A hard engine kill
+  produces no `EOD` row. Gateway sessions started before `pm-clearing` was
+  launched will not have a connect row.
 
 ## Quick-reference: P&L formulas
 
