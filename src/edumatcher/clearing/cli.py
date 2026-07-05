@@ -134,18 +134,22 @@ _HEALTH_COLS = [
     "wal_mode",
 ]
 _RECONCILE_COLS = [
+    "side",
     "trade_date",
     "gateway_id",
     "symbol",
-    "raw_buy_qty",
-    "summary_buy_qty",
+    "raw_qty",
+    "summary_qty",
     "qty_diff",
+    "raw_notional",
+    "summary_notional",
     "notional_diff",
 ]
 
 _NORMALIZE_FIELDS: dict[str, tuple[str, ...]] = {
+    # avg_cost is stored as REAL (result of division) and must NOT be divided
+    # again by the tick scale — only tick-integer columns are normalized here.
     "positions": (
-        "avg_cost",
         "mark_price",
         "realized_pnl",
         "unrealized_pnl",
