@@ -1,217 +1,192 @@
 """
-Clearing Process — financial settlement sink with P&L tracking.
+pm-clearing v2 — SQLite-backed trade clearing process.
 
-Usage:
-  poetry run pm-clearing
+Architecture
+------------
+One subscriber thread receives ``trade.executed`` messages from the engine and
+appends them to an in-memory buffer.  A separate timer thread flushes the
+buffer to SQLite every ``FLUSH_INTERVAL_SEC`` seconds even when the buffer is
+partially filled.  The buffer is also flushed immediately when it reaches
+``FLUSH_SIZE`` trades.
 
-Subscribes to trade.executed events and maintains per-user (gateway) P&L:
-  position    — net quantity (positive = long, negative = short)
-  avg_cost    — VWAP-updated cost basis
-  realized_pnl   — from closed/reduced position legs
-  unrealized_pnl — position * (last_price - avg_cost)
+The flush transaction atomically writes:
+1. raw trade rows  (INSERT OR IGNORE into trade_events)
+2. current position snapshots  (UPSERT into gateway_symbol_positions)
+3. incremental daily deltas    (UPSERT into gateway_daily_summary)
 
-All trades are appended to data/clearing_report.csv.
-A rich P&L summary table is printed every CLEARING_PRINT_EVERY trades
-and in full on Ctrl-C exit.
+On startup the process prunes trade_events rows older than 90 days and logs
+the count of deleted rows.
 """
 
 from __future__ import annotations
 
-import csv
 import errno
 import signal
 import sys
 import threading
-from collections import defaultdict
-from dataclasses import dataclass
-from datetime import datetime, timezone
+import time
+from pathlib import Path
 
 import zmq
 from rich.console import Console
 from rich.table import Table
 
-from edumatcher.config import (
-    CLEARING_PRINT_EVERY,
-    CLEARING_REPORT_FILE,
-    DATA_DIR,
-    ENGINE_PUB_ADDR,
+from edumatcher.clearing.ledger import Ledger, trade_date_utc
+from edumatcher.clearing.store import (
+    TradeEventRow,
+    flush_batch,
+    open_writer_connection,
+    prune_old_events,
 )
 from edumatcher.messaging.bus import make_subscriber
+from edumatcher.models.clock import now_ns  # used in _flush
 from edumatcher.models.message import decode
 from edumatcher.models.trade import Trade
 
+FLUSH_SIZE: int = 100
+FLUSH_INTERVAL_SEC: float = 5.0
+_TIMER_POLL_SEC: float = 0.5
+_RETENTION_DAYS: int = 90
+
 console = Console()
 
+
 # ---------------------------------------------------------------------------
-# Per-symbol position record
+# Trade → TradeEventRow conversion
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class PositionRecord:
-    symbol: str
-    gateway_id: str
-    position: float = 0.0  # net qty (+ = long, - = short)
-    avg_cost: float = 0.0  # VWAP cost basis
-    realized_pnl: float = 0.0
-    last_price: float = 0.0
-
-    @property
-    def unrealized_pnl(self) -> float:
-        if self.position == 0:
-            return 0.0
-        return self.position * (self.last_price - self.avg_cost)
-
-    def apply_fill(self, qty: int, price: float, is_buy: bool) -> None:
-        """
-        Update position, avg_cost, and realized_pnl for a single fill leg.
-        qty is always positive; is_buy indicates direction.
-        """
-        signed_qty = qty if is_buy else -qty
-        self.last_price = price
-
-        if self.position == 0:
-            # Opening a new position
-            self.avg_cost = price
-            self.position = signed_qty
-            return
-
-        if (self.position > 0 and is_buy) or (self.position < 0 and not is_buy):
-            # Adding to existing position — update VWAP avg_cost
-            total_cost = self.avg_cost * abs(self.position) + price * qty
-            self.position += signed_qty
-            self.avg_cost = total_cost / abs(self.position)
-        else:
-            # Reducing or reversing position — realize P&L
-            reduce_qty = min(qty, abs(self.position))
-            if self.position > 0:
-                self.realized_pnl += (price - self.avg_cost) * reduce_qty
-            else:
-                self.realized_pnl += (self.avg_cost - price) * reduce_qty
-
-            self.position += signed_qty
-            if abs(self.position) < 1e-9:
-                self.position = 0.0
-                self.avg_cost = 0.0
-            elif (signed_qty > 0 and self.position > 0) or (
-                signed_qty < 0 and self.position < 0
-            ):
-                # Reversed — set new avg_cost for the remaining position
-                self.avg_cost = price
-                # Re-base: only the excess qty contributes
-                # (simple approximation: new basis = fill price)
+def _to_trade_event_row(trade: Trade, ingest_ts_ns: int) -> TradeEventRow:
+    """Convert a Trade model to the DB row type, deriving trade_date from ts_ns."""
+    return TradeEventRow(
+        id=trade.id,
+        ts_ns=trade.timestamp,
+        trade_date=trade_date_utc(trade.timestamp),
+        symbol=trade.symbol,
+        quantity=trade.quantity,
+        price=trade.price,
+        buy_order_id=trade.buy_order_id or None,
+        sell_order_id=trade.sell_order_id or None,
+        buy_gateway_id=trade.buy_gateway_id,
+        sell_gateway_id=trade.sell_gateway_id,
+        aggressor_side=trade.aggressor_side or None,
+        ingest_ts_ns=ingest_ts_ns,
+    )
 
 
 # ---------------------------------------------------------------------------
-# Clearing process
+# Main process class
 # ---------------------------------------------------------------------------
 
 
 class ClearingProcess:
-    def __init__(self) -> None:
-        # ledger[gateway_id][symbol] → PositionRecord
-        self._ledger: dict[str, dict[str, PositionRecord]] = defaultdict(dict)
+    """
+    Buffered clearing process — subscribe, buffer, and flush to SQLite.
+
+    Parameters
+    ----------
+    pub_addr:
+        ZMQ PUB address to subscribe to.
+    db_path:
+        Path to the SQLite clearing database.
+    flush_size:
+        Maximum number of buffered trades before an immediate flush.
+    flush_interval_sec:
+        Maximum seconds between flushes when buffer is non-empty.
+    print_every:
+        Print a P&L summary table to the console every N trades (0 = never).
+    retention_days:
+        Trade events older than this many days are pruned on startup.
+    """
+
+    def __init__(
+        self,
+        pub_addr: str,
+        db_path: Path,
+        *,
+        flush_size: int = FLUSH_SIZE,
+        flush_interval_sec: float = FLUSH_INTERVAL_SEC,
+        print_every: int = 100,
+        retention_days: int = _RETENTION_DAYS,
+    ) -> None:
+        self._pub_addr = pub_addr
+        self._db_path = Path(db_path)
+        self._flush_size = flush_size
+        self._flush_interval_sec = flush_interval_sec
+        self._print_every = print_every
+        self._retention_days = retention_days
+
+        self._buffer: list[Trade] = []
+        self._ledger = Ledger()
         self._trade_count = 0
+
+        self._running = False
         self._lock = threading.Lock()
-        self._running = True
+        self._last_flush_mono = time.monotonic()
 
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        self._csv_path = CLEARING_REPORT_FILE
-        self._init_csv()
+        self._conn = open_writer_connection(self._db_path)
 
-        self.sub = make_subscriber(ENGINE_PUB_ADDR, "trade.executed")
+    # ------------------------------------------------------------------
+    # Public interface
+    # ------------------------------------------------------------------
 
-    def _init_csv(self) -> None:
-        """Write CSV header if the file is new."""
-        write_header = not self._csv_path.exists() or self._csv_path.stat().st_size == 0
-        self._csv_file = open(self._csv_path, "a", newline="", encoding="utf-8")
-        self._csv_writer = csv.writer(self._csv_file)
-        if write_header:
-            self._csv_writer.writerow(
-                [
-                    "trade_id",
-                    "symbol",
-                    "buy_order_id",
-                    "sell_order_id",
-                    "buy_gateway",
-                    "sell_gateway",
-                    "price",
-                    "quantity",
-                    "timestamp",
-                ]
+    def run(self) -> None:
+        """Start the clearing process; blocks until stop() is called."""
+        pruned = prune_old_events(self._conn, retention_days=self._retention_days)
+        if pruned:
+            console.print(
+                f"[CLEARING] Pruned {pruned} trade_events rows older than"
+                f" {self._retention_days} days."
             )
 
-    def _record_trade(self, trade: Trade) -> None:
-        ts_raw = trade.timestamp
-        ts_sec = ts_raw / 1_000_000_000 if ts_raw > 1_000_000_000_000 else ts_raw
-        self._csv_writer.writerow(
-            [
-                trade.id,
-                trade.symbol,
-                trade.buy_order_id,
-                trade.sell_order_id,
-                trade.buy_gateway_id,
-                trade.sell_gateway_id,
-                trade.price,
-                trade.quantity,
-                datetime.fromtimestamp(ts_sec, timezone.utc).isoformat(),
-            ]
+        console.print(f"[CLEARING] DB: {self._db_path}")
+        console.print(
+            f"[CLEARING] Flush policy: size={self._flush_size},"
+            f" interval={self._flush_interval_sec}s"
         )
-        self._csv_file.flush()
 
-    def _update_ledger(self, trade: Trade) -> None:
+        # Signal handlers may only be installed from the main thread.
+        # When run() is called from a test thread, skip graceful-signal setup.
+        if threading.current_thread() is threading.main_thread():
+            signal.signal(signal.SIGINT, lambda *_: self.stop())
+            signal.signal(signal.SIGTERM, lambda *_: self.stop())
+
+        self._running = True
+
+        timer = threading.Thread(
+            target=self._timer_loop, daemon=True, name="clearing-timer"
+        )
+        timer.start()
+
+        sub = make_subscriber(self._pub_addr, "trade.executed")
+        try:
+            self._receive_loop(sub)
+        finally:
+            sub.close()
+            self._force_flush()
+            self._conn.close()
+            console.print("[CLEARING] Shutdown complete.")
+
+    def stop(self) -> None:
+        """Signal the receive loop to exit cleanly."""
+        self._running = False
+
+    def flush_now(self) -> int:
+        """
+        Flush the current buffer immediately.  Returns the number of trades flushed.
+        Thread-safe; may be called from tests.
+        """
         with self._lock:
-            for gw_id, is_buy in [
-                (trade.buy_gateway_id, True),
-                (trade.sell_gateway_id, False),
-            ]:
-                if trade.symbol not in self._ledger[gw_id]:
-                    self._ledger[gw_id][trade.symbol] = PositionRecord(
-                        symbol=trade.symbol, gateway_id=gw_id
-                    )
-                rec = self._ledger[gw_id][trade.symbol]
-                rec.apply_fill(trade.quantity, trade.price, is_buy)
+            return self._flush()
 
-    def _print_pnl_table(self) -> None:
-        t = Table(title="[bold]P&L Summary[/bold]", show_lines=True)
-        t.add_column("Gateway", style="cyan")
-        t.add_column("Symbol", style="bold")
-        t.add_column("Position", justify="right")
-        t.add_column("Avg Cost", justify="right")
-        t.add_column("Last Price", justify="right")
-        t.add_column("Realized", justify="right")
-        t.add_column("Unrealized", justify="right")
-        t.add_column("Total P&L", justify="right")
+    # ------------------------------------------------------------------
+    # Receive loop
+    # ------------------------------------------------------------------
 
-        with self._lock:
-            ledger_copy = {
-                gw: {sym: rec for sym, rec in syms.items()}
-                for gw, syms in self._ledger.items()
-            }
-
-        for gw_id in sorted(ledger_copy):
-            for sym in sorted(ledger_copy[gw_id]):
-                rec = ledger_copy[gw_id][sym]
-                real = rec.realized_pnl
-                unreal = rec.unrealized_pnl
-                total = real + unreal
-                colour = "green" if total >= 0 else "red"
-                t.add_row(
-                    gw_id,
-                    sym,
-                    f"{rec.position:+.0f}",
-                    f"{rec.avg_cost:.4f}" if rec.avg_cost else "—",
-                    f"{rec.last_price:.4f}",
-                    f"[{colour}]{real:+.2f}[/{colour}]",
-                    f"[{colour}]{unreal:+.2f}[/{colour}]",
-                    f"[bold {colour}]{total:+.2f}[/bold {colour}]",
-                )
-
-        console.print(t)
-
-    def _receive(self) -> None:
+    def _receive_loop(self, sub: zmq.Socket) -> None:  # type: ignore[type-arg]
         poller = zmq.Poller()
-        poller.register(self.sub, zmq.POLLIN)
+        poller.register(sub, zmq.POLLIN)
+
         while self._running:
             try:
                 socks = dict(poller.poll(timeout=300))
@@ -219,74 +194,203 @@ class ClearingProcess:
                 if exc.errno != errno.EINTR:
                     raise
                 break
-            if self.sub in socks:
-                frames = self.sub.recv_multipart()
-                try:
-                    _, payload = decode(frames)
-                    trade = Trade.from_dict(payload)
-                except Exception as exc:
-                    print(
-                        f"[CLEARING] WARNING: failed to decode trade: {exc}",
-                        flush=True,
-                    )
-                    continue
-                self._record_trade(trade)
-                self._update_ledger(trade)
-                self._trade_count += 1
-                ts_raw = trade.timestamp
-                ts_sec = (
-                    ts_raw / 1_000_000_000 if ts_raw > 1_000_000_000_000 else ts_raw
-                )
-                ts = datetime.fromtimestamp(ts_sec, timezone.utc).strftime("%H:%M:%S")
+
+            if sub not in socks:
+                continue
+
+            frames = sub.recv_multipart()
+            try:
+                _, payload = decode(frames)
+                trade = Trade.from_dict(payload)
+            except Exception as exc:
                 console.print(
-                    f"[CLEARING] [{ts}] TRADE {trade.id[:8]}  "
-                    f"{trade.symbol}  qty={trade.quantity} @{trade.price:.4f}  "
-                    f"buyer={trade.buy_gateway_id}  seller={trade.sell_gateway_id}"
+                    f"[CLEARING] WARNING: failed to decode message: {exc}",
+                    style="yellow",
                 )
-                if self._trade_count % CLEARING_PRINT_EVERY == 0:
-                    self._print_pnl_table()
+                continue
 
-    def run(self) -> None:
-        signal.signal(signal.SIGINT, lambda *_: self._stop())
-        signal.signal(signal.SIGTERM, lambda *_: self._stop())
-        t = threading.Thread(target=self._receive, daemon=True)
-        t.start()
-        console.print(f"[CLEARING] Recording trades → {self._csv_path}")
-        try:
-            t.join()
-        finally:
-            self.close()
-        if not self._running:
-            print("\n[CLEARING] Final P&L:")
-            self._print_pnl_table()
-            print(f"[CLEARING] Trades saved to {self._csv_path}")
+            with self._lock:
+                self._buffer.append(trade)
+                self._trade_count += 1
 
-    def _stop(self) -> None:
-        self._running = False
+                if len(self._buffer) >= self._flush_size:
+                    self._flush()
 
-    def close(self) -> None:
-        if hasattr(self, "_csv_file") and not self._csv_file.closed:
-            self._csv_file.close()
-        if hasattr(self, "sub") and not self.sub.closed:
-            self.sub.close()
+            if self._print_every > 0 and self._trade_count % self._print_every == 0:
+                self._print_pnl_table()
 
-    def __del__(self) -> None:
-        try:
-            self.close()
-        except Exception:
-            # Never raise from finalizer paths.
-            pass
+    # ------------------------------------------------------------------
+    # Timer loop
+    # ------------------------------------------------------------------
+
+    def _timer_loop(self) -> None:
+        while self._running:
+            time.sleep(_TIMER_POLL_SEC)
+            with self._lock:
+                elapsed = time.monotonic() - self._last_flush_mono
+                if elapsed >= self._flush_interval_sec and self._buffer:
+                    self._flush()
+
+    # ------------------------------------------------------------------
+    # Flush (must be called with self._lock held)
+    # ------------------------------------------------------------------
+
+    def _flush(self) -> int:
+        """Flush the buffer to SQLite. Returns the number of trades written."""
+        if not self._buffer:
+            return 0
+
+        updated_ts = now_ns()
+
+        trade_rows = [_to_trade_event_row(t, updated_ts) for t in self._buffer]
+
+        for trade in self._buffer:
+            self._ledger.apply_trade(
+                symbol=trade.symbol,
+                buy_gateway_id=trade.buy_gateway_id,
+                sell_gateway_id=trade.sell_gateway_id,
+                price=trade.price,
+                quantity=trade.quantity,
+                ts_ns=trade.timestamp,
+                ingest_ts_ns=updated_ts,
+            )
+
+        position_rows, daily_rows = self._ledger.get_flush_rows(
+            updated_ts_ns=updated_ts
+        )
+
+        flush_batch(self._conn, trade_rows, position_rows, daily_rows)
+
+        count = len(self._buffer)
+        self._buffer.clear()
+        self._ledger.clear_batch()
+        self._last_flush_mono = time.monotonic()
+
+        return count
+
+    def _force_flush(self) -> None:
+        """Flush remaining buffer on shutdown (called without lock)."""
+        with self._lock:
+            self._flush()
+
+    # ------------------------------------------------------------------
+    # Console P&L table
+    # ------------------------------------------------------------------
+
+    def _print_pnl_table(self) -> None:
+        positions = self._ledger.all_positions()
+        if not positions:
+            return
+
+        t = Table(title="[bold]P&L Summary[/bold]", show_lines=True)
+        t.add_column("Gateway", style="cyan")
+        t.add_column("Symbol", style="bold")
+        t.add_column("Net Qty", justify="right")
+        t.add_column("Avg Cost", justify="right")
+        t.add_column("Mark", justify="right")
+        t.add_column("Realized", justify="right")
+        t.add_column("Unrealized", justify="right")
+        t.add_column("Total P&L", justify="right")
+
+        for pos in sorted(positions, key=lambda p: (p.gateway_id, p.symbol)):
+            real = pos.realized_pnl
+            unreal = pos.unrealized_pnl
+            total = real + unreal
+            colour = "green" if total >= 0 else "red"
+            mark = f"{pos.mark_price}" if pos.mark_price is not None else "—"
+            t.add_row(
+                pos.gateway_id,
+                pos.symbol,
+                f"{pos.net_qty:+d}",
+                f"{pos.avg_cost:.4f}" if pos.avg_cost else "—",
+                mark,
+                f"[{colour}]{real:+.2f}[/{colour}]",
+                f"[{colour}]{unreal:+.2f}[/{colour}]",
+                f"[bold {colour}]{total:+.2f}[/bold {colour}]",
+            )
+
+        console.print(t)
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 
 
 def main() -> None:
-    from edumatcher.cli_version import maybe_print_version_and_exit
+    import argparse
 
-    maybe_print_version_and_exit("pm-clearing")
+    from edumatcher.cli_version import add_version_argument
+    from edumatcher.config import DATA_DIR, ENGINE_PUB_ADDR
+
+    parser = argparse.ArgumentParser(
+        prog="pm-clearing",
+        description="EduMatcher clearing process — SQLite-backed trade P&L tracker",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+    add_version_argument(parser, "pm-clearing")
+
+    parser.add_argument(
+        "--datapath",
+        metavar="PATH",
+        default=None,
+        help="Data directory or explicit .db file path",
+    )
+    parser.add_argument(
+        "--db-name",
+        metavar="NAME",
+        default="clearing.db",
+        help="SQLite filename within data directory (default: clearing.db)",
+    )
+    parser.add_argument(
+        "--flush-size",
+        type=int,
+        default=FLUSH_SIZE,
+        metavar="N",
+        help=f"Max buffered trades before flush (1..100, default: {FLUSH_SIZE})",
+    )
+    parser.add_argument(
+        "--flush-interval",
+        type=float,
+        default=FLUSH_INTERVAL_SEC,
+        metavar="SEC",
+        help=f"Max seconds between flushes (>=0.1, default: {FLUSH_INTERVAL_SEC})",
+    )
+    parser.add_argument(
+        "--print-every",
+        type=int,
+        default=100,
+        metavar="N",
+        help="Print P&L summary every N trades (0 = never, default: 100)",
+    )
+
+    args = parser.parse_args()
+
+    if not (1 <= args.flush_size <= 100):
+        print("[ERROR] --flush-size must be 1..100", file=sys.stderr)
+        raise SystemExit(2)
+    if args.flush_interval < 0.1:
+        print("[ERROR] --flush-interval must be >= 0.1", file=sys.stderr)
+        raise SystemExit(2)
+
+    if args.datapath is not None:
+        dp = Path(args.datapath).expanduser()
+        db_path = dp if dp.suffix == ".db" else dp / args.db_name
+    else:
+        db_path = DATA_DIR / args.db_name
+
     try:
-        process = ClearingProcess()
+        process = ClearingProcess(
+            pub_addr=ENGINE_PUB_ADDR,
+            db_path=db_path,
+            flush_size=args.flush_size,
+            flush_interval_sec=args.flush_interval,
+            print_every=args.print_every,
+        )
     except Exception as exc:
         print(f"[CLEARING] FATAL: {exc}", file=sys.stderr)
-        sys.exit(1)
+        raise SystemExit(1) from exc
+
     process.run()
 
 

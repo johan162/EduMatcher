@@ -1,6 +1,6 @@
 """
 Tests for process helper functions and classes that don't require live ZMQ:
-  - clearing.main.PositionRecord
+  - clearing_v1.main.PositionRecord  (legacy v1 clearing — moved to clearing_v1)
   - stats.main._DayAccum
   - ticker.main._build_line
   - viewer.main._build_display
@@ -19,7 +19,7 @@ from typing import Any, Callable, cast
 import pytest
 import zmq
 
-from edumatcher.clearing.main import PositionRecord
+from edumatcher.clearing_v1.main import PositionRecord
 from edumatcher.stats.main import _DayAccum
 from edumatcher.ticker.main import _build_line
 from edumatcher.viewer.main import _build_display

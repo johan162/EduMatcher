@@ -127,6 +127,17 @@ Notes:
 
 
 
+Price note
+----------
+The engine emits ``trade.executed.price`` as an integer (raw int, no implicit
+decimal scaling).  The v2 implementation stores price-derived columns
+(``price``, ``mark_price``, ``traded_notional``, ``buy_notional``,
+``sell_notional``, ``net_amount``) as INTEGER in SQLite, not REAL as shown
+in the original schema below.  Columns derived from weighted-average math
+(``avg_cost``, ``realized_pnl``, ``unrealized_pnl`` and their end-of-day
+variants) remain REAL because they involve division and subtraction that
+produce non-integer results.
+
 ### 6.1 Database pragmas
 
 At process startup:
