@@ -613,7 +613,8 @@ Global options:
   - DB metadata (last update, row counts, last flush time)
 - `reconcile`
   - compare computed aggregates against raw `trade_events` totals to detect
-    any discrepancy between source facts and summary tables
+    any discrepancy between source facts and summary tables on both the buy
+    side and the sell side
 
 ### 10.2 Proposed option reference
 
@@ -1114,66 +1115,119 @@ Implementation note for `health`:
 | Item | Value |
 |---|---|
 | Primary source | `trade_events` (ground truth) vs `gateway_daily_summary` (aggregates) |
-| Primary goal | Detect any discrepancy between raw fact totals and summary table totals |
-| Default ordering | `trade_date ASC, gateway_id ASC, symbol ASC` |
+| Primary goal | Detect any discrepancy between raw fact totals and summary table totals on both the buy side and the sell side |
+| Default ordering | `trade_date ASC, side ASC, gateway_id ASC, symbol ASC` |
+
+Output columns:
+
+| Column | Description |
+|---|---|
+| `side` | `BUY` or `SELL` |
+| `trade_date` | Date bucket |
+| `gateway_id` | Gateway identifier |
+| `symbol` | Instrument |
+| `raw_qty` | Quantity counted directly from `trade_events` |
+| `summary_qty` | Quantity stored in `gateway_daily_summary` |
+| `qty_diff` | `raw_qty - summary_qty` (non-zero indicates discrepancy) |
+| `raw_notional` | Notional counted directly from `trade_events` |
+| `summary_notional` | Notional stored in `gateway_daily_summary` |
+| `notional_diff` | `raw_notional - summary_notional` |
 
 Principal SQL:
 
 ```sql
-WITH raw_totals AS (
+WITH
+-- Buy-side raw counts from trade_events
+raw_buy AS (
   SELECT
+    'BUY'            AS side,
     trade_date,
-    buy_gateway_id AS gateway_id,
+    buy_gateway_id   AS gateway_id,
     symbol,
-    SUM(quantity) AS raw_buy_qty,
-    SUM(quantity * price) AS raw_buy_notional
+    SUM(quantity)          AS raw_qty,
+    SUM(quantity * price)  AS raw_notional
   FROM trade_events
   WHERE (:from_date IS NULL OR trade_date >= :from_date)
-    AND (:to_date IS NULL OR trade_date <= :to_date)
-    AND (:gateway IS NULL OR buy_gateway_id = :gateway)
-    AND (:symbol IS NULL OR symbol = :symbol)
+    AND (:to_date   IS NULL OR trade_date <= :to_date)
+    AND (:gateway   IS NULL OR buy_gateway_id = :gateway)
+    AND (:symbol    IS NULL OR symbol = :symbol)
   GROUP BY trade_date, buy_gateway_id, symbol
 ),
-summary_totals AS (
+-- Sell-side raw counts from trade_events
+raw_sell AS (
   SELECT
+    'SELL'           AS side,
     trade_date,
-    gateway_id,
+    sell_gateway_id  AS gateway_id,
     symbol,
-    buy_qty AS summary_buy_qty,
-    buy_notional AS summary_buy_notional
+    SUM(quantity)          AS raw_qty,
+    SUM(quantity * price)  AS raw_notional
+  FROM trade_events
+  WHERE (:from_date IS NULL OR trade_date >= :from_date)
+    AND (:to_date   IS NULL OR trade_date <= :to_date)
+    AND (:gateway   IS NULL OR sell_gateway_id = :gateway)
+    AND (:symbol    IS NULL OR symbol = :symbol)
+  GROUP BY trade_date, sell_gateway_id, symbol
+),
+raw_all AS (
+  SELECT * FROM raw_buy
+  UNION ALL
+  SELECT * FROM raw_sell
+),
+summary_buy AS (
+  SELECT 'BUY' AS side, trade_date, gateway_id, symbol,
+    buy_qty AS summary_qty, buy_notional AS summary_notional
   FROM gateway_daily_summary
   WHERE (:from_date IS NULL OR trade_date >= :from_date)
-    AND (:to_date IS NULL OR trade_date <= :to_date)
-    AND (:gateway IS NULL OR gateway_id = :gateway)
-    AND (:symbol IS NULL OR symbol = :symbol)
+    AND (:to_date   IS NULL OR trade_date <= :to_date)
+    AND (:gateway   IS NULL OR gateway_id = :gateway)
+    AND (:symbol    IS NULL OR symbol = :symbol)
+),
+summary_sell AS (
+  SELECT 'SELL' AS side, trade_date, gateway_id, symbol,
+    sell_qty AS summary_qty, sell_notional AS summary_notional
+  FROM gateway_daily_summary
+  WHERE (:from_date IS NULL OR trade_date >= :from_date)
+    AND (:to_date   IS NULL OR trade_date <= :to_date)
+    AND (:gateway   IS NULL OR gateway_id = :gateway)
+    AND (:symbol    IS NULL OR symbol = :symbol)
+),
+summary_all AS (
+  SELECT * FROM summary_buy
+  UNION ALL
+  SELECT * FROM summary_sell
 )
 SELECT
+  r.side,
   r.trade_date,
   r.gateway_id,
   r.symbol,
-  r.raw_buy_qty,
-  s.summary_buy_qty,
-  (r.raw_buy_qty - COALESCE(s.summary_buy_qty, 0)) AS qty_diff,
-  ROUND(r.raw_buy_notional - COALESCE(s.summary_buy_notional, 0), 8) AS notional_diff
-FROM raw_totals r
-LEFT JOIN summary_totals s
-  ON s.trade_date = r.trade_date
+  r.raw_qty,
+  COALESCE(s.summary_qty, 0)       AS summary_qty,
+  (r.raw_qty - COALESCE(s.summary_qty, 0)) AS qty_diff,
+  r.raw_notional,
+  COALESCE(s.summary_notional, 0)  AS summary_notional,
+  ROUND(r.raw_notional - COALESCE(s.summary_notional, 0), 8) AS notional_diff
+FROM raw_all r
+LEFT JOIN summary_all s
+  ON  s.side       = r.side
+  AND s.trade_date = r.trade_date
   AND s.gateway_id = r.gateway_id
-  AND s.symbol = r.symbol
-WHERE ABS(r.raw_buy_qty - COALESCE(s.summary_buy_qty, 0)) > 0
-   OR ABS(r.raw_buy_notional - COALESCE(s.summary_buy_notional, 0)) > 0.0001
-ORDER BY r.trade_date ASC, r.gateway_id ASC, r.symbol ASC;
+  AND s.symbol     = r.symbol
+WHERE ABS(r.raw_qty - COALESCE(s.summary_qty, 0)) > 0
+   OR ABS(r.raw_notional - COALESCE(s.summary_notional, 0)) > 0.0001
+ORDER BY r.trade_date ASC, r.side ASC, r.gateway_id ASC, r.symbol ASC;
 ```
 
-If the query returns zero rows the dataset is consistent. Any returned row
-identifies a `(trade_date, gateway_id, symbol)` key where the aggregates
-diverge from the source facts.
+If the query returns zero rows the dataset is consistent on both sides. Any
+returned row identifies a `(trade_date, side, gateway_id, symbol)` key where
+the aggregates diverge from the source facts.
 
 Optional filters:
 
 | CLI option | SQL parameter | Applied as |
 |---|---|---|
-| `--gateway` | `:gateway` | restrict reconciliation to one gateway |
+| `--gateway` | `:gateway` | restrict reconciliation to one gateway on either side |
 | `--symbol` | `:symbol` | restrict reconciliation to one symbol |
 | `--from` | `:from_date` | `trade_date >= :from_date` |
 | `--to` | `:to_date` | `trade_date <= :to_date` |
@@ -1206,21 +1260,258 @@ Questions a clearing team commonly asks and matching verbs:
 
 ## 12. Additional Message Subscriptions
 
-`trade.executed` is the only required feed for strict trade-based P&L.
+`trade.executed` is the only feed **required** for strictly correct trade-based
+P&L.  All secondary subscriptions described below are optional enrichments that
+add operational context, improve accuracy, or enable additional reporting
+dimensions.  They must never block the core trade ingestion and flush pipeline.
+Each should be processed in the same poll loop that handles `trade.executed`,
+but ignored gracefully if the message is malformed or arrives out of order.
 
-Recommended secondary subscriptions:
+---
 
-- `system.eod`
-  - finalize day boundary state, ensure final flush/rollup markers
-- `system.gateway_connect` / `system.gateway_disconnect`
-  - add operational context for reporting and audit trails
-- `session.state`
-  - annotate transitions (OPENING_AUCTION, CONTINUOUS, CLOSED) for day reports
-- `book.*` (optional future)
-  - better unrealized P&L marks using best bid/ask midpoint instead of last trade
+### 12.1 `system.eod` — End-of-Day Finalisation
 
-These should not block core P&L processing; they are additive metadata to be considered in
-the next major version of pm-clearing.
+#### What the message carries
+
+The engine publishes `system.eod` during shutdown (graceful SIGINT / Ctrl-C).
+It contains a snapshot of every order book — symbol, last trade price, best
+bid, best ask, closing volume — for all symbols configured in the session.
+
+#### How `pm-clearing` can use it
+
+**Day-boundary marker in the DB**
+
+The most important use is as a clean, authoritative signal that a trading day
+has ended.  On receipt, `pm-clearing` should:
+
+1. Force an immediate flush of any buffered trades (bypass the 100-trade and
+   5-second thresholds).
+2. Write a sentinel row into a small `session_events` table (or as a special
+   `event_type = 'EOD'` record) so that `pm-clearing-cli` can answer
+   *"when did this day close?"* without relying on the absence of subsequent
+   trade events.
+
+**Closing mark-to-market pass**
+
+`system.eod` carries last-traded price, best bid, and best ask for every symbol.
+After flushing all buffered trades, `pm-clearing` can execute a final
+mark-to-market pass over `gateway_symbol_positions`:
+
+- for each open position, set `mark_price` to the EOD last-traded price (or the
+  bid/ask mid, whichever is preferred by configuration)
+- recompute `unrealized_pnl = net_qty * (mark_price - avg_cost)` in memory
+- write the updated position rows to the DB in a single UPSERT transaction
+
+This ensures that `gateway_daily_summary.end_unrealized_pnl` reflects the
+official EOD mark rather than the price of the last fill seen before session
+close, which may have been several minutes earlier.
+
+**Daily-rollup snapshot**
+
+After the EOD mark pass, `pm-clearing` can write a finalized snapshot row per
+`(gateway_id, symbol)` to `gateway_daily_summary` with the end-of-day figures
+locked in.  This row is then permanent for that `trade_date` and will not be
+overwritten by subsequent days' trades because SQLite's UPSERT key includes
+`trade_date`.
+
+**Practical value for the clearing operator**
+
+| Question | Without EOD subscription | With EOD subscription |
+|---|---|---|
+| What is the official closing P&L for TRADER01? | Last-seen mark, which may be stale | True EOD mark from the engine's own snapshot |
+| When did today's session close? | Inferred from latest `trade.executed.ts_ns` | Explicit `EOD` sentinel row with engine timestamp |
+| Are there open positions carried into tomorrow? | Not distinguished from intraday | Flagged as carry positions via EOD snapshot |
+
+---
+
+### 12.2 `system.gateway_connect` / `system.gateway_disconnect` — Gateway Lifecycle
+
+#### What these messages carry
+
+- `system.gateway_connect`: emitted when a gateway successfully authenticates
+  against the engine; carries `gateway_id` and (where available) the gateway
+  description from `engine_config.yaml`.
+- `system.gateway_disconnect`: emitted when a gateway disconnects or is kicked;
+  carries `gateway_id` and disconnect reason.
+
+#### How `pm-clearing` can use them
+
+**Gateway presence table**
+
+Add a lightweight `gateway_sessions` table to the clearing DB:
+
+```sql
+CREATE TABLE IF NOT EXISTS gateway_sessions (
+  gateway_id    TEXT    NOT NULL,
+  connected_at  INTEGER NOT NULL,
+  disconnected_at INTEGER,
+  disconnect_reason TEXT,
+  PRIMARY KEY (gateway_id, connected_at)
+);
+```
+
+`pm-clearing` inserts a row on connect and updates `disconnected_at` on
+disconnect.  This provides a complete connection history without requiring
+access to the engine logs.
+
+**Contextual audit enrichment**
+
+When a clearing operator asks why a gateway has no trades on a particular day
+(`pm-clearing-cli trades --gateway TRADER07 --date 2026-07-05` returns zero
+rows), the connection log immediately reveals whether the gateway was never
+connected, connected but submitted nothing, or was kicked mid-session.
+
+**Disconnect-triggered position snapshot**
+
+On `system.gateway_disconnect`, if `disconnect_behaviour` was `CANCEL_ALL`, the
+engine will cancel all resting orders for that gateway.  The clearing process
+can force-flush any buffered trades for that gateway and snapshot its final
+`gateway_symbol_positions` row so the last known state is durable before any
+engine-side order cancellations arrive.
+
+**`pm-clearing-cli` verb extension**
+
+A new `sessions` verb (or an addition to `gateways`) could expose this data:
+
+```bash
+pm-clearing-cli sessions --gateway TRADER07
+pm-clearing-cli sessions --date 2026-07-05
+```
+
+---
+
+### 12.3 `session.state` — Trading Phase Transitions
+
+#### What the message carries
+
+The engine publishes `session.state` on every phase transition driven by the
+scheduler.  The payload carries `to_state` (the new phase) and `prev_state`
+(the old phase).  Valid transitions include `CLOSED → PRE_OPEN`,
+`PRE_OPEN → OPENING_AUCTION`, `OPENING_AUCTION → CONTINUOUS`,
+`CONTINUOUS → CLOSING_AUCTION`, and `CLOSING_AUCTION → CLOSED`.
+
+#### How `pm-clearing` can use it
+
+**Phase annotation in trade reports**
+
+Each `trade.executed` event has a `ts_ns` timestamp but carries no information
+about which session phase it occurred in.  By tracking phase transitions in a
+`session_phases` table, the clearing process can annotate each trade's phase
+at query time:
+
+```sql
+CREATE TABLE IF NOT EXISTS session_phases (
+  started_at_ns INTEGER PRIMARY KEY,
+  phase         TEXT    NOT NULL,
+  prev_phase    TEXT
+);
+```
+
+A join in reporting queries can then label each trade as occurring in
+`OPENING_AUCTION`, `CONTINUOUS`, or `CLOSING_AUCTION`.  This is relevant for
+clearing because auction fills have different market-impact characteristics than
+continuous fills and may be subject to different post-trade reporting rules.
+
+**Suppressing spurious P&L alerts during auction**
+
+During an opening or closing auction, the clearing process can optionally
+suppress console P&L summaries (the `--print-every` output) because the fill
+price is the equilibrium price rather than a continuous-market price.  Reporting
+an unrealized P&L calculated against an auction price mid-session may produce
+misleading numbers.
+
+**Day-open detection without `system.eod`**
+
+If `system.eod` is not available (for example, the engine was killed rather than
+shut down gracefully), a `PRE_OPEN` or `OPENING_AUCTION` transition at a
+timestamp in a new calendar date serves as an implicit day-open signal.  The
+clearing process can use this to finalize the previous day's summary rows before
+new trades arrive.
+
+**`pm-clearing-cli` `daily` verb enrichment**
+
+The phase boundary timestamps can be surfaced in daily reports as
+`opening_auction_start_ns` and `continuous_start_ns` columns, helping the
+clearing operator understand the volume and price distribution within each phase
+of the trading day.
+
+---
+
+### 12.4 `book.*` — Live Order Book Snapshots (Optional Future)
+
+#### What the messages carry
+
+The engine publishes `book.{SYMBOL}` at a throttled interval (default every
+0.5 seconds) whenever the order book for that symbol changes.  Each message
+carries the current best bid price and quantity, best ask price and quantity,
+and the depth snapshot (multiple price levels if configured).
+
+#### How `pm-clearing` can use them
+
+**Mid-price mark for unrealized P&L**
+
+The default mark source in v2 is the last trade price.  Between fills, this
+mark becomes stale if the market moves without completing a trade.  A gateway
+holding a large open position could show an unrealized P&L that is materially
+wrong because the last fill was minutes ago.
+
+By subscribing to `book.*`, the clearing process can update `mark_price` to the
+mid-price `(best_bid + best_ask) / 2` on every book snapshot, giving a
+continuously refreshed unrealized P&L even when there are no new trades.  This
+is the industry-standard method for intraday margin and risk monitoring.
+
+**Spread monitoring for market-maker gateways**
+
+For gateways with `MARKET_MAKER` role, the order book subscription enables
+`pm-clearing` to record the effective spread they are providing over time.
+Combined with their fill history, this produces a profitability per tick of
+spread provided — useful in educational scenarios demonstrating how market
+makers earn from the spread.
+
+**Implementation considerations**
+
+- `book.*` generates a high-throughput stream (one message per symbol per
+  throttle interval).  The clearing process must not write every book snapshot
+  to SQLite; it should only update the in-memory `mark_price` in the ledger.
+  The updated value is then committed to the DB on the next regular flush
+  (trade-count or timer trigger).
+- Only the best bid and best ask prices are needed for mark purposes.  Depth
+  data beyond level 1 should be discarded.
+- This subscription is explicitly marked optional and should be gated by a
+  `--mark-from-book` flag or config option, defaulting to off, to avoid
+  imposing the additional ZMQ subscription cost on all deployments.
+
+---
+
+### 12.5 Subscription Priority and Failure Isolation
+
+All secondary subscriptions must be handled after `trade.executed` in the poll
+loop priority order.  If a secondary message cannot be parsed or decoded, the
+error should be logged as a warning and skipped; it must never cause the
+clearing process to stop ingesting trade events.
+
+Recommended poll-loop topic subscription order:
+
+1. `trade.executed` — required; failure to decode should increment an error
+   counter and log a warning but not stop the loop
+2. `system.eod` — high priority secondary; handled before the next poll cycle
+   if pending
+3. `session.state` — medium priority; update in-memory phase tracker
+4. `system.gateway_connect` / `system.gateway_disconnect` — low priority; write
+   to `gateway_sessions` table asynchronously (can be included in next flush)
+5. `book.*` — lowest priority; only update in-memory mark price, never written
+   on its own flush cycle
+
+Subscription filter strings to use with `make_subscriber`:
+
+| Topic | ZMQ filter prefix |
+|---|---|
+| `trade.executed` | `trade.executed` |
+| `system.eod` | `system.eod` |
+| `session.state` | `session.state` |
+| `system.gateway_connect` | `system.gateway_connect` |
+| `system.gateway_disconnect` | `system.gateway_disconnect` |
+| `book.*` | `book.` (empty prefix after `book.` matches all symbols) |
 
 
 
@@ -1278,6 +1569,23 @@ the next major version of pm-clearing.
 - write batching flushes on `100 trades OR 5s`
 - path override via `--datapath` works and matches EduMatcher conventions
 - `pm-clearing-cli` provides verb-based no-SQL workflows
-- `reconcile` verb reports no discrepancy on a clean dataset
+- `reconcile` verb reports no discrepancy on a clean dataset for both buy and sell sides
 - retention pruning removes `trade_events` rows older than 90 days on demand
 - operator can answer daily clearing questions using CLI only
+
+
+---
+
+## 17. Implementation Review
+
+This section records deviations between the design above and the initial
+implementation, discovered during a post-implementation review.
+
+### 17.1 Secondary subscriptions deferred
+
+Section 12 recommends subscribing to `system.eod`, `system.gateway_connect`,
+`system.gateway_disconnect`, and `session.state` as additive metadata sources.
+The initial implementation subscribes only to `trade.executed`.  The secondary
+subscriptions are deferred to the next major version; `book.*` mark-price
+improvement remains in the same deferred category.
+
