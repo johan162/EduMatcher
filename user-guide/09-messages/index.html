@@ -6148,6 +6148,11 @@ Both the aggressor and the resting counterparty receive their own <code>order.fi
 <td>Execution price</td>
 </tr>
 <tr>
+<td><code>tick_decimals</code></td>
+<td>integer</td>
+<td>Symbol price precision (<code>d</code> where 1 tick = <code>10^-d</code>)</td>
+</tr>
+<tr>
 <td><code>quantity</code></td>
 <td>integer</td>
 <td>Matched quantity</td>
@@ -6159,6 +6164,9 @@ Both the aggressor and the resting counterparty receive their own <code>order.fi
 </tr>
 </tbody>
 </table>
+<p><code>tick_decimals</code> allows subscribers that store integerized prices (for example
+<code>pm-clearing</code>) to convert between display prices and raw tick units without
+an external symbol-precision lookup.</p>
 <h2 id="book-events-engine-all-subscribers">Book events (engine → all subscribers)<a class="headerlink" href="#book-events-engine-all-subscribers" title="Permanent link">&para;</a></h2>
 <h3 id="booksymbol"><code>book.{SYMBOL}</code><a class="headerlink" href="#booksymbol" title="Permanent link">&para;</a></h3>
 <p><strong>Motivation:</strong> Distributes real-time market state needed for pricing, strategy, monitoring, and post-trade analytics.
