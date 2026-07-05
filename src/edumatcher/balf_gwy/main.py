@@ -18,6 +18,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="EduMatcher BALF (Binary ALF) TCP gateway"
     )
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-balf-gwy")
     parser.add_argument(
         "--config",
         "-c",

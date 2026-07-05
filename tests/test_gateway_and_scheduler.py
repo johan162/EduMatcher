@@ -1030,14 +1030,17 @@ class TestGatewayCompleterEdgeCases:
 
 class TestClearingStop:
     def test_stop_sets_running_false(self, tmp_path: Path) -> None:
-        from edumatcher.clearing.main import ClearingProcess
+        from edumatcher.clearing_v1.main import ClearingProcess
 
         fake_sock = MagicMock()
         with (
-            patch("edumatcher.clearing.main.make_subscriber", return_value=fake_sock),
-            patch("edumatcher.clearing.main.DATA_DIR", tmp_path),
             patch(
-                "edumatcher.clearing.main.CLEARING_REPORT_FILE", tmp_path / "report.csv"
+                "edumatcher.clearing_v1.main.make_subscriber", return_value=fake_sock
+            ),
+            patch("edumatcher.clearing_v1.main.DATA_DIR", tmp_path),
+            patch(
+                "edumatcher.clearing_v1.main.CLEARING_REPORT_FILE",
+                tmp_path / "report.csv",
             ),
         ):
             proc = ClearingProcess()

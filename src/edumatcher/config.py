@@ -86,6 +86,7 @@ GTC_COMBOS_FILE = DATA_DIR / "gtc_combos.json"
 BOOK_STATS_FILE = DATA_DIR / "book_stats.json"
 AUDIT_LOG_FILE = DATA_DIR / "audit.log"
 CLEARING_REPORT_FILE = DATA_DIR / "clearing_report.csv"
+CLEARING_DB_FILE = DATA_DIR / "clearing.db"
 STATS_DB_FILE = DATA_DIR / "stats.db"
 
 

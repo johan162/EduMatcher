@@ -33,17 +33,6 @@ matching logic, and exchange architecture through runnable code.
 - Implement real risk controls such as prioce-collar, kill-switch, circuit-breaker, and mass-cancel
 - Easy to understand configuration through single source `engine_config.yaml` which acts as the system reference data. To simplify its creation a CLI tool `pm-config-gen` can be used and a handwritten config file can be verified with `pm-cverifier` 
 
-## Key Functional Limitations
-
-- No spread-order books
-- No implied (synthetic) orders
-
-## Key Infrastructure Limitations
-
-- No primary-secondary automatic site failover
-- No load balancing
-- Limited replay for participants that lose the connection
-
 ## Documentation
 
 Main documentation site [EduMatcher Documentation](https://johan162.github.io/EduMatcher/) that among other things includes:
@@ -92,6 +81,14 @@ with risk checks enabled (price collar and circuit-breaker).
 for every match. They are required for realistic risk control and add measurable cost.
 
 
+## Key Functional and Infrastructure Limitations
+
+- No spread-order books
+- No implied (synthetic) orders
+- No primary-secondary automatic site failover
+- No load balancing
+- Limited replay for participants that lose the connection
+
 
 ## Citation
 
@@ -103,7 +100,7 @@ If you use this tool in teaching or courses, please cite:
   author = {Johan Persson},
   year = {2026},
   url = {https://github.com/johan162/EduMatcher},
-  version = {0.13.5}
+  version = {0.14.0}
 }
 ```
 

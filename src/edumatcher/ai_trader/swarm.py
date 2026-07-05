@@ -100,6 +100,9 @@ def build_bot_command(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="EduMatcher AI trader swarm launcher")
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-ai-swarm")
     parser.add_argument(
         "--count", type=int, default=10, help="Number of bots to launch"
     )

@@ -219,6 +219,7 @@ pm-engine --verbose
 |-------------------|------------------------------------|---------------------------------------------------------|-----------------------|
 | **pm-setup**      | `pm-setup`                         | Bootstrap working directory and runtime files           | Recommended first run |
 | **pm-config-gen** | `pm-config-gen [options]`          | Generate `engine_config.yaml` from CLI options          | Optional              |
+| **pm-clearing-cli** | `pm-clearing-cli <command> [options]` | Read/query interface for `clearing.db` (includes prune) | Optional           |
 | **pm-stats-cli**  | `pm-stats-cli <command> [options]` | Read-only query interface for `stats.db`                | Optional              |
 | **pm-index-cli**  | `pm-index-cli <command> [options]` | Read-only query interface for index history JSONL files | Optional              |
 
@@ -622,37 +623,137 @@ Use `--terminal` during demos so the class can see every event in real time.
 
 ## pm-clearing — Clearing & P&L
 
-Records all trades and tracks running P&L per user per symbol.
+SQLite-backed clearing writer for P&L and position state.
 
 ```bash
-pm-clearing
+pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interval SEC] [--print-every N]
 ```
 
 **Startup options:**
 
-No startup flags.
+| Flag | Default | Description |
+|---|---|---|
+| `--datapath` | data dir from `EDUMATCHER_DATA_DIR` | Data directory or explicit `.db` path |
+| `--db-name` | `clearing.db` | SQLite filename when `--datapath` is a directory |
+| `--flush-size` | `100` | Flush immediately when buffered trades reaches N |
+| `--flush-interval` | `5.0` | Flush interval in seconds when buffer is non-empty |
+| `--print-every` | `100` | Print in-memory P&L snapshot every N trades (`0` disables) |
+
+`pm-clearing-cli` global options include `--raw-output` to disable display
+normalization and print raw tick-unit values for price-derived fields.
 
 **Expected runtime input arguments:**
 
 None.
 
-No flags required. Outputs:
-- Inline trade confirmation for each `trade.executed` event
-- Full P&L table every 10 trades
-- Final P&L summary on Ctrl-C
+On startup, `pm-clearing` applies schema migrations and prunes `trade_events`
+older than the retention window (default: 90 days). Writes are batched into
+single SQLite transactions to update:
 
-Trade records are appended to `data/clearing_report.csv`:
-```
-trade_id,symbol,buy_order_id,sell_order_id,buy_gateway,sell_gateway,price,quantity,timestamp
-```
+- `trade_events`
+- `gateway_symbol_positions`
+- `gateway_daily_summary`
+
+`trade.executed.tick_decimals` is persisted so downstream output can normalize
+price-derived values for table/JSON/CSV rendering.
 
 **Messages subscribed** (SUB from :5556):
 
 | Topic            | Purpose                                            |
 |------------------|----------------------------------------------------|
-| `trade.executed` | Every matched trade pair — drives P&L calculations |
+| `trade.executed` | Every matched trade pair (including `tick_decimals`) — drives P&L calculations |
 
 See [P&L & Clearing](07-pnl-clearing.md) for the full accounting model.
+
+
+## pm-clearing-cli — Clearing Query CLI
+
+`pm-clearing-cli` is a command-line interface for querying `clearing.db`
+without writing SQL manually. It supports both read-style reporting commands
+and a maintenance command (`prune`) that deletes old raw trade rows.
+
+```bash
+pm-clearing-cli [--datapath PATH] [--db-name clearing.db] [--format table|json|csv] [--no-header] [--raw-output] COMMAND [options]
+```
+
+Unlike `pm-clearing`, this is a one-shot tool: it runs one command, prints
+output, and exits.
+
+**Global options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--datapath PATH` | resolved from `EDUMATCHER_DATA_DIR` | Data directory or explicit `.db` file path |
+| `--db-name NAME` | `clearing.db` | SQLite filename when `--datapath` is a directory |
+| `--format` | `table` | Output format: `table`, `json`, or `csv` |
+| `--no-header` | off | Suppress header row in CSV output |
+| `--raw-output` | off | Disable tick-decimal normalization and emit raw tick-unit values |
+
+**Subcommands:**
+
+| Subcommand | Default limit | Purpose | Typical filters |
+|---|---:|---|---|
+| `gateways` | 1000 | Gateway-level realized/unrealized/total P&L totals | `--gateway` |
+| `positions` | 10000 | Current open position state by gateway and symbol | `--gateway`, `--symbol` |
+| `pnl` | 10000 | Realized/unrealized/total P&L rows per gateway and symbol | `--gateway`, `--symbol` |
+| `daily` | 1000 | Daily rollup summary rows | `--gateway`, `--symbol`, `--date`, `--from`, `--to` |
+| `trades` | 200 | Raw trade-event rows | `--gateway`, `--symbol`, `--date`, `--from`, `--to` |
+| `exposure` | 1000 | Net/gross notional exposure and P&L | `--gateway`, `--symbol`, `--sort` |
+| `symbols` | 1000 | Symbol-level totals and open exposure snapshot | `--date`, `--from`, `--to`, `--sort` |
+| `dates` | 1000 | Available trade dates (optionally with totals) | `--gateway`, `--symbol`, `--from`, `--to`, `--with-totals` |
+| `health` | n/a | DB row counts, flush metadata, and WAL mode | none |
+| `reconcile` | n/a | Compares raw `trade_events` buy-side aggregates vs daily summary | `--gateway`, `--symbol`, `--from`, `--to` |
+| `prune` | n/a | Deletes old `trade_events` rows by retention window | `--days`, `--dry-run` |
+
+**Sort options:**
+
+| Command | Allowed `--sort` values |
+|---|---|
+| `exposure` | `gross_notional`, `net_notional`, `realized_pnl`, `unrealized_pnl`, `total_pnl` |
+| `symbols` | `symbol`, `traded_qty`, `traded_notional`, `realized_pnl`, `open_net_qty` |
+
+**Examples:**
+
+```bash
+# Gateway totals (table)
+pm-clearing-cli gateways
+
+# One gateway in JSON
+pm-clearing-cli --format json gateways --gateway GW_A
+
+# Current positions as CSV (normalized display values)
+pm-clearing-cli --format csv positions --gateway MM01
+
+# Emit raw tick-unit values instead of normalized display values
+pm-clearing-cli --format json --raw-output positions --gateway MM01
+
+# Daily summary for one date range
+pm-clearing-cli daily --from 2026-07-01 --to 2026-07-05
+
+# Raw trades for one symbol
+pm-clearing-cli trades --symbol AAPL --limit 50
+
+# Risk view by total P&L
+pm-clearing-cli exposure --sort total_pnl
+
+# Date discovery with aggregate totals
+pm-clearing-cli dates --with-totals
+
+# Data-consistency check
+pm-clearing-cli reconcile --from 2026-07-01 --to 2026-07-05
+
+# Retention maintenance (dry run then execute)
+pm-clearing-cli prune --days 90 --dry-run
+pm-clearing-cli prune --days 90
+```
+
+**No-row behaviour:**
+
+- `table`: prints `No rows found.` (except `reconcile`, which prints `OK — no discrepancies found.`)
+- `json`: prints `[]`
+- `csv`: prints only header row unless `--no-header` is set
+
+See [P&L & Clearing](07-pnl-clearing.md) for the accounting model and schema-level details.
 
 
 

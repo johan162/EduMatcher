@@ -10,6 +10,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="EduMatcher autonomous market-maker bot"
     )
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-mm-bot")
     parser.add_argument(
         "--symbol", required=True, help="Instrument to make a market in (e.g. AAPL)"
     )

@@ -22,6 +22,9 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         formatter_class=argparse.RawTextHelpFormatter,
     )
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-config-gen")
 
     parser.add_argument(
         "--symbols",

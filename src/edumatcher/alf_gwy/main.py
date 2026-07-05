@@ -16,6 +16,9 @@ from edumatcher.config import ENGINE_CONFIG_FILE
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher ALF TCP gateway")
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-alf-gwy")
     parser.add_argument(
         "--config",
         "-c",

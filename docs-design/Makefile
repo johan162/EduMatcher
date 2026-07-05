@@ -219,12 +219,13 @@ $(eval $(call DEFINE_DESIGN_DOC_VARS,CONFIG_GENERATOR,EduMatcher-config-generato
 $(eval $(call DEFINE_DESIGN_DOC_VARS,MM_QUOTE_IDENTIFICATION,mm-quote-identification,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,POST_TRADE_DISSEMINATION_GATEWAY,EduMatcher-Post-Trade-Dissemination-Gateway,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,API_GATEWAY_V2,EduMatcher-ALF-API-Gwy2,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,CLEARING_V2,EduMatcher-Cleaaring,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,CONTRACT_MULTIPLYER,EduMatcher-contract-multiplyer,,))
 
 $(eval $(call DEFINE_DESIGN_DOC_VARS,REQUIREMENTS,EduMatcher-Requirements,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,MM_BOTS,EduMatcher-MM-bots,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,CONFIG_VERIFIER,EduMatcher-Config-Verifier,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,AI_TRADING_BOT_V2,EduMatcher-AI-trading-bot-v2,,))
-$(eval $(call DEFINE_DESIGN_DOC_VARS,BALF_PROPOSAL,EduMatcher-BALF_Proposal,,))
 
 # ============================================================================================
 # Makefile Targets
@@ -244,12 +245,13 @@ $(eval $(call DESIGN_DOC_PDF_RULE,CONFIG_GENERATOR,"EduMatcher-config-generator"
 $(eval $(call DESIGN_DOC_PDF_RULE,MM_QUOTE_IDENTIFICATION,"mm-quote-identification"))
 $(eval $(call DESIGN_DOC_PDF_RULE,POST_TRADE_DISSEMINATION_GATEWAY,"EduMatcher-Post-Trade-Dissemination-Gateway"))
 $(eval $(call DESIGN_DOC_PDF_RULE,API_GATEWAY_V2,"EduMatcher-ALF-API-Gwy2"))
+$(eval $(call DESIGN_DOC_PDF_RULE,CLEARING_V2,"EduMatcher-Cleaaring"))
+$(eval $(call DESIGN_DOC_PDF_RULE,CONTRACT_MULTIPLYER,"EduMatcher-contract-multiplyer"))
 
 $(eval $(call DESIGN_DOC_PDF_RULE,REQUIREMENTS,"EduMatcher-Requirements"))
 $(eval $(call DESIGN_DOC_PDF_RULE,MM_BOTS,"EduMatcher-MM-bots"))
 $(eval $(call DESIGN_DOC_PDF_RULE,CONFIG_VERIFIER,"EduMatcher-Config-Verifier"))
 $(eval $(call DESIGN_DOC_PDF_RULE,AI_TRADING_BOT_V2,"EduMatcher-AI-trading-bot-v2"))
-$(eval $(call DESIGN_DOC_PDF_RULE,BALF_PROPOSAL,"EduMatcher-BALF_Proposal"))
 
 
 PDF_DESIGN_DOCS := $(BALF_PROPOSAL_PDF) $(FEATURE_IMPLEMENTATION_PDF) $(MM_QUOTES_IMPLEMENTATION_PDF) \
@@ -257,7 +259,7 @@ $(TICK_MIGRATION_PLAN_PDF) $(MARKET_DATA_PROTOCOL_PDF) $(SESSION_GWY_COMMAND_PDF
 $(INDEX_DB_DESIGN_PDF) \
 $(CROSS_HOST_CONNECTION_PDF) $(STAT_COMMANDS_PDF) $(CONFIG_GENERATOR_PDF) $(MM_QUOTE_IDENTIFICATION_PDF) \
 $(MM_BOTS_PDF) $(POST_TRADE_DISSEMINATION_GATEWAY_PDF) $(API_GATEWAY_V2_PDF) \
-$(CONFIG_VERIFIER_PDF) $(AI_TRADING_BOT_V2_PDF) $(BALF_PROPOSAL_PDF)
+$(CONFIG_VERIFIER_PDF) $(AI_TRADING_BOT_V2_PDF) $(CLEARING_V2_PDF) $(CONTRACT_MULTIPLYER_PDF)
 
 help: ## Show this help message
 	@echo -e "$(DARKYELLOW)OneSelect - Makefile Targets$(NC)"

@@ -141,6 +141,9 @@ def _build_table(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="EduMatcher multi-symbol board")
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-board")
     parser.add_argument(
         "--rows",
         "-r",

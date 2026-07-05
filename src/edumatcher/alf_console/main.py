@@ -53,6 +53,7 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.history import InMemoryHistory
 from prompt_toolkit.patch_stdout import patch_stdout as pt_patch_stdout
 
+from edumatcher.cli_version import add_version_argument
 from edumatcher.config import (
     ENGINE_PULL_ADDR,
     ENGINE_PUB_ADDR,
@@ -1140,6 +1141,7 @@ class Gateway:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="EduMatcher gateway")
+    add_version_argument(parser, "pm-alf-console")
     parser.add_argument(
         "--id",
         required=True,

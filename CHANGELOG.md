@@ -1,3 +1,33 @@
+## [v0.14.0] - 2026-07-05
+
+Release Type: minor
+
+### 📋 Summary
+This release introduces a redesigned clearing process which now moves from a persisting in a *.cvs filr to a SQLite DB. In addition a new tool `pm-clearing-cli` 
+is introduced whcih allow a clearing house to examine the trades in a srtuctured way.
+
+### ✨ Additions
+- Added a new clearing process `pm-clearing` based on the redesigned clearing process
+- Added `tick_decimals` to `trade.executed` messages so clients can normalize display prices without reading symbol configuration
+- Added `pm-clearing-cli` tool
+- Added `--version` support across `pm-*` entrypoint modules
+
+
+### 🚀 Improvements
+- Improved clearing documentation with expanded process design details and updated implementation guidance
+- Improved README structure and tightened project overview wording
+
+### 📚 Documentation
+- Updated message and clearing documentation for `tick_decimals` propagation and clearing CLI output behavior
+- Updated the clearing redesign documentation with additional process and implementation details
+
+
+### 🛠 Internal
+- Expanded and reformatted clearing tests while resolving lint and mypy issues
+- Cleaned up clearing code comments and related test formatting
+- Added an initial contract-multiplier design document for future symbol-level economic exposure support
+
+
 ## [v0.13.5] - 2026-07-04
 
 Release Type: patch

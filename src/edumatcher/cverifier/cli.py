@@ -37,6 +37,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         prog="pm-cverifier",
         description="Read-only engine_config.yaml verification tool.",
     )
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-cverifier")
     parser.add_argument(
         "config_file", metavar="CONFIG_FILE", help="Path to engine_config.yaml"
     )

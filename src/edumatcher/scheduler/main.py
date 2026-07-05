@@ -165,6 +165,9 @@ def _run_now(push_sock: zmq.Socket[bytes], delay: float = NOW_MODE_DELAY) -> Non
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="EduMatcher session scheduler")
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-scheduler")
     parser.add_argument(
         "--now",
         action="store_true",

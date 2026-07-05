@@ -97,6 +97,9 @@ def _build_parser() -> argparse.ArgumentParser:
         description="Query EduMatcher statistics DB without writing SQL",
         formatter_class=argparse.RawTextHelpFormatter,
     )
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-stats-cli")
     parser.add_argument(
         "--db",
         default=str(STATS_DB_FILE),

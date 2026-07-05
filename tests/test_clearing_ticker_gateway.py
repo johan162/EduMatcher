@@ -20,13 +20,15 @@ from edumatcher.models.trade import Trade
 @pytest.fixture
 def clearing_proc(tmp_path: Path):
     """ClearingProcess with patched ZMQ; _csv_file closed after each test."""
-    from edumatcher.clearing.main import ClearingProcess
+    from edumatcher.clearing_v1.main import ClearingProcess
 
     fake_sock = MagicMock()
     with (
-        patch("edumatcher.clearing.main.make_subscriber", return_value=fake_sock),
-        patch("edumatcher.clearing.main.DATA_DIR", tmp_path),
-        patch("edumatcher.clearing.main.CLEARING_REPORT_FILE", tmp_path / "report.csv"),
+        patch("edumatcher.clearing_v1.main.make_subscriber", return_value=fake_sock),
+        patch("edumatcher.clearing_v1.main.DATA_DIR", tmp_path),
+        patch(
+            "edumatcher.clearing_v1.main.CLEARING_REPORT_FILE", tmp_path / "report.csv"
+        ),
     ):
         proc = ClearingProcess()
     yield proc

@@ -381,6 +381,9 @@ def _as_float(value: Any) -> float | None:
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="EduMatcher autonomous AI trader")
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-ai-trader")
     parser.add_argument("--id", required=True, help="Gateway ID, e.g. AI01")
     parser.add_argument(
         "--profile",

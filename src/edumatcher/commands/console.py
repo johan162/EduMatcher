@@ -743,6 +743,9 @@ def main() -> None:
             "in engine_config.yaml."
         ),
     )
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-admin")
     parser.add_argument(
         "--id",
         required=True,

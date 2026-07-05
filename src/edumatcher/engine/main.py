@@ -39,6 +39,7 @@ from edumatcher.engine.auction import (
     compute_equilibrium,
     execute_uncross,
 )
+from edumatcher.cli_version import add_version_argument
 from edumatcher.engine.config_loader import EngineConfig, load_engine_config
 from edumatcher.engine.order_book import OrderBook
 from edumatcher.engine.persistence import (
@@ -102,7 +103,7 @@ from edumatcher.models.order import (
     TIF,
 )
 from edumatcher.models.price import from_ticks, to_ticks
-from edumatcher.models.price import register_tick_decimals
+from edumatcher.models.price import get_tick_decimals, register_tick_decimals
 from edumatcher.models.quote import QuoteEntry, QuoteIndex, QuoteRefreshPolicy
 from edumatcher.models.session import (
     SessionState,
@@ -1354,6 +1355,7 @@ class Engine:
 
     def _publish_trade(self, trade: Any) -> None:
         _pub = self.pub_sock
+        tick_decimals = get_tick_decimals(trade.symbol)
         _pub.send_multipart(
             [
                 _TRADE_TOPIC,
@@ -1366,6 +1368,7 @@ class Engine:
                         "buy_gateway_id": trade.buy_gateway_id,
                         "sell_gateway_id": trade.sell_gateway_id,
                         "price": from_ticks(trade.price, trade.symbol),
+                        "tick_decimals": tick_decimals,
                         "quantity": trade.quantity,
                         "aggressor_side": trade.aggressor_side,
                         "timestamp": trade.timestamp / 1_000_000_000,
@@ -3250,6 +3253,7 @@ class Engine:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="EduMatcher matching engine")
+    add_version_argument(parser, "pm-engine")
     parser.add_argument(
         "--verbose",
         "-v",
