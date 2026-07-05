@@ -322,14 +322,24 @@ def _build_parser() -> argparse.ArgumentParser:
         "sessions",
         help="Gateway connection and disconnection history",
     )
-    ses.add_argument("--gateway", metavar="GW_ID",
-                     help="Filter to one gateway")
-    ses.add_argument("--from", dest="from_date", metavar="YYYY-MM-DD",
-                     help="Inclusive start date (connect_date)")
-    ses.add_argument("--to", dest="to_date", metavar="YYYY-MM-DD",
-                     help="Inclusive end date (connect_date)")
-    ses.add_argument("--connected-only", action="store_true",
-                     help="Show only sessions without a recorded disconnect")
+    ses.add_argument("--gateway", metavar="GW_ID", help="Filter to one gateway")
+    ses.add_argument(
+        "--from",
+        dest="from_date",
+        metavar="YYYY-MM-DD",
+        help="Inclusive start date (connect_date)",
+    )
+    ses.add_argument(
+        "--to",
+        dest="to_date",
+        metavar="YYYY-MM-DD",
+        help="Inclusive end date (connect_date)",
+    )
+    ses.add_argument(
+        "--connected-only",
+        action="store_true",
+        help="Show only sessions without a recorded disconnect",
+    )
     ses.add_argument("--limit", type=int, default=500, metavar="N")
 
     # eod
@@ -592,6 +602,7 @@ def _run_query(
     return _RECONCILE_COLS, rows
     # NOTE: sessions, eod, and prune are handled above this assert.
     # This assert is unreachable in normal operation.
+
 
 def _upper(val: str | None) -> str | None:
     return val.upper() if val else None

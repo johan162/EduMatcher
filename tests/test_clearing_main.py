@@ -13,6 +13,7 @@ import json
 import threading
 import time
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 import zmq
@@ -24,6 +25,8 @@ from edumatcher.clearing.main import (
 from edumatcher.clearing.store import (
     open_writer_connection,
     query_positions,
+    query_session_events,
+    query_sessions,
     query_trades,
 )
 from edumatcher.models.trade import Trade
@@ -392,3 +395,195 @@ class TestClearingMainCli:
         with pytest.raises(SystemExit) as exc_info:
             main()
         assert exc_info.value.code == 0
+
+
+class TestHandleEod:
+    """Unit tests for ClearingProcess._handle_eod."""
+
+    def _process(self, db_path: Path, zmq_addr: str) -> "ClearingProcess":
+        return ClearingProcess(
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=3650,
+        )
+
+    def test_eod_writes_session_event(self, db_path: Path, zmq_addr: str) -> None:
+        """EOD handler with last_trade_price should write an EOD session_events row."""
+        p = self._process(db_path, zmq_addr)
+        payload = {
+            "books": [
+                {
+                    "symbol": "AAPL",
+                    "last_trade_price": 15000,
+                    "best_bid": 14900,
+                    "best_ask": 15100,
+                }
+            ]
+        }
+        p._handle_eod(payload)
+        conn = open_writer_connection(db_path)
+        rows = query_session_events(conn, event_type="EOD")
+        conn.close()
+        assert len(rows) == 1
+        assert rows[0]["event_type"] == "EOD"
+
+    def test_eod_uses_bid_ask_mid_when_no_last_trade(
+        self, db_path: Path, zmq_addr: str
+    ) -> None:
+        """When last_trade_price is absent, mid = (bid+ask)//2 is used."""
+        import json
+
+        p = self._process(db_path, zmq_addr)
+        payload = {"books": [{"symbol": "MSFT", "best_bid": 4000, "best_ask": 4100}]}
+        p._handle_eod(payload)
+        conn = open_writer_connection(db_path)
+        rows = query_session_events(conn, event_type="EOD")
+        conn.close()
+        assert len(rows) == 1
+        data = json.loads(rows[0]["payload_json"])
+        # mid = (4000+4100)//2 = 4050
+        assert data["eod_marks"].get("MSFT") == 4050
+
+    def test_eod_empty_books_still_writes_sentinel(
+        self, db_path: Path, zmq_addr: str
+    ) -> None:
+        """EOD with no books still writes the sentinel row."""
+        p = self._process(db_path, zmq_addr)
+        p._handle_eod({"books": []})
+        conn = open_writer_connection(db_path)
+        rows = query_session_events(conn, event_type="EOD")
+        conn.close()
+        assert len(rows) == 1
+
+    def test_eod_applies_mark_to_existing_position(
+        self, db_path: Path, zmq_addr: str
+    ) -> None:
+        """EOD should update mark_price in the ledger for open positions."""
+        p = self._process(db_path, zmq_addr)
+        # Manually create a position in the ledger.
+        p._ledger.apply_trade(
+            symbol="AAPL",
+            buy_gateway_id="GW_BUY",
+            sell_gateway_id="GW_SELL",
+            price=10000,
+            tick_decimals=2,
+            quantity=10,
+            ts_ns=1_000_000,
+            ingest_ts_ns=1_000_001,
+        )
+        p._handle_eod({"books": [{"symbol": "AAPL", "last_trade_price": 12000}]})
+        pos = p._ledger.position("GW_BUY", "AAPL")
+        assert pos is not None
+        assert pos.mark_price == 12000
+
+    def test_eod_does_not_raise_on_bad_payload(
+        self, db_path: Path, zmq_addr: str
+    ) -> None:
+        """Malformed payload should be silently absorbed, not crash."""
+        p = self._process(db_path, zmq_addr)
+        p._handle_eod(cast(dict[str, Any], None))
+
+
+class TestHandleGatewayConnect:
+    def _process(self, db_path: Path, zmq_addr: str) -> "ClearingProcess":
+        return ClearingProcess(
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=3650,
+        )
+
+    def test_connect_records_row(self, db_path: Path, zmq_addr: str) -> None:
+        p = self._process(db_path, zmq_addr)
+        p._handle_gateway_connect({"gateway_id": "TRD01"})
+        conn = open_writer_connection(db_path)
+        rows = query_sessions(conn, gateway="TRD01")
+        conn.close()
+        assert len(rows) == 1
+        assert rows[0]["disconnected_at_ns"] is None
+
+    def test_connect_stores_ts_in_gw_connect_dict(
+        self, db_path: Path, zmq_addr: str
+    ) -> None:
+        p = self._process(db_path, zmq_addr)
+        p._handle_gateway_connect({"gateway_id": "TRD02"})
+        assert "TRD02" in p._gw_connect_ts
+
+    def test_empty_gateway_id_is_ignored(self, db_path: Path, zmq_addr: str) -> None:
+        p = self._process(db_path, zmq_addr)
+        p._handle_gateway_connect({"gateway_id": ""})
+        conn = open_writer_connection(db_path)
+        count = conn.execute("SELECT COUNT(*) FROM gateway_sessions").fetchone()[0]
+        conn.close()
+        assert count == 0
+
+    def test_uppercase_normalisation(self, db_path: Path, zmq_addr: str) -> None:
+        p = self._process(db_path, zmq_addr)
+        p._handle_gateway_connect({"gateway_id": "trader01"})  # lowercase
+        assert "TRADER01" in p._gw_connect_ts
+
+
+class TestHandleGatewayDisconnect:
+    def _process(self, db_path: Path, zmq_addr: str) -> "ClearingProcess":
+        return ClearingProcess(
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=3650,
+        )
+
+    def test_disconnect_updates_row(self, db_path: Path, zmq_addr: str) -> None:
+        p = self._process(db_path, zmq_addr)
+        p._handle_gateway_connect({"gateway_id": "GW_D"})
+        p._handle_gateway_disconnect({"gateway_id": "GW_D", "reason": "Timeout"})
+        conn = open_writer_connection(db_path)
+        rows = query_sessions(conn, gateway="GW_D")
+        conn.close()
+        assert len(rows) == 1
+        assert rows[0]["disconnected_at_ns"] is not None
+        assert rows[0]["disconnect_reason"] == "Timeout"
+
+    def test_disconnect_removes_from_connect_dict(
+        self, db_path: Path, zmq_addr: str
+    ) -> None:
+        p = self._process(db_path, zmq_addr)
+        p._handle_gateway_connect({"gateway_id": "GW_E"})
+        p._handle_gateway_disconnect({"gateway_id": "GW_E"})
+        assert "GW_E" not in p._gw_connect_ts
+
+    def test_disconnect_without_prior_connect_is_ignored(
+        self, db_path: Path, zmq_addr: str
+    ) -> None:
+        """Disconnect with no matching connect_ts should not raise."""
+        p = self._process(db_path, zmq_addr)
+        p._handle_gateway_disconnect({"gateway_id": "UNKNOWN"})
+
+    def test_retention_days_prunes_old_rows(self, db_path: Path, zmq_addr: str) -> None:
+        """retention_days=1 should prune a row from year 2000."""
+        conn = open_writer_connection(db_path)
+        conn.execute(
+            "INSERT INTO trade_events VALUES ('OLD',1,'2000-01-01','AAPL',1,100,2,null,null,'GW1','GW2',null,2)"
+        )
+        conn.commit()
+        conn.close()
+
+        p = ClearingProcess(
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=1,
+        )
+        from edumatcher.clearing.store import prune_old_events
+
+        deleted = prune_old_events(p._conn, retention_days=1)
+        p._conn.close()
+        assert deleted == 1

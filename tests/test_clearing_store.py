@@ -26,8 +26,13 @@ from edumatcher.clearing.store import (
     query_positions,
     query_pnl,
     query_reconcile,
+    query_session_events,
+    query_sessions,
     query_symbols,
     query_trades,
+    record_gateway_connect,
+    record_gateway_disconnect,
+    record_session_event,
     validate_date,
 )
 
@@ -600,7 +605,7 @@ class TestQueryReconcile:
         self, seeded_conn: sqlite3.Connection
     ) -> None:
         """With correct aggregates the reconcile query returns no rows."""
-        # Re-seed with perfectly matching data.
+        # Re-seed with perfectly matching data — both buy and sell sides.
         c = seeded_conn
         c.execute("DELETE FROM trade_events")
         c.execute("DELETE FROM gateway_daily_summary")
@@ -617,14 +622,24 @@ class TestQueryReconcile:
                     "AAPL",
                     delta_buy_qty=10,
                     delta_buy_notional=1000,
-                )
+                ),
+                # sell side — must also match
+                _daily_row(
+                    "2026-07-01",
+                    "GW_SELL",
+                    "AAPL",
+                    delta_buy_qty=0,
+                    delta_buy_notional=0,
+                    delta_sell_qty=10,
+                    delta_sell_notional=1000,
+                ),
             ],
         )
         rows = query_reconcile(c)
         assert rows == []
 
     def test_detects_injected_discrepancy(self, conn: sqlite3.Connection) -> None:
-        """Manually corrupt the summary and verify the discrepancy surfaces."""
+        """Manually corrupt the buy-side summary; discrepancy should surface for BUY side."""
         flush_batch(
             conn,
             [_trade_row("Z1", "AAPL", price=100, qty=10, trade_date="2026-07-01")],
@@ -636,12 +651,23 @@ class TestQueryReconcile:
                     "AAPL",
                     delta_buy_qty=5,  # wrong — should be 10
                     delta_buy_notional=500,  # wrong — should be 1000
-                )
+                ),
+                # sell side matches
+                _daily_row(
+                    "2026-07-01",
+                    "GW_SELL",
+                    "AAPL",
+                    delta_buy_qty=0,
+                    delta_buy_notional=0,
+                    delta_sell_qty=10,
+                    delta_sell_notional=1000,
+                ),
             ],
         )
         rows = query_reconcile(conn)
-        assert len(rows) == 1
-        assert rows[0]["qty_diff"] == 5  # 10 raw − 5 summary = 5
+        buy_rows = [r for r in rows if r["side"] == "BUY"]
+        assert len(buy_rows) == 1
+        assert buy_rows[0]["qty_diff"] == 5  # 10 raw − 5 summary = 5
 
 
 class TestValidateDate:
@@ -655,3 +681,151 @@ class TestValidateDate:
     def test_non_date_raises(self) -> None:
         with pytest.raises(ValueError):
             validate_date("not-a-date")
+
+
+class TestGatewaySessionsWrite:
+    def test_record_connect_creates_row(self, conn: sqlite3.Connection) -> None:
+        record_gateway_connect(conn, gateway_id="GW01", connected_at_ns=1_000)
+        rows = conn.execute(
+            "SELECT * FROM gateway_sessions WHERE gateway_id='GW01'"
+        ).fetchall()
+        assert len(rows) == 1
+        assert rows[0]["connected_at_ns"] == 1_000
+        assert rows[0]["disconnected_at_ns"] is None
+
+    def test_record_disconnect_updates_row(self, conn: sqlite3.Connection) -> None:
+        record_gateway_connect(conn, gateway_id="GW02", connected_at_ns=2_000)
+        record_gateway_disconnect(
+            conn,
+            gateway_id="GW02",
+            connected_at_ns=2_000,
+            disconnected_at_ns=5_000,
+            reason="Kicked",
+        )
+        row = conn.execute(
+            "SELECT * FROM gateway_sessions WHERE gateway_id='GW02'"
+        ).fetchone()
+        assert row["disconnected_at_ns"] == 5_000
+        assert row["disconnect_reason"] == "Kicked"
+
+    def test_record_disconnect_none_reason(self, conn: sqlite3.Connection) -> None:
+        record_gateway_connect(conn, gateway_id="GW03", connected_at_ns=3_000)
+        record_gateway_disconnect(
+            conn,
+            gateway_id="GW03",
+            connected_at_ns=3_000,
+            disconnected_at_ns=6_000,
+            reason=None,
+        )
+        row = conn.execute(
+            "SELECT disconnect_reason FROM gateway_sessions WHERE gateway_id='GW03'"
+        ).fetchone()
+        assert row["disconnect_reason"] is None
+
+    def test_duplicate_connect_ignored(self, conn: sqlite3.Connection) -> None:
+        record_gateway_connect(conn, gateway_id="GW04", connected_at_ns=10_000)
+        record_gateway_connect(
+            conn, gateway_id="GW04", connected_at_ns=10_000
+        )  # same PK
+        count = conn.execute(
+            "SELECT COUNT(*) FROM gateway_sessions WHERE gateway_id='GW04'"
+        ).fetchone()[0]
+        assert count == 1
+
+
+class TestQuerySessions:
+    def test_returns_all_sessions(self, conn: sqlite3.Connection) -> None:
+        record_gateway_connect(conn, gateway_id="GW_A", connected_at_ns=1_000)
+        record_gateway_connect(conn, gateway_id="GW_B", connected_at_ns=2_000)
+        rows = query_sessions(conn)
+        gw_ids = {r["gateway_id"] for r in rows}
+        assert "GW_A" in gw_ids and "GW_B" in gw_ids
+
+    def test_filter_by_gateway(self, conn: sqlite3.Connection) -> None:
+        record_gateway_connect(conn, gateway_id="GW_A", connected_at_ns=1_000)
+        record_gateway_connect(conn, gateway_id="GW_B", connected_at_ns=2_000)
+        rows = query_sessions(conn, gateway="GW_A")
+        assert all(r["gateway_id"] == "GW_A" for r in rows)
+
+    def test_connected_only_excludes_disconnected(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        record_gateway_connect(conn, gateway_id="GW_OPEN", connected_at_ns=1_000)
+        record_gateway_connect(conn, gateway_id="GW_CLOSED", connected_at_ns=2_000)
+        record_gateway_disconnect(
+            conn,
+            gateway_id="GW_CLOSED",
+            connected_at_ns=2_000,
+            disconnected_at_ns=3_000,
+            reason=None,
+        )
+        rows = query_sessions(conn, connected_only=True)
+        ids = {r["gateway_id"] for r in rows}
+        assert "GW_OPEN" in ids
+        assert "GW_CLOSED" not in ids
+
+    def test_limit_respected(self, conn: sqlite3.Connection) -> None:
+        for i in range(5):
+            record_gateway_connect(conn, gateway_id=f"GW_{i}", connected_at_ns=i + 1)
+        rows = query_sessions(conn, limit=2)
+        assert len(rows) == 2
+
+
+class TestSessionEventsWrite:
+    def test_record_eod_event(self, conn: sqlite3.Connection) -> None:
+        import json
+
+        record_session_event(
+            conn,
+            event_type="EOD",
+            ts_ns=9_000_000,
+            trade_date="2026-07-05",
+            payload_json=json.dumps(
+                {"eod_marks": {"AAPL": 150_00}, "symbols_count": 1}
+            ),
+        )
+        rows = conn.execute("SELECT * FROM session_events").fetchall()
+        assert len(rows) == 1
+        assert rows[0]["event_type"] == "EOD"
+        assert rows[0]["trade_date"] == "2026-07-05"
+
+    def test_record_multiple_events_appends(self, conn: sqlite3.Connection) -> None:
+        for i in range(3):
+            record_session_event(
+                conn,
+                event_type="EOD",
+                ts_ns=i * 1_000,
+                trade_date="2026-07-01",
+            )
+        count = conn.execute("SELECT COUNT(*) FROM session_events").fetchone()[0]
+        assert count == 3
+
+
+class TestQuerySessionEvents:
+    def test_returns_eod_rows(self, conn: sqlite3.Connection) -> None:
+        record_session_event(conn, event_type="EOD", ts_ns=1, trade_date="2026-07-01")
+        rows = query_session_events(conn, event_type="EOD")
+        assert len(rows) == 1
+        assert rows[0]["event_type"] == "EOD"
+
+    def test_filter_by_date_range(self, conn: sqlite3.Connection) -> None:
+        record_session_event(conn, event_type="EOD", ts_ns=1, trade_date="2026-07-01")
+        record_session_event(conn, event_type="EOD", ts_ns=2, trade_date="2026-07-02")
+        record_session_event(conn, event_type="EOD", ts_ns=3, trade_date="2026-07-03")
+        rows = query_session_events(conn, from_date="2026-07-02", to_date="2026-07-02")
+        assert len(rows) == 1
+        assert rows[0]["trade_date"] == "2026-07-02"
+
+    def test_no_event_type_filter_returns_all(self, conn: sqlite3.Connection) -> None:
+        record_session_event(conn, event_type="EOD", ts_ns=1, trade_date="2026-07-01")
+        record_session_event(conn, event_type="PHASE", ts_ns=2, trade_date="2026-07-01")
+        rows = query_session_events(conn)
+        assert len(rows) == 2
+
+    def test_limit_respected(self, conn: sqlite3.Connection) -> None:
+        for i in range(5):
+            record_session_event(
+                conn, event_type="EOD", ts_ns=i, trade_date="2026-07-01"
+            )
+        rows = query_session_events(conn, limit=3)
+        assert len(rows) == 3

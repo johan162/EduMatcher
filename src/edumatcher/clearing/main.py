@@ -275,10 +275,7 @@ class ClearingProcess:
                     if len(self._buffer) >= self._flush_size:
                         self._flush()
 
-                if (
-                    self._print_every > 0
-                    and self._trade_count % self._print_every == 0
-                ):
+                if self._print_every > 0 and self._trade_count % self._print_every == 0:
                     self._print_pnl_table()
 
             elif topic == "system.eod":
@@ -408,10 +405,12 @@ class ClearingProcess:
                 event_type="EOD",
                 ts_ns=ts_ns,
                 trade_date=trade_date,
-                payload_json=json.dumps({
-                    "eod_marks": eod_marks,
-                    "symbols_count": len(eod_marks),
-                }),
+                payload_json=json.dumps(
+                    {
+                        "eod_marks": eod_marks,
+                        "symbols_count": len(eod_marks),
+                    }
+                ),
             )
             console.print(
                 f"[CLEARING] EOD received — {len(eod_marks)} symbol mark(s) applied,"
