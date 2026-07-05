@@ -110,6 +110,8 @@ Options:
   --flush-size N       Max buffered trades before flush (default: 100)
   --flush-interval SEC Max seconds between flushes (default: 5)
   --print-every N      Print summary every N trades (default: 100)
+  --retention-days N   Prune trade_events rows older than N days on startup
+                       (default: 90; 0 = disable pruning)
   --help               Show help and exit
   --version            Show version and exit
 ```
@@ -118,6 +120,8 @@ Notes:
 
 - `--flush-size` must be `1..100` for this v2 requirement.
 - `--flush-interval` minimum is `0.1` seconds, default `5`.
+- `--retention-days` `0` disables startup pruning without changing the
+  `pm-clearing-cli prune` verb behaviour.
 - `--version` should follow the same implementation pattern now used by other
   `pm-*` entrypoints.
 
@@ -309,7 +313,61 @@ CREATE INDEX IF NOT EXISTS ix_gds_gateway_date ON gateway_daily_summary(gateway_
 CREATE INDEX IF NOT EXISTS ix_gds_symbol_date ON gateway_daily_summary(symbol, trade_date);
 ```
 
-### 6.3 Views
+#### D) `session_events`
+
+Append-only log of clearing-significant engine events (EOD markers, session
+phase transitions).  One row per event; never updated.
+
+`session_events` column reference:
+
+| Column | Type | Source / calculation |
+|---|---|---|
+| `id` | INTEGER (autoincrement) | Internal surrogate key |
+| `event_type` | TEXT | Event classifier; current values: `EOD`, `PHASE` |
+| `ts_ns` | INTEGER | Ingest timestamp in nanoseconds when the event was processed by `pm-clearing` |
+| `trade_date` | TEXT (`YYYY-MM-DD`) | UTC date derived from `ts_ns` for date-bounded queries |
+| `payload_json` | TEXT | Optional JSON blob with event-specific detail (EOD mark prices, phase name, etc.) |
+
+```sql
+CREATE TABLE IF NOT EXISTS session_events (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_type   TEXT    NOT NULL,
+  ts_ns        INTEGER NOT NULL,
+  trade_date   TEXT    NOT NULL,
+  payload_json TEXT
+);
+
+CREATE INDEX IF NOT EXISTS ix_session_events_date ON session_events(trade_date);
+CREATE INDEX IF NOT EXISTS ix_session_events_type ON session_events(event_type);
+```
+
+#### E) `gateway_sessions`
+
+Connection and disconnection history for every gateway that connects while
+`pm-clearing` is running.  Populated from `system.gateway_connect` and
+`system.gateway_disconnect` messages.
+
+`gateway_sessions` column reference:
+
+| Column | Type | Source / calculation |
+|---|---|---|
+| `gateway_id` | TEXT | Gateway identifier from `system.gateway_connect.gateway_id` |
+| `connected_at_ns` | INTEGER | Ingestion-time nanosecond timestamp recorded when `system.gateway_connect` is received |
+| `disconnected_at_ns` | INTEGER or NULL | Ingestion-time nanosecond timestamp recorded when `system.gateway_disconnect` is received; NULL if disconnect was not yet observed |
+| `disconnect_reason` | TEXT or NULL | Reason string from `system.gateway_disconnect.reason`; NULL if not provided or session still open |
+
+```sql
+CREATE TABLE IF NOT EXISTS gateway_sessions (
+  gateway_id         TEXT    NOT NULL,
+  connected_at_ns    INTEGER NOT NULL,
+  disconnected_at_ns INTEGER,
+  disconnect_reason  TEXT,
+  PRIMARY KEY (gateway_id, connected_at_ns)
+);
+
+CREATE INDEX IF NOT EXISTS ix_gateway_sessions_gateway
+  ON gateway_sessions(gateway_id);
+```
 
 #### A) `gateway_pnl_totals`
 
@@ -615,6 +673,12 @@ Global options:
   - compare computed aggregates against raw `trade_events` totals to detect
     any discrepancy between source facts and summary tables on both the buy
     side and the sell side
+- `sessions`
+  - gateway connection and disconnection history from `gateway_sessions`;
+    supports `--gateway`, `--from`, `--to`, `--connected-only`, `--limit`
+- `eod`
+  - end-of-day sentinel rows written to `session_events` on `system.eod`;
+    supports `--from`, `--to`, `--limit`
 
 ### 10.2 Proposed option reference
 
@@ -660,6 +724,10 @@ When `--format json` or `--format csv` is selected, fields are explicit and stab
 - **`health`:**
   `db_path`, `trade_events_rows`, `gateway_symbol_positions_rows`, `gateway_daily_summary_rows`,
    `last_trade_ts_ns`, `last_flush_ts_ns`, `wal_mode`
+- **`sessions`:**
+  `gateway_id`, `connect_date`, `connected_at_ns`, `disconnected_at_ns`, `disconnect_reason`
+- **`eod`:**
+  `id`, `event_type`, `ts_ns`, `trade_date`, `payload_json`
 
 
 
@@ -673,6 +741,9 @@ pm-clearing-cli daily --from 2026-07-01 --to 2026-07-05
 pm-clearing-cli trades --symbol MSFT --date 2026-07-05 --limit 100
 pm-clearing-cli dates --from 2026-07-01 --to 2026-07-05 --symbol AAPL --with-totals
 pm-clearing-cli exposure --date 2026-07-05 --format json
+pm-clearing-cli sessions --date 2026-07-05
+pm-clearing-cli sessions --gateway TRADER07
+pm-clearing-cli eod --from 2026-07-01 --to 2026-07-05
 ```
 
 ### 10.5 SQL implementation blueprint by verb
@@ -1581,11 +1652,12 @@ Subscription filter strings to use with `make_subscriber`:
 This section records deviations between the design above and the initial
 implementation, discovered during a post-implementation review.
 
-### 17.1 Secondary subscriptions deferred
+### 17.1 Secondary subscriptions deferred (partially)
 
 Section 12 recommends subscribing to `system.eod`, `system.gateway_connect`,
 `system.gateway_disconnect`, and `session.state` as additive metadata sources.
-The initial implementation subscribes only to `trade.executed`.  The secondary
-subscriptions are deferred to the next major version; `book.*` mark-price
-improvement remains in the same deferred category.
+The `system.eod` and `system.gateway_connect` / `system.gateway_disconnect`
+subscriptions are now implemented and described in sections 12.1 and 12.2.
+The `session.state` subscription and `book.*` mark-price improvement remain
+deferred to the next major version.
 
