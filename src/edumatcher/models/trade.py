@@ -44,6 +44,7 @@ class Trade:
     quantity: int
     aggressor_side: str
     timestamp: int
+    tick_decimals: int = 2
 
     # ------------------------------------------------------------------
     # Factory
@@ -59,6 +60,7 @@ class Trade:
         price: int,
         quantity: int,
         aggressor_side: str,
+        tick_decimals: int = 2,
         # PERF #3: Accept a pre-computed timestamp from the caller instead of
         # calling time.time() independently.  The engine computes one timestamp
         # per incoming order and passes it through the entire processing chain,
@@ -79,6 +81,7 @@ class Trade:
             # PERF #3: Reuse caller-provided timestamp; fall back to now_ns()
             # only for non-hot-path callers (tests, deserialization).
             timestamp=now if now is not None else now_ns(),
+            tick_decimals=tick_decimals,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -93,6 +96,7 @@ class Trade:
             "quantity": self.quantity,
             "aggressor_side": self.aggressor_side,
             "timestamp": self.timestamp,
+            "tick_decimals": self.tick_decimals,
         }
 
     @classmethod
@@ -108,4 +112,5 @@ class Trade:
             quantity=d["quantity"],
             aggressor_side=d.get("aggressor_side", ""),
             timestamp=d["timestamp"],
+            tick_decimals=int(d.get("tick_decimals", 2)),
         )

@@ -103,7 +103,7 @@ from edumatcher.models.order import (
     TIF,
 )
 from edumatcher.models.price import from_ticks, to_ticks
-from edumatcher.models.price import register_tick_decimals
+from edumatcher.models.price import get_tick_decimals, register_tick_decimals
 from edumatcher.models.quote import QuoteEntry, QuoteIndex, QuoteRefreshPolicy
 from edumatcher.models.session import (
     SessionState,
@@ -1355,6 +1355,7 @@ class Engine:
 
     def _publish_trade(self, trade: Any) -> None:
         _pub = self.pub_sock
+        tick_decimals = get_tick_decimals(trade.symbol)
         _pub.send_multipart(
             [
                 _TRADE_TOPIC,
@@ -1367,6 +1368,7 @@ class Engine:
                         "buy_gateway_id": trade.buy_gateway_id,
                         "sell_gateway_id": trade.sell_gateway_id,
                         "price": from_ticks(trade.price, trade.symbol),
+                        "tick_decimals": tick_decimals,
                         "quantity": trade.quantity,
                         "aggressor_side": trade.aggressor_side,
                         "timestamp": trade.timestamp / 1_000_000_000,

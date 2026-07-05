@@ -26,6 +26,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 import zmq
 from rich.console import Console
@@ -65,6 +66,7 @@ def _to_trade_event_row(trade: Trade, ingest_ts_ns: int) -> TradeEventRow:
         symbol=trade.symbol,
         quantity=trade.quantity,
         price=trade.price,
+        tick_decimals=trade.tick_decimals,
         buy_order_id=trade.buy_order_id or None,
         sell_order_id=trade.sell_order_id or None,
         buy_gateway_id=trade.buy_gateway_id,
@@ -72,6 +74,42 @@ def _to_trade_event_row(trade: Trade, ingest_ts_ns: int) -> TradeEventRow:
         aggressor_side=trade.aggressor_side or None,
         ingest_ts_ns=ingest_ts_ns,
     )
+
+
+def _parse_tick_decimals(payload: dict[str, Any]) -> int:
+    raw = payload.get("tick_decimals", 2)
+    try:
+        parsed = int(raw)
+    except (TypeError, ValueError):
+        return 2
+    return parsed if 0 <= parsed <= 8 else 2
+
+
+def _to_timestamp_ns(raw: Any) -> int:
+    if isinstance(raw, float):
+        if raw > 1_000_000_000_000:
+            return int(raw)
+        return int(raw * 1_000_000_000)
+    ts = int(raw)
+    if ts > 1_000_000_000_000:
+        return ts
+    return ts * 1_000_000_000
+
+
+def _trade_from_payload(payload: dict[str, Any]) -> Trade:
+    normalized = dict(payload)
+    tick_decimals = _parse_tick_decimals(normalized)
+    scale = 10**tick_decimals
+
+    price_raw = normalized.get("price", 0)
+    if isinstance(price_raw, float):
+        normalized["price"] = int(round(price_raw * scale))
+    else:
+        normalized["price"] = int(price_raw)
+
+    normalized["timestamp"] = _to_timestamp_ns(normalized.get("timestamp", 0))
+    normalized["tick_decimals"] = tick_decimals
+    return Trade.from_dict(normalized)
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +239,7 @@ class ClearingProcess:
             frames = sub.recv_multipart()
             try:
                 _, payload = decode(frames)
-                trade = Trade.from_dict(payload)
+                trade = _trade_from_payload(payload)
             except Exception as exc:
                 console.print(
                     f"[CLEARING] WARNING: failed to decode message: {exc}",
@@ -250,6 +288,7 @@ class ClearingProcess:
                 buy_gateway_id=trade.buy_gateway_id,
                 sell_gateway_id=trade.sell_gateway_id,
                 price=trade.price,
+                tick_decimals=trade.tick_decimals,
                 quantity=trade.quantity,
                 ts_ns=trade.timestamp,
                 ingest_ts_ns=updated_ts,
@@ -293,16 +332,26 @@ class ClearingProcess:
         t.add_column("Total P&L", justify="right")
 
         for pos in sorted(positions, key=lambda p: (p.gateway_id, p.symbol)):
-            real = pos.realized_pnl
-            unreal = pos.unrealized_pnl
+            scale = float(10**pos.tick_decimals)
+            real = pos.realized_pnl / scale
+            unreal = pos.unrealized_pnl / scale
             total = real + unreal
             colour = "green" if total >= 0 else "red"
-            mark = f"{pos.mark_price}" if pos.mark_price is not None else "—"
+            mark = (
+                f"{(pos.mark_price / scale):.{pos.tick_decimals}f}"
+                if pos.mark_price is not None
+                else "—"
+            )
+            avg_cost = (
+                f"{(pos.avg_cost / scale):.{pos.tick_decimals}f}"
+                if pos.avg_cost
+                else "—"
+            )
             t.add_row(
                 pos.gateway_id,
                 pos.symbol,
                 f"{pos.net_qty:+d}",
-                f"{pos.avg_cost:.4f}" if pos.avg_cost else "—",
+                avg_cost,
                 mark,
                 f"[{colour}]{real:+.2f}[/{colour}]",
                 f"[{colour}]{unreal:+.2f}[/{colour}]",

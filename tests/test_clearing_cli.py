@@ -416,6 +416,49 @@ class TestPositionsVerb:
         assert "net_qty" in data[0]
         assert "avg_cost" in data[0]
 
+    def test_default_output_is_normalized(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        db_path: Path,
+    ) -> None:
+        out = _run_capture(
+            monkeypatch,
+            capsys,
+            db_path,
+            ["--format", "json", "positions", "--gateway", "GW_A", "--symbol", "AAPL"],
+        )
+        data = json.loads(out)
+        row = data[0]
+        assert row["tick_decimals"] == 2
+        assert row["mark_price"] == pytest.approx(15.5)
+
+    def test_raw_output_preserves_tick_units(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        db_path: Path,
+    ) -> None:
+        out = _run_capture(
+            monkeypatch,
+            capsys,
+            db_path,
+            [
+                "--format",
+                "json",
+                "--raw-output",
+                "positions",
+                "--gateway",
+                "GW_A",
+                "--symbol",
+                "AAPL",
+            ],
+        )
+        data = json.loads(out)
+        row = data[0]
+        assert row["tick_decimals"] == 2
+        assert row["mark_price"] == 1550
+
 
 # ---------------------------------------------------------------------------
 # pnl verb

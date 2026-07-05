@@ -52,7 +52,7 @@ sequenceDiagram
     participant DB as clearing.db (SQLite WAL)
     participant Q  as pm-clearing-cli
 
-    E->>C: trade.executed (ZMQ PUB)
+    E->>C: trade.executed (price + tick_decimals)
     C->>C: buffer trade in memory
     note over C: repeat until size=100 or 5s elapsed
     C->>DB: BEGIN TRANSACTION
@@ -81,7 +81,13 @@ pm-clearing [OPTIONS]
 
 ### What pm-clearing subscribes to
 
-`trade.executed` is the only required subscription for P&L. The engine also
+`trade.executed` is the only required subscription for P&L. `pm-clearing`
+converts incoming display prices to integer ticks using
+`trade.executed.tick_decimals`, then stores both `price` (ticks) and
+`tick_decimals` in SQLite for lossless accounting plus deterministic output
+normalization.
+
+The engine also
 emits these messages, which `pm-clearing` does not yet subscribe to (planned
 for a future version):
 
@@ -203,6 +209,8 @@ positive unrealized P&L.
 
 `pm-clearing-cli` provides verb-based access to all clearing data without writing SQL.
 It always reads from the same `clearing.db` used by `pm-clearing`.
+For a process-level command matrix and operational notes, see
+[Processes — pm-clearing-cli](10-processes.md#pm-clearing-cli--clearing-query-cli).
 
 ```bash
 pm-clearing-cli [GLOBAL_OPTIONS] <verb> [verb-options]
@@ -212,6 +220,7 @@ Global options:
   --db-name NAME       SQLite filename if datapath is a directory
   --format FMT         table | json | csv  (default: table)
   --no-header          Suppress CSV header row
+  --raw-output         Disable normalization and show raw tick-unit values
   --version
   --help
 ```
@@ -251,8 +260,11 @@ pm-clearing-cli positions --symbol AAPL
 pm-clearing-cli --format csv positions > positions.csv
 ```
 
-Output fields include `net_qty`, `avg_cost`, `mark_price`, `realized_pnl`,
-`unrealized_pnl`, buy/sell quantities and notionals.
+Output fields include `net_qty`, `avg_cost`, `mark_price`, `tick_decimals`,
+`realized_pnl`, `unrealized_pnl`, buy/sell quantities and notionals.
+
+Price-derived fields in CLI output are normalized using each row's
+`tick_decimals` (table, JSON, and CSV formats).
 
 
 ### pnl — realized/unrealized/total P&L
@@ -301,6 +313,9 @@ pm-clearing-cli trades --gateway TRADER07 --date 2026-07-05
 # Date range
 pm-clearing-cli trades --from 2026-07-01 --to 2026-07-05 --symbol MSFT
 ```
+
+The `trades` verb includes `tick_decimals`; `price` is rendered in display
+units using that precision for all output formats.
 
 
 ### exposure — net and gross notional exposure

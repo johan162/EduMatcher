@@ -978,8 +978,13 @@ Published once per matched trade pair. Consumed by clearing, audit, and statisti
 | `buy_gateway_id` | string | Gateway that submitted the buy order |
 | `sell_gateway_id` | string | Gateway that submitted the sell order |
 | `price` | float | Execution price |
+| `tick_decimals` | integer | Symbol price precision (`d` where 1 tick = `10^-d`) |
 | `quantity` | integer | Matched quantity |
 | `timestamp` | float | Unix epoch (seconds) |
+
+`tick_decimals` allows subscribers that store integerized prices (for example
+`pm-clearing`) to convert between display prices and raw tick units without
+an external symbol-precision lookup.
 
 
 

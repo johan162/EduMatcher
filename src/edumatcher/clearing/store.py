@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS trade_events (
   symbol           TEXT    NOT NULL,
   quantity         INTEGER NOT NULL,
   price            INTEGER NOT NULL,
+    tick_decimals    INTEGER NOT NULL DEFAULT 2,
   buy_order_id     TEXT,
   sell_order_id    TEXT,
   buy_gateway_id   TEXT    NOT NULL,
@@ -74,6 +75,7 @@ CREATE TABLE IF NOT EXISTS gateway_symbol_positions (
   realized_pnl     REAL    NOT NULL,
   unrealized_pnl   REAL    NOT NULL,
   mark_price       INTEGER,
+    tick_decimals    INTEGER NOT NULL DEFAULT 2,
   buy_qty          INTEGER NOT NULL,
   sell_qty         INTEGER NOT NULL,
   buy_notional     INTEGER NOT NULL,
@@ -103,6 +105,7 @@ CREATE TABLE IF NOT EXISTS gateway_daily_summary (
   end_net_qty        INTEGER NOT NULL,
   end_avg_cost       REAL    NOT NULL,
   end_unrealized_pnl REAL    NOT NULL,
+    tick_decimals      INTEGER NOT NULL DEFAULT 2,
   last_trade_ts_ns   INTEGER,
   updated_ts_ns      INTEGER NOT NULL,
   PRIMARY KEY (trade_date, gateway_id, symbol)
@@ -155,6 +158,7 @@ class TradeEventRow:
     sell_gateway_id: str
     aggressor_side: str | None
     ingest_ts_ns: int
+    tick_decimals: int = 2
 
 
 @dataclass
@@ -174,6 +178,7 @@ class PositionRow:
     sell_notional: int
     last_trade_ts_ns: int | None
     updated_ts_ns: int
+    tick_decimals: int = 2
 
 
 @dataclass
@@ -201,6 +206,7 @@ class DailySummaryRow:
     end_unrealized_pnl: float
     last_trade_ts_ns: int | None
     updated_ts_ns: int
+    tick_decimals: int = 2
 
 
 # ---------------------------------------------------------------------------
@@ -212,6 +218,35 @@ def apply_schema(conn: sqlite3.Connection) -> None:
     """Apply WAL pragmas and create all tables, indexes, and views."""
     conn.executescript(_PRAGMAS)
     conn.executescript(SCHEMA)
+    _add_column_if_missing(
+        conn, "trade_events", "tick_decimals", "INTEGER NOT NULL DEFAULT 2"
+    )
+    _add_column_if_missing(
+        conn,
+        "gateway_symbol_positions",
+        "tick_decimals",
+        "INTEGER NOT NULL DEFAULT 2",
+    )
+    _add_column_if_missing(
+        conn,
+        "gateway_daily_summary",
+        "tick_decimals",
+        "INTEGER NOT NULL DEFAULT 2",
+    )
+
+
+def _add_column_if_missing(
+    conn: sqlite3.Connection,
+    table: str,
+    column: str,
+    column_ddl: str,
+) -> None:
+    existing = {
+        row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+    }
+    if column in existing:
+        return
+    conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_ddl}")
 
 
 def open_writer_connection(db_path: Path) -> sqlite3.Connection:
@@ -239,11 +274,13 @@ def open_readonly_connection(db_path: Path) -> sqlite3.Connection:
 _INSERT_TRADE = """
 INSERT OR IGNORE INTO trade_events (
   id, ts_ns, trade_date, symbol, quantity, price,
+    tick_decimals,
   buy_order_id, sell_order_id,
   buy_gateway_id, sell_gateway_id,
   aggressor_side, ingest_ts_ns
 ) VALUES (
   :id, :ts_ns, :trade_date, :symbol, :quantity, :price,
+    :tick_decimals,
   :buy_order_id, :sell_order_id,
   :buy_gateway_id, :sell_gateway_id,
   :aggressor_side, :ingest_ts_ns
@@ -254,11 +291,13 @@ _UPSERT_POSITION = """
 INSERT INTO gateway_symbol_positions (
   gateway_id, symbol,
   net_qty, avg_cost, realized_pnl, unrealized_pnl, mark_price,
+    tick_decimals,
   buy_qty, sell_qty, buy_notional, sell_notional,
   last_trade_ts_ns, updated_ts_ns
 ) VALUES (
   :gateway_id, :symbol,
   :net_qty, :avg_cost, :realized_pnl, :unrealized_pnl, :mark_price,
+    :tick_decimals,
   :buy_qty, :sell_qty, :buy_notional, :sell_notional,
   :last_trade_ts_ns, :updated_ts_ns
 )
@@ -268,6 +307,7 @@ ON CONFLICT(gateway_id, symbol) DO UPDATE SET
   realized_pnl     = excluded.realized_pnl,
   unrealized_pnl   = excluded.unrealized_pnl,
   mark_price       = excluded.mark_price,
+    tick_decimals    = excluded.tick_decimals,
   buy_qty          = excluded.buy_qty,
   sell_qty         = excluded.sell_qty,
   buy_notional     = excluded.buy_notional,
@@ -283,6 +323,7 @@ INSERT INTO gateway_daily_summary (
   buy_qty, sell_qty, buy_notional, sell_notional, net_amount,
   realized_pnl,
   end_net_qty, end_avg_cost, end_unrealized_pnl,
+    tick_decimals,
   last_trade_ts_ns, updated_ts_ns
 ) VALUES (
   :trade_date, :gateway_id, :symbol,
@@ -291,6 +332,7 @@ INSERT INTO gateway_daily_summary (
   :delta_buy_notional, :delta_sell_notional, :delta_net_amount,
   :delta_realized_pnl,
   :end_net_qty, :end_avg_cost, :end_unrealized_pnl,
+    :tick_decimals,
   :last_trade_ts_ns, :updated_ts_ns
 )
 ON CONFLICT(trade_date, gateway_id, symbol) DO UPDATE SET
@@ -306,6 +348,7 @@ ON CONFLICT(trade_date, gateway_id, symbol) DO UPDATE SET
   end_net_qty        = excluded.end_net_qty,
   end_avg_cost       = excluded.end_avg_cost,
   end_unrealized_pnl = excluded.end_unrealized_pnl,
+    tick_decimals      = excluded.tick_decimals,
   last_trade_ts_ns   = MAX(last_trade_ts_ns, excluded.last_trade_ts_ns),
   updated_ts_ns      = excluded.updated_ts_ns
 """
@@ -373,6 +416,7 @@ def _trade_row_to_dict(t: TradeEventRow) -> dict[str, Any]:
         "symbol": t.symbol,
         "quantity": t.quantity,
         "price": t.price,
+        "tick_decimals": t.tick_decimals,
         "buy_order_id": t.buy_order_id,
         "sell_order_id": t.sell_order_id,
         "buy_gateway_id": t.buy_gateway_id,
@@ -391,6 +435,7 @@ def _position_row_to_dict(p: PositionRow) -> dict[str, Any]:
         "realized_pnl": p.realized_pnl,
         "unrealized_pnl": p.unrealized_pnl,
         "mark_price": p.mark_price,
+        "tick_decimals": p.tick_decimals,
         "buy_qty": p.buy_qty,
         "sell_qty": p.sell_qty,
         "buy_notional": p.buy_notional,
@@ -416,6 +461,7 @@ def _daily_row_to_dict(d: DailySummaryRow) -> dict[str, Any]:
         "end_net_qty": d.end_net_qty,
         "end_avg_cost": d.end_avg_cost,
         "end_unrealized_pnl": d.end_unrealized_pnl,
+        "tick_decimals": d.tick_decimals,
         "last_trade_ts_ns": d.last_trade_ts_ns,
         "updated_ts_ns": d.updated_ts_ns,
     }
@@ -461,6 +507,7 @@ def query_positions(
 ) -> list[dict[str, Any]]:
     sql = (
         "SELECT gateway_id, symbol, net_qty, avg_cost, mark_price,"
+        " tick_decimals,"
         " realized_pnl, unrealized_pnl,"
         " buy_qty, sell_qty, buy_notional, sell_notional,"
         " last_trade_ts_ns, updated_ts_ns"
@@ -486,7 +533,7 @@ def query_pnl(
     sql = (
         "SELECT gateway_id, symbol, realized_pnl, unrealized_pnl,"
         " (realized_pnl + unrealized_pnl) AS total_pnl,"
-        " net_qty, mark_price"
+        " net_qty, mark_price, tick_decimals"
         " FROM gateway_symbol_positions"
         " WHERE (:gateway IS NULL OR gateway_id = :gateway)"
         "   AND (:symbol IS NULL OR symbol = :symbol)"
@@ -514,6 +561,7 @@ def query_daily(
         " traded_qty, traded_notional,"
         " buy_qty, sell_qty, buy_notional, sell_notional, net_amount,"
         " realized_pnl, end_net_qty, end_avg_cost, end_unrealized_pnl,"
+        " tick_decimals,"
         " last_trade_ts_ns, updated_ts_ns"
         " FROM gateway_daily_summary"
         " WHERE (:gateway IS NULL OR gateway_id = :gateway)"
@@ -549,7 +597,7 @@ def query_trades(
     limit: int = 200,
 ) -> list[dict[str, Any]]:
     sql = (
-        "SELECT id, ts_ns, trade_date, symbol, quantity, price,"
+        "SELECT id, ts_ns, trade_date, symbol, quantity, price, tick_decimals,"
         " buy_order_id, sell_order_id,"
         " buy_gateway_id, sell_gateway_id,"
         " aggressor_side, ingest_ts_ns"
@@ -609,7 +657,7 @@ def query_exposure(
         )
     order_by = _EXPOSURE_SORT[sort]
     sql = (
-        "SELECT gateway_id, symbol, net_qty, mark_price,"
+        "SELECT gateway_id, symbol, net_qty, mark_price, tick_decimals,"
         " (net_qty * mark_price) AS net_notional,"
         " ABS(net_qty * mark_price) AS gross_notional,"
         " realized_pnl, unrealized_pnl,"
@@ -645,7 +693,8 @@ def query_symbols(
         "  SELECT symbol,"
         "    SUM(traded_qty) AS traded_qty,"
         "    SUM(traded_notional) AS traded_notional,"
-        "    SUM(realized_pnl) AS realized_pnl"
+        "    SUM(realized_pnl) AS realized_pnl,"
+        "    MAX(tick_decimals) AS tick_decimals"
         "  FROM gateway_daily_summary"
         "  WHERE (:date_value IS NULL OR trade_date = :date_value)"
         "    AND (:from_date IS NULL OR trade_date >= :from_date)"
@@ -660,6 +709,7 @@ def query_symbols(
         "  GROUP BY symbol"
         ")"
         " SELECT d.symbol, d.traded_qty, d.traded_notional, d.realized_pnl,"
+        "  d.tick_decimals,"
         "  COALESCE(o.open_net_qty, 0) AS open_net_qty,"
         "  COALESCE(o.open_unrealized_pnl, 0.0) AS open_unrealized_pnl"
         " FROM daily_totals d"

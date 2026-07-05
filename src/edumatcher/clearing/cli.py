@@ -42,6 +42,7 @@ _POSITIONS_COLS = [
     "net_qty",
     "avg_cost",
     "mark_price",
+    "tick_decimals",
     "realized_pnl",
     "unrealized_pnl",
     "buy_qty",
@@ -59,6 +60,7 @@ _PNL_COLS = [
     "total_pnl",
     "net_qty",
     "mark_price",
+    "tick_decimals",
 ]
 _DAILY_COLS = [
     "trade_date",
@@ -75,6 +77,7 @@ _DAILY_COLS = [
     "end_net_qty",
     "end_avg_cost",
     "end_unrealized_pnl",
+    "tick_decimals",
     "last_trade_ts_ns",
     "updated_ts_ns",
 ]
@@ -85,6 +88,7 @@ _TRADES_COLS = [
     "symbol",
     "quantity",
     "price",
+    "tick_decimals",
     "buy_order_id",
     "sell_order_id",
     "buy_gateway_id",
@@ -97,6 +101,7 @@ _EXPOSURE_COLS = [
     "symbol",
     "net_qty",
     "mark_price",
+    "tick_decimals",
     "net_notional",
     "gross_notional",
     "realized_pnl",
@@ -108,6 +113,7 @@ _SYMBOLS_COLS = [
     "traded_qty",
     "traded_notional",
     "realized_pnl",
+    "tick_decimals",
     "open_net_qty",
     "open_unrealized_pnl",
 ]
@@ -136,6 +142,37 @@ _RECONCILE_COLS = [
     "qty_diff",
     "notional_diff",
 ]
+
+_NORMALIZE_FIELDS: dict[str, tuple[str, ...]] = {
+    "positions": (
+        "avg_cost",
+        "mark_price",
+        "realized_pnl",
+        "unrealized_pnl",
+        "buy_notional",
+        "sell_notional",
+    ),
+    "pnl": ("mark_price", "realized_pnl", "unrealized_pnl", "total_pnl"),
+    "daily": (
+        "traded_notional",
+        "buy_notional",
+        "sell_notional",
+        "net_amount",
+        "realized_pnl",
+        "end_avg_cost",
+        "end_unrealized_pnl",
+    ),
+    "trades": ("price",),
+    "exposure": (
+        "mark_price",
+        "net_notional",
+        "gross_notional",
+        "realized_pnl",
+        "unrealized_pnl",
+        "total_pnl",
+    ),
+    "symbols": ("traded_notional", "realized_pnl", "open_unrealized_pnl"),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -175,6 +212,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--no-header",
         action="store_true",
         help="Suppress header row for csv output",
+    )
+    parser.add_argument(
+        "--raw-output",
+        action="store_true",
+        help="Show raw tick-unit values instead of normalized display values",
     )
 
     sub = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
@@ -340,6 +382,29 @@ def _render_csv(
         writer.writeheader()
     for row in rows:
         writer.writerow({col: row.get(col) for col in columns})
+
+
+def _normalize_rows(command: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    fields = _NORMALIZE_FIELDS.get(command)
+    if not fields:
+        return rows
+
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        tick_decimals = row.get("tick_decimals")
+        if tick_decimals is None:
+            out.append(row)
+            continue
+
+        decimals = int(tick_decimals)
+        scale = float(10**decimals)
+        normalized = dict(row)
+        for field in fields:
+            val = normalized.get(field)
+            if isinstance(val, (int, float)):
+                normalized[field] = float(val) / scale
+        out.append(normalized)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -545,6 +610,9 @@ def main() -> None:
         raise SystemExit(1) from exc
     finally:
         conn.close()
+
+    if not args.raw_output:
+        rows = _normalize_rows(args.command, rows)
 
     if args.format == "json":
         _render_json(rows, columns)

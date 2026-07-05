@@ -169,6 +169,7 @@ Store all required fields from `trade.executed` plus ingestion metadata.
 | `symbol` | string | Yes | Traded instrument symbol |
 | `quantity` | integer | Yes | Matched trade size |
 | `price` | number | Yes | Execution price |
+| `tick_decimals` | integer | Yes | Symbol precision (`d`, where 1 tick = `10^-d`) |
 | `buy_order_id` | string | No | Buy-side order id that participated in the match |
 | `sell_order_id` | string | No | Sell-side order id that participated in the match |
 | `buy_gateway_id` | string | Yes | Gateway id credited with the buy-side fill |
@@ -190,7 +191,8 @@ CREATE TABLE IF NOT EXISTS trade_events (
   trade_date TEXT NOT NULL,
   symbol TEXT NOT NULL,
   quantity INTEGER NOT NULL,
-  price REAL NOT NULL,
+  price INTEGER NOT NULL,
+  tick_decimals INTEGER NOT NULL DEFAULT 2,
   buy_order_id TEXT,
   sell_order_id TEXT,
   buy_gateway_id TEXT NOT NULL,
@@ -221,11 +223,12 @@ Current running state, continuously overwritten via UPSERT during each flush.
 | `avg_cost` | REAL | Running weighted average entry price of the current open position; updated on same-side adds, adjusted on cross-zero resets |
 | `realized_pnl` | REAL | Cumulative realized P&L from closed quantity: long close via sell uses `(fill_price - avg_cost) * closed_qty`, short close via buy uses `(avg_cost - fill_price) * closed_qty` |
 | `unrealized_pnl` | REAL | Mark-to-market open P&L computed from latest mark: `net_qty * (mark_price - avg_cost)` |
-| `mark_price` | REAL | Latest observed trade price for `symbol` from `trade.executed.price` used as the v2 mark source |
+| `mark_price` | INTEGER | Latest observed trade price in ticks for `symbol` from `trade.executed.price` |
+| `tick_decimals` | INTEGER | Latest precision received for this `(gateway_id, symbol)` key |
 | `buy_qty` | INTEGER | Cumulative buy-side traded quantity for this `(gateway_id, symbol)` from all processed fills |
 | `sell_qty` | INTEGER | Cumulative sell-side traded quantity for this `(gateway_id, symbol)` from all processed fills |
-| `buy_notional` | REAL | Cumulative buy-side traded notional, sum of `fill_qty * fill_price` for buy legs |
-| `sell_notional` | REAL | Cumulative sell-side traded notional, sum of `fill_qty * fill_price` for sell legs |
+| `buy_notional` | INTEGER | Cumulative buy-side traded notional in tick-units, sum of `fill_qty * fill_price_ticks` for buy legs |
+| `sell_notional` | INTEGER | Cumulative sell-side traded notional in tick-units, sum of `fill_qty * fill_price_ticks` for sell legs |
 | `last_trade_ts_ns` | INTEGER | Latest event timestamp for this key, taken from `trade.executed.ts_ns` |
 | `updated_ts_ns` | INTEGER | Clearing writer update timestamp set at flush/UPSERT time for observability |
 
@@ -237,11 +240,12 @@ CREATE TABLE IF NOT EXISTS gateway_symbol_positions (
   avg_cost REAL NOT NULL,
   realized_pnl REAL NOT NULL,
   unrealized_pnl REAL NOT NULL,
-  mark_price REAL,
+  mark_price INTEGER,
+  tick_decimals INTEGER NOT NULL DEFAULT 2,
   buy_qty INTEGER NOT NULL,
   sell_qty INTEGER NOT NULL,
-  buy_notional REAL NOT NULL,
-  sell_notional REAL NOT NULL,
+  buy_notional INTEGER NOT NULL,
+  sell_notional INTEGER NOT NULL,
   last_trade_ts_ns INTEGER,
   updated_ts_ns INTEGER NOT NULL,
   PRIMARY KEY (gateway_id, symbol)
@@ -265,16 +269,17 @@ Daily aggregate rollup for quick reporting.
 | `gateway_id` | TEXT | Gateway id from each trade leg (`buy_gateway_id` and `sell_gateway_id`) grouped per day |
 | `symbol` | TEXT | Symbol copied from `trade.executed.symbol` and grouped per day |
 | `traded_qty` | INTEGER | Daily cumulative traded quantity for the `(trade_date, gateway_id, symbol)` key; sum of absolute leg quantities processed that day |
-| `traded_notional` | REAL | Daily cumulative traded notional; sum of `fill_qty * fill_price` for all legs mapped to this key |
+| `traded_notional` | INTEGER | Daily cumulative traded notional in tick-units; sum of `fill_qty * fill_price_ticks` |
 | `buy_qty` | INTEGER | Daily cumulative buy-side quantity for this key |
 | `sell_qty` | INTEGER | Daily cumulative sell-side quantity for this key |
-| `buy_notional` | REAL | Daily cumulative buy-side notional, sum of `fill_qty * fill_price` for buy legs |
-| `sell_notional` | REAL | Daily cumulative sell-side notional, sum of `fill_qty * fill_price` for sell legs |
-| `net_amount` | REAL | Daily signed notional for this key computed as `buy_notional - sell_notional` |
+| `buy_notional` | INTEGER | Daily cumulative buy-side notional in tick-units |
+| `sell_notional` | INTEGER | Daily cumulative sell-side notional in tick-units |
+| `net_amount` | INTEGER | Daily signed notional in tick-units computed as `buy_notional - sell_notional` |
 | `realized_pnl` | REAL | Daily cumulative realized P&L contribution for this key, aggregated from per-fill close-out P&L calculations |
 | `end_net_qty` | INTEGER | End-of-day net position copied from the latest `gateway_symbol_positions.net_qty` observed for the key within that date |
 | `end_avg_cost` | REAL | End-of-day average cost copied from the latest `gateway_symbol_positions.avg_cost` for the key within that date |
 | `end_unrealized_pnl` | REAL | End-of-day unrealized P&L copied from the latest `gateway_symbol_positions.unrealized_pnl` for the key within that date |
+| `tick_decimals` | INTEGER | Precision used to render tick-based values for this daily key |
 | `last_trade_ts_ns` | INTEGER | Latest `trade.executed.ts_ns` processed for this daily key |
 | `updated_ts_ns` | INTEGER | Clearing writer update timestamp set at each daily UPSERT/flush |
 
@@ -284,16 +289,17 @@ CREATE TABLE IF NOT EXISTS gateway_daily_summary (
   gateway_id TEXT NOT NULL,
   symbol TEXT NOT NULL,
   traded_qty INTEGER NOT NULL,
-  traded_notional REAL NOT NULL,
+  traded_notional INTEGER NOT NULL,
   buy_qty INTEGER NOT NULL,
   sell_qty INTEGER NOT NULL,
-  buy_notional REAL NOT NULL,
-  sell_notional REAL NOT NULL,
-  net_amount REAL NOT NULL,
+  buy_notional INTEGER NOT NULL,
+  sell_notional INTEGER NOT NULL,
+  net_amount INTEGER NOT NULL,
   realized_pnl REAL NOT NULL,
   end_net_qty INTEGER NOT NULL,
   end_avg_cost REAL NOT NULL,
   end_unrealized_pnl REAL NOT NULL,
+  tick_decimals INTEGER NOT NULL DEFAULT 2,
   last_trade_ts_ns INTEGER,
   updated_ts_ns INTEGER NOT NULL,
   PRIMARY KEY (trade_date, gateway_id, symbol)

@@ -53,6 +53,7 @@ class _Position:
     buy_notional: int = 0
     sell_notional: int = 0
     last_trade_ts_ns: int | None = None
+    tick_decimals: int = 2
 
 
 # ---------------------------------------------------------------------------
@@ -72,6 +73,7 @@ class _BatchDelta:
     sell_notional: int = 0
     realized_pnl: float = 0.0
     last_trade_ts_ns: int = 0
+    tick_decimals: int = 2
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +182,7 @@ class Ledger:
         buy_gateway_id: str,
         sell_gateway_id: str,
         price: int,
+        tick_decimals: int = 2,
         quantity: int,
         ts_ns: int,
         ingest_ts_ns: int,
@@ -200,6 +203,7 @@ class Ledger:
                 gateway_id=gateway_id,
                 symbol=symbol,
                 price=price,
+                tick_decimals=tick_decimals,
                 quantity=quantity,
                 is_buy=is_buy,
                 ts_ns=ts_ns,
@@ -246,6 +250,7 @@ class Ledger:
         gateway_id: str,
         symbol: str,
         price: int,
+        tick_decimals: int,
         quantity: int,
         is_buy: bool,
         ts_ns: int,
@@ -255,6 +260,7 @@ class Ledger:
         if pos_key not in self._positions:
             self._positions[pos_key] = _Position(gateway_id=gateway_id, symbol=symbol)
         pos = self._positions[pos_key]
+        pos.tick_decimals = tick_decimals
 
         realized_delta = _apply_fill_to_position(pos, quantity, price, is_buy, ts_ns)
 
@@ -271,6 +277,7 @@ class Ledger:
         if delta_key not in self._batch_deltas:
             self._batch_deltas[delta_key] = _BatchDelta()
         delta = self._batch_deltas[delta_key]
+        delta.tick_decimals = tick_decimals
         delta.traded_qty += quantity
         delta.traded_notional += quantity * price
         if is_buy:
@@ -303,6 +310,7 @@ def _position_to_row(pos: _Position, updated_ts_ns: int) -> PositionRow:
         sell_notional=pos.sell_notional,
         last_trade_ts_ns=pos.last_trade_ts_ns,
         updated_ts_ns=updated_ts_ns,
+        tick_decimals=pos.tick_decimals,
     )
 
 
@@ -336,4 +344,5 @@ def _delta_to_daily_row(
         end_unrealized_pnl=end_unrealized_pnl,
         last_trade_ts_ns=delta.last_trade_ts_ns if delta.last_trade_ts_ns else None,
         updated_ts_ns=updated_ts_ns,
+        tick_decimals=delta.tick_decimals,
     )
