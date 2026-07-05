@@ -21,6 +21,8 @@ from edumatcher.clearing.store import (
     query_pnl,
     query_positions,
     query_reconcile,
+    query_session_events,
+    query_sessions,
     query_symbols,
     query_trades,
     validate_date,
@@ -134,18 +136,36 @@ _HEALTH_COLS = [
     "wal_mode",
 ]
 _RECONCILE_COLS = [
+    "side",
     "trade_date",
     "gateway_id",
     "symbol",
-    "raw_buy_qty",
-    "summary_buy_qty",
+    "raw_qty",
+    "summary_qty",
     "qty_diff",
+    "raw_notional",
+    "summary_notional",
     "notional_diff",
+]
+_SESSION_EVENTS_COLS = [
+    "id",
+    "event_type",
+    "ts_ns",
+    "trade_date",
+    "payload_json",
+]
+_SESSIONS_COLS = [
+    "gateway_id",
+    "connect_date",
+    "connected_at_ns",
+    "disconnected_at_ns",
+    "disconnect_reason",
 ]
 
 _NORMALIZE_FIELDS: dict[str, tuple[str, ...]] = {
+    # avg_cost is stored as REAL (result of division) and must NOT be divided
+    # again by the tick scale — only tick-integer columns are normalized here.
     "positions": (
-        "avg_cost",
         "mark_price",
         "realized_pnl",
         "unrealized_pnl",
@@ -296,6 +316,40 @@ def _build_parser() -> argparse.ArgumentParser:
     rec.add_argument("--symbol", metavar="SYMBOL")
     rec.add_argument("--from", dest="from_date", metavar="YYYY-MM-DD")
     rec.add_argument("--to", dest="to_date", metavar="YYYY-MM-DD")
+
+    # sessions
+    ses = sub.add_parser(
+        "sessions",
+        help="Gateway connection and disconnection history",
+    )
+    ses.add_argument("--gateway", metavar="GW_ID", help="Filter to one gateway")
+    ses.add_argument(
+        "--from",
+        dest="from_date",
+        metavar="YYYY-MM-DD",
+        help="Inclusive start date (connect_date)",
+    )
+    ses.add_argument(
+        "--to",
+        dest="to_date",
+        metavar="YYYY-MM-DD",
+        help="Inclusive end date (connect_date)",
+    )
+    ses.add_argument(
+        "--connected-only",
+        action="store_true",
+        help="Show only sessions without a recorded disconnect",
+    )
+    ses.add_argument("--limit", type=int, default=500, metavar="N")
+
+    # eod
+    eod = sub.add_parser(
+        "eod",
+        help="End-of-day sentinel events written by pm-clearing on system.eod",
+    )
+    eod.add_argument("--from", dest="from_date", metavar="YYYY-MM-DD")
+    eod.add_argument("--to", dest="to_date", metavar="YYYY-MM-DD")
+    eod.add_argument("--limit", type=int, default=100, metavar="N")
 
     # prune
     prune = sub.add_parser(
@@ -511,6 +565,27 @@ def _run_query(
         rows = query_health(conn, db_path)
         return _HEALTH_COLS, rows
 
+    if cmd == "sessions":
+        rows = query_sessions(
+            conn,
+            gateway=_upper(getattr(args, "gateway", None)),
+            from_date=args.from_date,
+            to_date=args.to_date,
+            connected_only=getattr(args, "connected_only", False),
+            limit=args.limit,
+        )
+        return _SESSIONS_COLS, rows
+
+    if cmd == "eod":
+        rows = query_session_events(
+            conn,
+            event_type="EOD",
+            from_date=args.from_date,
+            to_date=args.to_date,
+            limit=args.limit,
+        )
+        return _SESSION_EVENTS_COLS, rows
+
     assert (
         cmd == "reconcile"
     ), f"Unhandled command: {cmd}"  # prune handled before _run_query
@@ -525,6 +600,8 @@ def _run_query(
         print("OK — no discrepancies found.")
         return _RECONCILE_COLS, []
     return _RECONCILE_COLS, rows
+    # NOTE: sessions, eod, and prune are handled above this assert.
+    # This assert is unreachable in normal operation.
 
 
 def _upper(val: str | None) -> str | None:

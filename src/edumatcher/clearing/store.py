@@ -135,6 +135,30 @@ SELECT
   SUM(realized_pnl)     AS realized_pnl_total
 FROM gateway_daily_summary
 GROUP BY trade_date;
+
+CREATE TABLE IF NOT EXISTS session_events (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_type   TEXT    NOT NULL,
+  ts_ns        INTEGER NOT NULL,
+  trade_date   TEXT    NOT NULL,
+  payload_json TEXT
+);
+
+CREATE INDEX IF NOT EXISTS ix_session_events_date
+  ON session_events(trade_date);
+CREATE INDEX IF NOT EXISTS ix_session_events_type
+  ON session_events(event_type);
+
+CREATE TABLE IF NOT EXISTS gateway_sessions (
+  gateway_id        TEXT    NOT NULL,
+  connected_at_ns   INTEGER NOT NULL,
+  disconnected_at_ns INTEGER,
+  disconnect_reason TEXT,
+  PRIMARY KEY (gateway_id, connected_at_ns)
+);
+
+CREATE INDEX IF NOT EXISTS ix_gateway_sessions_gateway
+  ON gateway_sessions(gateway_id);
 """
 
 # ---------------------------------------------------------------------------
@@ -233,6 +257,55 @@ def apply_schema(conn: sqlite3.Connection) -> None:
         "tick_decimals",
         "INTEGER NOT NULL DEFAULT 2",
     )
+    # Ensure session / gateway-lifecycle tables exist on DB files created
+    # before these tables were added to SCHEMA.
+    _create_table_if_missing(
+        conn,
+        "session_events",
+        """
+        CREATE TABLE IF NOT EXISTS session_events (
+          id           INTEGER PRIMARY KEY AUTOINCREMENT,
+          event_type   TEXT    NOT NULL,
+          ts_ns        INTEGER NOT NULL,
+          trade_date   TEXT    NOT NULL,
+          payload_json TEXT
+        );
+        CREATE INDEX IF NOT EXISTS ix_session_events_date
+          ON session_events(trade_date);
+        CREATE INDEX IF NOT EXISTS ix_session_events_type
+          ON session_events(event_type);
+        """,
+    )
+    _create_table_if_missing(
+        conn,
+        "gateway_sessions",
+        """
+        CREATE TABLE IF NOT EXISTS gateway_sessions (
+          gateway_id         TEXT    NOT NULL,
+          connected_at_ns    INTEGER NOT NULL,
+          disconnected_at_ns INTEGER,
+          disconnect_reason  TEXT,
+          PRIMARY KEY (gateway_id, connected_at_ns)
+        );
+        CREATE INDEX IF NOT EXISTS ix_gateway_sessions_gateway
+          ON gateway_sessions(gateway_id);
+        """,
+    )
+
+
+def _create_table_if_missing(
+    conn: sqlite3.Connection,
+    table: str,
+    ddl: str,
+) -> None:
+    existing = {
+        row[0]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+    }
+    if table not in existing:
+        conn.executescript(ddl)
 
 
 def _add_column_if_missing(
@@ -401,6 +474,62 @@ def prune_old_events(conn: sqlite3.Connection, retention_days: int = 90) -> int:
     )
     conn.commit()
     return cur.rowcount
+
+
+# ---------------------------------------------------------------------------
+# Session-event and gateway-lifecycle write helpers
+# ---------------------------------------------------------------------------
+
+
+def record_session_event(
+    conn: sqlite3.Connection,
+    *,
+    event_type: str,
+    ts_ns: int,
+    trade_date: str,
+    payload_json: str | None = None,
+) -> None:
+    """Insert one row into session_events (EOD marker, phase transition, etc.)."""
+    conn.execute(
+        "INSERT INTO session_events (event_type, ts_ns, trade_date, payload_json)"
+        " VALUES (?, ?, ?, ?)",
+        (event_type, ts_ns, trade_date, payload_json),
+    )
+    conn.commit()
+
+
+def record_gateway_connect(
+    conn: sqlite3.Connection,
+    *,
+    gateway_id: str,
+    connected_at_ns: int,
+) -> None:
+    """Insert a connect row into gateway_sessions."""
+    conn.execute(
+        "INSERT OR IGNORE INTO gateway_sessions"
+        " (gateway_id, connected_at_ns)"
+        " VALUES (?, ?)",
+        (gateway_id, connected_at_ns),
+    )
+    conn.commit()
+
+
+def record_gateway_disconnect(
+    conn: sqlite3.Connection,
+    *,
+    gateway_id: str,
+    connected_at_ns: int,
+    disconnected_at_ns: int,
+    reason: str | None,
+) -> None:
+    """Update the matching connect row with disconnect timestamp and reason."""
+    conn.execute(
+        "UPDATE gateway_sessions"
+        " SET disconnected_at_ns = ?, disconnect_reason = ?"
+        " WHERE gateway_id = ? AND connected_at_ns = ?",
+        (disconnected_at_ns, reason, gateway_id, connected_at_ns),
+    )
+    conn.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -811,6 +940,83 @@ def query_health(
     return [result]
 
 
+def query_session_events(
+    conn: sqlite3.Connection,
+    *,
+    event_type: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    limit: int = 500,
+) -> list[dict[str, Any]]:
+    """
+    Return rows from session_events (EOD markers, phase transitions).
+
+    Filtering by event_type allows targeted queries such as:
+      event_type='EOD'   — end-of-day markers only
+      event_type='PHASE' — session-phase transitions only
+    """
+    sql = (
+        "SELECT id, event_type, ts_ns, trade_date, payload_json"
+        " FROM session_events"
+        " WHERE (:event_type IS NULL OR event_type = :event_type)"
+        "   AND (:from_date IS NULL OR trade_date >= :from_date)"
+        "   AND (:to_date IS NULL OR trade_date <= :to_date)"
+        " ORDER BY ts_ns DESC"
+        " LIMIT :limit"
+    )
+    rows = conn.execute(
+        sql,
+        {
+            "event_type": event_type,
+            "from_date": from_date,
+            "to_date": to_date,
+            "limit": limit,
+        },
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def query_sessions(
+    conn: sqlite3.Connection,
+    *,
+    gateway: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    connected_only: bool = False,
+    limit: int = 500,
+) -> list[dict[str, Any]]:
+    """
+    Return gateway connection/disconnection history from gateway_sessions.
+
+    connected_only=True filters to sessions where disconnected_at_ns IS NULL
+    (gateways still connected or whose disconnect was not recorded).
+    """
+    sql = (
+        "SELECT gateway_id, connected_at_ns, disconnected_at_ns, disconnect_reason,"
+        "  date(connected_at_ns / 1000000000, 'unixepoch') AS connect_date"
+        " FROM gateway_sessions"
+        " WHERE (:gateway IS NULL OR gateway_id = :gateway)"
+        "   AND (:connected_only = 0 OR disconnected_at_ns IS NULL)"
+        "   AND (:from_date IS NULL"
+        "       OR date(connected_at_ns / 1000000000, 'unixepoch') >= :from_date)"
+        "   AND (:to_date IS NULL"
+        "       OR date(connected_at_ns / 1000000000, 'unixepoch') <= :to_date)"
+        " ORDER BY connected_at_ns DESC"
+        " LIMIT :limit"
+    )
+    rows = conn.execute(
+        sql,
+        {
+            "gateway": gateway,
+            "connected_only": 1 if connected_only else 0,
+            "from_date": from_date,
+            "to_date": to_date,
+            "limit": limit,
+        },
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def query_reconcile(
     conn: sqlite3.Connection,
     *,
@@ -820,19 +1026,36 @@ def query_reconcile(
     to_date: str | None = None,
 ) -> list[dict[str, Any]]:
     """
-    Compare raw trade_events totals against gateway_daily_summary aggregates.
+    Compare raw trade_events totals against gateway_daily_summary aggregates
+    for both the buy side and the sell side.
 
     Returns rows only where a discrepancy is found.  Zero rows means the
-    dataset is internally consistent.
+    dataset is internally consistent for all (trade_date, gateway_id, symbol)
+    keys on both sides.
+
+    Output columns:
+      side              — 'BUY' or 'SELL'
+      trade_date        — date bucket
+      gateway_id        — gateway identifier
+      symbol            — instrument
+      raw_qty           — quantity counted directly from trade_events
+      summary_qty       — quantity stored in gateway_daily_summary
+      qty_diff          — raw_qty - summary_qty (non-zero = discrepancy)
+      raw_notional      — notional counted directly from trade_events
+      summary_notional  — notional stored in gateway_daily_summary
+      notional_diff     — raw_notional - summary_notional
     """
     sql = """
-    WITH raw_totals AS (
+    WITH
+    -- Buy-side raw counts from trade_events
+    raw_buy AS (
       SELECT
+        'BUY'            AS side,
         trade_date,
-        buy_gateway_id AS gateway_id,
+        buy_gateway_id   AS gateway_id,
         symbol,
-        SUM(quantity) AS raw_buy_qty,
-        SUM(quantity * price) AS raw_buy_notional
+        SUM(quantity)            AS raw_qty,
+        SUM(quantity * price)    AS raw_notional
       FROM trade_events
       WHERE (:from_date IS NULL OR trade_date >= :from_date)
         AND (:to_date   IS NULL OR trade_date <= :to_date)
@@ -840,38 +1063,85 @@ def query_reconcile(
         AND (:symbol    IS NULL OR symbol = :symbol)
       GROUP BY trade_date, buy_gateway_id, symbol
     ),
-    summary_totals AS (
+    -- Sell-side raw counts from trade_events
+    raw_sell AS (
       SELECT
+        'SELL'           AS side,
+        trade_date,
+        sell_gateway_id  AS gateway_id,
+        symbol,
+        SUM(quantity)            AS raw_qty,
+        SUM(quantity * price)    AS raw_notional
+      FROM trade_events
+      WHERE (:from_date IS NULL OR trade_date >= :from_date)
+        AND (:to_date   IS NULL OR trade_date <= :to_date)
+        AND (:gateway   IS NULL OR sell_gateway_id = :gateway)
+        AND (:symbol    IS NULL OR symbol = :symbol)
+      GROUP BY trade_date, sell_gateway_id, symbol
+    ),
+    -- Union both sides into a single raw set
+    raw_all AS (
+      SELECT * FROM raw_buy
+      UNION ALL
+      SELECT * FROM raw_sell
+    ),
+    -- Summary aggregates for buy and sell sides from gateway_daily_summary
+    summary_buy AS (
+      SELECT
+        'BUY'        AS side,
         trade_date,
         gateway_id,
         symbol,
-        buy_qty          AS summary_buy_qty,
-        buy_notional     AS summary_buy_notional
+        buy_qty      AS summary_qty,
+        buy_notional AS summary_notional
       FROM gateway_daily_summary
       WHERE (:from_date IS NULL OR trade_date >= :from_date)
         AND (:to_date   IS NULL OR trade_date <= :to_date)
         AND (:gateway   IS NULL OR gateway_id = :gateway)
         AND (:symbol    IS NULL OR symbol = :symbol)
+    ),
+    summary_sell AS (
+      SELECT
+        'SELL'        AS side,
+        trade_date,
+        gateway_id,
+        symbol,
+        sell_qty      AS summary_qty,
+        sell_notional AS summary_notional
+      FROM gateway_daily_summary
+      WHERE (:from_date IS NULL OR trade_date >= :from_date)
+        AND (:to_date   IS NULL OR trade_date <= :to_date)
+        AND (:gateway   IS NULL OR gateway_id = :gateway)
+        AND (:symbol    IS NULL OR symbol = :symbol)
+    ),
+    summary_all AS (
+      SELECT * FROM summary_buy
+      UNION ALL
+      SELECT * FROM summary_sell
     )
     SELECT
+      r.side,
       r.trade_date,
       r.gateway_id,
       r.symbol,
-      r.raw_buy_qty,
-      s.summary_buy_qty,
-      (r.raw_buy_qty - COALESCE(s.summary_buy_qty, 0)) AS qty_diff,
+      r.raw_qty,
+      COALESCE(s.summary_qty, 0)       AS summary_qty,
+      (r.raw_qty - COALESCE(s.summary_qty, 0)) AS qty_diff,
+      r.raw_notional,
+      COALESCE(s.summary_notional, 0)  AS summary_notional,
       ROUND(
-        r.raw_buy_notional - COALESCE(s.summary_buy_notional, 0),
+        r.raw_notional - COALESCE(s.summary_notional, 0),
         8
       ) AS notional_diff
-    FROM raw_totals r
-    LEFT JOIN summary_totals s
-      ON  s.trade_date = r.trade_date
+    FROM raw_all r
+    LEFT JOIN summary_all s
+      ON  s.side       = r.side
+      AND s.trade_date = r.trade_date
       AND s.gateway_id = r.gateway_id
       AND s.symbol     = r.symbol
-    WHERE ABS(r.raw_buy_qty - COALESCE(s.summary_buy_qty, 0)) > 0
-       OR ABS(r.raw_buy_notional - COALESCE(s.summary_buy_notional, 0)) > 0.0001
-    ORDER BY r.trade_date ASC, r.gateway_id ASC, r.symbol ASC
+    WHERE ABS(r.raw_qty - COALESCE(s.summary_qty, 0)) > 0
+       OR ABS(r.raw_notional - COALESCE(s.summary_notional, 0)) > 0.0001
+    ORDER BY r.trade_date ASC, r.side ASC, r.gateway_id ASC, r.symbol ASC
     """
     rows = conn.execute(
         sql,

@@ -834,7 +834,26 @@ class TestReconcileVerb:
                     end_unrealized_pnl=0.0,
                     last_trade_ts_ns=1_751_371_200_000_000_000,
                     updated_ts_ns=1,
-                )
+                ),
+                # sell side — must match for clean reconcile
+                DailySummaryRow(
+                    trade_date="2025-07-01",
+                    gateway_id="GW_Y",
+                    symbol="AAPL",
+                    delta_traded_qty=10,
+                    delta_traded_notional=1000,
+                    delta_buy_qty=0,
+                    delta_sell_qty=10,
+                    delta_buy_notional=0,
+                    delta_sell_notional=1000,
+                    delta_net_amount=-1000,
+                    delta_realized_pnl=0.0,
+                    end_net_qty=-10,
+                    end_avg_cost=100.0,
+                    end_unrealized_pnl=0.0,
+                    last_trade_ts_ns=1_751_371_200_000_000_000,
+                    updated_ts_ns=1,
+                ),
             ],
         )
         conn.close()
@@ -887,7 +906,26 @@ class TestReconcileVerb:
                     end_unrealized_pnl=0.0,
                     last_trade_ts_ns=1,
                     updated_ts_ns=1,
-                )
+                ),
+                # sell side — correct, so only buy side row is a discrepancy
+                DailySummaryRow(
+                    trade_date="2025-07-01",
+                    gateway_id="GW_Y",
+                    symbol="AAPL",
+                    delta_traded_qty=10,
+                    delta_traded_notional=1000,
+                    delta_buy_qty=0,
+                    delta_sell_qty=10,
+                    delta_buy_notional=0,
+                    delta_sell_notional=1000,
+                    delta_net_amount=-1000,
+                    delta_realized_pnl=0.0,
+                    end_net_qty=-10,
+                    end_avg_cost=100.0,
+                    end_unrealized_pnl=0.0,
+                    last_trade_ts_ns=1,
+                    updated_ts_ns=1,
+                ),
             ],
         )
         conn.close()
@@ -896,8 +934,10 @@ class TestReconcileVerb:
             monkeypatch, capsys, corrupt, ["--format", "json", "reconcile"]
         )
         data = json.loads(out)
-        assert len(data) == 1
-        assert data[0]["qty_diff"] == 5
+        # Only the buy side has a discrepancy
+        buy_discrepancies = [r for r in data if r["side"] == "BUY"]
+        assert len(buy_discrepancies) == 1
+        assert buy_discrepancies[0]["qty_diff"] == 5
 
 
 # ---------------------------------------------------------------------------
@@ -1030,3 +1070,218 @@ class TestPathResolution:
         cli_main()
         out = capsys.readouterr().out
         assert "wal_mode" in out or db_path.name in out
+
+
+# ---------------------------------------------------------------------------
+# sessions verb tests
+# ---------------------------------------------------------------------------
+
+
+class TestSessionsVerb:
+    """Tests for the `sessions` CLI verb backed by gateway_sessions."""
+
+    @pytest.fixture()
+    def sessions_db(self, tmp_path: Path) -> Path:
+        from edumatcher.clearing.store import (
+            open_writer_connection,
+            record_gateway_connect,
+            record_gateway_disconnect,
+        )
+
+        path = tmp_path / "sessions.db"
+        conn = open_writer_connection(path)
+        record_gateway_connect(conn, gateway_id="TRD01", connected_at_ns=1_000_000_000)
+        record_gateway_connect(conn, gateway_id="TRD02", connected_at_ns=2_000_000_000)
+        record_gateway_disconnect(
+            conn,
+            gateway_id="TRD02",
+            connected_at_ns=2_000_000_000,
+            disconnected_at_ns=3_000_000_000,
+            reason="Graceful",
+        )
+        conn.close()
+        return path
+
+    def test_returns_rows(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        sessions_db: Path,
+    ) -> None:
+        out = _run_capture(monkeypatch, capsys, sessions_db, ["sessions"])
+        assert "TRD01" in out
+        assert "TRD02" in out
+
+    def test_filter_by_gateway(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        sessions_db: Path,
+    ) -> None:
+        out = _run_capture(
+            monkeypatch, capsys, sessions_db, ["sessions", "--gateway", "TRD01"]
+        )
+        assert "TRD01" in out
+        assert "TRD02" not in out
+
+    def test_connected_only(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        sessions_db: Path,
+    ) -> None:
+        out = _run_capture(
+            monkeypatch, capsys, sessions_db, ["sessions", "--connected-only"]
+        )
+        assert "TRD01" in out
+        assert "TRD02" not in out
+
+    def test_json_output(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        sessions_db: Path,
+    ) -> None:
+        out = _run_capture(
+            monkeypatch, capsys, sessions_db, ["--format", "json", "sessions"]
+        )
+        data = json.loads(out)
+        ids = {r["gateway_id"] for r in data}
+        assert "TRD01" in ids and "TRD02" in ids
+
+    def test_disconnect_reason_in_json(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        sessions_db: Path,
+    ) -> None:
+        out = _run_capture(
+            monkeypatch,
+            capsys,
+            sessions_db,
+            ["--format", "json", "sessions", "--gateway", "TRD02"],
+        )
+        data = json.loads(out)
+        assert data[0]["disconnect_reason"] == "Graceful"
+
+    def test_limit_option(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        sessions_db: Path,
+    ) -> None:
+        out = _run_capture(
+            monkeypatch,
+            capsys,
+            sessions_db,
+            ["--format", "json", "sessions", "--limit", "1"],
+        )
+        data = json.loads(out)
+        assert len(data) == 1
+
+    def test_empty_db_returns_no_rows(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        empty_db: Path,
+    ) -> None:
+        out = _run_capture(monkeypatch, capsys, empty_db, ["sessions"])
+        assert "No rows" in out or out.strip() == "" or len(out.splitlines()) <= 2
+
+
+# ---------------------------------------------------------------------------
+# eod verb tests
+# ---------------------------------------------------------------------------
+
+
+class TestEodVerb:
+    """Tests for the `eod` CLI verb backed by session_events."""
+
+    @pytest.fixture()
+    def eod_db(self, tmp_path: Path) -> Path:
+        import json as _json
+
+        from edumatcher.clearing.store import (
+            open_writer_connection,
+            record_session_event,
+        )
+
+        path = tmp_path / "eod.db"
+        conn = open_writer_connection(path)
+        record_session_event(
+            conn,
+            event_type="EOD",
+            ts_ns=1_751_371_200_000_000_000,
+            trade_date="2026-07-01",
+            payload_json=_json.dumps(
+                {"eod_marks": {"AAPL": 15000, "MSFT": 40000}, "symbols_count": 2}
+            ),
+        )
+        record_session_event(
+            conn,
+            event_type="EOD",
+            ts_ns=1_751_457_600_000_000_000,
+            trade_date="2026-07-02",
+            payload_json=_json.dumps(
+                {"eod_marks": {"AAPL": 15500}, "symbols_count": 1}
+            ),
+        )
+        conn.close()
+        return path
+
+    def test_returns_eod_rows(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        eod_db: Path,
+    ) -> None:
+        out = _run_capture(monkeypatch, capsys, eod_db, ["eod"])
+        assert "EOD" in out
+        assert "2026-07-01" in out
+        assert "2026-07-02" in out
+
+    def test_date_range_filter(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        eod_db: Path,
+    ) -> None:
+        out = _run_capture(
+            monkeypatch,
+            capsys,
+            eod_db,
+            ["eod", "--from", "2026-07-02", "--to", "2026-07-02"],
+        )
+        assert "2026-07-02" in out
+        assert "2026-07-01" not in out
+
+    def test_limit_option(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        eod_db: Path,
+    ) -> None:
+        out = _run_capture(
+            monkeypatch, capsys, eod_db, ["--format", "json", "eod", "--limit", "1"]
+        )
+        data = json.loads(out)
+        assert len(data) == 1
+
+    def test_json_has_payload_json(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        eod_db: Path,
+    ) -> None:
+        out = _run_capture(monkeypatch, capsys, eod_db, ["--format", "json", "eod"])
+        data = json.loads(out)
+        assert all("payload_json" in r for r in data)
+
+    def test_empty_db_returns_no_rows(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture,
+        empty_db: Path,
+    ) -> None:
+        out = _run_capture(monkeypatch, capsys, empty_db, ["eod"])
+        assert "No rows" in out or out.strip() == "" or len(out.splitlines()) <= 2

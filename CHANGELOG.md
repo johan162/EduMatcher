@@ -1,3 +1,30 @@
+## [v0.14.1] - 2026-07-05
+
+Release Type: patch
+
+### 📋 Summary
+This patch release hardens the new clearing workflow with normalization and reconciliation fixes and adds support for lifecycle messages around gateway connectivity and end-of-day processing. It also includes documentation polish and Makefile/test cleanup.
+
+### ✨ Additions
+- Added handling for `system.eod`, `gateway_connect`, and `gateway_disconnect` message-driven behavior in the clearing flow
+
+### 🚀 Improvements
+- Improved reconciliation logic to validate both buy-side and sell-side aggregates
+- Improved clearing design documentation with secondary-message flow details
+
+### 🐛 Bug Fixes
+- Fixed double normalization in clearing output calculations
+- Fixed duplicate target declarations in the docs-design Makefile that emitted override warnings
+
+### 📚 Documentation
+- Updated clearing design and user-guide content to align with the latest message flow and reporting behavior
+- Updated docs PDF layout defaults for improved A4 readability
+
+### 🛠 Internal
+- Fixed lint and formatting issues across the updated clearing-related changes
+- Reformatted and updated tests to keep static checks and style validation clean
+
+
 ## [v0.14.0] - 2026-07-05
 
 Release Type: minor
