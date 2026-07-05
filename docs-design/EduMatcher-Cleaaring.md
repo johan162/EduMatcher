@@ -4,48 +4,7 @@ Date: 2026-07-05
 
 Status: Design and Research Proposal
 
-# EduMatcher — Cleaaring v2 (`pm-clearing` + `pm-clearing-cli`)
-
-
-
-## Table of Contents
-
-- [EduMatcher — Cleaaring v2 (`pm-clearing` + `pm-clearing-cli`)](#edumatcher--cleaaring-v2-pm-clearing--pm-clearing-cli)
-  - [Table of Contents](#table-of-contents)
-  - [1. Motivation](#1-motivation)
-  - [2. Problem Statement](#2-problem-statement)
-  - [3. Goals and Non-Goals](#3-goals-and-non-goals)
-    - [3.1 Goals](#31-goals)
-    - [3.2 Non-Goals](#32-non-goals)
-  - [4. High-Level Architecture](#4-high-level-architecture)
-  - [5. CLI Surface for `pm-clearing`](#5-cli-surface-for-pm-clearing)
-  - [6. Storage Model and SQLite Schema](#6-storage-model-and-sqlite-schema)
-    - [6.1 Database pragmas](#61-database-pragmas)
-    - [6.2 Tables](#62-tables)
-      - [A) `trade_events`](#a-trade_events)
-      - [B) `gateway_symbol_positions`](#b-gateway_symbol_positions)
-      - [C) `gateway_daily_summary`](#c-gateway_daily_summary)
-    - [6.3 Views](#63-views)
-      - [A) `gateway_pnl_totals`](#a-gateway_pnl_totals)
-      - [B) `daily_exchange_totals`](#b-daily_exchange_totals)
-  - [7. P\&L Calculation Model](#7-pl-calculation-model)
-    - [7.1 Running position logic](#71-running-position-logic)
-    - [7.2 Fill-side updates](#72-fill-side-updates)
-    - [7.3 Mark price source](#73-mark-price-source)
-  - [8. Batching and Flush Policy](#8-batching-and-flush-policy)
-  - [9. Path and Data Directory Rules](#9-path-and-data-directory-rules)
-  - [10. CLI Surface for `pm-clearing-cli`](#10-cli-surface-for-pm-clearing-cli)
-    - [10.1 Proposed verbs](#101-proposed-verbs)
-    - [10.2 Proposed option reference](#102-proposed-option-reference)
-    - [10.3 Structured output fields (`json` / `csv`)](#103-structured-output-fields-json--csv)
-    - [10.4 Example UX](#104-example-ux)
-  - [11. Query Workflows and Examples](#11-query-workflows-and-examples)
-  - [12. Additional Message Subscriptions](#12-additional-message-subscriptions)
-  - [13. Migration Plan](#13-migration-plan)
-  - [14. Implementation Plan](#14-implementation-plan)
-  - [15. Testing Plan](#15-testing-plan)
-  - [16. Acceptance Checklist](#16-acceptance-checklist)
-
+# EduMatcher — Clearing v2 
 
 
 ## 1. Motivation
@@ -357,6 +316,41 @@ FROM gateway_daily_summary
 GROUP BY trade_date;
 ```
 
+### 6.4 Retention, compaction, and optional rotation
+
+For the educational deployment profile, default behavior should favor a single
+SQLite database with bounded retention over calendar-based rotation.
+
+Recommended policy:
+
+- Keep one active DB file by default.
+- Retain recent detailed rows in `trade_events` for 90 days by default.
+- Keep longer-lived aggregates in `gateway_daily_summary` and
+  `gateway_symbol_positions` as needed for reporting.
+- Run periodic maintenance:
+  - `PRAGMA wal_checkpoint(TRUNCATE);` to limit WAL growth.
+  - `VACUUM;` after large deletes to reclaim disk space.
+
+Why this is preferred over weekly rotation:
+
+- Weekly files add operational overhead (file discovery, cross-file querying,
+  merge logic) with limited benefit at low trade volumes.
+- Most educational scenarios have manageable event counts, so retention +
+  compaction is simpler and easier to operate.
+
+Optional rotation mode (only if size pressure appears):
+
+- Trigger rotation by threshold, not by week boundary:
+  - active DB file exceeds configured size limit (for example 1 to 2 GB), or
+  - retained date window exceeds configured maximum.
+- On rotation:
+  - move closed data into an archive DB (for example monthly),
+  - keep `pm-clearing-cli` defaulting to the active DB,
+  - allow explicit archive queries via `--db` path override.
+
+This keeps day-to-day usage simple while still allowing scale-up behavior when
+needed.
+
 
 
 ## 7. P&L Calculation Model
@@ -522,7 +516,8 @@ When `--format json` or `--format csv` is selected, fields are explicit and stab
 
   with `--with-totals`: `trade_date`, `traded_qty_total`, `traded_notional_total`, `net_amount_total`
 - **`health`:**
-  `db_path`, `trade_events_rows`, `gateway_symbol_positions_rows`, `gateway_daily_summary_rows`, `last_trade_ts_ns`, `last_flush_ts_ns`, `wal_mode`
+  `db_path`, `trade_events_rows`, `gateway_symbol_positions_rows`, `gateway_daily_summary_rows`,
+   `last_trade_ts_ns`, `last_flush_ts_ns`, `wal_mode`
 
 ### 10.4 Example UX
 
