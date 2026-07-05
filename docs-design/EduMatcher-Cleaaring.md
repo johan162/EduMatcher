@@ -143,7 +143,7 @@ Rationale:
 
 Store all required fields from `trade.executed` plus ingestion metadata.
 
-`trade.executed` field reference:
+**`trade.executed` message field reference:**
 
 | Field | Type | Required | Description |
 |---|---|---|---|
@@ -519,6 +519,9 @@ When `--format json` or `--format csv` is selected, fields are explicit and stab
   `db_path`, `trade_events_rows`, `gateway_symbol_positions_rows`, `gateway_daily_summary_rows`,
    `last_trade_ts_ns`, `last_flush_ts_ns`, `wal_mode`
 
+
+
+
 ### 10.4 Example UX
 
 ```bash
@@ -529,6 +532,414 @@ pm-clearing-cli trades --symbol MSFT --date 2026-07-05 --limit 100
 pm-clearing-cli dates --from 2026-07-01 --to 2026-07-05 --symbol AAPL --with-totals
 pm-clearing-cli exposure --date 2026-07-05 --format json
 ```
+
+### 10.5 SQL implementation blueprint by verb
+
+This section defines the principal SQLite statement per verb.
+
+Implementation rules for all verbs:
+
+- Use named bind parameters (for example `:gateway`, `:symbol`, `:limit`).
+- Never build SQL by string-concatenating user input.
+- For optional filters, use `(:param IS NULL OR column = :param)` style clauses.
+- For sort fields, map CLI values to a strict whitelist in code before SQL.
+
+
+---
+
+#### A) COMMAND VERB: `gateways`
+
+
+| Item | Value |
+|---|---|
+| Primary source | `gateway_pnl_totals` view |
+| Primary goal | Return one row per gateway with total P&L and net quantity |
+| Default ordering | `gateway_id ASC` |
+
+Principal SQL:
+
+```sql
+SELECT
+  gateway_id,
+  realized_pnl_total,
+  unrealized_pnl_total,
+  total_pnl,
+  net_qty_total
+FROM gateway_pnl_totals
+WHERE (:gateway IS NULL OR gateway_id = :gateway)
+ORDER BY gateway_id ASC
+LIMIT :limit;
+```
+
+Optional filters:
+
+| CLI option | SQL parameter | Applied as |
+|---|---|---|
+| `--gateway` | `:gateway` | exact match on `gateway_id` |
+| `--limit` | `:limit` | `LIMIT :limit` |
+
+---
+
+#### B) COMMAND VERB:  `positions`
+
+
+| Item | Value |
+|---|---|
+| Primary source | `gateway_symbol_positions` table |
+| Primary goal | Return current position state by gateway and symbol |
+| Default ordering | `gateway_id ASC, symbol ASC` |
+
+Principal SQL:
+
+```sql
+SELECT
+  gateway_id,
+  symbol,
+  net_qty,
+  avg_cost,
+  mark_price,
+  realized_pnl,
+  unrealized_pnl,
+  buy_qty,
+  sell_qty,
+  buy_notional,
+  sell_notional,
+  last_trade_ts_ns,
+  updated_ts_ns
+FROM gateway_symbol_positions
+WHERE (:gateway IS NULL OR gateway_id = :gateway)
+  AND (:symbol IS NULL OR symbol = :symbol)
+ORDER BY gateway_id ASC, symbol ASC
+LIMIT :limit;
+```
+
+Optional filters:
+
+| CLI option | SQL parameter | Applied as |
+|---|---|---|
+| `--gateway` | `:gateway` | exact match on `gateway_id` |
+| `--symbol` | `:symbol` | exact match on `symbol` |
+| `--limit` | `:limit` | `LIMIT :limit` |
+
+---
+
+#### C) COMMAND VERB:  `pnl`
+
+| Item | Value |
+|---|---|
+| Primary source | `gateway_symbol_positions` table |
+| Primary goal | Return realized/unrealized/total P&L rows by gateway and symbol |
+| Default ordering | `gateway_id ASC, symbol ASC` |
+
+Principal SQL:
+
+```sql
+SELECT
+  gateway_id,
+  symbol,
+  realized_pnl,
+  unrealized_pnl,
+  (realized_pnl + unrealized_pnl) AS total_pnl,
+  net_qty,
+  mark_price
+FROM gateway_symbol_positions
+WHERE (:gateway IS NULL OR gateway_id = :gateway)
+  AND (:symbol IS NULL OR symbol = :symbol)
+ORDER BY gateway_id ASC, symbol ASC
+LIMIT :limit;
+```
+
+Optional filters:
+
+| CLI option | SQL parameter | Applied as |
+|---|---|---|
+| `--gateway` | `:gateway` | exact match on `gateway_id` |
+| `--symbol` | `:symbol` | exact match on `symbol` |
+| `--limit` | `:limit` | `LIMIT :limit` |
+
+---
+
+#### D) COMMAND VERB: `daily`
+
+| Item | Value |
+|---|---|
+| Primary source | `gateway_daily_summary` table |
+| Primary goal | Return daily rollups by date, gateway, and symbol |
+| Default ordering | `trade_date DESC, gateway_id ASC, symbol ASC` |
+
+Principal SQL:
+
+```sql
+SELECT
+  trade_date,
+  gateway_id,
+  symbol,
+  traded_qty,
+  traded_notional,
+  realized_pnl,
+  end_net_qty,
+  end_avg_cost,
+  end_unrealized_pnl,
+  last_trade_ts_ns,
+  updated_ts_ns
+FROM gateway_daily_summary
+WHERE (:gateway IS NULL OR gateway_id = :gateway)
+  AND (:symbol IS NULL OR symbol = :symbol)
+  AND (:date IS NULL OR trade_date = :date)
+  AND (:from_date IS NULL OR trade_date >= :from_date)
+  AND (:to_date IS NULL OR trade_date <= :to_date)
+ORDER BY trade_date DESC, gateway_id ASC, symbol ASC
+LIMIT :limit;
+```
+
+Optional filters:
+
+| CLI option | SQL parameter | Applied as |
+|---|---|---|
+| `--gateway` | `:gateway` | exact match on `gateway_id` |
+| `--symbol` | `:symbol` | exact match on `symbol` |
+| `--date` | `:date` | exact match on `trade_date` |
+| `--from` | `:from_date` | `trade_date >= :from_date` |
+| `--to` | `:to_date` | `trade_date <= :to_date` |
+| `--limit` | `:limit` | `LIMIT :limit` |
+
+---
+
+#### E) COMMAND VERB: `trades`
+
+| Item | Value |
+|---|---|
+| Primary source | `trade_events` table |
+| Primary goal | Return raw trade-level facts for audit and trace workflows |
+| Default ordering | `ts_ns DESC, id ASC` |
+
+Principal SQL:
+
+```sql
+SELECT
+  id,
+  ts_ns,
+  trade_date,
+  symbol,
+  quantity,
+  price,
+  buy_order_id,
+  sell_order_id,
+  buy_gateway_id,
+  sell_gateway_id,
+  aggressor_side,
+  ingest_ts_ns
+FROM trade_events
+WHERE (:symbol IS NULL OR symbol = :symbol)
+  AND (:gateway IS NULL OR buy_gateway_id = :gateway OR sell_gateway_id = :gateway)
+  AND (:date IS NULL OR trade_date = :date)
+  AND (:from_date IS NULL OR trade_date >= :from_date)
+  AND (:to_date IS NULL OR trade_date <= :to_date)
+ORDER BY ts_ns DESC, id ASC
+LIMIT :limit;
+```
+
+Optional filters:
+
+| CLI option | SQL parameter | Applied as |
+|---|---|---|
+| `--symbol` | `:symbol` | exact match on `symbol` |
+| `--gateway` | `:gateway` | match either buy or sell gateway |
+| `--date` | `:date` | exact match on `trade_date` |
+| `--from` | `:from_date` | `trade_date >= :from_date` |
+| `--to` | `:to_date` | `trade_date <= :to_date` |
+| `--limit` | `:limit` | `LIMIT :limit` |
+
+---
+
+#### F) COMMAND VERB: `exposure`
+
+| Item | Value |
+|---|---|
+| Primary source | `gateway_symbol_positions` table |
+| Primary goal | Return net/gross notional style exposure rows |
+| Default ordering | `ABS(net_qty * mark_price) DESC, gateway_id ASC, symbol ASC` |
+
+Principal SQL:
+
+```sql
+SELECT
+  gateway_id,
+  symbol,
+  net_qty,
+  mark_price,
+  (net_qty * mark_price) AS net_notional,
+  ABS(net_qty * mark_price) AS gross_notional,
+  realized_pnl,
+  unrealized_pnl,
+  (realized_pnl + unrealized_pnl) AS total_pnl
+FROM gateway_symbol_positions
+WHERE (:gateway IS NULL OR gateway_id = :gateway)
+  AND (:symbol IS NULL OR symbol = :symbol)
+ORDER BY ABS(net_qty * mark_price) DESC, gateway_id ASC, symbol ASC
+LIMIT :limit;
+```
+
+Optional filters:
+
+| CLI option | SQL parameter | Applied as |
+|---|---|---|
+| `--gateway` | `:gateway` | exact match on `gateway_id` |
+| `--symbol` | `:symbol` | exact match on `symbol` |
+| `--limit` | `:limit` | `LIMIT :limit` |
+
+---
+
+#### G) COMMAND VERB: `symbols`
+
+| Item | Value |
+|---|---|
+| Primary source | `gateway_daily_summary` + `gateway_symbol_positions` |
+| Primary goal | Return symbol-level traded and open-position totals |
+| Default ordering | `symbol ASC` |
+
+Principal SQL:
+
+```sql
+WITH daily_totals AS (
+  SELECT
+    symbol,
+    SUM(traded_qty) AS traded_qty,
+    SUM(traded_notional) AS traded_notional,
+    SUM(realized_pnl) AS realized_pnl
+  FROM gateway_daily_summary
+  WHERE (:date IS NULL OR trade_date = :date)
+    AND (:from_date IS NULL OR trade_date >= :from_date)
+    AND (:to_date IS NULL OR trade_date <= :to_date)
+  GROUP BY symbol
+),
+open_totals AS (
+  SELECT
+    symbol,
+    SUM(net_qty) AS open_net_qty,
+    SUM(unrealized_pnl) AS open_unrealized_pnl
+  FROM gateway_symbol_positions
+  GROUP BY symbol
+)
+SELECT
+  d.symbol,
+  d.traded_qty,
+  d.traded_notional,
+  d.realized_pnl,
+  COALESCE(o.open_net_qty, 0) AS open_net_qty,
+  COALESCE(o.open_unrealized_pnl, 0.0) AS open_unrealized_pnl
+FROM daily_totals d
+LEFT JOIN open_totals o ON o.symbol = d.symbol
+ORDER BY d.symbol ASC
+LIMIT :limit;
+```
+
+Optional filters:
+
+| CLI option | SQL parameter | Applied as |
+|---|---|---|
+| `--date` | `:date` | exact match on `trade_date` in daily rollup |
+| `--from` | `:from_date` | `trade_date >= :from_date` |
+| `--to` | `:to_date` | `trade_date <= :to_date` |
+| `--limit` | `:limit` | `LIMIT :limit` |
+
+---
+
+#### H) COMMAND VERB: `dates`
+
+| Item | Value |
+|---|---|
+| Primary source | `trade_events` (default) or `daily_exchange_totals` (`--with-totals`) |
+| Primary goal | Return available dates or per-date totals |
+| Default ordering | `trade_date DESC` |
+
+Principal SQL (default mode):
+
+```sql
+SELECT DISTINCT
+  trade_date
+FROM trade_events
+WHERE (:symbol IS NULL OR symbol = :symbol)
+  AND (:gateway IS NULL OR buy_gateway_id = :gateway OR sell_gateway_id = :gateway)
+  AND (:from_date IS NULL OR trade_date >= :from_date)
+  AND (:to_date IS NULL OR trade_date <= :to_date)
+ORDER BY trade_date DESC
+LIMIT :limit;
+```
+
+Principal SQL (`--with-totals` mode):
+
+```sql
+SELECT
+  trade_date,
+  traded_qty_total,
+  traded_notional_total,
+  net_amount_total
+FROM daily_exchange_totals
+WHERE (:from_date IS NULL OR trade_date >= :from_date)
+  AND (:to_date IS NULL OR trade_date <= :to_date)
+ORDER BY trade_date DESC
+LIMIT :limit;
+```
+
+Optional filters:
+
+| CLI option | SQL parameter | Applied as |
+|---|---|---|
+| `--symbol` | `:symbol` | default mode date extraction from filtered trades |
+| `--gateway` | `:gateway` | default mode date extraction for one gateway |
+| `--from` | `:from_date` | lower date bound |
+| `--to` | `:to_date` | upper date bound |
+| `--limit` | `:limit` | `LIMIT :limit` |
+| `--with-totals` | n/a | choose totals SQL variant |
+
+---
+
+#### I) COMMAND VERB: `health`
+
+| Item | Value |
+|---|---|
+| Primary source | `trade_events`, `gateway_symbol_positions`, `gateway_daily_summary` |
+| Primary goal | Return DB counters and freshness metadata |
+| Default ordering | single-row result |
+
+Principal SQL:
+
+```sql
+WITH
+trade_rows AS (
+  SELECT COUNT(*) AS c, MAX(ts_ns) AS max_ts
+  FROM trade_events
+),
+gsp_rows AS (
+  SELECT COUNT(*) AS c
+  FROM gateway_symbol_positions
+),
+gds_rows AS (
+  SELECT COUNT(*) AS c, MAX(updated_ts_ns) AS max_flush
+  FROM gateway_daily_summary
+)
+SELECT
+  :db_path AS db_path,
+  trade_rows.c AS trade_events_rows,
+  gsp_rows.c AS gateway_symbol_positions_rows,
+  gds_rows.c AS gateway_daily_summary_rows,
+  trade_rows.max_ts AS last_trade_ts_ns,
+  gds_rows.max_flush AS last_flush_ts_ns,
+  :wal_mode AS wal_mode
+FROM trade_rows, gsp_rows, gds_rows;
+```
+
+Optional filters:
+
+| CLI option | SQL parameter | Applied as |
+|---|---|---|
+| none | n/a | health is aggregate metadata, not filterable |
+
+Implementation note for `health`:
+
+- `:wal_mode` should be populated from a separate `PRAGMA journal_mode;` query.
+- `:db_path` should be set from the resolved runtime path.
 
 
 
