@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -41,7 +42,7 @@ def db_path(tmp_path: Path) -> Path:
 
 
 @pytest.fixture()
-def conn(db_path: Path) -> sqlite3.Connection:
+def conn(db_path: Path) -> Generator[sqlite3.Connection, None, None]:
     c = open_writer_connection(db_path)
     yield c
     c.close()

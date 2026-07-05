@@ -1034,10 +1034,13 @@ class TestClearingStop:
 
         fake_sock = MagicMock()
         with (
-            patch("edumatcher.clearing_v1.main.make_subscriber", return_value=fake_sock),
+            patch(
+                "edumatcher.clearing_v1.main.make_subscriber", return_value=fake_sock
+            ),
             patch("edumatcher.clearing_v1.main.DATA_DIR", tmp_path),
             patch(
-                "edumatcher.clearing_v1.main.CLEARING_REPORT_FILE", tmp_path / "report.csv"
+                "edumatcher.clearing_v1.main.CLEARING_REPORT_FILE",
+                tmp_path / "report.csv",
             ),
         ):
             proc = ClearingProcess()
