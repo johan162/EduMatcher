@@ -33,3 +33,19 @@ def test_parse_gateway_spec_invalid_role() -> None:
 def test_parse_gateway_spec_invalid_disconnect() -> None:
     with pytest.raises(ValueError, match="Invalid disconnect_behaviour"):
         parse_gateway_spec("GW1:TRADER:WHATEVER")
+
+
+def test_parse_gateway_spec_description() -> None:
+    parsed = parse_gateway_spec("MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary MM")
+    assert parsed.description == "Primary MM"
+    assert parsed.role == ParticipantRole.MARKET_MAKER
+
+
+def test_parse_gateway_spec_description_defaults_empty() -> None:
+    parsed = parse_gateway_spec("TRADER01")
+    assert parsed.description == ""
+
+
+def test_parse_gateway_spec_too_many_parts() -> None:
+    with pytest.raises(ValueError, match="expected ID"):
+        parse_gateway_spec("A:B:C:D:E")

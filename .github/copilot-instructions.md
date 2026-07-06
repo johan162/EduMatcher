@@ -9,6 +9,7 @@ State your assumptions explicitly. If uncertain, ask.
 If multiple interpretations exist, present them - don't pick silently.
 If a simpler approach exists, say so. Push back when warranted.
 If something is unclear, stop. Name what's confusing. Ask.
+
 2. Simplicity First
 Minimum code that solves the problem. Nothing speculative.
 
@@ -56,6 +57,8 @@ The canonical workflow is Poetry-first. Use `Makefile` targets as convenience wr
 
 All changes should have a clean run for black, flake8, mypy, pyright, and pytest locally before pushing. The CI will run these checks again, but it's faster to catch issues early.
 
+Remember to always run `pyright` after `mypy` to catch any type errors that mypy may have missed.
+
 ```bash
 # install the local dev environment
 poetry config virtualenvs.in-project true
@@ -83,14 +86,4 @@ poetry run twine check dist/*
 
 ```
 
-Useful wrappers that exist in this repo:
 
-```bash
-make install
-make check
-make test
-make test-short
-make docs
-make docs-serve
-make build
-```

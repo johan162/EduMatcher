@@ -103,6 +103,7 @@ class ConfigSpec:
     balf_gateway: BalfGatewaySpec | None = None
     api_gateways: tuple[ApiGatewaySpec, ...] = ()
     indices: tuple[IndexSpec, ...] = ()
+    combos: list[ComboSpec] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -168,6 +169,25 @@ class IndexSpec:
 
 
 @dataclass(frozen=True)
+class ComboLegSpec:
+    symbol: str
+    side: str
+    order_type: str
+    quantity: int
+    price: int | None = None
+    stop_price: int | None = None
+    smp_action: str = "NONE"
+
+
+@dataclass(frozen=True)
+class ComboSpec:
+    combo_id: str
+    combo_type: str = "AON"
+    tif: str = "DAY"
+    legs: tuple[ComboLegSpec, ...] = ()
+
+
+@dataclass(frozen=True)
 class ApiGatewaySpec:
     name: str = "default"
     enabled: bool = True
@@ -220,6 +240,9 @@ class ConfigBuilder:
         if self.spec.api_gateways:
             cfg["api_gateways"] = self._build_api_gateways()
         cfg["symbols"] = self._build_symbols()
+
+        if self.spec.combos:
+            cfg["market_maker_combos"] = self._build_combos()
 
         if self.spec.indices:
             cfg["indices"] = self._build_indices()
@@ -383,7 +406,11 @@ class ConfigBuilder:
         if self.spec.emit_mm_defaults:
             return True
         for override in self.spec.symbol_overrides.values():
-            if override.mm_spread_ticks is not None or override.mm_min_qty is not None:
+            if (
+                override.mm_spread_ticks is not None
+                or override.mm_min_qty is not None
+                or override.enforce_mm_obligation is not None
+            ):
                 return True
         return False
 
@@ -396,10 +423,19 @@ class ConfigBuilder:
 
         symbol_overrides: dict[str, Any] = {}
         for symbol, override in self.spec.symbol_overrides.items():
-            if override.mm_spread_ticks is None and override.mm_min_qty is None:
+            if (
+                override.mm_spread_ticks is None
+                and override.mm_min_qty is None
+                and override.enforce_mm_obligation is None
+            ):
                 continue
+            symbol_enforce = (
+                override.enforce_mm_obligation
+                if override.enforce_mm_obligation is not None
+                else self.spec.enforce_mm_obligations
+            )
             symbol_overrides[symbol] = {
-                "enforce_mm_obligation": self.spec.enforce_mm_obligations,
+                "enforce_mm_obligation": symbol_enforce,
                 "mm_max_spread_ticks": (
                     override.mm_spread_ticks
                     if override.mm_spread_ticks is not None
@@ -470,7 +506,7 @@ class ConfigBuilder:
             levels[level.name] = {
                 "price_shift_pct": level.shift_pct,
                 "halt_duration_ns": halt_ns,
-                "resumption_mode": "AUCTION",
+                "resumption_mode": level.resumption_mode,
             }
 
         return {
@@ -486,6 +522,8 @@ class ConfigBuilder:
                 "role": gw.role.value,
                 "disconnect_behaviour": gw.disconnect_behaviour.value,
             }
+            if gw.description:
+                payload["description"] = gw.description
             if gw.role == ParticipantRole.MARKET_MAKER:
                 payload["quote_refresh_policy"] = "INACTIVATE_ON_ANY_FILL"
             gateways.append(payload)
@@ -535,7 +573,9 @@ class ConfigBuilder:
 
             cb_levels: dict[str, dict[str, Any]] = {}
             for level_name in sorted(
-                set(override.cb_shift) | set(override.cb_halt_mins)
+                set(override.cb_shift)
+                | set(override.cb_halt_mins)
+                | set(override.cb_resumption_mode)
             ):
                 level_payload: dict[str, Any] = {}
                 if level_name in override.cb_shift:
@@ -548,6 +588,10 @@ class ConfigBuilder:
                         level_payload["halt_duration_ns"] = (
                             halt_mins * 60 * 1_000_000_000
                         )
+                if level_name in override.cb_resumption_mode:
+                    level_payload["resumption_mode"] = override.cb_resumption_mode[
+                        level_name
+                    ]
                 cb_levels[level_name] = level_payload
             if cb_levels:
                 payload["circuit_breaker"] = {"levels": cb_levels}
@@ -634,3 +678,27 @@ class ConfigBuilder:
             "tif": "DAY",
             "seed_once": True,
         }
+
+    def _build_combos(self) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
+        for combo in self.spec.combos:
+            result.append(
+                {
+                    "combo_id": combo.combo_id,
+                    "combo_type": combo.combo_type,
+                    "tif": combo.tif,
+                    "legs": [
+                        {
+                            "symbol": leg.symbol,
+                            "side": leg.side,
+                            "order_type": leg.order_type,
+                            "quantity": leg.quantity,
+                            "price": leg.price,
+                            "stop_price": leg.stop_price,
+                            "smp_action": leg.smp_action,
+                        }
+                        for leg in combo.legs
+                    ],
+                }
+            )
+        return result

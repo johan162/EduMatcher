@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any, cast
 
@@ -400,8 +401,11 @@ class TestClearingMainCli:
 class TestHandleEod:
     """Unit tests for ClearingProcess._handle_eod."""
 
-    def _process(self, db_path: Path, zmq_addr: str) -> "ClearingProcess":
-        return ClearingProcess(
+    @pytest.fixture()
+    def process(
+        self, db_path: Path, zmq_addr: str
+    ) -> Generator[ClearingProcess, None, None]:
+        p = ClearingProcess(
             pub_addr=zmq_addr,
             db_path=db_path,
             flush_size=100,
@@ -409,10 +413,15 @@ class TestHandleEod:
             print_every=0,
             retention_days=3650,
         )
+        try:
+            yield p
+        finally:
+            p._conn.close()
 
-    def test_eod_writes_session_event(self, db_path: Path, zmq_addr: str) -> None:
+    def test_eod_writes_session_event(
+        self, process: ClearingProcess, db_path: Path
+    ) -> None:
         """EOD handler with last_trade_price should write an EOD session_events row."""
-        p = self._process(db_path, zmq_addr)
         payload = {
             "books": [
                 {
@@ -423,7 +432,7 @@ class TestHandleEod:
                 }
             ]
         }
-        p._handle_eod(payload)
+        process._handle_eod(payload)
         conn = open_writer_connection(db_path)
         rows = query_session_events(conn, event_type="EOD")
         conn.close()
@@ -431,14 +440,13 @@ class TestHandleEod:
         assert rows[0]["event_type"] == "EOD"
 
     def test_eod_uses_bid_ask_mid_when_no_last_trade(
-        self, db_path: Path, zmq_addr: str
+        self, process: ClearingProcess, db_path: Path
     ) -> None:
         """When last_trade_price is absent, mid = (bid+ask)//2 is used."""
         import json
 
-        p = self._process(db_path, zmq_addr)
         payload = {"books": [{"symbol": "MSFT", "best_bid": 4000, "best_ask": 4100}]}
-        p._handle_eod(payload)
+        process._handle_eod(payload)
         conn = open_writer_connection(db_path)
         rows = query_session_events(conn, event_type="EOD")
         conn.close()
@@ -448,23 +456,21 @@ class TestHandleEod:
         assert data["eod_marks"].get("MSFT") == 4050
 
     def test_eod_empty_books_still_writes_sentinel(
-        self, db_path: Path, zmq_addr: str
+        self, process: ClearingProcess, db_path: Path
     ) -> None:
         """EOD with no books still writes the sentinel row."""
-        p = self._process(db_path, zmq_addr)
-        p._handle_eod({"books": []})
+        process._handle_eod({"books": []})
         conn = open_writer_connection(db_path)
         rows = query_session_events(conn, event_type="EOD")
         conn.close()
         assert len(rows) == 1
 
     def test_eod_applies_mark_to_existing_position(
-        self, db_path: Path, zmq_addr: str
+        self, process: ClearingProcess, db_path: Path
     ) -> None:
         """EOD should update mark_price in the ledger for open positions."""
-        p = self._process(db_path, zmq_addr)
         # Manually create a position in the ledger.
-        p._ledger.apply_trade(
+        process._ledger.apply_trade(
             symbol="AAPL",
             buy_gateway_id="GW_BUY",
             sell_gateway_id="GW_SELL",
@@ -474,22 +480,22 @@ class TestHandleEod:
             ts_ns=1_000_000,
             ingest_ts_ns=1_000_001,
         )
-        p._handle_eod({"books": [{"symbol": "AAPL", "last_trade_price": 12000}]})
-        pos = p._ledger.position("GW_BUY", "AAPL")
+        process._handle_eod({"books": [{"symbol": "AAPL", "last_trade_price": 12000}]})
+        pos = process._ledger.position("GW_BUY", "AAPL")
         assert pos is not None
         assert pos.mark_price == 12000
 
-    def test_eod_does_not_raise_on_bad_payload(
-        self, db_path: Path, zmq_addr: str
-    ) -> None:
+    def test_eod_does_not_raise_on_bad_payload(self, process: ClearingProcess) -> None:
         """Malformed payload should be silently absorbed, not crash."""
-        p = self._process(db_path, zmq_addr)
-        p._handle_eod(cast(dict[str, Any], None))
+        process._handle_eod(cast(dict[str, Any], None))
 
 
 class TestHandleGatewayConnect:
-    def _process(self, db_path: Path, zmq_addr: str) -> "ClearingProcess":
-        return ClearingProcess(
+    @pytest.fixture()
+    def process(
+        self, db_path: Path, zmq_addr: str
+    ) -> Generator[ClearingProcess, None, None]:
+        p = ClearingProcess(
             pub_addr=zmq_addr,
             db_path=db_path,
             flush_size=100,
@@ -497,10 +503,13 @@ class TestHandleGatewayConnect:
             print_every=0,
             retention_days=3650,
         )
+        try:
+            yield p
+        finally:
+            p._conn.close()
 
-    def test_connect_records_row(self, db_path: Path, zmq_addr: str) -> None:
-        p = self._process(db_path, zmq_addr)
-        p._handle_gateway_connect({"gateway_id": "TRD01"})
+    def test_connect_records_row(self, process: ClearingProcess, db_path: Path) -> None:
+        process._handle_gateway_connect({"gateway_id": "TRD01"})
         conn = open_writer_connection(db_path)
         rows = query_sessions(conn, gateway="TRD01")
         conn.close()
@@ -508,29 +517,31 @@ class TestHandleGatewayConnect:
         assert rows[0]["disconnected_at_ns"] is None
 
     def test_connect_stores_ts_in_gw_connect_dict(
-        self, db_path: Path, zmq_addr: str
+        self, process: ClearingProcess
     ) -> None:
-        p = self._process(db_path, zmq_addr)
-        p._handle_gateway_connect({"gateway_id": "TRD02"})
-        assert "TRD02" in p._gw_connect_ts
+        process._handle_gateway_connect({"gateway_id": "TRD02"})
+        assert "TRD02" in process._gw_connect_ts
 
-    def test_empty_gateway_id_is_ignored(self, db_path: Path, zmq_addr: str) -> None:
-        p = self._process(db_path, zmq_addr)
-        p._handle_gateway_connect({"gateway_id": ""})
+    def test_empty_gateway_id_is_ignored(
+        self, process: ClearingProcess, db_path: Path
+    ) -> None:
+        process._handle_gateway_connect({"gateway_id": ""})
         conn = open_writer_connection(db_path)
         count = conn.execute("SELECT COUNT(*) FROM gateway_sessions").fetchone()[0]
         conn.close()
         assert count == 0
 
-    def test_uppercase_normalisation(self, db_path: Path, zmq_addr: str) -> None:
-        p = self._process(db_path, zmq_addr)
-        p._handle_gateway_connect({"gateway_id": "trader01"})  # lowercase
-        assert "TRADER01" in p._gw_connect_ts
+    def test_uppercase_normalisation(self, process: ClearingProcess) -> None:
+        process._handle_gateway_connect({"gateway_id": "trader01"})  # lowercase
+        assert "TRADER01" in process._gw_connect_ts
 
 
 class TestHandleGatewayDisconnect:
-    def _process(self, db_path: Path, zmq_addr: str) -> "ClearingProcess":
-        return ClearingProcess(
+    @pytest.fixture()
+    def process(
+        self, db_path: Path, zmq_addr: str
+    ) -> Generator[ClearingProcess, None, None]:
+        p = ClearingProcess(
             pub_addr=zmq_addr,
             db_path=db_path,
             flush_size=100,
@@ -538,11 +549,16 @@ class TestHandleGatewayDisconnect:
             print_every=0,
             retention_days=3650,
         )
+        try:
+            yield p
+        finally:
+            p._conn.close()
 
-    def test_disconnect_updates_row(self, db_path: Path, zmq_addr: str) -> None:
-        p = self._process(db_path, zmq_addr)
-        p._handle_gateway_connect({"gateway_id": "GW_D"})
-        p._handle_gateway_disconnect({"gateway_id": "GW_D", "reason": "Timeout"})
+    def test_disconnect_updates_row(
+        self, process: ClearingProcess, db_path: Path
+    ) -> None:
+        process._handle_gateway_connect({"gateway_id": "GW_D"})
+        process._handle_gateway_disconnect({"gateway_id": "GW_D", "reason": "Timeout"})
         conn = open_writer_connection(db_path)
         rows = query_sessions(conn, gateway="GW_D")
         conn.close()
@@ -551,19 +567,17 @@ class TestHandleGatewayDisconnect:
         assert rows[0]["disconnect_reason"] == "Timeout"
 
     def test_disconnect_removes_from_connect_dict(
-        self, db_path: Path, zmq_addr: str
+        self, process: ClearingProcess
     ) -> None:
-        p = self._process(db_path, zmq_addr)
-        p._handle_gateway_connect({"gateway_id": "GW_E"})
-        p._handle_gateway_disconnect({"gateway_id": "GW_E"})
-        assert "GW_E" not in p._gw_connect_ts
+        process._handle_gateway_connect({"gateway_id": "GW_E"})
+        process._handle_gateway_disconnect({"gateway_id": "GW_E"})
+        assert "GW_E" not in process._gw_connect_ts
 
     def test_disconnect_without_prior_connect_is_ignored(
-        self, db_path: Path, zmq_addr: str
+        self, process: ClearingProcess
     ) -> None:
         """Disconnect with no matching connect_ts should not raise."""
-        p = self._process(db_path, zmq_addr)
-        p._handle_gateway_disconnect({"gateway_id": "UNKNOWN"})
+        process._handle_gateway_disconnect({"gateway_id": "UNKNOWN"})
 
     def test_retention_days_prunes_old_rows(self, db_path: Path, zmq_addr: str) -> None:
         """retention_days=1 should prune a row from year 2000."""

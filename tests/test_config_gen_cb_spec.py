@@ -26,3 +26,24 @@ def test_parse_cb_spec_invalid_shift() -> None:
 def test_parse_cb_spec_invalid_halt() -> None:
     with pytest.raises(ValueError, match="halt_mins"):
         parse_cb_spec("L1:0.07:-1")
+
+
+def test_parse_cb_spec_resumption_mode_auction() -> None:
+    parsed = parse_cb_spec("L1:0.07:5:AUCTION")
+    assert parsed.resumption_mode == "AUCTION"
+
+
+def test_parse_cb_spec_resumption_mode_continuous() -> None:
+    parsed = parse_cb_spec("L2:0.13:15:CONTINUOUS")
+    assert parsed.resumption_mode == "CONTINUOUS"
+    assert parsed.halt_mins == 15
+
+
+def test_parse_cb_spec_resumption_mode_default_is_auction() -> None:
+    parsed = parse_cb_spec("L1:0.07:5")
+    assert parsed.resumption_mode == "AUCTION"
+
+
+def test_parse_cb_spec_resumption_mode_invalid() -> None:
+    with pytest.raises(ValueError, match="AUCTION or CONTINUOUS"):
+        parse_cb_spec("L1:0.07:5:RANDOM")

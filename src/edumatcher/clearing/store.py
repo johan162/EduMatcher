@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -327,7 +326,11 @@ def open_writer_connection(db_path: Path) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db_path), check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    apply_schema(conn)
+    try:
+        apply_schema(conn)
+    except Exception:
+        conn.close()
+        raise
     return conn
 
 
@@ -466,8 +469,6 @@ def prune_old_events(conn: sqlite3.Connection, retention_days: int = 90) -> int:
 
     Returns the number of rows deleted.
     """
-    cutoff = date.today().isoformat()  # placeholder; real cutoff computed in SQL
-    _ = cutoff  # not used directly; SQLite computes the date
     cur = conn.execute(
         "DELETE FROM trade_events WHERE trade_date < date('now', ?)",
         (f"-{retention_days} days",),
@@ -1140,6 +1141,10 @@ def query_reconcile(
       AND s.gateway_id = r.gateway_id
       AND s.symbol     = r.symbol
     WHERE ABS(r.raw_qty - COALESCE(s.summary_qty, 0)) > 0
+       -- Notional values are stored as REAL after dividing by tick scale, so
+       -- floating-point rounding can produce sub-cent differences.  0.0001 is
+       -- well below any meaningful tick increment (minimum tick = 0.01) while
+       -- still catching genuine mismatches.
        OR ABS(r.raw_notional - COALESCE(s.summary_notional, 0)) > 0.0001
     ORDER BY r.trade_date ASC, r.side ASC, r.gateway_id ASC, r.symbol ASC
     """

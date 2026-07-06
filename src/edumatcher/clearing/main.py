@@ -51,6 +51,11 @@ FLUSH_SIZE: int = 100
 FLUSH_INTERVAL_SEC: float = 5.0
 _TIMER_POLL_SEC: float = 0.5
 _RETENTION_DAYS: int = 90
+# Unix epoch 2001-09-09T01:46:40Z expressed in nanoseconds.
+# Any timestamp value above this is already in nanoseconds; any value below
+# is treated as seconds and multiplied by 1e9.  Seconds-based timestamps
+# cannot plausibly exceed this value for ~30 billion years.
+_NS_THRESHOLD: int = 1_000_000_000_000_000_000  # 1e18 ns
 
 console = Console()
 
@@ -90,11 +95,11 @@ def _parse_tick_decimals(payload: dict[str, Any]) -> int:
 
 def _to_timestamp_ns(raw: Any) -> int:
     if isinstance(raw, float):
-        if raw > 1_000_000_000_000:
+        if raw > _NS_THRESHOLD:
             return int(raw)
         return int(raw * 1_000_000_000)
     ts = int(raw)
-    if ts > 1_000_000_000_000:
+    if ts > _NS_THRESHOLD:
         return ts
     return ts * 1_000_000_000
 
@@ -162,7 +167,7 @@ class ClearingProcess:
         self._trade_count = 0
 
         self._running = False
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._last_flush_mono = time.monotonic()
 
         # Track the latest connect_at_ns per gateway so we can match the
@@ -363,14 +368,7 @@ class ClearingProcess:
             ts_ns = now_ns()
             trade_date = trade_date_utc(ts_ns)
 
-            # 1. Flush all buffered trades first.
-            with self._lock:
-                self._flush()
-
-            # 2. EOD mark-to-market: update mark_price from EOD snapshot.
-            # payload typically carries a list of book snapshots under key
-            # 'books', each with 'symbol', 'last_trade_price', 'best_bid',
-            # 'best_ask'.  Apply whatever is present.
+            # Parse EOD marks before acquiring the lock.
             eod_marks: dict[str, int] = {}
             books = payload.get("books") or []
             for book in books:
@@ -383,8 +381,12 @@ class ClearingProcess:
                 elif sym and best_bid is not None and best_ask is not None:
                     eod_marks[sym] = (int(best_bid) + int(best_ask)) // 2
 
-            if eod_marks:
-                with self._lock:
+            with self._lock:
+                # 1. Flush all buffered trades first.
+                self._flush()
+
+                # 2. EOD mark-to-market: update mark_price from EOD snapshot.
+                if eod_marks:
                     for pos in self._ledger.all_positions():
                         mark = eod_marks.get(pos.symbol)
                         if mark is not None:
@@ -399,19 +401,19 @@ class ClearingProcess:
                     flush_batch(self._conn, [], position_rows, daily_rows)
                     self._ledger.clear_batch()
 
-            # 3. Write EOD sentinel row.
-            record_session_event(
-                self._conn,
-                event_type="EOD",
-                ts_ns=ts_ns,
-                trade_date=trade_date,
-                payload_json=json.dumps(
-                    {
-                        "eod_marks": eod_marks,
-                        "symbols_count": len(eod_marks),
-                    }
-                ),
-            )
+                # 3. Write EOD sentinel row.
+                record_session_event(
+                    self._conn,
+                    event_type="EOD",
+                    ts_ns=ts_ns,
+                    trade_date=trade_date,
+                    payload_json=json.dumps(
+                        {
+                            "eod_marks": eod_marks,
+                            "symbols_count": len(eod_marks),
+                        }
+                    ),
+                )
             console.print(
                 f"[CLEARING] EOD received — {len(eod_marks)} symbol mark(s) applied,"
                 f" session_events row written for {trade_date}."
@@ -432,11 +434,12 @@ class ClearingProcess:
                 return
             ts_ns = now_ns()
             self._gw_connect_ts[gateway_id] = ts_ns
-            record_gateway_connect(
-                self._conn,
-                gateway_id=gateway_id,
-                connected_at_ns=ts_ns,
-            )
+            with self._lock:
+                record_gateway_connect(
+                    self._conn,
+                    gateway_id=gateway_id,
+                    connected_at_ns=ts_ns,
+                )
         except Exception as exc:
             console.print(
                 f"[CLEARING] WARNING: error handling gateway_connect: {exc}",
@@ -454,23 +457,22 @@ class ClearingProcess:
             if not gateway_id:
                 return
 
-            # Force flush so any buffered fills for this gateway are persisted
-            # before the engine-side order cancellations arrive.
-            with self._lock:
-                self._flush()
-
             ts_ns = now_ns()
             reason = payload.get("reason") or payload.get("disconnect_reason")
             connect_ts = self._gw_connect_ts.pop(gateway_id, 0)
 
-            if connect_ts:
-                record_gateway_disconnect(
-                    self._conn,
-                    gateway_id=gateway_id,
-                    connected_at_ns=connect_ts,
-                    disconnected_at_ns=ts_ns,
-                    reason=str(reason) if reason else None,
-                )
+            with self._lock:
+                # Force flush so any buffered fills for this gateway are persisted
+                # before the engine-side order cancellations arrive.
+                self._flush()
+                if connect_ts:
+                    record_gateway_disconnect(
+                        self._conn,
+                        gateway_id=gateway_id,
+                        connected_at_ns=connect_ts,
+                        disconnected_at_ns=ts_ns,
+                        reason=str(reason) if reason else None,
+                    )
         except Exception as exc:
             console.print(
                 f"[CLEARING] WARNING: error handling gateway_disconnect: {exc}",

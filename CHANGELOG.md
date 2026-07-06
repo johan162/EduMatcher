@@ -1,3 +1,30 @@
+## [v0.15.0] - 2026-07-06
+
+Release Type: minor
+
+### 📋 Summary
+This release focus on stability improvements for the new clearing process as well as adding the last missing configuration options to `pm-config-gen`for it to be able to generate all supported configurations. In addition, the clearing chapter of the user-guide has been updated to reflect the latest clearing design and implementation details as well as improved P&L calculation description. The user-guide cover image has also been updated to better reflect the actual content.
+
+### ✨ Additions
+- Added missing market-maker gateway configuration to `pm-config-gen`
+
+### 🚀 Improvements
+- Updated all example configurations in the user-guide to cover the latest `pm-config-gen` options
+
+### 🐛 Bug Fixes
+- Fixed a possible deadlock in a rare concurrent execution path in clearing process
+- Fixed a unit misidentification bug (ns vs. ms) that could produce incorrect timing calculations in the clearing process
+
+### 📚 Documentation
+- Corrected a misleading warning in the configuration chapter that described BALF and CALF as future/unimplemented protocols — both are fully supported via top-level `balf_gateway` and `market_data_gateway` config keys
+- Improved cross-references between user-guide chapters
+- Updated user-guide cover image
+- Improved P&L calculation description in the clearing chapter of the user-guide
+
+### 🛠 Internal
+- Updated Copilot assistant instructions for tool usage conventions
+- Added per-chapter PDF generation capability to the user-guide docs build system
+
 ## [v0.14.1] - 2026-07-05
 
 Release Type: patch

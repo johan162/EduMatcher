@@ -138,7 +138,7 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="+",
         default=None,
         metavar="CB_SPEC",
-        help="NAME:SHIFT_PCT[:HALT_MINS] entries.",
+        help="NAME:SHIFT_PCT[:HALT_MINS[:RESUMPTION_MODE]] entries. RESUMPTION_MODE is AUCTION (default) or CONTINUOUS.",
     )
     parser.add_argument(
         "--cb-window-ns",
@@ -668,6 +668,18 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         metavar="ID:PATH",
         help="Override state_file path for an index. Can be repeated.",
+    )
+
+    parser.add_argument(
+        "--combo",
+        action="append",
+        default=[],
+        metavar="COMBO_SPEC",
+        help=(
+            "Seed a market-maker combo order: ID:TYPE:TIF:SYM/SIDE/TYPE/QTY[/PRICE[/STOP[/SMP]]],...\n"
+            "Example: SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550\n"
+            "Can be repeated."
+        ),
     )
 
     parser.add_argument(

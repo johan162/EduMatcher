@@ -34,20 +34,20 @@ The sample `engine_config.yaml` intentionally keeps the
 live configuration minimal and places the full parser-recognized shape in
 comments. This page explains that shape in operational terms.
 
-!!! warning "Only `gateways.alf` is parsed today"
-    BALF and CALF are documented protocol designs, but `gateways.balf` and
-    `gateways.calf` are not active engine configuration sections in the current
-    parser. Do not add them to production configs expecting runtime behavior.
+!!! note "`gateways.alf` is the only sub-key under `gateways:`"
+    The `gateways:` mapping only contains `alf`. BALF and CALF gateways are
+    configured via separate **top-level** keys (`balf_gateway` and
+    `market_data_gateway`) and are read by their own processes, not by
+    `pm-engine`.
 
-Protocol-specific gateway sections are expected to live under `gateways:` in
-`engine_config.yaml` as protocols become implemented. Currently only
-`gateways.alf` is active; `gateways.balf` and `gateways.calf` are reserved for
-future releases.
+Each protocol's configuration lives in a different part of `engine_config.yaml`:
 
-- **ALF** uses a pipe-delimited text format (`FIELD=VALUE|FIELD=VALUE`) delivered through the interactive `pm-alf-console` terminal process. This is the only order-entry protocol currently available.
-- **BALF** will use fixed-width binary frames with sequence numbers and integer-scaled prices, targeting programmatic clients where text-parsing latency is undesirable. See the BALF appendix in the User Guide for the message layout specification.
-- **CALF** will provide a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection. See the CALF appendix in the User Guide for the full protocol specification.
-
+- **ALF** — configured under `gateways.alf`; used by `pm-engine` to authenticate order-entry connections from `pm-alf-console` and `pm-alf-gwy`, as well as `pm-balf-gwy` (the gateway id used in the BALF configurations must exist under `gateways.alf`). 
+  Uses a pipe-delimited text format (`FIELD=VALUE|FIELD=VALUE`).
+- **BALF** — configured under the top-level `balf_gateway` key; used by `pm-balf-gwy`. Uses fixed-width binary frames with sequence numbers and integer-scaled prices, targeting programmatic clients where text-parsing overhead is undesirable. See [BALF Gateway](25-balf-gateway.md) for more usage and [BALF Protocol](91-balf-protocol.md) for the full specification.
+- **CALF** — configured under the top-level `market_data_gateway` key; used by `pm-md-gwy`. Provides a subscribe/unsubscribe market-data feed delivering order-book snapshots, trade prints, and session-state changes over a persistent TCP connection with sequence-based gap detection. See [Market Data Feed](20-market-data-feed.md) for usage and [CALF Protocol](92-app-calf-protocol.md) for the full protocol specification.
+- **RALF** — configured under the top-level `post_trade_gateway` key; used by `pm-ralf-gwy`. Provides a replayable audit feed of all executed trades, including the original order details, over a persistent TCP connection with sequence-based gap detection. See [Post Trade](18-post-trade.md) for usage and [RALF Protocol](93-ralf-protocol.md) for the full protocol specification.
+- A Full overview of all protocol and their intended usage can be found in [Protocols Overview](19-protocol-overview.md).
 
 ## File Location
 
@@ -187,7 +187,7 @@ Required inputs:
 | Option                             | Type              | Description                               |
 |------------------------------------|-------------------|-------------------------------------------|
 | `--symbols SYM [SYM ...]`          | Repeatable tokens | Symbol universe (uppercased on parse)     |
-| `--gateways GW_SPEC [GW_SPEC ...]` | Repeatable tokens | Gateway specs as `ID[:ROLE[:DISCONNECT]]` |
+| `--gateways GW_SPEC [GW_SPEC ...]` | Repeatable tokens | Gateway specs as `ID[:ROLE[:DISCONNECT[:DESCRIPTION]]]` |
 
 Session and schedule options:
 
@@ -214,7 +214,7 @@ Core engine and risk options:
 | `--symbol-dynamic-band SYM:PCT`          | Repeatable       | none            | Per-symbol `collar.dynamic_band_pct` override       |
 | `--symbol-risk-level SYM:LEVEL`          | Repeatable       | none            | Per-symbol `symbols.<SYM>.level` override           |
 | `--risk-level NAME:STATIC[:DYNAMIC]`     | Repeatable       | none            | Add named risk levels under `risk_controls.levels`  |
-| `--cb-levels NAME:SHIFT[:HALT_MINS] ...` | List             | built-in ladder | Circuit-breaker level specs                         |
+| `--cb-levels NAME:SHIFT[:HALT_MINS[:RESUMPTION_MODE]] ...` | List | built-in ladder | Circuit-breaker level specs; `RESUMPTION_MODE` is `AUCTION` (default) or `CONTINUOUS` |
 | `--cb-window-ns NS`                      | int (`> 0`)      | `300000000000`  | Circuit-breaker reference window                    |
 
 Market-maker and symbol defaults:
@@ -310,6 +310,12 @@ API gateway options:
 | `--api-gateway-engine-reply-sec SECS` | float (`> 0`) | `3.0` | Engine request/reply timeout |
 | `--api-gateway-wait-ack-sec SECS` | float (`> 0`) | `3.0` | `?wait=ack` timeout |
 
+Combo seed options:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--combo COMBO_SPEC` | Repeatable | none | Seed a `market_maker_combos` entry; format described in [`--combo` format](#--combo-format) |
+
 Index options:
 
 | Option                                  | Type       | Default         | Description                                                                                 |
@@ -364,7 +370,7 @@ connect from other machines.
 Each gateway token is:
 
 ```text
-ID[:ROLE[:DISCONNECT]]
+ID[:ROLE[:DISCONNECT[:DESCRIPTION]]]
 ```
 
 Examples:
@@ -372,6 +378,10 @@ Examples:
 - `TRADER01`
 - `MM01:MARKET_MAKER`
 - `OPS01:ADMIN:LEAVE_ALL`
+- `MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary market maker`
+
+The optional fourth field sets `description` on the generated gateway entry.
+It may contain spaces; the entire string after the third colon is used as-is.
 
 Role defaults for disconnect behavior:
 
@@ -396,21 +406,24 @@ pm-config-gen \
   --symbols AAPL MSFT \
   --gateways TRADER01 MM01:MARKET_MAKER \
   --symbol-opts AAPL:tick_decimals=2,level=L1,mm_spread_ticks=8 \
-  --symbol-opts MSFT:dynamic_band=0.03,cb_halt_l1=10
+  --symbol-opts MSFT:dynamic_band=0.03,cb_halt_l1=10,cb_resumption_l1=CONTINUOUS \
+  --symbol-opts AAPL:enforce_mm_obligation=true
 ```
 
 Supported `KEY` values:
 
-| Key                                           | Value type         | Effect                                            |
-|-----------------------------------------------|--------------------|---------------------------------------------------|
-| `tick_decimals`                               | int `0..8`         | Override symbol tick precision                    |
-| `static_band`                                 | float `(0,1)`      | Symbol collar static band                         |
-| `dynamic_band`                                | float `(0,1)`      | Symbol collar dynamic band                        |
-| `cb_shift_l1` / `cb_shift_l2` / `cb_shift_l3` | float `(0,1)`      | Override CB level shift pct                       |
-| `cb_halt_l1` / `cb_halt_l2` / `cb_halt_l3`    | int `>= 0` minutes | Override CB halt duration (`0` means rest-of-day) |
-| `level`                                       | string             | Symbol risk level key                             |
-| `mm_spread_ticks`                             | int `> 0`          | Symbol MM spread threshold                        |
-| `mm_min_qty`                                  | int `> 0`          | Symbol MM minimum quantity                        |
+| Key                                                                       | Value type                | Effect                                                              |
+|---------------------------------------------------------------------------|---------------------------|---------------------------------------------------------------------|
+| `tick_decimals`                                                            | int `0..8`                | Override symbol tick precision                                      |
+| `static_band`                                                              | float `(0,1)`             | Symbol collar static band                                           |
+| `dynamic_band`                                                             | float `(0,1)`             | Symbol collar dynamic band                                          |
+| `cb_shift_l1` / `cb_shift_l2` / `cb_shift_l3`                             | float `(0,1)`             | Override CB level shift pct                                         |
+| `cb_halt_l1` / `cb_halt_l2` / `cb_halt_l3`                                | int `>= 0` minutes        | Override CB halt duration (`0` means rest-of-day)                  |
+| `cb_resumption_l1` / `cb_resumption_l2` / `cb_resumption_l3`              | `AUCTION` or `CONTINUOUS` | Override CB level resumption mode for that symbol                   |
+| `level`                                                                    | string                    | Symbol risk level key                                               |
+| `mm_spread_ticks`                                                          | int `> 0`                 | Symbol MM spread threshold                                          |
+| `mm_min_qty`                                                               | int `> 0`                 | Symbol MM minimum quantity                                          |
+| `enforce_mm_obligation`                                                    | `true` or `false`         | Override per-symbol `enforce_mm_obligation` in `mm_obligation_defaults.symbols` |
 
 For the two most common collar overrides, you can also use explicit flags:
 
@@ -444,6 +457,84 @@ The generated `symbols:` section also includes an `outstanding_shares` field
 for every symbol. Use that as the slow-changing input for statistics and future
 index-style consumers; market capitalization can then be derived from it and
 the latest price instead of being stored as a separate static field.
+
+### `--combo` format
+
+`--combo` seeds one `market_maker_combos` entry per flag:
+
+```text
+ID:TYPE:TIF:LEG[,LEG,...]
+```
+
+Where each `LEG` is:
+
+```text
+SYM/SIDE/ORDER_TYPE/QTY[/PRICE[/STOP_PRICE[/SMP_ACTION]]]
+```
+
+| Part         | Required | Accepted values                                                                       | Default  |
+|--------------|:--------:|---------------------------------------------------------------------------------------|----------|
+| `ID`         | Yes      | Non-empty string; becomes `combo_id`                                                  | —        |
+| `TYPE`       | Yes      | `AON`                                                                                 | —        |
+| `TIF`        | Yes      | `DAY`, `GTC`, `ATO`, `ATC`                                                            | —        |
+| `SYM`        | Yes      | Symbol in `--symbols`; unique within the combo                                        | —        |
+| `SIDE`       | Yes      | `BUY`, `SELL`                                                                         | —        |
+| `ORDER_TYPE` | Yes      | `LIMIT`, `MARKET`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP`    | —        |
+| `QTY`        | Yes      | Positive integer                                                                      | —        |
+| `PRICE`      | No       | Integer tick price; omit or use `null` for market orders                              | `null`   |
+| `STOP_PRICE` | No       | Integer tick stop price for stop orders; omit or use `null` otherwise                 | `null`   |
+| `SMP_ACTION` | No       | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`                           | `NONE`   |
+
+Constraints: at least 2 and at most 10 legs; each `SYM` must appear in `--symbols`; duplicate leg symbols within one combo are rejected.
+
+!!! note "Combo leg prices are integer ticks"
+    Like hand-written `market_maker_combos`, combo legs use integer tick prices.
+    With `tick_decimals: 2`, `20950` represents `$209.50`.
+
+Minimal two-leg example:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT \
+  --gateways TRADER01 \
+  --combo "SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550" \
+  --output engine_config.yaml
+```
+
+Generated `market_maker_combos` section:
+
+```yaml
+market_maker_combos:
+  - combo_id: SEED-PAIR
+    combo_type: AON
+    tif: DAY
+    legs:
+      - symbol: AAPL
+        side: BUY
+        order_type: LIMIT
+        quantity: 100
+        price: 20950
+        stop_price: null
+        smp_action: NONE
+      - symbol: MSFT
+        side: SELL
+        order_type: LIMIT
+        quantity: 50
+        price: 41550
+        stop_price: null
+        smp_action: NONE
+```
+
+Multiple combos use repeated `--combo` flags:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT TSLA \
+  --gateways TRADER01 \
+  --combo "PAIR-AM:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550" \
+  --combo "PAIR-AT:AON:DAY:AAPL/BUY/LIMIT/100/20950,TSLA/SELL/LIMIT/20/24800" \
+  --output engine_config.yaml
+```
 
 ### Practical recipes
 
@@ -687,6 +778,66 @@ pm-config-gen \
   --index-constituents VOLAT1:TSLA \
   --output engine_config.yaml
 ```
+
+Startup combo seeds with two pairs:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT TSLA \
+  --gateways TRADER01 TRADER02 OPS01:ADMIN \
+  --outstanding-shares AAPL:15400000000 \
+  --outstanding-shares MSFT:7430000000 \
+  --outstanding-shares TSLA:3200000000 \
+  --sessions-enabled \
+  --combo "SEED-AM:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550" \
+  --combo "SEED-AT:AON:DAY:AAPL/BUY/LIMIT/100/20950,TSLA/SELL/LIMIT/20/24800" \
+  --output engine_config.yaml
+```
+
+Circuit-breaker ladder with `CONTINUOUS` resumption on level 2 (no auction on L2 halt recovery):
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT TSLA \
+  --gateways TRADER01 OPS01:ADMIN \
+  --sessions-enabled \
+  --cb-levels L1:0.07:5:AUCTION L2:0.13:15:CONTINUOUS L3:0.20 \
+  --output engine_config.yaml
+```
+
+Per-symbol `CONTINUOUS` resumption override while using global defaults for the other levels:
+
+```bash
+pm-config-gen \
+  --symbols AAPL TSLA \
+  --gateways TRADER01 OPS01:ADMIN \
+  --cb-levels L1:0.07:5 L2:0.13:15 L3:0.20 \
+  --symbol-opts TSLA:cb_resumption_l2=CONTINUOUS \
+  --output engine_config.yaml
+```
+
+Gateway description labels and per-symbol MM obligation override:
+
+```bash
+pm-config-gen \
+  --symbols AAPL MSFT \
+  --gateways \
+    "TRADER01:TRADER:CANCEL_ALL:Student desk 1" \
+    "TRADER02:TRADER:CANCEL_ALL:Student desk 2" \
+    "MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary market maker" \
+    "OPS01:ADMIN:LEAVE_ALL:Instructor console" \
+  --enforce-mm-obligations \
+  --symbol-opts AAPL:enforce_mm_obligation=true,mm_spread_ticks=8 \
+  --symbol-opts MSFT:enforce_mm_obligation=false \
+  --seed-mm-mid-range 20:300 \
+  --seed 20260706 \
+  --sessions-enabled \
+  --output engine_config.yaml
+```
+
+This uses `enforce_mm_obligation=false` on MSFT to disable the check for that
+symbol only, while leaving it enabled globally. Gateway descriptions appear in
+the generated YAML as the `description` field on each `gateways.alf` entry.
 
 
 ## Current Schema

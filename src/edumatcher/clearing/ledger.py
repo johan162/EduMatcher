@@ -137,8 +137,13 @@ def _apply_fill_to_position(
             # Full close — flat position.
             pos.avg_cost = 0.0
         elif (is_buy and pos.net_qty > 0) or (not is_buy and pos.net_qty < 0):
-            # Cross-zero: a new position opened on the opposite side.
-            # avg_cost for the remaining new-side quantity is the fill price.
+            # Cross-zero: the fill exceeded the open position and opened a new
+            # position on the opposite side.  The condition checks the
+            # *post-update* net_qty intentionally: entering this else-branch
+            # already guarantees the original side opposed the fill direction.
+            # After adding signed_qty, a net_qty that still matches the fill
+            # direction means the excess quantity is now a fresh position, so
+            # avg_cost resets to the fill price.
             pos.avg_cost = float(price)
 
     pos.realized_pnl += realized_delta
