@@ -356,6 +356,279 @@ positive unrealized P&L.
 | 5 | BUY 20 @ 105 | Close 15 short, open 5 long. realized += (108−105)×15 | +5 | 105.00 | 245 |
 
 
+## Position arithmetic in depth
+
+This section walks through every position transition step by step, starting
+from scratch. It is written for readers who find the formulas above abstract
+or who are puzzled by how cross-zero trades work internally.
+
+### What a position actually is
+
+A position is EduMatcher's record of three things for every `(gateway_id, symbol)` pair:
+
+1. **How many units are currently held** (`net_qty`) — positive means long (you own them), negative means short (you owe them), zero means flat (no exposure).
+2. **At what blended price they were acquired** (`avg_cost`) — the VWAP of all fills that built the current open position.
+3. **How much profit has already been locked in** (`realized_pnl`) — gains and losses from fills that *reduced* the position.
+
+Every `trade.executed` message produces exactly two fill applications: one crediting the buyer's gateway and one crediting the seller's. Each application runs through the same position-update logic described below.
+
+### The four fill outcomes
+
+There are four things that can happen when a fill is applied to a position:
+
+| Outcome | When it happens | Effect on avg_cost | Realized P&L? |
+|---|---|---|---|
+| **Open** | position is flat | set to fill price | No |
+| **Add** | fill is same direction as existing position | recalculated (VWAP) | No |
+| **Reduce / Close** | fill opposes existing position, does not exceed it | unchanged | Yes, on closed qty |
+| **Cross-zero** | fill opposes existing position and exceeds it | reset to fill price (for new side) | Yes, on closed qty only |
+
+
+### Opening a position (flat → long or flat → short)
+
+When `net_qty = 0`, the position is flat and any fill simply opens it.
+
+**Example — BUY 10 @ 100:**
+
+```
+Before:  net_qty = 0,  avg_cost = 0.00,  realized_pnl = 0
+
+Step 1:  net_qty  = 0 + 10 = 10
+Step 2:  avg_cost = 100.00      (fill price becomes the entry cost)
+
+After:   net_qty = +10,  avg_cost = 100.00,  realized_pnl = 0
+```
+
+Nothing is realized here. You now own 10 units at an average cost of 100.
+
+
+### Adding to an existing position (VWAP update)
+
+When a fill is in the **same direction** as the current position — buying while already long, or selling while already short — the position grows and `avg_cost` is recalculated as a volume-weighted average.
+
+**Example — BUY 10 @ 110 (already long 10 @ 100):**
+
+```
+Before:  net_qty = +10,  avg_cost = 100.00
+
+existing_notional = 100.00 × 10 = 1,000
+incoming_notional = 110.00 × 10 = 1,100
+
+net_qty  = 10 + 10 = 20
+avg_cost = (1,000 + 1,100) / 20 = 105.00
+
+After:   net_qty = +20,  avg_cost = 105.00,  realized_pnl = 0
+```
+
+The VWAP of 105 reflects the blended cost of all 20 shares: 10 bought at 100
+and 10 bought at 110.
+
+
+### Reducing a position (partial or full close)
+
+When a fill **opposes** the current position but does not exceed it in
+size, the position shrinks. P&L is realized on the closed portion only.
+`avg_cost` is **not** changed — it reflects your entry basis and stays fixed
+until you either go flat or cross zero.
+
+**Example — SELL 5 @ 115 (long 20 @ 105):**
+
+```
+Before:  net_qty = +20,  avg_cost = 105.00,  realized_pnl = 0
+
+close_qty = min(5, 20) = 5
+
+realized_delta = (fill_price − avg_cost) × close_qty
+               = (115 − 105) × 5 = 50
+
+net_qty = 20 − 5 = 15          (still long)
+avg_cost unchanged at 105.00   (entry basis of remaining shares)
+
+After:   net_qty = +15,  avg_cost = 105.00,  realized_pnl = 50
+```
+
+The $50 is now permanent regardless of what price does next.
+
+**Full close — SELL 15 @ 115 (long 15 @ 105):**
+
+```
+close_qty = min(15, 15) = 15
+
+realized_delta = (115 − 105) × 15 = 150
+
+net_qty  = 15 − 15 = 0
+avg_cost = 0.00    (reset to zero when flat)
+
+After:   net_qty = 0,  avg_cost = 0.00,  realized_pnl = 200
+```
+
+Position is flat. `avg_cost` resets to zero because there is nothing left to
+track an entry basis against.
+
+
+### Cross-zero: the confusing case
+
+**Cross-zero** happens when a single fill is large enough to close the entire
+existing position *and* still have excess quantity left over, which opens a
+new position on the **opposite** side — all in one step.
+
+Think of it as two things happening at once:
+
+1. The fill closes the existing position (realizing P&L on the full open quantity).
+2. The leftover quantity opens a brand-new position on the other side at the fill price.
+
+#### Long-side example: SELL 25 @ 115 when long 15 @ 105
+
+```
+Before:  net_qty = +15,  avg_cost = 105.00,  realized_pnl = 0
+```
+
+**Step 1 — how much closes the long?**
+
+```
+open_qty  = abs(+15) = 15
+close_qty = min(25, 15) = 15    ← only 15 units can close a 15-unit long
+excess    = 25 − 15 = 10        ← these 10 open a new short
+```
+
+**Step 2 — realize P&L on the closed portion:**
+
+```
+realized_delta = (fill_price − avg_cost) × close_qty
+               = (115 − 105) × 15 = 150
+```
+
+**Step 3 — update net_qty:**
+
+```
+net_qty = +15 + (−25) = −10    ← positive → zero → negative: crossed zero
+```
+
+**Step 4 — the position flipped sides, so reset avg_cost to the fill price:**
+
+```
+avg_cost = 115.00    ← entry cost of the new 10-unit short
+```
+
+**Final state:**
+
+```
+net_qty       = −10
+avg_cost      = 115.00
+realized_pnl  = 150
+unrealized_pnl = −10 × (115 − 115) = 0   (mark = fill price, no gain yet)
+```
+
+The 10-unit short contributes *zero* realized P&L at this moment. Its P&L
+will only become realized when a future buy reduces or closes it.
+
+!!! note "Realized P&L is only for the closing portion"
+    In a cross-zero fill, `close_qty = min(fill_qty, open_qty)` caps
+    the realized calculation at the original position size. The excess
+    quantity that opens the new side starts with zero realized P&L.
+    This prevents double-counting: the new position's entry cost is the
+    fill price, so any future P&L from it starts from that baseline.
+
+
+#### Short-side example: BUY 30 @ 105 when short 20 @ 108
+
+The mirror image applies when crossing zero from a short position.
+
+```
+Before:  net_qty = −20,  avg_cost = 108.00,  realized_pnl = 0
+```
+
+**Step 1 — how much closes the short?**
+
+```
+open_qty  = abs(−20) = 20
+close_qty = min(30, 20) = 20
+excess    = 30 − 20 = 10
+```
+
+**Step 2 — realize P&L on the short close:**
+
+```
+realized_delta = (avg_cost − fill_price) × close_qty
+               = (108 − 105) × 20 = 60
+```
+
+For a short, falling price is profit, so the formula subtracts in the
+opposite order: `avg_cost − fill_price`.
+
+**Step 3 — update net_qty:**
+
+```
+net_qty = −20 + 30 = +10    ← negative → zero → positive: crossed zero
+```
+
+**Step 4 — reset avg_cost for new long:**
+
+```
+avg_cost = 105.00
+```
+
+**Final state:**
+
+```
+net_qty       = +10
+avg_cost      = 105.00
+realized_pnl  = 60
+```
+
+
+### How the code tells the three outcomes apart
+
+When a fill opposes an existing position, the code applies `net_qty += signed_qty`
+first, then reads the resulting sign to decide what happened:
+
+| Scenario (long 15, SELL N) | `net_qty` after | Sign check result | Outcome |
+|---|---|---|---|
+| SELL 5 (partial close) | +10 | still positive, fill was SELL → no match | avg_cost unchanged, partial close |
+| SELL 15 (full close) | 0 | zero → first `if net_qty == 0` branch fires | avg_cost reset to 0 |
+| SELL 25 (cross-zero) | −10 | negative and fill was SELL → **match** | avg_cost reset to fill price |
+
+The sign check reads: *"after the update, does `net_qty` agree with the fill direction?"* The only way that can be true when entering the reduce/close branch is if the fill exceeded the open quantity — i.e., it crossed zero.
+
+Checking **after** the update is intentional and precise. Before the update, the position is on the opposing side by definition (that is the condition that got us into this branch). After the update, a sign that agrees with the fill direction is the unambiguous fingerprint of a cross-zero event.
+
+
+### Unrealized P&L after every fill
+
+After every fill — regardless of outcome — unrealized P&L is recalculated:
+
+$$
+\text{unrealized} = \text{net\_qty} \times (\text{mark\_price} - \text{avg\_cost})
+$$
+
+`mark_price` is set to the latest fill price after each trade. For a flat position (`net_qty = 0`) unrealized P&L is always zero.
+
+For a **short** position `net_qty` is negative, so the formula naturally
+produces positive unrealized P&L when the price falls below `avg_cost`:
+
+```
+net_qty = −10,  avg_cost = 115,  mark_price = 110
+unrealized = −10 × (110 − 115) = −10 × (−5) = +50
+```
+
+
+### All five outcomes side by side
+
+The table below shows a single gateway trading `AAPL` through all five
+position transitions in sequence:
+
+| # | Fill | open_qty before | close_qty | Outcome | net_qty | avg_cost | realized_pnl |
+|---|---|---|---|---|---|---|---|
+| 1 | BUY 10 @ 100 | 0 | — | Open long | +10 | 100.00 | 0 |
+| 2 | BUY 10 @ 110 | — | — | Add (VWAP) | +20 | 105.00 | 0 |
+| 3 | SELL 5 @ 115 | 20 | 5 | Partial close | +15 | 105.00 | 50 |
+| 4 | SELL 15 @ 115 | 15 | 15 | Full close | 0 | 0.00 | 200 |
+| 5 | SELL 15 @ 108 | 0 | — | Open short (from flat) | −15 | 108.00 | 200 |
+| 6 | BUY 20 @ 105 | 15 | 15 | Cross-zero: close 15 short + open 5 long | +5 | 105.00 | 245 |
+
+Row 6 is cross-zero: the BUY 20 closes 15 units of the short (realizing `(108−105)×15 = 45`) and opens a new 5-unit long at 105, accounting for the cumulative jump from 200 to 245.
+
+
 ## Using pm-clearing-cli
 
 `pm-clearing-cli` provides verb-based access to all clearing data without writing SQL.
