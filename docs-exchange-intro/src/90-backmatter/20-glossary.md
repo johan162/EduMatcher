@@ -17,6 +17,12 @@ trades against resting orders. It "sweeps" the book.
 
 **Aggressor / Taker:** The participant whose incoming order triggered a match by crossing the spread to meet a resting order. The aggressor "takes" liquidity that was already available. Contrast with *Maker*, the participant whose resting order was already in the book.
 
+**Assignment:** The process by which an options clearing house (the OCC, in the US) selects which option writer(s) must fulfil the obligation created when a holder exercises. Assignment passes from the OCC to a clearing member and from the clearing member to a specific client, typically via random or FIFO allocation. See *Exercise*, *Pin Risk*.
+
+**Automated Market Maker (AMM):** A smart-contract-based pricing mechanism used by decentralised cryptocurrency exchanges in place of an order book. Prices are set algorithmically from the ratio of two assets held in a liquidity pool, commonly via a constant-product formula, rather than by matching a buy order against a sell order. See *Decentralised Exchange (DEX)*.
+
+**Automatic Exercise:** The OCC's practice of exercising any in-the-money option on a holder's behalf at expiry (by a threshold as small as $0.01 in-the-money) unless the holder has filed a contrary instruction. See *Exercise*.
+
 **Alternative Trading System (ATS):** A trading venue that matches orders but is not a registered national securities exchange. Includes ECNs and dark pools. Subject to lighter regulation than exchanges in some jurisdictions.
 
 **Arbitrage:** The simultaneous purchase and sale of the same (or equivalent) asset on different markets to profit from a price difference. Pure arbitrage is risk-free (buy cheap here, sell expensive there at the same moment); in practice, most arbitrage involves some timing or execution risk. Arbitrage is the mechanism by which prices on different venues are kept consistent, arbitrageurs quickly eliminate price discrepancies, making markets more efficient. **Latency arbitrage** is a specific form exploiting the time it takes for price changes to propagate between venues.
@@ -36,6 +42,8 @@ The collection of all active asks forms the sell side of the book.
 
 
 ## B {#glossary-b}
+
+**Big Bang:** The 27 October 1986 deregulation of the London Stock Exchange, which abolished fixed commissions, ended the broker/jobber separation, permitted outside and foreign ownership of member firms, and replaced floor trading with the screen-based SEAQ system, all on a single day. The UK counterpart to the US's 1975 "May Day." See *May Day*.
 
 **Basis:** In derivatives and futures markets, the price difference between two related instruments, most commonly between the spot/cash price and a futures price on the same underlying, or between two futures contracts with different expiry dates. In the implied order example in this document (the *Order Types* section of Part II), the spread price of −$2 between the January and February WTI contracts is the basis between those two contract months: January is $2 cheaper than February. The basis is not fixed; it changes continuously as supply and demand for the near and far months evolve independently. **Basis risk** is the risk that the expected relationship between two instruments diverges unexpectedly, a spread trader who expected the two legs to move together may find they do not, leaving an unintended net exposure. See *Implied Order*, *Calendar Spread*.
 
@@ -93,6 +101,16 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 **Circuit Breaker:** An automatic trading halt triggered when price movement exceeds a threshold within a time window, designed to prevent cascading automated trading crashes.
 
+**Clearly Erroneous Execution (CEE):** A trade whose price deviates from a reference price by more than a published, price-tiered percentage threshold, making it eligible for cancellation (busting) or price adjustment under exchange rules. Reviewed execution-by-execution within a short time window (commonly 30 minutes); multi-venue events require coordinated rulings across exchanges. Distinct from a trade that is merely unwelcome to the participant who sent it, the test is an objective price deviation, not the sender's intent. See *Trade Busting and Clearly Erroneous Trades*, Part III.
+
+**Conformance Testing:** The process by which a prospective exchange participant's trading system is verified, against a prescribed test script in a certification (UAT) environment, to correctly implement the exchange's protocol and expected behaviours before being granted production credentials.
+
+**Continued Listing Standards:** The ongoing, ordinarily automated compliance thresholds (minimum bid price, market value of public float, shareholder count) a listed company must keep satisfying after its initial listing, distinct from the one-time *Initial Listing Standards*. Breach triggers a deficiency notice and cure period before involuntary delisting.
+
+**Crossed Market:** A condition where the best bid on one trading venue is higher than the best ask on another venue for the same instrument, a transient artefact of fragmentation and quote-propagation latency across independent venues, and a theoretical risk-free arbitrage opportunity for whoever can act on it fastest. See *Locked Market*.
+
+**Cure Period:** The window (commonly 180 days, sometimes extended) an exchange gives a listed company to regain compliance with a continued listing standard after a deficiency notice, before involuntary delisting proceedings begin.
+
 **Clearing:** The process of confirming and recording a trade, and (via a CCP) guaranteeing its settlement.
 
 **Co-location:** Placing a participant's trading servers physically inside the same data centre as the exchange's matching engine, minimising network round-trip latency to microseconds.
@@ -125,6 +143,14 @@ stop-loss STOP, typically implemented as an OCO pair.
 ## D {#glossary-d}
 
 **Dark Fibre:** Unused optical fibre cable already laid in the ground but not yet carrying data traffic ("lit"). Trading firms and data providers lease dark fibre from infrastructure companies and run their own optical transceivers, creating private, dedicated network links between financial data centres. Dark fibre links are used between major exchange co-location sites (e.g., NYSE in Mahwah and NASDAQ in Carteret) to reduce cross-venue latency for arbitrage and hedging strategies.
+
+**Decentralised Exchange (DEX):** A cryptocurrency trading venue that executes trades directly via smart contracts on a blockchain, with no central operator holding custody of participant assets and, commonly, no traditional order book, matching instead via an *Automated Market Maker*. Contrast with a *Centralised Exchange (CEX)*, which operates a conventional matching engine and custodies participant assets itself.
+
+**Decimalization:** The switch from fractional dollar price quoting (eighths, then sixteenths) to decimal cent quoting in US equity markets, phased in between August 2000 and April 2001. Quoted spreads on liquid stocks roughly halved as a direct result. The direct historical motivation for Rule 612's sub-penny quoting floor. See *Tick Sizes and Fractional Ticks*, Part II.
+
+**De-SPAC:** The merger transaction in which a Special Purpose Acquisition Company (SPAC) combines with a private operating company, resulting in the operating company becoming publicly traded under the (renamed) shell's listing. See *SPAC*.
+
+**Direct Listing:** A method of going public in which a company's existing shares begin trading on an exchange via the opening auction mechanism, with no new shares issued, no underwriter guarantee, and no pre-set offer price. Contrast with a traditional underwritten IPO. Pioneered at scale by Spotify (2018) and Slack (2019), both on NYSE.
 
 **Dark Pool:** A private trading venue where orders are not displayed in a public order book. Participants submit orders and are matched against other participants' orders, typically at the midpoint of the NBBO, with the trade only reported publicly after it occurs. Used by large institutional investors to trade without revealing their intentions and causing adverse price movement. Contrast with *lit markets* (public exchanges) where resting orders are visible to all. See *Regulatory Surveillance*.
 
@@ -165,6 +191,8 @@ stop-loss STOP, typically implemented as an OCO pair.
 
 **Execution Algorithm (Algo):** Software that breaks a large institutional order into smaller pieces and executes them over time to minimise market impact and achieve a target average price. Common types include VWAP (match the day's volume-weighted average price), TWAP (distribute uniformly over time), Implementation Shortfall (minimise the gap between decision price and execution price), and POV/In-Line (participate at a fixed percentage of market volume). Execution algorithms generate the majority of order flow on modern exchanges.
 
+
+**Exercise:** An option holder's invocation of their right to buy (call) or sell (put) the underlying at the strike price. American-style options may be exercised any time up to expiry; European-style options only at expiry. See *Automatic Exercise*, *Assignment*.
 
 ## F {#glossary-f}
 
@@ -242,6 +270,8 @@ data, better analytics) that others do not, giving them a trading advantage. Auc
 
 **Informed Flow:** Order flow that originates from participants who have an informational advantage about near-term price direction, for example, participants who have seen relevant news before others. When a market maker is repeatedly hit by informed flow, they accumulate inventory at prices that are about to move against them. Informed flow is the root cause of adverse selection.
 
+**Initial Listing Standards:** The quantitative (minimum share price, public float value, shareholder count) and qualitative thresholds a company must meet before an exchange will admit its shares to trading for the first time. Distinct from *Continued Listing Standards*, which apply on an ongoing basis thereafter.
+
 **Initial Margin:** Collateral deposited when opening a position to cover potential losses. Calculated by the CCP based on the instrument's historical volatility and the position size.
 
 **Insider Trading:** Trading on material, non-public information, for example, buying shares before a publicly unannounced merger is announced. Illegal in all major jurisdictions. The exchange's audit trail is a key source of evidence in insider trading investigations, as regulators can reconstruct exactly who traded, when, and at what prices relative to when news became public.
@@ -293,6 +323,8 @@ the limit price and any unfilled remainder is immediately cancelled. Never rests
 
 **Locate:** The process of finding and reserving a source of borrowable shares before executing a short sale. Under US Regulation SHO, broker-dealers must have reasonable grounds to believe shares can be borrowed before accepting a short sale order. "Failing to locate" before shorting is called naked short selling, which is illegal in most jurisdictions.
 
+**Locked Market:** A condition where the best bid on one venue equals the best ask on another venue for the same instrument, a transient artefact of fragmentation and quote-propagation latency. See *Crossed Market*.
+
 **Long Position:** Owning a positive quantity of shares. You profit if the price rises. Expressed
 as a positive number  P&L ledger.
 
@@ -329,6 +361,8 @@ as a positive number  P&L ledger.
 
 **Maturity (Bond):** The date on which a bond's issuer must repay the face value to the bondholder.
 
+**May Day:** 1 May 1975, the date the SEC abolished fixed brokerage commissions on the NYSE, ending nearly two centuries of fixed-rate trading and creating the discount-brokerage industry. The US counterpart to the UK's 1986 "Big Bang." See *Big Bang*.
+
 **Microwave Link:** A radio communications link using microwave frequencies. Between financial data centres, microwave links provide lower latency than fibre-optic cables because radio waves travel faster through air than light through glass.
 
 **Mid Price:** The average of the best bid and best ask: (best_bid + best_ask) / 2.
@@ -359,6 +393,8 @@ as a positive number  P&L ledger.
 
 **OCC (Options Clearing Corporation):** The central clearing house for equity options in the US.
 
+**Odd Lot:** An order or execution for a quantity that is not a whole multiple of the standard round lot size for that instrument (commonly 100 shares for US equities). Historically excluded from consolidated NBBO and tape data in US equities, a practice being revised under the SEC's market-data-infrastructure rules. See *Round Lot*.
+
 **OCO (One-Cancels-Other):** Two linked orders where filling either automatically cancels the other.
 
 **OHLCV:** Open, High, Low, Close, Volume, the five standard summary statistics recorded for each trading session (or any time period). Open: the first traded price. High: the highest traded price. Low: the lowest traded price. Close: the last traded price (the official closing price in a closing auction). Volume: total shares traded. OHLCV data forms the basis of almost all price charts and historical market analysis.
@@ -385,6 +421,8 @@ as a positive number  P&L ledger.
 **Passive Order:** See *Resting Order*
 
 **Payment for Order Flow (PFOF):** A practice in which retail brokers receive payment from wholesale market makers in exchange for routing client order flow to those market makers for internalisation rather than to lit exchanges. Market makers pay for retail flow because retail orders have lower adverse selection risk. Banned in the UK and EU under MiFID II. Controversial in the US, where it subsidises zero-commission brokerages but raises concerns about conflicts of interest and reduced price discovery. See *Best Execution*, *Internaliser*.
+
+**Pin Risk:** The risk faced by an option writer when the underlying closes at expiry very close to the strike price, leaving the writer uncertain whether automatic exercise and assignment will occur until after markets have closed, with any resulting delivery obligation priced at the strike regardless of where the underlying opens the next session. See *Exercise*, *Assignment*.
 
 **Pit:** The sunken, octagonal or circular physical trading area on an exchange floor where open outcry trading happened. CME Group operated prominent futures pits in Chicago. Largely dormant today.
 
@@ -458,6 +496,10 @@ position. Once realized, it cannot be reversed by subsequent price moves.
 
 **Rolling Window (MMP):** The time period over which fills are counted for Market Maker Protection purposes. Fills older than the window are discarded from the count; only fills within the current window matter. For example, a 1-second rolling window means: "if more than N fills have arrived in any sliding 1-second period, MMP fires."
 
+**Round Lot:** The standard trading unit for an instrument (commonly 100 shares for US equities), used as the basis for distinguishing a normal order from an *Odd Lot*.
+
+**Rule 612 (Sub-Penny Rule):** The Regulation NMS provision, adopted 2005, prohibiting exchanges, ECNs, and market makers from displaying or accepting quotations in NMS stocks priced at $1.00 or more in increments finer than $0.01. Stocks priced below $1.00 may be quoted in sub-penny increments. See *Tick Sizes and Fractional Ticks*, Part II.
+
 
 ## S {#glossary-s}
 
@@ -474,6 +516,8 @@ position. Once realized, it cannot be reversed by subsequent price moves.
 **Sequence Number:** A monotonically increasing counter attached to events (in a drop copy or message feed) to enable detection of missed events and ordered replay.
 
 **Session State Machine:** The formal model of an exchange's trading day phases (PRE_OPEN, OPENING_AUCTION, CONTINUOUS, CLOSING_AUCTION, CLOSED) and the permitted transitions between them.
+
+**Securities Information Processor (SIP):** The consolidated, publicly distributed feed aggregating trade and quote data from every registered US exchange into a single tape. Contrast with a *proprietary direct feed*, which an individual exchange sells separately, typically with lower latency and richer content than the SIP. See *Market Data Economics*, Part IV.
 
 **Settlement:** The final transfer of securities from seller to buyer and cash from buyer to seller. Legally completes the trade. In the US, equity settlement currently occurs on T+1.
 
@@ -494,6 +538,8 @@ orders in thin books experience more slippage.
 **SmartNIC / Ultra-Low-Latency NIC:** A specialised network interface card designed for trading and other latency-sensitive applications. Unlike commodity Ethernet cards, SmartNICs include an on-card kernel bypass networking stack (such as Solarflare's OpenOnload or Mellanox's RDMA), hardware timestamping of incoming packets to nanosecond precision, and CPU offload for networking tasks. Examples include the AMD Solarflare SFN series and NVIDIA Mellanox ConnectX series, widely deployed in exchange co-location environments.
 
 **Snapshot (Persistence):** A complete dump of the matching engine's state (all resting orders, positions, key data) taken periodically to reduce recovery time by limiting the amount of write-ahead log that must be replayed.
+
+**SPAC (Special Purpose Acquisition Company):** A shell company with no operating business that completes its own IPO to raise cash held in trust, with the purpose of later merging with a private operating company to take it public without a traditional IPO process. See *De-SPAC*.
 
 **Specialist:** NYSE's historical term for the designated firm responsible for maintaining fair and orderly markets in a specific stock, including maintaining the physical order book. The modern equivalent is the Designated Market Maker (DMM).
 
@@ -533,6 +579,8 @@ orders in thin books experience more slippage.
 **Tick Count / Tick-Based Price:** A price represented as an integer number of minimum increments, rather than a decimal. Tick counts are exact; floating-point decimals are not.
 
 **Tick Size:** The value of one tick, the minimum price increment for an instrument.
+
+**Tick Size Pilot Program:** A US SEC study (October 2016 – October 2018) that widened the tick size to five cents for roughly 1,200 small-capitalisation stocks to test whether coarser ticks improve market-making economics and liquidity for thinly traded names. Results were mixed, spreads and costs rose without a clear liquidity benefit, and no permanent wider-tick regime was adopted. See *Tick Sizes and Fractional Ticks*, Part II.
 
 **Tick-to-Trade Latency:** The time from when a market data message leaves the exchange to when an order based on that message is received by the exchange. A key performance metric for market makers and HFT firms.
 

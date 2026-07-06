@@ -13,6 +13,7 @@ files = [
   '03-the-language-of-the-market-a-short-history.md',
   '04-the-participants.md',
   '05-a-brief-tour-of-real-world-exchanges.md',
+  '06-listing-and-delisting-mechanics.md',
 ]
 
 [[parts]]
@@ -25,13 +26,14 @@ files = [
   '03-time-in-force-how-long-should-the-order-live.md',
   '04-the-order-book-the-exchange-s-memory.md',
   '05-price-time-priority-the-fairness-rule.md',
-  '06-the-matching-engine-the-heart-of-the-exchange.md',
-  '07-the-life-of-a-trade.md',
-  '08-market-makers-the-providers-of-liquidity.md',
-  '09-the-opening-and-closing-auction.md',
-  '10-trading-sessions-the-day-in-the-life-of-a-market.md',
-  '11-putting-it-all-together.md',
-  '12-indexes.md',
+  '06-tick-sizes-and-fractional-ticks.md',
+  '07-the-matching-engine-the-heart-of-the-exchange.md',
+  '08-the-life-of-a-trade.md',
+  '09-market-makers-the-providers-of-liquidity.md',
+  '10-the-opening-and-closing-auction.md',
+  '11-trading-sessions-the-day-in-the-life-of-a-market.md',
+  '12-putting-it-all-together.md',
+  '13-indexes.md',
 ]
 
 [[parts]]
@@ -44,8 +46,9 @@ files = [
   '03-self-match-prevention-when-you-would-trade-with-yourself.md',
   '04-drop-copy-the-shadow-record.md',
   '05-clearing-and-settlement-when-the-trade-becomes-real.md',
-  '06-regulatory-surveillance-exchanges-are-not-passive.md',
-  '07-a-cautionary-tale-knight-capital-august-1-2012.md',
+  '06-trade-busting-and-clearly-erroneous-trades.md',
+  '07-regulatory-surveillance-exchanges-are-not-passive.md',
+  '08-a-cautionary-tale-knight-capital-august-1-2012.md',
 ]
 
 [[parts]]
@@ -55,15 +58,19 @@ files = [
   '00-part.md',
   '01-speed-bumps-leveling-the-playing-field.md',
   '02-the-technology-architecture.md',
-  '03-primary-and-secondary-sites-resilience-architecture.md',
-  '04-load-balancing-distributing-the-work.md',
-  '05-market-data-architecture-how-the-market-sees-itself.md',
-  '06-smart-order-routing-and-market-fragmentation.md',
-  '07-latency-and-co-location-the-speed-dimension.md',
-  '08-operational-observability-and-incident-response.md',
-  '09-corporate-actions-when-the-instrument-changes.md',
-  '10-determinism-replay-and-persistence-the-exchange-must-not-forget.md',
-  '11-reference-data-the-exchange-s-ground-truth.md',
+  '03-conformance-testing-and-onboarding.md',
+  '04-primary-and-secondary-sites-resilience-architecture.md',
+  '05-load-balancing-distributing-the-work.md',
+  '06-market-data-architecture-how-the-market-sees-itself.md',
+  '07-market-data-economics.md',
+  '08-smart-order-routing-and-market-fragmentation.md',
+  '09-cryptocurrency-and-digital-asset-venues.md',
+  '10-latency-and-co-location-the-speed-dimension.md',
+  '11-operational-observability-and-incident-response.md',
+  '12-corporate-actions-when-the-instrument-changes.md',
+  '13-options-mechanics-exercise-assignment-and-expiry.md',
+  '14-determinism-replay-and-persistence-the-exchange-must-not-forget.md',
+  '15-reference-data-the-exchange-s-ground-truth.md',
 ]
 
 [backmatter]

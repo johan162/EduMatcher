@@ -29,12 +29,17 @@ Examine the engineering reality of exchanges at scale: deterministic engines, me
 
 - Speed Bumps, Leveling the Playing Field
 - The Technology Architecture
+- Conformance Testing and Onboarding
 - Primary and Secondary Sites, Resilience Architecture
 - Load Balancing, Distributing the Work
 - Market Data Architecture, How the Market Sees Itself
+- Market Data Economics
 - Smart Order Routing and Market Fragmentation
+- Cryptocurrency and Digital Asset Venues
 - Latency and Co-location, The Speed Dimension
+- Operational Observability and Incident Response
 - Corporate Actions, When the Instrument Changes
+- Options Mechanics: Exercise, Assignment, and Expiry
 - Determinism, Replay, and Persistence, The Exchange Must Not Forget
 - Reference Data, The Exchange's Ground Truth
 
