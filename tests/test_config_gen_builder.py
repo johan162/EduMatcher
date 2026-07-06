@@ -3,6 +3,8 @@ from __future__ import annotations
 from edumatcher.config_gen.builder import (
     ApiCredentialSpec,
     ApiGatewaySpec,
+    ComboLegSpec,
+    ComboSpec,
     ConfigBuilder,
     ConfigSpec,
     IndexSpec,
@@ -340,3 +342,115 @@ def test_builder_no_indices_omits_section() -> None:
     payload = ConfigBuilder(spec).build()
 
     assert "indices" not in payload
+
+
+def test_builder_combos_emitted() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL", "MSFT"],
+        gateways=[parse_gateway_spec("TRADER01")],
+        combos=[
+            ComboSpec(
+                combo_id="SEED-PAIR",
+                combo_type="AON",
+                tif="DAY",
+                legs=(
+                    ComboLegSpec(symbol="AAPL", side="BUY", order_type="LIMIT", quantity=100, price=20950),
+                    ComboLegSpec(symbol="MSFT", side="SELL", order_type="LIMIT", quantity=50, price=41550),
+                ),
+            )
+        ],
+    )
+    payload = ConfigBuilder(spec).build()
+
+    assert "market_maker_combos" in payload
+    combo = payload["market_maker_combos"][0]
+    assert combo["combo_id"] == "SEED-PAIR"
+    assert combo["combo_type"] == "AON"
+    assert combo["tif"] == "DAY"
+    assert len(combo["legs"]) == 2
+    assert combo["legs"][0] == {
+        "symbol": "AAPL",
+        "side": "BUY",
+        "order_type": "LIMIT",
+        "quantity": 100,
+        "price": 20950,
+        "stop_price": None,
+        "smp_action": "NONE",
+    }
+    assert combo["legs"][1]["symbol"] == "MSFT"
+
+
+def test_builder_no_combos_omits_section() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01")],
+    )
+    payload = ConfigBuilder(spec).build()
+    assert "market_maker_combos" not in payload
+
+
+def test_builder_cb_defaults_resumption_mode() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01")],
+        cb_levels=[
+            parse_cb_spec("L1:0.07:5:AUCTION"),
+            parse_cb_spec("L2:0.13:15:CONTINUOUS"),
+            parse_cb_spec("L3:0.20"),
+        ],
+    )
+    payload = ConfigBuilder(spec).build()
+
+    levels = payload["circuit_breaker_defaults"]["levels"]
+    assert levels["L1"]["resumption_mode"] == "AUCTION"
+    assert levels["L2"]["resumption_mode"] == "CONTINUOUS"
+    assert levels["L3"]["resumption_mode"] == "AUCTION"
+
+
+def test_builder_gateway_description_emitted() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary MM")],
+        emit_mm_defaults=True,
+    )
+    payload = ConfigBuilder(spec).build()
+    gw = payload["gateways"]["alf"][0]
+    assert gw["description"] == "Primary MM"
+
+
+def test_builder_gateway_no_description_omits_key() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01")],
+    )
+    payload = ConfigBuilder(spec).build()
+    gw = payload["gateways"]["alf"][0]
+    assert "description" not in gw
+
+
+def test_builder_per_symbol_enforce_mm_obligation() -> None:
+    override = SymbolOverride(enforce_mm_obligation=True)
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01")],
+        enforce_mm_obligations=False,
+        symbol_overrides={"AAPL": override},
+    )
+    payload = ConfigBuilder(spec).build()
+
+    assert "mm_obligation_defaults" in payload
+    sym_overrides = payload["mm_obligation_defaults"]["symbols"]
+    assert sym_overrides["AAPL"]["enforce_mm_obligation"] is True
+
+
+def test_builder_per_symbol_cb_resumption_mode() -> None:
+    override = SymbolOverride(cb_shift={"L2": 0.10}, cb_resumption_mode={"L2": "CONTINUOUS"})
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01")],
+        symbol_overrides={"AAPL": override},
+    )
+    payload = ConfigBuilder(spec).build()
+
+    cb = payload["symbols"]["AAPL"]["circuit_breaker"]["levels"]
+    assert cb["L2"]["resumption_mode"] == "CONTINUOUS"

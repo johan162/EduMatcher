@@ -15,6 +15,7 @@ from edumatcher.models.participant import ParticipantRole
 from edumatcher.config_gen.builder import ConfigBuilder, ConfigSpec
 from edumatcher.config_gen.builder import ApiCredentialSpec, ApiGatewaySpec
 from edumatcher.config_gen.builder import BalfGatewaySpec
+from edumatcher.config_gen.builder import ComboLegSpec, ComboSpec
 from edumatcher.config_gen.builder import IndexSpec
 from edumatcher.config_gen.builder import MarketDataGatewaySpec
 from edumatcher.config_gen.builder import PostTradeGatewaySpec
@@ -938,6 +939,143 @@ def _parse_index_specs(args: argparse.Namespace) -> tuple[IndexSpec, ...]:
     )
 
 
+def _parse_combo_specs(
+    args: argparse.Namespace,
+    allowed_symbols: set[str],
+) -> list[ComboSpec]:
+    """Parse all --combo flags and return a list of ComboSpec objects."""
+    from edumatcher.models.combo import ComboType
+    from edumatcher.models.order import Side, OrderType, SmpAction, TIF as TIFEnum
+
+    combos: list[ComboSpec] = []
+    seen_ids: set[str] = set()
+
+    for raw in args.combo:
+        parts = raw.split(":", 3)
+        if len(parts) != 4:
+            raise ValueError(
+                f"Invalid --combo '{raw}': expected ID:TYPE:TIF:SYM/SIDE/TYPE/QTY[/PRICE[/STOP[/SMP]]],..."
+            )
+        combo_id, combo_type_raw, tif_raw, legs_raw = parts
+        combo_id = combo_id.strip()
+        if not combo_id:
+            raise ValueError(f"Invalid --combo '{raw}': combo_id cannot be empty")
+        if combo_id in seen_ids:
+            raise ValueError(f"Duplicate --combo combo_id '{combo_id}'")
+        seen_ids.add(combo_id)
+
+        combo_type = combo_type_raw.strip().upper()
+        try:
+            ComboType(combo_type)
+        except ValueError as exc:
+            raise ValueError(f"Invalid --combo '{raw}': combo_type '{combo_type}' is invalid") from exc
+
+        tif = tif_raw.strip().upper()
+        try:
+            TIFEnum(tif)
+        except ValueError as exc:
+            raise ValueError(f"Invalid --combo '{raw}': tif '{tif}' is invalid") from exc
+
+        leg_specs_raw = [s.strip() for s in legs_raw.split(",") if s.strip()]
+        if len(leg_specs_raw) < 2:
+            raise ValueError(f"Invalid --combo '{raw}': at least 2 legs required")
+        if len(leg_specs_raw) > 10:
+            raise ValueError(f"Invalid --combo '{raw}': at most 10 legs supported")
+
+        seen_leg_symbols: set[str] = set()
+        legs: list[ComboLegSpec] = []
+        for leg_raw in leg_specs_raw:
+            fields = leg_raw.split("/")
+            if len(fields) < 4:
+                raise ValueError(
+                    f"Invalid --combo '{raw}': leg '{leg_raw}' requires SYM/SIDE/TYPE/QTY"
+                )
+            sym = fields[0].strip().upper()
+            side_str = fields[1].strip().upper()
+            order_type_str = fields[2].strip().upper()
+            try:
+                qty = int(fields[3].strip())
+            except ValueError as exc:
+                raise ValueError(
+                    f"Invalid --combo '{raw}': leg quantity must be an integer"
+                ) from exc
+            if qty <= 0:
+                raise ValueError(f"Invalid --combo '{raw}': leg quantity must be > 0")
+
+            price: int | None = None
+            stop_price: int | None = None
+            smp_action_str = "NONE"
+
+            if len(fields) >= 5 and fields[4].strip().lower() not in ("", "null"):
+                try:
+                    price = int(fields[4].strip())
+                except ValueError as exc:
+                    raise ValueError(
+                        f"Invalid --combo '{raw}': leg price must be an integer"
+                    ) from exc
+            if len(fields) >= 6 and fields[5].strip().lower() not in ("", "null"):
+                try:
+                    stop_price = int(fields[5].strip())
+                except ValueError as exc:
+                    raise ValueError(
+                        f"Invalid --combo '{raw}': leg stop_price must be an integer"
+                    ) from exc
+            if len(fields) >= 7 and fields[6].strip():
+                smp_action_str = fields[6].strip().upper()
+
+            if sym not in allowed_symbols:
+                raise ValueError(
+                    f"Invalid --combo '{raw}': leg symbol '{sym}' not in --symbols"
+                )
+            if sym in seen_leg_symbols:
+                raise ValueError(
+                    f"Invalid --combo '{raw}': duplicate leg symbol '{sym}'"
+                )
+            seen_leg_symbols.add(sym)
+
+            try:
+                Side(side_str)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Invalid --combo '{raw}': leg side '{side_str}' is invalid"
+                ) from exc
+            try:
+                OrderType(order_type_str)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Invalid --combo '{raw}': leg order_type '{order_type_str}' is invalid"
+                ) from exc
+            try:
+                SmpAction(smp_action_str)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Invalid --combo '{raw}': leg smp_action '{smp_action_str}' is invalid"
+                ) from exc
+
+            legs.append(
+                ComboLegSpec(
+                    symbol=sym,
+                    side=side_str,
+                    order_type=order_type_str,
+                    quantity=qty,
+                    price=price,
+                    stop_price=stop_price,
+                    smp_action=smp_action_str,
+                )
+            )
+
+        combos.append(
+            ComboSpec(
+                combo_id=combo_id,
+                combo_type=combo_type,
+                tif=tif,
+                legs=tuple(legs),
+            )
+        )
+
+    return combos
+
+
 def _write_output(output_path: Path, content: str, force: bool) -> None:
     if output_path.exists() and not force:
         raise FileExistsError("Output file already exists")
@@ -986,6 +1124,7 @@ def main() -> None:
             seed_mm_mid_range,
         ) = _parse_specs(args)
         indices = _parse_index_specs(args)
+        combos = _parse_combo_specs(args, allowed_symbols=set(symbols))
     except ValueError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
@@ -1033,6 +1172,7 @@ def main() -> None:
             balf_gateway=_build_balf_gateway_spec(args),
             api_gateways=_build_api_gateway_specs(args, gateways),
             indices=indices,
+            combos=combos,
         )
     except ValueError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)

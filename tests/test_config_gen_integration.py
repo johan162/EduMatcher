@@ -717,3 +717,130 @@ def test_index_more_than_five_fails(
         )
     assert exc_info.value.code == 2
     assert "maximum 5" in capsys.readouterr().err.lower()
+
+
+def test_combo_round_trips_through_loader(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "MSFT",
+            "--gateways",
+            "TRADER01",
+            "--combo",
+            "SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550",
+            "--output",
+            str(out_file),
+        ],
+    )
+    cfg = load_engine_config(out_file)
+    assert len(cfg.market_maker_combos) == 1
+    combo = cfg.market_maker_combos[0]
+    assert combo.combo_id == "SEED-PAIR"
+    assert len(combo.legs) == 2
+    assert combo.legs[0].symbol == "AAPL"
+    assert combo.legs[1].symbol == "MSFT"
+
+
+def test_combo_unknown_symbol_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import pytest as _pytest
+
+    with _pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                "--combo",
+                "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/20950,UNKNOWN/SELL/LIMIT/50/41550",
+                "--dry-run",
+            ],
+        )
+    assert exc_info.value.code == 2
+    assert "UNKNOWN" in capsys.readouterr().err
+
+
+def test_combo_duplicate_leg_symbol_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import pytest as _pytest
+
+    with _pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "MSFT",
+                "--gateways",
+                "TRADER01",
+                "--combo",
+                "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/20950,AAPL/SELL/LIMIT/50/41550",
+                "--dry-run",
+            ],
+        )
+    assert exc_info.value.code == 2
+    assert "duplicate" in capsys.readouterr().err.lower()
+
+
+def test_combo_too_few_legs_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import pytest as _pytest
+
+    with _pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                "--combo",
+                "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/20950",
+                "--dry-run",
+            ],
+        )
+    assert exc_info.value.code == 2
+    assert "2 legs" in capsys.readouterr().err
+
+
+def test_cb_levels_with_resumption_mode_round_trips(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "--cb-levels",
+            "L1:0.07:5:AUCTION",
+            "L2:0.13:15:CONTINUOUS",
+            "L3:0.20",
+            "--output",
+            str(out_file),
+        ],
+    )
+    import yaml
+
+    raw = yaml.safe_load(out_file.read_text())
+    levels = raw["circuit_breaker_defaults"]["levels"]
+    assert levels["L1"]["resumption_mode"] == "AUCTION"
+    assert levels["L2"]["resumption_mode"] == "CONTINUOUS"
+    assert levels["L3"]["resumption_mode"] == "AUCTION"
