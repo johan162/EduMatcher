@@ -198,7 +198,7 @@ mermaid-filter.err
 package-lock.json
 package.json
 
-
+.kiro/
 
 build-tools
 ralf_subscriber
