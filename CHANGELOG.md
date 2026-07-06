@@ -12,7 +12,7 @@ This release focus on stability improvements for the new clearing process as wel
 - Updated all example configurations in the user-guide to cover the latest `pm-config-gen` options
 
 ### 🐛 Bug Fixes
-- Fixed a possible deadlock in a rare concurrent execution path
+- Fixed a possible deadlock in a rare concurrent execution path in clearing process
 - Fixed a unit misidentification bug (ns vs. ms) that could produce incorrect timing calculations in the clearing process
 
 ### 📚 Documentation
