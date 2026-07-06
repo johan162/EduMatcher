@@ -499,6 +499,7 @@ VERSION_NUMBER=${LATEST_TAG#v}
 # Strip the '-' from the version for pre-releases
 FILE_VERSION_NUMBER=${VERSION_NUMBER//-rc/rc}
 USER_GUIDE_BUNDLE_ZIP="docs/dist/${PROGRAMNAME}_user-guide-bundle-${FILE_VERSION_NUMBER}.zip"
+USER_GUIDE_CHAPTERS_BUNDLE_ZIP="docs/dist/${PROGRAMNAME}_user-guide-as-chapters-a4-bundle-${FILE_VERSION_NUMBER}.zip"
 
 # 4.4: Fail fast if required release artifacts are missing
 print_sub_step "Checking required release artifacts..."
@@ -508,6 +509,12 @@ if [[ ! -f "$USER_GUIDE_BUNDLE_ZIP" ]]; then
     exit 1
 fi
 print_success "Required artifacts found: $(basename "$USER_GUIDE_BUNDLE_ZIP")"
+
+if [[ ! -f "$USER_GUIDE_CHAPTERS_BUNDLE_ZIP" ]]; then
+    print_error "Required user guide chapters bundle is missing: $USER_GUIDE_CHAPTERS_BUNDLE_ZIP"
+    exit 1
+fi
+print_success "Required artifacts found: $(basename "$USER_GUIDE_CHAPTERS_BUNDLE_ZIP")"
 
 if [ -f "docs-exchange-intro/version.toml" ]; then
     EXCHANGE_INTRO_VERSION=$(awk -F'=' '/version/ { gsub(/[ "]/, "", $2); print $2; exit }' docs-exchange-intro/version.toml)
@@ -632,6 +639,7 @@ GH_RELEASE_CMD="gh release create \"$LATEST_TAG\" \
     \"$SDIST_FILE\" \
     \"$USER_GUIDE_BUNDLE_ZIP\" \
     \"$EXCHANGE_INTRO_BUNDLE_ZIP\" \
+    \"$USER_GUIDE_CHAPTERS_BUNDLE_ZIP\" \
     \"$TRAINING_GUIDE_BUNDLE_ZIP\""
 
 if [[ "$IS_PRE_RELEASE" == "true" ]]; then

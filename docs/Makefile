@@ -18,7 +18,7 @@ else
 	SED_INPLACE := -i
 endif
 
-.PHONY: docs pdf-docs training-pdf chapters-pdf-a4 clean really-clean serve check-latex-engine
+.PHONY: docs pdf-docs pdf-training chapters-pdf-a4 clean really-clean serve check-latex-engine
 
 # Makefile itself as a dependency to ensure it is re-evaluated when changed
 # NOTE: This requires GNU Make 4.3+ and MacOS ships with vGNU Make 3.81 due to licensing issues
@@ -423,6 +423,13 @@ $(CHAPTERS_A4_DIR): | $(DIST_DIR)
 
 chapters-pdf-a4: check-latex-engine $(CHAPTERS_A4_PDFS) ## Build a separate A4 PDF for each user-guide chapter into $(DIST_DIR)/chapters-a4/
 	@echo -e "$(GREEN)✓ All $(words $(USER_GUIDE_MD_SOURCES)) chapter PDFs built in $(BRIGHTCYAN)$(CHAPTERS_A4_DIR)$(GREEN)$(NC)"
+	
+chapters-pdf-a4-bundle: chapters-pdf-a4  ## Build a zip bundle of all A4 chapter PDFs into $(DIST_DIR)	
+	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user-guide-as-chapters-a4-bundle-$(VERSION).zip $(CHAPTERS_A4_DIR)/*.pdf
+	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user-guide-as-chapters-a4-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
+
+chapters-pdf: chapters-pdf-a4-bundle  ## Build a zip bundle of all A4 chapter PDFs into $(DIST_DIR) (alias for chapters-pdf-a4-bundle)
+	@:
 
 # Echo all User Guide Variables for debugging Makefile variable generation. 
 # $(info USER_GUIDE_PDF_DEPS: $(USER_GUIDE_PDF_DEPS))
@@ -466,7 +473,7 @@ pdf-docs: check-latex-engine  ## Build the user guide in all PDF variants (A4 li
 	@zip -9 -j $(DIST_DIR)/$(PROJECT)_user-guide-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)_*-$(VERSION).pdf
 	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)_user-guide-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
-training-pdf: check-latex-engine  ## Build the training guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
+pdf-training: check-latex-engine  ## Build the training guide in all PDF variants (A4 light/dark, B5 light/dark) in parallel
 	@rm -rf $(TRAINING_GUIDE_BUILD_DIR)  # Clean build dir to ensure no stale files interfere
 	@rm -rf $(DIST_DIR)/$(PROJECT)_training-guide-*.pdf 2>/dev/null || true  # Remove old PDFs to prevent confusion
 	@$(MAKE) -j4 $(TRAINING_GUIDE_A4_PDF) $(TRAINING_GUIDE_DARK_A4_PDF) $(TRAINING_GUIDE_B5_PDF) $(TRAINING_GUIDE_DARK_B5_PDF)

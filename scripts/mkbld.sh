@@ -438,7 +438,7 @@ if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ] && [ "$BUILD_USER_GUIDE_PDF" = true ];
         "Building Exchange Intro Booklet" \
         "make -C docs -j4 pdf-docs" \
         "Building User Guide PDFs (v${VERSION}) with Makefile" \
-        "make -C docs -j4 training-pdf" \
+        "make -C docs -j4 pdf-training" \
         "Building Training Guide PDFs (v${VERSION}) with Makefile"
 else
     if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ]; then
@@ -450,8 +450,9 @@ else
         run_parallel_commands \
             "make -C docs -j4 pdf-docs" \
             "Building User Guide PDFs (v${VERSION}) with Makefile" \
-            "make -C docs -j4 training-pdf" \
+            "make -C docs -j4 pdf-training" \
             "Building Training Guide PDFs (v${VERSION}) with Makefile"
+        run_command "make -C docs -j16 chapters-pdf" "Building User Guide Chapters PDF bundle"
     fi
 fi
 
