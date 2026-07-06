@@ -1304,6 +1304,150 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#position-arithmetic-in-depth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Position arithmetic in depth
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Position arithmetic in depth">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-a-position-actually-is" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What a position actually is
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-four-fill-outcomes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The four fill outcomes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opening-a-position-flat-long-or-flat-short" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Opening a position (flat → long or flat → short)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adding-to-an-existing-position-vwap-update" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding to an existing position (VWAP update)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reducing-a-position-partial-or-full-close" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reducing a position (partial or full close)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cross-zero-the-confusing-case" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-zero: the confusing case
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cross-zero: the confusing case">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#long-side-example-sell-25-115-when-long-15-105" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Long-side example: SELL 25 @ 115 when long 15 @ 105
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#short-side-example-buy-30-105-when-short-20-108" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Short-side example: BUY 30 @ 105 when short 20 @ 108
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-the-code-tells-the-three-outcomes-apart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How the code tells the three outcomes apart
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unrealized-pl-after-every-fill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unrealized P&amp;L after every fill
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#all-five-outcomes-side-by-side" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        All five outcomes side by side
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#using-pm-clearing-cli" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4339,21 +4483,323 @@ positive unrealized P&amp;L.</p>
 </tr>
 </tbody>
 </table>
+<h2 id="position-arithmetic-in-depth">Position arithmetic in depth<a class="headerlink" href="#position-arithmetic-in-depth" title="Permanent link">&para;</a></h2>
+<p>This section walks through every position transition step by step, starting
+from scratch. It is written for readers who find the formulas above abstract
+or who are puzzled by how cross-zero trades work internally.</p>
+<h3 id="what-a-position-actually-is">What a position actually is<a class="headerlink" href="#what-a-position-actually-is" title="Permanent link">&para;</a></h3>
+<p>A position is EduMatcher's record of three things for every <code>(gateway_id, symbol)</code> pair:</p>
+<ol>
+<li><strong>How many units are currently held</strong> (<code>net_qty</code>) — positive means long (you own them), negative means short (you owe them), zero means flat (no exposure).</li>
+<li><strong>At what blended price they were acquired</strong> (<code>avg_cost</code>) — the VWAP of all fills that built the current open position.</li>
+<li><strong>How much profit has already been locked in</strong> (<code>realized_pnl</code>) — gains and losses from fills that <em>reduced</em> the position.</li>
+</ol>
+<p>Every <code>trade.executed</code> message produces exactly two fill applications: one crediting the buyer's gateway and one crediting the seller's. Each application runs through the same position-update logic described below.</p>
+<h3 id="the-four-fill-outcomes">The four fill outcomes<a class="headerlink" href="#the-four-fill-outcomes" title="Permanent link">&para;</a></h3>
+<p>There are four things that can happen when a fill is applied to a position:</p>
+<table>
+<thead>
+<tr>
+<th>Outcome</th>
+<th>When it happens</th>
+<th>Effect on avg_cost</th>
+<th>Realized P&amp;L?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Open</strong></td>
+<td>position is flat</td>
+<td>set to fill price</td>
+<td>No</td>
+</tr>
+<tr>
+<td><strong>Add</strong></td>
+<td>fill is same direction as existing position</td>
+<td>recalculated (VWAP)</td>
+<td>No</td>
+</tr>
+<tr>
+<td><strong>Reduce / Close</strong></td>
+<td>fill opposes existing position, does not exceed it</td>
+<td>unchanged</td>
+<td>Yes, on closed qty</td>
+</tr>
+<tr>
+<td><strong>Cross-zero</strong></td>
+<td>fill opposes existing position and exceeds it</td>
+<td>reset to fill price (for new side)</td>
+<td>Yes, on closed qty only</td>
+</tr>
+</tbody>
+</table>
+<h3 id="opening-a-position-flat-long-or-flat-short">Opening a position (flat → long or flat → short)<a class="headerlink" href="#opening-a-position-flat-long-or-flat-short" title="Permanent link">&para;</a></h3>
+<p>When <code>net_qty = 0</code>, the position is flat and any fill simply opens it.</p>
+<p><strong>Example — BUY 10 @ 100:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Before:  net_qty = 0,  avg_cost = 0.00,  realized_pnl = 0
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>Step 1:  net_qty  = 0 + 10 = 10
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>Step 2:  avg_cost = 100.00      (fill price becomes the entry cost)
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>After:   net_qty = +10,  avg_cost = 100.00,  realized_pnl = 0
+</code></pre></div>
+<p>Nothing is realized here. You now own 10 units at an average cost of 100.</p>
+<h3 id="adding-to-an-existing-position-vwap-update">Adding to an existing position (VWAP update)<a class="headerlink" href="#adding-to-an-existing-position-vwap-update" title="Permanent link">&para;</a></h3>
+<p>When a fill is in the <strong>same direction</strong> as the current position — buying while already long, or selling while already short — the position grows and <code>avg_cost</code> is recalculated as a volume-weighted average.</p>
+<p><strong>Example — BUY 10 @ 110 (already long 10 @ 100):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Before:  net_qty = +10,  avg_cost = 100.00
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>existing_notional = 100.00 × 10 = 1,000
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>incoming_notional = 110.00 × 10 = 1,100
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>net_qty  = 10 + 10 = 20
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>avg_cost = (1,000 + 1,100) / 20 = 105.00
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>After:   net_qty = +20,  avg_cost = 105.00,  realized_pnl = 0
+</code></pre></div>
+<p>The VWAP of 105 reflects the blended cost of all 20 shares: 10 bought at 100
+and 10 bought at 110.</p>
+<h3 id="reducing-a-position-partial-or-full-close">Reducing a position (partial or full close)<a class="headerlink" href="#reducing-a-position-partial-or-full-close" title="Permanent link">&para;</a></h3>
+<p>When a fill <strong>opposes</strong> the current position but does not exceed it in
+size, the position shrinks. P&amp;L is realized on the closed portion only.
+<code>avg_cost</code> is <strong>not</strong> changed — it reflects your entry basis and stays fixed
+until you either go flat or cross zero.</p>
+<p><strong>Example — SELL 5 @ 115 (long 20 @ 105):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>Before:  net_qty = +20,  avg_cost = 105.00,  realized_pnl = 0
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>close_qty = min(5, 20) = 5
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>realized_delta = (fill_price − avg_cost) × close_qty
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>               = (115 − 105) × 5 = 50
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>net_qty = 20 − 5 = 15          (still long)
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>avg_cost unchanged at 105.00   (entry basis of remaining shares)
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>After:   net_qty = +15,  avg_cost = 105.00,  realized_pnl = 50
+</code></pre></div>
+<p>The $50 is now permanent regardless of what price does next.</p>
+<p><strong>Full close — SELL 15 @ 115 (long 15 @ 105):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>close_qty = min(15, 15) = 15
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>realized_delta = (115 − 105) × 15 = 150
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>net_qty  = 15 − 15 = 0
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>avg_cost = 0.00    (reset to zero when flat)
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>After:   net_qty = 0,  avg_cost = 0.00,  realized_pnl = 200
+</code></pre></div>
+<p>Position is flat. <code>avg_cost</code> resets to zero because there is nothing left to
+track an entry basis against.</p>
+<h3 id="cross-zero-the-confusing-case">Cross-zero: the confusing case<a class="headerlink" href="#cross-zero-the-confusing-case" title="Permanent link">&para;</a></h3>
+<p><strong>Cross-zero</strong> happens when a single fill is large enough to close the entire
+existing position <em>and</em> still have excess quantity left over, which opens a
+new position on the <strong>opposite</strong> side — all in one step.</p>
+<p>Think of it as two things happening at once:</p>
+<ol>
+<li>The fill closes the existing position (realizing P&amp;L on the full open quantity).</li>
+<li>The leftover quantity opens a brand-new position on the other side at the fill price.</li>
+</ol>
+<h4 id="long-side-example-sell-25-115-when-long-15-105">Long-side example: SELL 25 @ 115 when long 15 @ 105<a class="headerlink" href="#long-side-example-sell-25-115-when-long-15-105" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>Before:  net_qty = +15,  avg_cost = 105.00,  realized_pnl = 0
+</code></pre></div>
+<p><strong>Step 1 — how much closes the long?</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>open_qty  = abs(+15) = 15
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>close_qty = min(25, 15) = 15    ← only 15 units can close a 15-unit long
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>excess    = 25 − 15 = 10        ← these 10 open a new short
+</code></pre></div>
+<p><strong>Step 2 — realize P&amp;L on the closed portion:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>realized_delta = (fill_price − avg_cost) × close_qty
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>               = (115 − 105) × 15 = 150
+</code></pre></div>
+<p><strong>Step 3 — update net_qty:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>net_qty = +15 + (−25) = −10    ← positive → zero → negative: crossed zero
+</code></pre></div>
+<p><strong>Step 4 — the position flipped sides, so reset avg_cost to the fill price:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>avg_cost = 115.00    ← entry cost of the new 10-unit short
+</code></pre></div>
+<p><strong>Final state:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>net_qty       = −10
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>avg_cost      = 115.00
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>realized_pnl  = 150
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>unrealized_pnl = −10 × (115 − 115) = 0   (mark = fill price, no gain yet)
+</code></pre></div>
+<p>The 10-unit short contributes <em>zero</em> realized P&amp;L at this moment. Its P&amp;L
+will only become realized when a future buy reduces or closes it.</p>
+<div class="admonition note">
+<p class="admonition-title">Realized P&amp;L is only for the closing portion</p>
+<p>In a cross-zero fill, <code>close_qty = min(fill_qty, open_qty)</code> caps
+the realized calculation at the original position size. The excess
+quantity that opens the new side starts with zero realized P&amp;L.
+This prevents double-counting: the new position's entry cost is the
+fill price, so any future P&amp;L from it starts from that baseline.</p>
+</div>
+<h4 id="short-side-example-buy-30-105-when-short-20-108">Short-side example: BUY 30 @ 105 when short 20 @ 108<a class="headerlink" href="#short-side-example-buy-30-105-when-short-20-108" title="Permanent link">&para;</a></h4>
+<p>The mirror image applies when crossing zero from a short position.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>Before:  net_qty = −20,  avg_cost = 108.00,  realized_pnl = 0
+</code></pre></div>
+<p><strong>Step 1 — how much closes the short?</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>open_qty  = abs(−20) = 20
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>close_qty = min(30, 20) = 20
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>excess    = 30 − 20 = 10
+</code></pre></div>
+<p><strong>Step 2 — realize P&amp;L on the short close:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>realized_delta = (avg_cost − fill_price) × close_qty
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>               = (108 − 105) × 20 = 60
+</code></pre></div>
+<p>For a short, falling price is profit, so the formula subtracts in the
+opposite order: <code>avg_cost − fill_price</code>.</p>
+<p><strong>Step 3 — update net_qty:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>net_qty = −20 + 30 = +10    ← negative → zero → positive: crossed zero
+</code></pre></div>
+<p><strong>Step 4 — reset avg_cost for new long:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>avg_cost = 105.00
+</code></pre></div>
+<p><strong>Final state:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>net_qty       = +10
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>avg_cost      = 105.00
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>realized_pnl  = 60
+</code></pre></div>
+<h3 id="how-the-code-tells-the-three-outcomes-apart">How the code tells the three outcomes apart<a class="headerlink" href="#how-the-code-tells-the-three-outcomes-apart" title="Permanent link">&para;</a></h3>
+<p>When a fill opposes an existing position, the code applies <code>net_qty += signed_qty</code>
+first, then reads the resulting sign to decide what happened:</p>
+<table>
+<thead>
+<tr>
+<th>Scenario (long 15, SELL N)</th>
+<th><code>net_qty</code> after</th>
+<th>Sign check result</th>
+<th>Outcome</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SELL 5 (partial close)</td>
+<td>+10</td>
+<td>still positive, fill was SELL → no match</td>
+<td>avg_cost unchanged, partial close</td>
+</tr>
+<tr>
+<td>SELL 15 (full close)</td>
+<td>0</td>
+<td>zero → first <code>if net_qty == 0</code> branch fires</td>
+<td>avg_cost reset to 0</td>
+</tr>
+<tr>
+<td>SELL 25 (cross-zero)</td>
+<td>−10</td>
+<td>negative and fill was SELL → <strong>match</strong></td>
+<td>avg_cost reset to fill price</td>
+</tr>
+</tbody>
+</table>
+<p>The sign check reads: <em>"after the update, does <code>net_qty</code> agree with the fill direction?"</em> The only way that can be true when entering the reduce/close branch is if the fill exceeded the open quantity — i.e., it crossed zero.</p>
+<p>Checking <strong>after</strong> the update is intentional and precise. Before the update, the position is on the opposing side by definition (that is the condition that got us into this branch). After the update, a sign that agrees with the fill direction is the unambiguous fingerprint of a cross-zero event.</p>
+<h3 id="unrealized-pl-after-every-fill">Unrealized P&amp;L after every fill<a class="headerlink" href="#unrealized-pl-after-every-fill" title="Permanent link">&para;</a></h3>
+<p>After every fill — regardless of outcome — unrealized P&amp;L is recalculated:</p>
+<div class="arithmatex">\[
+\text{unrealized} = \text{net\_qty} \times (\text{mark\_price} - \text{avg\_cost})
+\]</div>
+<p><code>mark_price</code> is set to the latest fill price after each trade. For a flat position (<code>net_qty = 0</code>) unrealized P&amp;L is always zero.</p>
+<p>For a <strong>short</strong> position <code>net_qty</code> is negative, so the formula naturally
+produces positive unrealized P&amp;L when the price falls below <code>avg_cost</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>net_qty = −10,  avg_cost = 115,  mark_price = 110
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>unrealized = −10 × (110 − 115) = −10 × (−5) = +50
+</code></pre></div>
+<h3 id="all-five-outcomes-side-by-side">All five outcomes side by side<a class="headerlink" href="#all-five-outcomes-side-by-side" title="Permanent link">&para;</a></h3>
+<p>The table below shows a single gateway trading <code>AAPL</code> through all five
+position transitions in sequence:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Fill</th>
+<th>open_qty before</th>
+<th>close_qty</th>
+<th>Outcome</th>
+<th>net_qty</th>
+<th>avg_cost</th>
+<th>realized_pnl</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>BUY 10 @ 100</td>
+<td>0</td>
+<td>—</td>
+<td>Open long</td>
+<td>+10</td>
+<td>100.00</td>
+<td>0</td>
+</tr>
+<tr>
+<td>2</td>
+<td>BUY 10 @ 110</td>
+<td>—</td>
+<td>—</td>
+<td>Add (VWAP)</td>
+<td>+20</td>
+<td>105.00</td>
+<td>0</td>
+</tr>
+<tr>
+<td>3</td>
+<td>SELL 5 @ 115</td>
+<td>20</td>
+<td>5</td>
+<td>Partial close</td>
+<td>+15</td>
+<td>105.00</td>
+<td>50</td>
+</tr>
+<tr>
+<td>4</td>
+<td>SELL 15 @ 115</td>
+<td>15</td>
+<td>15</td>
+<td>Full close</td>
+<td>0</td>
+<td>0.00</td>
+<td>200</td>
+</tr>
+<tr>
+<td>5</td>
+<td>SELL 15 @ 108</td>
+<td>0</td>
+<td>—</td>
+<td>Open short (from flat)</td>
+<td>−15</td>
+<td>108.00</td>
+<td>200</td>
+</tr>
+<tr>
+<td>6</td>
+<td>BUY 20 @ 105</td>
+<td>15</td>
+<td>15</td>
+<td>Cross-zero: close 15 short + open 5 long</td>
+<td>+5</td>
+<td>105.00</td>
+<td>245</td>
+</tr>
+</tbody>
+</table>
+<p>Row 6 is cross-zero: the BUY 20 closes 15 units of the short (realizing <code>(108−105)×15 = 45</code>) and opens a new 5-unit long at 105, accounting for the cumulative jump from 200 to 245.</p>
 <h2 id="using-pm-clearing-cli">Using pm-clearing-cli<a class="headerlink" href="#using-pm-clearing-cli" title="Permanent link">&para;</a></h2>
 <p><code>pm-clearing-cli</code> provides verb-based access to all clearing data without writing SQL.
 It always reads from the same <code>clearing.db</code> used by <code>pm-clearing</code>.
 For a process-level command matrix and operational notes, see
 <a href="../10-processes/#pm-clearing-cli--clearing-query-cli">Processes — pm-clearing-cli</a>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pm-clearing-cli<span class="w"> </span><span class="o">[</span>GLOBAL_OPTIONS<span class="o">]</span><span class="w"> </span>&lt;verb&gt;<span class="w"> </span><span class="o">[</span>verb-options<span class="o">]</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>Global<span class="w"> </span>options:
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span>--datapath<span class="w"> </span>PATH<span class="w">      </span>Data<span class="w"> </span>directory<span class="w"> </span>or<span class="w"> </span>explicit<span class="w"> </span>.db<span class="w"> </span>file<span class="w"> </span>path
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span>--db-name<span class="w"> </span>NAME<span class="w">       </span>SQLite<span class="w"> </span>filename<span class="w"> </span><span class="k">if</span><span class="w"> </span>datapath<span class="w"> </span>is<span class="w"> </span>a<span class="w"> </span>directory
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span>--format<span class="w"> </span>FMT<span class="w">         </span>table<span class="w"> </span><span class="p">|</span><span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>csv<span class="w">  </span><span class="o">(</span>default:<span class="w"> </span>table<span class="o">)</span>
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span>--no-header<span class="w">          </span>Suppress<span class="w"> </span>CSV<span class="w"> </span>header<span class="w"> </span>row
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span>--raw-output<span class="w">         </span>Disable<span class="w"> </span>normalization<span class="w"> </span>and<span class="w"> </span>show<span class="w"> </span>raw<span class="w"> </span>tick-unit<span class="w"> </span>values
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span>--version
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">  </span>--help
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-clearing-cli<span class="w"> </span><span class="o">[</span>GLOBAL_OPTIONS<span class="o">]</span><span class="w"> </span>&lt;verb&gt;<span class="w"> </span><span class="o">[</span>verb-options<span class="o">]</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>Global<span class="w"> </span>options:
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">  </span>--datapath<span class="w"> </span>PATH<span class="w">      </span>Data<span class="w"> </span>directory<span class="w"> </span>or<span class="w"> </span>explicit<span class="w"> </span>.db<span class="w"> </span>file<span class="w"> </span>path
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="w">  </span>--db-name<span class="w"> </span>NAME<span class="w">       </span>SQLite<span class="w"> </span>filename<span class="w"> </span><span class="k">if</span><span class="w"> </span>datapath<span class="w"> </span>is<span class="w"> </span>a<span class="w"> </span>directory
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="w">  </span>--format<span class="w"> </span>FMT<span class="w">         </span>table<span class="w"> </span><span class="p">|</span><span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>csv<span class="w">  </span><span class="o">(</span>default:<span class="w"> </span>table<span class="o">)</span>
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="w">  </span>--no-header<span class="w">          </span>Suppress<span class="w"> </span>CSV<span class="w"> </span>header<span class="w"> </span>row
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a><span class="w">  </span>--raw-output<span class="w">         </span>Disable<span class="w"> </span>normalization<span class="w"> </span>and<span class="w"> </span>show<span class="w"> </span>raw<span class="w"> </span>tick-unit<span class="w"> </span>values
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="w">  </span>--version
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="w">  </span>--help
 </code></pre></div>
 <h3 id="command-verb-reference">Command verb reference<a class="headerlink" href="#command-verb-reference" title="Permanent link">&para;</a></h3>
 <table>
@@ -4478,14 +4924,14 @@ For a process-level command matrix and operational notes, see
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># All gateways</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>pm-clearing-cli<span class="w"> </span>gateways
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># One gateway</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>pm-clearing-cli<span class="w"> </span>gateways<span class="w"> </span>--gateway<span class="w"> </span>TRADER01
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="c1"># Machine-readable output</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>gateways
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="c1"># All gateways</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a>pm-clearing-cli<span class="w"> </span>gateways
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="c1"># One gateway</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a>pm-clearing-cli<span class="w"> </span>gateways<span class="w"> </span>--gateway<span class="w"> </span>TRADER01
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a>
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="c1"># Machine-readable output</span>
+<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>gateways
 </code></pre></div>
 <p>Output fields: <code>gateway_id</code>, <code>realized_pnl_total</code>, <code>unrealized_pnl_total</code>,
 <code>total_pnl</code>, <code>net_qty_total</code></p>
@@ -4533,17 +4979,17 @@ For a process-level command matrix and operational notes, see
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># All positions</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>pm-clearing-cli<span class="w"> </span>positions
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># One gateway, all symbols</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>pm-clearing-cli<span class="w"> </span>positions<span class="w"> </span>--gateway<span class="w"> </span>MM01
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># One symbol across all gateways</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>pm-clearing-cli<span class="w"> </span>positions<span class="w"> </span>--symbol<span class="w"> </span>AAPL
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="c1"># CSV export</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>positions<span class="w"> </span>&gt;<span class="w"> </span>positions.csv
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="c1"># All positions</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>pm-clearing-cli<span class="w"> </span>positions
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="c1"># One gateway, all symbols</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>pm-clearing-cli<span class="w"> </span>positions<span class="w"> </span>--gateway<span class="w"> </span>MM01
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="c1"># One symbol across all gateways</span>
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>pm-clearing-cli<span class="w"> </span>positions<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<a id="__codelineno-22-9" name="__codelineno-22-9" href="#__codelineno-22-9"></a>
+<a id="__codelineno-22-10" name="__codelineno-22-10" href="#__codelineno-22-10"></a><span class="c1"># CSV export</span>
+<a id="__codelineno-22-11" name="__codelineno-22-11" href="#__codelineno-22-11"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>positions<span class="w"> </span>&gt;<span class="w"> </span>positions.csv
 </code></pre></div>
 <p>Output fields include <code>net_qty</code>, <code>avg_cost</code>, <code>mark_price</code>, <code>tick_decimals</code>,
 <code>realized_pnl</code>, <code>unrealized_pnl</code>, buy/sell quantities and notionals.</p>
@@ -4587,14 +5033,14 @@ For a process-level command matrix and operational notes, see
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Exchange-wide P&amp;L</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>pm-clearing-cli<span class="w"> </span>pnl
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># One gateway</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>pm-clearing-cli<span class="w"> </span>pnl<span class="w"> </span>--gateway<span class="w"> </span>TRADER01
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="c1"># One symbol across all gateways</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>pm-clearing-cli<span class="w"> </span>pnl<span class="w"> </span>--symbol<span class="w"> </span>MSFT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="c1"># Exchange-wide P&amp;L</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>pm-clearing-cli<span class="w"> </span>pnl
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="c1"># One gateway</span>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>pm-clearing-cli<span class="w"> </span>pnl<span class="w"> </span>--gateway<span class="w"> </span>TRADER01
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a>
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a><span class="c1"># One symbol across all gateways</span>
+<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a>pm-clearing-cli<span class="w"> </span>pnl<span class="w"> </span>--symbol<span class="w"> </span>MSFT
 </code></pre></div>
 <h3 id="daily-daily-rollup-summaries">daily — daily rollup summaries<a class="headerlink" href="#daily-daily-rollup-summaries" title="Permanent link">&para;</a></h3>
 <p>Returns per-day aggregates for every <code>(gateway, symbol)</code> key, including end-of-day position snapshots. A clearing house uses this for <strong>day-end reconciliation and settlement records</strong>: it provides the official closing quantities, average costs, and P&amp;L figures that feed downstream reporting, fee calculation, and regulatory filings.</p>
@@ -4652,17 +5098,17 @@ For a process-level command matrix and operational notes, see
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Today&#39;s summary for all gateways</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>pm-clearing-cli<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># A date range</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>pm-clearing-cli<span class="w"> </span>daily<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># One gateway&#39;s week</span>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>pm-clearing-cli<span class="w"> </span>daily<span class="w"> </span>--gateway<span class="w"> </span>MM01<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="c1"># JSON export for a spreadsheet</span>
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>&gt;<span class="w"> </span>daily_2026-07-05.json
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1"># Today&#39;s summary for all gateways</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a>pm-clearing-cli<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="c1"># A date range</span>
+<a id="__codelineno-24-5" name="__codelineno-24-5" href="#__codelineno-24-5"></a>pm-clearing-cli<span class="w"> </span>daily<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05
+<a id="__codelineno-24-6" name="__codelineno-24-6" href="#__codelineno-24-6"></a>
+<a id="__codelineno-24-7" name="__codelineno-24-7" href="#__codelineno-24-7"></a><span class="c1"># One gateway&#39;s week</span>
+<a id="__codelineno-24-8" name="__codelineno-24-8" href="#__codelineno-24-8"></a>pm-clearing-cli<span class="w"> </span>daily<span class="w"> </span>--gateway<span class="w"> </span>MM01<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05
+<a id="__codelineno-24-9" name="__codelineno-24-9" href="#__codelineno-24-9"></a>
+<a id="__codelineno-24-10" name="__codelineno-24-10" href="#__codelineno-24-10"></a><span class="c1"># JSON export for a spreadsheet</span>
+<a id="__codelineno-24-11" name="__codelineno-24-11" href="#__codelineno-24-11"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>&gt;<span class="w"> </span>daily_2026-07-05.json
 </code></pre></div>
 <h3 id="trades-raw-trade-events">trades — raw trade events<a class="headerlink" href="#trades-raw-trade-events" title="Permanent link">&para;</a></h3>
 <p>Returns the append-only trade fact log exactly as captured from the engine. A clearing house uses this as the <strong>primary audit and investigation tool</strong>: it provides an immutable, timestamped record of every matched fill, which is the source of truth for dispute resolution, trade reconstruction, and regulatory trade reporting.</p>
@@ -4726,17 +5172,17 @@ For a process-level command matrix and operational notes, see
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># All trades today</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>pm-clearing-cli<span class="w"> </span>trades<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># One symbol, paginated</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>pm-clearing-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># Everything a gateway touched today</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>pm-clearing-cli<span class="w"> </span>trades<span class="w"> </span>--gateway<span class="w"> </span>TRADER07<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="c1"># Date range</span>
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>pm-clearing-cli<span class="w"> </span>trades<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>--symbol<span class="w"> </span>MSFT
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="c1"># All trades today</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a>pm-clearing-cli<span class="w"> </span>trades<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="c1"># One symbol, paginated</span>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>pm-clearing-cli<span class="w"> </span>trades<span class="w"> </span>--symbol<span class="w"> </span>AAPL<span class="w"> </span>--limit<span class="w"> </span><span class="m">50</span>
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a>
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="c1"># Everything a gateway touched today</span>
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a>pm-clearing-cli<span class="w"> </span>trades<span class="w"> </span>--gateway<span class="w"> </span>TRADER07<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05
+<a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a>
+<a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a><span class="c1"># Date range</span>
+<a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a>pm-clearing-cli<span class="w"> </span>trades<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>--symbol<span class="w"> </span>MSFT
 </code></pre></div>
 <p>The <code>trades</code> verb includes <code>tick_decimals</code>; <code>price</code> is rendered in display
 units using that precision for all output formats.</p>
@@ -4784,17 +5230,17 @@ units using that precision for all output formats.</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># Largest exposures first (default sort: gross_notional)</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>pm-clearing-cli<span class="w"> </span>exposure
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># Sort by total P&amp;L</span>
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>pm-clearing-cli<span class="w"> </span>exposure<span class="w"> </span>--sort<span class="w"> </span>total_pnl
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="c1"># One symbol</span>
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>pm-clearing-cli<span class="w"> </span>exposure<span class="w"> </span>--symbol<span class="w"> </span>AAPL
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="c1"># JSON for a risk dashboard</span>
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>exposure<span class="w"> </span>&gt;<span class="w"> </span>exposure.json
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="c1"># Largest exposures first (default sort: gross_notional)</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a>pm-clearing-cli<span class="w"> </span>exposure
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="c1"># Sort by total P&amp;L</span>
+<a id="__codelineno-26-5" name="__codelineno-26-5" href="#__codelineno-26-5"></a>pm-clearing-cli<span class="w"> </span>exposure<span class="w"> </span>--sort<span class="w"> </span>total_pnl
+<a id="__codelineno-26-6" name="__codelineno-26-6" href="#__codelineno-26-6"></a>
+<a id="__codelineno-26-7" name="__codelineno-26-7" href="#__codelineno-26-7"></a><span class="c1"># One symbol</span>
+<a id="__codelineno-26-8" name="__codelineno-26-8" href="#__codelineno-26-8"></a>pm-clearing-cli<span class="w"> </span>exposure<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<a id="__codelineno-26-9" name="__codelineno-26-9" href="#__codelineno-26-9"></a>
+<a id="__codelineno-26-10" name="__codelineno-26-10" href="#__codelineno-26-10"></a><span class="c1"># JSON for a risk dashboard</span>
+<a id="__codelineno-26-11" name="__codelineno-26-11" href="#__codelineno-26-11"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>exposure<span class="w"> </span>&gt;<span class="w"> </span>exposure.json
 </code></pre></div>
 <p>Allowed <code>--sort</code> values: <code>gross_notional</code>, <code>net_notional</code>, <code>realized_pnl</code>,
 <code>unrealized_pnl</code>, <code>total_pnl</code></p>
@@ -4848,14 +5294,14 @@ units using that precision for all output formats.</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># All symbols traded</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>pm-clearing-cli<span class="w"> </span>symbols
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># Sort by traded notional (descending)</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>pm-clearing-cli<span class="w"> </span>symbols<span class="w"> </span>--sort<span class="w"> </span>traded_notional
-<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1"># Filter to one date</span>
-<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>pm-clearing-cli<span class="w"> </span>symbols<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="c1"># All symbols traded</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a>pm-clearing-cli<span class="w"> </span>symbols
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a>
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="c1"># Sort by traded notional (descending)</span>
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a>pm-clearing-cli<span class="w"> </span>symbols<span class="w"> </span>--sort<span class="w"> </span>traded_notional
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a>
+<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a><span class="c1"># Filter to one date</span>
+<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a>pm-clearing-cli<span class="w"> </span>symbols<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05
 </code></pre></div>
 <p>Allowed <code>--sort</code> values: <code>symbol</code>, <code>traded_qty</code>, <code>traded_notional</code>,
 <code>realized_pnl</code>, <code>open_net_qty</code></p>
@@ -4915,17 +5361,17 @@ units using that precision for all output formats.</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># List all dates in the DB</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pm-clearing-cli<span class="w"> </span>dates
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># With per-date volume and net amount</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>pm-clearing-cli<span class="w"> </span>dates<span class="w"> </span>--with-totals
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="c1"># Filter by symbol</span>
-<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>pm-clearing-cli<span class="w"> </span>dates<span class="w"> </span>--symbol<span class="w"> </span>AAPL
-<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>
-<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a><span class="c1"># Narrow date window with totals</span>
-<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>pm-clearing-cli<span class="w"> </span>dates<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>--with-totals
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="c1"># List all dates in the DB</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a>pm-clearing-cli<span class="w"> </span>dates
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="c1"># With per-date volume and net amount</span>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a>pm-clearing-cli<span class="w"> </span>dates<span class="w"> </span>--with-totals
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a>
+<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="c1"># Filter by symbol</span>
+<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a>pm-clearing-cli<span class="w"> </span>dates<span class="w"> </span>--symbol<span class="w"> </span>AAPL
+<a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a>
+<a id="__codelineno-28-10" name="__codelineno-28-10" href="#__codelineno-28-10"></a><span class="c1"># Narrow date window with totals</span>
+<a id="__codelineno-28-11" name="__codelineno-28-11" href="#__codelineno-28-11"></a>pm-clearing-cli<span class="w"> </span>dates<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>--with-totals
 </code></pre></div>
 <h3 id="health-db-metadata-and-freshness">health — DB metadata and freshness<a class="headerlink" href="#health-db-metadata-and-freshness" title="Permanent link">&para;</a></h3>
 <p>Returns a single-row operational summary of the clearing database. A clearing house uses this as a <strong>liveness and monitoring check</strong>: it confirms that <code>pm-clearing</code> is actively writing, reports how many records are stored, and shows when the last flush occurred so operators can detect a stalled or disconnected clearing process before it causes a data gap.</p>
@@ -4948,7 +5394,7 @@ units using that precision for all output formats.</p>
 </tbody>
 </table>
 <p>No filter options — <code>health</code> always returns a single summary row.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>pm-clearing-cli<span class="w"> </span>health
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>pm-clearing-cli<span class="w"> </span>health
 </code></pre></div>
 <p>Output fields: <code>db_path</code>, <code>trade_events_rows</code>, <code>gateway_symbol_positions_rows</code>,
 <code>gateway_daily_summary_rows</code>, <code>last_trade_ts_ns</code>, <code>last_flush_ts_ns</code>, <code>wal_mode</code></p>
@@ -4998,15 +5444,15 @@ units using that precision for all output formats.</p>
 </table>
 <p>Output columns: <code>side</code> (<code>BUY</code> or <code>SELL</code>), <code>trade_date</code>, <code>gateway_id</code>, <code>symbol</code>,
 <code>raw_qty</code>, <code>summary_qty</code>, <code>qty_diff</code>, <code>raw_notional</code>, <code>summary_notional</code>, <code>notional_diff</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Full reconciliation (both sides)</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>pm-clearing-cli<span class="w"> </span>reconcile
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="c1"># Scope to one gateway or date range</span>
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>pm-clearing-cli<span class="w"> </span>reconcile<span class="w"> </span>--gateway<span class="w"> </span>TRADER01
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>pm-clearing-cli<span class="w"> </span>reconcile<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>
-<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="c1"># JSON output for automated checking</span>
-<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>reconcile
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="c1"># Full reconciliation (both sides)</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a>pm-clearing-cli<span class="w"> </span>reconcile
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a>
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="c1"># Scope to one gateway or date range</span>
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a>pm-clearing-cli<span class="w"> </span>reconcile<span class="w"> </span>--gateway<span class="w"> </span>TRADER01
+<a id="__codelineno-30-6" name="__codelineno-30-6" href="#__codelineno-30-6"></a>pm-clearing-cli<span class="w"> </span>reconcile<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05
+<a id="__codelineno-30-7" name="__codelineno-30-7" href="#__codelineno-30-7"></a>
+<a id="__codelineno-30-8" name="__codelineno-30-8" href="#__codelineno-30-8"></a><span class="c1"># JSON output for automated checking</span>
+<a id="__codelineno-30-9" name="__codelineno-30-9" href="#__codelineno-30-9"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>reconcile
 </code></pre></div>
 <h3 id="sessions-gateway-connection-and-disconnection-history">sessions — gateway connection and disconnection history<a class="headerlink" href="#sessions-gateway-connection-and-disconnection-history" title="Permanent link">&para;</a></h3>
 <p>Returns the timeline of every gateway connection recorded by <code>pm-clearing</code> from <code>system.gateway_connect</code> and <code>system.gateway_disconnect</code> messages. A clearing house uses this for <strong>participant access auditing</strong>: it establishes exactly when each participant was active, how long they were connected, and whether a disconnect was clean or forced — context that is essential when investigating missing trades or unexpected position changes.</p>
@@ -5058,20 +5504,20 @@ units using that precision for all output formats.</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># All sessions today</span>
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-05
-<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
-<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1"># History for one gateway</span>
-<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--gateway<span class="w"> </span>TRADER07
-<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>
-<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="c1"># Only currently-open sessions (no recorded disconnect)</span>
-<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--connected-only
-<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>
-<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="c1"># Date range</span>
-<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05
-<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a>
-<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="c1"># JSON export</span>
-<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>sessions<span class="w"> </span>&gt;<span class="w"> </span>sessions.json
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="c1"># All sessions today</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-05
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="c1"># History for one gateway</span>
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--gateway<span class="w"> </span>TRADER07
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>
+<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="c1"># Only currently-open sessions (no recorded disconnect)</span>
+<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--connected-only
+<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a>
+<a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a><span class="c1"># Date range</span>
+<a id="__codelineno-31-11" name="__codelineno-31-11" href="#__codelineno-31-11"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05
+<a id="__codelineno-31-12" name="__codelineno-31-12" href="#__codelineno-31-12"></a>
+<a id="__codelineno-31-13" name="__codelineno-31-13" href="#__codelineno-31-13"></a><span class="c1"># JSON export</span>
+<a id="__codelineno-31-14" name="__codelineno-31-14" href="#__codelineno-31-14"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>sessions<span class="w"> </span>&gt;<span class="w"> </span>sessions.json
 </code></pre></div>
 <p>Output fields: <code>gateway_id</code>, <code>connect_date</code>, <code>connected_at_ns</code>,
 <code>disconnected_at_ns</code>, <code>disconnect_reason</code></p>
@@ -5120,25 +5566,25 @@ history going forward.</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># Latest EOD markers</span>
-<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>pm-clearing-cli<span class="w"> </span>eod
-<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>
-<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="c1"># Date range</span>
-<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>pm-clearing-cli<span class="w"> </span>eod<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05
-<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a>
-<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="c1"># Most recent session close</span>
-<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a>pm-clearing-cli<span class="w"> </span>eod<span class="w"> </span>--limit<span class="w"> </span><span class="m">1</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="c1"># Latest EOD markers</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a>pm-clearing-cli<span class="w"> </span>eod
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="c1"># Date range</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a>pm-clearing-cli<span class="w"> </span>eod<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a>
+<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a><span class="c1"># Most recent session close</span>
+<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a>pm-clearing-cli<span class="w"> </span>eod<span class="w"> </span>--limit<span class="w"> </span><span class="m">1</span>
 </code></pre></div>
 <p>Output fields: <code>id</code>, <code>event_type</code> (always <code>EOD</code>), <code>ts_ns</code>, <code>trade_date</code>,
 <code>payload_json</code> (JSON object with <code>eod_marks</code> dict and <code>symbols_count</code>).</p>
 <p>To extract the EOD mark prices for AAPL from the JSON payload:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>eod<span class="w"> </span>--limit<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
-<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="s2">import json, sys</span>
-<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="s2">row = json.load(sys.stdin)[0]</span>
-<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="s2">marks = json.loads(row[&#39;payload_json&#39;])[&#39;eod_marks&#39;]</span>
-<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="s2">print(&#39;AAPL EOD mark:&#39;, marks.get(&#39;AAPL&#39;, &#39;n/a&#39;))</span>
-<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="s2">&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span>eod<span class="w"> </span>--limit<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="s2">import json, sys</span>
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="s2">row = json.load(sys.stdin)[0]</span>
+<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a><span class="s2">marks = json.loads(row[&#39;payload_json&#39;])[&#39;eod_marks&#39;]</span>
+<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a><span class="s2">print(&#39;AAPL EOD mark:&#39;, marks.get(&#39;AAPL&#39;, &#39;n/a&#39;))</span>
+<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a><span class="s2">&quot;</span>
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -5179,14 +5625,14 @@ it during a quiet period.</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="c1"># Delete rows older than 90 days and VACUUM</span>
-<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>pm-clearing-cli<span class="w"> </span>prune
-<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>
-<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="c1"># Custom retention window</span>
-<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>pm-clearing-cli<span class="w"> </span>prune<span class="w"> </span>--days<span class="w"> </span><span class="m">180</span>
-<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>
-<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="c1"># See what would be deleted without deleting</span>
-<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>pm-clearing-cli<span class="w"> </span>prune<span class="w"> </span>--dry-run
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="c1"># Delete rows older than 90 days and VACUUM</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>pm-clearing-cli<span class="w"> </span>prune
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="c1"># Custom retention window</span>
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a>pm-clearing-cli<span class="w"> </span>prune<span class="w"> </span>--days<span class="w"> </span><span class="m">180</span>
+<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a>
+<a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a><span class="c1"># See what would be deleted without deleting</span>
+<a id="__codelineno-34-8" name="__codelineno-34-8" href="#__codelineno-34-8"></a>pm-clearing-cli<span class="w"> </span>prune<span class="w"> </span>--dry-run
 </code></pre></div>
 <div class="admonition tip">
 <p class="admonition-title">Tip</p>
@@ -5195,68 +5641,68 @@ rarely needed. Use <code>--dry-run</code> first if you are uncertain.</p>
 </div>
 <h2 id="clearing-cookbook-common-questions-and-answers">Clearing cookbook — common questions and answers<a class="headerlink" href="#clearing-cookbook-common-questions-and-answers" title="Permanent link">&para;</a></h2>
 <h3 id="what-is-our-live-pl-right-now">"What is our live P&amp;L right now?"<a class="headerlink" href="#what-is-our-live-pl-right-now" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>pm-clearing-cli<span class="w"> </span>pnl
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a>pm-clearing-cli<span class="w"> </span>pnl
 </code></pre></div>
 <p>Or for a specific gateway:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>pm-clearing-cli<span class="w"> </span>pnl<span class="w"> </span>--gateway<span class="w"> </span>TRADER01
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a>pm-clearing-cli<span class="w"> </span>pnl<span class="w"> </span>--gateway<span class="w"> </span>TRADER01
 </code></pre></div>
 <h3 id="which-gateways-have-the-largest-open-exposure">"Which gateways have the largest open exposure?"<a class="headerlink" href="#which-gateways-have-the-largest-open-exposure" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>pm-clearing-cli<span class="w"> </span>exposure<span class="w"> </span>--sort<span class="w"> </span>gross_notional<span class="w"> </span>--limit<span class="w"> </span><span class="m">10</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>pm-clearing-cli<span class="w"> </span>exposure<span class="w"> </span>--sort<span class="w"> </span>gross_notional<span class="w"> </span>--limit<span class="w"> </span><span class="m">10</span>
 </code></pre></div>
 <h3 id="show-me-every-trade-trader07-did-today">"Show me every trade TRADER07 did today"<a class="headerlink" href="#show-me-every-trade-trader07-did-today" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a>pm-clearing-cli<span class="w"> </span>trades<span class="w"> </span>--gateway<span class="w"> </span>TRADER07<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>pm-clearing-cli<span class="w"> </span>trades<span class="w"> </span>--gateway<span class="w"> </span>TRADER07<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05
 </code></pre></div>
 <h3 id="what-was-the-total-exchange-volume-and-notional-today">"What was the total exchange volume and notional today?"<a class="headerlink" href="#what-was-the-total-exchange-volume-and-notional-today" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>pm-clearing-cli<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a>pm-clearing-cli<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05
 </code></pre></div>
 <p>Or for a date range, including net amounts:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>pm-clearing-cli<span class="w"> </span>dates<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>--with-totals
+<div class="highlight"><pre><span></span><code><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a>pm-clearing-cli<span class="w"> </span>dates<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-01<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>--with-totals
 </code></pre></div>
 <h3 id="which-symbols-generated-the-biggest-pl-swings">"Which symbols generated the biggest P&amp;L swings?"<a class="headerlink" href="#which-symbols-generated-the-biggest-pl-swings" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>pm-clearing-cli<span class="w"> </span>symbols<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>--sort<span class="w"> </span>realized_pnl
+<div class="highlight"><pre><span></span><code><a id="__codelineno-41-1" name="__codelineno-41-1" href="#__codelineno-41-1"></a>pm-clearing-cli<span class="w"> </span>symbols<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>--sort<span class="w"> </span>realized_pnl
 </code></pre></div>
 <h3 id="did-clearing-stop-updating-when-was-the-last-flush">"Did clearing stop updating? When was the last flush?"<a class="headerlink" href="#did-clearing-stop-updating-when-was-the-last-flush" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a>pm-clearing-cli<span class="w"> </span>health
+<div class="highlight"><pre><span></span><code><a id="__codelineno-42-1" name="__codelineno-42-1" href="#__codelineno-42-1"></a>pm-clearing-cli<span class="w"> </span>health
 </code></pre></div>
 <p>Compare <code>last_flush_ts_ns</code> against the current time. If it is more than a few
 minutes stale during active trading, <code>pm-clearing</code> may have stopped.</p>
 <h3 id="what-was-the-official-eod-mark-for-aapl-yesterday">"What was the official EOD mark for AAPL yesterday?"<a class="headerlink" href="#what-was-the-official-eod-mark-for-aapl-yesterday" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>pm-clearing-cli<span class="w"> </span>eod<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-04<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-04
+<div class="highlight"><pre><span></span><code><a id="__codelineno-43-1" name="__codelineno-43-1" href="#__codelineno-43-1"></a>pm-clearing-cli<span class="w"> </span>eod<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-04<span class="w"> </span>--to<span class="w"> </span><span class="m">2026</span>-07-04
 </code></pre></div>
 <p>This returns the sentinel row written by <code>pm-clearing</code> on <code>system.eod</code>,
 including the exact close timestamp and the <code>payload_json</code> field which
 contains the EOD mark prices applied to each symbol.</p>
 <h3 id="when-did-trader07-connect-and-disconnect-today">"When did TRADER07 connect and disconnect today?"<a class="headerlink" href="#when-did-trader07-connect-and-disconnect-today" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--gateway<span class="w"> </span>TRADER07<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-05
+<div class="highlight"><pre><span></span><code><a id="__codelineno-44-1" name="__codelineno-44-1" href="#__codelineno-44-1"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--gateway<span class="w"> </span>TRADER07<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-05
 </code></pre></div>
 <h3 id="which-gateways-were-connected-during-todays-session">"Which gateways were connected during today's session?"<a class="headerlink" href="#which-gateways-were-connected-during-todays-session" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-05
+<div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-05
 </code></pre></div>
 <h3 id="which-gateways-are-currently-connected-no-recorded-disconnect">"Which gateways are currently connected (no recorded disconnect)?"<a class="headerlink" href="#which-gateways-are-currently-connected-no-recorded-disconnect" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--connected-only
+<div class="highlight"><pre><span></span><code><a id="__codelineno-46-1" name="__codelineno-46-1" href="#__codelineno-46-1"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--connected-only
 </code></pre></div>
 <h3 id="why-does-trader07-have-no-trades-today-was-it-ever-connected">"Why does TRADER07 have no trades today — was it ever connected?"<a class="headerlink" href="#why-does-trader07-have-no-trades-today-was-it-ever-connected" title="Permanent link">&para;</a></h3>
 <p>Run the session history first:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--gateway<span class="w"> </span>TRADER07<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-05
+<div class="highlight"><pre><span></span><code><a id="__codelineno-47-1" name="__codelineno-47-1" href="#__codelineno-47-1"></a>pm-clearing-cli<span class="w"> </span>sessions<span class="w"> </span>--gateway<span class="w"> </span>TRADER07<span class="w"> </span>--from<span class="w"> </span><span class="m">2026</span>-07-05
 </code></pre></div>
 <p>This tells you whether the gateway connected at all. If no rows are returned,
 TRADER07 never authenticated. If a row is present with a rapid
 <code>disconnected_at_ns</code>, the gateway was kicked mid-session. Then check trades:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a>pm-clearing-cli<span class="w"> </span>trades<span class="w"> </span>--gateway<span class="w"> </span>TRADER07<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05
+<div class="highlight"><pre><span></span><code><a id="__codelineno-48-1" name="__codelineno-48-1" href="#__codelineno-48-1"></a>pm-clearing-cli<span class="w"> </span>trades<span class="w"> </span>--gateway<span class="w"> </span>TRADER07<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05
 </code></pre></div>
 <h3 id="export-todays-daily-summary-for-the-finance-team">"Export today's daily summary for the finance team"<a class="headerlink" href="#export-todays-daily-summary-for-the-finance-team" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>&gt;<span class="w"> </span>clearing_2026-07-05.csv
+<div class="highlight"><pre><span></span><code><a id="__codelineno-49-1" name="__codelineno-49-1" href="#__codelineno-49-1"></a>pm-clearing-cli<span class="w"> </span>--format<span class="w"> </span>csv<span class="w"> </span>daily<span class="w"> </span>--date<span class="w"> </span><span class="m">2026</span>-07-05<span class="w"> </span>&gt;<span class="w"> </span>clearing_2026-07-05.csv
 </code></pre></div>
 <h3 id="verify-the-database-is-internally-consistent">"Verify the database is internally consistent"<a class="headerlink" href="#verify-the-database-is-internally-consistent" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a>pm-clearing-cli<span class="w"> </span>reconcile
-<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="c1"># OK — no discrepancies found.</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-50-1" name="__codelineno-50-1" href="#__codelineno-50-1"></a>pm-clearing-cli<span class="w"> </span>reconcile
+<a id="__codelineno-50-2" name="__codelineno-50-2" href="#__codelineno-50-2"></a><span class="c1"># OK — no discrepancies found.</span>
 </code></pre></div>
 <p>If the reconcile output shows rows, contact the EduMatcher operations team.</p>
 <h3 id="how-do-i-isolate-per-session-data">"How do I isolate per-session data?"<a class="headerlink" href="#how-do-i-isolate-per-session-data" title="Permanent link">&para;</a></h3>
 <p>Set <code>EDUMATCHER_DATA_DIR</code> before starting:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/sessions/morning&quot;</span>
-<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a>pm-clearing<span class="w"> </span><span class="p">&amp;</span>
-<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a>pm-clearing-cli<span class="w"> </span>pnl<span class="w">  </span><span class="c1"># reads morning/clearing.db</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-51-1" name="__codelineno-51-1" href="#__codelineno-51-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">EDUMATCHER_DATA_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/sessions/morning&quot;</span>
+<a id="__codelineno-51-2" name="__codelineno-51-2" href="#__codelineno-51-2"></a>pm-clearing<span class="w"> </span><span class="p">&amp;</span>
+<a id="__codelineno-51-3" name="__codelineno-51-3" href="#__codelineno-51-3"></a>pm-clearing-cli<span class="w"> </span>pnl<span class="w">  </span><span class="c1"># reads morning/clearing.db</span>
 </code></pre></div>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
