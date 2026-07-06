@@ -402,7 +402,9 @@ class TestHandleEod:
     """Unit tests for ClearingProcess._handle_eod."""
 
     @pytest.fixture()
-    def process(self, db_path: Path, zmq_addr: str) -> Generator[ClearingProcess, None, None]:
+    def process(
+        self, db_path: Path, zmq_addr: str
+    ) -> Generator[ClearingProcess, None, None]:
         p = ClearingProcess(
             pub_addr=zmq_addr,
             db_path=db_path,
@@ -416,7 +418,9 @@ class TestHandleEod:
         finally:
             p._conn.close()
 
-    def test_eod_writes_session_event(self, process: ClearingProcess, db_path: Path) -> None:
+    def test_eod_writes_session_event(
+        self, process: ClearingProcess, db_path: Path
+    ) -> None:
         """EOD handler with last_trade_price should write an EOD session_events row."""
         payload = {
             "books": [
@@ -481,16 +485,16 @@ class TestHandleEod:
         assert pos is not None
         assert pos.mark_price == 12000
 
-    def test_eod_does_not_raise_on_bad_payload(
-        self, process: ClearingProcess
-    ) -> None:
+    def test_eod_does_not_raise_on_bad_payload(self, process: ClearingProcess) -> None:
         """Malformed payload should be silently absorbed, not crash."""
         process._handle_eod(cast(dict[str, Any], None))
 
 
 class TestHandleGatewayConnect:
     @pytest.fixture()
-    def process(self, db_path: Path, zmq_addr: str) -> Generator[ClearingProcess, None, None]:
+    def process(
+        self, db_path: Path, zmq_addr: str
+    ) -> Generator[ClearingProcess, None, None]:
         p = ClearingProcess(
             pub_addr=zmq_addr,
             db_path=db_path,
@@ -518,7 +522,9 @@ class TestHandleGatewayConnect:
         process._handle_gateway_connect({"gateway_id": "TRD02"})
         assert "TRD02" in process._gw_connect_ts
 
-    def test_empty_gateway_id_is_ignored(self, process: ClearingProcess, db_path: Path) -> None:
+    def test_empty_gateway_id_is_ignored(
+        self, process: ClearingProcess, db_path: Path
+    ) -> None:
         process._handle_gateway_connect({"gateway_id": ""})
         conn = open_writer_connection(db_path)
         count = conn.execute("SELECT COUNT(*) FROM gateway_sessions").fetchone()[0]
@@ -532,7 +538,9 @@ class TestHandleGatewayConnect:
 
 class TestHandleGatewayDisconnect:
     @pytest.fixture()
-    def process(self, db_path: Path, zmq_addr: str) -> Generator[ClearingProcess, None, None]:
+    def process(
+        self, db_path: Path, zmq_addr: str
+    ) -> Generator[ClearingProcess, None, None]:
         p = ClearingProcess(
             pub_addr=zmq_addr,
             db_path=db_path,
@@ -546,7 +554,9 @@ class TestHandleGatewayDisconnect:
         finally:
             p._conn.close()
 
-    def test_disconnect_updates_row(self, process: ClearingProcess, db_path: Path) -> None:
+    def test_disconnect_updates_row(
+        self, process: ClearingProcess, db_path: Path
+    ) -> None:
         process._handle_gateway_connect({"gateway_id": "GW_D"})
         process._handle_gateway_disconnect({"gateway_id": "GW_D", "reason": "Timeout"})
         conn = open_writer_connection(db_path)
