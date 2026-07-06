@@ -52,4 +52,9 @@ def parse_cb_spec(raw: str) -> CbSpec:
                 "must be AUCTION or CONTINUOUS"
             )
 
-    return CbSpec(name=name, shift_pct=shift_pct, halt_mins=halt_mins, resumption_mode=resumption_mode)
+    return CbSpec(
+        name=name,
+        shift_pct=shift_pct,
+        halt_mins=halt_mins,
+        resumption_mode=resumption_mode,
+    )

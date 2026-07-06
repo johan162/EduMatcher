@@ -354,8 +354,20 @@ def test_builder_combos_emitted() -> None:
                 combo_type="AON",
                 tif="DAY",
                 legs=(
-                    ComboLegSpec(symbol="AAPL", side="BUY", order_type="LIMIT", quantity=100, price=20950),
-                    ComboLegSpec(symbol="MSFT", side="SELL", order_type="LIMIT", quantity=50, price=41550),
+                    ComboLegSpec(
+                        symbol="AAPL",
+                        side="BUY",
+                        order_type="LIMIT",
+                        quantity=100,
+                        price=20950,
+                    ),
+                    ComboLegSpec(
+                        symbol="MSFT",
+                        side="SELL",
+                        order_type="LIMIT",
+                        quantity=50,
+                        price=41550,
+                    ),
                 ),
             )
         ],
@@ -410,7 +422,9 @@ def test_builder_cb_defaults_resumption_mode() -> None:
 def test_builder_gateway_description_emitted() -> None:
     spec = ConfigSpec(
         symbols=["AAPL"],
-        gateways=[parse_gateway_spec("MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary MM")],
+        gateways=[
+            parse_gateway_spec("MM01:MARKET_MAKER:CANCEL_QUOTES_ONLY:Primary MM")
+        ],
         emit_mm_defaults=True,
     )
     payload = ConfigBuilder(spec).build()
@@ -444,7 +458,9 @@ def test_builder_per_symbol_enforce_mm_obligation() -> None:
 
 
 def test_builder_per_symbol_cb_resumption_mode() -> None:
-    override = SymbolOverride(cb_shift={"L2": 0.10}, cb_resumption_mode={"L2": "CONTINUOUS"})
+    override = SymbolOverride(
+        cb_shift={"L2": 0.10}, cb_resumption_mode={"L2": "CONTINUOUS"}
+    )
     spec = ConfigSpec(
         symbols=["AAPL"],
         gateways=[parse_gateway_spec("TRADER01")],

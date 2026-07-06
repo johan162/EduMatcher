@@ -968,13 +968,17 @@ def _parse_combo_specs(
         try:
             ComboType(combo_type)
         except ValueError as exc:
-            raise ValueError(f"Invalid --combo '{raw}': combo_type '{combo_type}' is invalid") from exc
+            raise ValueError(
+                f"Invalid --combo '{raw}': combo_type '{combo_type}' is invalid"
+            ) from exc
 
         tif = tif_raw.strip().upper()
         try:
             TIFEnum(tif)
         except ValueError as exc:
-            raise ValueError(f"Invalid --combo '{raw}': tif '{tif}' is invalid") from exc
+            raise ValueError(
+                f"Invalid --combo '{raw}': tif '{tif}' is invalid"
+            ) from exc
 
         leg_specs_raw = [s.strip() for s in legs_raw.split(",") if s.strip()]
         if len(leg_specs_raw) < 2:

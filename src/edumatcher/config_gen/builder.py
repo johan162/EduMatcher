@@ -573,7 +573,9 @@ class ConfigBuilder:
 
             cb_levels: dict[str, dict[str, Any]] = {}
             for level_name in sorted(
-                set(override.cb_shift) | set(override.cb_halt_mins) | set(override.cb_resumption_mode)
+                set(override.cb_shift)
+                | set(override.cb_halt_mins)
+                | set(override.cb_resumption_mode)
             ):
                 level_payload: dict[str, Any] = {}
                 if level_name in override.cb_shift:
@@ -587,7 +589,9 @@ class ConfigBuilder:
                             halt_mins * 60 * 1_000_000_000
                         )
                 if level_name in override.cb_resumption_mode:
-                    level_payload["resumption_mode"] = override.cb_resumption_mode[level_name]
+                    level_payload["resumption_mode"] = override.cb_resumption_mode[
+                        level_name
+                    ]
                 cb_levels[level_name] = level_payload
             if cb_levels:
                 payload["circuit_breaker"] = {"levels": cb_levels}
