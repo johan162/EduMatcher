@@ -18,7 +18,7 @@ else
 	SED_INPLACE := -i
 endif
 
-.PHONY: docs pdf-docs training-pdf clean really-clean serve check-latex-engine
+.PHONY: docs pdf-docs training-pdf chapters-pdf-a4 clean really-clean serve check-latex-engine
 
 # Makefile itself as a dependency to ensure it is re-evaluated when changed
 # NOTE: This requires GNU Make 4.3+ and MacOS ships with vGNU Make 3.81 due to licensing issues
@@ -188,7 +188,7 @@ endef
 
 help: ## Show this help message
 	@echo -e "$(DARKYELLOW)OneSelect - Makefile Targets$(NC)"
-	@$(call print_section,Documentation,docs|pdf-docs|exchange-intro)
+	@$(call print_section,Documentation,docs|pdf-docs|chapters-pdf-a4|exchange-intro)
 	@$(call print_section,Container,docs-container-build|docs-container-start|docs-container-stop|docs-container-restart|docs-container-status|docs-container-logs)
 	@echo ""
 
@@ -354,6 +354,75 @@ $(eval $(call BUILD_TRAINING_GUIDE_PDF,TRAINING_GUIDE_A4,a4))
 $(eval $(call BUILD_TRAINING_GUIDE_PDF,TRAINING_GUIDE_B5,b5))
 $(eval $(call BUILD_TRAINING_GUIDE_PDF,TRAINING_GUIDE_DARK_A4,a4))
 $(eval $(call BUILD_TRAINING_GUIDE_PDF,TRAINING_GUIDE_DARK_B5,b5))
+
+# ============================================================================================
+# Per-chapter User Guide PDFs (A4)
+# Builds one PDF per markdown source under user-guide/NN-*.md using template_a4.tex.
+# Each output carries the same base name as its source (e.g. 01-configuration.pdf).
+# Output directory: $(DIST_DIR)/chapters-a4/
+# ============================================================================================
+
+CHAPTERS_A4_DIR   := $(DIST_DIR)/chapters-a4
+CHAPTERS_A4_BUILD := $(USER_GUIDE_BUILD_DIR)/chapters-a4
+
+# $(1) = absolute or relative path to a single user-guide .md source file.
+define BUILD_CHAPTER_PDF_A4
+$$(CHAPTERS_A4_DIR)/$(notdir $(basename $(1))).pdf: \
+		$(1) $$(USER_GUIDE_PDF_DEPS) $$(USER_GUIDE_A4_TEMPLATE) \
+		| $$(CHAPTERS_A4_DIR) $(NODE_MODULES_PATH)
+	@echo -e "$$(DARKYELLOW)- Building chapter PDF: $$(BRIGHTCYAN)$(notdir $(1))$$(DARKYELLOW)...$$(NC)"
+	@mkdir -p $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/expanded/.mermaid-img
+	@poetry run python $$(SCRIPTS_DIR)/expand-shell-outputs.py \
+		--output-dir $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/expanded \
+		--cwd $$(SCRIPTS_DIR)/.. \
+		--format a4 \
+		$(1)
+	@PUPPETEER_EXECUTABLE_PATH="$(PUPPETEER_EXECUTABLE_PATH)" \
+	MERMAID_FILTER_FORMAT="$(MERMAID_FILTER_FORMAT)" \
+	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
+	MERMAID_FILTER_LOC="$$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/expanded/.mermaid-img" \
+	pandoc --from=markdown --to=latex --top-level-division=chapter \
+		--syntax-highlighting=none \
+		--filter "$(MERMAID_FILTER)" $$(USER_GUIDE_LUA_FILTER_FLAGS) \
+		--metadata paper_format=a4 \
+		$$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/expanded/$(notdir $(1)) \
+		-o $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/body.tex
+	@sed -i.bak 's/\\def\\LTcaptype{none}/\\def\\LTcaptype{table}/g' \
+		$$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/body.tex
+	@rm -f $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/body.tex.bak
+	@awk -v body="$$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/body.tex" '\
+		/%%__USER_GUIDE_CONTENT__%%/ { while ((getline line < body) > 0) print line; close(body); inserted=1; next } \
+		{ print } \
+		END { if (!inserted) { print "Template placeholder %%__USER_GUIDE_CONTENT__%% not found" > "/dev/stderr"; exit 2 } }' \
+		$$(USER_GUIDE_A4_TEMPLATE) > $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/report.tex
+	@PATH="$(PATH):$(TEXBIN_FALLBACK)" $(LATEX_ENGINE) \
+		-interaction=nonstopmode -halt-on-error \
+		-output-directory $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1))) \
+		$$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/report.tex \
+		> $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/xelatex-pass1.log 2>&1 \
+		|| { echo -e "$$(RED)✗ xelatex pass 1 failed: $(notdir $(basename $(1))).pdf$$(NC)" >&2; \
+		     tail -30 $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/xelatex-pass1.log >&2; exit 1; }
+	@PATH="$(PATH):$(TEXBIN_FALLBACK)" $(LATEX_ENGINE) \
+		-interaction=nonstopmode -halt-on-error \
+		-output-directory $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1))) \
+		$$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/report.tex \
+		> $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/xelatex-pass2.log 2>&1 \
+		|| { echo -e "$$(RED)✗ xelatex pass 2 failed: $(notdir $(basename $(1))).pdf$$(NC)" >&2; \
+		     tail -30 $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/xelatex-pass2.log >&2; exit 1; }
+	@cp $$(CHAPTERS_A4_BUILD)/$(notdir $(basename $(1)))/report.pdf \
+		$$(CHAPTERS_A4_DIR)/$(notdir $(basename $(1))).pdf
+	@echo -e "$$(GREEN)✓ $(notdir $(basename $(1))).pdf → $$(BRIGHTCYAN)$$(CHAPTERS_A4_DIR)$$(GREEN)$$(NC)"
+endef
+
+$(foreach src,$(USER_GUIDE_MD_SOURCES),$(eval $(call BUILD_CHAPTER_PDF_A4,$(src))))
+
+CHAPTERS_A4_PDFS := $(foreach src,$(USER_GUIDE_MD_SOURCES),$(CHAPTERS_A4_DIR)/$(notdir $(basename $(src))).pdf)
+
+$(CHAPTERS_A4_DIR): | $(DIST_DIR)
+	@mkdir -p $@
+
+chapters-pdf-a4: check-latex-engine $(CHAPTERS_A4_PDFS) ## Build a separate A4 PDF for each user-guide chapter into $(DIST_DIR)/chapters-a4/
+	@echo -e "$(GREEN)✓ All $(words $(USER_GUIDE_MD_SOURCES)) chapter PDFs built in $(BRIGHTCYAN)$(CHAPTERS_A4_DIR)$(GREEN)$(NC)"
 
 # Echo all User Guide Variables for debugging Makefile variable generation. 
 # $(info USER_GUIDE_PDF_DEPS: $(USER_GUIDE_PDF_DEPS))
