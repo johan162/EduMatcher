@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
 import json
 import sys
@@ -600,8 +601,6 @@ def _run_query(
         print("OK — no discrepancies found.")
         return _RECONCILE_COLS, []
     return _RECONCILE_COLS, rows
-    # NOTE: sessions, eod, and prune are handled above this assert.
-    # This assert is unreachable in normal operation.
 
 
 def _upper(val: str | None) -> str | None:
@@ -623,23 +622,22 @@ def _run_prune(db_path: Path, args: argparse.Namespace) -> None:
         print(f"[ERROR] Could not open clearing DB: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
 
-    try:
-        if args.dry_run:
-            count = conn.execute(
-                "SELECT COUNT(*) FROM trade_events WHERE trade_date < date('now', ?)",
-                (f"-{days} days",),
-            ).fetchone()[0]
-            print(
-                f"DRY RUN: {count} trade_events rows would be deleted (>{days} days old)."
-            )
-        else:
-            deleted = prune_old_events(conn, retention_days=days)
-            print(f"Pruned {deleted} trade_events rows older than {days} days.")
-    except sqlite3.Error as exc:
-        print(f"[ERROR] Prune failed: {exc}", file=sys.stderr)
-        raise SystemExit(1) from exc
-    finally:
-        conn.close()
+    with contextlib.closing(conn):
+        try:
+            if args.dry_run:
+                count = conn.execute(
+                    "SELECT COUNT(*) FROM trade_events WHERE trade_date < date('now', ?)",
+                    (f"-{days} days",),
+                ).fetchone()[0]
+                print(
+                    f"DRY RUN: {count} trade_events rows would be deleted (>{days} days old)."
+                )
+            else:
+                deleted = prune_old_events(conn, retention_days=days)
+                print(f"Pruned {deleted} trade_events rows older than {days} days.")
+        except sqlite3.Error as exc:
+            print(f"[ERROR] Prune failed: {exc}", file=sys.stderr)
+            raise SystemExit(1) from exc
 
 
 # ---------------------------------------------------------------------------
