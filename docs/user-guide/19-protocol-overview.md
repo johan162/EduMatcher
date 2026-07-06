@@ -139,9 +139,9 @@ Where to read more:
 |------------------------------------------------------|------------------------|
 | Enter and manage orders from participant terminals   | **ALF** (`pm-alf-console`) |
 | Submit orders from an external bot or remote process | **ALF** (`pm-alf-gwy`) |
-| Plan binary low-latency order-entry integrations     | **BALF**               |
-| Consume market-data channels externally              | **CALF**               |
-| Consume post-trade/clearing/audit streams externally | **RALF**               |
+| Plan binary low-latency order-entry integrations     | **BALF** (`pm-balf-gwy`)              |
+| Consume market-data channels externally              | **CALF** (`pm-md-gwy`)               |
+| Consume post-trade/clearing/audit streams externally | **RALF** (`pm-ralf-gwy`)               |
 
 
 ## See also
@@ -149,6 +149,8 @@ Where to read more:
 - [Getting Started](00-getting-started.md)
 - [Processes](10-processes.md)
 - [ALF TCP Gateway](24-alf-gateway.md)
+- [BALF TCP Gateway](25-balf-gateway.md)
+- [Market Data Feed (CALF)](20-market-data-feed.md)
 - [Post-Trade Dissemination (RALF)](18-post-trade.md)
 - [Appendix - ALF Protocol](90-app-alf-protocol.md)
 - [Appendix - BALF Protocol](91-app-balf-protocol.md)
