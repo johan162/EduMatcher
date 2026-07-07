@@ -49,6 +49,7 @@ fi
 DRY_RUN=false
 HELP=false
 BUILD_INTRO=false
+NO_DOCS=false
 
 # =====================================
 # Functions to print colored output
@@ -201,6 +202,7 @@ OPTIONS:
     --dry-run       Print commands that would be executed without running them
     --help          Show this help message and exit
     --intro         Also build the Exchange Intro PDF bundle (skipped by default)
+    --no-docs       Skip all documentation builds (PDF and HTML)
 
 REQUIREMENTS:
     - Poetry must be installed and available on PATH
@@ -234,6 +236,10 @@ while [[ $# -gt 0 ]]; do
             BUILD_INTRO=true
             shift
             ;;
+        --no-docs)
+            NO_DOCS=true
+            shift
+            ;;
         *)
             echo "Unknown option: $1" >&2
             echo "Use --help for usage information" >&2
@@ -259,6 +265,9 @@ if [ "$DRY_RUN" = true ]; then
     print_warning ""
     print_warning_colored "DRY-RUN MODE: Commands will be printed but not executed!"
     print_warning ""
+fi
+if [ "$NO_DOCS" = true ]; then
+    print_warning_colored "NO-DOCS MODE: All documentation builds will be skipped."
 fi
 echo ""
 
@@ -401,68 +410,72 @@ run_command "poetry build" "Building package"
 run_command "poetry run twine check dist/*" "Validating package with twine"
 
 # Step 4.4: Build Exchange Intro PDF (optional — requires --intro flag)
-BUILD_EXCHANGE_INTRO_PDF=false
-if [ "$BUILD_INTRO" = true ]; then
-    if [ -d "docs-exchange-intro" ]; then
-        if [ -f "docs-exchange-intro/version.toml" ]; then
-            EXCHANGE_INTRO_VERSION=$(awk -F'=' '/version/ { gsub(/[ "]/, "", $2); print $2; exit }' docs-exchange-intro/version.toml)
-            print_sub_step "Detected Exchange Intro version: ${EXCHANGE_INTRO_VERSION}"
-            BUILD_EXCHANGE_INTRO_PDF=true
+if [ "$NO_DOCS" = false ]; then
+    BUILD_EXCHANGE_INTRO_PDF=false
+    if [ "$BUILD_INTRO" = true ]; then
+        if [ -d "docs-exchange-intro" ]; then
+            if [ -f "docs-exchange-intro/version.toml" ]; then
+                EXCHANGE_INTRO_VERSION=$(awk -F'=' '/version/ { gsub(/[ "]/, "", $2); print $2; exit }' docs-exchange-intro/version.toml)
+                print_sub_step "Detected Exchange Intro version: ${EXCHANGE_INTRO_VERSION}"
+                BUILD_EXCHANGE_INTRO_PDF=true
+            else
+                print_warning "docs-exchange-intro/version.toml not found; skipping Exchange Intro PDF build"
+                EXCHANGE_INTRO_VERSION="unknown"
+                exit 1;
+            fi
         else
-            print_warning "docs-exchange-intro/version.toml not found; skipping Exchange Intro PDF build"
-            EXCHANGE_INTRO_VERSION="unknown"
-            exit 1;
+            print_warning "docs-exchange-intro directory not found; skipping Exchange Intro PDF build"
         fi
     else
-        print_warning "docs-exchange-intro directory not found; skipping Exchange Intro PDF build"
+        print_info_colored "Skipping Exchange Intro PDF build (use --intro to enable)"
     fi
-else
-    print_info_colored "Skipping Exchange Intro PDF build (use --intro to enable)"
-fi
-
-# Step 4.5: Build User Guide PDF bundle 
-BUILD_USER_GUIDE_PDF=false
-if [ -d "docs" ]; then
-    print_sub_step "Generating PDF version of User Guide for release assets..."
-    BUILD_USER_GUIDE_PDF=true
-else
-    print_warning "docs directory not found; skipping User Guide PDF build"
-fi
-
-# Clean up any previous PDF artifacts
-run_command "make -C docs clean" "Cleaning previous PDF artifacts"
-
-if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ] && [ "$BUILD_USER_GUIDE_PDF" = true ]; then
-    run_parallel_commands \
-        "make -C docs-exchange-intro -j4" \
-        "Building Exchange Intro Booklet" \
-        "make -C docs -j4 pdf-docs" \
-        "Building User Guide PDFs (v${VERSION}) with Makefile" \
-        "make -C docs -j4 pdf-training" \
-        "Building Training Guide PDFs (v${VERSION}) with Makefile"
-else
-    if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ]; then
-        print_sub_step "Building Exchange Intro Booklet"
-        run_command "make -C docs-exchange-intro -j4" "Building Exchange Intro Booklet"
+    
+    # Step 4.5: Build User Guide PDF bundle 
+    BUILD_USER_GUIDE_PDF=false
+    if [ -d "docs" ]; then
+        print_sub_step "Generating PDF version of User Guide for release assets..."
+        BUILD_USER_GUIDE_PDF=true
+    else
+        print_warning "docs directory not found; skipping User Guide PDF build"
     fi
-
-    if [ "$BUILD_USER_GUIDE_PDF" = true ]; then
+    
+    # Clean up any previous PDF artifacts
+    run_command "make -C docs clean" "Cleaning previous PDF artifacts"
+    
+    if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ] && [ "$BUILD_USER_GUIDE_PDF" = true ]; then
         run_parallel_commands \
+            "make -C docs-exchange-intro -j4" \
+            "Building Exchange Intro Booklet" \
             "make -C docs -j4 pdf-docs" \
             "Building User Guide PDFs (v${VERSION}) with Makefile" \
             "make -C docs -j4 pdf-training" \
             "Building Training Guide PDFs (v${VERSION}) with Makefile"
-        run_command "make -C docs -j16 chapters-pdf" "Building User Guide Chapters PDF bundle"
+    else
+        if [ "$BUILD_EXCHANGE_INTRO_PDF" = true ]; then
+            print_sub_step "Building Exchange Intro Booklet"
+            run_command "make -C docs-exchange-intro -j4" "Building Exchange Intro Booklet"
+        fi
+    
+        if [ "$BUILD_USER_GUIDE_PDF" = true ]; then
+            run_parallel_commands \
+                "make -C docs -j4 pdf-docs" \
+                "Building User Guide PDFs (v${VERSION}) with Makefile" \
+                "make -C docs -j4 pdf-training" \
+                "Building Training Guide PDFs (v${VERSION}) with Makefile"
+            run_command "make -C docs -j16 chapters-pdf" "Building User Guide Chapters PDF bundle"
+        fi
     fi
-fi
-
-# Step 4.6: Build HTML docs site/
-print_sub_step "Generating HTML version of User Guide for site/ ..."
-run_command "make -C docs docs" "Building HTML docs with Makefile"
-
-# Step 4.7: Bump the multipass bootstrap script version in the docs to match the current project version
-print_sub_step "Bumping multipass bootstrap script version in docs to match project version ${VERSION}"
-run_command "make -C docs mp-bump" "Bumping multipass bootstrap script version in docs"
+    
+    # Step 4.6: Build HTML docs site/
+    print_sub_step "Generating HTML version of User Guide for site/ ..."
+    run_command "make -C docs docs" "Building HTML docs with Makefile"
+    
+    # Step 4.7: Bump the multipass bootstrap script version in the docs to match the current project version
+    print_sub_step "Bumping multipass bootstrap script version in docs to match project version ${VERSION}"
+    run_command "make -C docs mp-bump" "Bumping multipass bootstrap script version in docs"
+else
+    print_info_colored "Skipping all documentation builds (--no-docs)"
+fi # end NO_DOCS guard
 
 
 # =======================================
