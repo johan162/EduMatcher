@@ -1,12 +1,12 @@
 # Exchange Concepts Knowledge Check — Variant 03
 
-Purpose: verify that the student has read [How a Financial Exchange Works](../how-exchange-works.md) and internalized the core principles of a modern exchange.
+Purpose: verify that the student has read [How a Financial Exchange Works](../how-exchange-works.md) and internalized the core principles of a modern exchange, across its full scope — market history, order mechanics, risk and compliance, and technology infrastructure.
 
 ## Instructions
 
 - Each question has five options (A-E).
 - Select all options you believe are correct.
-- It is not known in advance how many options are correct in each question.
+- It is not known in advance how many options are correct in each question — it may be as few as one or as many as all five.
 
 ## Scoring
 
@@ -14,170 +14,149 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - -2 points for each incorrect option selected.
 - 0 points for options not selected.
 - Final test score is capped at a minimum of 0: if raw total is negative, recorded score is 0.
+- A passing score is 70% of the maximum rounded down to the nearest integer. 
 
 ## Questions
 
-### 1. Core promises of an exchange
-- [ ] A. Rule-based matching and transparent procedures
-- [ ] B. Guaranteed profit for all participants
-- [ ] C. Trusted venue for liquidity and price formation
-- [ ] D. Operational controls for orderly markets
-- [ ] E. Elimination of all volatility
+### 1. Pre-trade risk controls
+- [ ] A. Pre-trade checks sit between the participant and the matching engine, so the engine itself can remain optimized purely for speed
+- [ ] B. Position limits and credit limits measure exactly the same thing under different names
+- [ ] C. Fail-fast check ordering typically evaluates cheap checks like format/syntax before expensive ones like live position/credit limits
+- [ ] D. Rate limiting/throttling caps the number of orders a gateway can submit per second
+- [ ] E. Position and credit-limit checks are usually the cheapest checks to perform, since they don't need external data
 
-### 2. Capital formation context
-- [ ] A. Equity issuance is a way to raise growth capital
-- [ ] B. Debt financing implies repayment obligations
-- [ ] C. Secondary trading can improve attractiveness of primary issuance
-- [ ] D. Secondary markets are irrelevant to company valuation
-- [ ] E. IPOs connect issuers with public investors
+### 2. Circuit breakers, general
+- [ ] A. Circuit breakers trace their origin to the aftermath of the 1987 Black Monday crash and the Brady Commission's recommendations
+- [ ] B. During a circuit-breaker halt, new orders cannot be submitted at all until the halt ends
+- [ ] C. A halt typically ends via an instant resumption of continuous matching, with no auction step
+- [ ] D. Level 3 of the US market-wide circuit breaker halts trading for the remainder of the trading day
+- [ ] E. Circuit-breaker thresholds and halt durations have never been adjusted since their original 1988 introduction
 
-### 3. Reading top of book
-- [ ] A. Best bid is highest currently available buy price
-- [ ] B. Best ask is lowest currently available sell price
-- [ ] C. Spread equals ask minus bid at top of book
-- [ ] D. Narrower spreads often indicate better immediate liquidity
-- [ ] E. Top of book always reveals full hidden and conditional liquidity
+### 3. LULD and the COVID-19 circuit-breaker events
+- [ ] A. Level 1 US market-wide circuit breakers were triggered four times during the March 2020 COVID-19 crash
+- [ ] B. Level 2 was also triggered multiple times alongside Level 1 in March 2020
+- [ ] C. Single-stock LULD pauses operate independently from market-wide circuit breakers and were triggered far more frequently in March 2020
+- [ ] D. A stock that moves outside its LULD band and stays there beyond the monitoring window enters a fixed-duration trading pause
+- [ ] E. Market-wide circuit-breaker reference levels reset after a Level 1 halt and resumption
 
-### 4. Execution logic basics
-- [ ] A. Aggressive orders can trade against resting passive liquidity
-- [ ] B. Partial fills are possible when available opposite quantity is limited
-- [ ] C. Every accepted order must execute immediately in continuous trading
-- [ ] D. Remaining quantity can continue resting when order rules allow
-- [ ] E. Trade publication is part of market transparency
+### 4. The Mizuho fat-finger incident
+- [ ] A. The 2005 Mizuho Securities incident involved a trader accidentally selling a huge quantity of shares at an absurdly low price instead of a small quantity at the intended price
+- [ ] B. The Mizuho incident was caused by a matching-engine bug rather than a human order-entry error
+- [ ] C. The Mizuho incident had no lasting influence on exchange risk-control practices
+- [ ] D. Static price collars compare an order's price to the most recently traded price rather than the prior close
+- [ ] E. The Mizuho incident occurred in the United States
 
-### 5. Time-in-force understanding
-- [ ] A. DAY orders generally expire by session end if unfilled
-- [ ] B. GTC orders can persist across sessions until canceled or filled
-- [ ] C. IOC allows immediate partial fill with remainder canceled
-- [ ] D. FOK allows partial fills if completed quickly
-- [ ] E. TIF expresses order lifetime intent
+### 5. Technology architecture
+- [ ] A. The gateway is typically the participant-facing component responsible for authentication and session management
+- [ ] B. FIX is a text-based protocol whose wire delimiter is a non-printable SOH character, not a literal pipe symbol
+- [ ] C. Binary protocols like ITCH and OUCH are generally more compact and faster to parse than an equivalent FIX message
+- [ ] D. Market data is commonly distributed over UDP multicast, while order submission commonly uses TCP for reliability
+- [ ] E. A hybrid design using UDP multicast for live data plus a separate TCP unicast channel for gap recovery is a standard exchange market-data pattern
 
-### 6. Price increments and fairness
-- [ ] A. Tick size defines minimum price increment
-- [ ] B. Tick constraints standardize price grid behavior
-- [ ] C. Smaller ticks can alter queue dynamics and spread behavior
-- [ ] D. Tick size has no influence on liquidity provision
-- [ ] E. Correct tick handling is necessary for valid book states
+### 6. Conformance testing and onboarding
+- [ ] A. Participants can typically connect a production gateway before completing formal conformance testing
+- [ ] B. Conformance test scripts commonly simulate a disconnect/reconnect scenario to verify correct sequence-gap recovery
+- [ ] C. A stale, out-of-sync certification/UAT environment is still considered a valid basis for certifying participants
+- [ ] D. Recertification is typically required when the exchange changes something participants depend on, like a modified FIX tag
+- [ ] E. Offboarding typically includes cancelling all resting orders and confirming final position/clearing reconciliation
 
-### 7. Market makers in practice
-- [ ] A. They provide tradable quotes on both sides
-- [ ] B. They carry inventory risk while facilitating liquidity
-- [ ] C. Quote lifecycle handling affects continuity of liquidity
-- [ ] D. Market makers never need protection controls
-- [ ] E. Quote and fill events must be tracked for accurate state
+### 7. Recovery objectives
+- [ ] A. RPO measures the maximum acceptable downtime, while RTO measures the maximum acceptable data loss
+- [ ] B. For a matching engine, RPO is effectively zero — no committed trade or acknowledgement can be lost
+- [ ] C. Modern exchanges typically target sub-minute RTO for their most critical components
+- [ ] D. The 2015 NYSE trading halt, lasting roughly 3.5 hours, is generally viewed as an example of an acceptable, well-managed RTO
+- [ ] E. RTO tolerances are identical for a matching engine and for a batch reporting system
 
-### 8. Session states and state machines
-- [ ] A. Exchanges can move through defined session states
-- [ ] B. Order handling policy can vary by session state
-- [ ] C. Halt/resume controls are unrelated to session management
-- [ ] D. Explicit state transitions improve predictability and controls
-- [ ] E. Session-state dissemination helps participants synchronize behavior
+### 8. Failover and split-brain
+- [ ] A. Split-brain occurs when both the primary and secondary site believe the other has failed, and each tries to become primary
+- [ ] B. Fencing (STONITH) is a technique used to force a suspected-failed node to stop before a secondary takes over
+- [ ] C. Active-active failover, where both sites simultaneously process live orders with full consensus, is the most common production pattern among exchanges
+- [ ] D. Consensus protocols like Raft or Paxos can guarantee zero data loss on failover, at the cost of added latency
+- [ ] E. Manual, operator-controlled failover is generally slower than automatic failover but reduces the risk of a false failover
 
-### 9. Circuit breakers and collars
-- [ ] A. Circuit breakers can pause trading after extreme moves
-- [ ] B. Price collars can reject orders outside allowed bands
-- [ ] C. Such controls aim to reduce disorderly trading conditions
-- [ ] D. They are designed to maximize message throughput only
-- [ ] E. They are part of market integrity tooling
+### 9. Unique order numbering
+- [ ] A. UUIDs guarantee practical global uniqueness without coordination, but they are not inherently sequential in arrival order
+- [ ] B. A single central counter for order IDs has no drawbacks as a scaling solution
+- [ ] C. Pre-allocated ID ranges per site can never create any gaps in the ID sequence
+- [ ] D. Site-prefixed order IDs make it trivial to compare arrival order without stripping the prefix first
+- [ ] E. Partitioning order books by symbol requires constant cross-server coordination for every single order
 
-### 10. SMP and anti-abuse mechanisms
-- [ ] A. SMP helps prevent self-crossing activity
-- [ ] B. Anti-abuse design combines rules, monitoring, and records
-- [ ] C. Audit trails assist post-incident analysis
-- [ ] D. Wash-trade concerns are solved only by faster matching
-- [ ] E. Surveillance needs reliable event chronology
+### 10. Market-data feed design
+- [ ] A. A snapshot represents the complete current book state, while an incremental update represents only what changed
+- [ ] B. Conflation merges consecutive updates to the same price level into a single message, which can lose intermediate states
+- [ ] C. Conflated feeds are considered fully acceptable for systems that need complete tick-by-tick analytical data
+- [ ] D. Sequence numbers allow a subscriber to detect that a message was missed between two consecutive numbers
+- [ ] E. Top-of-book and depth-of-book data both convey identical bandwidth and processing requirements
 
-### 11. Data feeds and recovery
-- [ ] A. Incremental feeds are efficient but need sequencing discipline
-- [ ] B. Snapshot mechanisms help state recovery
-- [ ] C. Sequence numbers can support gap detection/replay workflows
-- [ ] D. Missing messages can always be inferred with zero ambiguity
-- [ ] E. Robust feed design balances latency and recoverability
+### 11. SIP vs proprietary feeds
+- [ ] A. The SIP is a public, consolidated feed aggregating data from every registered exchange under SEC oversight
+- [ ] B. Proprietary direct feeds are generated straight from a venue's own matching engine, avoiding the SIP's aggregation step
+- [ ] C. Proprietary feeds can offer both more information and lower latency compared to the SIP
+- [ ] D. Exchanges that jointly govern the SIP's pricing are, at the same time, the same companies selling competing proprietary feeds — a structural conflict of interest critics have raised
+- [ ] E. Market data and connectivity revenue has become a substantial and growing share of major exchange profit
 
-### 12. Clearing and post-trade lifecycle
-- [ ] A. Clearing intermediates obligations after execution
-- [ ] B. Settlement is the final exchange of value/assets
-- [ ] C. Counterparty risk exists between trade and settlement
-- [ ] D. Post-trade is optional if matching is deterministic
-- [ ] E. Margin frameworks reduce default propagation risk
+### 12. PFOF and dark pool settlements
+- [ ] A. Payment for order flow is banned in the UK and EU under MiFID II's best-execution requirements
+- [ ] B. In the US, PFOF is fully banned outright with no ambiguity
+- [ ] C. Barclays paid a settlement over allegations it misled clients about the presence of HFT activity in its dark pool
+- [ ] D. Wholesale market makers pay for retail order flow because retail flow carries high adverse-selection risk
+- [ ] E. Zero-commission retail trading has no meaningful connection to payment for order flow
 
-### 13. Fragmentation and smart routing
-- [ ] A. Best execution can require searching multiple venues
-- [ ] B. Fragmentation can split visible liquidity
-- [ ] C. Routing must consider both market data and constraints
-- [ ] D. Fragmentation removes the need for consolidated references
-- [ ] E. Hidden venues can affect practical execution outcomes
+### 13. Smart order routing and fragmentation
+- [ ] A. The NBBO is computed in real time as the best available bid and best available ask across all exchanges
+- [ ] B. A marketable order must be routed to satisfy the NBBO or better, not a worse displayed price
+- [ ] C. A locked market occurs when the best bid on one venue equals the best ask on another venue
+- [ ] D. A crossed market is actually less unusual and less exploitable than a locked market
+- [ ] E. Smart order routers can consider factors like fees, queue-position probability, and venue toxicity signals, not just price alone
 
-### 14. Engineering and operations
-- [ ] A. Determinism aids debugging, compliance, and trust
-- [ ] B. Resilience planning includes failover and recovery strategy
-- [ ] C. Exchange reliability is only a hardware topic
-- [ ] D. Telemetry and auditability support safe operations
-- [ ] E. Good architecture isolates failures between components
+### 14. Execution algorithms
+- [ ] A. A TWAP algorithm slices an order evenly across time regardless of actual traded volume, unlike VWAP, which weights toward higher-volume periods
+- [ ] B. Implementation Shortfall algorithms use a fixed, unchanging schedule regardless of how price moves
+- [ ] C. Percentage of Volume strategies aim to match a fixed absolute share count regardless of market volume
+- [ ] D. VWAP algorithms ignore expected intraday volume patterns entirely
+- [ ] E. TWAP and VWAP are two names for exactly the same execution strategy
 
-### 15. Big-picture synthesis
-- [ ] A. A modern exchange is both a market institution and a software system
-- [ ] B. Fairness, transparency, and resilience are design-level concerns
-- [ ] C. Low latency is one objective among several competing objectives
-- [ ] D. Governance and technology are independent in market quality outcomes
-- [ ] E. Understanding order flow requires linking pre-trade, trade, and post-trade views
+### 15. Crypto venues
+- [ ] A. Centralized crypto exchanges typically decouple trade matching from blockchain settlement, recording trades as internal ledger entries
+- [ ] B. Decentralized exchanges commonly replace the order book with an automated market maker governed by a pricing formula like a constant-product rule
+- [ ] C. A trade on a typical AMM-based DEX is its own settlement, executed atomically within a single blockchain transaction
+- [ ] D. Cryptocurrency venues are subject to one single unified global regulator, unlike traditional securities markets
+- [ ] E. Centralized crypto exchanges always operate with an independent, regulated central counterparty separate from the exchange itself
 
-### 16. Immediate full-or-cancel behavior
-- [ ] A. LIMIT
-- [ ] B. MARKET
-- [ ] C. FOK
-- [ ] D. DAY
-- [ ] E. STOP_LIMIT
+### 16. The FTX collapse
+- [ ] A. FTX simultaneously operated as the trading venue and, through an affiliated firm, traded against its own customers
+- [ ] B. FTX had an independent CCP performing novation between its customers, similar to traditional cleared markets
+- [ ] C. Customer deposits were allegedly commingled with the affiliated trading firm's funds
+- [ ] D. FTX's collapse has been compared to the Barings Bank and Knight Capital episodes as a cautionary tale about separation of duties
+- [ ] E. FTX's founder was later convicted of fraud following the collapse
 
-### 17. Same-price queue precedence
-- [ ] A. Largest order size has priority
-- [ ] B. Earliest timestamp has priority
-- [ ] C. Latest timestamp has priority
-- [ ] D. Hidden orders always jump queue
-- [ ] E. Queue order is random
+### 17. Latency and co-location
+- [ ] A. Light travels faster through fibre-optic glass than radio waves travel through open air over the same distance
+- [ ] B. Co-locating a participant's servers inside the exchange's own data center can reduce round-trip latency to low single-digit microseconds
+- [ ] C. Spread Networks' expensive new fiber route became less competitive within a few years, once microwave links achieved similar routes faster
+- [ ] D. FPGAs typically take milliseconds to parse a market-data message and generate a response
+- [ ] E. PTP clock synchronization is generally less precise than NTP
 
-### 18. Circuit-breaker objectives
-- [ ] A. Pause trading during extreme disorderly moves
-- [ ] B. Guarantee profitable exits for all participants
-- [ ] C. Provide a cooling-off period for reassessment
-- [ ] D. Maximize message throughput under stress
-- [ ] E. Reduce panic-driven feedback loops
+### 18. Observability and the four golden signals
+- [ ] A. The four golden signals used in SRE-style monitoring are Latency, Traffic, Errors, and Saturation
+- [ ] B. Saturation is typically described as a leading indicator that tends to rise before latency and errors visibly degrade
+- [ ] C. Metrics alone are generally sufficient to explain exactly why one specific order behaved oddly
+- [ ] D. An error budget represents the gap between a service's SLO target and 100% availability/performance
+- [ ] E. Symptom-based alerting and cause-based alerting are considered equally effective and interchangeable approaches
 
-### 19. Recovery after missed market-data messages
-- [ ] A. Sequence numbers
-- [ ] B. Gap replay/retransmission path
-- [ ] C. Increasing terminal refresh rate
-- [ ] D. Randomized order IDs
-- [ ] E. Manual spreadsheet reconstruction only
+### 19. Corporate actions and reference data
+- [ ] A. A stock split leaves total market capitalization unchanged, even though the per-share price and share count both change
+- [ ] B. Open limit orders generally need adjustment across a stock split, so that price and quantity reflect the new terms
+- [ ] C. A wrongly loaded contract multiplier can make every P&L and margin calculation for that instrument wrong by the same proportional factor
+- [ ] D. Reference data is typically loaded and cached aggressively at startup, because querying it per order would add unacceptable latency
+- [ ] E. Corporate actions require coordinated updates across the order book engine, clearing system, market data system, and audit trail
 
-### 20. Matching vs settlement
-- [ ] A. Matching immediately finalizes cash and securities transfer
-- [ ] B. Matching creates obligations; clearing/settlement finalize transfer
-- [ ] C. Settlement occurs before matching
-- [ ] D. Post-trade processing is optional in real exchanges
-- [ ] E. Settlement has no role in market confidence
+### 20. The 2015 NYSE halt
+- [ ] A. The 2015 NYSE trading halt, lasting roughly 3.5 hours, was ultimately traced to a software configuration mismatch from a gateway update
+- [ ] B. During the 2015 NYSE halt, all US equity trading nationwide came to a complete stop because no other venue could handle NYSE-listed stocks
+- [ ] C. The 2015 NYSE halt was caused by a cyberattack on the exchange's matching engine
+- [ ] D. The 2015 NYSE halt demonstrated that reference-data/configuration issues cannot meaningfully affect exchange availability
+- [ ] E. The 2015 NYSE halt was resolved within a few seconds, due to automatic failover
 
-## Instructor Correction Key
 
-| Q | Correct options |
-|---|---|
-| 1 | A, C, D |
-| 2 | A, B, C, E |
-| 3 | A, B, C, D |
-| 4 | A, B, D, E |
-| 5 | A, B, C, E |
-| 6 | A, B, C, E |
-| 7 | A, B, C, E |
-| 8 | A, B, D, E |
-| 9 | A, B, C, E |
-| 10 | A, B, C, E |
-| 11 | A, B, C, E |
-| 12 | A, B, C, E |
-| 13 | A, B, C, E |
-| 14 | A, B, D, E |
-| 15 | A, B, C, E |
-| 16 | C |
-| 17 | B |
-| 18 | A, C, E |
-| 19 | A, B |
-| 20 | B |
+

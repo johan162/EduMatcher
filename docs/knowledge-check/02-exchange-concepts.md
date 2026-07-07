@@ -1,12 +1,12 @@
 # Exchange Concepts Knowledge Check — Variant 02
 
-Purpose: verify that the student has read [How a Financial Exchange Works](../how-exchange-works.md) and internalized the core principles of a modern exchange.
+Purpose: verify that the student has read [How a Financial Exchange Works](../how-exchange-works.md) and internalized the core principles of a modern exchange, across its full scope — market history, order mechanics, risk and compliance, and technology infrastructure.
 
 ## Instructions
 
 - Each question has five options (A-E).
 - Select all options you believe are correct.
-- It is not known in advance how many options are correct in each question.
+- It is not known in advance how many options are correct in each question — it may be as few as one or as many as all five.
 
 ## Scoring
 
@@ -14,170 +14,147 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - -2 points for each incorrect option selected.
 - 0 points for options not selected.
 - Final test score is capped at a minimum of 0: if raw total is negative, recorded score is 0.
+- A passing score is 70% of the maximum rounded down to the nearest integer. 
 
 ## Questions
 
-### 1. Price discovery in an exchange
-- [ ] A. Price discovery emerges from executable supply and demand
-- [ ] B. Last traded price alone fully represents available liquidity
-- [ ] C. Bid-ask spread is a direct indicator of immediate trading cost
-- [ ] D. Deep books generally reduce price impact for moderate orders
-- [ ] E. Exchanges should hide all pre-trade information to improve discovery
+### 1. Order fundamentals
+- [ ] A. A market order carries no price field, only symbol, side, and quantity
+- [ ] B. Odd-lot orders were historically excluded from the consolidated tape and NBBO calculation
+- [ ] C. A round lot is always exactly 1,000 shares, regardless of the stock
+- [ ] D. Arrival timestamp on an order is irrelevant to price-time priority
+- [ ] E. Recent SEC rules are gradually incorporating odd-lot information into consolidated market-data feeds
 
-### 2. Roles in market structure
-- [ ] A. Brokers route client orders to trading venues
-- [ ] B. Market makers often provide continuous two-sided quotes
-- [ ] C. Regulators define and enforce market conduct rules
-- [ ] D. Exchanges are passive bulletin boards with no rule enforcement
-- [ ] E. Different participants have different incentives and constraints
+### 2. Limit orders and price improvement
+- [ ] A. A limit order's stated price is always the exact price at which it executes, never better
+- [ ] B. A resting limit buy order can be filled at a price better than its own limit price if the market allows
+- [ ] C. Market orders can rest in the book if no immediate match exists
+- [ ] D. SEC Rule 605 requires broker-dealers to publish statistics on how often price improvement occurs
+- [ ] E. A limit price acts as a target price the engine tries to match exactly
 
-### 3. Core order handling concepts
-- [ ] A. Orders carry intent, constraints, and lifecycle state
-- [ ] B. Time-in-force defines how long an order may remain active
-- [ ] C. Immediate-or-cancel can leave a residual resting quantity
-- [ ] D. Fill-or-kill requires immediate full execution or cancellation
-- [ ] E. Order acknowledgements are part of operational transparency
+### 3. Stop, stop-limit, and trailing stop orders
+- [ ] A. A stop-limit order converts into a limit order once triggered, which can protect price but risks non-execution
+- [ ] B. A trailing stop's trigger price automatically ratchets favorably as the market moves in the position's favor
+- [ ] C. A stop order remains dormant and invisible in the market until its trigger condition is met
+- [ ] D. When a trailing stop fires, it converts into a market order rather than a new resting limit order
+- [ ] E. A basic stop order guarantees both the execution and the exact price once triggered
 
-### 4. Order type behavior
-- [ ] A. A market order may execute across multiple levels
-- [ ] B. A stop order triggers based on a market condition
-- [ ] C. A stop-limit combines a trigger with a limit price constraint
-- [ ] D. Iceberg orders reveal full hidden quantity to all participants
-- [ ] E. Hidden-liquidity design choices affect fairness and transparency debates
+### 4. Fill-or-kill mechanics
+- [ ] A. FOK orders require the matching engine to perform a hypothetical "dry-run" check before committing any fills
+- [ ] B. FOK orders always fill at least partially before being cancelled
+- [ ] C. FOK is a time-in-force exclusively used for GTC orders
+- [ ] D. FOK orders can rest in the book if the full quantity isn't available
+- [ ] E. FOK and ATC are functionally identical
 
-### 5. Why price-time priority matters
-- [ ] A. It creates predictable queue behavior
-- [ ] B. It discourages arbitrary matching decisions
-- [ ] C. It guarantees equal fill size for all orders at a level
-- [ ] D. It allows deterministic replay in incident analysis
-- [ ] E. It supports participant trust in matching fairness
+### 5. Reading the order book
+- [ ] A. The bid side of the book is sorted from highest to lowest price
+- [ ] B. The ask side of the book is sorted from lowest to highest price
+- [ ] C. Level 1 data shows only the best bid and ask, while Level 2 shows the full depth of resting price levels
+- [ ] D. Visible book depth can understate true available liquidity when iceberg orders are present
+- [ ] E. Bid-ask imbalance near 1.0 indicates heavy buy-side pressure relative to sell-side depth
 
-### 6. Matching and determinism
-- [ ] A. Deterministic matching helps produce reproducible outcomes
-- [ ] B. Replayability is important for compliance and debugging
-- [ ] C. Concurrent writes to one book can complicate consistency
-- [ ] D. Matching logic should be opaque to prevent gaming
-- [ ] E. Event ordering is central to correct trade reconstruction
+### 6. Matching-engine design
+- [ ] A. Modern matching engines are typically single-threaded per book by deliberate design, not due to a hardware limitation
+- [ ] B. Single-threading a book's matching logic supports deterministic, auditable, and legally defensible outcomes
+- [ ] C. Each symbol's order book is entirely independent of every other symbol, with no exceptions
+- [ ] D. A "sweep" describes an aggressive order working through multiple price levels until filled or its limit is reached
+- [ ] E. Matching engines commonly use a single global lock across all symbols to guarantee fairness
 
-### 7. Auctions in the trading day
-- [ ] A. Auctions aggregate liquidity at discrete times
-- [ ] B. Opening auctions can reduce chaotic open prints
-- [ ] C. Closing auctions are often important for benchmark pricing
-- [ ] D. Auctions remove the need for continuous trading
-- [ ] E. Session design is part of overall market quality
+### 7. Order status lifecycle
+- [ ] A. A REJECTED order was briefly present in the order book before being removed
+- [ ] B. A CANCELLED order, unlike a REJECTED one, did exist in the book before being withdrawn
+- [ ] C. PARTIAL status means the order has received at least one fill but has remaining unfilled quantity
+- [ ] D. EXPIRED and CANCELLED describe exactly the same underlying event, just different labels
+- [ ] E. FILLED orders can still receive additional fills afterward
 
-### 8. Market-maker mechanics
-- [ ] A. Two-sided quoting supports continuous tradability
-- [ ] B. Quote obligations can include spread/size requirements
-- [ ] C. When one quote side fills, residual risk profile changes
-- [ ] D. Quote refresh policy affects realized liquidity quality
-- [ ] E. Market-making has no interaction with risk controls
+### 8. Market maker obligations
+- [ ] A. Two-sided quoting means a market maker must maintain a live bid and ask simultaneously
+- [ ] B. Market Maker Protection automatically cancels all of a market maker's quotes if their fill rate exceeds a defined threshold in a rolling window
+- [ ] C. Adverse selection describes a market maker systematically trading against better-informed counterparties simply by always being available
+- [ ] D. Presence obligations commonly require a market maker to be actively quoting for the entire session with zero exceptions
+- [ ] E. Re-quoting obligations require posting a fresh quote within a bounded delay after a fill
 
-### 9. Risk-control layers
-- [ ] A. Some controls happen before an order reaches matching
-- [ ] B. Other controls act during live market conditions
-- [ ] C. Circuit breakers are one mechanism for disorderly moves
-- [ ] D. Kill switches can be useful in operational incidents
-- [ ] E. Strong controls and fair markets are contradictory goals
+### 9. Pro-rata vs FIFO
+- [ ] A. Pro-rata allocation distributes fills proportionally to each resting order's size rather than by arrival time
+- [ ] B. FIFO allocation distributes fills proportionally to order size
+- [ ] C. Pro-rata is the default matching rule on virtually every major exchange
+- [ ] D. CME uses FIFO for its interest-rate futures and pro-rata for its equity index futures
+- [ ] E. Pro-rata and price-time priority are two names for the same allocation method
 
-### 10. Drop copy and operational resilience
-- [ ] A. Drop copy helps independent reconciliation of fills/events
-- [ ] B. Sequence gaps should be detectable and recoverable
-- [ ] C. Public quote feed and drop copy serve identical purposes
-- [ ] D. Risk and compliance workflows rely on trustworthy records
-- [ ] E. Time ordering of events matters for post-trade controls
+### 10. Tick sizes
+- [ ] A. Prices are typically stored as integer tick counts internally to avoid floating-point representation errors
+- [ ] B. Rule 612 of Regulation NMS bans quoting most NMS stocks priced at or above $1.00 in increments finer than a penny
+- [ ] C. The SEC's Tick Size Pilot Program found that wider ticks clearly improved liquidity for small-cap stocks, leading to permanent adoption
+- [ ] D. Tick size can legitimately vary by price band, by product, and even by listing venue for the same underlying stock
+- [ ] E. Decimalization of US markets caused quoted spreads on liquid stocks to roughly double overnight
 
-### 11. Clearing, margin, and settlement
-- [ ] A. Clearing houses manage counterparty exposure between trade and settlement
-- [ ] B. Margin is a financial safeguard against default risk
-- [ ] C. Settlement finalizes asset and cash transfer obligations
-- [ ] D. Trade matching removes the need for clearing safeguards
-- [ ] E. Post-trade robustness contributes to confidence in trading venues
+### 11. Auction mechanics, worked
+- [ ] A. During the pre-open accumulation period, incoming orders are accepted but not yet matched
+- [ ] B. The equilibrium price is the price that maximizes the minimum of cumulative buy and sell interest that can actually be matched
+- [ ] C. A tie-breaking rule can favor minimizing the leftover unmatched imbalance when multiple prices tie for maximum volume
+- [ ] D. Indicative uncross prices can be recalculated continuously as new orders arrive during the pre-open period
+- [ ] E. NYSE publishes closing-auction imbalance information ahead of the actual close, to give participants time to react
 
-### 12. Technology architecture principles
-- [ ] A. Gateway, engine, and downstream consumers form distinct layers
-- [ ] B. Message buses separate producers and subscribers operationally
-- [ ] C. Snapshot plus incremental patterns can support market-data recovery
-- [ ] D. Exchanges should avoid telemetry to maximize throughput
-- [ ] E. Fault isolation improves resilience in multi-process designs
+### 12. ATO, ATC, and GTD nuances
+- [ ] A. An ATO order that isn't filled during the opening auction automatically converts into a DAY order for the rest of the session
+- [ ] B. ATC orders cannot be used to build a position gradually throughout the continuous session the way a DAY order can
+- [ ] C. GTD orders are automatically cancelled once their specified expiry date/time is reached, regardless of fill status
+- [ ] D. GTC orders are discarded at the end of each session and must be resubmitted the next day
+- [ ] E. ATO and ATC orders can be freely submitted at any point during continuous trading
 
-### 13. Fragmentation and routing
-- [ ] A. Liquidity can be distributed across venues
-- [ ] B. Routing logic can evaluate price, size, and policy constraints
-- [ ] C. Consolidated top-of-book views can aid best-execution decisions
-- [ ] D. Fragmented markets never face synchronization challenges
-- [ ] E. Hidden venues complicate full visibility of available liquidity
+### 13. Trading sessions
+- [ ] A. NYSE's continuous trading session runs from 9:30am to 4:00pm Eastern time
+- [ ] B. Intraday auctions can serve as a softer alternative to a full trading halt on some exchanges
+- [ ] C. Post-close/after-hours trading typically has the same liquidity and spreads as continuous trading
+- [ ] D. GTC orders must be persisted to durable storage so they can be reloaded at the next session's pre-open
+- [ ] E. End-of-day batch processes commonly include closing-price publication and generation of clearing/surveillance reports
 
-### 14. Compliance and surveillance
-- [ ] A. Surveillance attempts to detect manipulative behavior patterns
-- [ ] B. Reliable audit trails improve accountability
-- [ ] C. Compliance is purely a legal department concern, not system design
-- [ ] D. Detection quality depends on data quality and lineage
-- [ ] E. Exchange credibility depends partly on effective oversight
+### 14. Implied orders
+- [ ] A. Removing one of the underlying orders that generates an implied order makes that implied order disappear instantly
+- [ ] B. Implied orders create genuinely new liquidity that did not exist anywhere in the market before
+- [ ] C. Implied-out combines an outright order with a spread order to derive a synthetic outright in another delivery month
+- [ ] D. Implied orders only exist for equities, never for futures markets
+- [ ] E. Implied-order chains can nest indefinitely, with no practical depth limit
 
-### 15. Integrated understanding
-- [ ] A. Matching quality, risk controls, and post-trade are interdependent
-- [ ] B. Fair access and deterministic rules are market-design principles
-- [ ] C. Exchange engineering balances speed, safety, and transparency
-- [ ] D. A modern exchange can ignore recovery planning if latency is low
-- [ ] E. Robust operations require both technical and governance controls
+### 15. Session state machine transitions
+- [ ] A. The state machine permits PRE_OPEN to transition to OPENING_AUCTION
+- [ ] B. A HALTED state can transition to a RESUMPTION_AUCTION before returning to CONTINUOUS trading
+- [ ] C. A HALTED state can also transition directly to CLOSING_AUCTION, given an end-of-day signal
+- [ ] D. CLOSED can transition back to PRE_OPEN later the same calendar day if volume was low
+- [ ] E. Only CONTINUOUS trading is ever allowed to transition into HALTED
 
-### 16. Immediate full-or-cancel behavior
-- [ ] A. LIMIT
-- [ ] B. MARKET
-- [ ] C. FOK
-- [ ] D. DAY
-- [ ] E. STOP_LIMIT
+### 16. Trade busting and clearly erroneous trades
+- [ ] A. The clearly erroneous execution test is applied trade-by-trade (execution by execution), not to an entire order
+- [ ] B. After the 2010 Flash Crash, trades executed more than a specific percentage away from the pre-crash reference price were busted
+- [ ] C. Nearly all of Knight Capital's millions of erroneous orders were also ruled "clearly erroneous" trades and busted
+- [ ] D. Cancellation/busting voids a trade entirely, while price adjustment preserves the trade but reprices it
+- [ ] E. The filing window for a clearly-erroneous claim is commonly around 30 minutes after execution under US rules
 
-### 17. Same-price queue precedence
-- [ ] A. Largest order size has priority
-- [ ] B. Earliest timestamp has priority
-- [ ] C. Latest timestamp has priority
-- [ ] D. Hidden orders always jump queue
-- [ ] E. Queue order is random
+### 17. Spoofing and the Sarao case
+- [ ] A. Spoofing involves placing large orders with genuine intent to execute them
+- [ ] B. Navinder Singh Sarao's layered orders were alleged to have contributed to conditions present during the May 2010 Flash Crash
+- [ ] C. Quote stuffing involves flooding an exchange with orders/cancellations to slow down competitors
+- [ ] D. Front running means trading only after a public news announcement, never before
+- [ ] E. Layering is unrelated to spoofing and involves an entirely different regulatory concept
 
-### 18. Circuit-breaker objectives
-- [ ] A. Pause trading during extreme disorderly moves
-- [ ] B. Guarantee profitable exits for all participants
-- [ ] C. Provide a cooling-off period for reassessment
-- [ ] D. Maximize message throughput under stress
-- [ ] E. Reduce panic-driven feedback loops
+### 18. The Consolidated Audit Trail
+- [ ] A. The Consolidated Audit Trail (CAT) has been operational in the US since 2020
+- [ ] B. Before CAT, regulators could pull cross-exchange order data instantly from one unified source
+- [ ] C. Audit-trail records are generally expected to be retained for around seven years under US rules
+- [ ] D. A properly maintained audit trail should allow deterministic replay that reproduces the exact same fills and book state
+- [ ] E. Rejected orders are typically excluded from the audit trail, since they never affected the book
 
-### 19. Recovery after missed market-data messages
-- [ ] A. Sequence numbers
-- [ ] B. Gap replay/retransmission path
-- [ ] C. Increasing terminal refresh rate
-- [ ] D. Randomized order IDs
-- [ ] E. Manual spreadsheet reconstruction only
+### 19. Barings Bank, 1995
+- [ ] A. Nick Leeson accumulated a large notional position in Nikkei 225 futures while based in Singapore
+- [ ] B. Leeson hid losing positions in an error account nicknamed "88888"
+- [ ] C. The 1995 Kobe earthquake contributed to the market move that caused the positions to collapse
+- [ ] D. Barings Bank was subsequently sold for a nominal sum after being placed into administration
+- [ ] E. A root cause identified was the absence of firm-level position-limit checks and scrutiny of anomalous single-trader activity
 
-### 20. Matching vs settlement
-- [ ] A. Matching immediately finalizes cash and securities transfer
-- [ ] B. Matching creates obligations; clearing/settlement finalize transfer
-- [ ] C. Settlement occurs before matching
-- [ ] D. Post-trade processing is optional in real exchanges
-- [ ] E. Settlement has no role in market confidence
+### 20. GameStop, January 2021
+- [ ] A. The NSCC's increased margin call on brokers during the GameStop squeeze had nothing to do with why Robinhood restricted buying
+- [ ] B. Robinhood and other brokers temporarily restricted customers to sell-only trading in the affected stocks for a period during the squeeze
+- [ ] C. The GameStop short squeeze was primarily organized by large hedge funds against retail investors
+- [ ] D. DTCC's NSCC subsidiary has no role in determining broker margin/collateral requirements
+- [ ] E. GameStop's stock price declined steadily throughout the squeeze period
 
-## Instructor Correction Key
-
-| Q | Correct options |
-|---|---|
-| 1 | A, C, D |
-| 2 | A, B, C, E |
-| 3 | A, B, D, E |
-| 4 | A, B, C, E |
-| 5 | A, B, D, E |
-| 6 | A, B, C, E |
-| 7 | A, B, C, E |
-| 8 | A, B, C, D |
-| 9 | A, B, C, D |
-| 10 | A, B, D, E |
-| 11 | A, B, C, E |
-| 12 | A, B, C, E |
-| 13 | A, B, C, E |
-| 14 | A, B, D, E |
-| 15 | A, B, C, E |
-| 16 | C |
-| 17 | B |
-| 18 | A, C, E |
-| 19 | A, B |
-| 20 | B |
