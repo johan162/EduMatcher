@@ -1,4 +1,4 @@
-# Makefile for building Documentation
+# Makefile for building EduMatcher Documentation (user-guide,training-guide,chapters,site) and related artifacts.
 # For mermaid rendering we use a mermaid Node filter, installed once in a
 # shared top-level tools directory used by all doc builds.
 # npm install --prefix ../build-tools --save-dev mermaid-filter @mermaid-js/mermaid-cli
