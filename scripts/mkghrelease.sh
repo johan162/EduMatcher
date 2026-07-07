@@ -525,11 +525,19 @@ else
 fi
 
 EXCHANGE_INTRO_BUNDLE_ZIP="docs-exchange-intro/dist/exchange-intro-bundle-${EXCHANGE_INTRO_VERSION}.zip"
+EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP="docs-exchange-intro/dist/exchange-intro-parts-a4-bundle-${EXCHANGE_INTRO_VERSION}.zip"
 if [[ ! -f "$EXCHANGE_INTRO_BUNDLE_ZIP" ]]; then
     print_error "Exchange Intro bundle not found: $EXCHANGE_INTRO_BUNDLE_ZIP"
     exit 1
 else
     print_success "Found Exchange Intro bundle: $(basename "$EXCHANGE_INTRO_BUNDLE_ZIP")"
+fi
+
+if [[ ! -f "$EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP" ]]; then
+    print_error "Exchange Intro parts A4 bundle not found: $EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP"
+    exit 1
+else
+    print_success "Found Exchange Intro parts A4 bundle: $(basename "$EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP")"
 fi
 
 TRAINING_GUIDE_BUNDLE_ZIP="docs/dist/${PROGRAMNAME}_training-guide-bundle-${FILE_VERSION_NUMBER}.zip"
@@ -639,6 +647,7 @@ GH_RELEASE_CMD="gh release create \"$LATEST_TAG\" \
     \"$SDIST_FILE\" \
     \"$USER_GUIDE_BUNDLE_ZIP\" \
     \"$EXCHANGE_INTRO_BUNDLE_ZIP\" \
+    \"$EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP\" \
     \"$USER_GUIDE_CHAPTERS_BUNDLE_ZIP\" \
     \"$TRAINING_GUIDE_BUNDLE_ZIP\""
 
@@ -709,6 +718,10 @@ else
     echo "  - $(basename "$WHEEL_FILE")"
     echo "  - $(basename "$SDIST_FILE")"
     echo "  - $(basename "$USER_GUIDE_BUNDLE_ZIP")"
+    echo "  - $(basename "$EXCHANGE_INTRO_BUNDLE_ZIP")"
+    echo "  - $(basename "$EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP")"
+    echo "  - $(basename "$USER_GUIDE_CHAPTERS_BUNDLE_ZIP")"
+    echo "  - $(basename "$TRAINING_GUIDE_BUNDLE_ZIP")
     echo ""
     echo "Next steps:"
     echo "  1. Verify release on GitHub:"

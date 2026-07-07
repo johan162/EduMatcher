@@ -1,3 +1,24 @@
+## [v0.15.2] - 2026-07-07
+
+Release Type: patch
+
+### 📋 Summary
+This patch release improves persistence robustness against corrupt GTC data on
+startup, expands negative and faulty-input test coverage for the engine and
+gateways, and adds build and Exchange Intro tooling improvements.
+
+### 🚀 Improvements
+- Improved persistence robustness to handle corrupt GTC data on startup without crashing
+
+### 📚 Documentation
+- Updated Exchange Intro cover
+- Updated book references in Exchange Intro
+- Added Exchange Intro Makefile target to produce a bundle with each part as its own PDF
+
+### 🛠 Internal
+- Added negative tests covering invalid order and quote inputs to harden the engine
+- Added `--no-docs` option to `mkbld.sh` to skip documentation generation during builds
+
 ## [v0.15.1] - 2026-07-07
 
 Release Type: patch
