@@ -37,7 +37,7 @@ pipx remains a strong choice for per-user workstation installs, but this VM imag
 Without cloning the repository:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.15.1 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.15.2 --snapshot
 ```
 
 With a local repository checkout:
@@ -45,7 +45,7 @@ With a local repository checkout:
 From repository root:
 
 ```
-./vm/build_multipass_vm.sh --version 0.15.1
+./vm/build_multipass_vm.sh --version 0.15.2
 ```
 
 Useful options:
@@ -127,7 +127,7 @@ Terminal 5:
 Preferred approach is immutable rebuild with a new VM name:
 
 ```
-./vm/build_multipass_vm.sh --name edumatcher-072 --version 0.15.1 --snapshot
+./vm/build_multipass_vm.sh --name edumatcher-072 --version 0.15.2 --snapshot
 ```
 
 If you need in-place reprovisioning:
@@ -135,6 +135,6 @@ If you need in-place reprovisioning:
 ```
 multipass transfer vm/install_edumatcher_runtime.sh edumatcher-071:/tmp/install_edumatcher_runtime.sh
 multipass exec edumatcher-071 -- sudo chmod +x /tmp/install_edumatcher_runtime.sh
-multipass exec edumatcher-071 -- sudo /tmp/install_edumatcher_runtime.sh --version 0.15.1
+multipass exec edumatcher-071 -- sudo /tmp/install_edumatcher_runtime.sh --version 0.15.2
 ```
 

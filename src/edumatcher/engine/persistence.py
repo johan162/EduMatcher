@@ -9,6 +9,7 @@ Only orders with TIF=GTC and status NEW/PARTIAL are persisted.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import json
@@ -17,6 +18,8 @@ from pathlib import Path
 from edumatcher.models.combo import ComboOrder, ComboStatus
 from edumatcher.models.order import Order, OrderStatus, TIF
 from edumatcher.models.price import from_ticks
+
+log = logging.getLogger(__name__)
 
 
 def save_gtc_orders(orders: list[Order], path: Path) -> None:
@@ -33,16 +36,44 @@ def save_gtc_orders(orders: list[Order], path: Path) -> None:
 def load_gtc_orders(path: Path) -> list[Order]:
     """
     Load previously persisted GTC orders.
-    Returns an empty list if the file does not exist or is malformed.
-    Original timestamps are preserved so price-time priority carries over.
+
+    - Returns an empty list if the file does not exist.
+    - Returns an empty list if the file cannot be parsed as a JSON array
+      (truncated, binary garbage, wrong root type).
+    - Individual corrupt entries are logged at CRITICAL level and skipped;
+      the remaining valid orders are still returned so the engine can start.
     """
     if not path.exists():
         return []
     try:
         data = json.loads(path.read_text())
-        return [Order.from_dict(d) for d in data]
-    except Exception:
+    except Exception as exc:
+        log.error("[PERSISTENCE] Cannot parse GTC orders file %s: %s", path, exc)
         return []
+    if not isinstance(data, list):
+        log.error(
+            "[PERSISTENCE] GTC orders file %s has unexpected root type %s — expected list",
+            path,
+            type(data).__name__,
+        )
+        return []
+    orders: list[Order] = []
+    for idx, d in enumerate(data):
+        try:
+            orders.append(Order.from_dict(d))
+        except Exception as exc:
+            order_id = (
+                d.get("id", "<unknown>") if isinstance(d, dict) else "<not a dict>"
+            )
+            log.critical(
+                "[PERSISTENCE] Skipping corrupt GTC order at index %d (id=%r): %s — "
+                "check %s for manual recovery",
+                idx,
+                order_id,
+                exc,
+                path,
+            )
+    return orders
 
 
 # ---------------------------------------------------------------------------
@@ -109,12 +140,38 @@ def save_gtc_combos(combos: list[ComboOrder], path: Path) -> None:
 def load_gtc_combos(path: Path) -> list[ComboOrder]:
     """
     Load previously persisted GTC combos.
-    Returns an empty list if the file does not exist or is malformed.
+
+    - Returns an empty list if the file does not exist or is unparseable.
+    - Individual corrupt entries are logged at CRITICAL level and skipped.
     """
     if not path.exists():
         return []
     try:
         data = json.loads(path.read_text())
-        return [ComboOrder.from_dict(d) for d in data]
-    except Exception:
+    except Exception as exc:
+        log.error("[PERSISTENCE] Cannot parse GTC combos file %s: %s", path, exc)
         return []
+    if not isinstance(data, list):
+        log.error(
+            "[PERSISTENCE] GTC combos file %s has unexpected root type %s — expected list",
+            path,
+            type(data).__name__,
+        )
+        return []
+    combos: list[ComboOrder] = []
+    for idx, d in enumerate(data):
+        try:
+            combos.append(ComboOrder.from_dict(d))
+        except Exception as exc:
+            combo_id = (
+                d.get("id", "<unknown>") if isinstance(d, dict) else "<not a dict>"
+            )
+            log.critical(
+                "[PERSISTENCE] Skipping corrupt GTC combo at index %d (id=%r): %s — "
+                "check %s for manual recovery",
+                idx,
+                combo_id,
+                exc,
+                path,
+            )
+    return combos

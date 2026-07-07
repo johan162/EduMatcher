@@ -3,7 +3,6 @@
 The following sources were drawn upon in writing this document. 
 
 
-
 **[1]** Harris, Larry. *Trading and Exchanges: Market Microstructure for Practitioners*. Oxford University Press, 2003. ISBN 978-0-19-514470-3.
 
 The standard academic and practitioner reference for exchange mechanics and market microstructure. Covers order types, price-time priority, the order book, spreads, market makers, adverse selection, and much of the vocabulary in this document. Recommended as the primary companion text for anyone building exchange software.
@@ -44,13 +43,15 @@ A narrative account of the founding of IEX by Brad Katsuyama and colleagues, des
 
 The official regulatory investigation into the 2010 Flash Crash, which saw the Dow Jones Industrial Average fall approximately 1,000 points in minutes on May 6, 2010. Analyses the sequence of events, the role of automated trading, and the breakdown of circuit breakers. 
 
-Available at: https://www.sec.gov/news/studies/2010/marketevents-report.pdf
+- **Available at:** https://www.sec.gov/news/studies/2010/marketevents-report.pdf
 
 
 
 **[8]** U.S. Securities and Exchange Commission. *SEC Adopts T+2 Settlement Cycle for Securities Transactions*. Press Release No. 2017-68. 22 March 2017.
 
-The formal SEC announcement of the rule change shortening US equity settlement from T+3 to T+2, effective September 5, 2017. Contains the rationale for the change and the text of the amended rules. Available at: https://www.sec.gov/news/press-release/2017-68
+The formal SEC announcement of the rule change shortening US equity settlement from T+3 to T+2, effective September 5, 2017. Contains the rationale for the change and the text of the amended rules. 
+
+- **Available at:** https://www.sec.gov/news/press-release/2017-68
 
 
 
@@ -94,8 +95,8 @@ The authoritative academic and practitioner reference for all derivatives. Chapt
 
 **[16]** *Mizuho Securities fat-finger incident (2005):* The December 2005 incident in which a Mizuho trader submitted an order to sell 610,000 shares at ¥1 rather than 1 share at ¥610,000 was extensively reported in media, e.g. [FinExtra - Mizuho sues TSE over 'fat finger' trade botch-up](https://www.finextra.com/newsarticle/16081/mizuho-sues-tse-over-fat-finger-trade-botch-up), [Guardian](https://www.theguardian.com/business/2005/dec/09/japan.internationalnews1). It has become a standard illustrative example in financial risk management literature. 
 
-Available at Guardian Newspaper: https://www.theguardian.com/business/2005/dec/09/japan.internationalnews1
-Available at FinExtra: https://www.finextra.com/newsarticle/16081/mizuho-sues-tse-over-fat-finger-trade-botch-up 
+- Available at Guardian Newspaper: https://www.theguardian.com/business/2005/dec/09/japan.internationalnews1
+- Available at FinExtra: https://www.finextra.com/newsarticle/16081/mizuho-sues-tse-over-fat-finger-trade-botch-up 
 
 
 **[17]** Lovelock, Mendel, Wright. *An Introduction to the Mathematics of Money*. Springer Verlag, 2007. ISBN 978-0387-34432-4.
@@ -114,11 +115,11 @@ The formal record of the switch from fractional to decimal quoting in US equitie
 
 The primary source for the Tick Size Pilot Program discussion in the *Tick Sizes and Fractional Ticks* section of Part II, including the pilot's design (control group plus three five-cent test groups across roughly 1,200 small-cap securities) and its mixed empirical findings.
 
-Available at: https://www.finra.org/rules-guidance/key-topics/tick-size-pilot-program
-Assessment report available at: https://www.sec.gov/files/TICK%20PILOT%20ASSESSMENT%20FINAL%20Aug%202.pdf
-Order Directing the Exchanges and FINRA to Submit a Tick Size Pilot Plan: https://www.govinfo.gov/content/pkg/FR-2014-06-30/pdf/2014-15205.pdf 
-SEC Landing Page: https://www.sec.gov/data-research/tick-size-pilot-program/tick-size-pilot-data-resources 
-SEC Approval: https://www.sec.gov/files/rules/sro/nms/2015/34-74892-exa.pdf 
+- Available at: https://www.finra.org/rules-guidance/key-topics/tick-size-pilot-program
+- Assessment report available at: https://www.sec.gov/files/TICK%20PILOT%20ASSESSMENT%20FINAL%20Aug%202.pdf
+- Submission of Tick Size Pilot Plan: https://www.govinfo.gov/content/pkg/FR-2014-06-30/pdf/2014-15205.pdf 
+- SEC Landing Page: https://www.sec.gov/data-research/tick-size-pilot-program/tick-size-pilot-data-resources 
+- SEC Approval: https://www.sec.gov/files/rules/sro/nms/2015/34-74892-exa.pdf 
 
 
 
@@ -126,7 +127,7 @@ SEC Approval: https://www.sec.gov/files/rules/sro/nms/2015/34-74892-exa.pdf
 
 The primary congressional record of the January 2021 GameStop episode, including the NSCC margin call to Robinhood and other brokers and the resulting trading restrictions. Cited in the *Clearing and Settlement* section of Part III.
 
-Available at: https://democrats-financialservices.house.gov/uploadedfiles/6.22_hfsc_gs.report_hmsmeetbp.irm.nlrf.pdf
+- Available at: https://democrats-financialservices.house.gov/uploadedfiles/6.22_hfsc_gs.report_hmsmeetbp.irm.nlrf.pdf
 
 
 
@@ -134,7 +135,11 @@ Available at: https://democrats-financialservices.house.gov/uploadedfiles/6.22_h
 
 The primary legal record of the FTX collapse, cited in the *Cryptocurrency and Digital Asset Venues* section of Part IV as an illustration of counterparty risk when matching, custody, and clearing are not institutionally separated.
 
-Available at: SEC: https://www.sec.gov/news/press-release/2022-219 ; CFTC: https://www.cftc.gov/PressRoom/PressReleases/8636-22 ; DOJ: https://www.justice.gov/usao-sdny/pr/jury-finds-samuel-bankman-fried-guilty-all-seven-counts-fraud-and-conspiracy
+- **Wikipedia:** https://en.wikipedia.org/wiki/Trial_of_Sam_Bankman-Fried
+- **SEC:** https://www.sec.gov/news/press-release/2022-219 
+- **CFTC:** https://www.cftc.gov/PressRoom/PressReleases/8638-22  
+- **DOJ:** https://www.justice.gov/archives/opa/pr/samuel-bankman-fried-sentenced-25-years-his-orchestration-multiple-fraudulent-schemes
+
 
 
 # Exchanges own technical references
