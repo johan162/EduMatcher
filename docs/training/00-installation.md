@@ -66,7 +66,7 @@ multipass version
 Run the curl bootstrap script (pinned to this release):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.15.2 --snapshot
+curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh | bash -s -- --version 0.15.3 --snapshot
 ```
 
 This command will:
@@ -81,7 +81,7 @@ This command will:
     ```bash
     curl -fsSL https://raw.githubusercontent.com/johan162/EduMatcher/main/vm/curl_setup_vm.sh -o curl_setup_vm.sh
     less curl_setup_vm.sh
-    bash curl_setup_vm.sh --version 0.15.2 --snapshot
+    bash curl_setup_vm.sh --version 0.15.3 --snapshot
     ```
 
 ### Step 3: Enter the VM and verify commands

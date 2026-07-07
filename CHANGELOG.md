@@ -1,3 +1,19 @@
+## [v0.15.3] - 2026-07-07
+
+Release Type: patch
+
+### 📋 Summary
+This patch release refreshes the Exchange Intro release bundle and knowledge-check materials, while tightening the supporting build and scripting flow.
+
+### 📚 Documentation
+- Updated Exchange Intro to v1.1.1 with refreshed quiz structure and Latex templates
+- Added PDF versions of the knowledge quizzes
+- Moved the quiz material into the Exchange Intro directory to match the book structure
+- Updated README and Makefile support for knowledge checks
+
+### 🛠 Internal
+- Fixed the release and build shell script handling for the updated docs workflow
+
 ## [v0.15.2] - 2026-07-07
 
 Release Type: patch
