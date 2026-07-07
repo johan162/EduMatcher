@@ -1,3 +1,29 @@
+## [v0.15.1] - 2026-07-07
+
+Release Type: patch
+
+### 📋 Summary
+This patch release refreshes the Exchange Intro materials with a major structural and content revision, improves release documentation artifacts, and fixes a resource leak in clearing tests. It also polishes supporting references, protocol example descriptions, and build comments.
+
+### ✨ Additions
+- Added chapter-level user-guide PDF bundles as release artifacts
+- Added generated PDF reports to the release asset set
+
+### 🚀 Improvements
+- Improved the Exchange Intro structure and content in the 1.1.0 revision
+- Improved protocol example descriptions and supporting reference coverage in the Exchange Intro materials
+
+### 🐛 Bug Fixes
+- Fixed a resource leak caused by non-closed DB connections in clearing handler tests
+
+### 📚 Documentation
+- Updated Exchange Intro Booklet to v1.1.0 with new chapters and general updates. 
+- Updated example configuration content to reflect the latest `pm-config-gen` options
+
+### 🛠 Internal
+- Updated Makefile comments and minor changelog wording
+
+
 ## [v0.15.0] - 2026-07-06
 
 Release Type: minor
