@@ -13,7 +13,7 @@ QUIZ_PDFS := $(wildcard *-exchange-concepts.pdf)
 VERSION_FILE := ../../docs-exchange-intro/version.toml
 BOOK_VERSION := $(shell awk -F'"' '/^version[[:space:]]*=/{print $$2; exit}' $(VERSION_FILE))
 DIST_DIR := ../../docs-exchange-intro/dist
-QUIZZ_BUNDLE := $(DIST_DIR)/exchange-intro-quizz-bundle-$(BOOK_VERSION).zip
+QUIZZ_BUNDLE := $(DIST_DIR)/exchange-intro-quiz-bundle-$(BOOK_VERSION).zip
 
 .PHONY: check-env encrypt decrypt encrypt-md encrypt-pdf decrypt-md decrypt-pdf bundle-quizz
 
