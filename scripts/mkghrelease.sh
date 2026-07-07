@@ -721,7 +721,7 @@ else
     echo "  - $(basename "$EXCHANGE_INTRO_BUNDLE_ZIP")"
     echo "  - $(basename "$EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP")"
     echo "  - $(basename "$USER_GUIDE_CHAPTERS_BUNDLE_ZIP")"
-    echo "  - $(basename "$TRAINING_GUIDE_BUNDLE_ZIP")
+    echo "  - $(basename "$TRAINING_GUIDE_BUNDLE_ZIP")"
     echo ""
     echo "Next steps:"
     echo "  1. Verify release on GitHub:"
