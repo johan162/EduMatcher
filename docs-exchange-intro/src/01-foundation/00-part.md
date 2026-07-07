@@ -33,6 +33,7 @@ Build the conceptual base: why exchanges exist, how capital formation connects t
 - The Language of the Market: A Short History
 - The Participants
 - A Brief Tour of Real-World Exchanges
+- Listing and Delisting Mechanics
 
 
 

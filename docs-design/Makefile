@@ -1,4 +1,4 @@
-# Makefile for Design Documentation in MCProjSim project
+# Makefile for Design Documentation in EduMatcher project
 # For mermaid rendering we use a mermaid Node filter, installed once in a
 # shared top-level tools directory used by all doc builds.
 # npm install --prefix ../build-tools --save-dev mermaid-filter @mermaid-js/mermaid-cli

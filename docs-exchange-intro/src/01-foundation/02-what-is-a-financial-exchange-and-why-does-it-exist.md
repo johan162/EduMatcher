@@ -5,7 +5,7 @@
 
 Imagine you own 1,000 shares of a technology company (you understand now what that means: you own a tiny fraction of that company, acquired when you bought the shares from a previous owner on the secondary market) and you want to sell them. Somewhere out there, someone wants to buy exactly 1,000 shares of that same company at roughly the price you have in mind. The problem is finding each other.
 
-Before modern exchanges existed, this "finding" problem was enormous. Stock trading happened in coffee houses, in the street ("Exchange Alley Coffeehouses"), or through networks of personal contacts. One of the first places on record was "Jonathan's Coffee House" (The Forerunner to the London Stock Exchange) founded around 1680 by Jonathan Miles, Jonathan's became the primary gathering place for stock brokers, [Jonathan's Coffee-House](https://grokipedia.com/page/Jonathan's_Coffee-House).  Prices were inconsistent, you might sell at one price while, moments later, someone else sold the same shares at a very different price. There was no guarantee you were getting a fair deal, and there was no way to know what "fair" even meant.
+Before modern exchanges existed, this "finding" problem was enormous. Stock trading happened in coffee houses, in the street ("Exchange Alley Coffeehouses"), or through networks of personal contacts. One of the first places on record was "Jonathan's Coffee House" (The Forerunner to the London Stock Exchange) founded around 1680 by Jonathan Miles, Jonathan's became the primary gathering place for stock brokers [10].  Prices were inconsistent, you might sell at one price while, moments later, someone else sold the same shares at a very different price. There was no guarantee you were getting a fair deal, and there was no way to know what "fair" even meant.
 
 > **Auctions by the Candle**
 >
@@ -39,7 +39,7 @@ Between 1928 and September 1929, the US stock market had doubled. Investors were
 
 Several regulations appear throughout this document and in most exchange codebases. It is worth naming them here:
 
-- **Regulation NMS (National Market System, 2005):** Requires that equity orders receive the nationally best available price across all registered trading venues. This single rule is the reason the US has 16+ registered equity exchanges competing for order flow, and the reason **smart order routing** exists , brokers must route to wherever the best price is, not just the closest or the cheapest.
+- **Regulation NMS (National Market System, adopted 2005, phased in through 2007):** Requires that equity orders receive the nationally best available price across all registered trading venues. This single rule is the reason the US has 16+ registered equity exchanges competing for order flow, and the reason **smart order routing** exists , brokers must route to wherever the best price is, not just the closest or the cheapest.
 
 - **Regulation SHO (2005):** Governs short sales, including the **locate** requirement (broker-dealers must verify shares can be borrowed before accepting a short sale order) and delivery obligations.
 

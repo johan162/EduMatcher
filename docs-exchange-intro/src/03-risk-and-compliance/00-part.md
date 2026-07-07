@@ -32,6 +32,7 @@ Focus on market safety and accountability: the controls that prevent bad orders,
 - Self-Match Prevention, When You Would Trade with Yourself
 - Drop Copy, The Shadow Record
 - Clearing and Settlement, When the Trade Becomes Real
+- Trade Busting and Clearly Erroneous Trades
 - Regulatory Surveillance, Exchanges Are Not Passive
 - A Cautionary Tale, Knight Capital, August 1, 2012
 

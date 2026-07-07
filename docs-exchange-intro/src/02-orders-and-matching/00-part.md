@@ -32,11 +32,13 @@ Move from concepts to mechanics: how participant intent is encoded in order type
 - Time-In-Force, How Long Should the Order Live?
 - The Order Book, The Exchange's Memory
 - Price-Time Priority, The Fairness Rule
+- Tick Sizes and Fractional Ticks
 - The Matching Engine, The Heart of the Exchange
 - The Life of a Trade
 - Market Makers, The Providers of Liquidity
 - The Opening and Closing Auction
 - Trading Sessions, The Day in the Life of a Market
 - Putting It All Together
+- Indexes, The Market's Single Number
 
 

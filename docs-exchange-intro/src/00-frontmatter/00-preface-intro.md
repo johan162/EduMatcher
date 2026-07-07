@@ -49,6 +49,7 @@ Build the conceptual base: why exchanges exist, how capital formation connects t
 - The Language of the Market: A Short History
 - The Participants
 - A Brief Tour of Real-World Exchanges
+- Listing and Delisting Mechanics
 
 **Part II: Orders, Matching, and the Trading Day**
 
@@ -67,12 +68,14 @@ Move from concepts to mechanics: how participant intent is encoded in order type
 - Time-In-Force, How Long Should the Order Live?
 - The Order Book, The Exchange's Memory
 - Price-Time Priority, The Fairness Rule
+- Tick Sizes and Fractional Ticks
 - The Matching Engine, The Heart of the Exchange
 - The Life of a Trade
 - Market Makers, The Providers of Liquidity
 - The Opening and Closing Auction
 - Trading Sessions, The Day in the Life of a Market
 - Putting It All Together
+- Indexes, The Market's Single Number
 
 **Part III: Risk, Compliance, and Post-Trade**
 
@@ -91,6 +94,7 @@ Focus on market safety and accountability: the controls that prevent bad orders,
 - Self-Match Prevention, When You Would Trade with Yourself
 - Drop Copy, The Shadow Record
 - Clearing and Settlement, When the Trade Becomes Real
+- Trade Busting and Clearly Erroneous Trades
 - Regulatory Surveillance, Exchanges Are Not Passive
 - A Cautionary Tale, Knight Capital, August 1, 2012
 
@@ -108,12 +112,17 @@ Examine the engineering reality of exchanges at scale: deterministic engines, me
 **Content:**
 - Speed Bumps, Leveling the Playing Field
 - The Technology Architecture
+- Conformance Testing and Onboarding
 - Primary and Secondary Sites, Resilience Architecture
 - Load Balancing, Distributing the Work
 - Market Data Architecture, How the Market Sees Itself
+- Market Data Economics
 - Smart Order Routing and Market Fragmentation
+- Cryptocurrency and Digital Asset Venues
 - Latency and Co-location, The Speed Dimension
+- Operational Observability and Incident Response
 - Corporate Actions, When the Instrument Changes
+- Options Mechanics: Exercise, Assignment, and Expiry
 - Determinism, Replay, and Persistence, The Exchange Must Not Forget
 - Reference Data, The Exchange's Ground Truth
 
