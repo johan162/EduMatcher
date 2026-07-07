@@ -250,6 +250,10 @@ really-clean: clean ## Remove all generated files and node_modules (use with cau
 	@rm -rf $(NODE_MODULES_PATH)
 	@echo -e "$(GREEN)✓ Removed node_modules as well$(NC)"
 
+bundle-quiz:  ## Build the quiz bundle zip file
+	$(MAKE) -C knowledge-check bundle-quiz
+
+
 
 # ============================================================================================
 # Macro: BUILD_EXCHANGE_INTRO_PDF

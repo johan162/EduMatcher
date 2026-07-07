@@ -526,6 +526,7 @@ fi
 
 EXCHANGE_INTRO_BUNDLE_ZIP="docs-exchange-intro/dist/exchange-intro-bundle-${EXCHANGE_INTRO_VERSION}.zip"
 EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP="docs-exchange-intro/dist/exchange-intro-parts-a4-bundle-${EXCHANGE_INTRO_VERSION}.zip"
+EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP="docs-exchange-intro/dist/exchange-intro-quiz-bundle-${EXCHANGE_INTRO_VERSION}.zip"
 if [[ ! -f "$EXCHANGE_INTRO_BUNDLE_ZIP" ]]; then
     print_error "Exchange Intro bundle not found: $EXCHANGE_INTRO_BUNDLE_ZIP"
     exit 1
@@ -538,6 +539,13 @@ if [[ ! -f "$EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP" ]]; then
     exit 1
 else
     print_success "Found Exchange Intro parts A4 bundle: $(basename "$EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP")"
+fi
+
+if [[ ! -f "$EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP" ]]; then
+    print_error "Exchange Intro quiz bundle not found: $EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP"
+    exit 1
+else
+    print_success "Found Exchange Intro quiz bundle: $(basename "$EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP")"
 fi
 
 TRAINING_GUIDE_BUNDLE_ZIP="docs/dist/${PROGRAMNAME}_training-guide-bundle-${FILE_VERSION_NUMBER}.zip"
@@ -648,6 +656,7 @@ GH_RELEASE_CMD="gh release create \"$LATEST_TAG\" \
     \"$USER_GUIDE_BUNDLE_ZIP\" \
     \"$EXCHANGE_INTRO_BUNDLE_ZIP\" \
     \"$EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP\" \
+    \"$EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP\" \
     \"$USER_GUIDE_CHAPTERS_BUNDLE_ZIP\" \
     \"$TRAINING_GUIDE_BUNDLE_ZIP\""
 
@@ -720,6 +729,7 @@ else
     echo "  - $(basename "$USER_GUIDE_BUNDLE_ZIP")"
     echo "  - $(basename "$EXCHANGE_INTRO_BUNDLE_ZIP")"
     echo "  - $(basename "$EXCHANGE_INTRO_PARTS_A4_BUNDLE_ZIP")"
+    echo "  - $(basename "$EXCHANGE_INTRO_QUIZZ_BUNDLE_ZIP")"
     echo "  - $(basename "$USER_GUIDE_CHAPTERS_BUNDLE_ZIP")"
     echo "  - $(basename "$TRAINING_GUIDE_BUNDLE_ZIP")"
     echo ""
