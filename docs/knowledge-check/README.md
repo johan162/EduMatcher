@@ -15,6 +15,18 @@ They are kept only as encrypted `.gpg` files:
 This is done so answer keys can be versioned with the course material while
 remaining accessible only to instructors who have the decryption passphrase.
 
+## A note on the scoring system
+
+The scoring model may seem unusual at first, but it is designed to reduce
+random guessing in multiple-choice assessments. It does this in two ways:
+
+1. The number of correct options is not disclosed in advance (except that each
+	question has at least one correct option).
+2. Scoring rewards accurate selections and penalizes incorrect ones:
+	+1 point for marking a correct option, and -2 points for marking a wrong
+	option.
+
+
 ## CLI encryption workflow
 
 The correction keys are encrypted with `gpg`, which works for both Markdown
