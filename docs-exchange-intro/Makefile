@@ -17,7 +17,7 @@ else
     PUPPETEER_EXECUTABLE_PATH ?= /usr/bin/google-chrome
 endif
 
-.PHONY: pdf-docs help clean really-clean check-latex-engine
+.PHONY: pdf-docs pdf-parts-a4 help clean really-clean check-latex-engine
 
 
 # Makefile itself as a dependency to ensure it is re-evaluated when changed
@@ -117,7 +117,12 @@ EXCHANGE_INTRO_LUA_FILTER_FLAGS := --lua-filter $(BOOK_STRUCTURE_LUA_FILTER) --l
 # via EXCHANGE_INTRO_PDF_DEPS so they trigger rebuilds without polluting content.
 EXCHANGE_INTRO_MD_SOURCES := $(shell poetry run python $(BOOK_SOURCES_SCRIPT) --manifest $(BOOK_MANIFEST))
 
-# $(info EXCHANGE_INTRO_MD_SOURCES: $(EXCHANGE_INTRO_MD_SOURCES))
+# Per-part markdown source lists (frontmatter + part N + backmatter).
+# Computed at parse time so Make tracks individual file dependencies.
+PART_1_MD_SOURCES := $(shell poetry run python $(BOOK_SOURCES_SCRIPT) --manifest $(BOOK_MANIFEST) --part 1)
+PART_2_MD_SOURCES := $(shell poetry run python $(BOOK_SOURCES_SCRIPT) --manifest $(BOOK_MANIFEST) --part 2)
+PART_3_MD_SOURCES := $(shell poetry run python $(BOOK_SOURCES_SCRIPT) --manifest $(BOOK_MANIFEST) --part 3)
+PART_4_MD_SOURCES := $(shell poetry run python $(BOOK_SOURCES_SCRIPT) --manifest $(BOOK_MANIFEST) --part 4)
 
 # Non-markdown assets that should still trigger a rebuild when changed.
 EXCHANGE_INTRO_PDF_DEPS := \
@@ -157,7 +162,29 @@ $(eval $(call DEFINE_EXCHANGE_INTRO_VARS,EXCHANGE_INTRO_DARK_A4))
 $(eval $(call DEFINE_EXCHANGE_INTRO_VARS,EXCHANGE_INTRO_DARK_B5))
 
 
-# $(info EXCHANGE_INTRO_A4_PDF: $(EXCHANGE_INTRO_A4_PDF))
+# ============================================================================================
+# Per-part A4 PDF path variables
+# Each part gets its own build dir so parallel builds never share intermediate files.
+# Cover images are the only difference from the full-book template_a4.tex build.
+# ============================================================================================
+
+PARTS_A4_DIST_DIR := $(DIST_DIR)/parts-a4-pdf
+
+PART_1_PDF   := $(PARTS_A4_DIST_DIR)/exchange-intro-part-I-$(VERSION).pdf
+PART_1_BUILD := $(BUILD_DIR)/part-1
+PART_1_COVER := assets/cover_exchange_intro-part-I.png
+
+PART_2_PDF   := $(PARTS_A4_DIST_DIR)/exchange-intro-part-II-$(VERSION).pdf
+PART_2_BUILD := $(BUILD_DIR)/part-2
+PART_2_COVER := assets/cover_exchange_intro-part-II.png
+
+PART_3_PDF   := $(PARTS_A4_DIST_DIR)/exchange-intro-part-III-$(VERSION).pdf
+PART_3_BUILD := $(BUILD_DIR)/part-3
+PART_3_COVER := assets/cover_exchange_intro-part-III.png
+
+PART_4_PDF   := $(PARTS_A4_DIST_DIR)/exchange-intro-part-IV-$(VERSION).pdf
+PART_4_BUILD := $(BUILD_DIR)/part-4
+PART_4_COVER := assets/cover_exchange_intro-part-IV.png
 # $(info EXCHANGE_INTRO_A4_PDF_BUILT: $(EXCHANGE_INTRO_A4_PDF_BUILT))
 
 # Source and Test Files
@@ -184,11 +211,14 @@ endef
 
 help: ## Show this help message
 	@echo -e "$(DARKYELLOW)OneSelect - Makefile Targets$(NC)"
-	@$(call print_section,Documentation,docs|pdfs|pdf-docs)
+	@$(call print_section,Documentation,docs|pdfs|pdf-docs|pdf-parts-a4)
 	@echo ""
 
 $(DIST_DIR):
 	@mkdir -p $(DIST_DIR)
+
+$(PARTS_A4_DIST_DIR):
+	@mkdir -p $(PARTS_A4_DIST_DIR)
 
 check-latex-engine:
 	@if ! PATH="$(PATH):$(TEXBIN_FALLBACK)" command -v "$(LATEX_ENGINE)" >/dev/null 2>&1; then \
@@ -205,6 +235,12 @@ pdf-docs: check-latex-engine ## Build all PDF documentation variants in parallel
 	@$(MAKE) -j4 $(EXCHANGE_INTRO_A4_PDF) $(EXCHANGE_INTRO_DARK_A4_PDF) $(EXCHANGE_INTRO_B5_PDF) $(EXCHANGE_INTRO_DARK_B5_PDF)
 	@zip -9 -j $(DIST_DIR)/$(PROJECT)-bundle-$(VERSION).zip $(DIST_DIR)/$(PROJECT)-*-$(VERSION).pdf
 	@echo -e "$(GREEN)✓ PDF bundle built: $(BRIGHTCYAN)\"$(PROJECT)-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
+
+pdf-parts-a4: check-latex-engine ## Build each book part as a separate A4 PDF booklet
+	@rm -f $(PARTS_A4_DIST_DIR)/exchange-intro-part-*-$(VERSION).pdf 2>/dev/null || true
+	@$(MAKE) -j4 $(PART_1_PDF) $(PART_2_PDF) $(PART_3_PDF) $(PART_4_PDF)
+	@zip -9 -j $(DIST_DIR)/exchange-intro-parts-a4-bundle-$(VERSION).zip $(PARTS_A4_DIST_DIR)/exchange-intro-part-*-$(VERSION).pdf
+	@echo -e "$(GREEN)✓ Parts A4 bundle built: $(BRIGHTCYAN)\"exchange-intro-parts-a4-bundle-$(VERSION).zip\"$(GREEN)$(NC)"
 
 clean: ## Remove all generated files (PDFs, build artifacts, stamps)
 	@rm -rf $(EXCHANGE_INTRO_BUILD_DIR) $(DIST_DIR) $(STAMP_DIR) $(SITE_DIR) mermaid-filter.err
@@ -285,6 +321,80 @@ $(eval $(call BUILD_EXCHANGE_INTRO_PDF,EXCHANGE_INTRO_A4,a4))
 $(eval $(call BUILD_EXCHANGE_INTRO_PDF,EXCHANGE_INTRO_B5,b5))
 $(eval $(call BUILD_EXCHANGE_INTRO_PDF,EXCHANGE_INTRO_DARK_A4,a4))
 $(eval $(call BUILD_EXCHANGE_INTRO_PDF,EXCHANGE_INTRO_DARK_B5,b5))
+
+
+# ============================================================================================
+# Macro: BUILD_PART_PDF
+# Builds one per-part A4 booklet from frontmatter + part-N content + backmatter.
+# The cover image is the only difference from the full-book template_a4.tex: it is
+# patched into a per-part copy of the template with sed so the original is untouched.
+#
+# $(1) = variable prefix: PART_1 | PART_2 | PART_3 | PART_4
+# $(2) = paper format: a4
+# $(3) = part number: 1..4   (selects PART_$(3)_MD_SOURCES)
+# $(4) = roman numeral: I..IV (used in log messages)
+# ============================================================================================
+define BUILD_PART_PDF
+$$($1_PDF): $$(PART_$(3)_MD_SOURCES) $$(EXCHANGE_INTRO_PDF_DEPS) $$($1_COVER) | $$(PARTS_A4_DIST_DIR) $(NODE_MODULES_PATH)
+	@echo -e "$$(DARKYELLOW)- Building Part $(4) booklet: $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$$(DARKYELLOW)...$$(NC)"
+	@rm -rf $$($1_BUILD)
+	@mkdir -p $$($1_BUILD)/expanded
+	@echo -e "$$(DARKYELLOW)  - Patching cover image in template for Part $(4)...$$(NC)"
+	@sed 's|assets/cover_exchange_intro\.png|$$($1_COVER)|g' $$(DOCS_DIR)/template_a4.tex > $$($1_BUILD)/template_a4.tex
+	@echo -e "$$(DARKYELLOW)  - Expanding shell command outputs in markdown sources...$$(NC)"
+	@printf '%s\0' $$(PART_$(3)_MD_SOURCES) \
+		| xargs -0 poetry run python $$(SCRIPTS_DIR)/expand-shell-outputs.py \
+			--output-dir $$($1_BUILD)/expanded \
+			--cwd $$(SCRIPTS_DIR)/.. \
+			--preserve-paths \
+			--format $(2)
+	@echo -e "$$(DARKYELLOW)  - Concatenating markdown sources...$$(NC)"
+	@find $$($1_BUILD)/expanded -type f -name '*.md' -print0 \
+		| sort -z \
+		| xargs -0 awk 'FNR==1 && NR!=1{print ""; print ""}1' > $$($1_BUILD)/concat.md
+	@echo -e "$$(DARKYELLOW)  - Converting concatenated markdown to LaTeX body...$$(NC)"
+	@mkdir -p $$($1_BUILD)/expanded/.mermaid-img
+	@PUPPETEER_EXECUTABLE_PATH="$(PUPPETEER_EXECUTABLE_PATH)" \
+	MERMAID_FILTER_FORMAT="$(MERMAID_FILTER_FORMAT)" \
+	MERMAID_FILTER_WIDTH="$(MERMAID_FILTER_WIDTH)" \
+	MERMAID_FILTER_LOC="$$($1_BUILD)/expanded/.mermaid-img" \
+	pandoc --from=markdown --to=latex --top-level-division=chapter --syntax-highlighting=none --filter "$(MERMAID_FILTER)" $$(EXCHANGE_INTRO_LUA_FILTER_FLAGS) --metadata paper_format=$(2) $$($1_BUILD)/concat.md -o $$($1_BUILD)/body.tex
+	@sed -i.bak 's/\\def\\LTcaptype{none}/\\def\\LTcaptype{table}/g' $$($1_BUILD)/body.tex
+	@rm -f $$($1_BUILD)/body.tex.bak
+	@echo -e "$$(DARKYELLOW)  - Injecting body into patched LaTeX template for Part $(4)...$$(NC)"
+	@awk -v body="$$($1_BUILD)/body.tex" '\
+		/%%__EXCHANGE_INTRO_CONTENT__%%/ { while ((getline line < body) > 0) print line; close(body); inserted=1; next } \
+		{ print } \
+		END { if (!inserted) { print "Template placeholder %%__EXCHANGE_INTRO_CONTENT__%% not found" > "/dev/stderr"; exit 2 } }' \
+		$$($1_BUILD)/template_a4.tex > $$($1_BUILD)/report.tex
+	@echo -e "$$(DARKYELLOW)  - Compiling $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$$(DARKYELLOW) with $$(BRIGHTCYAN)\"$(LATEX_ENGINE)\"$$(DARKYELLOW) (3 passes for references/TOC with shorttoc)...$$(NC)"
+	@PATH="$(PATH):$(TEXBIN_FALLBACK)" $(LATEX_ENGINE) -interaction=nonstopmode -halt-on-error -output-directory $$($1_BUILD) $$($1_BUILD)/report.tex \
+		> $$($1_BUILD)/xelatex-pass1.log 2>&1 \
+		|| { echo -e "$$(RED)✗ xelatex pass 1 failed for Part $(4).$$(NC)" >&2; \
+		     echo -e "$$(RED)  Last 30 lines of $$($1_BUILD)/xelatex-pass1.log:$$(NC)" >&2; \
+		     tail -30 $$($1_BUILD)/xelatex-pass1.log >&2; exit 1; }
+	@PATH="$(PATH):$(TEXBIN_FALLBACK)" $(LATEX_ENGINE) -interaction=nonstopmode -halt-on-error -output-directory $$($1_BUILD) $$($1_BUILD)/report.tex \
+		> $$($1_BUILD)/xelatex-pass2.log 2>&1 \
+		|| { echo -e "$$(RED)✗ xelatex pass 2 failed for Part $(4).$$(NC)" >&2; \
+		     echo -e "$$(RED)  Last 30 lines of $$($1_BUILD)/xelatex-pass2.log:$$(NC)" >&2; \
+		     tail -30 $$($1_BUILD)/xelatex-pass2.log >&2; exit 1; }
+	@PATH="$(PATH):$(TEXBIN_FALLBACK)" $(LATEX_ENGINE) -interaction=nonstopmode -halt-on-error -output-directory $$($1_BUILD) $$($1_BUILD)/report.tex \
+		> $$($1_BUILD)/xelatex-pass3.log 2>&1 \
+		|| { echo -e "$$(RED)✗ xelatex pass 3 failed for Part $(4).$$(NC)" >&2; \
+		     echo -e "$$(RED)  Last 30 lines of $$($1_BUILD)/xelatex-pass3.log:$$(NC)" >&2; \
+		     tail -30 $$($1_BUILD)/xelatex-pass3.log >&2; exit 1; }
+	@cp $$($1_BUILD)/report.pdf $$($1_PDF)
+	@echo -e "$$(GREEN)✓ Part $(4) booklet built: $$(BRIGHTCYAN)\"$$(notdir $$($1_PDF))\"$(GREEN)$$(NC)"
+endef
+
+
+# ============================================================================================
+# Per-part A4 booklet targets — Part I, II, III, IV
+# ============================================================================================
+$(eval $(call BUILD_PART_PDF,PART_1,a4,1,I))
+$(eval $(call BUILD_PART_PDF,PART_2,a4,2,II))
+$(eval $(call BUILD_PART_PDF,PART_3,a4,3,III))
+$(eval $(call BUILD_PART_PDF,PART_4,a4,4,IV))
 
 
 # Echo all Exchange Intro Variables for debugging Makefile variable generation. 
