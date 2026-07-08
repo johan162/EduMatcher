@@ -244,7 +244,7 @@ reset them, delete them manually between sessions.
 
 **Written by**: `pm-audit`  
 **Written**: continuously — one line per ZeroMQ message received  
-**Read by**: manual inspection, `grep`, log-analysis tools  
+**Read by**: `pm-audit-cli`, manual inspection, `grep`, log-analysis tools  
 **Reset**: delete or rotate manually; the process creates a fresh file on startup  
 
 `pm-audit` subscribes to **all topics** on the engine PUB socket (`:5556`) and
@@ -339,7 +339,7 @@ Subsequent runs of `pm-clearing` open the file in append mode.
 
 **Written by**: `pm-stats`  
 **Written**: on every `trade.executed` event and every 15-minute book snapshot  
-**Read by**: `pm-ticker`, `pm-board`, direct SQL queries, `pm-stats-cli` (planned)  
+**Read by**: `pm-ticker`, `pm-board`, direct SQL queries, `pm-stats-cli`  
 **Reset**: delete manually; `pm-stats` creates a fresh database with the schema on startup  
 
 A SQLite database containing three tables. The schema is created automatically
@@ -453,25 +453,42 @@ ORDER BY ts;
 
 ## Summary of All Data Files
 
-| File                           | Written by    | When written       | Survives restart?      | Purpose                                   |
-|--------------------------------|---------------|--------------------|------------------------|-------------------------------------------|
-| `src/data/gtc_orders.json`     | Engine        | Shutdown           | Used at next startup   | Resting GTC order book state              |
-| `src/data/gtc_combos.json`     | Engine        | Shutdown           | Used at next startup   | Resting GTC combo parent state            |
-| `src/data/book_stats.json`     | Engine        | Shutdown           | Used at next startup   | Last buy/sell prices; seed-once detection |
-| `src/data/audit.log`           | `pm-audit`    | Continuously       | Accumulates (rotating) | Full event audit trail                    |
-| `src/data/clearing_report.csv` | `pm-clearing` | Per trade          | Accumulates            | Trade settlement records                  |
-| `src/data/stats.db`            | `pm-stats`    | Per trade + 15 min | Accumulates            | OHLCV, intraday charts, trade log         |
+| File (developer path under `src/data/`) | Written by    | When written       | Survives restart?      | Purpose                                   |
+|------------------------------------------|---------------|--------------------|------------------------|-------------------------------------------|
+| `gtc_orders.json`     | Engine        | Shutdown           | Used at next startup   | Resting GTC order book state              |
+| `gtc_combos.json`     | Engine        | Shutdown           | Used at next startup   | Resting GTC combo parent state            |
+| `book_stats.json`     | Engine        | Shutdown           | Used at next startup   | Last buy/sell prices; seed-once detection |
+| `audit.log`           | `pm-audit`    | Continuously       | Accumulates (rotating) | Full event audit trail                    |
+| `audit_index.db`      | `pm-audit-cli`| On demand          | Rebuilt / incremental  | Optional SQLite index for fast queries    |
+| `clearing_report.csv` | `pm-clearing` | Per trade          | Accumulates            | Trade settlement records                  |
+| `stats.db`            | `pm-stats`    | Per trade + 15 min | Accumulates            | OHLCV, intraday charts, trade log         |
 
-!!! note "Why `src/data/` and not `data/`?"
-    `DATA_DIR` is resolved relative to `src/edumatcher/config.py`, two parent
-    directories up, which gives `src/data/`.  A project-root `data/` directory
-    also exists (used for sample CSVs) but is not written to by the engine.
+!!! note "Data directory path depends on how EduMatcher is run"
+    The paths shown above use `src/data/` because that is the default for a
+    **developer source checkout** (detected by `config.py` checking whether its
+    own parent directory is named `src`).
+
+    The full resolution order is:
+
+    | Priority | Condition | Resolved path |
+    |---|---|---|
+    | 1 — Explicit | `EDUMATCHER_DATA_DIR` env var is set | Value of `$EDUMATCHER_DATA_DIR` |
+    | 2 — Installed | Running from a `pipx`/`pip` install | `~/.local/share/edumatcher/` |
+    | 3 — Developer | Running from a source checkout | `<repo>/src/data/` |
+
+    For a **clean product install** (`pipx install edumatcher`) the data
+    directory is `~/.local/share/edumatcher/` — no `src/` prefix is involved.
+    Run `pm-setup` once after installation to create this directory and copy a
+    sample config file.
+
+    A project-root `data/` directory also exists in the repository (used for
+    sample CSVs) but is never written to by any runtime process.
 
 ## See also
 
 - [Order Types — TIF](04-order-types.md#time-in-force-tif) — GTC, ATO, and ATC lifetime rules
 - [Auctions & Scheduling](06-auctions-scheduling.md) — how ATO/ATC orders expire at phase transitions
-- [Processes](10-processes.md#pm-stats-statistics-recorder) — `pm-stats` writes `src/data/stats.db`; `pm-audit` writes `audit.log`
+- [Processes](10-processes.md#pm-stats-statistics-recorder) — `pm-stats` writes `stats.db`; `pm-audit` writes `audit.log`
 - [Configuration](01-configuration.md) — `last_buy_price`/`last_sell_price` config seeds vs persisted values
 
 

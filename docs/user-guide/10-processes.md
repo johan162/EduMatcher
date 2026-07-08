@@ -205,13 +205,18 @@ pm-engine --verbose
 | **pm-api-gwy** | `pm-api-gwy`          | REST/WebSocket order-entry and market-data API gateway     | No                  |
 | **pm-index**       | `pm-index`                | Real-time cap-weighted index calculation and dissemination | No                  |
 
-**Admin tools:**
+**Monitoring & Admin tools:**
 
 | Process          | Command                           | Role                                                                        | Required? |
 |------------------|-----------------------------------|-----------------------------------------------------------------------------|-----------|
 | **pm-admin**     | `pm-admin`                        | Interactive admin console                                                   | No        |
 | **pm-admin-cli** | `pm-admin-cli <command>`          | One-shot CLI admin commands                                                 | No        |
 | **pm-cverifier** | `pm-cverifier [options] <config>` | Validate `engine_config.yaml` (YAML, schema, semantic, completeness checks) | No        |
+| **pm-clearing-cli** | `pm-clearing-cli <command> [options]` | Read/query interface for `clearing.db` (includes prune) | Optional           |
+| **pm-stats-cli**  | `pm-stats-cli <command> [options]` | Read-only query interface for `stats.db`                | Optional              |
+| **pm-audit-cli**  | `pm-audit-cli <command> [options]` | Read-only query interface for audit JSONL log files     | Optional              |
+| **pm-index-cli**  | `pm-index-cli <command> [options]` | Read-only query interface for index history JSONL files | Optional              |
+
 
 **Setup and configuration tools:**
 
@@ -219,9 +224,6 @@ pm-engine --verbose
 |-------------------|------------------------------------|---------------------------------------------------------|-----------------------|
 | **pm-setup**      | `pm-setup`                         | Bootstrap working directory and runtime files           | Recommended first run |
 | **pm-config-gen** | `pm-config-gen [options]`          | Generate `engine_config.yaml` from CLI options          | Optional              |
-| **pm-clearing-cli** | `pm-clearing-cli <command> [options]` | Read/query interface for `clearing.db` (includes prune) | Optional           |
-| **pm-stats-cli**  | `pm-stats-cli <command> [options]` | Read-only query interface for `stats.db`                | Optional              |
-| **pm-index-cli**  | `pm-index-cli <command> [options]` | Read-only query interface for index history JSONL files | Optional              |
 
 **Optional AI trader tools:**
 
@@ -589,19 +591,32 @@ Status colours: green=NEW, yellow=PARTIAL, bright green=FILLED, red=REJECTED/CAN
 Records every message on the bus to a rotating log file.
 
 ```bash
-pm-audit [--log-file data/audit.log] [--terminal]
+pm-audit [--log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10]
 ```
 
 **Startup options:**
 
-| Flag                | Default          | Description                     |
-|---------------------|------------------|---------------------------------|
-| `--log-file`        | `data/audit.log` | Output log file path            |
-| `--terminal` / `-t` | off              | Also print each entry to stdout |
+| Flag                  | Default          | Description                                                  |
+|-----------------------|------------------|--------------------------------------------------------------|
+| `--log-file`          | `data/audit.log` | Output log file path                                         |
+| `--terminal` / `-t`   | off              | Also print each entry to stdout                              |
+| `--buffer-size`       | 100              | Number of messages to buffer in memory before writing to disk |
+| `--flush-interval`    | 10.0             | Maximum seconds to wait before flushing buffer to disk       |
 
 **Expected runtime input arguments:**
 
 None.
+
+**Buffering behaviour:**
+
+To reduce disk wear, `pm-audit` buffers messages in memory before writing them
+to disk in batches. The buffer is flushed to disk when either:
+
+- The buffer reaches `--buffer-size` messages (e.g., 100 messages), or
+- `--flush-interval` seconds have elapsed since the last flush (e.g., 10 seconds)
+
+On shutdown (Ctrl-C, SIGINT, or SIGTERM), any remaining buffered messages are
+automatically flushed to disk before the process exits, ensuring no data is lost.
 
 **Log format** (one entry per line):
 ```
@@ -612,6 +627,22 @@ None.
 Log files rotate at 10 MB with 5 backups kept.
 
 Use `--terminal` during demos so the class can see every event in real time.
+
+**Examples:**
+
+```bash
+# Default: buffer 100 messages, flush every 10 seconds
+pm-audit
+
+# High-traffic scenario: larger buffer, longer flush interval
+pm-audit --buffer-size 500 --flush-interval 30
+
+# Low-latency: smaller buffer, aggressive flushing
+pm-audit --buffer-size 10 --flush-interval 1
+
+# Disable buffering entirely: flush every message immediately
+pm-audit --buffer-size 1 --flush-interval 0.1
+```
 
 **Messages subscribed** (SUB from :5556):
 

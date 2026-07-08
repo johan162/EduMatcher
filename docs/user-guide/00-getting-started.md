@@ -307,6 +307,8 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | `pm-admin-cli` | Non-interactive admin commands for scripts | [Processes](10-processes.md), [Risk Controls](12-risk-controls.md) |
 | `pm-cverifier` | Validate `engine_config.yaml` before runtime (YAML, schema, semantic, completeness checks) | [Processes](10-processes.md), [Configuration](01-configuration.md), [Config Verifier](23-config-verifier.md) |
 | `pm-stats-cli` | Query `stats.db` without writing SQL | [Processes](10-processes.md#pm-stats-cli-statistics-query-cli), [Statistics and Reporting](16-statistics-and-reporting.md) |
+| `pm-clearing-cli` | Query `clearing.db` without writing SQL | [Processes](10-processes.md#pm-clearing-cli--clearing-query-cli), [P&L & Clearing](07-pnl-clearing.md) |
+| `pm-audit-cli` | Query audit log files without shell pipelines | [Processes](10-processes.md#pm-audit--event-logger), [Audit Trail](26-audit.md) |
 | `pm-index-cli` | Read-only query interface for index history files | [Processes](10-processes.md#pm-index-cli-index-history-query-tool), [Commands](02-commands.md), [Market Index](22-index.md#using-pm-index-cli-recommended) |
 | `pm-setup` |  Bootstrap local session directory and defaults | [Processes](10-processes.md), [Installation](00-getting-started.md#installation) |
 | `pm-config-gen` | Generate `engine_config.yaml` from CLI options | [Processes](10-processes.md), [Configuration generator](01-configuration.md#generate-configs-with-pm-config-gen) |
@@ -531,6 +533,8 @@ The engine is the only mandatory process. Add the others as you need them:
 | Watch P&L update in real time                       | `pm-clearing`                           | [P&L and Clearing](07-pnl-clearing.md)                     |
 | Record OHLCV statistics                             | `pm-stats`                              | [Statistics and Reporting](16-statistics-and-reporting.md) |
 | Query recorded statistics without SQL               | `pm-stats-cli daily --date 2026-06-14`  | [Statistics and Reporting](16-statistics-and-reporting.md) |
+| Query clearing and P&L data without SQL             | `pm-clearing-cli pnl`                   | [P&L and Clearing](07-pnl-clearing.md)                     |
+| Query audit logs without shell pipelines            | `pm-audit-cli events --date 2026-06-14` | [Audit Trail](26-audit.md)                                 |
 | Use `pm-admin` operator commands                    | `pm-admin` (interactive REPL)           | [Risk Controls](12-risk-controls.md)                       |
 | Schedule opening/closing auctions                   | `pm-scheduler`                          | [Auctions and Scheduling](06-auctions-scheduling.md)       |
 | Add autonomous AI order flow                        | `pm-ai-swarm --count 5 --duration 60`   | [AI Traders](15-ai-traders.md)                             |
