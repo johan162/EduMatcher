@@ -2,11 +2,22 @@
 
 Purpose: verify that the student has read [How a Financial Exchange Works](../how-exchange-works.md) and internalized the core principles of a modern exchange, across its full scope — market history, order mechanics, risk and compliance, and technology infrastructure.
 
+## Name/ID
+
+&nbsp;
+
+---
+
+
+&nbsp;
+
 ## Instructions
 
-- Each question has five options (A-E).
-- Select all options you believe are correct.
-- It is not known in advance how many options are correct in each question — it may be as few as one or as many as all five.
+- There are 20 questions.
+- Each question has five statements (A-E) which may be false or true.
+- Select all statements you believe to be correct by clearly filling the square before the question.
+- Each question may have multiple correct statements (for some, all five statements may be correct).
+- There are always at least one correct statement.
 
 ## Scoring
 
@@ -15,6 +26,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - 0 points for options not selected.
 - Final test score is capped at a minimum of 0: if raw total is negative, recorded score is 0.
 - A passing score is 70% of the maximum rounded down to the nearest integer. 
+
+<div style="page-break-after: always;"></div>
 
 ## Questions
 
@@ -39,6 +52,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. The term "blue chip" originated from a 1923 Dow Jones description of stocks trading at $200+/share
 - [ ] E. The ticker got its name because it displayed prices in real time on a screen
 
+
 ### 4. Wall Street
 - [ ] A. Wall Street is named after a stone fortress built by the British Navy
 - [ ] B. Wall Street is named after a wooden palisade wall built by Dutch colonists in 1653
@@ -52,6 +66,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. The Market Access Rule (15c3-5) was enacted in response to the 2010 Flash Crash
 - [ ] D. MiFID II mandates algorithmic trading controls, including kill switch testing, in the EU
 - [ ] E. Reg NMS is the reason the US has more than a dozen registered equity exchanges competing for order flow
+
+<div style="page-break-after: always;"></div>
 
 ### 6. Real-world exchanges
 - [ ] A. NYSE handles the majority (over 50%) of all US equity trading volume
@@ -88,6 +104,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Pro-rata allocation distributes fills based on arrival time rather than order size
 - [ ] E. CME uses pro-rata allocation for some interest-rate futures while using FIFO for its equity index futures
 
+<div style="page-break-after: always;"></div>
+
 ### 11. Opening and closing auctions
 - [ ] A. The opening auction accumulates orders without matching them until a single uncrossing price is calculated
 - [ ] B. The equilibrium price is the price that maximizes the executable matched volume
@@ -115,6 +133,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. Market-wide circuit breakers apply identical percentage thresholds and durations to every individual stock
 - [ ] D. LULD and market-wide circuit breakers are actually the same regulatory mechanism under a different name
 - [ ] E. LULD bands become narrower during the first and last minutes of the trading session
+
+<div style="page-break-after: always;"></div>
 
 ### 15. Circuit-breaker design lessons
 - [ ] A. China's 2016 circuit-breaker mechanism was suspended after only four trading days
@@ -144,6 +164,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Delivery versus Payment ensures securities and cash transfer only when both are simultaneously available
 - [ ] E. Herstatt risk refers to the risk that a matching engine produces a legally invalid trade record
 
+<div style="page-break-after: always;"></div>
+
 ### 19. Why reference data matters
 - [ ] A. Reference data includes identity fields like ticker symbol and ISIN
 - [ ] B. A disproportionate share of real exchange outages trace back to bad reference data rather than matching-engine bugs
@@ -157,3 +179,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. Only American-style options create pre-expiry exercise and assignment risk
 - [ ] D. Physical delivery is the standard settlement method for broad-based index options like SPX
 - [ ] E. Assignment is the holder's decision, while exercise is the writer's obligation
+
+&nbsp;
+
+---

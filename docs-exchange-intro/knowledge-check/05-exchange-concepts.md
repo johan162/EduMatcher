@@ -1,12 +1,21 @@
-# Exchange Concepts Knowledge Check — Variant 05
-
+# Exchange Concepts Knowledge Check — Variant 02
 Purpose: verify that the student has read [How a Financial Exchange Works](../how-exchange-works.md) and internalized the core principles of a modern exchange, across its full scope — market history, order mechanics, risk and compliance, and technology infrastructure.
+
+## Name/ID
+
+&nbsp;
+
+---
+
+&nbsp;
 
 ## Instructions
 
-- Each question has five options (A-E).
-- Select all options you believe are correct.
-- It is not known in advance how many options are correct in each question — it may be as few as one or as many as all five.
+- There are 20 questions.
+- Each question has five statements (A-E) which may be false or true.
+- Select all statements you believe to be correct by clearly filling the square before the question.
+- Each question may have multiple correct statements (for some, all five statements may be correct).
+- There are always at least one correct statement.
 
 ## Scoring
 
@@ -15,6 +24,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - 0 points for options not selected.
 - Final test score is capped at a minimum of 0: if raw total is negative, recorded score is 0.
 - A passing score is 70% of the maximum rounded down to the nearest integer. 
+
+<div style="page-break-after: always;"></div>
 
 ## Questions
 
@@ -45,6 +56,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. Decimalization caused quoted spreads on liquid stocks to roughly double
 - [ ] D. The "teenie" refers to a tick size of exactly one full dollar
 - [ ] E. Rule 612 was adopted before decimalization occurred, to prepare markets for fractional pricing
+
+<div style="page-break-after: always;"></div>
 
 ### 5. Landmark IPOs
 - [ ] A. Saudi Aramco's 2019 IPO on the Saudi Exchange raised billions of dollars, among the largest IPOs by proceeds in the book's examples
@@ -102,6 +115,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. GTC order persistence relies solely on the write-ahead log, with no separate persistence layer
 - [ ] E. Deterministic matching requires eliminating hidden non-determinism sources, such as unlogged system clock reads mid-execution
 
+<div style="page-break-after: always;"></div>
+
 ### 13. SBE, STPF, and quotes vs orders
 - [ ] A. SBE (Simple Binary Encoding) uses fixed-length, predictable schema fields, so an engine can locate data like an STPF ID without parsing text
 - [ ] B. SBE messages are generally faster to decode than equivalent text-based FIX messages, contributing to microsecond order-submission times
@@ -122,6 +137,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. When more than one price yields the same maximum executable volume, the auction algorithm has no consistent way to break the tie and must fail
 - [ ] D. Orders unmatched by the auction transition into the continuous trading book once it opens
 - [ ] E. Indicative uncross prices are calculated once, at the very start of the pre-open period, and never updated again
+
+<div style="page-break-after: always;"></div>
 
 ### 16. Tick rounding, worked example
 - [ ] A. A midpoint price needing rounding to a valid tick typically arises when the bid and ask are an odd number of ticks apart
@@ -144,6 +161,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. SIP governance and pricing decisions are made by the same exchange companies that also sell competing proprietary data feeds
 - [ ] E. Consolidated market-data fees have never been a subject of regulatory or industry debate in Europe
 
+<div style="page-break-after: always;"></div>
+
 ### 19. Reg NMS, crossed markets, and fee models
 - [ ] A. Reg NMS's best-price mandate is a key reason smart order routing exists as standard infrastructure among US brokers
 - [ ] B. A crossed market, where one venue's bid exceeds another venue's ask, represents a genuine, if fleeting, risk-free arbitrage opportunity
@@ -158,3 +177,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Demutualization occurred primarily in ancient, pre-20th-century financial history
 - [ ] E. Demutualization had no effect on an exchange's incentive structure or technology-investment decisions
 
+
+&nbsp;
+
+---

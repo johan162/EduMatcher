@@ -1,12 +1,21 @@
 # Exchange Concepts Knowledge Check — Variant 02
-
 Purpose: verify that the student has read [How a Financial Exchange Works](../how-exchange-works.md) and internalized the core principles of a modern exchange, across its full scope — market history, order mechanics, risk and compliance, and technology infrastructure.
+
+## Name/ID
+
+&nbsp;
+
+---
+
+&nbsp;
 
 ## Instructions
 
-- Each question has five options (A-E).
-- Select all options you believe are correct.
-- It is not known in advance how many options are correct in each question — it may be as few as one or as many as all five.
+- There are 20 questions.
+- Each question has five statements (A-E) which may be false or true.
+- Select all statements you believe to be correct by clearly filling the square before the question.
+- Each question may have multiple correct statements (for some, all five statements may be correct).
+- There are always at least one correct statement.
 
 ## Scoring
 
@@ -15,6 +24,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - 0 points for options not selected.
 - Final test score is capped at a minimum of 0: if raw total is negative, recorded score is 0.
 - A passing score is 70% of the maximum rounded down to the nearest integer. 
+
+<div style="page-break-after: always;"></div>
 
 ## Questions
 
@@ -81,6 +92,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. CME uses FIFO for its interest-rate futures and pro-rata for its equity index futures
 - [ ] E. Pro-rata and price-time priority are two names for the same allocation method
 
+<div style="page-break-after: always;"></div>
+
 ### 10. Tick sizes
 - [ ] A. Prices are typically stored as integer tick counts internally to avoid floating-point representation errors
 - [ ] B. Rule 612 of Regulation NMS bans quoting most NMS stocks priced at or above $1.00 in increments finer than a penny
@@ -108,6 +121,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. Post-close/after-hours trading typically has the same liquidity and spreads as continuous trading
 - [ ] D. GTC orders must be persisted to durable storage so they can be reloaded at the next session's pre-open
 - [ ] E. End-of-day batch processes commonly include closing-price publication and generation of clearing/surveillance reports
+
+<div style="page-break-after: always;"></div>
 
 ### 14. Implied orders
 - [ ] A. Removing one of the underlying orders that generates an implied order makes that implied order disappear instantly
@@ -137,6 +152,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Front running means trading only after a public news announcement, never before
 - [ ] E. Layering is unrelated to spoofing and involves an entirely different regulatory concept
 
+<div style="page-break-after: always;"></div>
+
 ### 18. The Consolidated Audit Trail
 - [ ] A. The Consolidated Audit Trail (CAT) has been operational in the US since 2020
 - [ ] B. Before CAT, regulators could pull cross-exchange order data instantly from one unified source
@@ -158,3 +175,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. DTCC's NSCC subsidiary has no role in determining broker margin/collateral requirements
 - [ ] E. GameStop's stock price declined steadily throughout the squeeze period
 
+
+&nbsp;
+
+---

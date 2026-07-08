@@ -1,12 +1,21 @@
-# Exchange Concepts Knowledge Check — Variant 03
-
+# Exchange Concepts Knowledge Check — Variant 02
 Purpose: verify that the student has read [How a Financial Exchange Works](../how-exchange-works.md) and internalized the core principles of a modern exchange, across its full scope — market history, order mechanics, risk and compliance, and technology infrastructure.
+
+## Name/ID
+
+&nbsp;
+
+---
+
+&nbsp;
 
 ## Instructions
 
-- Each question has five options (A-E).
-- Select all options you believe are correct.
-- It is not known in advance how many options are correct in each question — it may be as few as one or as many as all five.
+- There are 20 questions.
+- Each question has five statements (A-E) which may be false or true.
+- Select all statements you believe to be correct by clearly filling the square before the question.
+- Each question may have multiple correct statements (for some, all five statements may be correct).
+- There are always at least one correct statement.
 
 ## Scoring
 
@@ -15,6 +24,9 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - 0 points for options not selected.
 - Final test score is capped at a minimum of 0: if raw total is negative, recorded score is 0.
 - A passing score is 70% of the maximum rounded down to the nearest integer. 
+
+<div style="page-break-after: always;"></div>
+
 
 ## Questions
 
@@ -46,6 +58,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Static price collars compare an order's price to the most recently traded price rather than the prior close
 - [ ] E. The Mizuho incident occurred in the United States
 
+<div style="page-break-after: always;"></div>
+
 ### 5. Technology architecture
 - [ ] A. The gateway is typically the participant-facing component responsible for authentication and session management
 - [ ] B. FIX is a text-based protocol whose wire delimiter is a non-printable SOH character, not a literal pipe symbol
@@ -66,6 +80,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. Modern exchanges typically target sub-minute RTO for their most critical components
 - [ ] D. The 2015 NYSE trading halt, lasting roughly 3.5 hours, is generally viewed as an example of an acceptable, well-managed RTO
 - [ ] E. RTO tolerances are identical for a matching engine and for a batch reporting system
+
+<div style="page-break-after: always;"></div>
 
 ### 8. Failover and split-brain
 - [ ] A. Split-brain occurs when both the primary and secondary site believe the other has failed, and each tries to become primary
@@ -116,6 +132,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. VWAP algorithms ignore expected intraday volume patterns entirely
 - [ ] E. TWAP and VWAP are two names for exactly the same execution strategy
 
+<div style="page-break-after: always;"></div>
+
 ### 15. Crypto venues
 - [ ] A. Centralized crypto exchanges typically decouple trade matching from blockchain settlement, recording trades as internal ledger entries
 - [ ] B. Decentralized exchanges commonly replace the order book with an automated market maker governed by a pricing formula like a constant-product rule
@@ -144,6 +162,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. An error budget represents the gap between a service's SLO target and 100% availability/performance
 - [ ] E. Symptom-based alerting and cause-based alerting are considered equally effective and interchangeable approaches
 
+<div style="page-break-after: always;"></div>
+
 ### 19. Corporate actions and reference data
 - [ ] A. A stock split leaves total market capitalization unchanged, even though the per-share price and share count both change
 - [ ] B. Open limit orders generally need adjustment across a stock split, so that price and quantity reflect the new terms
@@ -158,5 +178,9 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. The 2015 NYSE halt demonstrated that reference-data/configuration issues cannot meaningfully affect exchange availability
 - [ ] E. The 2015 NYSE halt was resolved within a few seconds, due to automatic failover
 
+
+&nbsp;
+
+---
 
 

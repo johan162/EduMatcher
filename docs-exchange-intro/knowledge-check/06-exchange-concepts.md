@@ -1,12 +1,21 @@
-# Exchange Concepts Knowledge Check — Variant 06
-
+# Exchange Concepts Knowledge Check — Variant 02
 Purpose: verify that the student has read [How a Financial Exchange Works](../how-exchange-works.md) and internalized the core principles of a modern exchange, across its full scope — market history, order mechanics, risk and compliance, and technology infrastructure.
+
+## Name/ID
+
+&nbsp;
+
+---
+
+&nbsp;
 
 ## Instructions
 
-- Each question has five options (A-E).
-- Select all options you believe are correct.
-- It is not known in advance how many options are correct in each question — it may be as few as one or as many as all five.
+- There are 20 questions.
+- Each question has five statements (A-E) which may be false or true.
+- Select all statements you believe to be correct by clearly filling the square before the question.
+- Each question may have multiple correct statements (for some, all five statements may be correct).
+- There are always at least one correct statement.
 
 ## Scoring
 
@@ -15,6 +24,9 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - 0 points for options not selected.
 - Final test score is capped at a minimum of 0: if raw total is negative, recorded score is 0.
 - A passing score is 70% of the maximum rounded down to the nearest integer. 
+
+<div style="page-break-after: always;"></div>
+
 
 ## Questions
 
@@ -67,6 +79,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. RTO and RPO are two different names for exactly the same recovery concept
 - [ ] E. The 2015 NYSE halt, lasting roughly 3.5 hours, is used in the book as a benchmark example of an unacceptably long RTO
 
+<div style="page-break-after: always;"></div>
+
 ### 8. Crypto precision and settlement
 - [ ] A. Bitcoin amounts are commonly denominated down to a hundred-millionth of a unit, called a satoshi
 - [ ] B. Many Ethereum-based tokens use as many as 18 decimal places of precision
@@ -94,6 +108,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. A 20% decline triggers a Level 3 halt that stops trading for the remainder of the session, regardless of time of day
 - [ ] D. Level 3 has never actually been triggered under the current rules, per the book
 - [ ] E. These market-wide thresholds are measured against decline from the prior session's closing level
+
+<div style="page-break-after: always;"></div>
 
 ### 12. Options contracts, numeric details
 - [ ] A. One standard US equity option contract typically corresponds to 100 underlying shares
@@ -123,6 +139,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Symptom-based alerting, which pages when participants are actually affected, is generally preferred over paging on every minor cause-level fluctuation like elevated CPU
 - [ ] E. Paging and ticketing are the same escalation mechanism and should always wake a human immediately
 
+<div style="page-break-after: always;"></div>
+
 ### 16. Execution algorithms, comparative
 - [ ] A. A VWAP algorithm estimates the expected volume profile across the day and participates more heavily during historically higher-volume periods like the open and close
 - [ ] B. A TWAP algorithm divides an order into equal slices across equal time intervals, regardless of actual traded volume
@@ -144,6 +162,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Fragmentation across many venues is presented in the book as adding complexity to routing decisions and best-price discovery
 - [ ] E. A Smart Order Router's decision criteria are described as limited strictly to price, ignoring fees, depth, or queue-position probability
 
+<div style="page-break-after: always;"></div>
+
 ### 19. Capstone synthesis
 - [ ] A. Exchanges are described as making three implicit promises to participants: price discovery, liquidity, and fairness/transparency
 - [ ] B. Regulatory requirements like audit-trail formats and kill-switch rules are treated in the book as engineering specifications, not merely legal formalities layered on afterward
@@ -158,3 +178,6 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. The book states that odd-lot trading data has always been fully included in NBBO calculations since markets began
 - [ ] E. The book asserts that reference-data errors are rarer causes of real exchange outages than matching-engine bugs
 
+&nbsp;
+
+---

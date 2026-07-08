@@ -1,12 +1,21 @@
-# Exchange Concepts Knowledge Check — Variant 04
-
+# Exchange Concepts Knowledge Check — Variant 02
 Purpose: verify that the student has read [How a Financial Exchange Works](../how-exchange-works.md) and internalized the core principles of a modern exchange, across its full scope — market history, order mechanics, risk and compliance, and technology infrastructure.
+
+## Name/ID
+
+&nbsp;
+
+---
+
+&nbsp;
 
 ## Instructions
 
-- Each question has five options (A-E).
-- Select all options you believe are correct.
-- It is not known in advance how many options are correct in each question — it may be as few as one or as many as all five.
+- There are 20 questions.
+- Each question has five statements (A-E) which may be false or true.
+- Select all statements you believe to be correct by clearly filling the square before the question.
+- Each question may have multiple correct statements (for some, all five statements may be correct).
+- There are always at least one correct statement.
 
 ## Scoring
 
@@ -15,6 +24,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - 0 points for options not selected.
 - Final test score is capped at a minimum of 0: if raw total is negative, recorded score is 0.
 - A passing score is 70% of the maximum rounded down to the nearest integer. 
+
+<div style="page-break-after: always;"></div>
 
 ## Questions
 
@@ -46,6 +57,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. The "Big Bang" introduced fixed brokerage commissions to the London market for the first time
 - [ ] E. The "Big Bang" had no connection to the earlier abolition of fixed commissions on NYSE
 
+<div style="page-break-after: always;"></div>
+
 ### 5. Real-world exchange facts
 - [ ] A. CME Group operates multiple exchanges, including CME, CBOT, NYMEX, and COMEX, under its Globex electronic platform
 - [ ] B. Eurex runs a formal Market Making Programme with contractual quoting obligations and MMP-style protection
@@ -67,6 +80,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. An iceberg order's hidden reserve automatically replenishes the visible peak once it's consumed
 - [ ] E. Replenishing an iceberg's visible peak always preserves its original queue timestamp under the most common rule
 
+<div style="page-break-after: always;"></div>
+
 ### 8. Midpoint pegs and market-maker inventory risk
 - [ ] A. A midpoint peg order continuously tracks the midpoint between the best bid and best ask
 - [ ] B. Both the buyer and seller in a midpoint match can receive price improvement relative to the quoted market simultaneously
@@ -87,6 +102,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. Herstatt risk refers to the danger that one party in a currency settlement delivers value while the counterparty, due to time-zone/closure timing, never delivers in return
 - [ ] D. Delivery versus Payment ensures securities and cash are exchanged simultaneously, so neither side is released without the other
 - [ ] E. Maintenance-margin breaches never result in a forced liquidation of the position by the CCP
+
+<div style="page-break-after: always;"></div>
 
 ### 11. Lehman Brothers and central clearing
 - [ ] A. Lehman Brothers filed for bankruptcy in September 2008 with liabilities exceeding $600 billion
@@ -115,6 +132,8 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] C. MiFID II allows unlimited reporting delay for all instrument types, regardless of liquidity
 - [ ] D. Derivatives trades are typically reported to a Trade Repository only if both counterparties are US-based
 - [ ] E. Trade-reporting obligations do not exist for off-exchange or dark-pool executions
+
+<div style="page-break-after: always;"></div>
 
 ### 15. Incident command
 - [ ] A. An Incident Commander coordinates and makes decisions during an incident, distinct from a communications lead who keeps stakeholders informed
@@ -158,3 +177,7 @@ Purpose: verify that the student has read [How a Financial Exchange Works](../ho
 - [ ] D. Physical delivery is the standard settlement method for broad index options like SPX
 - [ ] E. Pin risk cannot occur in any form for European-style options, since exercise only happens at expiry
 
+
+&nbsp;
+
+---
