@@ -1,3 +1,30 @@
+## [v0.16.0] - 2026-07-09
+
+Release Type: minor
+
+### 📋 Summary
+This release adds a new `pm-audit-cli` tool for inspecting the exchange audit trail, extends the API Gateway with ADMIN-only operator commands, and introduces design proposals for upcoming Trading and Configuration web UIs. It also hardens `pm-config-gen` validation, the RALF gateway test suite, and `pm-cverifier`'s numeric field checks, alongside knowledge-check quiz polish.
+
+### ✨ Additions
+- Added `pm-audit-cli`, a new CLI tool for inspecting the exchange audit trail, together with its design proposal and user-guide chapter
+- Added ADMIN-only operator commands to the API Gateway (requires role `ADMIN`)
+- Added design proposals for upcoming `pm-trading-ui` and `config-gui` web applications and wired them into the PDF documentation build
+
+### 🚀 Improvements
+- Improved `pm-config-gen` with cross-gateway port collision detection, schedule chronological-order validation, and tick-aware decimal combo leg prices
+- Improved `pm-cverifier` numeric field validation to reject booleans that would otherwise be silently coerced to 1/0
+
+### 🐛 Bug Fixes
+- Fixed the knowledge-check quiz bundle Makefile target using the wrong output name
+
+### 📚 Documentation
+- Renamed exchange knowledge-check quiz files for clarity
+
+### 🛠 Internal
+- Hardened `test_ralf_gateway.py` to remove intermittent timing-related failures by replacing fixed sleeps with deterministic readiness polling
+- Refactored `pm-admin`'s command dispatch from a large if/else chain into a proper handler-based dispatch
+
+
 ## [v0.15.3] - 2026-07-07
 
 Release Type: patch
