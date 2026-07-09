@@ -23,6 +23,20 @@ _VALID_QUOTE_REFRESH = {
 }
 
 
+def _is_positive_int(val: Any) -> bool:
+    """Return True if *val* is a non-bool int (or int-like) that is > 0.
+
+    ``bool`` is a subclass of ``int`` in Python, so ``int(True) == 1`` would
+    otherwise silently validate a boolean as a positive integer.
+    """
+    if isinstance(val, bool):
+        return False
+    try:
+        return int(val) > 0
+    except (TypeError, ValueError):
+        return False
+
+
 def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     """Run Layer 2 schema checks against the raw YAML dict."""
     results: list[CheckResult] = []
@@ -141,6 +155,8 @@ def _check_symbol_tick_decimals(
 ) -> None:
     td = cfg.get("tick_decimals", 2)
     try:
+        if isinstance(td, bool):
+            raise ValueError("bool is not a valid integer")
         td_int = int(td)
         if not (0 <= td_int <= 8):
             raise ValueError("out of range")
@@ -188,24 +204,19 @@ def _check_symbol_outstanding_shares(
     sym: str, cfg: dict[str, Any], results: list[CheckResult]
 ) -> None:
     val = cfg.get("outstanding_shares")
-    if val is not None:
-        try:
-            v = int(val)
-            if v <= 0:
-                raise ValueError("must be positive")
-        except (TypeError, ValueError):
-            results.append(
-                CheckResult(
-                    code="S012",
-                    severity=Severity.ERROR,
-                    message=(
-                        f"Symbol '{sym}': outstanding_shares must be a positive integer. "
-                        f"Got '{val}'."
-                    ),
-                    suggestion="This field is required for index constituents.",
-                    path=f"symbols.{sym}.outstanding_shares",
-                )
+    if val is not None and not _is_positive_int(val):
+        results.append(
+            CheckResult(
+                code="S012",
+                severity=Severity.ERROR,
+                message=(
+                    f"Symbol '{sym}': outstanding_shares must be a positive integer. "
+                    f"Got '{val}'."
+                ),
+                suggestion="This field is required for index constituents.",
+                path=f"symbols.{sym}.outstanding_shares",
             )
+        )
 
 
 def _check_symbol_level(
@@ -532,11 +543,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
             val = gw.get(field)
             if val is None:
                 continue
-            try:
-                parsed = int(val)
-                if parsed <= 0:
-                    raise ValueError
-            except (TypeError, ValueError):
+            if not _is_positive_int(val):
                 results.append(
                     CheckResult(
                         code="S026",
@@ -601,11 +608,7 @@ def _check_gateways(raw: dict[str, Any], results: list[CheckResult]) -> None:
                     val = obl_raw.get(field)
                     if val is None:
                         continue
-                    try:
-                        parsed = int(val)
-                        if parsed <= 0:
-                            raise ValueError
-                    except (TypeError, ValueError):
+                    if not _is_positive_int(val):
                         results.append(
                             CheckResult(
                                 code="S028",
