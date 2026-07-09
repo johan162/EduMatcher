@@ -227,6 +227,8 @@ $(eval $(call DEFINE_DESIGN_DOC_VARS,MM_BOTS,EduMatcher-MM-bots,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,CONFIG_VERIFIER,EduMatcher-Config-Verifier,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,AI_TRADING_BOT_V2,EduMatcher-AI-trading-bot-v2,,))
 $(eval $(call DEFINE_DESIGN_DOC_VARS,AUDIT_CLI,EduMatcher-audit-cli,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,TRADING_GUI,EduMatcher-Trading-GUI,,))
+$(eval $(call DEFINE_DESIGN_DOC_VARS,CONFIG_GUI,EduMatcher-Config-GUI,,))
 
 # ============================================================================================
 # Makefile Targets
@@ -254,6 +256,8 @@ $(eval $(call DESIGN_DOC_PDF_RULE,MM_BOTS,"EduMatcher-MM-bots"))
 $(eval $(call DESIGN_DOC_PDF_RULE,CONFIG_VERIFIER,"EduMatcher-Config-Verifier"))
 $(eval $(call DESIGN_DOC_PDF_RULE,AI_TRADING_BOT_V2,"EduMatcher-AI-trading-bot-v2"))
 $(eval $(call DESIGN_DOC_PDF_RULE,AUDIT_CLI,"EduMatcher-audit-cli"))
+$(eval $(call DESIGN_DOC_PDF_RULE,TRADING_GUI,"EduMatcher-Trading-GUI"))
+$(eval $(call DESIGN_DOC_PDF_RULE,CONFIG_GUI,"EduMatcher-Config-GUI"))
 
 
 PDF_DESIGN_DOCS := $(BALF_PROPOSAL_PDF) $(FEATURE_IMPLEMENTATION_PDF) $(MM_QUOTES_IMPLEMENTATION_PDF) \
@@ -261,7 +265,8 @@ $(TICK_MIGRATION_PLAN_PDF) $(MARKET_DATA_PROTOCOL_PDF) $(SESSION_GWY_COMMAND_PDF
 $(INDEX_DB_DESIGN_PDF) \
 $(CROSS_HOST_CONNECTION_PDF) $(STAT_COMMANDS_PDF) $(CONFIG_GENERATOR_PDF) $(MM_QUOTE_IDENTIFICATION_PDF) \
 $(MM_BOTS_PDF) $(POST_TRADE_DISSEMINATION_GATEWAY_PDF) $(API_GATEWAY_V2_PDF) \
-$(CONFIG_VERIFIER_PDF) $(AI_TRADING_BOT_V2_PDF) $(CLEARING_V2_PDF) $(CONTRACT_MULTIPLYER_PDF) $(AUDIT_CLI_PDF)
+$(CONFIG_VERIFIER_PDF) $(AI_TRADING_BOT_V2_PDF) $(CLEARING_V2_PDF) $(CONTRACT_MULTIPLYER_PDF) $(AUDIT_CLI_PDF) \
+$(TRADING_GUI_PDF) $(CONFIG_GUI_PDF)
 
 help: ## Show this help message
 	@echo -e "$(DARKYELLOW)OneSelect - Makefile Targets$(NC)"
