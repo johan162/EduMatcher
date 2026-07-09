@@ -113,6 +113,7 @@ nav:
     - ALF TCP Gateway (pm-alf-gwy): user-guide/24-alf-gateway.md
     - BALF TCP Gateway (pm-balf-gwy): user-guide/25-balf-gateway.md
     - Audit Trail (pm-audit / pm-audit-cli): user-guide/26-audit.md
+    - Configuration GUI (config-gui): user-guide/27-config-GUI.md
     - Protocol Support Library Examples: user-guide/80-examples.md
     - Example Engine Configs: user-guide/81-example-configs.md
     - Known Limitations & Bugs: user-guide/89-known-limitations-bugs.md

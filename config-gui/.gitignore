@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.fixtures/
+*.log
+.DS_Store
+apps/web/dist/

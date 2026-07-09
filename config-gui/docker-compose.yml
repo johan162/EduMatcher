@@ -1,0 +1,20 @@
+# Single-service deployment of the EduMatcher Config Builder.
+#
+#   docker compose up --build
+#
+# Then open http://localhost:8080. See docs/user-guide/27-config-GUI.md.
+services:
+  config-gui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: edumatcher-config-gui:latest
+    ports:
+      - "8080:8080"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8080"
+      # Restrict this to your site origin when exposed beyond localhost.
+      CORS_ORIGIN: "*"
+      # STATIC_DIR is baked into the image; override only if you relocate assets.
+    restart: unless-stopped

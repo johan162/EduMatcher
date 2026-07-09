@@ -34,6 +34,12 @@ The sample `engine_config.yaml` intentionally keeps the
 live configuration minimal and places the full parser-recognized shape in
 comments. This page explains that shape in operational terms.
 
+!!! tip "Prefer a form over the CLI? Use the Config Builder GUI"
+    If you would rather build or edit `engine_config.yaml` visually — with live
+    validation, per-field help, and import of an existing file — see the
+    [Configuration GUI (`config-gui`)](27-config-GUI.md) chapter. It targets the
+    same file format as `pm-config-gen` described below.
+
 !!! note "`gateways.alf` is the only sub-key under `gateways:`"
     The `gateways:` mapping only contains `alf`. BALF and CALF gateways are
     configured via separate **top-level** keys (`balf_gateway` and
