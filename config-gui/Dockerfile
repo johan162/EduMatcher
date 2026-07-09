@@ -11,11 +11,33 @@
 FROM node:22-slim AS build
 WORKDIR /app
 
+# --- Corporate-network support (see docs/user-guide/27-config-GUI.md) --------
+# The build downloads npm packages from a registry. Behind a corporate proxy or
+# firewall the default `npm install` can HANG (dropped connections / TLS
+# interception). Pass these build args to route through your proxy / mirror.
+ARG HTTP_PROXY=
+ARG HTTPS_PROXY=
+ARG NO_PROXY=
+# Point at a corporate npm mirror (Artifactory/Nexus) if direct access is blocked.
+ARG NPM_REGISTRY=
+# Last resort for TLS-intercepting proxies without a trusted CA: set to "false".
+ARG NPM_STRICT_SSL=true
+
+# Export proxy vars so npm (and node's fetch) honour them during the build.
+ENV HTTP_PROXY=${HTTP_PROXY} HTTPS_PROXY=${HTTPS_PROXY} NO_PROXY=${NO_PROXY} \
+    http_proxy=${HTTP_PROXY} https_proxy=${HTTPS_PROXY} no_proxy=${NO_PROXY}
+
 # Install workspace dependencies first (better layer caching).
 COPY package.json package-lock.json* tsconfig.base.json ./
 COPY packages ./packages
 COPY apps ./apps
-RUN npm install
+# Fail fast (in ~2 min) instead of hanging indefinitely when the network is
+# blocked, and apply any registry / TLS overrides supplied via build args.
+RUN npm config set fetch-retries 2 \
+ && npm config set fetch-timeout 120000 \
+ && if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi \
+ && if [ "$NPM_STRICT_SSL" = "false" ]; then npm config set strict-ssl false; fi \
+ && npm install
 
 # Type-check and build the frontend bundle into apps/web/dist.
 RUN npm run build --workspace @edumatcher/web

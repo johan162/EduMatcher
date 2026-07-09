@@ -8,6 +8,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # Forward corporate proxy / registry settings into the build. These pick up
+      # your shell's HTTP(S)_PROXY automatically; set NPM_REGISTRY (and, only if
+      # your proxy does TLS interception, NPM_STRICT_SSL=false) as needed.
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-}
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+        NPM_STRICT_SSL: ${NPM_STRICT_SSL:-true}
     image: edumatcher-config-gui:latest
     ports:
       - "8080:8080"

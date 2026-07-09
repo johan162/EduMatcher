@@ -139,6 +139,60 @@ dev dependencies, and starts the API with `STATIC_DIR` pointed at the built
 assets. The API serves the UI and falls back to `index.html` for client-side
 routes.
 
+#### Building behind a corporate proxy or firewall
+
+The build step downloads npm packages from a registry. **This does not inherit
+your host's npm or proxy settings** — the Docker build has its own network and
+an empty npm config. Behind a corporate proxy or a firewall that intercepts TLS,
+`npm install` may **hang** (the connection is silently dropped rather than
+refused) instead of failing quickly.
+
+First, confirm the registry is reachable from inside a container:
+
+```bash
+docker run --rm node:22-slim sh -c "npm config set fetch-timeout 30000 && npm ping"
+```
+
+If that hangs or times out, it is a network/proxy issue, not the image. The
+`Dockerfile` and `docker-compose.yml` accept build arguments to work through it:
+
+| Build arg | Purpose |
+|---|---|
+| `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` | Route npm through your corporate proxy |
+| `NPM_REGISTRY` | Use a corporate npm mirror (Artifactory / Nexus) instead of the public registry |
+| `NPM_STRICT_SSL` | Set to `false` **only** as a last resort when the proxy does TLS interception and you cannot install its CA |
+
+With `docker compose`, the proxy args pick up your shell environment
+automatically, so this often just works:
+
+```bash
+export HTTP_PROXY=http://proxy.corp.example:8080
+export HTTPS_PROXY=$HTTP_PROXY
+export NO_PROXY=localhost,127.0.0.1
+# optional corporate mirror:
+export NPM_REGISTRY=https://artifactory.corp.example/api/npm/npm-remote/
+docker compose up --build
+```
+
+With plain `docker build`, pass them explicitly:
+
+```bash
+docker build \
+  --build-arg HTTPS_PROXY=http://proxy.corp.example:8080 \
+  --build-arg NPM_REGISTRY=https://artifactory.corp.example/api/npm/npm-remote/ \
+  -t edumatcher-config-gui .
+```
+
+!!! tip "TLS interception (custom root CA)"
+    If your proxy re-signs TLS with a corporate root CA, the cleaner fix than
+    disabling `strict-ssl` is to trust that CA in the build: copy the CA `.crt`
+    into the image and set `NODE_EXTRA_CA_CERTS=/path/to/ca.crt` before
+    `npm install`. Also prefer `NPM_REGISTRY` (a mirror) over the public
+    registry when your firewall blocks outbound internet entirely.
+
+The build now also sets a fetch timeout, so a blocked network fails in about two
+minutes with a clear error rather than hanging indefinitely.
+
 !!! warning "The optional verifier is not in the image"
     The container does not include the Python toolchain, so the
     "Verify with pm-cverifier" button returns a friendly *unavailable* message.
@@ -230,6 +284,7 @@ green when changing either side. Developer-facing details, including the
 
 | Symptom | Cause | Fix |
 |---|---|---|
+| **`docker compose up --build` hangs at `RUN npm install`** | Corporate proxy/firewall blocks the npm registry; the build does not inherit host npm/proxy settings | Confirm with `docker run --rm node:22-slim sh -c "npm config set fetch-timeout 30000 && npm ping"`, then pass `HTTP_PROXY`/`HTTPS_PROXY`/`NPM_REGISTRY` build args — see [Building behind a corporate proxy or firewall](#building-behind-a-corporate-proxy-or-firewall). |
 | **API calls fail in dev** (`ECONNREFUSED` / 404 on `/api`) | The backend is not running | Start `npm run dev:server`; the web dev server proxies `/api` to `http://127.0.0.1:5175`. |
 | **`"root" option must be an absolute path`** on startup | `STATIC_DIR` was set to a relative path the server could not resolve | Use an absolute path, e.g. `STATIC_DIR="$PWD/apps/web/dist"`. |
 | **Blank page in production**, API works | UI not built, or `STATIC_DIR` points at the wrong directory | Run `npm run build`, then point `STATIC_DIR` at `apps/web/dist`. |
