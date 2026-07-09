@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from edumatcher.config_gen.builder import ConfigSpec
+from edumatcher.config_gen.builder import (
+    ApiGatewaySpec,
+    ConfigSpec,
+    MarketDataGatewaySpec,
+    PostTradeGatewaySpec,
+)
 from edumatcher.config_gen.gateway_spec import parse_gateway_spec
 from edumatcher.config_gen.symbol_spec import SymbolOverride
 from edumatcher.config_gen.warnings import evaluate_diagnostics
@@ -58,3 +63,42 @@ def test_error_for_existing_output() -> None:
         output_exists=True,
     )
     assert any(line.startswith("[ERROR]") for line in lines)
+
+
+def test_port_collision_across_auxiliary_gateways() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01")],
+        post_trade_gateway=PostTradeGatewaySpec(port=5580),
+        market_data_gateway=MarketDataGatewaySpec(port=5580),
+    )
+
+    lines = evaluate_diagnostics(
+        spec=spec,
+        parsed_symbol_option_warnings=[],
+        raw_symbols=["AAPL"],
+        raw_gateways=["TRADER01"],
+        output_exists=False,
+    )
+
+    assert any("Port collision" in line and "5580" in line for line in lines)
+
+
+def test_no_port_collision_when_ports_distinct() -> None:
+    spec = ConfigSpec(
+        symbols=["AAPL"],
+        gateways=[parse_gateway_spec("TRADER01")],
+        post_trade_gateway=PostTradeGatewaySpec(port=5580),
+        market_data_gateway=MarketDataGatewaySpec(port=5570),
+        api_gateways=(ApiGatewaySpec(port=8080),),
+    )
+
+    lines = evaluate_diagnostics(
+        spec=spec,
+        parsed_symbol_option_warnings=[],
+        raw_symbols=["AAPL"],
+        raw_gateways=["TRADER01"],
+        output_exists=False,
+    )
+
+    assert not any("Port collision" in line for line in lines)

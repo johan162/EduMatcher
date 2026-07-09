@@ -817,6 +817,131 @@ def test_combo_too_few_legs_fails(
     assert "2 legs" in capsys.readouterr().err
 
 
+def test_combo_leg_decimal_price_converts_to_ticks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "MSFT",
+            "--gateways",
+            "TRADER01",
+            "--combo",
+            "SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.50,MSFT/SELL/LIMIT/50/415.50",
+            "--output",
+            str(out_file),
+        ],
+    )
+    cfg = load_engine_config(out_file)
+    combo = cfg.market_maker_combos[0]
+    assert combo.legs[0].price == 20950
+    assert combo.legs[1].price == 41550
+
+
+def test_combo_leg_decimal_price_honours_per_symbol_tick_decimals(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "MSFT",
+            "--gateways",
+            "TRADER01",
+            "--symbol-opts",
+            "AAPL:tick_decimals=4",
+            "--combo",
+            "SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.5,MSFT/SELL/LIMIT/50/415.50",
+            "--output",
+            str(out_file),
+        ],
+    )
+    cfg = load_engine_config(out_file)
+    combo = cfg.market_maker_combos[0]
+    assert combo.legs[0].price == 2095000  # AAPL tick_decimals=4
+    assert combo.legs[1].price == 41550  # MSFT default tick_decimals=2
+
+
+def test_combo_leg_price_bad_decimal_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import pytest as _pytest
+
+    with _pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "MSFT",
+                "--gateways",
+                "TRADER01",
+                "--combo",
+                "PAIR:AON:DAY:AAPL/BUY/LIMIT/100/1.2.3,MSFT/SELL/LIMIT/50/1",
+                "--dry-run",
+            ],
+        )
+    assert exc_info.value.code == 2
+    assert "leg price" in capsys.readouterr().err
+
+
+def test_schedule_out_of_order_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import pytest as _pytest
+
+    with _pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                "--sessions-enabled",
+                "--continuous",
+                "09:20",
+                "--opening-auction",
+                "09:30",
+                "--dry-run",
+            ],
+        )
+    assert exc_info.value.code == 2
+    assert "strictly increasing" in capsys.readouterr().err
+
+
+def test_schedule_bad_time_format_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import pytest as _pytest
+
+    with _pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                "--pre-open",
+                "9am",
+                "--dry-run",
+            ],
+        )
+    assert exc_info.value.code == 2
+    assert "HH:MM format" in capsys.readouterr().err
+
+
 def test_cb_levels_with_resumption_mode_round_trips(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

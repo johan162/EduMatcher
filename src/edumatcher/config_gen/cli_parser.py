@@ -677,7 +677,9 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="COMBO_SPEC",
         help=(
             "Seed a market-maker combo order: ID:TYPE:TIF:SYM/SIDE/TYPE/QTY[/PRICE[/STOP[/SMP]]],...\n"
-            "Example: SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/20950,MSFT/SELL/LIMIT/50/41550\n"
+            "PRICE and STOP accept either a raw integer tick count (e.g. 20950) or a\n"
+            "decimal display price (e.g. 209.50), converted using the symbol's tick_decimals.\n"
+            "Example: SEED-PAIR:AON:DAY:AAPL/BUY/LIMIT/100/209.50,MSFT/SELL/LIMIT/50/415.50\n"
             "Can be repeated."
         ),
     )
