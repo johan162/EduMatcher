@@ -995,12 +995,12 @@ UI guard prevents confusion and clutter, not security breaches.
 ### 9.1 Shell structure
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
+┌────────────────────────────────────────────────────────────────────────────┐
 │ TOP BAR: Logo | Session badge + clock/countdown | WS dot | 🔔 | Last update│
 ├─────────┬──────────────────────────────────────────────────────────────────┤
 │         │                                                                  │
 │ SIDEBAR │  MAIN CONTENT AREA                                               │
-│  (role- │  (routed view based on the current path)                        │
+│  (role- │  (routed view based on the current path)                         │
 │  aware) │                                                                  │
 │         │                                                                  │
 └─────────┴──────────────────────────────────────────────────────────────────┘
@@ -1207,17 +1207,17 @@ focused, single-instrument cockpit.
 A four-quadrant grid, all panels bound to the one active symbol:
 
 ```
-┌───────────────────────────────────┬───────────────────────────┐
-│  PRICE CHART (active symbol)       │  DOM DEPTH LADDER          │
-│  Lightweight Charts                │  bids ▏  price  ▕ asks     │
-│  timeframe selector                │  click a level → prefills  │
-│  (top-left)                        │  the ticket price (right)  │
-├───────────────────────────────────┤                            │
-│  ORDER TICKET                      │                            │
-│  symbol (= active) | qty | price…  │                            │
-│  [ BUY ]           [ SELL ]        │                            │
-│  (bottom-left)                     │                            │
-├───────────────────────────────────┴───────────────────────────┤
+┌───────────────────────────────────┬─────────────────────────────┐
+│  PRICE CHART (active symbol)      │   DOM DEPTH LADDER          │
+│  Lightweight Charts               │   bids ▏  price  ▕ asks     │
+│  timeframe selector               │   click a level → prefills  │
+│  (top-left)                       │   the ticket price (right)  │
+├───────────────────────────────────┤                             │
+│  ORDER TICKET                     │                             │
+│  symbol (= active) | qty | price… │                             │
+│  [ BUY ]           [ SELL ]       │                             │
+│  (bottom-left)                    │                             │
+├───────────────────────────────────┴─────────────────────────────┤
 │  COMPACT BLOTTER (active symbol's resting orders + quick cancel)│
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -1277,20 +1277,20 @@ In Workspace mode its symbol is locked to the active symbol.
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  ORDER TICKET                              [F1 to focus]    │
-│  ┌──────┬───────┬──────┬──────┬─────┬──────┬───────┬─────┐ │
-│  │Market│ Limit │ Stop │S-Lim │ FOK │ ICE  │  IOC  │TrlSt│ │  ← order type tabs
-│  └──────┴───────┴──────┴──────┴─────┴──────┴───────┴─────┘ │
+│  ┌──────┬───────┬──────┬──────┬─────┬──────┬───────┬─────┐  │
+│  │Market│ Limit │ Stop │S-Lim │ FOK │ ICE  │  IOC  │TrlSt│  │  ← order type tabs
+│  └──────┴───────┴──────┴──────┴─────┴──────┴───────┴─────┘  │
 │  ┌───────────────────────────────────────────────────────┐  │
-│  │  [Symbol ▼]           [Qty ___]                        │  │
-│  │  [Price ___]      (shown/hidden per type)              │  │
-│  │  [Stop Price ___] (shown/hidden per type)              │  │
-│  │  [Visible Qty ___](ICEBERG only)                       │  │
-│  │  [Trail Offset ___](TRAILING_STOP only)                │  │
+│  │  [Symbol ▼]           [Qty ___]                       │  │
+│  │  [Price ___]      (shown/hidden per type)             │  │
+│  │  [Stop Price ___] (shown/hidden per type)             │  │
+│  │  [Visible Qty ___](ICEBERG only)                      │  │
+│  │  [Trail Offset ___](TRAILING_STOP only)               │  │
 │  │  [TIF ▼ DAY]  [SMP ▼ NONE]                            │  │
-│  │  [Client Order ID ___]  (optional)                     │  │
-│  │      ┌──────────────┐        ┌──────────────┐          │  │
-│  │      │   BUY  (B)   │        │   SELL  (S)  │          │  │
-│  │      └──────────────┘        └──────────────┘          │  │
+│  │  [Client Order ID ___]  (optional)                    │  │
+│  │      ┌──────────────┐        ┌──────────────┐         │  │
+│  │      │   BUY  (B)   │        │   SELL  (S)  │         │  │
+│  │      └──────────────┘        └──────────────┘         │  │
 │  └───────────────────────────────────────────────────────┘  │
 │  ──────────────────── Advanced ──────────────────────────── │
 │  [OCO] [Combo]                                              │
@@ -1683,14 +1683,14 @@ active two-sided quote for that symbol.
 #### 14.1.1 Quote card anatomy
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  AAPL                                    [New Quote] [Cancel]│
-│  ─────────────────────────────────────────────────────────  │
-│  BID         149.90 × 500              Fill: 0 / 500        │
-│  ASK         150.10 × 500              Fill: 0 / 500        │
-│                                                             │
-│  Quote ID: mm-aapl-1  │  TIF: DAY  │  Status: ACTIVE       │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  AAPL                                   [New Quote] [Cancel] │
+│  ─────────────────────────────────────────────────────────── │
+│  BID         149.90 × 500              Fill: 0 / 500         │
+│  ASK         150.10 × 500              Fill: 0 / 500         │
+│                                                              │
+│  Quote ID: mm-aapl-1  │  TIF: DAY  │  Status: ACTIVE         │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 - **BID / ASK rows**: price, quantity, and a per-leg fill progress bar (`fill_qty / orig_qty`). The
@@ -2012,16 +2012,16 @@ the Trading Workspace ([§11](#11-screen-design--trading-workspace-trader)).
 ### 16.1 Panel structure
 
 ```
-┌──────────────────────────────────────────────────┐
-│  AAPL  ✕                                         │
-│  Last: 151.20  +0.94%  Vol: 45,230               │
-│  ──────────────────────────────────────────────  │
+┌────────────────────────────────────────────────────┐
+│  AAPL  ✕                                           │
+│  Last: 151.20  +0.94%  Vol: 45,230                 │ 
+│  ──────────────────────────────────────────────    │ 
 │  [CHART] [DEPTH] [TRADES] [STATS] [AUCTION]  ← tabs│
-│                                                  │
-│  ┌────────────────────────────────────────────┐  │
-│  │  (active tab content)                      │  │
-│  └────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────┘
+│                                                    │
+│  ┌────────────────────────────────────────────┐    │
+│  │  (active tab content)                      │    │
+│  └────────────────────────────────────────────┘    │
+└────────────────────────────────────────────────────┘
 ```
 
 Header row: symbol name, last price, % change since open, today's volume. These values update
