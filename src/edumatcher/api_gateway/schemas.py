@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from edumatcher.models.combo import ComboType
 from edumatcher.models.order import OrderType, Side, SmpAction, TIF
+from edumatcher.models.session import SessionState
 
 
 class StrictModel(BaseModel):
@@ -198,7 +199,39 @@ class HistoryQuery(StrictModel):
     limit: int = Field(default=500, ge=1, le=5000)
 
 
-MarketDataChannel = Literal["book", "trades", "depth"]
+class SessionTransitionRequest(StrictModel):
+    to_state: SessionState
+
+
+class CircuitBreakerTriggerRequest(StrictModel):
+    symbol: str = Field(min_length=1)
+    level: str | None = None
+
+    @field_validator("symbol")
+    @classmethod
+    def uppercase_symbol(cls, value: str) -> str:
+        return value.upper()
+
+
+class CircuitBreakerResumeRequest(StrictModel):
+    symbol: str = Field(min_length=1)
+
+    @field_validator("symbol")
+    @classmethod
+    def uppercase_symbol(cls, value: str) -> str:
+        return value.upper()
+
+
+class SymbolCancelRequest(StrictModel):
+    symbol: str = Field(min_length=1)
+
+    @field_validator("symbol")
+    @classmethod
+    def uppercase_symbol(cls, value: str) -> str:
+        return value.upper()
+
+
+MarketDataChannel = Literal["book", "trades", "depth", "auction"]
 
 
 class MarketDataControl(StrictModel):

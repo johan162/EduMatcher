@@ -196,6 +196,9 @@ Base path: `/api/v1`.
 | `GET`    | `/history/daily`             | any valid key | Daily OHLCV rows                     |
 | `GET`    | `/healthz`                   | none          | Liveness probe (not in Swagger)      |
 
+Admin endpoints are documented separately under
+[Admin endpoints](#admin-endpoints).
+
 
 ### Submit order
 
@@ -258,12 +261,73 @@ cache returns `409 Conflict`.
 | `POST /mass-cancel` | `{ "symbol":"AAPL" }` or `{}` for all symbols |
 
 
+## Admin endpoints
+
+Base path: `/api/v1/admin`.
+
+These endpoints require an API key whose `gateway_id` maps to an engine gateway
+configured with the `ADMIN` role (`gateways.fix[].role: ADMIN`). The gateway
+role is resolved from the engine at call time, not from the API credential.
+Callers without the ADMIN role receive `403` with error code `ROLE_DENIED`.
+
+!!! note "Role source"
+    The API credential store does not carry role. The gateway resolves and
+    caches the ADMIN role from the engine's gateway list reply, so the first
+    admin call performs one extra engine round-trip.
+
+| Method | Path                              | Request body                                | Response                                        | Engine topic                |
+|--------|-----------------------------------|---------------------------------------------|-------------------------------------------------|-----------------------------|
+| `POST` | `/admin/session/transition`       | `{ "to_state": "CONTINUOUS" }`              | `{ "requested_state": ..., "status":"PENDING" }`| `session.transition`        |
+| `GET`  | `/admin/session/schedule`         | none                                        | `{ "sessions_enabled":..., "schedule":{...} }`  | `system.session_schedule_request` |
+| `GET`  | `/admin/gateways`                 | none                                        | `{ "gateways":[{id,role,description,connected}] }` | `system.gateways_request` |
+| `POST` | `/admin/gateways/{gid}/disconnect`| none                                        | `{ "gateway_id":..., "status":"DISCONNECTED" }` | `system.gateway_disconnect` |
+| `POST` | `/admin/circuit-breaker/trigger`  | `{ "symbol":"AAPL", "level": null }`        | engine halt ack                                 | `risk.symbol_halt`          |
+| `POST` | `/admin/circuit-breaker/resume`   | `{ "symbol":"AAPL" }`                       | engine resume ack                               | `risk.symbol_resume`        |
+| `GET`  | `/admin/halts`                    | none                                        | `{ "halted":[{symbol,resume_at_ns?,level?,...}] }` | `system.halt_status_request` |
+| `POST` | `/admin/kill-switch/symbol`       | `{ "symbol":"AAPL" }`                       | engine cancel-symbol ack                        | `risk.cancel_symbol`        |
+
+Behaviour notes:
+
+- `POST /admin/session/transition` is fire-and-forget. The engine broadcasts
+  `session.state` after applying the transition; the REST call does not wait for
+  it and returns `202` with `status: PENDING`. `to_state` must be a valid
+  `SessionState` (`PRE_OPEN`, `OPENING_AUCTION`, `CONTINUOUS`, `CLOSING_AUCTION`,
+  `CLOSED`).
+- The circuit-breaker and kill-switch endpoints wait for the matching engine ACK.
+  When the engine rejects the command (for example, an ADMIN-gate or validation
+  failure) the ack carries `accepted: false` and the gateway returns `403` with
+  the engine's `reason`.
+- Write endpoints (`POST`) are subject to the same per-key write rate limit as
+  order entry and return `429` when the limit is exceeded.
+- Requests that receive no engine reply within the configured timeout return
+  `503` with error code `ENGINE_TIMEOUT`.
+
+!!! note "Not currently exposed"
+    Live symbol add/update and index administration are not exposed as REST
+    endpoints. These require backend prerequisites: the engine loads its symbol
+    universe at startup, and the index lives in the separate `pm-index`
+    process.
+
+### Extended `GET /status`
+
+`GET /api/v1/status` now includes `gateway_role` (the resolved
+`TRADER`/`MARKET_MAKER`/`ADMIN` role) alongside the existing cache summary
+fields. When the caller holds the ADMIN role, the response also includes
+`gateway_count`, the number of currently connected gateways.
+
+
 ## WebSocket endpoints
 
-| Path                  | Purpose                                                        | First message                         |
-|-----------------------|----------------------------------------------------------------|---------------------------------------|
-| `/api/v1/events`      | Private order/quote/risk lifecycle events for one gateway      | `{ "api_key": "key-trader-demo" }`    |
-| `/api/v1/market-data` | Public book, trade, depth, session, and circuit-breaker events | `{ "api_key": "key-dashboard-demo" }` |
+| Path                   | Purpose                                                        | First message                         |
+|------------------------|----------------------------------------------------------------|---------------------------------------|
+| `/api/v1/events`       | Private order/quote/risk lifecycle events for one gateway      | `{ "api_key": "key-trader-demo" }`    |
+| `/api/v1/market-data`  | Public book, trade, depth, session, and circuit-breaker events | `{ "api_key": "key-dashboard-demo" }` |
+| `/api/v1/admin/monitor`| ADMIN-only cross-gateway monitor feed (all events)             | `{ "api_key": "key-admin-demo" }`     |
+
+The `/api/v1/admin/monitor` stream requires an ADMIN-role gateway. After
+authentication it sends `{ "type": "authenticated" }` and then streams every
+engine event (order, fill, cancel, session, and circuit-breaker) across all
+gateways. Non-admin keys receive an error frame and are disconnected.
 
 Private event envelope:
 
@@ -285,8 +349,12 @@ Private event envelope:
 Market-data subscription control:
 
 ```json
-{ "action": "subscribe", "symbols": ["AAPL", "MSFT"], "channels": ["book", "trades", "depth"] }
+{ "action": "subscribe", "symbols": ["AAPL", "MSFT"], "channels": ["book", "trades", "depth", "auction"] }
 ```
+
+Available market-data channels are `book`, `trades`, `depth`, and `auction`.
+The `auction` channel delivers auction uncross results
+(`auction.result.{SYMBOL}`) for the subscribed symbols.
 
 Session and circuit-breaker events are always delivered after authentication.
 

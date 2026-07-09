@@ -100,9 +100,26 @@ async def status_summary(
     request: Request, session: Annotated[Session, Depends(auth)]
 ) -> dict[str, Any]:
     gateway_id = require_trading(session)
-    return cast(
-        dict[str, Any], request.app.state.engine.get_caches(gateway_id).status()
-    )
+    engine = request.app.state.engine
+    summary = cast(dict[str, Any], engine.get_caches(gateway_id).status())
+    timeout = request.app.state.config.timeouts.engine_reply_sec
+    role = await engine.resolve_role(gateway_id, timeout)
+    summary["gateway_role"] = role
+    if role == "ADMIN":
+        engine.request_gateways(gateway_id)
+        try:
+            reply = cast(
+                dict[str, Any],
+                await engine.await_topic(f"system.gateways.{gateway_id}", timeout),
+            )
+        except TimeoutError:
+            reply = {}
+        gateways = reply.get("gateways", [])
+        connected = [
+            gw for gw in gateways if isinstance(gw, dict) and bool(gw.get("connected"))
+        ]
+        summary["gateway_count"] = len(connected)
+    return summary
 
 
 @router.get("/healthz", include_in_schema=False)

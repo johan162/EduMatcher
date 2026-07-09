@@ -110,6 +110,13 @@ class FakeEngine:
     ) -> None:
         self.calls.append(("request_quote_legs", (gateway_id, symbol, show)))
 
+    def request_gateways(self, gateway_id: str) -> None:
+        self.calls.append(("request_gateways", gateway_id))
+
+    async def resolve_role(self, gateway_id: str, timeout: float) -> str:
+        self.calls.append(("resolve_role", gateway_id))
+        return "TRADER"
+
     def active_gateways(self) -> set[str]:
         return {"GW01"}
 
@@ -301,7 +308,9 @@ async def test_reference_routes() -> None:
     engine.cache.positions["AAPL"] = 5
     engine.cache.last_prices["AAPL"] = 151.0
     assert (await reference.positions(request, session))["positions"]
-    assert (await reference.status_summary(request, session))["positions"]
+    summary = await reference.status_summary(request, session)
+    assert summary["positions"]
+    assert summary["gateway_role"] == "TRADER"
     assert (await reference.healthz(request))["ok"] is True
 
 

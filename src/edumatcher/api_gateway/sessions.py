@@ -89,3 +89,21 @@ def require_trading(session: Session) -> str:
             detail={"error": {"code": "READ_ONLY", "message": "API key is read-only"}},
         )
     return session.gateway_id
+
+
+async def require_admin(request: Request, session: Session) -> str:
+    """Return gateway id or raise unless the gateway holds the ADMIN role.
+
+    The API credential store does not carry role, so it is resolved from the
+    engine gateways reply. Non-admin gateways receive ``403 ROLE_DENIED``.
+    """
+    gateway_id = require_trading(session)
+    role = await request.app.state.engine.resolve_role(
+        gateway_id, request.app.state.config.timeouts.engine_reply_sec
+    )
+    if role != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": {"code": "ROLE_DENIED", "message": "ADMIN role required"}},
+        )
+    return gateway_id

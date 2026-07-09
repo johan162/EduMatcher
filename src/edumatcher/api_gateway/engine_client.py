@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import errno
+import logging
 import threading
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -16,10 +17,13 @@ from edumatcher.api_gateway.events import envelope, gateway_from_topic
 from edumatcher.messaging.bus import make_pusher, make_subscriber
 from edumatcher.models.message import (
     decode,
+    make_cancel_symbol_msg,
     make_combo_cancel_msg,
     make_combo_order_msg,
     make_gateway_connect_msg,
     make_gateway_disconnect_msg,
+    make_gateways_request_msg,
+    make_halt_status_request_msg,
     make_kill_switch_msg,
     make_oco_cancel_msg,
     make_oco_order_msg,
@@ -31,11 +35,17 @@ from edumatcher.models.message import (
     make_quote_cancel_msg,
     make_quote_legs_request_msg,
     make_quote_new_msg,
+    make_session_schedule_request_msg,
     make_session_state_request_msg,
+    make_session_transition_msg,
+    make_symbol_halt_msg,
+    make_symbol_resume_msg,
     make_symbols_request_msg,
 )
 from edumatcher.models.order import Order
 from edumatcher.models.price import register_tick_decimals
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -66,6 +76,10 @@ class EngineClient:
         self._caches: dict[str, SessionCaches] = defaultdict(SessionCaches)
         self._sinks: dict[str, set[asyncio.Queue[dict[str, Any]]]] = defaultdict(set)
         self._market_data_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
+        # ADMIN monitor sinks receive every event across all gateways.
+        self._admin_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
+        # Cache of resolved gateway roles (keyed by upper-cased gateway id).
+        self._role_cache: dict[str, str] = {}
         self._pending: dict[str, list[_PendingWait]] = defaultdict(list)
 
     def start_listener(self) -> None:
@@ -177,20 +191,26 @@ class EngineClient:
     def _receive_loop(self) -> None:
         poller = zmq.Poller()
         poller.register(self._sub, zmq.POLLIN)
-        while self._running:
-            try:
-                ready = dict(poller.poll(timeout=200))
-            except zmq.ZMQError as exc:
-                if exc.errno != errno.EINTR:
-                    raise
-                break
-            if self._sub not in ready:
-                continue
-            try:
-                topic, payload = decode(self._sub.recv_multipart())
-            except Exception:
-                continue
-            self._loop.call_soon_threadsafe(self._handle_event, topic, payload)
+        try:
+            while self._running:
+                try:
+                    ready = dict(poller.poll(timeout=200))
+                except zmq.ZMQError as exc:
+                    if exc.errno != errno.EINTR:
+                        raise
+                    break
+                if self._sub not in ready:
+                    continue
+                try:
+                    topic, payload = decode(self._sub.recv_multipart())
+                except Exception as exc:
+                    log.warning("Dropping malformed engine PUB message: %s", exc)
+                    continue
+                self._loop.call_soon_threadsafe(self._handle_event, topic, payload)
+        finally:
+            # Ensure is_running()/`/healthz` reflect reality even if this thread
+            # exits on EINTR or an unrecoverable ZMQError instead of a clean stop.
+            self._running = False
 
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
         self._resolve_pending(topic, payload)
@@ -208,6 +228,9 @@ class EngineClient:
             event = envelope(topic, payload)
             for queue in list(self._market_data_sinks):
                 self._try_put(queue, event)
+        # The ADMIN monitor feed sees every event regardless of routing branch.
+        for queue in list(self._admin_sinks):
+            self._try_put(queue, event)
 
     @staticmethod
     def _try_put(queue: asyncio.Queue[dict[str, Any]], event: dict[str, Any]) -> None:
@@ -238,6 +261,12 @@ class EngineClient:
 
     def remove_market_data_sink(self, queue: asyncio.Queue[dict[str, Any]]) -> None:
         self._market_data_sinks.discard(queue)
+
+    def add_admin_sink(self, queue: asyncio.Queue[dict[str, Any]]) -> None:
+        self._admin_sinks.add(queue)
+
+    def remove_admin_sink(self, queue: asyncio.Queue[dict[str, Any]]) -> None:
+        self._admin_sinks.discard(queue)
 
     def get_caches(self, gateway_id: str) -> SessionCaches:
         return self._caches[gateway_id]
@@ -292,3 +321,57 @@ class EngineClient:
         self, gateway_id: str, symbol: str = "", show: str = "ALL"
     ) -> None:
         self._push.send_multipart(make_quote_legs_request_msg(gateway_id, symbol, show))
+
+    # ------------------------------------------------------------------
+    # ADMIN-persona commands (all map to existing engine topics)
+    # ------------------------------------------------------------------
+
+    def send_session_transition(self, to_state: str) -> None:
+        self._push.send_multipart(make_session_transition_msg(to_state))
+
+    def send_symbol_halt(self, gateway_id: str, symbol: str) -> None:
+        self._push.send_multipart(make_symbol_halt_msg(gateway_id, symbol))
+
+    def send_symbol_resume(self, gateway_id: str, symbol: str) -> None:
+        self._push.send_multipart(make_symbol_resume_msg(gateway_id, symbol))
+
+    def send_cancel_symbol(self, gateway_id: str, symbol: str) -> None:
+        self._push.send_multipart(make_cancel_symbol_msg(gateway_id, symbol))
+
+    def send_gateway_disconnect(self, gateway_id: str, reason: str = "") -> None:
+        self.send_disconnect(gateway_id, reason)
+
+    def request_gateways(self, gateway_id: str) -> None:
+        self._push.send_multipart(make_gateways_request_msg(gateway_id))
+
+    def request_session_schedule(self, gateway_id: str) -> None:
+        self._push.send_multipart(make_session_schedule_request_msg(gateway_id))
+
+    def request_halt_status(self, gateway_id: str) -> None:
+        self._push.send_multipart(make_halt_status_request_msg(gateway_id))
+
+    async def resolve_role(self, gateway_id: str, timeout: float) -> str:
+        """Resolve a gateway's ParticipantRole from the engine gateways reply.
+
+        The API credential store does not carry role, so it is resolved from
+        the engine and cached. On timeout the safe (non-admin) default
+        ``"TRADER"`` is returned so admin gating fails closed.
+        """
+        gid = gateway_id.upper()
+        cached = self._role_cache.get(gid)
+        if cached is not None:
+            return cached
+        self.request_gateways(gid)
+        try:
+            reply = await self.await_topic(f"system.gateways.{gid}", timeout)
+        except TimeoutError:
+            return "TRADER"
+        role = "TRADER"
+        gateways = reply.get("gateways", [])
+        if isinstance(gateways, list):
+            for entry in gateways:
+                if isinstance(entry, dict) and str(entry.get("id", "")).upper() == gid:
+                    role = str(entry.get("role", "TRADER"))
+                    break
+        self._role_cache[gid] = role
+        return role

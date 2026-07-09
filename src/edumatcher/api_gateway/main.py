@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from edumatcher.api_gateway.config import ApiGatewayConfig, load_api_gateway_config
 from edumatcher.api_gateway.engine_client import EngineClient
 from edumatcher.api_gateway.rate_limit import RateLimiter
-from edumatcher.api_gateway.routers import history, orders, reference, ws
+from edumatcher.api_gateway.routers import admin, history, orders, reference, ws
 from edumatcher.api_gateway.sessions import SessionRegistry
 from edumatcher.config import ENGINE_CONFIG_FILE
 
@@ -83,6 +83,7 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
     app.include_router(orders.router)
     app.include_router(reference.router)
     app.include_router(history.router)
+    app.include_router(admin.router)
     app.include_router(ws.router)
     return app
 
