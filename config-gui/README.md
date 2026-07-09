@@ -14,7 +14,53 @@ guaranteed parseable by the engine.
 > This README is the **developer** reference: architecture, project layout,
 > testing, and how to keep the GUI in sync with `pm-config-gen`.
 
+### Makefile quick reference
+
+This directory includes a `Makefile` covering the full local and container
+lifecycle. Run `make help` at any time to see all available targets.
+
+**Initial setup after a fresh checkout:**
+
+```bash
+make install      # install npm workspaces (npm ci when lockfile exists)
+make build        # type-check + build all workspaces
+```
+
+**Day-to-day development:**
+
+```bash
+make dev          # start both the API and the web dev server together
+make dev-server   # start only the Fastify backend (port 5175)
+make dev-web      # start only the Vite frontend  (port 5174)
+make test         # run the unit test suite
+make typecheck    # TypeScript type-check across all workspaces
+make format       # Prettier format pass
+```
+
+**Container workflow:**
+
+```bash
+make up           # build image and start the stack in detached mode
+                  # (auto-detects podman or docker, starts podman machine
+                  # if needed on macOS)
+make down         # stop and remove the container stack
+make logs         # follow container logs
+make ps           # show container status
+```
+
+**Restore a pristine checkout state:**
+
+```bash
+make down         # stop any running containers first
+make clean        # remove all build artifacts (dist/, *.tsbuildinfo)
+rm -rf node_modules  # remove installed packages
+make install      # reinstall from lockfile
+```
+
+
 ## Quick start (development)
+
+For a manual setup do the following:
 
 ```bash
 cd config-gui
@@ -28,6 +74,7 @@ npm run dev:web      # web  → http://127.0.0.1:5174
 Open http://127.0.0.1:5174. See the
 [user-guide chapter](../docs/user-guide/27-config-GUI.md) for production and
 single-container deployment.
+
 
 ## Architecture
 
