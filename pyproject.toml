@@ -42,7 +42,7 @@ types-tabulate = "^0.10.0.20260308"
 pyright = "^1.1.411"
 flake8 = "^7.3.0"
 black = "^26.5.1"
-mypy = "^2.1.0"
+mypy = "^2.2.0"
 
 
 [tool.poetry.group.docs.dependencies]
@@ -137,10 +137,6 @@ show_error_codes = true
 
 [[tool.mypy.overrides]]
 module = "yaml"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "scipy.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

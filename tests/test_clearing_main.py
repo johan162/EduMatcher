@@ -76,7 +76,7 @@ class _InprocPublisher:
     """
 
     def __init__(self, addr: str) -> None:
-        self._ctx = zmq.Context.instance()
+        self._ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
         self._pub: zmq.Socket = self._ctx.socket(zmq.PUB)
         self._pub.bind(addr)
 
@@ -282,7 +282,7 @@ class TestClearingProcessIntegration:
         self, db_path: Path, zmq_addr: str
     ) -> None:
         """Garbage bytes should be logged and skipped, not crash the process."""
-        ctx = zmq.Context.instance()
+        ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
         pub: zmq.Socket = ctx.socket(zmq.PUB)
         pub.bind(zmq_addr)
 

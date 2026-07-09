@@ -155,7 +155,7 @@ def running_gateway() -> Generator[
     engine_pull_addr = f"tcp://127.0.0.1:{engine_pull_port}"
     engine_pub_addr = f"tcp://127.0.0.1:{engine_pub_port}"
 
-    ctx = zmq.Context.instance()
+    ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
 
     # Bind fake engine sockets BEFORE the gateway creates its ZMQ connections.
     engine_pull: zmq.Socket[bytes] = ctx.socket(zmq.PULL)

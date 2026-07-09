@@ -222,7 +222,7 @@ def balf_gw_factory() -> Generator[FactoryFn, None, None]:
         pub_port = _free_port()
         gw_port = _free_port()
 
-        ctx = zmq.Context.instance()
+        ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
         pull_sock: zmq.Socket[bytes] = ctx.socket(zmq.PULL)
         pull_sock.bind(f"tcp://127.0.0.1:{pull_port}")
         pub_sock: zmq.Socket[bytes] = ctx.socket(zmq.PUB)

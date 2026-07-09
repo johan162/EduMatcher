@@ -165,7 +165,7 @@ def running_gateway() -> (
     # connections rather than assuming a fixed startup delay.
     _wait_for_listener(cfg.bind_address, gateway_port)
 
-    ctx = zmq.Context.instance()
+    ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
     pub = ctx.socket(zmq.PUB)
     pub.bind(engine_addr)
     # Resolve the PUB/SUB slow-joiner race deterministically instead of a

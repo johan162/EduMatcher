@@ -143,7 +143,7 @@ class ExchangeCommandClient:
             self._index_sub = _sub_sock
             return
 
-        ctx = zmq.Context.instance()
+        ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
 
         self._push = ctx.socket(zmq.PUSH)
         self._push.connect(push_addr)
