@@ -158,7 +158,7 @@ def running_gateway() -> Generator[tuple[zmq.Socket[bytes], int], None, None]:
     thread.start()
     _wait_for_listener("127.0.0.1", gateway_port)
 
-    ctx = zmq.Context.instance()
+    ctx: zmq.Context[zmq.Socket[bytes]] = zmq.Context.instance()
     pub = ctx.socket(zmq.PUB)
     pub.bind(engine_addr)
     time.sleep(0.15)
