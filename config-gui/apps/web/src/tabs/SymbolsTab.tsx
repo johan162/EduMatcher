@@ -19,6 +19,7 @@ import { Switch } from "@/components/ui/Switch";
 import { ColumnHead } from "@/components/ui/ColumnHead";
 import { MmQuotesEditor } from "@/components/symbols/MmQuotesEditor";
 import { SymbolEditorDialog } from "@/components/symbols/SymbolEditorDialog";
+import { SymbolOverviewDialog } from "@/components/symbols/SymbolOverviewDialog";
 
 /** Sentinel for "inherit the global ladder value" in the resumption dropdown. */
 const CB_INHERIT = "__inherit__";
@@ -30,6 +31,7 @@ export function SymbolsTab() {
   const [selected, setSelected] = useState<string | null>(draft.symbolOrder[0] ?? null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSymbol, setEditingSymbol] = useState<string | undefined>(undefined);
+  const [overviewOpen, setOverviewOpen] = useState(false);
 
   const symbol = selected && draft.symbols[selected] ? selected : draft.symbolOrder[0] ?? null;
   const config = symbol ? draft.symbols[symbol] : undefined;
@@ -143,6 +145,17 @@ export function SymbolsTab() {
           </ul>
 
           <div className="rounded-md border border-border bg-surface p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-semibold">{symbol}</h3>
+              <button
+                type="button"
+                onClick={() => setOverviewOpen(true)}
+                className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+                title="Read-only summary of all effective values for this symbol"
+              >
+                Overview
+              </button>
+            </div>
             <Tabs.Root defaultValue="general">
               <Tabs.List className="mb-3 flex gap-1 border-b border-border">
                 {[
@@ -565,6 +578,10 @@ export function SymbolsTab() {
         mode={editingSymbol ? "edit" : "create"}
         symbolName={editingSymbol}
       />
+
+      {symbol && (
+        <SymbolOverviewDialog open={overviewOpen} onOpenChange={setOverviewOpen} symbol={symbol} />
+      )}
     </Panel>
   );
 }

@@ -15,6 +15,8 @@ import {
   DEFAULT_MM_STUB_QTY,
   DEFAULT_STATIC_BAND_PCT,
   effectiveDefaultCollar,
+  quoteAroundMidpoint,
+  seededMidpoint,
   type EngineConfigDraft,
   type SymbolConfig,
 } from "@edumatcher/schema";
@@ -24,19 +26,6 @@ export type PlainConfig = Record<string, unknown>;
 /** Convert a decimal display price to integer ticks using the given precision. */
 export function priceToTicks(price: number, tickDecimals: number): number {
   return Math.round(price * Math.pow(10, tickDecimals));
-}
-
-/** Deterministic midpoint snapped to the tick grid (arithmetic mean of the range). */
-function seededMidpoint(
-  draft: EngineConfigDraft,
-  tickDecimals: number,
-): number | null {
-  const range = draft.seeding.mmMidRange;
-  if (!range) return null;
-  const tick = Math.pow(10, -tickDecimals);
-  const midpoint = (range.min + range.max) / 2;
-  const steps = Math.round(midpoint / tick);
-  return Number((steps * tick).toFixed(tickDecimals));
 }
 
 function marketMakerGatewayIds(draft: EngineConfigDraft): string[] {
@@ -175,17 +164,11 @@ function buildMmQuoteSeed(
   tickDecimals: number,
   midpoint: number | null,
 ): PlainConfig {
-  let bid: number | null = null;
-  let ask: number | null = null;
-  if (midpoint !== null) {
-    const tick = Math.pow(10, -tickDecimals);
-    bid = Number((midpoint - tick).toFixed(tickDecimals));
-    ask = Number((midpoint + tick).toFixed(tickDecimals));
-  }
+  const prices = midpoint === null ? null : quoteAroundMidpoint(midpoint, tickDecimals);
   return {
     gateway_id: gatewayId,
-    bid_price: bid,
-    ask_price: ask,
+    bid_price: prices?.bidPrice ?? null,
+    ask_price: prices?.askPrice ?? null,
     bid_qty: DEFAULT_MM_STUB_QTY,
     ask_qty: DEFAULT_MM_STUB_QTY,
     tif: "DAY",
