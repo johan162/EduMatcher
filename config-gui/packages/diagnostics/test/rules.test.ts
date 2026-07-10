@@ -4,7 +4,10 @@ import { evaluateDiagnostics, hasErrors } from "../src/index.js";
 
 function base(): EngineConfigDraft {
   const draft = createBlankDraft();
-  draft.symbols = { AAPL: { tickDecimals: 2 }, MSFT: { tickDecimals: 2 } };
+  draft.symbols = {
+    AAPL: { tickDecimals: 2, lastBuyPrice: 209.5, lastSellPrice: 210.5 },
+    MSFT: { tickDecimals: 2, lastBuyPrice: 415, lastSellPrice: 415.5 },
+  };
   draft.symbolOrder = ["AAPL", "MSFT"];
   draft.gateways = [createGateway("TRADER01"), createGateway("OPS01", "ADMIN")];
   return draft;
@@ -94,5 +97,81 @@ describe("diagnostics rules", () => {
   it("stays clean for a valid minimal config", () => {
     const draft = base();
     expect(hasErrors(evaluateDiagnostics(draft))).toBe(false);
+  });
+
+  it("errors when a symbol is missing reference prices", () => {
+    const draft = base();
+    delete draft.symbols.AAPL!.lastBuyPrice;
+    expect(ids(draft)).toContain("symbol-missing-reference-prices");
+    expect(hasErrors(evaluateDiagnostics(draft))).toBe(true);
+  });
+
+  it("is satisfied by MM mid-range seeding instead of explicit prices", () => {
+    const draft = base();
+    delete draft.symbols.AAPL!.lastBuyPrice;
+    delete draft.symbols.AAPL!.lastSellPrice;
+    draft.seeding.seedLastPricesFromMm = true;
+    draft.seeding.mmMidRange = { min: 100, max: 100 };
+    expect(ids(draft)).not.toContain("symbol-missing-reference-prices");
+  });
+
+  it("errors when an explicit MM quote references a non-MM gateway", () => {
+    const draft = base();
+    draft.gateways.push(createGateway("MM01", "MARKET_MAKER"));
+    draft.symbols.AAPL!.marketMakerQuotes = [
+      { gatewayId: "TRADER01", bidPrice: 209, askPrice: 211, bidQty: 100, askQty: 100, tif: "DAY", seedOnce: true },
+    ];
+    expect(ids(draft)).toContain("mm-quote-gateway-invalid");
+  });
+
+  it("errors when an explicit MM quote has bid >= ask", () => {
+    const draft = base();
+    draft.gateways.push(createGateway("MM01", "MARKET_MAKER"));
+    draft.symbols.AAPL!.marketMakerQuotes = [
+      { gatewayId: "MM01", bidPrice: 211, askPrice: 209, bidQty: 100, askQty: 100, tif: "DAY", seedOnce: true },
+    ];
+    expect(ids(draft)).toContain("mm-quote-bid-ask");
+  });
+
+  it("accepts a valid explicit MM quote referencing an MM gateway", () => {
+    const draft = base();
+    draft.gateways.push(createGateway("MM01", "MARKET_MAKER"));
+    const quote = { gatewayId: "MM01", bidPrice: 209, askPrice: 211, bidQty: 100, askQty: 100, tif: "DAY" as const, seedOnce: true };
+    draft.symbols.AAPL!.marketMakerQuotes = [quote];
+    draft.symbols.MSFT!.marketMakerQuotes = [quote];
+    const found = ids(draft);
+    expect(found).not.toContain("mm-quote-gateway-invalid");
+    expect(found).not.toContain("mm-quote-bid-ask");
+    expect(found).not.toContain("mm-gateway-needs-quote-seeds");
+  });
+
+  it("warns when the last price is outside the seeded opening quote", () => {
+    const draft = base();
+    draft.gateways.push(createGateway("MM01", "MARKET_MAKER"));
+    draft.symbols.AAPL!.lastBuyPrice = 250;
+    draft.symbols.AAPL!.lastSellPrice = 250;
+    draft.symbols.AAPL!.marketMakerQuotes = [
+      { gatewayId: "MM01", bidPrice: 209, askPrice: 211, bidQty: 100, askQty: 100, tif: "DAY", seedOnce: true },
+    ];
+    expect(ids(draft)).toContain("last-price-outside-seeded-quote");
+  });
+
+  it("does not warn when the last price sits within the seeded quote", () => {
+    const draft = base();
+    draft.gateways.push(createGateway("MM01", "MARKET_MAKER"));
+    draft.symbols.AAPL!.lastBuyPrice = 210;
+    draft.symbols.AAPL!.lastSellPrice = 210;
+    draft.symbols.AAPL!.marketMakerQuotes = [
+      { gatewayId: "MM01", bidPrice: 209, askPrice: 211, bidQty: 100, askQty: 100, tif: "DAY", seedOnce: true },
+    ];
+    expect(ids(draft)).not.toContain("last-price-outside-seeded-quote");
+  });
+
+  it("warns when a non-constituent symbol is missing outstanding_shares", () => {
+    const draft = base();
+    expect(ids(draft)).toContain("symbol-missing-outstanding-shares");
+    draft.symbols.AAPL!.outstandingShares = 1_000_000_000;
+    draft.symbols.MSFT!.outstandingShares = 1_000_000_000;
+    expect(ids(draft)).not.toContain("symbol-missing-outstanding-shares");
   });
 });

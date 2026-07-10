@@ -54,12 +54,19 @@ const undefinedRiskLevel: Rule = (draft) => {
 const mmGatewayNeedsSeeds: Rule = (draft) => {
   if (!hasMarketMakerGateway(draft)) return [];
   if (draft.seeding.mmMidRange) return [];
+  // No warning if every symbol already carries explicit quotes.
+  const allExplicit =
+    draft.symbolOrder.length > 0 &&
+    draft.symbolOrder.every(
+      (s) => (draft.symbols[s]?.marketMakerQuotes?.length ?? 0) > 0,
+    );
+  if (allExplicit) return [];
   return [
     {
       id: "mm-gateway-needs-quote-seeds",
       severity: "warning",
       message:
-        "A MARKET_MAKER gateway is configured but no mid-range seeding is set. Null bid/ask stubs will be emitted — set a seed mid-range or fill in prices before starting the engine.",
+        "A MARKET_MAKER gateway is configured but no mid-range seeding is set. Null bid/ask stubs will be emitted — set a seed mid-range, add explicit quotes, or fill in prices before starting the engine.",
       fieldPaths: ["seeding.mmMidRange"],
       tab: "market-maker",
     },
@@ -428,6 +435,141 @@ const largeSymbolUniverse: Rule = (draft) =>
       ]
     : [];
 
+/**
+ * Every symbol must carry both a last_buy_price and a last_sell_price. These
+ * seed the opening book and the collar static reference. Satisfied implicitly
+ * when global MM mid-range seeding is enabled (the builder fills them in).
+ */
+const symbolMissingReferencePrices: Rule = (draft) => {
+  const seededFromMm =
+    draft.seeding.seedLastPricesFromMm && draft.seeding.mmMidRange !== undefined;
+  if (seededFromMm) return [];
+  const out: Diagnostic[] = [];
+  for (const symbol of draft.symbolOrder) {
+    const cfg = draft.symbols[symbol];
+    if (!cfg) continue;
+    const missingBuy = cfg.lastBuyPrice === undefined || cfg.lastBuyPrice === null;
+    const missingSell = cfg.lastSellPrice === undefined || cfg.lastSellPrice === null;
+    if (missingBuy || missingSell) {
+      out.push({
+        id: "symbol-missing-reference-prices",
+        severity: "error",
+        message: `Symbol ${symbol} must set both last_buy_price and last_sell_price (reference prices for the opening book and collar). Enter them on the symbol, or enable MM mid-range seeding.`,
+        fieldPaths: [
+          `symbols.${symbol}.lastBuyPrice`,
+          `symbols.${symbol}.lastSellPrice`,
+        ],
+        tab: "basics",
+      });
+    }
+  }
+  return out;
+};
+
+/**
+ * Explicit MM quotes must reference a configured MARKET_MAKER gateway, and each
+ * quote must be internally consistent (bid < ask, positive quantities).
+ */
+const mmQuoteRules: Rule = (draft) => {
+  const mmGatewayIds = new Set(
+    draft.gateways.filter((g) => g.role === "MARKET_MAKER").map((g) => g.id),
+  );
+  const out: Diagnostic[] = [];
+  for (const symbol of draft.symbolOrder) {
+    const quotes = draft.symbols[symbol]?.marketMakerQuotes;
+    if (!quotes || quotes.length === 0) continue;
+    quotes.forEach((q, i) => {
+      const path = `symbols.${symbol}.marketMakerQuotes.${i}`;
+      if (!q.gatewayId || !mmGatewayIds.has(q.gatewayId)) {
+        out.push({
+          id: "mm-quote-gateway-invalid",
+          severity: "error",
+          message: `Symbol ${symbol} quote #${i + 1} references gateway "${q.gatewayId || "(none)"}", which is not a configured MARKET_MAKER gateway.`,
+          fieldPaths: [`${path}.gatewayId`, "gateways"],
+          tab: "symbols",
+        });
+      }
+      if (q.bidPrice !== null && q.askPrice !== null && q.bidPrice >= q.askPrice) {
+        out.push({
+          id: "mm-quote-bid-ask",
+          severity: "error",
+          message: `Symbol ${symbol} quote #${i + 1} requires bid_price < ask_price.`,
+          fieldPaths: [`${path}.bidPrice`, `${path}.askPrice`],
+          tab: "symbols",
+        });
+      }
+      if (q.bidQty <= 0 || q.askQty <= 0) {
+        out.push({
+          id: "mm-quote-qty",
+          severity: "error",
+          message: `Symbol ${symbol} quote #${i + 1} requires positive bid and ask quantities.`,
+          fieldPaths: [`${path}.bidQty`, `${path}.askQty`],
+          tab: "symbols",
+        });
+      }
+    });
+  }
+  return out;
+};
+
+/**
+ * The last buy/sell reference price should lie within the seeded opening quote
+ * so the visible book, the last price, and the collar reference stay
+ * consistent. Only checked for symbols carrying explicit priced quotes.
+ */
+const lastPriceWithinSeededQuote: Rule = (draft) => {
+  const out: Diagnostic[] = [];
+  for (const symbol of draft.symbolOrder) {
+    const cfg = draft.symbols[symbol];
+    if (!cfg?.marketMakerQuotes || cfg.marketMakerQuotes.length === 0) continue;
+    const bids = cfg.marketMakerQuotes
+      .map((q) => q.bidPrice)
+      .filter((p): p is number => p !== null);
+    const asks = cfg.marketMakerQuotes
+      .map((q) => q.askPrice)
+      .filter((p): p is number => p !== null);
+    if (bids.length === 0 || asks.length === 0) continue;
+    const bestBid = Math.max(...bids);
+    const bestAsk = Math.min(...asks);
+    const refs: number[] = [];
+    if (cfg.lastBuyPrice !== undefined && cfg.lastBuyPrice !== null) refs.push(cfg.lastBuyPrice);
+    if (cfg.lastSellPrice !== undefined && cfg.lastSellPrice !== null) refs.push(cfg.lastSellPrice);
+    const outside = refs.some((r) => r < bestBid || r > bestAsk);
+    if (outside) {
+      out.push({
+        id: "last-price-outside-seeded-quote",
+        severity: "warning",
+        message: `Symbol ${symbol}'s last buy/sell reference is outside its seeded opening quote [${bestBid}, ${bestAsk}]. The book, last price, and collar reference will disagree.`,
+        fieldPaths: [`symbols.${symbol}.lastBuyPrice`, `symbols.${symbol}.lastSellPrice`],
+        tab: "symbols",
+      });
+    }
+  }
+  return out;
+};
+
+/** A listed symbol should declare its issued share count (its "IPO" size). */
+const symbolMissingOutstandingShares: Rule = (draft) => {
+  // Index constituents are covered by the more specific constituent rule.
+  const constituents = new Set<string>();
+  for (const idx of draft.indices) for (const c of idx.constituents) constituents.add(c);
+  const out: Diagnostic[] = [];
+  for (const symbol of draft.symbolOrder) {
+    const cfg = draft.symbols[symbol];
+    if (!cfg || constituents.has(symbol)) continue;
+    if (cfg.outstandingShares === undefined) {
+      out.push({
+        id: "symbol-missing-outstanding-shares",
+        severity: "warning",
+        message: `Symbol ${symbol} has no outstanding_shares set. Set the issued share count (used for market cap and index weighting).`,
+        fieldPaths: [`symbols.${symbol}.outstandingShares`],
+        tab: "symbols",
+      });
+    }
+  }
+  return out;
+};
+
 const RULES: Rule[] = [
   undefinedRiskLevel,
   mmGatewayNeedsSeeds,
@@ -445,6 +587,10 @@ const RULES: Rule[] = [
   comboLegRules,
   apiGatewayRules,
   largeSymbolUniverse,
+  symbolMissingReferencePrices,
+  mmQuoteRules,
+  lastPriceWithinSeededQuote,
+  symbolMissingOutstandingShares,
 ];
 
 /** Run every rule against the draft and return the aggregated diagnostics. */
