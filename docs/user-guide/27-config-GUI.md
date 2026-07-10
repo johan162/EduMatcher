@@ -4,11 +4,150 @@
     After reading this page you will understand:
 
     - What the Config Builder GUI is and how it relates to `pm-config-gen`
+    - How to add symbols using the IPO dialog and why it works that way
+    - How market-maker obligations and quote seeding are layered together
+    - A logical step-by-step workflow for configuring a new market maker
+    - How the global mid-range seeding works (and its key limitation)
+    - How to use the read-only Symbol Overview
     - How to install and run the GUI for local development (two processes)
     - How to build and deploy the GUI for production, including a single-container setup
     - Which environment variables control the backend
     - How the GUI guarantees its output is accepted by the engine
     - A troubleshooting guide for the most common setup problems
+
+
+## Pre-Requirements
+
+This depends on how the application will be run:
+
+### Container workflow (recommended for production)
+
+| Requirement | Notes |
+|---|---|
+| **Podman ≥ 4** or **Docker ≥ 24** | Podman is preferred; Docker works equally well. `make up` auto-detects which one is present. |
+| **Compose plugin** | `podman compose` (via `podman-compose` or the built-in Podman 5+ plugin) or `docker compose` (the V2 plugin, not the legacy `docker-compose` binary). Run `docker compose version` / `podman compose version` to verify. |
+| **GNU Make** | Required only if you use the `Makefile` targets. On macOS, install via Homebrew (`brew install make`) or Xcode Command Line Tools. |
+| **macOS only** | A Podman machine must be initialised and running. `make up` starts it automatically; to set one up manually run `podman machine init && podman machine start`. |
+
+No Node.js, npm, or Python is required on the host for the container path — all build steps happen inside the image.
+
+### Local development
+
+| Requirement | Notes |
+|---|---|
+| **Node.js ≥ 20** | Developed and tested on Node 22 and Node 26. Install via [nvm](https://github.com/nvm-sh/nvm), [fnm](https://github.com/Schniz/fnm), or your OS package manager. |
+| **npm ≥ 10** | Bundled with Node.js ≥ 20. Verify with `npm --version`. |
+| **GNU Make** | Optional but recommended to use the `Makefile` targets. |
+
+
+### Optional: server-side verification
+
+Required only if you want the **Verify with pm-cverifier** button on the Review tab to work:
+
+| Requirement | Notes |
+|---|---|
+| **Python environment** | The repository's Poetry environment installed at the repository root (`poetry install`). |
+| **`pm-cverifier` on PATH** | Provided by the Poetry env. Alternatively set `CVERIFIER_COMMAND="poetry run pm-cverifier"` so the backend can find it without activating the venv. |
+
+### Browser
+
+Any modern browser (Chrome/Edge ≥ 110, Firefox ≥ 115, Safari ≥ 16). The application uses no browser extensions and works fully offline once loaded.
+
+## Downloading artifacts
+
+If you are deploying on a host that does not have a repository clone — or you simply want a ready-to-run image without building it yourself — the distributable artifact is a self-contained OCI image archive.
+
+### What the artifact is
+
+A ontainer image as a single tar file:
+
+```
+dist/edumatcher-config-gui-<version>.tar
+```
+
+The tar is a standard OCI image archive. It contains everything the application needs to run — Node.js runtime, compiled frontend assets, and the Fastify backend — with no external dependencies at runtime.
+
+### How to get it
+
+The tar file is published alongside each release. Download the file for the version you want:
+
+```
+edumatcher-config-gui-<version>.tar
+```
+
+Replace `<version>` with the release version number, for example `edumatcher-config-gui-1.0.0.tar`.
+
+### Loading and running the image
+
+Once you have the tar file, load it into your local container runtime:
+
+```bash
+# Podman
+podman load --input edumatcher-config-gui-<version>.tar
+
+# Docker
+docker load --input edumatcher-config-gui-<version>.tar
+```
+
+The load command prints the image name and tag, for example:
+
+```
+Loaded image: edumatcher-config-gui:1.0.0
+```
+
+Then start the container:
+
+```bash
+# Podman
+podman run -d --name config-gui -p 8080:8080 edumatcher-config-gui:<version>
+
+# Docker
+docker run -d --name config-gui -p 8080:8080 edumatcher-config-gui:<version>
+```
+
+Open **http://localhost:8080**. To stop and remove the container:
+
+```bash
+podman stop config-gui && podman rm config-gui   # Podman
+docker stop config-gui && docker rm config-gui   # Docker
+```
+
+### Passing environment variables
+
+All [backend environment variables](#backend-environment-variables) are supported via `-e`:
+
+```bash
+podman run -d --name config-gui -p 8080:8080 \
+  -e CORS_ORIGIN="https://myhost.example" \
+  -e LOG_LEVEL=debug \
+  edumatcher-config-gui:<version>
+```
+
+!!! note "No Node.js or npm required"
+    The tar archive is fully self-contained. The host only needs Podman or Docker — no Node.js, no npm, and no repository clone.## Quick Start
+
+
+## Running when you have the repo checked-out
+1
+The fastest way to get the application running is with a single command from the `config-gui/` directory:
+
+```bash
+make up
+```
+
+This detects whether you have Podman or Docker, builds the container image, and starts the stack in detached mode. Open **http://localhost:8080** once the build completes. To stop it, run `make down`.
+
+If you do not have a container runtime, you can run the two processes directly:
+
+```bash
+cd config-gui
+npm install
+npm run dev          # starts both the API (port 5175) and the web UI (port 5174)
+```
+
+Then open **http://127.0.0.1:5174**.
+
+
 
 ## Overview
 
@@ -47,18 +186,233 @@ CI-friendly path.
 | **Light & dark themes** | Toggle in the top bar; remembered per browser, defaults to your OS setting. |
 | **Guaranteed-valid output** | A cross-language test pipes generated configs through the engine's own `load_engine_config()`. |
 
-### Listing symbols (the IPO dialog)
 
-The **Basics** and **Symbols** tabs create a symbol through a structured
-**“List a new symbol (IPO)”** dialog rather than a bare name field. This mirrors
-the mental model that adding a symbol is an [initial listing
-(IPO)](01-configuration.md#adding-or-removing-symbols): you enter one
-**reference price** and the dialog derives the seeded `last_buy_price` /
-`last_sell_price` and the market maker's opening quote from it, so the book, the
-last price, and the collar/circuit-breaker references all agree from the first
-order. `outstanding_shares` is required (pre-filled with a sensible default),
-and at Expert persona you can attach multiple market makers. See
-[Risk Controls - Day one (IPO) behaviour](12-risk-controls.md#day-one-ipo-behaviour).
+
+## Working with Symbols and Market Makers
+
+This section explains the two features that operators most often need guidance
+on: how to add symbols correctly, and how the market-maker configuration layers
+together.
+
+### Adding a symbol — the IPO dialog
+
+Clicking **"+ Add symbol"** on either the Basics tab or the Symbols tab opens
+the **"List a new symbol (IPO)"** dialog rather than a plain name field.
+
+The mental model is that adding a symbol is like an
+[initial listing (IPO)](12-risk-controls.md#day-one-ipo-behaviour): on the very
+first tick, the engine has no trade history, so you must supply the starting
+prices explicitly — otherwise the collar and circuit-breaker reference prices
+have nothing to anchor to.
+
+The dialog collects:
+
+| Field | Purpose |
+|---|---|
+| **Symbol name** | Uppercased automatically; must be unique. |
+| **Reference price** | The opening mid-price. Derives `last_buy_price` and `last_sell_price`. Becomes the collar's static reference on day one. |
+| **Tick decimals** | Price precision for this symbol (0–8). Defaults to the global value. |
+| **Outstanding shares** | Required if the symbol will be an index constituent; shown with a pre-filled default otherwise. |
+| **Market maker quotes** (Intermediate+) | One bid/ask per MM gateway. If left blank the builder falls back to mid-range seeding (see below) or emits a null stub. |
+
+By keeping reference price and opening quotes in one step, the dialog ensures
+the book, last-price references, and risk-protection anchors all start from the
+same consistent value.
+
+### Market maker settings explained
+
+The market-maker configuration has three independent layers. Understanding them
+avoids duplicate work and confusion about which value "wins".
+
+#### Layer 1 — Global obligation defaults (Market Maker tab)
+
+The **Market Maker tab** holds exchange-wide defaults that apply to every symbol
+and every MARKET_MAKER gateway unless overridden:
+
+- **Enforce MM obligations** — whether the engine checks spread and size compliance at all.
+- **Max spread (ticks)** — the maximum allowed bid–ask spread; wider quotes are rejected.
+- **Min quantity** — the minimum displayed size required on each side of a quote.
+
+Think of this layer as "what every market maker must do unless told otherwise."
+It corresponds to `mm_obligation_defaults` in the YAML.
+
+#### Layer 2 — Per-symbol obligation overrides (Symbols → Market Maker sub-tab)
+
+Inside the Symbols tab, the **Market Maker sub-tab** lets you relax or tighten
+the obligation for one particular instrument:
+
+- `(inherit)` on any field means "use the global default" — nothing is written
+  to the YAML for that field.
+- Setting a value emits a `mm_obligation_defaults.symbols.<SYM>` entry that
+  overrides only that field for that symbol.
+
+Use this when, for example, a less liquid instrument needs a wider allowed
+spread than the exchange-wide default.
+
+#### Layer 3 — Per-gateway, per-symbol overrides (Basics → ⚙ Advanced dialog)
+
+At **Expert** persona, each MARKET_MAKER gateway row in the Basics table shows
+a **⚙ button**. The resulting dialog has two sections:
+
+1. **Flat gateway overrides** — `enforce_mm_obligation`, `mm_max_spread_ticks`,
+   `mm_min_qty` at the gateway level. These override the global defaults for
+   *every symbol* this gateway quotes.
+2. **Per-symbol table** — fine-grained overrides for specific symbols on this
+   gateway, written as `gateways.alf[*].mm_obligations.<SYM>`. The nested YAML
+   keys are `max_spread_ticks` / `min_qty` (no `mm_` prefix — a quirk of the
+   engine config format the GUI handles transparently).
+
+**Precedence (highest to lowest):**
+
+```
+Per-gateway per-symbol  (mm_obligations.<SYM>)
+  → Per-gateway flat    (gateway.mm_max_spread_ticks / mm_min_qty)
+    → Per-symbol global (mm_obligation_defaults.symbols.<SYM>)
+      → Global defaults (mm_obligation_defaults)
+```
+
+The **Expert** dialog also exposes the **quote refresh policy** for the
+gateway — when seeded quotes are inactivated after executions. The default
+(`INACTIVATE_ON_ANY_FILL`) is correct for most scenarios.
+
+#### Quote seeding — mid-range vs explicit quotes
+
+Before the engine starts there must be resting quotes in the book. The GUI
+provides two ways to supply them, plus an automatic fallback.
+
+**Option A — Explicit quotes (highest precedence)**
+
+On the Symbols tab, the **MM Quotes sub-tab** (Intermediate+) lets you enter a
+specific `bid_price` / `ask_price` / `bid_qty` / `ask_qty` for each
+symbol × MM gateway pair. The Quote Stub Review table on the Market Maker tab
+shows **"✓ quote defined"** for any row that has an explicit quote with both
+prices set.
+
+The column headers in the MM Quotes table each carry an **"i" help icon**
+explaining the field. The most important column to understand is **Seed once**:
+
+> When on, the engine injects this quote only if it has no prior book state for
+> the symbol, so a restart with existing history will not re-inject it. Turn off
+> to (re)seed the quote on every startup regardless of history.
+
+**Option B — Global mid-range seeding**
+
+On the Market Maker tab, set a **Seed MM mid-range** (e.g. `100` to `300`). The
+builder calculates a single deterministic midpoint and applies it to every symbol:
+
+```
+midpoint = (min + max) / 2     # arithmetic mean, snapped to the tick grid
+bid      = midpoint − 1 tick
+ask      = midpoint + 1 tick
+```
+
+The Quote Stub Review shows **"✓ seeded from mid-range"** for rows covered this way.
+
+!!! note "The same midpoint applies to every symbol"
+    A mid-range of `200–220` gives every symbol a midpoint of `210`, so AAPL
+    and TSLA both open with `bid: 209.99 / ask: 210.01` (assuming
+    `tick_decimals = 2`). The range is not distributed across symbols — it is
+    averaged into a single value. If you need different opening prices per
+    symbol, use explicit quotes (Option A) for those symbols.
+
+**Additional mid-range seeding options** (Intermediate+):
+
+- **Seed last prices from MM** — derives `last_buy_price` / `last_sell_price`
+  from the same midpoint, so the collar's static reference matches the opening
+  quote. Requires a mid-range to be set.
+- **Seed placeholder last prices** — emits `last_buy_price: null` /
+  `last_sell_price: null` when no mid-range or explicit price is available.
+  Required for collar initialization on instruments where the reference price
+  will be managed externally.
+
+At **Expert persona**, the **Deterministic seed** field fixes the RNG seed for
+reproducible classroom runs.
+
+**Fallback — null stub**
+
+If neither an explicit quote nor a mid-range is provided, the builder emits
+`bid_price: null` / `ask_price: null`. The Quote Stub Review shows a
+**"! fill in before starting the engine"** warning and the Review tab blocks
+export with an error. Supply prices via the MM Quotes sub-tab or set a mid-range.
+
+#### Suggested workflow: setting up a new market maker from scratch
+
+**Step 1 — Add a MARKET_MAKER gateway (Basics tab)**
+
+Add a gateway row, set its role to `MARKET_MAKER`, and give it a clear ID such
+as `MM01`. At **Expert persona**, click ⚙ on the MM01 row to review or change
+the **quote refresh policy** (default: `INACTIVATE_ON_ANY_FILL`).
+
+**Step 2 — Set global obligation defaults (Market Maker tab)**
+
+Set the exchange-wide **Max spread** and **Min quantity**, and decide whether to
+enforce obligations. Leave the defaults as-is for a simple classroom scenario
+(obligations off, 20 ticks, 100 shares).
+
+**Step 3 — Decide on quote seeding**
+
+*Quick classroom setup:* Set a **Seed MM mid-range** — for example `min: 100,
+max: 100` for a round price of `100.00`. Enable **Seed last prices from MM** so
+collar references match.
+
+*Realistic multi-symbol setup:* Leave the mid-range unset. Use the IPO dialog in
+Step 4 to set a per-symbol reference price, then supply explicit quotes on each
+symbol's **MM Quotes sub-tab**.
+
+**Step 4 — Add symbols**
+
+Use **+ Add symbol / IPO dialog**. Enter the ticker and reference price. Set
+`outstanding_shares` if using indices. If you chose explicit quotes, go to each
+symbol's **MM Quotes sub-tab** and add one row per MM gateway.
+
+**Step 5 — Review the Quote Stub Review (Market Maker tab)**
+
+Every symbol × MM gateway pair must show a green status before you can export:
+
+| Status | Meaning | Action needed |
+|---|---|---|
+| ✓ quote defined | Explicit bid/ask set | None |
+| ✓ seeded from mid-range | Mid-range will compute prices at export | None |
+| ! fill in before starting the engine | Neither explicit nor seeded | Add quotes or set a mid-range |
+
+**Step 6 — Per-symbol adjustments (optional)**
+
+If one symbol needs different spread/size rules than the global defaults, set
+overrides on that symbol's **Market Maker sub-tab**. Leave fields at `(inherit)`
+when the global is fine. For gateway-scoped per-symbol overrides (Expert), use
+the ⚙ Advanced dialog's per-symbol table on the relevant gateway.
+
+**Step 7 — Verify with the Symbol Overview**
+
+Use the eye icon or the **Overview** button (see next section) to confirm all
+effective values before exporting.
+
+### Symbol overview — read-only effective-value summary
+
+The Symbols tab has two ways to open the read-only **Overview** for any symbol:
+
+- The **👁 eye icon** on any row in the left symbol list opens the overview
+  *without changing* the currently selected symbol — you can peek at any symbol
+  while still editing another.
+- The **Overview button** in the symbol detail-pane header (top-right, above the
+  sub-tabs) opens the overview for the currently selected symbol.
+
+The dialog shows the **effective** values — what the engine will actually use
+after all inheritance and merge rules are applied — in a single compact
+read-only view:
+
+| Section | What it shows |
+|---|---|
+| **General** | Tick decimals (source: per-symbol or global), last buy/sell prices, outstanding shares, active risk level (assigned or inherited default). |
+| **Collar (effective)** | Static and dynamic band percentages, each annotated with its source (`symbol override`, `level CORE`, or `engine default`). Flags if collar enforcement is off globally. |
+| **Circuit breaker (effective)** | Resolved reference window and the full halt ladder. **Per-symbol overrides shown in accent color**; inherited values shown normally. Flags if CB enforcement is off globally. |
+| **Market maker (effective)** | Resolved obligations with source, any per-gateway overrides listed, and the effective opening quotes with an origin badge (`explicit`, `seeded`, or `fill in`). |
+| **Memberships** | Which indices and combos reference this symbol — cross-references not visible elsewhere in the Symbols tab. |
+
+The Overview never modifies data. Use it as a final sanity check before
+exporting, or to diagnose why a symbol behaves unexpectedly.
+
+
 
 ## Architecture at a glance
 
@@ -75,17 +429,6 @@ flowchart LR
 
 The app is two processes:
 
-| Process | Role | Default port |
-|---|---|---|
-| **web** (Vite + React) | The UI. In development it also proxies `/api/*` to the backend. | `5174` |
-| **server** (Fastify) | Import / validate / generate / optional verify. In production it can also serve the built UI. | `5175` (dev), `8080` (container) |
-
-## Requirements
-
-- **Node.js ≥ 20** (developed and tested on Node 26) and **npm ≥ 10**.
-- For the optional verification feature only: the repository's Python
-  environment installed with Poetry (so `pm-cverifier` / `load_engine_config`
-  are available).
 
 ## Development
 
@@ -138,14 +481,33 @@ application runs as **one container on one port**. This is the simplest
 production story: no reverse-proxy juggling between a static host and an API,
 and no CORS configuration because everything is same-origin.
 
-A `Dockerfile` and `docker-compose.yml` are included in `config-gui/`.
+A `Dockerfile` and `docker-compose.yml` are included in `config-gui/`, and the
+`Makefile` wraps the full container lifecycle. The easiest way to start is:
 
 ```bash
 cd config-gui
-docker compose up --build
+make up
 ```
 
-Then open **http://localhost:8080**.
+`make up` auto-detects whether Podman or Docker is installed (preferring Podman
+when both are present), starts the Podman machine on macOS if it is not already
+running, builds the image, and starts the stack in detached mode. Open
+**http://localhost:8080** when it completes.
+
+```bash
+make down     # stop and remove the stack
+make logs     # follow the container log
+make ps       # show stack status
+```
+
+Run `make help` at any time for a full list of available targets.
+
+If you prefer to drive the container runtime directly:
+
+```bash
+cd config-gui
+docker compose up --build    # or: podman compose up --build
+```
 
 The image is multi-stage: it installs dependencies, builds the frontend, prunes
 dev dependencies, and starts the API with `STATIC_DIR` pointed at the built
@@ -308,9 +670,11 @@ green when changing either side. Developer-facing details, including the
 | **Port already in use** | Another process holds `5174`/`5175`/`8080` | Change `PORT` (API) or the `server.port` / proxy target in `config-gui/apps/web/vite.config.ts` (web). |
 | **Imported config shows an "unmapped" banner** | The file contains sections the GUI does not model | This is expected — those sections are preserved read-only and re-emitted on export unchanged. |
 | **Cross-origin errors on a split deployment** | UI and API served from different origins | Serve both same-origin (via `STATIC_DIR` or a reverse proxy), or set `CORS_ORIGIN` to the UI's origin. |
+| **Quote Stub Review shows "! fill in" after import** | The imported config has no mid-range seeding and no explicit quotes for some symbols | Set a mid-range on the Market Maker tab, or open each flagged symbol's MM Quotes sub-tab and enter explicit bid/ask prices. |
 
 ## See Also
 
 - [Engine Configuration](01-configuration.md) — the `engine_config.yaml` format and the `pm-config-gen` CLI
 - [Config Verifier (pm-cverifier)](23-config-verifier.md) — the authoritative validator used by the optional Verify button
 - [Example Engine Configs](81-example-configs.md) — reference configurations to import and study
+- [Risk Controls — day-one IPO behaviour](12-risk-controls.md#day-one-ipo-behaviour) — why last prices are required
