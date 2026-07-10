@@ -1628,6 +1628,15 @@ The effective policy is resolved from most specific to least specific:
 
 Only symbols declared under `symbols` are accepted by the configured engine.
 
+!!! note "Adding a symbol is an IPO"
+    Treat each symbol as an **initial listing (IPO)**: you set its opening
+    reference price, issued shares, and (when a market maker is configured) its
+    opening quote up front, and those values seed the book and both risk-control
+    references. The symbol universe is fixed at startup — the engine does
+    **not** support adding symbols intra-day. See
+    [Adding or Removing Symbols](#adding-or-removing-symbols) and
+    [Risk Controls - Day one (IPO) behaviour](12-risk-controls.md#day-one-ipo-behaviour).
+
 ```yaml
 symbols:
   AAPL:
@@ -1641,15 +1650,56 @@ null.
 
 ### Symbol Fields
 
-| Field                 | Required | Type / accepted values          | Description                                               |
-|-----------------------|---------:|---------------------------------|-----------------------------------------------------------|
-| `tick_decimals`       |       No | Integer `0..8`                  | Decimal places used to convert display prices to ticks    |
-| `level`               |       No | Key from `risk_controls.levels` | Named collar profile                                      |
-| `last_buy_price`      |       No | Number                          | Initial last-buy reference when no persisted stat exists  |
-| `last_sell_price`     |       No | Number                          | Initial last-sell reference when no persisted stat exists |
-| `collar`              |       No | Mapping                         | Symbol-level collar override                              |
-| `circuit_breaker`     |       No | Mapping                         | Symbol-level circuit-breaker override                     |
-| `market_maker_quotes` |       No | List of mappings                | Startup quote seeds                                       |
+| Field                 |    Required | Type / accepted values          | Description                                                |
+|-----------------------|------------:|----------------------------------|-------------------------------------------------------------|
+| `tick_decimals`       |          No | Integer `0..8`                  | Decimal places used to convert display prices to ticks     |
+| `level`               |          No | Key from `risk_controls.levels` | Named collar profile                                       |
+| `outstanding_shares`  | Conditional | Positive integer                | Required only if the symbol is an index constituent        |
+| `last_buy_price`      |          No | Number                          | Initial last-buy reference when no persisted stat exists   |
+| `last_sell_price`     |          No | Number                          | Initial last-sell reference when no persisted stat exists  |
+| `collar`              |          No | Mapping                         | Symbol-level collar override                                |
+| `circuit_breaker`     |          No | Mapping                         | Symbol-level circuit-breaker override                       |
+| `market_maker_quotes` | Conditional | List of mappings                | Required (non-empty) only if a `MARKET_MAKER` gateway exists |
+
+### Mandatory Fields
+
+None of `tick_decimals`, `level`, `last_buy_price`, `last_sell_price`, `collar`,
+or `circuit_breaker` are ever mandatory — each has a built-in default or is
+simply left inactive when omitted. Two fields become mandatory, but only under
+specific conditions:
+
+- **`market_maker_quotes`** — becomes mandatory (must be a non-empty list) for
+  *every* symbol as soon as any `gateways.alf` entry has `role: MARKET_MAKER`.
+  If no `MARKET_MAKER` gateway is configured, this field can be omitted for
+  every symbol.
+- **`outstanding_shares`** — becomes mandatory (must be a positive integer)
+  only for symbols listed in an `indices[].constituents` entry (see
+  [Configuring `pm-index`](#configuring-pm-index)). A symbol not referenced by
+  any index does not need `outstanding_shares`.
+
+### Collar Reference Price Selection
+
+When a symbol ends up with an active collar (via `symbols.<SYMBOL>.collar`,
+its `level`, or `risk_controls.default_level` — see
+[Risk Controls and Collars](#risk-controls-and-collars)), the engine derives
+the collar's static-band `reference_price` at startup as follows:
+
+1. Persisted `data/book_stats.json` values are restored first (see
+   [Startup and Persistence Order](#startup-and-persistence-order)). If the
+   symbol has a persisted `last_buy_price`, it is used.
+2. Otherwise, if the symbol has a persisted `last_sell_price`, it is used.
+3. Otherwise, fall back to the config file's `last_buy_price`.
+4. Otherwise, fall back to the config file's `last_sell_price`.
+5. If none of the above are set, the collar is still parsed but is **not**
+   activated for that symbol — no collar check runs for it at all, even
+   though `enforce_collars: true` and a `collar`/`level` section are present.
+
+In short: **persisted `book_stats.json` prices always take precedence over the
+`last_buy_price` / `last_sell_price` seed values in `engine_config.yaml`**, so
+the collar tracks the most recently known trading price instead of a
+config value that may go stale as the session progresses. This uses the same
+resolved last-buy/last-sell prices that seed the order book itself, so the
+collar reference and the book's displayed last prices never disagree.
 
 Orders for unknown symbols are rejected with:
 
@@ -2013,6 +2063,22 @@ rm -f data/gtc_orders.json data/book_stats.json data/gtc_combos.json
 
 
 ## Adding or Removing Symbols
+
+Adding a symbol is the configuration equivalent of an **IPO (initial listing)**:
+you define the instrument together with its opening reference price
+(`last_buy_price` / `last_sell_price`), its issued share count
+(`outstanding_shares`), and — when a market maker is configured — its opening
+quote. Those opening values seed the book's last prices and both the collar and
+circuit-breaker references, so the symbol is priced and protected from its very
+first order (see
+[Risk Controls - Day one (IPO) behaviour](12-risk-controls.md#day-one-ipo-behaviour)).
+
+!!! warning "The symbol universe is fixed at startup"
+    `pm-engine` reads `symbols` once, at startup. There is **no** command to
+    list a new symbol intra-day. Introducing a symbol always means editing
+    `engine_config.yaml` and restarting the engine — plan the full instrument
+    set before the session, or restart during a maintenance window to add a new
+    listing.
 
 Edit `engine_config.yaml` and restart the engine.
 
