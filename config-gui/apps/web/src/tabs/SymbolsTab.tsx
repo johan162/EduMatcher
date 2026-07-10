@@ -1,7 +1,13 @@
 import { useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import clsx from "clsx";
-import { effectiveDefaultCollar, type MmQuoteSeed } from "@edumatcher/schema";
+import {
+  RESUMPTION_MODES,
+  effectiveDefaultCollar,
+  type CbLevel,
+  type MmQuoteSeed,
+  type ResumptionMode,
+} from "@edumatcher/schema";
 import { useDraftStore } from "@/store/draftStore";
 import { usePersona } from "@/lib/usePersona";
 import { fractionToPercent, minutesToNs, nsToMinutes, percentToFraction } from "@/lib/format";
@@ -9,8 +15,12 @@ import { Panel, Section } from "@/components/layout/Panel";
 import { FieldRow } from "@/components/fields/FieldRow";
 import { NumberInput } from "@/components/fields/inputs";
 import { Select } from "@/components/ui/Select";
+import { Switch } from "@/components/ui/Switch";
 import { MmQuotesEditor } from "@/components/symbols/MmQuotesEditor";
 import { SymbolEditorDialog } from "@/components/symbols/SymbolEditorDialog";
+
+/** Sentinel for "inherit the global ladder value" in the resumption dropdown. */
+const CB_INHERIT = "__inherit__";
 
 export function SymbolsTab() {
   const draft = useDraftStore((s) => s.draft);
@@ -317,27 +327,134 @@ export function SymbolsTab() {
                     <span className="text-sm text-fg-subtle">min</span>
                   </FieldRow>
                   {draft.circuitBreakerDefaults.levelOrder.map((name) => {
+                    const globalLevel = draft.circuitBreakerDefaults.levels[name];
                     const override = config.circuitBreaker?.levels[name];
+                    const restOfDay = override?.haltDurationNs === null;
+                    const globalHaltLabel =
+                      globalLevel && globalLevel.haltDurationNs === null
+                        ? "rest of day"
+                        : `${globalLevel ? nsToMinutes(globalLevel.haltDurationNs) : "?"} min`;
+                    const globalHaltMinutes =
+                      globalLevel && globalLevel.haltDurationNs !== null
+                        ? (nsToMinutes(globalLevel.haltDurationNs) ?? 5)
+                        : 5;
+
+                    // Mutate this symbol's override for `name`, pruning the level
+                    // entry when it no longer carries any override fields.
+                    const mutateLevel = (fn: (lvl: Partial<CbLevel>) => void) =>
+                      update((d) => {
+                        const s = d.symbols[symbol]!;
+                        s.circuitBreaker = s.circuitBreaker ?? { levels: {} };
+                        const lvl: Partial<CbLevel> = { ...s.circuitBreaker.levels[name] };
+                        fn(lvl);
+                        if (Object.keys(lvl).length === 0) delete s.circuitBreaker.levels[name];
+                        else s.circuitBreaker.levels[name] = lvl;
+                      });
+
                     return (
-                      <FieldRow key={name} label={`${name} shift %`} path={`symbols.${symbol}.circuitBreaker.${name}`}>
-                        <NumberInput
-                          aria-label={`${name} shift override`}
-                          value={override?.priceShiftPct !== undefined ? fractionToPercent(override.priceShiftPct) : undefined}
-                          min={0}
-                          max={100}
-                          step={0.5}
-                          onChange={(v) =>
-                            update((d) => {
-                              const s = d.symbols[symbol]!;
-                              s.circuitBreaker = s.circuitBreaker ?? { levels: {} };
-                              s.circuitBreaker.levels[name] = s.circuitBreaker.levels[name] ?? {};
-                              s.circuitBreaker.levels[name]!.priceShiftPct =
-                                v === undefined ? undefined : percentToFraction(v);
-                            })
+                      <div key={name} className="mt-3 rounded-md border border-border bg-surface-raised p-3">
+                        <h4 className="mb-1 text-sm font-semibold">{name}</h4>
+
+                        <FieldRow
+                          label="Shift % override"
+                          path={`symbols.${symbol}.circuitBreaker.${name}.shift`}
+                          help={{
+                            text: "How far the price must move from the rolling reference (as a percent) to trigger this halt level. Higher levels use larger moves. Blank inherits the global ladder value.",
+                            cliFlag: "circuit_breaker.levels.<L>.price_shift_pct",
+                          }}
+                          defaultHint={
+                            globalLevel
+                              ? `Inherits global: ${fractionToPercent(globalLevel.priceShiftPct)}%`
+                              : undefined
                           }
-                        />
-                        <span className="text-sm text-fg-subtle">%</span>
-                      </FieldRow>
+                          isSet={override?.priceShiftPct !== undefined}
+                          onReset={() => mutateLevel((lvl) => delete lvl.priceShiftPct)}
+                        >
+                          <NumberInput
+                            aria-label={`${name} shift override percent`}
+                            value={override?.priceShiftPct !== undefined ? fractionToPercent(override.priceShiftPct) : undefined}
+                            min={0}
+                            max={100}
+                            step={0.5}
+                            onChange={(v) =>
+                              mutateLevel((lvl) => {
+                                if (v === undefined) delete lvl.priceShiftPct;
+                                else lvl.priceShiftPct = percentToFraction(v);
+                              })
+                            }
+                          />
+                          <span className="text-sm text-fg-subtle">%</span>
+                        </FieldRow>
+
+                        <FieldRow
+                          label="Cool-off / halt override"
+                          path={`symbols.${symbol}.circuitBreaker.${name}.halt`}
+                          help={{
+                            text: "How long trading is halted (cools off) after this level triggers, before it can resume. Toggle 'Rest of day' to keep it halted until the close. Blank inherits the global ladder value.",
+                            cliFlag: "circuit_breaker.levels.<L>.halt_duration_ns",
+                          }}
+                          defaultHint={`Inherits global: ${globalHaltLabel}`}
+                          isSet={override?.haltDurationNs !== undefined}
+                          onReset={() => mutateLevel((lvl) => delete lvl.haltDurationNs)}
+                        >
+                          <NumberInput
+                            aria-label={`${name} cool-off minutes`}
+                            value={
+                              typeof override?.haltDurationNs === "number"
+                                ? (nsToMinutes(override.haltDurationNs) ?? undefined)
+                                : undefined
+                            }
+                            min={1}
+                            disabled={restOfDay}
+                            onChange={(v) =>
+                              mutateLevel((lvl) => {
+                                if (v === undefined) delete lvl.haltDurationNs;
+                                else lvl.haltDurationNs = minutesToNs(v);
+                              })
+                            }
+                          />
+                          <span className="text-sm text-fg-subtle">min</span>
+                          <label className="ml-2 flex items-center gap-1.5 text-sm text-fg-subtle">
+                            <Switch
+                              aria-label={`${name} rest of day`}
+                              checked={restOfDay}
+                              onCheckedChange={(c) =>
+                                mutateLevel((lvl) => {
+                                  lvl.haltDurationNs = c ? null : minutesToNs(globalHaltMinutes);
+                                })
+                              }
+                            />
+                            Rest of day
+                          </label>
+                        </FieldRow>
+
+                        <FieldRow
+                          label="Resumption override"
+                          path={`symbols.${symbol}.circuitBreaker.${name}.resumption`}
+                          help={{
+                            text: "How trading restarts once the halt clears: AUCTION runs an uncross before continuous trading resumes; CONTINUOUS reopens matching immediately. Blank inherits the global ladder value.",
+                            cliFlag: "circuit_breaker.levels.<L>.resumption_mode",
+                          }}
+                          defaultHint={globalLevel ? `Inherits global: ${globalLevel.resumptionMode}` : undefined}
+                          isSet={override?.resumptionMode !== undefined}
+                          onReset={() => mutateLevel((lvl) => delete lvl.resumptionMode)}
+                        >
+                          <Select
+                            aria-label={`${name} resumption override`}
+                            value={override?.resumptionMode ?? CB_INHERIT}
+                            onValueChange={(v) =>
+                              mutateLevel((lvl) => {
+                                if (v === CB_INHERIT) delete lvl.resumptionMode;
+                                else lvl.resumptionMode = v as ResumptionMode;
+                              })
+                            }
+                            options={[
+                              { value: CB_INHERIT, label: "(inherit)" },
+                              ...RESUMPTION_MODES.map((m) => ({ value: m, label: m })),
+                            ]}
+                          />
+                        </FieldRow>
+                      </div>
                     );
                   })}
                 </Tabs.Content>

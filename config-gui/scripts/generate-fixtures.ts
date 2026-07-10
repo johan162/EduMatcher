@@ -77,9 +77,12 @@ function expertFull(): EngineConfigDraft {
   const mm = d.gateways.find((g) => g.id === "MM01");
   if (mm) mm.quoteRefreshPolicy = "INACTIVATE_ON_FULL_FILL";
 
-  // P1.4: per-symbol circuit-breaker reference-window override.
+  // P1.4 + per-level cool-off/resumption: per-symbol circuit-breaker overrides.
   if (d.symbols.AAPL) {
-    d.symbols.AAPL.circuitBreaker = { referenceWindowNs: 600_000_000_000, levels: {} };
+    d.symbols.AAPL.circuitBreaker = {
+      referenceWindowNs: 600_000_000_000,
+      levels: { L1: { haltDurationNs: 120_000_000_000, resumptionMode: "CONTINUOUS" } },
+    };
   }
 
   // P1.2/P1.3: per-gateway MM obligation overrides (flat + per-symbol).

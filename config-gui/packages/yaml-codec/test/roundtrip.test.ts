@@ -201,6 +201,32 @@ describe("buildConfigDocument", () => {
     expect(reparsed.symbols.AAPL!.circuitBreaker!.levels.L1!.priceShiftPct).toBe(0.05);
   });
 
+  it("emits and round-trips per-symbol CB halt (cool-off) and resumption overrides", () => {
+    const draft = twoTraderExchange();
+    draft.symbols.AAPL = {
+      tickDecimals: 2,
+      lastBuyPrice: 100,
+      lastSellPrice: 100,
+      circuitBreaker: {
+        levels: {
+          L1: { haltDurationNs: 120_000_000_000, resumptionMode: "CONTINUOUS" },
+          L3: { haltDurationNs: null }, // rest-of-day override
+        },
+      },
+    };
+    const doc = buildConfigDocument(draft) as any;
+    expect(doc.symbols.AAPL.circuit_breaker.levels.L1).toEqual({
+      halt_duration_ns: 120_000_000_000,
+      resumption_mode: "CONTINUOUS",
+    });
+    expect(doc.symbols.AAPL.circuit_breaker.levels.L3).toEqual({ halt_duration_ns: null });
+
+    const { draft: reparsed } = parseYamlToDraft(generateYaml(draft));
+    const cb = reparsed.symbols.AAPL!.circuitBreaker!;
+    expect(cb.levels.L1).toEqual({ haltDurationNs: 120_000_000_000, resumptionMode: "CONTINUOUS" });
+    expect(cb.levels.L3!.haltDurationNs).toBeNull();
+  });
+
   it("converts combo leg decimal prices to ticks using tick_decimals", () => {
     const draft = twoTraderExchange();
     draft.combos = [

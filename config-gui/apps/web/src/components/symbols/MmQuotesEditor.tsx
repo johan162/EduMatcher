@@ -1,6 +1,21 @@
 import { TIF_VALUES, createMmQuoteSeed, type MmQuoteSeed, type Tif } from "@edumatcher/schema";
 import { NumberInput, TextInput } from "@/components/fields/inputs";
 import { Select } from "@/components/ui/Select";
+import { HelpPopover } from "@/components/ui/HelpPopover";
+
+/** Column header with an optional "i" help popover, matching field-level help. */
+function ColHead({ label, help }: { label: string; help?: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center">
+      {label}
+      {help && (
+        <span className="normal-case">
+          <HelpPopover>{help}</HelpPopover>
+        </span>
+      )}
+    </span>
+  );
+}
 
 interface Props {
   quotes: MmQuoteSeed[];
@@ -44,14 +59,50 @@ export function MmQuotesEditor({ quotes, mmGatewayIds, onChange, showQuoteId }: 
         <table className="w-full text-sm">
           <thead className="bg-muted text-left text-xs uppercase text-fg-subtle">
             <tr>
-              <th className="px-2 py-2">Gateway *</th>
-              {showQuoteId && <th className="px-2 py-2">Quote id</th>}
-              <th className="px-2 py-2">Bid *</th>
-              <th className="px-2 py-2">Ask *</th>
-              <th className="px-2 py-2">Bid qty</th>
-              <th className="px-2 py-2">Ask qty</th>
-              <th className="px-2 py-2">TIF</th>
-              <th className="px-2 py-2">Seed once</th>
+              <th className="px-2 py-2">
+                <ColHead
+                  label="Gateway *"
+                  help="The MARKET_MAKER gateway that owns and submits this seed quote. Must match a configured MARKET_MAKER gateway."
+                />
+              </th>
+              {showQuoteId && (
+                <th className="px-2 py-2">
+                  <ColHead
+                    label="Quote id"
+                    help="Optional label for this seed quote, used for audit and reconciliation. The engine auto-generates one when left blank."
+                  />
+                </th>
+              )}
+              <th className="px-2 py-2">
+                <ColHead
+                  label="Bid *"
+                  help="Opening bid price for this seed quote, in display units (honours the symbol's tick decimals). Must be strictly below the ask."
+                />
+              </th>
+              <th className="px-2 py-2">
+                <ColHead
+                  label="Ask *"
+                  help="Opening ask price for this seed quote, in display units. Must be strictly above the bid."
+                />
+              </th>
+              <th className="px-2 py-2">
+                <ColHead label="Bid qty" help="Displayed quantity on the bid side of the seed quote." />
+              </th>
+              <th className="px-2 py-2">
+                <ColHead label="Ask qty" help="Displayed quantity on the ask side of the seed quote." />
+              </th>
+              <th className="px-2 py-2">
+                <ColHead
+                  label="TIF"
+                  help="Time-in-force for the seed quote. Prefer DAY for seeds — GTC seeds can be duplicated on restart if the previous session's orders still persist."
+                />
+              </th>
+              <th className="px-2 py-2">
+                <ColHead
+                  label="Seed once"
+                  help="When on, the engine injects this quote only if it has no prior book state for the symbol, so a restart with existing history won't re-add it. Turn off to (re)seed the quote on every startup."
+                />
+              </th>
               <th className="px-2 py-2" />
             </tr>
           </thead>
