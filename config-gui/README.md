@@ -20,15 +20,15 @@ guaranteed parseable by the engine.
 ```
 config-gui/
   apps/
-    web/         React + Vite frontend (UI, personas, theming, tabs)
-    server/      Fastify backend (import / validate / generate / verify)
-  packages/
-    schema/      Types, Zod schemas, default constants (mirrors defaults.py)
-    yaml-codec/  Draft <-> engine_config.yaml (serialize + parse)
-    diagnostics/ Cross-field validation rule engine (pure functions)
-  scripts/
-    generate-fixtures.ts  Emits representative configs from drafts
-    verify-python.sh      Pipes generated configs through the Python engine loader
+    web/                           React + Vite frontend (UI, personas, theming, tabs)
+    server/                        Fastify backend (import / validate / generate / verify)
+  packages/    
+    schema/                        Types, Zod schemas, default constants (mirrors defaults.py)
+    yaml-codec/                    Draft <-> engine_config.yaml (serialize + parse)
+    diagnostics/                   Cross-field validation rule engine (pure functions)
+  scripts/    
+    generate-fixtures.ts           Emits representative configs from drafts
+    verify-python.sh               Pipes generated configs through the Python engine loader
   Dockerfile / docker-compose.yml  Single-container production image
   Makefile                         Full local and container lifecycle targets
 ```
