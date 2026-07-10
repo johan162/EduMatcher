@@ -491,19 +491,41 @@ class Engine:
         # Wire collar and circuit breaker configs now that tick-decimals are set
         for sym, sym_cfg in self._engine_config.symbols.items():
             if sym_cfg.collar is not None:
-                # Populate reference_price from last trade (buy side preferred)
-                ref_float = sym_cfg.last_buy_price or sym_cfg.last_sell_price
-                if ref_float is not None:
+                # Populate reference_price from the book's resolved last-buy /
+                # last-sell ticks (buy side preferred). These were set above by
+                # restore_stats() and already prefer persisted book_stats.json
+                # over the static config seed, so the collar reference tracks
+                # the most recently known price instead of a stale config value.
+                book = self._book(sym)
+                ref_ticks = (
+                    book.last_buy_price
+                    if book.last_buy_price is not None
+                    else book.last_sell_price
+                )
+                if ref_ticks is not None:
                     sym_cfg.collar.symbol = sym
-                    sym_cfg.collar.reference_price = to_ticks(float(ref_float), sym)
+                    sym_cfg.collar.reference_price = ref_ticks
                     self._collars[sym] = sym_cfg.collar
             if sym_cfg.circuit_breaker is not None:
                 sym_cfg.circuit_breaker.symbol = sym
                 from edumatcher.engine.circuit_breaker import CircuitBreakerState
 
-                self._circuit_breakers[sym] = CircuitBreakerState(
+                cb_state = CircuitBreakerState(
                     symbol=sym, config=sym_cfg.circuit_breaker
                 )
+                # Seed the breaker's reference from the same resolved last-buy /
+                # last-sell price used for the collar, so the breaker is active
+                # from the first order on day one (before any fills), consistent
+                # with collars being active from their reference immediately.
+                book = self._book(sym)
+                cb_ref_ticks = (
+                    book.last_buy_price
+                    if book.last_buy_price is not None
+                    else book.last_sell_price
+                )
+                if cb_ref_ticks is not None:
+                    cb_state.seed_reference(cb_ref_ticks, now_ns())
+                self._circuit_breakers[sym] = cb_state
 
     # ------------------------------------------------------------------
     # Startup — restore GTC orders
