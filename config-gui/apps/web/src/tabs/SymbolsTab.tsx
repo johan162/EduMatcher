@@ -31,7 +31,8 @@ export function SymbolsTab() {
   const [selected, setSelected] = useState<string | null>(draft.symbolOrder[0] ?? null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSymbol, setEditingSymbol] = useState<string | undefined>(undefined);
-  const [overviewOpen, setOverviewOpen] = useState(false);
+  /** Symbol whose read-only overview is open (independent of selection). */
+  const [overviewSymbol, setOverviewSymbol] = useState<string | null>(null);
 
   const symbol = selected && draft.symbols[selected] ? selected : draft.symbolOrder[0] ?? null;
   const config = symbol ? draft.symbols[symbol] : undefined;
@@ -129,16 +130,38 @@ export function SymbolsTab() {
         <div className="mt-6 grid grid-cols-[10rem_1fr] gap-4">
           <ul className="rounded-md border border-border bg-surface p-1">
             {draft.symbolOrder.map((s) => (
-              <li key={s}>
+              <li key={s} className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => setSelected(s)}
                   className={clsx(
-                    "w-full rounded px-3 py-1.5 text-left text-sm",
+                    "flex-1 rounded px-3 py-1.5 text-left text-sm",
                     s === symbol ? "bg-accent text-accent-fg" : "hover:bg-muted",
                   )}
                 >
                   {s}
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Overview for ${s}`}
+                  title={`Overview for ${s} (peek without selecting)`}
+                  onClick={() => setOverviewSymbol(s)}
+                  className="shrink-0 rounded p-1 text-fg-subtle hover:bg-muted hover:text-fg"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
                 </button>
               </li>
             ))}
@@ -149,7 +172,7 @@ export function SymbolsTab() {
               <h3 className="text-base font-semibold">{symbol}</h3>
               <button
                 type="button"
-                onClick={() => setOverviewOpen(true)}
+                onClick={() => setOverviewSymbol(symbol)}
                 className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
                 title="Read-only summary of all effective values for this symbol"
               >
@@ -579,8 +602,14 @@ export function SymbolsTab() {
         symbolName={editingSymbol}
       />
 
-      {symbol && (
-        <SymbolOverviewDialog open={overviewOpen} onOpenChange={setOverviewOpen} symbol={symbol} />
+      {overviewSymbol && (
+        <SymbolOverviewDialog
+          open={overviewSymbol !== null}
+          onOpenChange={(o) => {
+            if (!o) setOverviewSymbol(null);
+          }}
+          symbol={overviewSymbol}
+        />
       )}
     </Panel>
   );
