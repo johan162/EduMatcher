@@ -134,7 +134,7 @@ nominal percentage:
 
 | Band | Reference price used |
 |---|---|
-| Static | `last_buy_price` from config (converted to ticks at startup) |
+| Static | Resolved opening price at startup — persisted last price if available, else `last_buy_price`, else `last_sell_price` (converted to ticks) |
 | Dynamic | Last executed trade price in the current session |
 
 The dynamic band is skipped entirely when no trade has occurred yet in the session.
@@ -234,8 +234,11 @@ Resolution precedence is:
 | `static_band_pct` | float | `0.20` | Maximum distance from reference price, as a fraction (0 < x < 1) |
 | `dynamic_band_pct` | float | `0.02` | Maximum distance from last trade price, as a fraction (0 < x < 1) |
 
-The reference price for the static band is taken from `last_buy_price`
-(converted to ticks) at engine startup.
+The reference price for the static band is resolved at engine startup,
+preferring a persisted last price from `book_stats.json`, then the configured
+`last_buy_price`, then `last_sell_price` (converted to ticks).  The circuit
+breaker seeds its reference from the same resolved value, so both controls agree
+at the open — see [Day one (IPO) behaviour](#day-one-ipo-behaviour).
 
 
 
@@ -269,7 +272,10 @@ own rolling trade reference and can halt independently.
    that occurred within that window — *excluding the new trade being evaluated*.
    This ensures the check is "does this trade deviate from where the market has
    been?" rather than including the potentially erroneous trade in its own
-   reference.
+   reference.  On day one, before any real trade exists, this history is
+   pre-seeded with a single baseline point derived from the symbol's opening
+   reference price, so even the very first order can be evaluated (see
+   [Day one (IPO) behaviour](#day-one-ipo-behaviour)).
 
 3. **Deviation is tested against levels.**  The absolute shift from reference is
   compared against configured levels (for example `L1=7%`, `L2=13%`,
@@ -318,9 +324,47 @@ not accumulate stale data that masks a sudden move.
 reference = average of all trades in window (excluding new trade)
 ```
 
-If the window is empty (no previous trades), the circuit breaker has no
-reference to compare against, so the new trade is always accepted and simply
-added to the history.
+If the window is empty, the circuit breaker has no reference to compare
+against, so the trade is accepted and simply added to the history.  At engine
+startup this empty-window case is avoided by seeding a baseline reference from
+the symbol's opening price (see
+[Day one (IPO) behaviour](#day-one-ipo-behaviour)).  It can otherwise only
+recur mid-session if the seed and every real trade have aged out of the window
+during a long quiet period.
+
+### Day one (IPO) behaviour
+
+Introducing a new symbol is the exchange equivalent of an **IPO**: there is no
+trade history yet, only the opening reference price established during listing
+(`last_buy_price` / `last_sell_price`).  Two things happen at startup so that
+the risk controls are active from the very first order rather than lying dormant
+until trades accumulate:
+
+- **Collar reference** — the static band anchors on the resolved opening price
+  (persisted `book_stats.json` if present, otherwise the configured
+  `last_buy_price`, then `last_sell_price`).
+- **Circuit-breaker reference** — the breaker's rolling history is pre-seeded
+  with a single synthetic baseline point at that **same** resolved opening
+  price.  The first executed trade is therefore evaluated against the IPO
+  reference, so a violent opening print can trip the breaker on day one.
+
+Because both controls draw their reference from the same source, the collar and
+the circuit breaker agree at the open.
+
+Notes and edge cases:
+
+- The seed is a *baseline for comparison only*.  It is not published as a trade
+  and does not appear in market data.
+- The synthetic seed sits in the rolling window like any trade, so it ages out
+  after `reference_window_ns`.  Under normal continuous trading, real fills have
+  replaced it long before then; it matters only if a symbol stays completely
+  silent for the whole window after the open.
+- If a symbol has **no** opening reference at all (no persisted stat and neither
+  `last_buy_price` nor `last_sell_price` set), there is nothing to seed: the
+  collar stays inactive and the circuit breaker has no reference until trades
+  build up.  This is why an opening reference price is required when listing a
+  symbol — see
+  [Configuration - Symbol Universe](01-configuration.md#symbol-universe).
 
 ### Resumption modes
 
