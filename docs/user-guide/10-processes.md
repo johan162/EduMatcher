@@ -793,14 +793,15 @@ See [P&L & Clearing](07-pnl-clearing.md) for the accounting model and schema-lev
 Records market statistics for every symbol to a SQLite database (`data/stats.db`).
 
 ```bash
-pm-stats [--db data/stats.db]
+pm-stats [--db data/stats.db] [--snapshot-interval SEC]
 ```
 
 **Startup options:**
 
-| Flag   | Default         | Description               |
-|--------|-----------------|---------------------------|
-| `--db` | `data/stats.db` | SQLite database file path |
+| Flag                  | Default         | Description                                                                                     |
+|-----------------------|-----------------|-------------------------------------------------------------------------------------------------|
+| `--db`                | `data/stats.db` | SQLite database file path                                                                       |
+| `--snapshot-interval` | `900` (15 min)  | Seconds between `price_snapshots` rows per symbol. Use a smaller value for finer intraday resolution, e.g. `60` for one-minute snapshots. |
 
 **Expected runtime input arguments:**
 
@@ -837,8 +838,8 @@ flushed to `daily_stats` after each trade.
 | `close_bid/ask`           | `system.eod`                     | Overwritten with the final bid/ask from the book                             |
 
 **15-minute price snapshots** are written to `price_snapshots` when a `book.*` message
-arrives and at least 15 minutes have elapsed since the last snapshot for that symbol
-(`SNAPSHOT_INTERVAL_SEC = 900`). The mid-price is computed as:
+arrives and at least `--snapshot-interval` seconds have elapsed since the last snapshot for that symbol
+(default: `SNAPSHOT_INTERVAL_SEC = 900`, i.e. 15 minutes). The mid-price is computed as:
 
 $$mid = \frac{best\_bid + best\_ask}{2}$$
 
@@ -892,7 +893,7 @@ ORDER BY date DESC, symbol;
 
 #### `price_snapshots`
 
-One row per `(ts, symbol)` written every **15 minutes** when a book update arrives.
+One row per `(ts, symbol)` written every **`--snapshot-interval`** seconds (default: 15 minutes) when a book update arrives.
 
 | Column       | Type      | Description                                                                                            |
 |--------------|-----------|--------------------------------------------------------------------------------------------------------|

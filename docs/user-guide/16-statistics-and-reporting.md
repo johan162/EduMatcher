@@ -206,14 +206,23 @@ pm-stats
 
 **Startup options:**
 
-| Flag   | Default         | Description                     |
-|--------|-----------------|---------------------------------|
-| `--db` | `data/stats.db` | Custom statistics database path |
+| Flag                    | Default         | Description                                                                            |
+|-------------------------|-----------------|----------------------------------------------------------------------------------------|
+| `--db`                  | `data/stats.db` | Custom statistics database path                                                        |
+| `--snapshot-interval`   | `900` (15 min)  | Seconds between `price_snapshots` rows per symbol. Lower values give finer intraday resolution at the cost of more database writes. |
 
 Use `--db` if you want to record into a different location:
 
 ```bash
 pm-stats --db /tmp/session_stats.db
+```
+
+Use `--snapshot-interval` to change how often intraday price snapshots are recorded:
+
+```bash
+pm-stats --snapshot-interval 60    # one-minute snapshots
+pm-stats --snapshot-interval 300   # five-minute snapshots
+pm-stats --snapshot-interval 3600  # hourly snapshots
 ```
 
 **Important**: `pm-stats` must start **after** the engine binds its ZeroMQ sockets. If you start it before the engine, it will fail to connect.
@@ -272,7 +281,7 @@ date       | symbol | open_price | high_price | low_price | close_price | volume
 
 #### `snapshots` — Intraday Price History
 
-Show 15-minute snapshots from `price_snapshots` for one symbol over a time range.
+Show periodic price snapshots from `price_snapshots` for one symbol over a time range. The recording interval is set by `pm-stats --snapshot-interval` (default: 15 minutes).
 
 ```bash
 pm-stats-cli snapshots --symbol AAPL
@@ -811,9 +820,9 @@ print(daily[['symbol', 'return_pct']])
 
 ### Snapshot times seem wrong or are missing
 
-- Snapshots are written every **15 minutes** when a `book.*` message arrives.
-- If trading is light and no book updates occur for 15 minutes, no snapshot is recorded.
-- This is by design — snapshots only record when the market moves.
+- Snapshots are written when a `book.*` message arrives **and** the configured interval has elapsed since the last snapshot for that symbol.
+- The default interval is **15 minutes** (`--snapshot-interval 900`). If you need finer resolution, start `pm-stats` with a smaller value, e.g. `--snapshot-interval 60` for one-minute snapshots.
+- If trading is light and no book updates occur during the interval, no snapshot is recorded for that period. This is by design — snapshots only record when the market moves.
 
 To verify:
 

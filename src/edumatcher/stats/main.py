@@ -2,11 +2,11 @@
 Statistics Process — records market data to a SQLite database.
 
 Usage:
-  poetry run pm-stats [--db data/stats.db]
+  poetry run pm-stats [--db data/stats.db] [--snapshot-interval SEC]
 
 Subscribes to:
   trade.executed  — to track OHLCV, VWAP, min/max, volume
-  book.*          — to record 15-minute price snapshots
+  book.*          — to record periodic price snapshots (default: every 15 min)
   system.eod      — engine shutdown: record closing bid/ask/last price
 
 SQLite tables
@@ -19,7 +19,8 @@ SQLite tables
 
   price_snapshots
     Columns: ts, symbol, mid_price, best_bid, best_ask, pct_change
-    One row every 15 minutes per symbol (based on last book snapshot seen).
+    One row every N seconds per symbol (default: 900 s / 15 minutes).
+    Override with --snapshot-interval.
 
   trade_log
     Columns: ts, trade_id, symbol, price, quantity,
@@ -61,7 +62,7 @@ from edumatcher.models.message import (
 # Constants
 # ---------------------------------------------------------------------------
 
-SNAPSHOT_INTERVAL_SEC = 15 * 60  # 15 minutes
+SNAPSHOT_INTERVAL_SEC = 15 * 60  # 15 minutes — overridable via --snapshot-interval
 
 
 # ---------------------------------------------------------------------------
@@ -250,10 +251,11 @@ def _open_db(path: Path) -> sqlite3.Connection:
 
 
 class StatsProcess:
-    def __init__(self, db_path: Path) -> None:
+    def __init__(self, db_path: Path, snapshot_interval_sec: float = SNAPSHOT_INTERVAL_SEC) -> None:
         self._conn = _open_db(db_path)
         self._lock = threading.Lock()
         self._running = True
+        self._snapshot_interval_sec = snapshot_interval_sec
 
         # symbol → _DayAccum for current calendar date
         self._accum: dict[str, _DayAccum] = {}
@@ -379,7 +381,7 @@ class StatsProcess:
 
             # 15-minute price snapshot
             now = time.monotonic()
-            if now - self._last_snap_ts[symbol] >= SNAPSHOT_INTERVAL_SEC:
+            if now - self._last_snap_ts[symbol] >= self._snapshot_interval_sec:
                 self._last_snap_ts[symbol] = now
                 mid: Optional[float] = None
                 if best_bid is not None and best_ask is not None:
@@ -618,9 +620,23 @@ def main() -> None:
         metavar="PATH",
         help=f"SQLite database path (default: {STATS_DB_FILE})",
     )
+    parser.add_argument(
+        "--snapshot-interval",
+        type=float,
+        default=SNAPSHOT_INTERVAL_SEC,
+        metavar="SEC",
+        help=(
+            f"Seconds between price_snapshots rows per symbol "
+            f"(default: {SNAPSHOT_INTERVAL_SEC} = 15 min). "
+            "Use a smaller value for higher-resolution intraday history, "
+            "e.g. 60 for one-minute snapshots."
+        ),
+    )
     args = parser.parse_args()
+    if args.snapshot_interval <= 0:
+        parser.error("--snapshot-interval must be greater than 0")
     try:
-        process = StatsProcess(Path(args.db))
+        process = StatsProcess(Path(args.db), snapshot_interval_sec=args.snapshot_interval)
     except Exception as exc:
         print(f"[STATS] FATAL: {exc}", file=sys.stderr)
         sys.exit(1)
