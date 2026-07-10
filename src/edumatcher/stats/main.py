@@ -251,7 +251,9 @@ def _open_db(path: Path) -> sqlite3.Connection:
 
 
 class StatsProcess:
-    def __init__(self, db_path: Path, snapshot_interval_sec: float = SNAPSHOT_INTERVAL_SEC) -> None:
+    def __init__(
+        self, db_path: Path, snapshot_interval_sec: float = SNAPSHOT_INTERVAL_SEC
+    ) -> None:
         self._conn = _open_db(db_path)
         self._lock = threading.Lock()
         self._running = True
@@ -636,7 +638,9 @@ def main() -> None:
     if args.snapshot_interval <= 0:
         parser.error("--snapshot-interval must be greater than 0")
     try:
-        process = StatsProcess(Path(args.db), snapshot_interval_sec=args.snapshot_interval)
+        process = StatsProcess(
+            Path(args.db), snapshot_interval_sec=args.snapshot_interval
+        )
     except Exception as exc:
         print(f"[STATS] FATAL: {exc}", file=sys.stderr)
         sys.exit(1)
