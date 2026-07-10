@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { NavLink } from "react-router-dom";
-import type { EngineConfigDraft } from "@edumatcher/schema";
+import { DEFAULT_SNAPSHOT_INTERVAL_SEC, type EngineConfigDraft } from "@edumatcher/schema";
 import { useDraftStore } from "@/store/draftStore";
 import { visibleTabs, type TabDef } from "@/lib/tabs";
 
@@ -38,6 +38,8 @@ function isConfigured(draft: EngineConfigDraft, tabId: string): boolean {
         draft.balfGateway.enabled ||
         draft.apiGateways.length > 0
       );
+    case "engine-tuning":
+      return draft.snapshotIntervalSec !== DEFAULT_SNAPSHOT_INTERVAL_SEC;
     case "review":
       return true;
     default:

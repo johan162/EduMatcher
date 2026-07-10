@@ -5,6 +5,7 @@ import { fractionToPercent, percentToFraction, uppercaseId } from "@/lib/format"
 import { Panel, Section } from "@/components/layout/Panel";
 import { FieldRow } from "@/components/fields/FieldRow";
 import { NumberInput, TextInput } from "@/components/fields/inputs";
+import { Switch } from "@/components/ui/Switch";
 
 export function RiskTab() {
   const draft = useDraftStore((s) => s.draft);
@@ -12,6 +13,7 @@ export function RiskTab() {
   const { canSee } = usePersona();
 
   const rc = draft.riskControls;
+  const collarsEnabled = draft.enforceCollars;
 
   return (
     <Panel
@@ -19,6 +21,30 @@ export function RiskTab() {
       title="Risk & Collars"
       intro="A collar rejects orders priced too far from a reference. The static band anchors to a session reference price; the dynamic band tracks near-live prices. Setting a global band creates a DEFAULT risk level applied to all symbols."
     >
+      <Section title="Enforcement">
+        <FieldRow
+          label="Enforce collars"
+          path="enforceCollars"
+          htmlFor="enforce-collars"
+          help={{
+            text: "Global switch for price collar enforcement. Turning it off is for tests only.",
+            cliFlag: "--no-collars",
+          }}
+        >
+          <Switch
+            id="enforce-collars"
+            aria-label="Enforce collars"
+            checked={draft.enforceCollars}
+            onCheckedChange={(checked) => update((d) => (d.enforceCollars = checked))}
+          />
+        </FieldRow>
+        {!collarsEnabled && (
+          <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+            Collars are disabled — suitable for tests only. Bands and risk levels below will not be enforced.
+          </div>
+        )}
+      </Section>
+
       <Section title="Global collar (DEFAULT level)">
         <FieldRow
           label="Static band"
@@ -34,6 +60,7 @@ export function RiskTab() {
           <NumberInput
             aria-label="Global static band percent"
             value={rc.globalStaticBandPct !== undefined ? fractionToPercent(rc.globalStaticBandPct) : undefined}
+            disabled={!collarsEnabled}
             min={0}
             max={100}
             step={0.5}
@@ -60,6 +87,7 @@ export function RiskTab() {
           <NumberInput
             aria-label="Global dynamic band percent"
             value={rc.globalDynamicBandPct !== undefined ? fractionToPercent(rc.globalDynamicBandPct) : undefined}
+            disabled={!collarsEnabled}
             min={0}
             max={100}
             step={0.5}
@@ -86,6 +114,7 @@ export function RiskTab() {
                   <TextInput
                     aria-label={`Risk level ${name} name`}
                     value={name}
+                    disabled={!collarsEnabled}
                     onChange={(v) =>
                       update((d) => {
                         const newName = uppercaseId(v);
@@ -103,6 +132,7 @@ export function RiskTab() {
                   <NumberInput
                     aria-label={`Risk level ${name} static percent`}
                     value={fractionToPercent(level.staticBandPct)}
+                    disabled={!collarsEnabled}
                     min={0}
                     max={100}
                     step={0.5}
@@ -119,6 +149,7 @@ export function RiskTab() {
                   <NumberInput
                     aria-label={`Risk level ${name} dynamic percent`}
                     value={fractionToPercent(level.dynamicBandPct)}
+                    disabled={!collarsEnabled}
                     min={0}
                     max={100}
                     step={0.5}
@@ -146,6 +177,7 @@ export function RiskTab() {
           ))}
           <button
             type="button"
+            disabled={!collarsEnabled}
             onClick={() =>
               update((d) => {
                 let i = d.riskControls.levels ? Object.keys(d.riskControls.levels).length + 1 : 1;
@@ -154,7 +186,7 @@ export function RiskTab() {
                 d.riskControls.levels[name] = { staticBandPct: 0.2, dynamicBandPct: 0.02 };
               })
             }
-            className="mt-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+            className="mt-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
           >
             + Add risk level
           </button>

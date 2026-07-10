@@ -13,8 +13,8 @@ export interface TabDef {
 export const TABS: TabDef[] = [
   { id: "basics", path: "/basics", label: "Basics", minPersona: "B" },
   { id: "sessions", path: "/sessions", label: "Sessions & Schedule", minPersona: "B" },
-  { id: "risk", path: "/risk", label: "Risk & Collars", minPersona: "B" },
-  { id: "circuit-breakers", path: "/circuit-breakers", label: "Circuit Breakers", minPersona: "B" },
+  { id: "risk", path: "/risk", label: "Risk & Collars", minPersona: "I" },
+  { id: "circuit-breakers", path: "/circuit-breakers", label: "Circuit Breakers", minPersona: "I" },
   {
     id: "market-maker",
     path: "/market-maker",
@@ -26,6 +26,7 @@ export const TABS: TabDef[] = [
   { id: "indices", path: "/indices", label: "Indices", minPersona: "I" },
   { id: "combos", path: "/combos", label: "Combos", minPersona: "E" },
   { id: "gateways", path: "/gateways", label: "Auxiliary Gateways", minPersona: "I" },
+  { id: "engine-tuning", path: "/engine-tuning", label: "Engine Tuning", minPersona: "E" },
   { id: "review", path: "/review", label: "Review & Export", minPersona: "B" },
 ];
 
