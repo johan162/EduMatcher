@@ -140,6 +140,14 @@ Constraints:
 - Every constituent symbol must appear in `symbols:` with `outstanding_shares > 0`
 - `id` values must be unique
 
+!!! note "Index eligibility is set at listing (IPO)"
+    `outstanding_shares` is what makes a symbol index-eligible, and it is part
+    of the symbol's [initial listing
+    (IPO)](01-configuration.md#adding-or-removing-symbols). Set it when you list
+    the symbol; a constituent without a positive `outstanding_shares` is
+    rejected at startup. Share counts change only through corporate actions
+    (splits, issuance), not intra-day trading.
+
 ### Generating with `pm-config-gen`
 
 `pm-config-gen` can emit the full `indices:` block automatically:

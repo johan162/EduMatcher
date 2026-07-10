@@ -282,6 +282,16 @@ classroom or demo environment it is useful to have quotes already in the book
 *before any participant connects*, so the book is never completely empty and
 price discovery can begin from a known starting point.
 
+!!! note "Seed quotes are the symbol's IPO opening quote"
+    A `market_maker_quotes` seed is the day-one **opening quote** for a newly
+    listed symbol — the exchange equivalent of an IPO. It should straddle the
+    symbol's opening reference price (`last_buy_price` / `last_sell_price`) so
+    the book and both risk-control references agree at the open. With
+    `seed_once: true` (the default) the MM effectively “takes over” from day 2
+    onwards. See
+    [Configuration - Adding or Removing Symbols](01-configuration.md#adding-or-removing-symbols)
+    and [Risk Controls - Day one (IPO) behaviour](12-risk-controls.md#day-one-ipo-behaviour).
+
 This is done with the `market_maker_quotes` key under each symbol in
 `engine_config.yaml`:
 

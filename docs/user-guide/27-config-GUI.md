@@ -47,6 +47,19 @@ CI-friendly path.
 | **Light & dark themes** | Toggle in the top bar; remembered per browser, defaults to your OS setting. |
 | **Guaranteed-valid output** | A cross-language test pipes generated configs through the engine's own `load_engine_config()`. |
 
+### Listing symbols (the IPO dialog)
+
+The **Basics** and **Symbols** tabs create a symbol through a structured
+**“List a new symbol (IPO)”** dialog rather than a bare name field. This mirrors
+the mental model that adding a symbol is an [initial listing
+(IPO)](01-configuration.md#adding-or-removing-symbols): you enter one
+**reference price** and the dialog derives the seeded `last_buy_price` /
+`last_sell_price` and the market maker's opening quote from it, so the book, the
+last price, and the collar/circuit-breaker references all agree from the first
+order. `outstanding_shares` is required (pre-filled with a sensible default),
+and at Expert persona you can attach multiple market makers. See
+[Risk Controls - Day one (IPO) behaviour](12-risk-controls.md#day-one-ipo-behaviour).
+
 ## Architecture at a glance
 
 ```mermaid

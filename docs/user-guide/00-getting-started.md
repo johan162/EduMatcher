@@ -619,6 +619,7 @@ Use the table below to decide what to read based on your goal.
 | **Engine**          | The `pm-engine` matching engine process — the authoritative order book                             |
 | **Gateway**         | A `pm-alf-console` participant terminal; one per trader                                                |
 | **Symbol**          | A tradeable instrument, e.g. `AAPL`, `MSFT`                                                        |
+| **IPO / listing**   | Defining a new symbol with its opening reference price, issued shares, and (if a market maker exists) opening quote. Those seed the book and both risk-control references. The symbol universe is fixed at startup — see [Configuration - Adding or Removing Symbols](01-configuration.md#adding-or-removing-symbols) and [Risk Controls - Day one (IPO) behaviour](12-risk-controls.md#day-one-ipo-behaviour) |
 | **Order book**      | Sorted list of resting bids and asks for one symbol                                                |
 | **Fill**            | An execution — the result of two orders matching                                                   |
 | **TIF**             | Time-in-Force: how long an order lives (`DAY`, `GTC`, `ATO`, `ATC`)                                |

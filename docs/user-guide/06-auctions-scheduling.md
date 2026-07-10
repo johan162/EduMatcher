@@ -36,6 +36,15 @@ the seller demands.)
 | **Reduced information asymmetry** | In continuous trading a fast participant can exploit outdated ("stale") resting orders before the slower participant has time to update them — for example, news breaks and a high-frequency trader buys shares from a resting sell order whose owner hasn't yet cancelled it.  Because auctions execute everything at once, speed advantages are neutralised during these windows. |
 | **Maximised fill quantity** | The equilibrium algorithm explicitly maximises the number of shares that can trade, giving more participants a fill than a sequence of bilateral matches would. |
 
+!!! note "Day one: the IPO reference stands in for price discovery"
+    A freshly listed symbol has no trade history, so there is nothing to
+    discover a price *from* yet. On day one the symbol's seeded opening
+    reference (`last_buy_price` / `last_sell_price`, set when the symbol is
+    listed) acts as the starting point until the first opening auction or trade
+    establishes a real market price. See
+    [Configuration - Adding or Removing Symbols](01-configuration.md#adding-or-removing-symbols)
+    and [Risk Controls - Day one (IPO) behaviour](12-risk-controls.md#day-one-ipo-behaviour).
+
 ### EduMatcher's auction model
 
 EduMatcher implements a **standard two-sided call auction** used by most

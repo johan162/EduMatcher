@@ -202,6 +202,15 @@ For a symbol with `tick_decimals: 2`, the value `15025` represents `150.25`.
 On startup, persisted values **override** any `last_buy_price` / `last_sell_price` seeded
 in `engine_config.yaml`.  Config seeds are only used when no persisted file exists (first run).
 
+!!! note "Config seeds are the IPO price; persisted stats are the carried-over close"
+    The `last_buy_price` / `last_sell_price` in `engine_config.yaml` are the
+    symbol's opening ([IPO](01-configuration.md#adding-or-removing-symbols))
+    reference, used **only** on the very first startup. On every later restart
+    the persisted `book_stats.json` value wins, so a symbol re-opens from where
+    it last traded rather than snapping back to a now-stale config price. Both
+    the collar and circuit-breaker references use this same resolved value — see
+    [Risk Controls - Day one (IPO) behaviour](12-risk-controls.md#day-one-ipo-behaviour).
+
 
 
 ## The data/gtc_combos.json File
