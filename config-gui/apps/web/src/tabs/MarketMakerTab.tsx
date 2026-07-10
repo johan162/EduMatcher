@@ -15,6 +15,21 @@ export function MarketMakerTab() {
   const mmGateways = draft.gateways.filter((g) => g.role === "MARKET_MAKER");
   const midRangeSet = seeding.mmMidRange !== undefined;
 
+  /**
+   * Status of the seed quote for a given symbol × MM gateway:
+   * - "defined": an explicit quote with both prices set (highest precedence);
+   * - "seeded": no explicit quote, but the global mid-range will seed one;
+   * - "missing": neither — the exported stub has null prices to fill in.
+   */
+  const quoteStatus = (symbol: string, gatewayId: string): "defined" | "seeded" | "missing" => {
+    const explicit = draft.symbols[symbol]?.marketMakerQuotes?.find(
+      (q) => q.gatewayId === gatewayId,
+    );
+    if (explicit && explicit.bidPrice !== null && explicit.askPrice !== null) return "defined";
+    if (midRangeSet) return "seeded";
+    return "missing";
+  };
+
   return (
     <Panel
       tabId="market-maker"
@@ -172,7 +187,7 @@ export function MarketMakerTab() {
 
       <Section
         title="Quote stub review"
-        description="One seed quote per symbol × market-maker gateway. Rows without a seeded price must be filled in before starting the engine."
+        description="One seed quote per symbol × market-maker gateway. A row is satisfied by an explicit quote (edited per symbol) or by mid-range seeding; rows with neither must be filled in before starting the engine."
       >
         {mmGateways.length === 0 || draft.symbolOrder.length === 0 ? (
           <p className="text-sm text-fg-subtle">Add a MARKET_MAKER gateway and at least one symbol to see quote stubs.</p>
@@ -193,11 +208,18 @@ export function MarketMakerTab() {
                       <td className="px-3 py-1.5 font-medium">{symbol}</td>
                       <td className="px-3 py-1.5">{gw.id}</td>
                       <td className="px-3 py-1.5">
-                        {midRangeSet ? (
-                          <span className="text-success">✓ seeded from mid-range</span>
-                        ) : (
-                          <span className="text-warning">! fill in before starting the engine</span>
-                        )}
+                        {(() => {
+                          const status = quoteStatus(symbol, gw.id);
+                          if (status === "defined")
+                            return <span className="text-success">✓ quote defined</span>;
+                          if (status === "seeded")
+                            return <span className="text-success">✓ seeded from mid-range</span>;
+                          return (
+                            <span className="text-warning">
+                              ! fill in before starting the engine
+                            </span>
+                          );
+                        })()}
                       </td>
                     </tr>
                   )),

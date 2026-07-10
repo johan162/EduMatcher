@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import yaml from "js-yaml";
 import {
@@ -288,6 +290,28 @@ describe("parseYamlToDraft round trip", () => {
   it("newly created gateways still use role-derived disconnect defaults", () => {
     expect(createGateway("T1", "TRADER").disconnectBehaviour).toBe("CANCEL_ALL");
     expect(createGateway("OPS", "ADMIN").disconnectBehaviour).toBe("LEAVE_ALL");
+  });
+
+  it("imports explicit multi-MM quotes from the three-books-complex example (stub-review precondition)", () => {
+    // The Market Maker tab's quote-stub review reports a symbol as satisfied when
+    // it has an explicit quote with both prices set. This guards that the parser
+    // surfaces exactly that for a real config with fully-specified quotes.
+    const examplePath = fileURLToPath(
+      new URL(
+        "../../../../docs/examples/ref_data/three-books-complex-setup/engine_config.yaml",
+        import.meta.url,
+      ),
+    );
+    const { draft } = parseYamlToDraft(readFileSync(examplePath, "utf8"));
+    const aapl = draft.symbols.AAPL;
+    expect(aapl).toBeDefined();
+    const quotes = aapl!.marketMakerQuotes ?? [];
+    expect(quotes.length).toBeGreaterThanOrEqual(2);
+    for (const q of quotes) {
+      expect(q.bidPrice).not.toBeNull();
+      expect(q.askPrice).not.toBeNull();
+    }
+    expect(quotes.map((q) => q.gatewayId)).toEqual(expect.arrayContaining(["MM01", "MM02"]));
   });
 
   it("preserves unmapped top-level sections", () => {
