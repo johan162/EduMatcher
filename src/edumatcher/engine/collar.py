@@ -52,10 +52,12 @@ class CollarConfig:
     Attributes
     ----------
     symbol          : The trading symbol this config applies to.
-    reference_price : Reference price in *int ticks* — set from prior close
-                      or the seed ``last_buy_price`` / ``last_sell_price``
-                      in ``engine_config.yaml``.  Populated by
-                      ``Engine._load_config()`` after tick-decimals are
+    reference_price : Reference price in *int ticks* — resolved from the
+                      symbol's last-buy/last-sell price (buy side preferred),
+                      preferring a persisted ``book_stats.json`` value over the
+                      ``last_buy_price`` / ``last_sell_price`` seed in
+                      ``engine_config.yaml`` when both are present. Populated
+                      by ``Engine._load_config()`` after tick-decimals are
                       registered.
     static_band_pct : Fraction of ``reference_price`` that defines the static
                       half-band (default: 0.20 = ±20%).
