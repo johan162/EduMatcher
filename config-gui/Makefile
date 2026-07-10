@@ -20,7 +20,7 @@ UNAME_S := $(shell uname -s)
 # Auto-detect container runtime (prefer podman when both are installed)
 CONTAINER_RUNTIME := $(shell if command -v podman >/dev/null 2>&1; then echo podman; elif command -v docker >/dev/null 2>&1; then echo docker; fi)
 ifeq ($(CONTAINER_RUNTIME),podman)
-	DOCKER_COMPOSE := podman compose
+	DOCKER_COMPOSE := podman-compose
 else ifeq ($(CONTAINER_RUNTIME),docker)
 	DOCKER_COMPOSE := docker compose
 else
