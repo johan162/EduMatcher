@@ -29,7 +29,9 @@ endif
 
 APP_NAME := edumatcher-config-gui
 SERVICE_NAME := config-gui
-IMAGE ?= $(APP_NAME):latest
+VERSION ?= $(shell node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")
+IMAGE ?= $(APP_NAME):$(VERSION)
+DIST_DIR ?= dist
 
 # Colors for output
 RED := \033[0;31m
@@ -42,9 +44,10 @@ NC := \033[0m
 .PHONY: \
 	help \
 	check-npm check-container check-container-env \
-	install build typecheck test lint format \
+	install build build-debug typecheck test lint format \
 	dev dev-web dev-server \
 	cnt-build up down restart logs ps \
+	dist \
 	clean
 
 # --------------------------------------------------------------------------------------------
@@ -103,9 +106,10 @@ endef
 help: ## Show this help message
 	@echo -e "$(YELLOW)EduMatcher Config GUI - Makefile Targets$(NC)"
 	@$(call print_section,Setup,install|clean)
-	@$(call print_section,Build and Checks,build|typecheck|test|lint|format)
+	@$(call print_section,Build and Checks,build|build-debug|typecheck|test|lint|format)
 	@$(call print_section,Development,dev|dev-web|dev-server)
 	@$(call print_section,Container,check-container-env|cnt-build|up|down|restart|logs|ps)
+	@$(call print_section,Distribute,dist)
 	@echo ""
 
 # --------------------------------------------------------------------------------------------
@@ -120,10 +124,21 @@ install: check-npm ## Install a full local npm workspace environment
 	fi
 	@echo -e "$(GREEN)✓ Environment ready$(NC)"
 
-build: check-npm ## Build all workspaces
+build: check-npm ## Build all workspaces (production — minified, no sourcemaps)
 	@echo -e "$(YELLOW)- Building all workspaces...$(NC)"
 	@$(NPM) run build
 	@echo -e "$(GREEN)✓ Build completed$(NC)"
+
+build-debug: check-npm ## Build frontend in development mode (sourcemaps, no minification)
+	@echo -e "$(YELLOW)- Building packages...$(NC)"
+	@$(NPM) run build --workspaces --if-present --workspace @edumatcher/schema \
+		--workspace @edumatcher/yaml-codec \
+		--workspace @edumatcher/diagnostics 2>/dev/null || true
+	@echo -e "$(YELLOW)- Building web (debug)...$(NC)"
+	@$(NPM) exec --workspace @edumatcher/web -- \
+		vite build --mode development --minify false --sourcemap true
+	@echo -e "$(GREEN)✓ Debug build completed — output: apps/web/dist$(NC)"
+	@echo -e "$(BLUE)  Sourcemaps included; NODE_ENV stays 'development'$(NC)"
 
 typecheck: check-npm ## Run TypeScript checks for all workspaces
 	@$(NPM) run typecheck
@@ -181,11 +196,37 @@ ps: check-container ## Show container stack status
 	@$(DOCKER_COMPOSE) ps
 
 # --------------------------------------------------------------------------------------------
+# Distributable package
+# --------------------------------------------------------------------------------------------
+dist: check-container-env ## Build a distributable: container image + exported OCI tarball in dist/
+	@echo -e "$(YELLOW)- Building distributable package v$(VERSION)...$(NC)"
+	@echo -e "$(BLUE)- Runtime:  $(CONTAINER_RUNTIME)$(NC)"
+	@echo -e "$(BLUE)- Image:    $(IMAGE)$(NC)"
+	@echo -e "$(BLUE)- Output:   $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar$(NC)"
+	@# Build (or rebuild) the container image tagged with the version
+	@$(DOCKER_COMPOSE) build \
+		--build-arg HTTP_PROXY="$${HTTP_PROXY:-}" \
+		--build-arg HTTPS_PROXY="$${HTTPS_PROXY:-}" \
+		--build-arg NO_PROXY="$${NO_PROXY:-}" \
+		--build-arg NPM_REGISTRY="$${NPM_REGISTRY:-}" \
+		--build-arg NPM_STRICT_SSL="$${NPM_STRICT_SSL:-true}"
+	@# Also tag the image with the version so the tarball carries a useful name
+	@$(CONTAINER_RUNTIME) tag $(APP_NAME):latest $(IMAGE)
+	@# Export the image to a tar archive for offline distribution
+	@mkdir -p $(DIST_DIR)
+	@$(CONTAINER_RUNTIME) save --output $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar $(IMAGE)
+	@echo -e "$(GREEN)✓ Distributable ready: $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar$(NC)"
+	@echo -e "$(BLUE)  Load on another host:$(NC)"
+	@echo -e "$(BLUE)    $(CONTAINER_RUNTIME) load --input $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar$(NC)"
+	@echo -e "$(BLUE)  Then run: $(CONTAINER_RUNTIME) run -p 8080:8080 $(IMAGE)$(NC)"
+
+# --------------------------------------------------------------------------------------------
 # Cleanup
 # --------------------------------------------------------------------------------------------
-clean: ## Remove local Node build artifacts
+clean: ## Remove local Node build artifacts and dist/
 	@echo -e "$(YELLOW)- Cleaning build artifacts...$(NC)"
 	@rm -rf apps/web/dist
 	@find apps packages -type d -name dist -prune -exec rm -rf {} +
 	@find apps packages -type f -name '*.tsbuildinfo' -delete
+	@rm -rf $(DIST_DIR)
 	@echo -e "$(GREEN)✓ Clean completed$(NC)"
