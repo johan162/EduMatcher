@@ -3,12 +3,19 @@
 Release Type: minor
 
 ### 📋 Summary
-This release adds a new `pm-audit-cli` tool for inspecting the exchange audit trail, extends the API Gateway with ADMIN-only operator commands, and introduces design proposals for upcoming Trading and Configuration web UIs. It also hardens `pm-config-gen` validation, the RALF gateway test suite, and `pm-cverifier`'s numeric field checks, alongside knowledge-check quiz polish.
+This release adds a two new major features and one useful improvement.
+1. `config-gui` a powerful Web GUI for creating engine configuration data. This is a two-way tool that
+can import an existing config file, allow you to make modification through the UI and save it back to
+a file.
+2. `pm-audit-cli` tool for inspecting the exchange audit trail and query and filter like it was a DB
+3. `pm-api-gwy` have been extended with ADMIN- operator commands 
+On top of these user visible feature this release also hardens `pm-config-gen` validation, the RALF gateway test suite, and `pm-cverifier`'s numeric field checks, alongside knowledge-check quiz polish.
 
 ### ✨ Additions
+- Added `config-gui`, a new Web-application for creating configuration files (also known as reference data)
 - Added `pm-audit-cli`, a new CLI tool for inspecting the exchange audit trail, together with its design proposal and user-guide chapter
 - Added ADMIN-only operator commands to the API Gateway (requires role `ADMIN`)
-- Added design proposals for upcoming `pm-trading-ui` and `config-gui` web applications and wired them into the PDF documentation build
+- Added design proposals for upcoming `pm-trading-ui`
 
 ### 🚀 Improvements
 - Improved `pm-config-gen` with cross-gateway port collision detection, schedule chronological-order validation, and tick-aware decimal combo leg prices
@@ -16,13 +23,17 @@ This release adds a new `pm-audit-cli` tool for inspecting the exchange audit tr
 
 ### 🐛 Bug Fixes
 - Fixed the knowledge-check quiz bundle Makefile target using the wrong output name
+- fixed so that circuit-breaker reference prices from the opening price on day one (IPO)'
+- fixed collar static reference tracks persisted book stats, not stale config seed
 
 ### 📚 Documentation
 - Renamed exchange knowledge-check quiz files for clarity
+- Added four more quizzes and four more self-study quizzes with answers
 
 ### 🛠 Internal
 - Hardened `test_ralf_gateway.py` to remove intermittent timing-related failures by replacing fixed sleeps with deterministic readiness polling
 - Refactored `pm-admin`'s command dispatch from a large if/else chain into a proper handler-based dispatch
+- Bump library dependencies
 
 
 ## [v0.15.3] - 2026-07-07
