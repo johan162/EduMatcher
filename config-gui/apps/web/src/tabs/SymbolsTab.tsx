@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { effectiveDefaultCollar, type MmQuoteSeed } from "@edumatcher/schema";
 import { useDraftStore } from "@/store/draftStore";
 import { usePersona } from "@/lib/usePersona";
-import { fractionToPercent, percentToFraction } from "@/lib/format";
+import { fractionToPercent, minutesToNs, nsToMinutes, percentToFraction } from "@/lib/format";
 import { Panel, Section } from "@/components/layout/Panel";
 import { FieldRow } from "@/components/fields/FieldRow";
 import { NumberInput } from "@/components/fields/inputs";
@@ -277,8 +277,45 @@ export function SymbolsTab() {
               {canSee("E") && (
                 <Tabs.Content value="cb">
                   <p className="mb-2 text-sm text-fg-subtle">
-                    Override individual ladder levels for this symbol. Blank fields inherit the global ladder.
+                    Override the reference window and individual ladder levels for this symbol.
+                    Blank fields inherit the global circuit-breaker defaults.
                   </p>
+                  <FieldRow
+                    label="Reference window override (minutes)"
+                    path={`symbols.${symbol}.circuitBreaker.referenceWindowNs`}
+                    help={{
+                      text: "Per-symbol rolling reference window for halt detection. Blank inherits the global window.",
+                      cliFlag: "circuit_breaker.reference_window_ns",
+                    }}
+                    defaultHint={`Inherits global: ${nsToMinutes(draft.circuitBreakerDefaults.windowNs)} min`}
+                    isSet={config.circuitBreaker?.referenceWindowNs !== undefined}
+                    onReset={() =>
+                      update((d) => {
+                        if (d.symbols[symbol]!.circuitBreaker) {
+                          d.symbols[symbol]!.circuitBreaker!.referenceWindowNs = undefined;
+                        }
+                      })
+                    }
+                  >
+                    <NumberInput
+                      aria-label="Reference window override minutes"
+                      value={
+                        config.circuitBreaker?.referenceWindowNs !== undefined
+                          ? (nsToMinutes(config.circuitBreaker.referenceWindowNs) ?? undefined)
+                          : undefined
+                      }
+                      min={1}
+                      onChange={(v) =>
+                        update((d) => {
+                          const s = d.symbols[symbol]!;
+                          s.circuitBreaker = s.circuitBreaker ?? { levels: {} };
+                          s.circuitBreaker.referenceWindowNs =
+                            v === undefined ? undefined : (minutesToNs(v) ?? undefined);
+                        })
+                      }
+                    />
+                    <span className="text-sm text-fg-subtle">min</span>
+                  </FieldRow>
                   {draft.circuitBreakerDefaults.levelOrder.map((name) => {
                     const override = config.circuitBreaker?.levels[name];
                     return (

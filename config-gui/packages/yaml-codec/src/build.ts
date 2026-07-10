@@ -142,8 +142,29 @@ function buildGateways(draft: EngineConfigDraft): PlainConfig[] {
       disconnect_behaviour: gw.disconnectBehaviour,
     };
     if (gw.description) payload.description = gw.description;
+    // quote_refresh_policy only applies to market makers; default preserved.
     if (gw.role === "MARKET_MAKER") {
-      payload.quote_refresh_policy = "INACTIVATE_ON_ANY_FILL";
+      payload.quote_refresh_policy = gw.quoteRefreshPolicy ?? "INACTIVATE_ON_ANY_FILL";
+    }
+    // Per-gateway flat MM obligation overrides — emitted only when explicitly set.
+    if (gw.enforceMmObligation !== undefined) {
+      payload.enforce_mm_obligation = gw.enforceMmObligation;
+    }
+    if (gw.mmMaxSpreadTicks !== undefined) payload.mm_max_spread_ticks = gw.mmMaxSpreadTicks;
+    if (gw.mmMinQty !== undefined) payload.mm_min_qty = gw.mmMinQty;
+    // Per-symbol obligation overrides (nested keys: max_spread_ticks / min_qty).
+    if (gw.mmObligations && Object.keys(gw.mmObligations).length > 0) {
+      const obligations: PlainConfig = {};
+      for (const [symbol, override] of Object.entries(gw.mmObligations)) {
+        const entry: PlainConfig = {};
+        if (override.enforceMmObligation !== undefined) {
+          entry.enforce_mm_obligation = override.enforceMmObligation;
+        }
+        if (override.maxSpreadTicks !== undefined) entry.max_spread_ticks = override.maxSpreadTicks;
+        if (override.minQty !== undefined) entry.min_qty = override.minQty;
+        obligations[symbol] = entry;
+      }
+      payload.mm_obligations = obligations;
     }
     return payload;
   });
@@ -207,18 +228,27 @@ function buildSymbol(
     payload.collar = collar;
   }
 
-  if (config.circuitBreaker && Object.keys(config.circuitBreaker.levels).length > 0) {
-    const cbLevels: PlainConfig = {};
-    for (const name of Object.keys(config.circuitBreaker.levels).sort()) {
-      const lvl = config.circuitBreaker.levels[name];
-      if (!lvl) continue;
-      const lvlPayload: PlainConfig = {};
-      if (lvl.priceShiftPct !== undefined) lvlPayload.price_shift_pct = lvl.priceShiftPct;
-      if (lvl.haltDurationNs !== undefined) lvlPayload.halt_duration_ns = lvl.haltDurationNs;
-      if (lvl.resumptionMode !== undefined) lvlPayload.resumption_mode = lvl.resumptionMode;
-      cbLevels[name] = lvlPayload;
+  if (config.circuitBreaker) {
+    const hasLevels = Object.keys(config.circuitBreaker.levels).length > 0;
+    const hasWindow = config.circuitBreaker.referenceWindowNs !== undefined;
+    if (hasLevels || hasWindow) {
+      const cb: PlainConfig = {};
+      if (hasWindow) cb.reference_window_ns = config.circuitBreaker.referenceWindowNs;
+      if (hasLevels) {
+        const cbLevels: PlainConfig = {};
+        for (const name of Object.keys(config.circuitBreaker.levels).sort()) {
+          const lvl = config.circuitBreaker.levels[name];
+          if (!lvl) continue;
+          const lvlPayload: PlainConfig = {};
+          if (lvl.priceShiftPct !== undefined) lvlPayload.price_shift_pct = lvl.priceShiftPct;
+          if (lvl.haltDurationNs !== undefined) lvlPayload.halt_duration_ns = lvl.haltDurationNs;
+          if (lvl.resumptionMode !== undefined) lvlPayload.resumption_mode = lvl.resumptionMode;
+          cbLevels[name] = lvlPayload;
+        }
+        cb.levels = cbLevels;
+      }
+      payload.circuit_breaker = cb;
     }
-    payload.circuit_breaker = { levels: cbLevels };
   }
 
   if (mmGatewayIds.length > 0) {

@@ -72,6 +72,25 @@ function expertFull(): EngineConfigDraft {
   ];
   d.balfGateway.enabled = true;
   d.output.commentDefaultFields = true;
+
+  // P1.1: non-default quote refresh policy on the market maker.
+  const mm = d.gateways.find((g) => g.id === "MM01");
+  if (mm) mm.quoteRefreshPolicy = "INACTIVATE_ON_FULL_FILL";
+
+  // P1.4: per-symbol circuit-breaker reference-window override.
+  if (d.symbols.AAPL) {
+    d.symbols.AAPL.circuitBreaker = { referenceWindowNs: 600_000_000_000, levels: {} };
+  }
+
+  // P1.2/P1.3: per-gateway MM obligation overrides (flat + per-symbol).
+  if (mm) {
+    mm.enforceMmObligation = true;
+    mm.mmMaxSpreadTicks = 8;
+    mm.mmMinQty = 300;
+    mm.mmObligations = {
+      AAPL: { enforceMmObligation: true, maxSpreadTicks: 6, minQty: 500 },
+    };
+  }
   return d;
 }
 

@@ -14,6 +14,7 @@ import {
   DUPLICATE_SESSION_POLICIES,
   ORDER_TYPES,
   PARTICIPANT_ROLES,
+  QUOTE_REFRESH_POLICIES,
   RESUMPTION_MODES,
   SIDES,
   SMP_ACTIONS,
@@ -72,7 +73,10 @@ export const symbolConfigSchema = z.object({
     })
     .optional(),
   circuitBreaker: z
-    .object({ levels: z.record(z.string(), cbLevelSchema.partial()) })
+    .object({
+      referenceWindowNs: z.number().int().positive().optional(),
+      levels: z.record(z.string(), cbLevelSchema.partial()),
+    })
     .optional(),
   marketMaker: z
     .object({
@@ -84,11 +88,22 @@ export const symbolConfigSchema = z.object({
   marketMakerQuotes: z.array(mmQuoteSeedSchema).optional(),
 });
 
+export const gatewayMmObligationOverrideSchema = z.object({
+  enforceMmObligation: z.boolean().optional(),
+  maxSpreadTicks: z.number().int().positive().optional(),
+  minQty: z.number().int().positive().optional(),
+});
+
 export const gatewayConfigSchema = z.object({
   id: z.string().min(1),
   role: z.enum(PARTICIPANT_ROLES),
   disconnectBehaviour: z.enum(DISCONNECT_BEHAVIOURS),
   description: z.string().optional(),
+  quoteRefreshPolicy: z.enum(QUOTE_REFRESH_POLICIES).optional(),
+  enforceMmObligation: z.boolean().optional(),
+  mmMaxSpreadTicks: z.number().int().positive().optional(),
+  mmMinQty: z.number().int().positive().optional(),
+  mmObligations: z.record(z.string(), gatewayMmObligationOverrideSchema).optional(),
 });
 
 export const riskLevelSchema = z.object({

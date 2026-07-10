@@ -16,9 +16,11 @@ import {
   type ComboConfig,
   type EngineConfigDraft,
   type GatewayConfig,
+  type GatewayMmObligationOverride,
   type IndexConfig,
   type MmQuoteSeed,
   type ParticipantRole,
+  type QuoteRefreshPolicy,
   type ResumptionMode,
   type RiskLevel,
   type SymbolConfig,
@@ -112,12 +114,46 @@ function parseGateways(node: unknown, draft: EngineConfigDraft): void {
     if (!id) continue;
     const role = (asString(entry.role) as ParticipantRole) ?? "TRADER";
     const base = createGateway(id, role);
+    // P3.9: when disconnect_behaviour is omitted, reflect the engine loader's
+    // real default (CANCEL_QUOTES_ONLY for every role) rather than the
+    // role-derived value createGateway() uses for freshly authored gateways.
+    // This keeps import -> re-export faithful to what the engine would have done
+    // with the original omitted field.
     const disconnect = asString(entry.disconnect_behaviour);
-    if (disconnect) {
-      base.disconnectBehaviour = disconnect as GatewayConfig["disconnectBehaviour"];
-    }
+    base.disconnectBehaviour = disconnect
+      ? (disconnect as GatewayConfig["disconnectBehaviour"])
+      : "CANCEL_QUOTES_ONLY";
     const description = asString(entry.description);
     if (description) base.description = description;
+    const refresh = asString(entry.quote_refresh_policy);
+    if (refresh) base.quoteRefreshPolicy = refresh as QuoteRefreshPolicy;
+
+    // Per-gateway flat MM obligation overrides.
+    if (typeof entry.enforce_mm_obligation === "boolean") {
+      base.enforceMmObligation = entry.enforce_mm_obligation;
+    }
+    const maxSpread = asNumber(entry.mm_max_spread_ticks);
+    if (maxSpread !== undefined) base.mmMaxSpreadTicks = maxSpread;
+    const minQty = asNumber(entry.mm_min_qty);
+    if (minQty !== undefined) base.mmMinQty = minQty;
+
+    // Per-symbol obligation overrides (nested keys: max_spread_ticks / min_qty).
+    if (isDict(entry.mm_obligations)) {
+      const obligations: Record<string, GatewayMmObligationOverride> = {};
+      for (const [sym, override] of Object.entries(entry.mm_obligations)) {
+        if (!isDict(override)) continue;
+        const parsed: GatewayMmObligationOverride = {};
+        if (typeof override.enforce_mm_obligation === "boolean") {
+          parsed.enforceMmObligation = override.enforce_mm_obligation;
+        }
+        const oms = asNumber(override.max_spread_ticks);
+        if (oms !== undefined) parsed.maxSpreadTicks = oms;
+        const omq = asNumber(override.min_qty);
+        if (omq !== undefined) parsed.minQty = omq;
+        obligations[sym.toUpperCase()] = parsed;
+      }
+      if (Object.keys(obligations).length > 0) base.mmObligations = obligations;
+    }
     gateways.push(base);
   }
   draft.gateways = gateways;
@@ -144,19 +180,26 @@ function parseSymbols(node: unknown, draft: EngineConfigDraft): void {
         dynamicBandPct: asNumber(value.collar.dynamic_band_pct),
       };
     }
-    if (isDict(value.circuit_breaker) && isDict(value.circuit_breaker.levels)) {
+    if (isDict(value.circuit_breaker)) {
+      const cbRaw = value.circuit_breaker;
       const levels: Record<string, Partial<CbLevel>> = {};
-      for (const [name, lvl] of Object.entries(value.circuit_breaker.levels)) {
-        if (!isDict(lvl)) continue;
-        const partial: Partial<CbLevel> = {};
-        const shift = asNumber(lvl.price_shift_pct);
-        if (shift !== undefined) partial.priceShiftPct = shift;
-        if ("halt_duration_ns" in lvl) partial.haltDurationNs = asNumber(lvl.halt_duration_ns) ?? null;
-        const mode = asString(lvl.resumption_mode);
-        if (mode) partial.resumptionMode = mode as ResumptionMode;
-        levels[name] = partial;
+      if (isDict(cbRaw.levels)) {
+        for (const [name, lvl] of Object.entries(cbRaw.levels)) {
+          if (!isDict(lvl)) continue;
+          const partial: Partial<CbLevel> = {};
+          const shift = asNumber(lvl.price_shift_pct);
+          if (shift !== undefined) partial.priceShiftPct = shift;
+          if ("halt_duration_ns" in lvl) partial.haltDurationNs = asNumber(lvl.halt_duration_ns) ?? null;
+          const mode = asString(lvl.resumption_mode);
+          if (mode) partial.resumptionMode = mode as ResumptionMode;
+          levels[name] = partial;
+        }
       }
-      config.circuitBreaker = { levels };
+      const windowNs = asNumber(cbRaw.reference_window_ns);
+      if (windowNs !== undefined || Object.keys(levels).length > 0) {
+        config.circuitBreaker = { levels };
+        if (windowNs !== undefined) config.circuitBreaker.referenceWindowNs = windowNs;
+      }
     }
     if (Array.isArray(value.market_maker_quotes)) {
       const quotes: MmQuoteSeed[] = [];

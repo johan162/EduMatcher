@@ -53,6 +53,60 @@ describe("buildConfigDocument", () => {
     });
   });
 
+  it("P1.2/P1.3: emits and round-trips per-gateway MM obligation overrides", () => {
+    const draft = twoTraderExchange();
+    const mm = createGateway("MM01", "MARKET_MAKER");
+    mm.enforceMmObligation = true;
+    mm.mmMaxSpreadTicks = 8;
+    mm.mmMinQty = 300;
+    mm.mmObligations = { AAPL: { enforceMmObligation: true, maxSpreadTicks: 6, minQty: 500 } };
+    draft.gateways.push(mm);
+    const doc = buildConfigDocument(draft) as any;
+    const mmOut = doc.gateways.alf.find((g: any) => g.id === "MM01");
+    expect(mmOut.enforce_mm_obligation).toBe(true);
+    expect(mmOut.mm_max_spread_ticks).toBe(8);
+    expect(mmOut.mm_min_qty).toBe(300);
+    // Nested keys use max_spread_ticks / min_qty (no mm_ prefix).
+    expect(mmOut.mm_obligations.AAPL).toEqual({
+      enforce_mm_obligation: true,
+      max_spread_ticks: 6,
+      min_qty: 500,
+    });
+    // Non-overridden gateways carry none of these keys.
+    const trader = doc.gateways.alf.find((g: any) => g.id === "TRADER01");
+    expect(trader.enforce_mm_obligation).toBeUndefined();
+    expect(trader.mm_obligations).toBeUndefined();
+
+    const { draft: reparsed } = parseYamlToDraft(generateYaml(draft));
+    const mmBack = reparsed.gateways.find((g) => g.id === "MM01")!;
+    expect(mmBack.enforceMmObligation).toBe(true);
+    expect(mmBack.mmMaxSpreadTicks).toBe(8);
+    expect(mmBack.mmMinQty).toBe(300);
+    expect(mmBack.mmObligations!.AAPL).toEqual({
+      enforceMmObligation: true,
+      maxSpreadTicks: 6,
+      minQty: 500,
+    });
+  });
+
+  it("P1.1: emits and round-trips a non-default quote_refresh_policy for MM gateways", () => {
+    const draft = twoTraderExchange();
+    const mm = createGateway("MM01", "MARKET_MAKER");
+    mm.quoteRefreshPolicy = "NEVER_INACTIVATE";
+    draft.gateways.push(mm);
+    const doc = buildConfigDocument(draft) as any;
+    const mmOut = doc.gateways.alf.find((g: any) => g.id === "MM01");
+    expect(mmOut.quote_refresh_policy).toBe("NEVER_INACTIVATE");
+    // Non-MM gateways never carry the field.
+    const trader = doc.gateways.alf.find((g: any) => g.id === "TRADER01");
+    expect(trader.quote_refresh_policy).toBeUndefined();
+
+    const { draft: reparsed } = parseYamlToDraft(generateYaml(draft));
+    expect(reparsed.gateways.find((g) => g.id === "MM01")!.quoteRefreshPolicy).toBe(
+      "NEVER_INACTIVATE",
+    );
+  });
+
   it("seeds bid/ask around the mid-range when configured", () => {
     const draft = twoTraderExchange();
     draft.gateways.push(createGateway("MM01", "MARKET_MAKER"));
@@ -112,6 +166,39 @@ describe("buildConfigDocument", () => {
     expect(quotes![0]).toMatchObject({ gatewayId: "MM01", bidPrice: 191.85, askPrice: 191.87, bidQty: 1000 });
   });
 
+  it("P1.4: emits and round-trips a per-symbol circuit_breaker.reference_window_ns", () => {
+    const draft = twoTraderExchange();
+    draft.symbols.AAPL = {
+      tickDecimals: 2,
+      lastBuyPrice: 100,
+      lastSellPrice: 100,
+      circuitBreaker: { referenceWindowNs: 600_000_000_000, levels: {} },
+    };
+    const doc = buildConfigDocument(draft) as any;
+    expect(doc.symbols.AAPL.circuit_breaker.reference_window_ns).toBe(600_000_000_000);
+    // No levels emitted when only the window is overridden.
+    expect(doc.symbols.AAPL.circuit_breaker.levels).toBeUndefined();
+
+    const { draft: reparsed } = parseYamlToDraft(generateYaml(draft));
+    expect(reparsed.symbols.AAPL!.circuitBreaker!.referenceWindowNs).toBe(600_000_000_000);
+  });
+
+  it("P1.4: window override coexists with per-level shift overrides", () => {
+    const draft = twoTraderExchange();
+    draft.symbols.AAPL = {
+      tickDecimals: 2,
+      lastBuyPrice: 100,
+      lastSellPrice: 100,
+      circuitBreaker: { referenceWindowNs: 120_000_000_000, levels: { L1: { priceShiftPct: 0.05 } } },
+    };
+    const doc = buildConfigDocument(draft) as any;
+    expect(doc.symbols.AAPL.circuit_breaker.reference_window_ns).toBe(120_000_000_000);
+    expect(doc.symbols.AAPL.circuit_breaker.levels.L1.price_shift_pct).toBe(0.05);
+    const { draft: reparsed } = parseYamlToDraft(generateYaml(draft));
+    expect(reparsed.symbols.AAPL!.circuitBreaker!.referenceWindowNs).toBe(120_000_000_000);
+    expect(reparsed.symbols.AAPL!.circuitBreaker!.levels.L1!.priceShiftPct).toBe(0.05);
+  });
+
   it("converts combo leg decimal prices to ticks using tick_decimals", () => {
     const draft = twoTraderExchange();
     draft.combos = [
@@ -167,6 +254,40 @@ describe("parseYamlToDraft round trip", () => {
     expect(reparsed.gateways[2]!.role).toBe("ADMIN");
     expect(reparsed.sessionsEnabled).toBe(true);
     expect(reparsed.riskControls.globalStaticBandPct).toBeCloseTo(0.2, 5);
+  });
+
+  it("P3.9: imports an omitted disconnect_behaviour as the engine default (CANCEL_QUOTES_ONLY)", () => {
+    const text = [
+      "sessions_enabled: false",
+      "enforce_collars: true",
+      "enforce_circuit_breakers: true",
+      "snapshot_interval_sec: 0.5",
+      "gateways:",
+      "  alf:",
+      "  - id: TRADER01", // TRADER, disconnect_behaviour intentionally omitted
+      "    role: TRADER",
+      "  - id: OPS01",
+      "    role: ADMIN",
+      "    disconnect_behaviour: LEAVE_ALL",
+      "symbols:",
+      "  AAPL:",
+      "    tick_decimals: 2",
+      "",
+    ].join("\n");
+    const { draft } = parseYamlToDraft(text);
+    // Omitted -> engine default, not the role-derived CANCEL_ALL.
+    expect(draft.gateways[0]!.disconnectBehaviour).toBe("CANCEL_QUOTES_ONLY");
+    // Explicit value is preserved verbatim.
+    expect(draft.gateways[1]!.disconnectBehaviour).toBe("LEAVE_ALL");
+    // Re-export keeps the imported behaviour rather than silently changing it.
+    const regenerated = generateYaml(draft);
+    const parsed = yaml.load(regenerated, { json: true }) as any;
+    expect(parsed.gateways.alf[0].disconnect_behaviour).toBe("CANCEL_QUOTES_ONLY");
+  });
+
+  it("newly created gateways still use role-derived disconnect defaults", () => {
+    expect(createGateway("T1", "TRADER").disconnectBehaviour).toBe("CANCEL_ALL");
+    expect(createGateway("OPS", "ADMIN").disconnectBehaviour).toBe("LEAVE_ALL");
   });
 
   it("preserves unmapped top-level sections", () => {

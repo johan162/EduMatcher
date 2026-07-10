@@ -20,6 +20,13 @@ export const DISCONNECT_BEHAVIOURS = [
 ] as const;
 export type DisconnectBehaviour = (typeof DISCONNECT_BEHAVIOURS)[number];
 
+export const QUOTE_REFRESH_POLICIES = [
+  "INACTIVATE_ON_ANY_FILL",
+  "INACTIVATE_ON_FULL_FILL",
+  "NEVER_INACTIVATE",
+] as const;
+export type QuoteRefreshPolicy = (typeof QUOTE_REFRESH_POLICIES)[number];
+
 export const RESUMPTION_MODES = ["AUCTION", "CONTINUOUS"] as const;
 export type ResumptionMode = (typeof RESUMPTION_MODES)[number];
 
@@ -134,7 +141,11 @@ export interface SymbolConfig {
   lastBuyPrice?: number | null;
   lastSellPrice?: number | null;
   collar?: { staticBandPct?: number; dynamicBandPct?: number };
-  circuitBreaker?: { levels: Record<string, Partial<CbLevel>> };
+  circuitBreaker?: {
+    /** Per-symbol override of the rolling reference window (ns). */
+    referenceWindowNs?: number;
+    levels: Record<string, Partial<CbLevel>>;
+  };
   marketMaker?: {
     enforceMmObligation?: boolean;
     mmMaxSpreadTicks?: number;
@@ -148,11 +159,38 @@ export interface SymbolConfig {
   marketMakerQuotes?: MmQuoteSeed[];
 }
 
+/**
+ * Per-symbol market-maker obligation override for a single gateway
+ * (`gateways.alf[*].mm_obligations.<SYM>`). Note the engine uses the nested
+ * keys `max_spread_ticks` / `min_qty` here (no `mm_` prefix), unlike the flat
+ * gateway/global fields. Undefined fields inherit the gateway's flat values.
+ */
+export interface GatewayMmObligationOverride {
+  enforceMmObligation?: boolean;
+  maxSpreadTicks?: number;
+  minQty?: number;
+}
+
 export interface GatewayConfig {
   id: string;
   role: ParticipantRole;
   disconnectBehaviour: DisconnectBehaviour;
   description?: string;
+  /**
+   * When quotes are inactivated after a fill. Only meaningful for MARKET_MAKER
+   * gateways; omitted from output for other roles. Undefined = engine/GUI
+   * default (INACTIVATE_ON_ANY_FILL).
+   */
+  quoteRefreshPolicy?: QuoteRefreshPolicy;
+  /**
+   * Per-gateway flat market-maker obligation overrides. Undefined = inherit the
+   * global mm_obligation_defaults. Only meaningful for MARKET_MAKER gateways.
+   */
+  enforceMmObligation?: boolean;
+  mmMaxSpreadTicks?: number;
+  mmMinQty?: number;
+  /** Per-symbol obligation overrides for this gateway, keyed by symbol. */
+  mmObligations?: Record<string, GatewayMmObligationOverride>;
 }
 
 export interface RiskLevel {

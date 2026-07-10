@@ -15,6 +15,7 @@ import { FieldRow } from "@/components/fields/FieldRow";
 import { TextInput } from "@/components/fields/inputs";
 import { Select } from "@/components/ui/Select";
 import { SymbolEditorDialog } from "@/components/symbols/SymbolEditorDialog";
+import { GatewayAdvancedDialog } from "@/components/gateways/GatewayAdvancedDialog";
 
 export function BasicsTab() {
   const draft = useDraftStore((s) => s.draft);
@@ -23,6 +24,7 @@ export function BasicsTab() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSymbol, setEditingSymbol] = useState<string | undefined>(undefined);
+  const [advancedGatewayId, setAdvancedGatewayId] = useState<string | null>(null);
 
   const openCreate = () => {
     setEditingSymbol(undefined);
@@ -237,6 +239,17 @@ export function BasicsTab() {
                         </td>
                       )}
                       <td className="px-3 py-1.5 text-right">
+                        {canSee("E") && gateway.role === "MARKET_MAKER" && (
+                          <button
+                            type="button"
+                            aria-label={`Advanced settings for ${gateway.id || index + 1}`}
+                            title="Advanced market-maker settings"
+                            onClick={() => setAdvancedGatewayId(gateway.id)}
+                            className="mr-2 text-fg-subtle hover:text-fg"
+                          >
+                            ⚙
+                          </button>
+                        )}
                         <button
                           type="button"
                           aria-label={`Remove gateway ${gateway.id || index + 1}`}
@@ -284,6 +297,14 @@ export function BasicsTab() {
         mode={editingSymbol ? "edit" : "create"}
         symbolName={editingSymbol}
       />
+
+      {advancedGatewayId && (
+        <GatewayAdvancedDialog
+          open={advancedGatewayId !== null}
+          onOpenChange={(o) => !o && setAdvancedGatewayId(null)}
+          gatewayId={advancedGatewayId}
+        />
+      )}
     </Panel>
   );
 }

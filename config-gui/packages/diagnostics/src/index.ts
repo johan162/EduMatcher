@@ -570,8 +570,33 @@ const symbolMissingOutstandingShares: Rule = (draft) => {
   return out;
 };
 
+/**
+ * A gateway's per-symbol MM obligation override should reference a configured
+ * symbol. The engine tolerates unknown keys, but they are almost always a typo.
+ */
+const gatewayMmObligationUnknownSymbol: Rule = (draft) => {
+  const universe = new Set(draft.symbolOrder);
+  const out: Diagnostic[] = [];
+  for (const gw of draft.gateways) {
+    if (!gw.mmObligations) continue;
+    for (const sym of Object.keys(gw.mmObligations)) {
+      if (!universe.has(sym)) {
+        out.push({
+          id: "gateway-mm-obligation-unknown-symbol",
+          severity: "warning",
+          message: `Gateway ${gw.id} has a market-maker obligation override for unknown symbol ${sym}. Add the symbol or remove the override.`,
+          fieldPaths: ["gateways", "symbols"],
+          tab: "basics",
+        });
+      }
+    }
+  }
+  return out;
+};
+
 const RULES: Rule[] = [
   undefinedRiskLevel,
+  gatewayMmObligationUnknownSymbol,
   mmGatewayNeedsSeeds,
   enforcementDisabled,
   tickDecimalsZero,

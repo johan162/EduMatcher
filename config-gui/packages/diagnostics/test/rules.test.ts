@@ -88,6 +88,22 @@ describe("diagnostics rules", () => {
     expect(found).toContain("combo-duplicate-leg-symbol");
   });
 
+  it("warns when a gateway MM obligation references an unknown symbol", () => {
+    const draft = base();
+    const mm = createGateway("MM01", "MARKET_MAKER");
+    mm.mmObligations = { GHOST: { maxSpreadTicks: 6 } };
+    draft.gateways.push(mm);
+    expect(ids(draft)).toContain("gateway-mm-obligation-unknown-symbol");
+  });
+
+  it("does not warn when a gateway MM obligation references a known symbol", () => {
+    const draft = base();
+    const mm = createGateway("MM01", "MARKET_MAKER");
+    mm.mmObligations = { AAPL: { maxSpreadTicks: 6 } };
+    draft.gateways.push(mm);
+    expect(ids(draft)).not.toContain("gateway-mm-obligation-unknown-symbol");
+  });
+
   it("warns on a single gateway and no info noise on a healthy config", () => {
     const draft = base();
     draft.gateways = [createGateway("TRADER01")];
