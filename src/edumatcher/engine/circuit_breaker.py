@@ -59,6 +59,23 @@ class CircuitBreakerState:
             self._trade_price_sum = sum(price for _, price in self.trade_history)
             self._history_len_synced = cur_len
 
+    def seed_reference(self, price: int, now: int) -> None:
+        """Seed an initial reference price before any real trade has occurred.
+
+        On day one (no fills yet) ``trade_history`` is empty, so ``record_trade``
+        has no baseline to compare against and the breaker cannot trigger. This
+        seeds a synthetic baseline (from the symbol's configured
+        ``last_buy_price`` / ``last_sell_price``) so the breaker is active from
+        the first order, mirroring how collars are active from their reference
+        price immediately. No-op if a real trade history already exists.
+        """
+        if self.trade_history:
+            return
+        self.trade_history.append((now, price))
+        self._trade_price_sum += price
+        self._history_len_synced += 1
+        self.reference_price = price
+
     def record_trade(self, price: int, now: int) -> CircuitBreakerLevel | None:
         """Record a fill and return the triggered breaker level, if any."""
         if self.halted:
