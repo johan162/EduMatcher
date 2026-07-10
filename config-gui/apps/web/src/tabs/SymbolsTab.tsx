@@ -1,24 +1,31 @@
 import { useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import clsx from "clsx";
-import { effectiveDefaultCollar } from "@edumatcher/schema";
+import { effectiveDefaultCollar, type MmQuoteSeed } from "@edumatcher/schema";
 import { useDraftStore } from "@/store/draftStore";
 import { usePersona } from "@/lib/usePersona";
-import { fractionToPercent, percentToFraction, uppercaseId } from "@/lib/format";
+import { fractionToPercent, percentToFraction } from "@/lib/format";
 import { Panel, Section } from "@/components/layout/Panel";
 import { FieldRow } from "@/components/fields/FieldRow";
 import { NumberInput } from "@/components/fields/inputs";
-import { TagInput } from "@/components/fields/TagInput";
 import { Select } from "@/components/ui/Select";
+import { MmQuotesEditor } from "@/components/symbols/MmQuotesEditor";
+import { SymbolEditorDialog } from "@/components/symbols/SymbolEditorDialog";
 
 export function SymbolsTab() {
   const draft = useDraftStore((s) => s.draft);
   const update = useDraftStore((s) => s.update);
   const { canSee } = usePersona();
   const [selected, setSelected] = useState<string | null>(draft.symbolOrder[0] ?? null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingSymbol, setEditingSymbol] = useState<string | undefined>(undefined);
 
   const symbol = selected && draft.symbols[selected] ? selected : draft.symbolOrder[0] ?? null;
   const config = symbol ? draft.symbols[symbol] : undefined;
+
+  const mmGatewayIds = draft.gateways
+    .filter((g) => g.role === "MARKET_MAKER")
+    .map((g) => g.id);
 
   const levelOptions = [
     { value: "", label: "(inherit default)" },
@@ -50,27 +57,58 @@ export function SymbolsTab() {
             onChange={(v) => update((d) => (d.tickDecimals = v ?? 2))}
           />
         </FieldRow>
-        <FieldRow label="Symbol universe" path="symbols">
-          <TagInput
-            aria-label="Symbol universe"
-            values={draft.symbolOrder}
-            transform={uppercaseId}
-            placeholder="Add symbols"
-            onAdd={(s) =>
-              update((d) => {
-                if (!d.symbols[s]) {
-                  d.symbols[s] = { tickDecimals: d.tickDecimals };
-                  d.symbolOrder.push(s);
-                }
-              })
-            }
-            onRemove={(s) =>
-              update((d) => {
-                delete d.symbols[s];
-                d.symbolOrder = d.symbolOrder.filter((x) => x !== s);
-              })
-            }
-          />
+        <FieldRow
+          label="Symbol universe"
+          path="symbols"
+          help={{
+            text: "Add a symbol as a structured instrument (name + required reference prices, plus optional precision, shares, and MM quotes).",
+            cliFlag: "--symbols",
+          }}
+        >
+          <div className="w-full">
+            <div className="flex flex-wrap gap-1.5">
+              {draft.symbolOrder.map((s) => (
+                <span
+                  key={s}
+                  className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2 py-1 text-sm"
+                >
+                  {s}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${s}`}
+                    onClick={() =>
+                      update((d) => {
+                        delete d.symbols[s];
+                        d.symbolOrder = d.symbolOrder.filter((x) => x !== s);
+                        for (const index of d.indices) {
+                          index.constituents = index.constituents.filter((c) => c !== s);
+                        }
+                        for (const combo of d.combos) {
+                          combo.legs = combo.legs.filter((leg) => leg.symbol !== s);
+                        }
+                      })
+                    }
+                    className="text-fg-subtle hover:text-error"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              {draft.symbolOrder.length === 0 && (
+                <span className="text-sm text-fg-subtle">No symbols yet.</span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingSymbol(undefined);
+                setDialogOpen(true);
+              }}
+              className="mt-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+            >
+              + Add symbol
+            </button>
+          </div>
         </FieldRow>
       </Section>
 
@@ -101,6 +139,7 @@ export function SymbolsTab() {
                   { v: "collar", label: "Collar", show: true },
                   { v: "cb", label: "Circuit Breaker", show: canSee("E") },
                   { v: "mm", label: "Market Maker", show: true },
+                  { v: "mmq", label: "MM Quotes", show: canSee("I") },
                 ]
                   .filter((t) => t.show)
                   .map((t) => (
@@ -127,6 +166,34 @@ export function SymbolsTab() {
                     min={0}
                     max={8}
                     onChange={(v) => update((d) => (d.symbols[symbol]!.tickDecimals = v ?? draft.tickDecimals))}
+                  />
+                </FieldRow>
+                <FieldRow
+                  label="Last buy price"
+                  path={`symbols.${symbol}.lastBuyPrice`}
+                  required
+                  help={{ text: "Opening reference used to seed the book and the collar static reference. Required.", cliFlag: "--seed-last-prices" }}
+                >
+                  <NumberInput
+                    aria-label="Last buy price"
+                    value={config.lastBuyPrice ?? undefined}
+                    min={0}
+                    step={0.01}
+                    onChange={(v) => update((d) => (d.symbols[symbol]!.lastBuyPrice = v ?? null))}
+                  />
+                </FieldRow>
+                <FieldRow
+                  label="Last sell price"
+                  path={`symbols.${symbol}.lastSellPrice`}
+                  required
+                  help={{ text: "Opening reference used to seed the book. Required.", cliFlag: "--seed-last-prices" }}
+                >
+                  <NumberInput
+                    aria-label="Last sell price"
+                    value={config.lastSellPrice ?? undefined}
+                    min={0}
+                    step={0.01}
+                    onChange={(v) => update((d) => (d.symbols[symbol]!.lastSellPrice = v ?? null))}
                   />
                 </FieldRow>
                 <FieldRow
@@ -303,12 +370,40 @@ export function SymbolsTab() {
                   />
                 </FieldRow>
               </Tabs.Content>
+
+              {canSee("I") && (
+                <Tabs.Content value="mmq">
+                  <p className="mb-3 text-sm text-fg-subtle">
+                    Explicit market-maker quote seeds for this symbol. Multiple market makers are
+                    supported; each gateway must have role MARKET_MAKER. When left empty, the
+                    builder auto-generates one stub per MM gateway.
+                  </p>
+                  <MmQuotesEditor
+                    quotes={config.marketMakerQuotes ?? []}
+                    mmGatewayIds={mmGatewayIds}
+                    showQuoteId={canSee("E")}
+                    onChange={(next: MmQuoteSeed[]) =>
+                      update((d) => {
+                        d.symbols[symbol]!.marketMakerQuotes =
+                          next.length > 0 ? next : undefined;
+                      })
+                    }
+                  />
+                </Tabs.Content>
+              )}
             </Tabs.Root>
           </div>
         </div>
       ) : (
         <p className="mt-6 text-sm text-fg-subtle">Add symbols in Basics (or above) to configure per-symbol overrides.</p>
       )}
+
+      <SymbolEditorDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        mode={editingSymbol ? "edit" : "create"}
+        symbolName={editingSymbol}
+      />
     </Panel>
   );
 }

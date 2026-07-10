@@ -6,27 +6,32 @@ import {
   type DisconnectBehaviour,
   type ParticipantRole,
 } from "@edumatcher/schema";
+import { useState } from "react";
 import { useDraftStore } from "@/store/draftStore";
 import { usePersona } from "@/lib/usePersona";
 import { uppercaseId } from "@/lib/format";
 import { Panel, Section } from "@/components/layout/Panel";
 import { FieldRow } from "@/components/fields/FieldRow";
-import { TagInput } from "@/components/fields/TagInput";
 import { TextInput } from "@/components/fields/inputs";
 import { Select } from "@/components/ui/Select";
+import { SymbolEditorDialog } from "@/components/symbols/SymbolEditorDialog";
 
 export function BasicsTab() {
   const draft = useDraftStore((s) => s.draft);
   const update = useDraftStore((s) => s.update);
   const { canSee } = usePersona();
 
-  const addSymbol = (symbol: string) =>
-    update((d) => {
-      if (!d.symbols[symbol]) {
-        d.symbols[symbol] = { tickDecimals: d.tickDecimals };
-        d.symbolOrder.push(symbol);
-      }
-    });
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingSymbol, setEditingSymbol] = useState<string | undefined>(undefined);
+
+  const openCreate = () => {
+    setEditingSymbol(undefined);
+    setDialogOpen(true);
+  };
+  const openEdit = (symbol: string) => {
+    setEditingSymbol(symbol);
+    setDialogOpen(true);
+  };
 
   const removeSymbol = (symbol: string) =>
     update((d) => {
@@ -48,25 +53,95 @@ export function BasicsTab() {
     >
       <Section
         title="Symbols"
-        description="Ticker symbols traded on this exchange. Type and press Enter or comma; names are uppercased automatically."
+        description="Each symbol is a structured instrument with required reference prices. Use Add symbol to create one; edit any row to adjust prices and (for higher personas) precision, shares, and market-maker quotes."
       >
         <FieldRow
           label="Symbols"
           path="symbols"
           required
           help={{
-            text: "The instrument universe. Every gateway can trade every symbol. Add at least one.",
+            text: "The instrument universe. Every symbol needs a last buy and last sell reference price. Add at least one.",
             cliFlag: "--symbols",
           }}
         >
-          <TagInput
-            aria-label="Symbols"
-            values={draft.symbolOrder}
-            onAdd={addSymbol}
-            onRemove={removeSymbol}
-            transform={uppercaseId}
-            placeholder="e.g. AAPL, MSFT, TSLA"
-          />
+          <div className="w-full">
+            <div className="overflow-hidden rounded-md border border-border">
+              <table className="w-full text-sm">
+                <thead className="bg-muted text-left text-xs uppercase text-fg-subtle">
+                  <tr>
+                    <th className="px-3 py-2">Symbol</th>
+                    <th className="px-3 py-2">Last buy</th>
+                    <th className="px-3 py-2">Last sell</th>
+                    {canSee("I") && <th className="px-3 py-2">MM quotes</th>}
+                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {draft.symbolOrder.map((symbol) => {
+                    const cfg = draft.symbols[symbol]!;
+                    const missing =
+                      cfg.lastBuyPrice === undefined ||
+                      cfg.lastBuyPrice === null ||
+                      cfg.lastSellPrice === undefined ||
+                      cfg.lastSellPrice === null;
+                    return (
+                      <tr key={symbol} className="border-t border-border">
+                        <td className="px-3 py-1.5 font-medium">{symbol}</td>
+                        <td className="px-3 py-1.5">{cfg.lastBuyPrice ?? "—"}</td>
+                        <td className="px-3 py-1.5">{cfg.lastSellPrice ?? "—"}</td>
+                        {canSee("I") && (
+                          <td className="px-3 py-1.5">{cfg.marketMakerQuotes?.length ?? 0}</td>
+                        )}
+                        <td className="px-3 py-1.5">
+                          {missing ? (
+                            <span className="text-warning">⚠ prices missing</span>
+                          ) : (
+                            <span className="text-success">✓ complete</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-1.5 text-right">
+                          <button
+                            type="button"
+                            aria-label={`Edit ${symbol}`}
+                            onClick={() => openEdit(symbol)}
+                            className="mr-2 text-fg-subtle hover:text-fg"
+                          >
+                            ✎
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Remove ${symbol}`}
+                            onClick={() => removeSymbol(symbol)}
+                            className="text-fg-subtle hover:text-error"
+                          >
+                            ×
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {draft.symbolOrder.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={canSee("I") ? 6 : 5}
+                        className="px-3 py-3 text-center text-fg-subtle"
+                      >
+                        No symbols yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <button
+              type="button"
+              onClick={openCreate}
+              className="mt-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+            >
+              + Add symbol
+            </button>
+          </div>
         </FieldRow>
       </Section>
 
@@ -202,6 +277,13 @@ export function BasicsTab() {
           </div>
         </FieldRow>
       </Section>
+
+      <SymbolEditorDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        mode={editingSymbol ? "edit" : "create"}
+        symbolName={editingSymbol}
+      />
     </Panel>
   );
 }
