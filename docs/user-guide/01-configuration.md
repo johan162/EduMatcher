@@ -98,6 +98,20 @@ Use it when:
 - you want consistent defaults and validation hints
 - you need repeatable config generation in scripts
 
+## Generate Configs with `config-gui` 
+
+A more user friendly way to create a configuration file (also known as 
+reference data) is to spin up the Web-App. The easiest way to run it is by running the
+container image. You can use either `docker` or `podman` but in the examples we use
+`podman`
+
+1. Download latest `edumatcher-config-gui-<VERSION>.tar.gz` and unzip 
+2. `podman load --input dist/edumatcher-config-gui-<VERSION>tar.gz` 
+3. Then run: `podman run -p 8080:8080 edumatcher-config-gui:<VERSION>`
+
+You can then access the UI at `http://localhost:8080/`
+
+More details of the Web app and how to use it can be found in [Configuration GUI](./27-config-GUI.md)
 
 ## Verify Configs with `pm-cverifier`
 

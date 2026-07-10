@@ -215,9 +215,11 @@ dist: check-container-env ## Build a distributable: container image + exported O
 	@# Export the image to a tar archive for offline distribution
 	@mkdir -p $(DIST_DIR)
 	@$(CONTAINER_RUNTIME) save --output $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar $(IMAGE)
-	@echo -e "$(GREEN)✓ Distributable ready: $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar$(NC)"
+	# Compress the tarball to save space (optional)
+	@gzip -f $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar
+	@echo -e "$(GREEN)✓ Distributable ready: $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar.gz$(NC)"
 	@echo -e "$(BLUE)  Load on another host:$(NC)"
-	@echo -e "$(BLUE)    $(CONTAINER_RUNTIME) load --input $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar$(NC)"
+	@echo -e "$(BLUE)    $(CONTAINER_RUNTIME) load --input $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar.gz$(NC)"
 	@echo -e "$(BLUE)  Then run: $(CONTAINER_RUNTIME) run -p 8080:8080 $(IMAGE)$(NC)"
 
 # --------------------------------------------------------------------------------------------

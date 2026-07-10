@@ -595,7 +595,6 @@ Typical setup:
 4. Instructor uses `pm-admin` to manage session phases and monitor the market.
 
 
-
 ## Reading path
 
 Use the table below to decide what to read based on your goal.
