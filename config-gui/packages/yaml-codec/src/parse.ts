@@ -10,16 +10,19 @@ import yaml from "js-yaml";
 import {
   createBlankDraft,
   createGateway,
+  DEFAULT_MM_STUB_QTY,
   type ApiGatewayConfig,
   type CbLevel,
   type ComboConfig,
   type EngineConfigDraft,
   type GatewayConfig,
   type IndexConfig,
+  type MmQuoteSeed,
   type ParticipantRole,
   type ResumptionMode,
   type RiskLevel,
   type SymbolConfig,
+  type Tif,
 } from "@edumatcher/schema";
 
 const KNOWN_TOP_LEVEL_KEYS = new Set([
@@ -154,6 +157,26 @@ function parseSymbols(node: unknown, draft: EngineConfigDraft): void {
         levels[name] = partial;
       }
       config.circuitBreaker = { levels };
+    }
+    if (Array.isArray(value.market_maker_quotes)) {
+      const quotes: MmQuoteSeed[] = [];
+      for (const raw of value.market_maker_quotes) {
+        if (!isDict(raw)) continue;
+        const gatewayId = asString(raw.gateway_id);
+        if (!gatewayId) continue;
+        const quoteId = asString(raw.quote_id);
+        quotes.push({
+          gatewayId: gatewayId.toUpperCase(),
+          ...(quoteId ? { quoteId } : {}),
+          bidPrice: asNumber(raw.bid_price) ?? null,
+          askPrice: asNumber(raw.ask_price) ?? null,
+          bidQty: asNumber(raw.bid_qty) ?? DEFAULT_MM_STUB_QTY,
+          askQty: asNumber(raw.ask_qty) ?? DEFAULT_MM_STUB_QTY,
+          tif: (asString(raw.tif) as Tif) ?? "DAY",
+          seedOnce: typeof raw.seed_once === "boolean" ? raw.seed_once : true,
+        });
+      }
+      if (quotes.length > 0) config.marketMakerQuotes = quotes;
     }
     symbols[symbol] = config;
     order.push(symbol);

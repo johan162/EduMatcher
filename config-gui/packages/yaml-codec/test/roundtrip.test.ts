@@ -65,6 +65,53 @@ describe("buildConfigDocument", () => {
     expect(doc.symbols.AAPL.last_buy_price).toBeCloseTo(100, 5);
   });
 
+  it("emits explicit last prices in preference to global seeding", () => {
+    const draft = twoTraderExchange();
+    draft.symbols.AAPL = { tickDecimals: 2, lastBuyPrice: 191.86, lastSellPrice: 191.87 };
+    draft.seeding.seedLastPrices = true; // would emit nulls if no explicit prices
+    const doc = buildConfigDocument(draft) as any;
+    expect(doc.symbols.AAPL.last_buy_price).toBe(191.86);
+    expect(doc.symbols.AAPL.last_sell_price).toBe(191.87);
+  });
+
+  it("emits explicit multi-MM quotes in preference to auto-generated stubs", () => {
+    const draft = twoTraderExchange();
+    draft.gateways.push(createGateway("MM01", "MARKET_MAKER"));
+    draft.gateways.push(createGateway("MM02", "MARKET_MAKER"));
+    draft.symbols.AAPL = {
+      tickDecimals: 2,
+      lastBuyPrice: 191.86,
+      lastSellPrice: 191.87,
+      marketMakerQuotes: [
+        { gatewayId: "MM01", bidPrice: 191.85, askPrice: 191.87, bidQty: 1000, askQty: 1000, tif: "DAY", seedOnce: true },
+        { gatewayId: "MM02", bidPrice: 191.84, askPrice: 191.88, bidQty: 500, askQty: 500, tif: "DAY", seedOnce: false },
+      ],
+    };
+    const doc = buildConfigDocument(draft) as any;
+    const quotes = doc.symbols.AAPL.market_maker_quotes;
+    expect(quotes).toHaveLength(2);
+    expect(quotes[0]).toMatchObject({ gateway_id: "MM01", bid_price: 191.85, ask_price: 191.87 });
+    expect(quotes[1]).toMatchObject({ gateway_id: "MM02", bid_qty: 500, seed_once: false });
+  });
+
+  it("round-trips explicit MM quotes through parse", () => {
+    const draft = twoTraderExchange();
+    draft.gateways.push(createGateway("MM01", "MARKET_MAKER"));
+    draft.symbols.AAPL = {
+      tickDecimals: 2,
+      lastBuyPrice: 191.86,
+      lastSellPrice: 191.87,
+      marketMakerQuotes: [
+        { gatewayId: "MM01", bidPrice: 191.85, askPrice: 191.87, bidQty: 1000, askQty: 1000, tif: "DAY", seedOnce: true },
+      ],
+    };
+    const text = generateYaml(draft);
+    const { draft: reparsed } = parseYamlToDraft(text);
+    const quotes = reparsed.symbols.AAPL!.marketMakerQuotes;
+    expect(quotes).toHaveLength(1);
+    expect(quotes![0]).toMatchObject({ gatewayId: "MM01", bidPrice: 191.85, askPrice: 191.87, bidQty: 1000 });
+  });
+
   it("converts combo leg decimal prices to ticks using tick_decimals", () => {
     const draft = twoTraderExchange();
     draft.combos = [

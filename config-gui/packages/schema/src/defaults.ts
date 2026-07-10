@@ -31,6 +31,11 @@ export const DEFAULT_MM_SPREAD_TICKS = 20;
 export const DEFAULT_MM_MIN_QTY = 100;
 export const DEFAULT_MM_STUB_QTY = 1000;
 
+/** Opening two-sided quote width (in ticks) used when seeding an IPO quote. */
+export const DEFAULT_OPENING_SPREAD_TICKS = 2;
+/** Reasonable default issued-share count suggested at listing (1 billion). */
+export const DEFAULT_OUTSTANDING_SHARES = 1_000_000_000;
+
 export const DEFAULT_POST_TRADE_GATEWAY = {
   name: "ralf-gwy01",
   bindAddress: "0.0.0.0",

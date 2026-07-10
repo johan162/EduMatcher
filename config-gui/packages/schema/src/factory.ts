@@ -11,6 +11,8 @@ import {
   DEFAULT_MARKET_DATA_GATEWAY,
   DEFAULT_MM_MIN_QTY,
   DEFAULT_MM_SPREAD_TICKS,
+  DEFAULT_MM_STUB_QTY,
+  DEFAULT_OPENING_SPREAD_TICKS,
   DEFAULT_POST_TRADE_GATEWAY,
   DEFAULT_SCHEDULE,
   DEFAULT_SNAPSHOT_INTERVAL_SEC,
@@ -27,8 +29,10 @@ import type {
   GatewayConfig,
   IndexConfig,
   MarketDataGatewayConfig,
+  MmQuoteSeed,
   ParticipantRole,
   PostTradeGatewayConfig,
+  SymbolConfig,
 } from "./types.js";
 
 const MINUTE_NS = 60 * 1_000_000_000;
@@ -133,6 +137,61 @@ export function createGateway(
   role: ParticipantRole = "TRADER",
 ): GatewayConfig {
   return { id, role, disconnectBehaviour: defaultDisconnectBehaviour(role) };
+}
+
+/** A new symbol config with the given tick precision and optional seed prices. */
+export function createSymbol(
+  tickDecimals: number = DEFAULT_TICK_DECIMALS,
+  opts?: { lastBuyPrice?: number | null; lastSellPrice?: number | null },
+): SymbolConfig {
+  const config: SymbolConfig = { tickDecimals };
+  if (opts?.lastBuyPrice !== undefined) config.lastBuyPrice = opts.lastBuyPrice;
+  if (opts?.lastSellPrice !== undefined) config.lastSellPrice = opts.lastSellPrice;
+  return config;
+}
+
+/** A blank explicit MM quote seed owned by the given MARKET_MAKER gateway. */
+export function createMmQuoteSeed(gatewayId: string): MmQuoteSeed {
+  return {
+    gatewayId,
+    bidPrice: null,
+    askPrice: null,
+    bidQty: DEFAULT_MM_STUB_QTY,
+    askQty: DEFAULT_MM_STUB_QTY,
+    tif: "DAY",
+    seedOnce: true,
+  };
+}
+
+/**
+ * Derive an opening ("IPO") two-sided quote from a single reference price.
+ *
+ * The quote straddles the reference by `spreadTicks` total (half below, half
+ * above), snapped to the symbol's tick grid. This keeps the reference price
+ * within `[bid, ask]` so the seeded last prices, the visible book, and the
+ * collar reference stay mutually consistent.
+ */
+export function deriveIpoQuote(
+  gatewayId: string,
+  referencePrice: number,
+  tickDecimals: number,
+  spreadTicks: number = DEFAULT_OPENING_SPREAD_TICKS,
+  size: number = DEFAULT_MM_STUB_QTY,
+): MmQuoteSeed {
+  const tick = Math.pow(10, -tickDecimals);
+  const halfDown = Math.floor(spreadTicks / 2);
+  const halfUp = spreadTicks - halfDown;
+  const bid = Number((referencePrice - halfDown * tick).toFixed(tickDecimals));
+  const ask = Number((referencePrice + halfUp * tick).toFixed(tickDecimals));
+  return {
+    gatewayId,
+    bidPrice: bid,
+    askPrice: ask,
+    bidQty: size,
+    askQty: size,
+    tif: "DAY",
+    seedOnce: true,
+  };
 }
 
 export function createIndex(id: string): IndexConfig {

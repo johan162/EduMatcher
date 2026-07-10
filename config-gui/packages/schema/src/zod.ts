@@ -48,6 +48,17 @@ export const mmQuoteStubSchema = z.object({
   seedOnce: z.boolean(),
 });
 
+export const mmQuoteSeedSchema = z.object({
+  gatewayId: z.string(),
+  quoteId: z.string().optional(),
+  bidPrice: z.number().nullable(),
+  askPrice: z.number().nullable(),
+  bidQty: z.number().int().positive(),
+  askQty: z.number().int().positive(),
+  tif: z.enum(TIF_VALUES),
+  seedOnce: z.boolean(),
+});
+
 export const symbolConfigSchema = z.object({
   tickDecimals: z.number().int().min(0).max(8),
   level: z.string().optional(),
@@ -70,6 +81,7 @@ export const symbolConfigSchema = z.object({
       mmMinQty: z.number().int().positive().optional(),
     })
     .optional(),
+  marketMakerQuotes: z.array(mmQuoteSeedSchema).optional(),
 });
 
 export const gatewayConfigSchema = z.object({

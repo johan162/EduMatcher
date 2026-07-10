@@ -184,7 +184,11 @@ function buildSymbol(
   if (config.level) payload.level = config.level;
 
   const midpoint = seededMidpoint(draft, draft.tickDecimals);
-  if (draft.seeding.seedLastPricesFromMm && midpoint !== null) {
+  // Explicit per-symbol last prices always win over global seeding.
+  if (config.lastBuyPrice !== undefined || config.lastSellPrice !== undefined) {
+    if (config.lastBuyPrice !== undefined) payload.last_buy_price = config.lastBuyPrice;
+    if (config.lastSellPrice !== undefined) payload.last_sell_price = config.lastSellPrice;
+  } else if (draft.seeding.seedLastPricesFromMm && midpoint !== null) {
     payload.last_buy_price = midpoint;
     payload.last_sell_price = midpoint;
   } else if (draft.seeding.seedLastPrices) {
@@ -218,9 +222,25 @@ function buildSymbol(
   }
 
   if (mmGatewayIds.length > 0) {
-    payload.market_maker_quotes = mmGatewayIds.map((gatewayId) =>
-      buildMmQuoteSeed(gatewayId, draft.tickDecimals, midpoint),
-    );
+    // Explicit per-symbol quotes (possibly multiple MMs) take precedence over
+    // the auto-generated one-stub-per-MM-gateway fallback.
+    if (config.marketMakerQuotes && config.marketMakerQuotes.length > 0) {
+      payload.market_maker_quotes = config.marketMakerQuotes.map((q) => {
+        const seed: PlainConfig = { gateway_id: q.gatewayId };
+        if (q.quoteId) seed.quote_id = q.quoteId;
+        seed.bid_price = q.bidPrice;
+        seed.ask_price = q.askPrice;
+        seed.bid_qty = q.bidQty;
+        seed.ask_qty = q.askQty;
+        seed.tif = q.tif;
+        seed.seed_once = q.seedOnce;
+        return seed;
+      });
+    } else {
+      payload.market_maker_quotes = mmGatewayIds.map((gatewayId) =>
+        buildMmQuoteSeed(gatewayId, draft.tickDecimals, midpoint),
+      );
+    }
   }
 
   if (config.outstandingShares !== undefined) {
