@@ -1,19 +1,21 @@
 # Knowledge Check Materials
 
-This directory contains learner-facing knowledge check material for the
-exchange concepts content.
+This directory contains learner-facing knowledge check material for the exchange concepts content.
 
-The numbered `*-exchange-concepts.md` files are the question-set variants used
-for training, review, or assessment.
 
-Instructor correction keys are intentionally not stored here in plaintext.
+**Directories:**
+
+- `quiz-20-questions` Contains quizzes meant to verify that the learner have internalized the concepts and some details in a course setting. Ansewr kesy are *not provided* in plain text but encrypted available to a certified instructor.
+- `self-study-30-questions` Contains self-study questions *with answer keys* and some comments on tricky questions 
+
+Answer keys for quizzes are intentionally not stored here in plain text.
 They are kept only as encrypted `.gpg` files:
 
 - `instructor-correction-keys.md.gpg`
 - `instructor-correction-keys.pdf.gpg`
 
-This is done so answer keys can be versioned with the course material while
-remaining accessible only to instructors who have the decryption passphrase.
+This will make it possible to use these quizzes in a course setting without learners having access to answers beforehand.
+
 
 ## A note on the scoring system
 

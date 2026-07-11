@@ -5,8 +5,8 @@ SHELL := $(shell which bash)
 GPG ?= gpg
 UNAME_S := $(shell uname -s)
 
-MD_PLAIN := instructor-correction-keys.md
-PDF_PLAIN := instructor-correction-keys.pdf
+MD_PLAIN := exchange-quiz-answer-keys.md
+PDF_PLAIN := exchange-quiz-answer-keys.pdf
 MD_ENC := $(MD_PLAIN).gpg
 PDF_ENC := $(PDF_PLAIN).gpg
 QUIZ_PDFS := $(wildcard *-exchange-concepts.pdf)
