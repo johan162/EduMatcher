@@ -73,15 +73,7 @@ def _parse_gateway_roles(raw: Any) -> tuple[tuple[str, str], ...]:
     return tuple(parsed)
 
 
-def load_alf_gateway_config(path: Path) -> AlfGatewayConfig:
-    """Load optional ``alf_gateway`` section from engine config YAML."""
-    if not path.exists():
-        return AlfGatewayConfig()
-
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, dict):
-        return AlfGatewayConfig()
-
+def _load_alf_gateway_config_from_raw(raw: dict[str, Any]) -> AlfGatewayConfig:
     gw_roles = _parse_gateway_roles(raw)
 
     section = raw.get("alf_gateway")
@@ -144,6 +136,23 @@ def load_alf_gateway_config(path: Path) -> AlfGatewayConfig:
         error_window_sec=error_window_sec,
         gateway_roles=gw_roles,
     )
+
+
+def load_alf_gateway_config(path: Path) -> AlfGatewayConfig:
+    """Load optional ``alf_gateway`` section from engine config YAML."""
+    if not path.exists():
+        return AlfGatewayConfig()
+
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        return AlfGatewayConfig()
+
+    return _load_alf_gateway_config_from_raw(raw)
+
+
+def validate_alf_gateway_section(raw: dict[str, Any]) -> None:
+    """Validate the ``alf_gateway`` section using runtime loader semantics."""
+    _load_alf_gateway_config_from_raw(raw)
 
 
 def load_default_alf_gateway_config() -> AlfGatewayConfig:
