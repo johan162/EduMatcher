@@ -79,6 +79,7 @@ def _resolve_config(
             replay_window_sec=cfg.replay_window_sec,
             max_symbols_per_client=cfg.max_symbols_per_client,
             max_client_queue=cfg.max_client_queue,
+            depth_levels=cfg.depth_levels,
         ),
         known_symbols,
     )

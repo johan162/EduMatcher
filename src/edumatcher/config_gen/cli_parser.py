@@ -348,6 +348,13 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="market_data_gateway.max_client_queue override (> 0).",
     )
+    parser.add_argument(
+        "--market-data-depth-levels",
+        type=int,
+        default=None,
+        metavar="N",
+        help="market_data_gateway.depth_levels override (> 0).",
+    )
 
     parser.add_argument(
         "--api-gateway",

@@ -242,6 +242,7 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  replay_window_sec: 30",
             "  max_symbols_per_client: 200",
             "  max_client_queue: 10000",
+            "  depth_levels: 10",
             "",
         ]
     )
@@ -569,6 +570,8 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "  Subscription safety limit to prevent a single client from over-consuming fanout.",
             "max_client_queue: 10000",
             "  Per-client outbound queue cap before overload handling is triggered.",
+            "depth_levels: 10",
+            "  Number of aggregated price levels per side included in DEPTH channel snapshots and updates.",
             "",
         ]
     )

@@ -41,6 +41,19 @@ class TopOfBook:
         return fields
 
 
+@dataclass(frozen=True)
+class DepthBook:
+    """Cached depth ladder for one symbol.
+
+    ``bids``/``asks`` hold up to ``depth_levels`` ``(price, qty, count)``
+    triples, best price first, mirroring the sort order already produced by
+    ``OrderBook.snapshot()`` in the engine.
+    """
+
+    bids: tuple[tuple[str, str, str], ...] = ()
+    asks: tuple[tuple[str, str, str], ...] = ()
+
+
 @dataclass
 class EngineNormaliser:
     """Translate engine payloads to CALF field maps and detect top changes."""
@@ -49,6 +62,8 @@ class EngineNormaliser:
     session_state: str = "CONTINUOUS"
     symbol_state: dict[str, str] = field(default_factory=dict)
     index_cache: dict[str, dict[str, str]] = field(default_factory=dict)
+    depth_cache: dict[str, DepthBook] = field(default_factory=dict)
+    depth_levels: int = 10
 
     def normalise_book(
         self, symbol: str, payload: dict[str, Any]
@@ -155,6 +170,43 @@ class EngineNormaliser:
         state = self.top_cache.get(symbol.upper(), TopOfBook())
         return state.as_snap_fields()
 
+    def normalise_depth(
+        self, symbol: str, payload: dict[str, Any]
+    ) -> dict[str, str] | None:
+        """Return incremental ``DEPTH`` fields when the top-N ladder changed.
+
+        Returns ``None`` when the top ``depth_levels`` price levels on both
+        sides are unchanged compared with the cached snapshot, mirroring how
+        ``normalise_book`` only emits ``MD`` when the top of book changes.
+        """
+        sym = symbol.upper()
+        prev = self.depth_cache.get(sym, DepthBook())
+
+        next_bids = _extract_levels(payload.get("bids"), self.depth_levels)
+        next_asks = _extract_levels(payload.get("asks"), self.depth_levels)
+
+        self.depth_cache[sym] = DepthBook(bids=next_bids, asks=next_asks)
+
+        if next_bids == prev.bids and next_asks == prev.asks:
+            return None
+
+        fields: dict[str, str] = {"LEVELS": str(self.depth_levels)}
+        if next_bids:
+            fields["BIDS"] = _encode_levels(next_bids)
+        if next_asks:
+            fields["ASKS"] = _encode_levels(next_asks)
+        return fields
+
+    def depth_snapshot_fields(self, symbol: str) -> dict[str, str]:
+        """Return current cached DEPTH snapshot fields for symbol."""
+        state = self.depth_cache.get(symbol.upper(), DepthBook())
+        fields: dict[str, str] = {"LEVELS": str(self.depth_levels)}
+        if state.bids:
+            fields["BIDS"] = _encode_levels(state.bids)
+        if state.asks:
+            fields["ASKS"] = _encode_levels(state.asks)
+        return fields
+
     def state_snapshot_fields(self, symbol: str) -> dict[str, str]:
         """Return current STATE snapshot fields for symbol or wildcard."""
         sym = symbol.upper()
@@ -242,3 +294,33 @@ def _extract_top(raw_levels: Any) -> tuple[str | None, str | None]:
     price = _as_decimal(top.get("price"))
     qty = _as_int_text(top.get("qty"))
     return price, qty
+
+
+def _extract_levels(
+    raw_levels: Any, max_levels: int
+) -> tuple[tuple[str, str, str], ...]:
+    """Extract up to ``max_levels`` ``(price, qty, count)`` triples, best-first.
+
+    Rows with a missing price or qty are skipped rather than raising, since a
+    malformed level should not take down the whole DEPTH message; ``count``
+    defaults to ``"0"`` when absent.
+    """
+    if not isinstance(raw_levels, list):
+        return ()
+
+    out: list[tuple[str, str, str]] = []
+    for lvl in raw_levels[:max_levels]:
+        if not isinstance(lvl, dict):
+            continue
+        price = _as_decimal(lvl.get("price"))
+        qty = _as_int_text(lvl.get("qty"))
+        if price is None or qty is None:
+            continue
+        count = _as_int_text(lvl.get("count")) or "0"
+        out.append((price, qty, count))
+    return tuple(out)
+
+
+def _encode_levels(levels: tuple[tuple[str, str, str], ...]) -> str:
+    """Encode ``(price, qty, count)`` triples as ``price:qty:count,...``."""
+    return ",".join(f"{px}:{qty}:{cnt}" for px, qty, cnt in levels)

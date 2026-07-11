@@ -327,6 +327,7 @@ function parseNetworkGateways(raw: Dict, draft: EngineConfigDraft): void {
     g.replayWindowSec = asNumber(md.replay_window_sec) ?? g.replayWindowSec;
     g.maxSymbolsPerClient = asNumber(md.max_symbols_per_client) ?? g.maxSymbolsPerClient;
     g.maxClientQueue = asNumber(md.max_client_queue) ?? g.maxClientQueue;
+    g.depthLevels = asNumber(md.depth_levels) ?? g.depthLevels;
   }
 
   const balf = raw.balf_gateway;

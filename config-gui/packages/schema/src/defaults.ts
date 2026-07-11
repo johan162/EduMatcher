@@ -57,6 +57,7 @@ export const DEFAULT_MARKET_DATA_GATEWAY = {
   replayWindowSec: 30,
   maxSymbolsPerClient: 200,
   maxClientQueue: 10_000,
+  depthLevels: 10,
 } as const;
 
 export const DEFAULT_BALF_GATEWAY = {

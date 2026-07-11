@@ -102,6 +102,7 @@ function MarketDataPanel() {
           <NumField label="Replay window (sec)" value={g.replayWindowSec} onChange={(v) => set((gw) => (gw.replayWindowSec = v ?? gw.replayWindowSec))} />
           <NumField label="Max symbols per client" value={g.maxSymbolsPerClient} onChange={(v) => set((gw) => (gw.maxSymbolsPerClient = v ?? gw.maxSymbolsPerClient))} />
           <NumField label="Max client queue" value={g.maxClientQueue} onChange={(v) => set((gw) => (gw.maxClientQueue = v ?? gw.maxClientQueue))} />
+          <NumField label="Depth levels" value={g.depthLevels} onChange={(v) => set((gw) => (gw.depthLevels = v ?? gw.depthLevels))} />
         </>
       )}
     </div>

@@ -432,6 +432,7 @@ function buildNetworkGateway(
       replay_window_sec: g.replayWindowSec,
       max_symbols_per_client: g.maxSymbolsPerClient,
       max_client_queue: g.maxClientQueue,
+      depth_levels: g.depthLevels,
     };
   }
   const g = draft.balfGateway;

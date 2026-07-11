@@ -89,6 +89,7 @@ export function createMarketDataGateway(): MarketDataGatewayConfig {
     maxClientQueue: DEFAULT_MARKET_DATA_GATEWAY.maxClientQueue,
     replayWindowSec: DEFAULT_MARKET_DATA_GATEWAY.replayWindowSec,
     maxSymbolsPerClient: DEFAULT_MARKET_DATA_GATEWAY.maxSymbolsPerClient,
+    depthLevels: DEFAULT_MARKET_DATA_GATEWAY.depthLevels,
   };
 }
 

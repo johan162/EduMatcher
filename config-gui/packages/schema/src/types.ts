@@ -244,6 +244,8 @@ export interface PostTradeGatewayConfig extends NetworkGatewayBase {
 export interface MarketDataGatewayConfig extends NetworkGatewayBase {
   replayWindowSec: number;
   maxSymbolsPerClient: number;
+  /** Aggregated price levels per side sent on the CALF DEPTH channel. */
+  depthLevels: number;
 }
 
 export interface BalfGatewayConfig extends NetworkGatewayBase {

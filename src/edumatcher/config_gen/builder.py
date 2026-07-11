@@ -40,6 +40,7 @@ from .defaults import (
     DEFAULT_INDEX_DATA_DIR,
     DEFAULT_INDEX_PUBLISH_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS,
+    DEFAULT_MARKET_DATA_GATEWAY_DEPTH_LEVELS,
     DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE,
@@ -129,6 +130,7 @@ class MarketDataGatewaySpec:
     replay_window_sec: int = DEFAULT_MARKET_DATA_GATEWAY_REPLAY_WINDOW_SEC
     max_symbols_per_client: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_SYMBOLS_PER_CLIENT
     max_client_queue: int = DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE
+    depth_levels: int = DEFAULT_MARKET_DATA_GATEWAY_DEPTH_LEVELS
 
 
 @dataclass(frozen=True)
@@ -289,6 +291,7 @@ class ConfigBuilder:
             "replay_window_sec": spec.replay_window_sec,
             "max_symbols_per_client": spec.max_symbols_per_client,
             "max_client_queue": spec.max_client_queue,
+            "depth_levels": spec.depth_levels,
         }
 
     def _build_balf_gateway(self) -> dict[str, Any]:

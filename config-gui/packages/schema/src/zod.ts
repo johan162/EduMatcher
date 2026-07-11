@@ -158,6 +158,7 @@ export const marketDataGatewaySchema = z.object({
   ...networkBase,
   replayWindowSec: z.number().int().nonnegative(),
   maxSymbolsPerClient: z.number().int().positive(),
+  depthLevels: z.number().int().positive(),
 });
 
 export const balfGatewaySchema = z.object({

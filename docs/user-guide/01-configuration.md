@@ -288,6 +288,7 @@ Market-data gateway options:
 | `--market-data-replay-window-sec`                  | int (`> 0`) | `30`                        | `market_data_gateway.replay_window_sec`                    |
 | `--market-data-max-symbols-per-client`             | int (`> 0`) | `200`                       | `market_data_gateway.max_symbols_per_client`               |
 | `--market-data-max-client-queue`                   | int (`> 0`) | `10000`                     | `market_data_gateway.max_client_queue`                     |
+| `--market-data-depth-levels`                       | int (`> 0`) | `10`                        | `market_data_gateway.depth_levels`                          |
 
 BALF gateway options:
 
@@ -869,6 +870,7 @@ The current parser recognizes these top-level keys:
 | `symbols`                  |                        Yes | Engine                          | Accepted symbols and per-symbol settings                                  |
 | `gateways`                 |                        Yes | Engine                          | Gateway configuration container                                           |
 | `gateways.alf`             |                        Yes | Engine                          | Accepted ALF order-entry gateways                                         |
+| `alf_gateway`              |                         No | `pm-alf-gwy`                    | External ALF text TCP gateway settings                                    |
 | `sessions_enabled`         |                         No | Engine                          | Enable scheduler-driven session states                                    |
 | `enforce_collars`          |                         No | Engine                          | Global collar enforcement toggle                                          |
 | `enforce_circuit_breakers` |                         No | Engine                          | Global circuit-breaker enforcement toggle                                 |
@@ -887,6 +889,42 @@ The current parser recognizes these top-level keys:
 The nested sections below document every field currently parsed under these
 top-level keys. Unknown keys in a mapping are generally ignored by the loader,
 but they should not be relied on for runtime behavior.
+
+## Which Process Reads What
+
+`engine_config.yaml` is one shared ref-data file, but no single process reads
+all of it. Each auxiliary gateway or service opens the file independently at
+its own startup, ignores every top-level key it doesn't recognize, and parses
+only the section(s) it owns. `pm-engine` is the only process that reads most
+of the file — the gateway-specific blocks (`market_data_gateway`,
+`balf_gateway`, `post_trade_gateway`, `alf_gateway`, `api_gateways`) are never
+touched by the engine itself.
+
+| Process | Loader module | Top-level section(s) read | What it needs it for |
+|---|---|---|---|
+| `pm-engine` | `engine/config_loader.py` | `symbols`, `gateways.alf`, `sessions_enabled`, `enforce_collars`, `enforce_circuit_breakers`, `snapshot_interval_sec`, `mm_obligation_defaults`, `risk_controls`, `circuit_breaker_defaults`, `market_maker_combos`, `schedule`, `indices` | Symbol universe, allowed order-entry gateways, session/collar/circuit-breaker policy, MM obligations, startup combo seeds, session schedule, and index definitions |
+| `pm-alf-gwy` | `alf_gwy/config.py` | `alf_gateway`, `gateways.alf` | Own bind address/port/timeouts, plus the gateway ID allowlist and roles for ALF client sessions |
+| `pm-balf-gwy` | `balf_gwy/config.py` | `balf_gateway`, `gateways.alf` | Own bind address/port/timeouts, plus the gateway ID allowlist, roles, and `disconnect_behaviour` for BALF sessions |
+| `pm-ralf-gwy` | `ralf_gateway/config.py` | `post_trade_gateway` | Own bind address/port/timeouts and `allowed_roles` for RALF (post-trade) subscribers |
+| `pm-md-gwy` | `md_gateway/config.py` | `market_data_gateway` | Own bind address/port/timeouts, replay window, and `depth_levels` for CALF subscribers |
+| `pm-api-gwy` | `api_gateway/config.py` | `api_gateways` | Named REST/WebSocket gateway instances, API credentials, rate limits, and timeouts |
+| `pm-index` | `index/config_loader.py` (wraps `engine/config_loader.py`) | `indices`, `symbols.<SYM>.outstanding_shares`, `symbols.<SYM>.last_buy_price` / `last_sell_price` | Index definitions (constituents, base value, publish interval) and the per-constituent share counts / reference prices needed to seed each index at startup |
+| `pm-scheduler` | `scheduler/main.py` | `schedule` | Session-phase transition times — re-reads the same block `pm-engine` reads, but as an independent process so the schedule can be driven or tested externally |
+
+!!! note "Validation tooling reads everything"
+    `pm-cverifier` is the exception: as a static linter it parses and
+    cross-validates the whole file, including sections no runtime process
+    consumes on its own. It isn't a "reader" in the operational sense above —
+    see [Verify Configs with `pm-cverifier`](#verify-configs-with-pm-cverifier).
+
+Two practical consequences follow from this split:
+
+- A typo in, say, `balf_gateway` will not be caught by `pm-engine` at all —
+  only `pm-balf-gwy` (or `pm-cverifier`) will reject it. Run `pm-cverifier`
+  before starting a full stack to catch cross-section mistakes early.
+- Each gateway process can be restarted independently with a changed config
+  section (for example, bumping `market_data_gateway.depth_levels`) without
+  restarting `pm-engine`, since the engine never reads that section.
 
 ## Configuring `pm-ralf-gwy`
 
@@ -945,6 +983,7 @@ market_data_gateway:
   replay_window_sec: 30
   max_symbols_per_client: 200
   max_client_queue: 10000
+  depth_levels: 10
 ```
 
 Use this block to control whether the CALF gateway starts and how it serves
@@ -958,6 +997,8 @@ subscribers. In the current implementation:
 - `replay_window_sec` controls the in-memory replay history window
 - `max_symbols_per_client` caps per-client subscription fanout
 - `max_client_queue` caps slow-client buffering
+- `depth_levels` sets how many aggregated price levels per side are sent on
+  the CALF `DEPTH` channel (see [92-app-calf-protocol.md](92-app-calf-protocol.md))
 
 If you prefer to generate this block instead of writing it by hand,
 `pm-config-gen` can emit it with `--market-data-gateway` and optional

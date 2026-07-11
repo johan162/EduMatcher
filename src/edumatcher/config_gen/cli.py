@@ -47,6 +47,7 @@ from edumatcher.config_gen.defaults import (
     DEFAULT_INDEX_BASE_VALUE,
     DEFAULT_INDEX_PUBLISH_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_BIND_ADDRESS,
+    DEFAULT_MARKET_DATA_GATEWAY_DEPTH_LEVELS,
     DEFAULT_MARKET_DATA_GATEWAY_HEARTBEAT_INTERVAL_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_IDLE_TIMEOUT_SEC,
     DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE,
@@ -135,6 +136,8 @@ def _validate_basic_args(args: argparse.Namespace) -> None:
         and args.market_data_max_client_queue <= 0
     ):
         raise ValueError("--market-data-max-client-queue must be > 0")
+    if args.market_data_depth_levels is not None and args.market_data_depth_levels <= 0:
+        raise ValueError("--market-data-depth-levels must be > 0")
     if args.api_gateway_port is not None and args.api_gateway_port <= 0:
         raise ValueError("--api-gateway-port must be > 0")
     if (
@@ -592,6 +595,7 @@ def _build_market_data_gateway_spec(
             args.market_data_replay_window_sec,
             args.market_data_max_symbols_per_client,
             args.market_data_max_client_queue,
+            args.market_data_depth_levels,
         )
     ) or bool(args.market_data_gateway)
 
@@ -628,6 +632,9 @@ def _build_market_data_gateway_spec(
         max_client_queue=int(
             args.market_data_max_client_queue
             or DEFAULT_MARKET_DATA_GATEWAY_MAX_CLIENT_QUEUE
+        ),
+        depth_levels=int(
+            args.market_data_depth_levels or DEFAULT_MARKET_DATA_GATEWAY_DEPTH_LEVELS
         ),
     )
 
