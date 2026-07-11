@@ -14,8 +14,9 @@
 
 `engine_config.yaml` covers symbols, gateways, risk controls, collar bands,
 circuit breakers, market-maker obligations, session schedules, combo seeds,
-index definitions, and four optional gateway subsystems.  Getting all of this
-right by hand is error-prone.
+index definitions, and five optional gateway subsystems (`alf_gateway`,
+`balf_gateway`, `post_trade_gateway`, `market_data_gateway`, `api_gateways`).
+Getting all of this right by hand is error-prone.
 
 The current engine loader (`load_engine_config()`) reports only the *first* hard
 error it encounters before aborting.  This means operators spend time in a
@@ -189,7 +190,7 @@ reporting scripts.
 | `Y003` | YAML parse error                    |
 | `Y004` | Top-level document is not a mapping |
 
-### Layer 2 — Schema (`S001`–`S084`)
+### Layer 2 — Schema (`S001`–`S085`)
 
 **Top-level structure**
 
@@ -215,6 +216,25 @@ reporting scripts.
 | `S017` | `market_maker_quotes` is present but not a list                                                       |
 | `S018` | `market_maker_quotes[n]` is not a mapping                                                             |
 | `S019` | `market_maker_quotes[n].gateway_id` is blank when provided                                            |
+
+**Symbol collar / circuit-breaker overrides**
+
+`symbols.<SYMBOL>.collar` and `symbols.<SYMBOL>.circuit_breaker.levels` are
+inline per-symbol overrides that the engine loader validates just as strictly
+as the top-level `risk_controls.levels.*.collar` and
+`circuit_breaker_defaults.levels` sections (`S030`–`S034`, `S041`–`S042`) —
+these codes cover the per-symbol equivalents.
+
+| Code   | Condition                                                              |
+|--------|--------------------------------------------------------------------------|
+| `S036` | `symbols.<SYMBOL>.collar` present but not a mapping                    |
+| `S037` | `symbols.<SYMBOL>.collar.static_band_pct` not in `(0, 1)`               |
+| `S038` | `symbols.<SYMBOL>.collar.dynamic_band_pct` not in `(0, 1)`              |
+| `S065` | `symbols.<SYMBOL>.circuit_breaker` or `.levels` not a mapping           |
+| `S066` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>` missing `price_shift_pct` |
+| `S067` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>.price_shift_pct` out of range `(0, 1)` |
+| `S068` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>.halt_duration_ns` not a positive integer |
+| `S069` | `symbols.<SYMBOL>.circuit_breaker.levels.<LEVEL>.resumption_mode` not `AUCTION` or `CONTINUOUS` |
 
 **Gateway fields**
 
@@ -302,10 +322,11 @@ reporting scripts.
 |--------|--------------------------------------------------------|
 | `S080` | `api_gateways` section fails runtime-loader validation |
 
-**RALF and market-data gateway sections**
+**ALF, RALF, and market-data gateway sections**
 
 | Code   | Condition                                              |
 |--------|--------------------------------------------------------|
+| `S081` | `alf_gateway` section fails runtime-loader validation |
 | `S082` | `post_trade_gateway` section fails runtime-loader validation |
 | `S083` | `market_data_gateway` section fails runtime-loader validation |
 
@@ -318,6 +339,7 @@ reporting scripts.
 | `S052` | BALF capacity fields not positive integers (`max_connections`, etc.)      |
 | `S053` | BALF timeout/interval fields not positive numbers                         |
 | `S054` | `balf_gateway.duplicate_session_policy` not `REJECT_NEW` or `EVICT_OLD`  |
+| `S085` | `balf_gateway` fails runtime-loader validation for a reason not covered by `S050`–`S054` (drift safety net; only fires when none of those already reported) |
 
 ### Layer 3 — Semantic (`M001`–`M022`)
 
@@ -343,7 +365,7 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M015` | ERROR    | Combo leg references symbol not in `symbols`                  |
 | `M016` | WARN     | `post_trade_gateway` configured but no ADMIN gateway          |
 | `M017` | WARN     | `balf_gateway.heartbeat_timeout_sec <= heartbeat_interval_sec` |
-| `M018` | ERROR    | `balf_gateway.port` conflicts with another gateway port       |
+| `M018` | ERROR    | Two configured gateway sections (`alf_gateway`, `balf_gateway`, `post_trade_gateway`, `market_data_gateway`, or any `api_gateways.<name>`) are bound to the same port |
 | `M019` | ERROR    | `mm_obligation_defaults.symbols` references an unknown symbol |
 | `M020` | ERROR    | MM seed `gateway_id` exists but is not a `MARKET_MAKER` gateway |
 | `M022` | ERROR    | API credential `gateway_id` is not defined in `gateways.alf` |

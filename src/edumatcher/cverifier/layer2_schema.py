@@ -5,7 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, cast
 
+from edumatcher.alf_gwy.config import validate_alf_gateway_section
 from edumatcher.api_gateway.config import validate_api_gateway_sections
+from edumatcher.balf_gwy.config import validate_balf_gateway_section
 from edumatcher.md_gateway.config import validate_market_data_gateway_section
 from edumatcher.models.combo import ComboLeg, ComboType
 from edumatcher.models.order import TIF
@@ -52,6 +54,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_indices(raw, results)
     _check_cb_defaults(raw, results)
     _check_risk_controls(raw, results)
+    _check_alf_gateway(raw, results)
     _check_balf_gateway(raw, results)
     _check_post_trade_gateway(raw, results)
     _check_market_data_gateway(raw, results)
@@ -148,6 +151,8 @@ def _check_symbols(raw: dict[str, Any], results: list[CheckResult]) -> None:
         _check_symbol_outstanding_shares(sym, cfg, results)
         _check_symbol_level(sym, cfg, defined_levels, results)
         _check_symbol_mm_quotes(sym, cfg, results)
+        _check_symbol_collar(sym, cfg, results)
+        _check_symbol_circuit_breaker(sym, cfg, results)
 
 
 def _check_symbol_tick_decimals(
@@ -413,6 +418,184 @@ def _check_mm_quote_validity(
                 path=f"symbols.{sym}.market_maker_quotes[{i}]",
             )
         )
+
+
+def _check_symbol_collar(
+    sym: str, cfg: dict[str, Any], results: list[CheckResult]
+) -> None:
+    """S036–S038 — inline ``symbols.<SYM>.collar`` override.
+
+    Mirrors the validation the engine loader performs on this same field
+    (``engine/config_loader.py``, "Optional collar section"), which is
+    otherwise never checked here — only the ``risk_controls.levels.*.collar``
+    path is (S041/S042).
+    """
+    collar = cfg.get("collar")
+    if collar is None:
+        return
+    if not isinstance(collar, dict):
+        results.append(
+            CheckResult(
+                code="S036",
+                severity=Severity.ERROR,
+                message=f"Symbol '{sym}': collar must be a mapping.",
+                suggestion="Set collar to a mapping with static_band_pct/dynamic_band_pct.",
+                path=f"symbols.{sym}.collar",
+            )
+        )
+        return
+
+    sbp = collar.get("static_band_pct")
+    if sbp is not None:
+        try:
+            sbp_f = float(sbp)
+            if not (0 < sbp_f < 1):
+                raise ValueError("out of range")
+        except (TypeError, ValueError):
+            results.append(
+                CheckResult(
+                    code="S037",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"Symbol '{sym}': collar.static_band_pct {sbp} is outside (0, 1)."
+                    ),
+                    suggestion="A typical value is 0.20 (20%).",
+                    path=f"symbols.{sym}.collar.static_band_pct",
+                )
+            )
+
+    dbp = collar.get("dynamic_band_pct")
+    if dbp is not None:
+        try:
+            dbp_f = float(dbp)
+            if not (0 < dbp_f < 1):
+                raise ValueError("out of range")
+        except (TypeError, ValueError):
+            results.append(
+                CheckResult(
+                    code="S038",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"Symbol '{sym}': collar.dynamic_band_pct {dbp} is outside (0, 1)."
+                    ),
+                    suggestion="A typical value is 0.02 (2%).",
+                    path=f"symbols.{sym}.collar.dynamic_band_pct",
+                )
+            )
+
+
+def _check_symbol_circuit_breaker(
+    sym: str, cfg: dict[str, Any], results: list[CheckResult]
+) -> None:
+    """S065–S069 — inline ``symbols.<SYM>.circuit_breaker.levels`` override.
+
+    Mirrors ``_check_cb_defaults`` (S030-S034) field-for-field, but for the
+    per-symbol override that the engine loader also fully validates
+    (``engine/config_loader.py``, "Optional circuit_breaker section") and
+    which was previously never checked here at all.
+    """
+    cb = cfg.get("circuit_breaker")
+    if cb is None:
+        return
+    if not isinstance(cb, dict):
+        results.append(
+            CheckResult(
+                code="S065",
+                severity=Severity.ERROR,
+                message=f"Symbol '{sym}': circuit_breaker must be a mapping.",
+                suggestion="Set circuit_breaker to a mapping with a 'levels:' key.",
+                path=f"symbols.{sym}.circuit_breaker",
+            )
+        )
+        return
+
+    levels = cb.get("levels")
+    if levels is None:
+        return
+    if not isinstance(levels, dict):
+        results.append(
+            CheckResult(
+                code="S065",
+                severity=Severity.ERROR,
+                message=f"Symbol '{sym}': circuit_breaker.levels must be a mapping.",
+                suggestion=(
+                    "Each key is a level name (e.g. L1) and each value must have price_shift_pct."
+                ),
+                path=f"symbols.{sym}.circuit_breaker.levels",
+            )
+        )
+        return
+
+    for name, level_cfg in levels.items():
+        if not isinstance(level_cfg, dict):
+            continue
+        psp = level_cfg.get("price_shift_pct")
+        if psp is None:
+            results.append(
+                CheckResult(
+                    code="S066",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"Symbol '{sym}': circuit_breaker.levels.{name}: "
+                        "price_shift_pct is required."
+                    ),
+                    suggestion="Must be a float in (0, 1), e.g. 0.07 for 7%.",
+                    path=f"symbols.{sym}.circuit_breaker.levels.{name}.price_shift_pct",
+                )
+            )
+        else:
+            try:
+                psp_f = float(psp)
+                if not (0 < psp_f < 1):
+                    raise ValueError("out of range")
+            except (TypeError, ValueError):
+                results.append(
+                    CheckResult(
+                        code="S067",
+                        severity=Severity.ERROR,
+                        message=(
+                            f"Symbol '{sym}': circuit_breaker.levels.{name}: "
+                            f"price_shift_pct {psp} is outside (0, 1)."
+                        ),
+                        suggestion="Set a fraction such as 0.07 for 7%.",
+                        path=f"symbols.{sym}.circuit_breaker.levels.{name}.price_shift_pct",
+                    )
+                )
+
+        hd = level_cfg.get("halt_duration_ns")
+        if hd is not None:
+            try:
+                hd_i = int(hd)
+                if hd_i <= 0:
+                    raise ValueError("must be positive")
+            except (TypeError, ValueError):
+                results.append(
+                    CheckResult(
+                        code="S068",
+                        severity=Severity.ERROR,
+                        message=(
+                            f"Symbol '{sym}': circuit_breaker.levels.{name}: "
+                            f"halt_duration_ns must be a positive integer or null. Got '{hd}'."
+                        ),
+                        suggestion="Use nanoseconds (e.g. 300000000000 for 5 minutes).",
+                        path=f"symbols.{sym}.circuit_breaker.levels.{name}.halt_duration_ns",
+                    )
+                )
+
+        rm = level_cfg.get("resumption_mode")
+        if rm is not None and str(rm).upper() not in _VALID_RESUMPTION:
+            results.append(
+                CheckResult(
+                    code="S069",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"Symbol '{sym}': circuit_breaker.levels.{name}: "
+                        f"resumption_mode '{rm}' is not valid."
+                    ),
+                    suggestion="Use AUCTION or CONTINUOUS.",
+                    path=f"symbols.{sym}.circuit_breaker.levels.{name}.resumption_mode",
+                )
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -1452,13 +1635,24 @@ _BALF_POSITIVE_FLOAT_FIELDS = (
 
 
 def _check_balf_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None:
-    """Validate the optional balf_gateway section (S050–S054)."""
+    """Validate the optional balf_gateway section (S050–S054).
+
+    These field-level checks are hand-written for precise, per-field
+    messages, which duplicates (rather than delegates to) the rules in
+    ``balf_gwy/config.py``. To close the drift risk that duplication implies
+    — a future change to the real loader's rules silently not mirrored here —
+    ``_check_balf_gateway_drift_backstop`` below re-validates the section
+    against the actual runtime loader and reports anything these field-level
+    checks missed.
+    """
     section = raw.get("balf_gateway")
     if section is None:
         return
 
+    local: list[CheckResult] = []
+
     if not isinstance(section, dict):
-        results.append(
+        local.append(
             CheckResult(
                 code="S050",
                 severity=Severity.ERROR,
@@ -1467,6 +1661,8 @@ def _check_balf_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None
                 path="balf_gateway",
             )
         )
+        results.extend(local)
+        _check_balf_gateway_drift_backstop(raw, local, results)
         return
 
     # port
@@ -1477,7 +1673,7 @@ def _check_balf_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None
             or not isinstance(port, int)
             or not (1 <= port <= 65535)
         ):
-            results.append(
+            local.append(
                 CheckResult(
                     code="S051",
                     severity=Severity.ERROR,
@@ -1492,7 +1688,7 @@ def _check_balf_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None
         val = section.get(field)
         if val is not None:
             if isinstance(val, bool) or not isinstance(val, int) or val <= 0:
-                results.append(
+                local.append(
                     CheckResult(
                         code="S052",
                         severity=Severity.ERROR,
@@ -1511,7 +1707,7 @@ def _check_balf_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None
                 if fval <= 0:
                     raise ValueError
             except (TypeError, ValueError):
-                results.append(
+                local.append(
                     CheckResult(
                         code="S053",
                         severity=Severity.ERROR,
@@ -1525,7 +1721,7 @@ def _check_balf_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None
     dup_policy = section.get("duplicate_session_policy")
     if dup_policy is not None:
         if str(dup_policy).upper() not in _VALID_BALF_DUPLICATE_POLICY:
-            results.append(
+            local.append(
                 CheckResult(
                     code="S054",
                     severity=Severity.ERROR,
@@ -1537,6 +1733,41 @@ def _check_balf_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None
                     path="balf_gateway.duplicate_session_policy",
                 )
             )
+
+    results.extend(local)
+    _check_balf_gateway_drift_backstop(raw, local, results)
+
+
+def _check_balf_gateway_drift_backstop(
+    raw: dict[str, Any],
+    already_reported: list[CheckResult],
+    results: list[CheckResult],
+) -> None:
+    """S085 \u2014 safety net for balf_gateway rules not mirrored above.
+
+    Only fires when the hand-written field checks above found nothing wrong,
+    so a config that already gets a specific S050-S054 message doesn't also
+    get this generic one. If the real loader still rejects the section for a
+    reason the checks above don't know about, this is what catches it.
+    """
+    if already_reported:
+        return
+    try:
+        validate_balf_gateway_section(raw)
+    except ValueError as exc:
+        results.append(
+            CheckResult(
+                code="S085",
+                severity=Severity.ERROR,
+                message=f"'balf_gateway' section is invalid: {exc}",
+                suggestion=(
+                    "The pm-balf-gwy loader rejects this section for a reason "
+                    "not covered by the S050-S054 checks above. Match the "
+                    "balf_gwy/config.py loader schema exactly."
+                ),
+                path="balf_gateway",
+            )
+        )
 
 
 def _check_api_gateway_sections(
@@ -1561,6 +1792,31 @@ def _check_api_gateway_sections(
                     "and valid credentials/rate_limit/timeouts/port values)."
                 ),
                 path=path,
+            )
+        )
+
+
+def _check_alf_gateway(raw: dict[str, Any], results: list[CheckResult]) -> None:
+    """Validate the optional alf_gateway section using runtime loader semantics.
+
+    Unlike balf_gateway/post_trade_gateway/market_data_gateway, this section
+    previously had zero validation coverage anywhere in pm-cverifier — a
+    malformed alf_gateway block (bad port, non-positive timeout, etc.) would
+    pass cverifier cleanly and then crash pm-alf-gwy at startup.
+    """
+    try:
+        validate_alf_gateway_section(raw)
+    except ValueError as exc:
+        results.append(
+            CheckResult(
+                code="S081",
+                severity=Severity.ERROR,
+                message=f"'alf_gateway' section is invalid: {exc}",
+                suggestion=(
+                    "Match the pm-alf-gwy loader schema for alf_gateway "
+                    "(mapping shape and positive integer limits)."
+                ),
+                path="alf_gateway",
             )
         )
 

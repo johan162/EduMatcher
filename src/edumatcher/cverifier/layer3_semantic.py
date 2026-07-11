@@ -40,6 +40,7 @@ def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
     _check_admin_gateway(raw, results)
     _check_post_trade_admin(raw, results)
     _check_balf_gateway_semantic(raw, results)
+    _check_gateway_port_collisions(raw, results)
     _check_api_gateway_semantic(raw, results)
     return results
 
@@ -573,7 +574,7 @@ def _check_post_trade_admin(raw: dict[str, Any], results: list[CheckResult]) -> 
 def _check_balf_gateway_semantic(
     raw: dict[str, Any], results: list[CheckResult]
 ) -> None:
-    """Semantic cross-field checks for the balf_gateway section (M017–M018)."""
+    """Semantic cross-field checks for the balf_gateway section (M017)."""
     section = raw.get("balf_gateway")
     if section is None or not isinstance(section, dict):
         return
@@ -605,40 +606,91 @@ def _check_balf_gateway_semantic(
         except (TypeError, ValueError):
             pass  # type errors already reported by layer 2
 
-    # M018 — port collision with other gateway sections
-    balf_port = section.get("port")
-    if not isinstance(balf_port, int) or isinstance(balf_port, bool):
-        return
 
-    _BALF_PORT_PEERS = (
-        ("post_trade_gateway", "pm-ralf-gwy"),
-        ("market_data_gateway", "pm-md-gwy"),
-    )
-    for peer_key, peer_name in _BALF_PORT_PEERS:
-        peer = raw.get(peer_key)
-        if not isinstance(peer, dict):
+# ---------------------------------------------------------------------------
+# Gateway port collisions (M018) — full N-way check
+# ---------------------------------------------------------------------------
+
+# (top-level key, display name, default port) for the single-instance
+# optional gateway sections. api_gateways is handled separately below since
+# it is a named mapping of possibly-many instances, each with its own port.
+_SINGLETON_GATEWAY_PORTS = (
+    ("alf_gateway", "pm-alf-gwy", 5565),
+    ("balf_gateway", "pm-balf-gwy", 5560),
+    ("post_trade_gateway", "pm-ralf-gwy", 5580),
+    ("market_data_gateway", "pm-md-gwy", 5570),
+)
+
+_DEFAULT_API_GATEWAY_PORT = 8080
+
+
+def _effective_port(section: dict[str, Any], default: int) -> int | None:
+    port = section.get("port", default)
+    if isinstance(port, bool) or not isinstance(port, int):
+        return None  # malformed; already reported by layer 2
+    return port
+
+
+def _collect_gateway_ports(raw: dict[str, Any]) -> list[tuple[str, int]]:
+    """Return (label, effective port) for every configured gateway section.
+
+    Uses each section's own runtime default when 'port' is omitted, so two
+    sections that are both simply absent-or-default never collide, but an
+    explicit port that happens to match another section's default (or
+    another explicit port) is caught.
+    """
+    entries: list[tuple[str, int]] = []
+
+    for key, display_name, default_port in _SINGLETON_GATEWAY_PORTS:
+        section = raw.get(key)
+        if not isinstance(section, dict):
             continue
-        peer_port = peer.get("port")
-        if (
-            isinstance(peer_port, int)
-            and not isinstance(peer_port, bool)
-            and peer_port == balf_port
-        ):
+        port = _effective_port(section, default_port)
+        if port is not None:
+            entries.append((f"{key} ({display_name})", port))
+
+    api_gateways = raw.get("api_gateways")
+    if isinstance(api_gateways, dict):
+        for name, section in api_gateways.items():
+            if not isinstance(section, dict):
+                continue
+            port = _effective_port(section, _DEFAULT_API_GATEWAY_PORT)
+            if port is not None:
+                entries.append((f"api_gateways.{name} (pm-api-gwy)", port))
+
+    return entries
+
+
+def _check_gateway_port_collisions(
+    raw: dict[str, Any], results: list[CheckResult]
+) -> None:
+    """M018 — any two configured gateway sections bound to the same port.
+
+    Previously this only checked balf_gateway against post_trade_gateway and
+    market_data_gateway. It now checks every pair across alf_gateway,
+    balf_gateway, post_trade_gateway, market_data_gateway, and every named
+    api_gateways.<name> instance — the full set of independently-configurable
+    TCP listeners in engine_config.yaml.
+    """
+    entries = _collect_gateway_ports(raw)
+    seen: dict[int, str] = {}
+    for label, port in entries:
+        prior = seen.get(port)
+        if prior is not None:
             results.append(
                 CheckResult(
                     code="M018",
                     severity=Severity.ERROR,
-                    message=(
-                        f"balf_gateway.port ({balf_port}) conflicts with "
-                        f"{peer_key}.port ({peer_port})."
-                    ),
+                    message=f"{label}.port ({port}) conflicts with {prior}.port ({port}).",
                     suggestion=(
-                        f"Each gateway process must bind to a unique TCP port. "
-                        f"Change balf_gateway.port or {peer_key}.port ({peer_name})."
+                        "Each gateway process must bind to a unique TCP port. "
+                        f"Change the port on {label} or {prior}."
                     ),
-                    path="balf_gateway.port",
+                    path=f"{label.split(' ', 1)[0]}.port",
                 )
             )
+        else:
+            seen[port] = label
 
 
 def _check_api_gateway_semantic(
