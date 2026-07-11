@@ -5,9 +5,12 @@
 
     - what **CALF** is and how it differs from ALF and BALF
     - the exact line-level wire format used by CALF over TCP
-    - channel, symbol, and subscription rules for `TOP`, `TRADE`, and `STATE`
+    - channel, symbol, and subscription rules for `TOP`, `TRADE`, `STATE`,
+      `INDEX`, and `DEPTH`
+    - the `SYM=*` wildcard rules, including which channels allow it
     - sequencing, gap detection, replay, and resynchronization behavior
     - required and optional fields for every CALF message type
+    - how to detect gateway capability via `WELCOME|CH_SUPPORTED=`
     - gateway and client behaviors required for CALF `1.0.0` interoperability
 
 
@@ -48,14 +51,21 @@ behavior.
 - trade prints (`TRADE`) by symbol
 - state transitions (`STATE`) for session-wide and symbol-level changes
 - index level updates (`IDX`) from `pm-index`
-- point-in-time stream baselines (`SNAP`) for `TOP` and `STATE`
+- aggregated multi-level order book updates (`DEPTH`) — Level 2, not
+  order-by-order
+- point-in-time stream baselines (`SNAP`) for `TOP`, `STATE`, `INDEX`, and
+  `DEPTH`
 - per-stream sequence numbers on `(CH, SYM)`
+- `SYM=*` wildcard subscriptions for `STATE`, `TOP`, and `TRADE`
 - bounded replay on reconnect (`RESUME=1` + `LASTSEQ`)
 - heartbeat and liveness signaling
+- gateway capability advertisement via `WELCOME|CH_SUPPORTED=`
 
 ### Out of scope in CALF `1.0.0`
 
-- full depth-by-order market data
+- full order-by-order (Level 3) market data — `DEPTH` is Level 2
+  (aggregated per price level), never per-order
+- `SYM=*` for `INDEX` or `DEPTH`
 - multicast / UDP transport
 - entitlement matrix per field
 - durable historical replay from disk
@@ -78,7 +88,8 @@ A CALF client connection is long-lived.
 - Client must send `HELLO` within 5 seconds of TCP connect.
 - Gateway replies with `WELCOME` on success.
 - Client may then send `SUB`, `UNSUB`, `PING`, and `EXIT`.
-- Gateway streams `SNAP`, `MD`, `TRADE`, `STATE`, `HB`, and `ERR`.
+- Gateway streams `SNAP`, `MD`, `TRADE`, `STATE`, `IDX`, `DEPTH`, `HB`, and
+  `ERR`.
 
 If no `HELLO` is received within 5 seconds, the gateway closes the socket.
 
@@ -125,12 +136,12 @@ contain half a line, one full line, or many lines.
 
 ### Reserved keys
 
-| Key   | Meaning                                    |
-|-------|--------------------------------------------|
-| `CH`  | Logical channel (`TOP`, `TRADE`, `STATE`)  |
-| `SYM` | Symbol or `*` where allowed                |
-| `SEQ` | Sequence number for one `(CH, SYM)` stream |
-| `TS`  | UTC ISO-8601 timestamp with milliseconds   |
+| Key   | Meaning                                                    |
+|-------|-------------------------------------------------------------|
+| `CH`  | Logical channel (`TOP`, `TRADE`, `STATE`, `INDEX`, `DEPTH`) |
+| `SYM` | Symbol, index id, or `*` where allowed                       |
+| `SEQ` | Sequence number for one `(CH, SYM)` stream                   |
+| `TS`  | UTC ISO-8601 timestamp with milliseconds                     |
 
 ### Wire value types
 
@@ -149,27 +160,50 @@ Optional fields are omitted when not present. Empty required values are invalid.
 
 CALF groups market data into logical channels.
 
-| Channel | Description                         | `SYM=*` allowed? |
-|---------|-------------------------------------|------------------|
-| `TOP`   | Best bid/ask updates and snapshots  | No               |
-| `TRADE` | Trade prints                        | No               |
-| `STATE` | Session or symbol state transitions | Yes              |
-| `INDEX` | Index level updates                 | No               |
+| Channel | Description                                    | `SYM=*` allowed? |
+|---------|-------------------------------------------------|-------------------|
+| `TOP`   | Best bid/ask updates and snapshots               | Yes               |
+| `TRADE` | Trade prints                                     | Yes               |
+| `STATE` | Session or symbol state transitions              | Yes               |
+| `INDEX` | Index level updates                              | No                |
+| `DEPTH` | Aggregated multi-level order book (Level 2)      | No                |
 
 `SNAP` is a message type, not a channel.
 
 A client does not subscribe to `SNAP` directly. The gateway auto-sends `SNAP`
-for new `SUB` requests on `TOP` and `STATE`.
+for new `SUB` requests on `TOP`, `STATE`, `INDEX`, and `DEPTH`. `TRADE` has
+no baseline `SNAP` — only future trade events are delivered.
+
+`SYM=*` for `TOP` does not produce a single `SNAP|SYM=*`. Top-of-book has no
+meaningful "wildcard" value, so the gateway instead sends one real `SNAP` per
+currently known symbol, then live `MD` for any symbol — including ones that
+become known only after the `SUB` — via the same wildcard subscription entry.
 
 ### Subscription rules
 
 - `SUB` may include multiple channels and symbols separated by commas.
 - A multi-value `SUB` applies to the Cartesian product of channels and symbols.
-- `SYM=*` is valid only when channel set is exactly `STATE`.
+- `SYM=*` is valid when the channel set is a subset of `{STATE, TOP, TRADE}`,
+  in any combination. `SYM=*` combined with `INDEX` or `DEPTH` — alone or
+  mixed with any other channel in the same `SUB` — is invalid.
+- A wildcard subscription (`SYM=*`) counts as exactly one entry toward
+  `max_symbols_per_client`, not one entry per known symbol.
 - Re-subscribing an already active pair is idempotent.
 - Maximum symbols per client are enforced by gateway config.
 - If any requested `(CH,SYM)` pair is invalid, the gateway rejects the `SUB`
   request with `ERR` and leaves existing subscriptions unchanged.
+
+`DEPTH` disallows `SYM=*` deliberately, not as an oversight: `DEPTH` messages
+carry up to `2 x depth_levels` price levels each, so a wildcard subscription
+could multiply one client's outbound bandwidth by the entire symbol count.
+
+```text
+SUB|CH=TOP,TRADE|SYM=AAPL,MSFT
+SUB|CH=STATE|SYM=*
+SUB|CH=TRADE|SYM=*
+SUB|CH=TOP,TRADE,STATE|SYM=*
+SUB|CH=DEPTH|SYM=AAPL
+```
 
 
 
@@ -260,6 +294,7 @@ sequenceDiagram
 | `TRADE` | Gateway -> Client | Trade print                           |
 | `STATE` | Gateway -> Client | Session/symbol state transition       |
 | `IDX`   | Gateway -> Client | Index level update                    |
+| `DEPTH` | Gateway -> Client | Incremental multi-level order book update |
 
 
 
@@ -298,31 +333,39 @@ HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
 
 **Direction:** Gateway -> Client
 
-| Field     | Req | Description                          |
-|-----------|-----|--------------------------------------|
-| `PROTO`   | Yes | Echoes negotiated protocol           |
-| `GW`      | Yes | Gateway instance name                |
-| `HBINT`   | Yes | Heartbeat interval in seconds        |
-| `REPLAY`  | Yes | Replay window in seconds             |
-| `SYMBOLS` | No  | Optional comma-separated symbol list |
+| Field          | Req | Description                          |
+|----------------|-----|---------------------------------------|
+| `PROTO`        | Yes | Echoes negotiated protocol           |
+| `GW`           | Yes | Gateway instance name                |
+| `HBINT`        | Yes | Heartbeat interval in seconds        |
+| `REPLAY`       | Yes | Replay window in seconds             |
+| `SYMBOLS`      | No  | Optional comma-separated symbol list |
+| `CH_SUPPORTED` | No  | Comma-separated list of channels this gateway build supports. Present on every CALF `1.0.0`+ gateway; omitted entirely by earlier gateways. A client uses its presence — not the `PROTO` value, which does not change — to detect whether `DEPTH`/`INDEX` and the `SYM=*` wildcard extension are available. |
 
 ```text
-WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT
+WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|CH_SUPPORTED=TOP,TRADE,STATE,INDEX,DEPTH
 ```
+
+A client that receives no `CH_SUPPORTED` field must assume only `TOP`,
+`TRADE`, and `STATE` are available and must not rely on `SYM=*` for `TOP`/
+`TRADE`, `INDEX`, or `DEPTH` without first probing with `SUB` and handling a
+possible `ERR|CODE=INVALID_CHANNEL`/`INVALID_SYMBOL` response.
 
 ### `SUB`
 
 **Direction:** Client -> Gateway
 
-| Field | Req | Description                                     |
-|-------|-----|-------------------------------------------------|
-| `CH`  | Yes | Comma-separated channels                        |
-| `SYM` | Yes | Comma-separated symbols (`*` only with `STATE`) |
+| Field | Req | Description                                                        |
+|-------|-----|----------------------------------------------------------------------|
+| `CH`  | Yes | Comma-separated channels                                            |
+| `SYM` | Yes | Comma-separated symbols (`*` only when `CH` is a subset of `{STATE, TOP, TRADE}`) |
 
 **Response semantics:**
 
 - No explicit ACK.
-- New `TOP`/`STATE` subscriptions trigger `SNAP`.
+- New `TOP`/`STATE`/`INDEX`/`DEPTH` subscriptions trigger `SNAP`. A wildcard
+  `TOP` subscription (`SYM=*`) triggers one real `SNAP` per currently known
+  symbol, never a single `SNAP` with a literal `SYM=*`.
 - `TRADE` subscriptions do not have a baseline `SNAP`; only future `TRADE` events are sent.
 - Invalid requests return `ERR`.
 - Existing successful subscriptions remain active when a later `SUB` request is invalid.
@@ -330,6 +373,8 @@ WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT
 ```text
 SUB|CH=TOP,TRADE|SYM=AAPL,MSFT
 SUB|CH=STATE|SYM=*
+SUB|CH=TRADE|SYM=*
+SUB|CH=DEPTH|SYM=AAPL
 ```
 
 ### `UNSUB`
@@ -357,12 +402,12 @@ UNSUB|CH=TOP|SYM=AAPL
 
 Common fields:
 
-| Field | Req | Description                     |
-|-------|-----|---------------------------------|
-| `CH`  | Yes | `TOP` or `STATE`                |
-| `SYM` | Yes | Symbol or `*` for session state |
-| `SEQ` | Yes | Current stream sequence         |
-| `TS`  | Yes | Snapshot timestamp              |
+| Field | Req | Description                              |
+|-------|-----|--------------------------------------------|
+| `CH`  | Yes | `TOP`, `STATE`, `INDEX`, or `DEPTH`        |
+| `SYM` | Yes | Symbol, index id, or `*` for session state |
+| `SEQ` | Yes | Current stream sequence                    |
+| `TS`  | Yes | Snapshot timestamp                         |
 
 `CH=TOP` fields:
 
@@ -375,11 +420,23 @@ Common fields:
 | `LAST`   | No  | Last trade price |
 | `LASTSZ` | No  | Last trade size  |
 
+A `SUB|CH=TOP|SYM=*` never produces a `SNAP` with a literal `SYM=*` — see
+"Channel model" above. Each `SNAP` in the resulting burst has a real `SYM`
+and uses that symbol's own `(TOP, SYM)` sequence.
+
 `CH=STATE` fields:
 
 | Field     | Req | Description         |
 |-----------|-----|---------------------|
 | `SESSION` | Yes | Current state value |
+
+`CH=INDEX` fields: identical field set to the `IDX` message — see that
+section below. Since CALF `1.0.0`, `SUB|CH=INDEX` sends a baseline `SNAP`
+before any live `IDX` updates, the same as `TOP`/`STATE`/`DEPTH`.
+
+`CH=DEPTH` fields: identical field set to the `DEPTH` message — see that
+section below. `BIDS`/`ASKS` are omitted entirely (not sent as empty
+strings) when a symbol's book has no resting orders on that side yet.
 
 `TRADE` stream note:
 
@@ -389,6 +446,8 @@ Common fields:
 ```text
 SNAP|CH=TOP|SYM=AAPL|SEQ=100|TS=2026-06-07T10:16:00.000Z|BID=150.10|BIDSZ=1200|ASK=150.12|ASKSZ=900|LAST=150.11|LASTSZ=300
 SNAP|CH=STATE|SYM=*|SEQ=5|TS=2026-06-07T10:16:00.000Z|SESSION=CONTINUOUS
+SNAP|CH=INDEX|SYM=EDU100|SEQ=42|TS=2026-06-12T10:15:23.000Z|LEVEL=1048.73|OPEN=1042.10|HIGH=1056.30|LOW=1040.05|SESSION=CONTINUOUS
+SNAP|CH=DEPTH|SYM=AAPL|SEQ=1|TS=2026-07-11T14:32:00.000Z|LEVELS=10|BIDS=150.10:1200:3,150.09:800:2|ASKS=150.12:900:2,150.13:600:1
 ```
 
 ### `MD`
@@ -487,6 +546,68 @@ events that occur after the subscription becomes active.
 IDX|CH=INDEX|SYM=EDU50|SEQ=12|TS=2026-06-07T10:16:00.000Z|LEVEL=5123.45|SESSION=CONTINUOUS|OPEN=5100.00|CHG=+23.45|PCTCHG=+0.46
 ```
 
+### `DEPTH`
+
+**Direction:** Gateway -> Client
+
+**Purpose:** Aggregated, multi-level order book update — CALF's Level 2
+view. Each level is an aggregate of every resting order at that price;
+individual order identity is never exposed (Level 3 is explicitly out of
+scope, see "Out of scope in CALF 1.0.0" above).
+
+**Response:** No reply required. A gap in `SEQ` should trigger replay or
+resync, exactly as for `MD`.
+
+Unlike `MD`, which omits individual unchanged `BID`/`ASK` fields, `DEPTH` is
+a **full-ladder replace per message**: whenever the top-`LEVELS` price
+levels on either side change, the message carries that side's complete
+current ladder, not a per-level diff. `DEPTH` is only sent when the tracked
+levels actually changed since the previous `DEPTH`/`SNAP` for the symbol.
+
+| Field    | Req | Description                                                  |
+|----------|-----|-----------------------------------------------------------------|
+| `CH`     | Yes | `DEPTH`                                                        |
+| `SYM`    | Yes | Symbol                                                          |
+| `SEQ`    | Yes | Stream sequence for `(DEPTH, SYM)`                              |
+| `TS`     | Yes | Event timestamp                                                 |
+| `LEVELS` | Yes | Number of price levels per side configured on this gateway (`market_data_gateway.depth_levels`, default `10`) |
+| `BIDS`   | No  | Bid-side ladder, best price first; omitted if no resting bids   |
+| `ASKS`   | No  | Ask-side ladder, best price first; omitted if no resting asks   |
+
+**Level encoding grammar** (applies to both `BIDS` and `ASKS`):
+
+```text
+<LEVELS_VALUE> ::= <LEVEL> ("," <LEVEL>)*
+<LEVEL>        ::= <PRICE> ":" <QTY> ":" <COUNT>
+```
+
+`PRICE` is decimal text, `QTY` is the aggregated resting quantity at that
+price, `COUNT` is the number of individual resting orders aggregated into
+it. `:` and `,` are ordinary field-value characters in CALF — the only
+reserved wire character is `|`.
+
+```text
+DEPTH|CH=DEPTH|SYM=AAPL|SEQ=2|TS=2026-07-11T14:32:00.512Z|LEVELS=10|BIDS=150.10:1400:4,150.09:800:2,150.08:400:1|ASKS=150.12:900:2,150.13:600:1,150.14:250:1
+```
+
+`SYM=*` is invalid for `SUB|CH=DEPTH` — see "Subscription rules" above.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant G as pm-md-gwy
+
+    C->>G: SUB|CH=DEPTH|SYM=AAPL
+    Note over G: current DEPTH SEQ for AAPL is 1
+    G-->>C: SNAP|CH=DEPTH|SYM=AAPL|SEQ=1|LEVELS=10|BIDS=150.10:1200:3|ASKS=150.12:900:2
+
+    Note over G: book.AAPL changes at a tracked level
+    G-->>C: DEPTH|CH=DEPTH|SYM=AAPL|SEQ=2|LEVELS=10|BIDS=150.10:1400:4|ASKS=150.12:900:2
+
+    Note over G: book.AAPL changes but not within the top 10 levels
+    Note over G: no DEPTH message emitted — unchanged ladder is not resent
+```
+
 ### `HB`
 
 **Direction:** Gateway -> Client
@@ -527,8 +648,8 @@ Normative error codes:
 |-------------------|---------------------------------------------------------------------------------|
 | `PROTO_MISMATCH`  | `HELLO` missing `CLIENT` or `PROTO != CALF1`                                    |
 | `AUTH_REQUIRED`   | Non-`HELLO` message sent before successful handshake                            |
-| `INVALID_CHANNEL` | `CH` not in `{TOP, TRADE, STATE, INDEX}`                                        |
-| `INVALID_SYMBOL`  | Symbol not in known list, or wildcard used on wrong channel                     |
+| `INVALID_CHANNEL` | `CH` not in `{TOP, TRADE, STATE, INDEX, DEPTH}`                                 |
+| `INVALID_SYMBOL`  | Symbol not in known list, or `SYM=*` used with `INDEX`/`DEPTH` (alone or mixed with any other channel) |
 | `SUB_LIMIT`       | Subscription would exceed `max_symbols_per_client`                              |
 | `REPLAY_MISS`     | `LASTSEQ` is older than the replay window; gateway sends a `SNAP` instead       |
 | `SLOW_CLIENT`     | Outbound queue exceeded `max_client_queue`; connection closed                   |
@@ -601,9 +722,13 @@ For CALF `1.0.0` interoperability, `pm-md-gwy` must:
 2. Normalize internal engine events into CALF lines.
 3. Maintain independent sequence counters per `(CH, SYM)`.
 4. Keep bounded replay buffers per `(CH, SYM)` stream.
-5. Auto-send `SNAP` on new `TOP`/`STATE` subscriptions.
-6. Enforce channel and symbol rules deterministically.
-7. Disconnect slow clients when queue limits are exceeded.
+5. Auto-send `SNAP` on new `TOP`/`STATE`/`INDEX`/`DEPTH` subscriptions; for a
+   wildcard `TOP` subscription, auto-send one real per-symbol `SNAP` for
+   every currently known symbol rather than a single `SYM=*` snapshot.
+6. Enforce channel and symbol rules deterministically, including which
+   channels accept `SYM=*` (`STATE`, `TOP`, `TRADE` only).
+7. Advertise supported channels in `WELCOME|CH_SUPPORTED=`.
+8. Disconnect slow clients when queue limits are exceeded.
 
 
 
@@ -627,8 +752,9 @@ All supported CALF `1.0.0` configuration fields are listed below.
 | `market_data_gateway.heartbeat_interval_sec` | Integer, `> 0` | `1` | Interval used to emit `HB` when no outbound market-data line was sent. |
 | `market_data_gateway.idle_timeout_sec` | Integer, `> 0` | `5` | Maximum silent period (no inbound and no outbound traffic) before disconnect. |
 | `market_data_gateway.replay_window_sec` | Integer, `> 0` | `30` | Time-bounded replay retention per `(CH,SYM)` stream for resume/gap recovery. |
-| `market_data_gateway.max_symbols_per_client` | Integer, `> 0` | `200` | Per-client subscription symbol limit across active subscriptions. |
+| `market_data_gateway.max_symbols_per_client` | Integer, `> 0` | `200` | Per-client subscription symbol limit across active subscriptions. A wildcard subscription counts as one entry. |
 | `market_data_gateway.max_client_queue` | Integer, `> 0` | `10000` | Per-client outbound queue cap; overflow triggers `ERR|CODE=SLOW_CLIENT` and disconnect. |
+| `market_data_gateway.depth_levels` | Integer, `> 0` | `10` | Number of price levels per side included in `DEPTH`/`SNAP(CH=DEPTH)` messages. There is no separate enable/disable flag — `DEPTH` is on by default in CALF `1.0.0`; this only tunes ladder depth. |
 
 Operational notes:
 
@@ -636,6 +762,9 @@ Operational notes:
 - `REPLAY` in `WELCOME` must reflect `replay_window_sec`.
 - `max_symbols_per_client` affects `SUB` validation and `ERR|CODE=SUB_LIMIT`.
 - `max_client_queue` controls slow-client backpressure behavior.
+- `depth_levels` affects `DEPTH` message size and bandwidth; lower it on
+  bandwidth-constrained deployments rather than expecting clients to request
+  fewer levels — there is no per-client `LEVELS=` override in CALF `1.0.0`.
 
 
 **Example:**
@@ -651,6 +780,7 @@ market_data_gateway:
   replay_window_sec: 30
   max_symbols_per_client: 200
   max_client_queue: 10000
+  depth_levels: 10
 ```
 
 
@@ -662,9 +792,18 @@ market_data_gateway:
 - Enforce HELLO-before-use strictly; all non-HELLO pre-auth messages must
   receive `ERR|CODE=AUTH_REQUIRED`.
 - Keep `SNAP` semantics explicit: it is a message type, not a subscribable
-  channel; only `TOP` and `STATE` subscriptions auto-trigger `SNAP`.
-- Enforce `SYM=*` constraints exactly (`STATE` only) and validate multi-value
-  `SUB` as Cartesian stream requests.
+  channel; `TOP`, `STATE`, `INDEX`, and `DEPTH` subscriptions auto-trigger
+  `SNAP` — `TRADE` never does.
+- For a wildcard `TOP` subscription, do not call the per-symbol snapshot
+  builder with a literal `SYM="*"` — it has no meaningful per-symbol state
+  and will silently produce an empty snapshot. Iterate known symbols and send
+  one real `SNAP` each.
+- Enforce `SYM=*` constraints exactly (`STATE`, `TOP`, `TRADE` only — never
+  `INDEX` or `DEPTH`, and never when mixed with either in the same `SUB`)
+  and validate multi-value `SUB` as Cartesian stream requests.
+- `DEPTH` is a full-ladder replace per message, not a per-level diff like
+  `MD`. Do not attempt incremental per-level patching on either the gateway
+  or client side.
 - Track sequence numbers independently per `(CH,SYM)` stream; never use a single
   global counter.
 - Treat `RESUME=1` as single-stream only and validate `CH`, `SYM`, and
@@ -686,10 +825,18 @@ If you are implementing a CALF client, the most important protocol truths are:
 2. `HELLO` is mandatory before any subscription command.
 3. `SNAP` is a message type, not a subscribable channel.
 4. Sequence tracking is per `(CH, SYM)` stream.
-5. `SYM=*` is valid only for `STATE` subscriptions.
-6. Replay resume is single-stream per `HELLO|RESUME=1`.
-7. On replay miss, client must accept fresh `SNAP` and reset local baseline.
-8. Heartbeats and ping/pong are separate liveness mechanisms.
-9. A `SLOW_CLIENT` error indicates disconnect and reconnect is required.
-10. Protocol values and keys are uppercase by convention and should be emitted
+5. `SYM=*` is valid for `STATE`, `TOP`, and `TRADE` subscriptions — never for
+   `INDEX` or `DEPTH`.
+6. A wildcard `TOP` subscription never yields a `SNAP` with a literal
+   `SYM=*`; it yields one real `SNAP` per known symbol.
+7. Replay resume is single-stream per `HELLO|RESUME=1`.
+8. On replay miss, client must accept fresh `SNAP` and reset local baseline.
+9. `DEPTH` messages replace a side's entire tracked ladder, never a single
+   price level in isolation.
+10. `WELCOME|CH_SUPPORTED=`, not `PROTO`, is how a client detects whether a
+    gateway build supports `DEPTH`, `INDEX`, or the `SYM=*` wildcard
+    extension — `PROTO=CALF1` does not change across CALF `1.0.0`.
+11. Heartbeats and ping/pong are separate liveness mechanisms.
+12. A `SLOW_CLIENT` error indicates disconnect and reconnect is required.
+13. Protocol values and keys are uppercase by convention and should be emitted
     uppercase for interoperability.

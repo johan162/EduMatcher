@@ -27,7 +27,13 @@ from edumatcher.md_gateway.sequencer import SequenceAllocator
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.message import decode
 
-_ALLOWED_CHANNELS = frozenset({"TOP", "TRADE", "STATE", "INDEX"})
+_ALLOWED_CHANNELS = frozenset({"TOP", "TRADE", "STATE", "INDEX", "DEPTH"})
+# Channels that may be combined with SYM=* on a single SUB line (CALF 1.0.0,
+# see EduMatcher-CALF-Extensions.md §5). INDEX and DEPTH are deliberately
+# excluded: INDEX always requires an explicit index id, and DEPTH is heavy
+# enough per-message that a wildcard subscription could multiply one
+# client's outbound bandwidth by the whole symbol count (§6.9).
+_WILDCARD_ELIGIBLE_CHANNELS = frozenset({"STATE", "TOP", "TRADE"})
 _MAX_LINE_BYTES = 4096
 _HELLO_TIMEOUT_SEC = 5
 
@@ -48,7 +54,7 @@ class MarketDataGateway:
         self._clients: dict[int, ClientSession] = {}
 
         self._subs = SubscriptionRegistry()
-        self._normaliser = EngineNormaliser()
+        self._normaliser = EngineNormaliser(depth_levels=config.depth_levels)
         self._sequencer = SequenceAllocator()
         self._replay = ReplayBuffer(config.replay_window_sec)
 
@@ -303,6 +309,13 @@ class MarketDataGateway:
             "GW": self.config.name,
             "HBINT": str(self.config.heartbeat_interval_sec),
             "REPLAY": str(self.config.replay_window_sec),
+            # CH_SUPPORTED lets a client detect gateway capability without a
+            # PROTO version bump (EduMatcher-CALF-Extensions.md §3.2). Always
+            # the full _ALLOWED_CHANNELS list since every channel in it ships
+            # on by default as of 1.0.0 — its value to a client is mainly in
+            # its *presence*, which distinguishes a 1.0.0+ gateway from a
+            # pre-1.0.0 one that predates this field entirely.
+            "CH_SUPPORTED": ",".join(sorted(_ALLOWED_CHANNELS)),
         }
         if self._known_symbols:
             welcome_fields["SYMBOLS"] = ",".join(sorted(self._known_symbols))
@@ -398,8 +411,11 @@ class MarketDataGateway:
                 return
 
         # Validate symbol wildcard and known symbol list before mutating state.
+        # SYM=* is allowed for STATE, TOP, and TRADE (CALF 1.0.0, see
+        # EduMatcher-CALF-Extensions.md §5); INDEX and DEPTH still require an
+        # explicit symbol/index id (§4.2, §6.9).
         for sym in symbols:
-            if sym == "*" and set(channels) != {"STATE"}:
+            if sym == "*" and not set(channels).issubset(_WILDCARD_ELIGIBLE_CHANNELS):
                 self._queue_line(session, "ERR", {"CODE": "INVALID_SYMBOL", "SYM": sym})
                 return
             if sym != "*" and self._known_symbols and sym not in self._known_symbols:
@@ -427,7 +443,26 @@ class MarketDataGateway:
         self._subs.set_for_client(session.sock.fileno(), session.subscriptions)
 
         for ch, sym in sorted(new_pairs):
-            if ch in {"TOP", "STATE"}:
+            # Wildcard TOP has no single meaningful "top of book" of its own
+            # (unlike STATE's session-wide summary) — top_snapshot_fields("*")
+            # would look up a symbol literally named "*" and return an empty
+            # snapshot. Send one real per-symbol SNAP for every currently
+            # known symbol instead (EduMatcher-CALF-Extensions.md §5.4). The
+            # ("TOP", "*") pair itself is still stored in session.subscriptions
+            # above so future live MD events fan out via the wildcard match in
+            # SubscriptionRegistry.session_wants, including for symbols that
+            # become known only after this SUB.
+            if ch == "TOP" and sym == "*":
+                for real_sym in sorted(self._known_symbols):
+                    self._send_snapshot_for_stream(session, "TOP", real_sym)
+                continue
+            # INDEX has always had a working SNAP path (index_snapshot_fields,
+            # the "elif ch == 'INDEX'" branch below) but it was never wired
+            # into SUB's auto-snapshot trigger, so SUB|CH=INDEX silently sent
+            # no baseline — contradicting EduMatcher-Index.md's original
+            # design ("gateway sends an initial SNAP"). Fixed here to match
+            # TOP/STATE/DEPTH's already-established pattern.
+            if ch in {"TOP", "STATE", "INDEX", "DEPTH"}:
                 self._send_snapshot_for_stream(session, ch, sym)
 
     def _handle_unsub(self, session: ClientSession, fields: dict[str, str]) -> None:
@@ -462,6 +497,8 @@ class MarketDataGateway:
             fields.update(self._normaliser.state_snapshot_fields(sym))
         elif ch == "INDEX":
             fields.update(self._normaliser.index_snapshot_fields(sym))
+        elif ch == "DEPTH":
+            fields.update(self._normaliser.depth_snapshot_fields(sym))
 
         self._queue_raw(session, build_line("SNAP", fields), is_market_data=True)
 
@@ -514,6 +551,11 @@ class MarketDataGateway:
                 md_fields = self._normaliser.normalise_book(sym, payload)
                 if md_fields:
                     self._emit_stream_event("MD", "TOP", sym, md_fields, now_seconds)
+                depth_fields = self._normaliser.normalise_depth(sym, payload)
+                if depth_fields:
+                    self._emit_stream_event(
+                        "DEPTH", "DEPTH", sym, depth_fields, now_seconds
+                    )
                 continue
 
             if topic == "trade.executed":

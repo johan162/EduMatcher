@@ -1541,8 +1541,8 @@ every constituent trade or forced recalculation.
 ## CALF TCP protocol (`pm-md-gwy`)
 
 The market-data gateway exposes a newline-delimited UTF-8 text protocol on TCP port 5570.
-Each line is `MSGTYPE|KEY=VALUE|KEY=VALUE\n`. All four allowed channels are
-`TOP`, `TRADE`, `STATE`, and `INDEX`.
+Each line is `MSGTYPE|KEY=VALUE|KEY=VALUE\n`. The five allowed channels are
+`TOP`, `TRADE`, `STATE`, `INDEX`, and `DEPTH`.
 
 ### Client → gateway
 
@@ -1565,13 +1565,13 @@ Each line is `MSGTYPE|KEY=VALUE|KEY=VALUE\n`. All four allowed channels are
 
 | Field | Required | Description |
 |---|---|---|
-| `CH` | yes | Comma-separated channels: `TOP`, `TRADE`, `STATE`, `INDEX` |
-| `SYM` | yes | Comma-separated symbols; `*` wildcard only valid for `STATE` |
+| `CH` | yes | Comma-separated channels: `TOP`, `TRADE`, `STATE`, `INDEX`, `DEPTH` |
+| `SYM` | yes | Comma-separated symbols; `*` wildcard valid for `STATE`, `TOP`, and `TRADE` (never `INDEX` or `DEPTH`) |
 
-Subscribing to `TOP` or `STATE` triggers an immediate `SNAP` per new stream.
-`TRADE` and `INDEX` subscriptions have no baseline snapshot — only future events are delivered.
+Subscribing to `TOP`, `STATE`, `INDEX`, or `DEPTH` triggers an immediate `SNAP` per new stream.
+`TRADE` subscriptions have no baseline snapshot — only future events are delivered.
 
-**Reply:** Implicit `SNAP` per new `TOP`/`STATE` stream; `ERR` on invalid channel or symbol.
+**Reply:** Implicit `SNAP` per new `TOP`/`STATE`/`INDEX`/`DEPTH` stream; `ERR` on invalid channel or symbol.
 
 
 
@@ -1609,12 +1609,13 @@ No fields. Gateway drains the output queue then disconnects.
 | `HBINT` | Heartbeat interval in seconds |
 | `REPLAY` | Replay window in seconds |
 | `SYMBOLS` | Comma-separated known symbol list (omitted when empty) |
+| `CH_SUPPORTED` | Comma-separated list of channels this gateway supports (e.g. `DEPTH,INDEX,STATE,TOP,TRADE`) — lets clients detect capabilities without a `PROTO` bump |
 
 
 
 #### `SNAP` — stream baseline snapshot
 
-Sent after `SUB` for `TOP`/`STATE` channels and after a successful replay resume.
+Sent after `SUB` for `TOP`/`STATE`/`INDEX`/`DEPTH` channels and after a successful replay resume.
 
 | Field | Description |
 |---|---|
@@ -1689,6 +1690,23 @@ Sent after `SUB` for `TOP`/`STATE` channels and after a successful replay resume
 
 
 
+#### `DEPTH` — aggregated order-book levels (`DEPTH` channel)
+
+| Field | Description |
+|---|---|
+| `CH` | `DEPTH` |
+| `SYM` | Symbol |
+| `SEQ` | Stream-local sequence number |
+| `TS` | Timestamp |
+| `LEVELS` | Number of price levels per side configured (`market_data_gateway.depth_levels`) |
+| `BIDS` | Comma-separated `price:qty:count` triples, best-to-worst (omitted if bid side unchanged) |
+| `ASKS` | Comma-separated `price:qty:count` triples, best-to-worst (omitted if ask side unchanged) |
+
+Only changed sides are re-sent on incremental updates; `SNAP` always includes
+both `BIDS` and `ASKS` when non-empty. `SYM=*` is not permitted for `DEPTH`.
+
+
+
 #### `HB` — heartbeat
 
 Sent when no market data has been queued within `heartbeat_interval_sec` seconds.
@@ -1721,7 +1739,7 @@ No fields.
 | `AUTH_REQUIRED` | Client sent a message before `HELLO` |
 | `PROTO_MISMATCH` | `HELLO` missing `CLIENT` or `PROTO != CALF1` |
 | `BAD_MESSAGE` | Parse failure, oversized line (> 4096 bytes), or unsupported message type |
-| `INVALID_CHANNEL` | `CH` not in `{TOP, TRADE, STATE, INDEX}` |
+| `INVALID_CHANNEL` | `CH` not in `{TOP, TRADE, STATE, INDEX, DEPTH}` |
 | `INVALID_SYMBOL` | Symbol not in known list, or wildcard used on wrong channel |
 | `SUB_LIMIT` | Subscription would exceed `max_symbols_per_client` |
 | `REPLAY_MISS` | `LASTSEQ` is older than the replay window; gateway sends a `SNAP` instead |

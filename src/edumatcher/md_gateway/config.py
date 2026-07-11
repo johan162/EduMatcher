@@ -30,6 +30,7 @@ class MarketDataGatewayConfig:
     replay_window_sec: int = 30
     max_symbols_per_client: int = 200
     max_client_queue: int = 10_000
+    depth_levels: int = 10
 
 
 def _as_int(raw: object, field: str) -> int:
@@ -73,6 +74,10 @@ def _load_market_data_gateway_config_from_raw(
         md_raw.get("max_client_queue", 10_000),
         "max_client_queue",
     )
+    depth_levels = _as_int(
+        md_raw.get("depth_levels", 10),
+        "depth_levels",
+    )
 
     if port <= 0:
         raise ValueError("market_data_gateway.port must be > 0")
@@ -86,6 +91,8 @@ def _load_market_data_gateway_config_from_raw(
         raise ValueError("market_data_gateway.max_symbols_per_client must be > 0")
     if max_client_queue <= 0:
         raise ValueError("market_data_gateway.max_client_queue must be > 0")
+    if depth_levels <= 0:
+        raise ValueError("market_data_gateway.depth_levels must be > 0")
 
     return MarketDataGatewayConfig(
         enabled=enabled,
@@ -99,6 +106,7 @@ def _load_market_data_gateway_config_from_raw(
         replay_window_sec=replay_window_sec,
         max_symbols_per_client=max_symbols_per_client,
         max_client_queue=max_client_queue,
+        depth_levels=depth_levels,
     )
 
 

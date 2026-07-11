@@ -750,12 +750,24 @@ for ch, sym in sorted(new_pairs):
         for real_sym in sorted(self._known_symbols):
             self._send_snapshot_for_stream(session, "TOP", real_sym)
         continue
-    if ch in {"TOP", "STATE", "DEPTH"}:
+    if ch in {"TOP", "STATE", "INDEX", "DEPTH"}:
         self._send_snapshot_for_stream(session, ch, sym)
 ```
 
 (`DEPTH` never needs a `sym == "*"` branch — §6.9 rejects the wildcard for
 this channel at validation time, so `sym` is always a concrete symbol here.)
+
+> **Bundled fix: `INDEX` was missing from this set entirely before this
+> work.** `_send_snapshot_for_stream` has always had a working `elif ch ==
+> "INDEX":` branch (`index_snapshot_fields`), but nothing in `_handle_sub`
+> ever triggered it for a plain `SUB|CH=INDEX` — only `RESUME`'s
+> replay-miss path could reach it. This contradicted
+> [EduMatcher-Index.md](EduMatcher-Index.md) §9.4's original design
+> ("the gateway sends an initial `SNAP`") and this document's own §4.2
+> channel table. Found while implementing the `DEPTH` snapshot trigger
+> above (same code path); fixed by adding `INDEX` to the same set rather
+> than left as a separate follow-up, since it is the same one-line class of
+> omission with the same fix.
 
 ### 6.7 Flowchart — engine event to `DEPTH` message
 
@@ -944,6 +956,7 @@ market_data_gateway:
 - [ ] `DEPTH` `SNAP` and incremental messages match the field tables in §6.3 exactly, including field omission rules
 - [ ] `DEPTH` sequence/replay works via the existing generic `SequenceAllocator`/`ReplayBuffer` with no `DEPTH`-specific branching (§6.5, §6.11)
 - [ ] `depth_levels` is configurable via `market_data_gateway.depth_levels` (§6.8, §9)
+- [ ] `SUB|CH=INDEX` sends a baseline `SNAP` (bundled fix, §6.6.4) — regression-test this alongside `DEPTH`'s own snapshot-on-subscribe tests
 - [ ] All test cases in §5.9 and §6.11 pass
 - [ ] `EduMatcher-Market_Data_Protocol.md` updated per §4.3 (documentation-only, can land separately but should not be forgotten)
 - [ ] No existing CALF integration test (pre-1.0.0 behaviour) regresses
