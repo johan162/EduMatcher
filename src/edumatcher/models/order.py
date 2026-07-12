@@ -142,6 +142,12 @@ class Order:
     # a FIFO matching scheme.  Optional; ignored when absent.
     client_tag: Optional[str] = None
 
+    # Engine-assigned monotonic arrival sequence (finding H1).  Time priority
+    # in the book is keyed on this, NOT on the client-supplied `timestamp`,
+    # so a back-dated payload timestamp cannot jump the price-time queue.
+    # Assigned by OrderBook when the order is placed on a heap; 0 = unassigned.
+    arrival_seq: int = 0
+
     # ------------------------------------------------------------------
     # Factory
     # ------------------------------------------------------------------
@@ -209,6 +215,7 @@ class Order:
             "origin": self.origin.value,
             "quote_id": self.quote_id,
             "client_tag": self.client_tag,
+            "arrival_seq": self.arrival_seq,
         }
 
     @classmethod
@@ -244,4 +251,5 @@ class Order:
         o.origin = _ORIGIN_MAP.get(d.get("origin", "ORDER"), OrderOrigin.ORDER)
         o.quote_id = d.get("quote_id")
         o.client_tag = d.get("client_tag")
+        o.arrival_seq = d.get("arrival_seq", 0)
         return o

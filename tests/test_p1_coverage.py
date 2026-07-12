@@ -965,30 +965,38 @@ class TestIcebergReplenishment:
         assert iceberg.status == OrderStatus.FILLED
 
     def test_iceberg_loses_priority_after_replenishment(self):
-        """After replenishment, iceberg goes behind earlier orders at same price."""
+        """After replenishment, iceberg goes behind orders that were already
+        resting at the same price when the peak refreshed.
+
+        Finding H1: priority is engine arrival order, not the client-supplied
+        timestamp — so this is expressed via true arrival order rather than by
+        back-dating a timestamp (which the engine now ignores for priority).
+        """
         book = OrderBook("AAPL")
-        # Place iceberg first
+        # Place iceberg first — it holds the front of the queue at 100.0.
         iceberg = _limit(Side.BUY, 100.0, qty=200, visible_qty=50, gateway_id="ICE")
         book.process(iceberg)
 
-        # Consume the first slice — iceberg replenishes with a new timestamp
-        sell1 = _limit(Side.SELL, 100.0, qty=50, gateway_id="MM")
-        book.process(sell1)
-
-        # Place a regular limit at same price BEFORE the replenishment timestamp
-        # To guarantee ordering, manually backdate it to just before iceberg's new ts
+        # A regular limit rests at the same price AFTER the iceberg but BEFORE
+        # its peak is consumed — so in arrival order it sits behind the current
+        # peak but ahead of any *future* refreshed peak.
         regular = _limit(Side.BUY, 100.0, qty=50, gateway_id="REG")
-        regular.timestamp = (
-            iceberg.timestamp - 1
-        )  # 1ns earlier than replenished iceberg
         book.process(regular)
 
-        # Next sell should fill the regular order (earlier timestamp than replenished iceberg)
+        # Consume the iceberg's first slice — the iceberg had priority for its
+        # displayed peak, then replenishes and re-queues to the back (a later
+        # arrival sequence than `regular`).
+        sell1 = _limit(Side.SELL, 100.0, qty=50, gateway_id="MM")
+        t1, _ = book.process(sell1)
+        assert t1[0].buy_order_id == iceberg.id  # peak had priority first
+
+        # Next sell fills the regular order, which now sits ahead of the
+        # refreshed peak.
         sell2 = _limit(Side.SELL, 100.0, qty=50, gateway_id="MM")
         trades, events = book.process(sell2)
 
         assert len(trades) == 1
-        # The fill should be against the regular order, not the iceberg
+        # The fill should be against the regular order, not the refreshed peak.
         filled_buy_id = trades[0].buy_order_id
         assert filled_buy_id == regular.id
 

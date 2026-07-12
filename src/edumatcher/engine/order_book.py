@@ -105,6 +105,7 @@ class OrderBook:
         "daily_value",
         "daily_trades",
         "_has_stops",
+        "_arrival_seq",
     )
 
     def __init__(self, symbol: str) -> None:
@@ -150,6 +151,17 @@ class OrderBook:
         # Guards the stop-check calls in process() to avoid function-call
         # overhead on every fill when no stops are present.
         self._has_stops: bool = False
+
+        # Monotonic arrival sequence for time priority (finding H1).  Assigned
+        # by the book when an order is placed on a heap, so queue position is
+        # determined by engine arrival order — never by the client-supplied
+        # `timestamp`, which a participant could back-date to jump the queue.
+        self._arrival_seq: int = 0
+
+    def _next_seq(self) -> int:
+        """Return the next monotonic arrival sequence number."""
+        self._arrival_seq += 1
+        return self._arrival_seq
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -369,6 +381,9 @@ class OrderBook:
 
         if priority_reset:
             order.timestamp = now
+            # Priority lost: assign a fresh arrival sequence so the order goes
+            # to the back of the queue at its (new) price level (finding H1).
+            order.arrival_seq = self._next_seq()
             # Invalidate old entry and re-insert with new key
             if entry:
                 entry.valid = False
@@ -378,13 +393,13 @@ class OrderBook:
                 else order.remaining_qty
             )
             if order.side == Side.BUY:
-                key = (-order.price, order.timestamp)  # type: ignore[operator]
+                key = (-order.price, order.arrival_seq)  # type: ignore[operator]
                 heap = self._bids
                 self._bid_qty[order.price] = (  # type: ignore[index]
                     self._bid_qty.get(order.price, 0) + new_visible  # type: ignore[operator, arg-type]
                 )
             else:
-                key = (order.price, order.timestamp)
+                key = (order.price, order.arrival_seq)
                 heap = self._asks
                 self._ask_qty[order.price] = (  # type: ignore[index]
                     self._ask_qty.get(order.price, 0) + new_visible  # type: ignore[operator, arg-type]
@@ -721,12 +736,15 @@ class OrderBook:
 
     def _add_stop(self, order: Order, events: list[Order]) -> None:
         assert order.stop_price is not None, "Stop order must have a stop_price"
+        # Arrival sequence breaks ties among stops at the same trigger price
+        # (finding H1 / M10) instead of the client timestamp.
+        order.arrival_seq = self._next_seq()
         if order.side == Side.BUY:
-            key = (order.stop_price, order.timestamp)
+            key = (order.stop_price, order.arrival_seq)
             entry = _HeapEntry(key=key, order=order)
             heapq.heappush(self._buy_stops, entry)
         else:
-            key = (-order.stop_price, order.timestamp)
+            key = (-order.stop_price, order.arrival_seq)
             entry = _HeapEntry(key=key, order=order)
             heapq.heappush(self._sell_stops, entry)
         self._order_index[order.id] = order
@@ -1039,12 +1057,14 @@ class OrderBook:
             if order.order_type == OrderType.ICEBERG
             else order.remaining_qty
         )
+        # Engine-assigned arrival sequence drives time priority (finding H1).
+        order.arrival_seq = self._next_seq()
         if order.side == Side.BUY:
-            key = (-order.price, order.timestamp)
+            key = (-order.price, order.arrival_seq)
             heap = self._bids
             self._bid_qty[order.price] = self._bid_qty.get(order.price, 0) + qty  # type: ignore[operator]
         else:
-            key = (order.price, order.timestamp)
+            key = (order.price, order.arrival_seq)
             heap = self._asks
             self._ask_qty[order.price] = self._ask_qty.get(order.price, 0) + qty  # type: ignore[operator]
         entry = _HeapEntry(key=key, order=order)
@@ -1057,14 +1077,16 @@ class OrderBook:
         old_entry = self._entry_index.get(order.id)
         if old_entry:
             old_entry.valid = False
-        # Rebuild with new timestamp (back of queue at same price)
+        # Fresh arrival sequence sends the replenished peak to the back of the
+        # queue at this price level (finding H1 — priority is seq-based).
+        order.arrival_seq = self._next_seq()
         new_peak = order.displayed_qty or 0
         if order.side == Side.BUY:
-            key = (-order.price, order.timestamp)  # type: ignore[operator]
+            key = (-order.price, order.arrival_seq)  # type: ignore[operator]
             heap = self._bids
             self._bid_qty[order.price] = self._bid_qty.get(order.price, 0) + new_peak  # type: ignore[index, arg-type]
         else:
-            key = (order.price, order.timestamp)
+            key = (order.price, order.arrival_seq)
             heap = self._asks
             self._ask_qty[order.price] = self._ask_qty.get(order.price, 0) + new_peak  # type: ignore[index, arg-type]
         entry = _HeapEntry(key=key, order=order)
