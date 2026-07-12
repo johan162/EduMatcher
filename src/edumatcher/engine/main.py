@@ -430,6 +430,8 @@ class Engine:
                     trades, events = book.process(quote_order, match=True, now=now)
                     # H5: dedup fills — a seeded quote sweeping k levels appears
                     # k times in `events` with the final cumulative qty.
+                    # H6: report each order's own VWAP execution price.
+                    _seed_fill_px = self._order_fill_prices(trades)
                     _seed_fill_ids: set[str] = set()
                     _seed_cancel_ids: set[str] = set()
                     for evt in events:
@@ -441,12 +443,15 @@ class Engine:
                                         evt.gateway_id,
                                         evt.id,
                                         fill_qty=evt.quantity - evt.remaining_qty,
-                                        fill_price=(
-                                            from_ticks(
-                                                book.last_trade_price, evt.symbol
-                                            )
-                                            if book.last_trade_price is not None
-                                            else 0.0
+                                        fill_price=_seed_fill_px.get(
+                                            evt.id,
+                                            (
+                                                from_ticks(
+                                                    book.last_trade_price, evt.symbol
+                                                )
+                                                if book.last_trade_price is not None
+                                                else 0.0
+                                            ),
                                         ),
                                         remaining_qty=evt.remaining_qty,
                                         status=evt.status.value,
@@ -833,8 +838,11 @@ class Engine:
 
         trades, events = book.process(order, match=do_match, now=now)
 
-        # Pre-compute fill price display once — only when fills were generated
-        # (skips the from_ticks call for passive/resting orders with no trades).
+        # H6: each order's fill message must carry ITS OWN execution price
+        # (per-order VWAP over the trades it participated in), not the sweep's
+        # last trade price.  Fall back to last_trade_price only if an order is
+        # somehow missing from the trade map.
+        _order_fill_px = self._order_fill_prices(trades)
         _fill_px = (
             from_ticks(book.last_trade_price, order.symbol)
             if trades and book.last_trade_price is not None
@@ -890,7 +898,7 @@ class Engine:
                             {
                                 "order_id": evt.id,
                                 "fill_qty": _filled_qty,
-                                "fill_price": _fill_px,
+                                "fill_price": _order_fill_px.get(evt.id, _fill_px),
                                 "remaining_qty": evt.remaining_qty,
                                 "status": (
                                     "PARTIAL_FILL" if evt.remaining_qty else "FILLED"
@@ -1450,6 +1458,23 @@ class Engine:
             if _cb is not None:
                 self._check_circuit_breaker(trade.symbol, trade.price, trade.timestamp)
 
+    @staticmethod
+    def _order_fill_prices(trades: list[Any]) -> dict[str, float]:
+        """Per-order volume-weighted execution price (display) from *trades*.
+
+        H6: a fill message must report the price the order ACTUALLY executed
+        at, not ``book.last_trade_price`` (the last level of the whole sweep).
+        For an order that fills across multiple levels this is its VWAP; for a
+        passive order filled at a single level it is exactly that level's price.
+        """
+        agg: dict[str, tuple[int, float]] = {}  # order_id -> (qty, notional)
+        for t in trades:
+            px = from_ticks(t.price, t.symbol)
+            for oid in (t.buy_order_id, t.sell_order_id):
+                qty, notional = agg.get(oid, (0, 0.0))
+                agg[oid] = (qty + t.quantity, notional + px * t.quantity)
+        return {oid: (n / q if q else 0.0) for oid, (q, n) in agg.items()}
+
     def _check_circuit_breaker(self, symbol: str, trade_price: int, now: int) -> None:
         """
         Called after every fill to check whether a circuit breaker halt should fire.
@@ -1753,6 +1778,8 @@ class Engine:
             # H5: dedup fills — an order sweeping k levels appears k times in
             # `events`, each reflecting the FINAL cumulative qty; publishing all
             # k would overcount for consumers summing fill_qty.
+            # H6: report each order's own VWAP execution price.
+            _q_fill_px = self._order_fill_prices(trades)
             _pub_fill_ids: set[str] = set()
             _pub_cancel_ids: set[str] = set()
             for evt in events:
@@ -1764,10 +1791,13 @@ class Engine:
                                 evt.gateway_id,
                                 evt.id,
                                 fill_qty=evt.quantity - evt.remaining_qty,
-                                fill_price=(
-                                    from_ticks(book.last_trade_price, evt.symbol)
-                                    if book.last_trade_price is not None
-                                    else 0.0
+                                fill_price=_q_fill_px.get(
+                                    evt.id,
+                                    (
+                                        from_ticks(book.last_trade_price, evt.symbol)
+                                        if book.last_trade_price is not None
+                                        else 0.0
+                                    ),
                                 ),
                                 remaining_qty=evt.remaining_qty,
                                 status=evt.status.value,
@@ -2293,6 +2323,8 @@ class Engine:
 
             # H5: dedup fills/terminals — a child sweeping k levels appears k
             # times in `events` with the final cumulative qty on every copy.
+            # H6: report each order's own VWAP execution price.
+            _c_fill_px = self._order_fill_prices(trades)
             _pub_fill_ids: set[str] = set()
             _pub_terminal_ids: set[str] = set()
             for evt in events:
@@ -2304,10 +2336,13 @@ class Engine:
                                 evt.gateway_id,
                                 evt.id,
                                 fill_qty=evt.quantity - evt.remaining_qty,
-                                fill_price=(
-                                    from_ticks(book.last_trade_price, evt.symbol)
-                                    if book.last_trade_price is not None
-                                    else 0.0
+                                fill_price=_c_fill_px.get(
+                                    evt.id,
+                                    (
+                                        from_ticks(book.last_trade_price, evt.symbol)
+                                        if book.last_trade_price is not None
+                                        else 0.0
+                                    ),
                                 ),
                                 remaining_qty=evt.remaining_qty,
                                 status=evt.status.value,
@@ -2895,6 +2930,8 @@ class Engine:
 
             # H5: dedup fills/terminals — a leg sweeping k levels appears k
             # times in `events` with the final cumulative qty on every copy.
+            # H6: report each order's own VWAP execution price.
+            _o_fill_px = self._order_fill_prices(trades)
             _pub_fill_ids: set[str] = set()
             _pub_terminal_ids: set[str] = set()
             for evt in events:
@@ -2906,10 +2943,13 @@ class Engine:
                                 evt.gateway_id,
                                 evt.id,
                                 fill_qty=evt.quantity - evt.remaining_qty,
-                                fill_price=(
-                                    from_ticks(book.last_trade_price, evt.symbol)
-                                    if book.last_trade_price is not None
-                                    else 0.0
+                                fill_price=_o_fill_px.get(
+                                    evt.id,
+                                    (
+                                        from_ticks(book.last_trade_price, evt.symbol)
+                                        if book.last_trade_price is not None
+                                        else 0.0
+                                    ),
                                 ),
                                 remaining_qty=evt.remaining_qty,
                                 status=evt.status.value,
@@ -3248,6 +3288,8 @@ class Engine:
         whenever an order executed any quantity, regardless of final status)
         and updates both counterparties' positions for every trade (H3).
         """
+        # H6: report each order's own VWAP execution price, not the sweep's last.
+        order_fill_px = self._order_fill_prices(trades)
         fill_px = (
             from_ticks(book.last_trade_price, aggressor.symbol)
             if book.last_trade_price is not None
@@ -3264,7 +3306,7 @@ class Engine:
                         evt.gateway_id,
                         evt.id,
                         fill_qty=filled,
-                        fill_price=fill_px,
+                        fill_price=order_fill_px.get(evt.id, fill_px),
                         remaining_qty=evt.remaining_qty,
                         status=("PARTIAL_FILL" if evt.remaining_qty else "FILLED"),
                         order=evt.to_dict(),
