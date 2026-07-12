@@ -664,11 +664,51 @@ class OrderBook:
     def _match_fok(
         self, order: Order, trades: list[Trade], events: list[Order], now: int
     ) -> None:
-        """Check full fillability first; only execute if entire quantity can be filled."""
+        """Check full fillability first; only execute if entire quantity can be filled.
+
+        #15: the pre-check walks the actual resting orders so it (a) counts the
+        HIDDEN quantity of resting icebergs — the visible level index alone
+        under-counts and spuriously rejects — and (b) excludes same-gateway
+        liquidity that SMP would skip/cancel, which would otherwise let the
+        sweep run dry and leave the FOK partially filled (a fill-or-kill
+        violation).  Rejecting before any fill keeps FOK all-or-nothing.
+        """
         opposite = self._asks if order.side == Side.BUY else self._bids
-        available = self._available_qty(opposite, order.price, order.side)
+        available = self._fok_available_qty(order, opposite)
         if available < order.quantity:
-            order.status = OrderStatus.REJECTED
+            # The FOK cannot fully fill.  Resolve SMP the same way a sweep
+            # would, then finalise a terminal status WITHOUT any partial fill.
+            smp = order.smp_action
+            price_limit = order.price
+            same_gw_conflicts = [
+                e.order
+                for e in opposite
+                if e.valid
+                and e.order.status not in _DEAD_STATUSES
+                and e.order.gateway_id == order.gateway_id
+                and e.order.price is not None
+                and (
+                    price_limit is None
+                    or (
+                        e.order.price <= price_limit
+                        if order.side == Side.BUY
+                        else e.order.price >= price_limit
+                    )
+                )
+            ]
+            # CANCEL_RESTING / CANCEL_BOTH removes the conflicting resting orders.
+            if smp in (SmpAction.CANCEL_RESTING, SmpAction.CANCEL_BOTH):
+                for resting in same_gw_conflicts:
+                    self._smp_cancel_resting(resting, events)
+            # CANCEL_AGGRESSOR / CANCEL_BOTH cancels the aggressor when it would
+            # have self-matched; a genuine liquidity shortfall is a plain reject.
+            if (
+                smp in (SmpAction.CANCEL_AGGRESSOR, SmpAction.CANCEL_BOTH)
+                and same_gw_conflicts
+            ):
+                order.status = OrderStatus.CANCELLED
+            else:
+                order.status = OrderStatus.REJECTED
             events.append(order)
             return
         self._sweep(
@@ -679,6 +719,46 @@ class OrderBook:
             events=events,
             now=now,
         )
+        # Safety net: if the sweep somehow failed to fully fill (e.g. an SMP
+        # CANCEL_AGGRESSOR encountered mid-sweep), do not leave a resting or
+        # limbo remainder — cancel it and notify.  With the accurate pre-check
+        # above this should not fire for genuine liquidity.
+        if order.remaining_qty > 0 and order.status not in _DEAD_STATUSES:
+            order.status = OrderStatus.CANCELLED
+            events.append(order)
+
+    def _fok_available_qty(self, order: Order, heap: list[_HeapEntry]) -> int:
+        """Liquidity a FOK could actually execute against.
+
+        Walks live resting orders on *heap* up to the FOK's price limit,
+        counting each order's full ``remaining_qty`` (so resting iceberg hidden
+        quantity is included), and excluding same-gateway orders when SMP is
+        active (they are skipped/cancelled and cannot fill the FOK).  See H8.
+        """
+        price_limit = order.price
+        side = order.side
+        smp = order.smp_action
+        gw = order.gateway_id
+        total = 0
+        for entry in heap:
+            if not entry.valid:
+                continue
+            o = entry.order
+            if o.status in _DEAD_STATUSES:
+                continue
+            if o.price is None:
+                continue
+            if price_limit is not None:
+                if side == Side.BUY and o.price > price_limit:
+                    continue
+                if side == Side.SELL and o.price < price_limit:
+                    continue
+            # SMP: same-gateway resting liquidity is skipped/cancelled by the
+            # sweep, so it cannot be used to fill this FOK.
+            if smp != SmpAction.NONE and o.gateway_id == gw:
+                continue
+            total += o.remaining_qty
+        return total
 
     def _match_iceberg(
         self, order: Order, trades: list[Trade], events: list[Order], now: int
