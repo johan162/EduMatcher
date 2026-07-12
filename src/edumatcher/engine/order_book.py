@@ -743,6 +743,29 @@ class OrderBook:
             order.status = OrderStatus.CANCELLED
             events.append(order)
 
+    def fillable_quantity(self, side: Side, price_limit: Optional[int]) -> int:
+        """Resting quantity an incoming order of *side* could execute against
+        at or within *price_limit*, counting hidden iceberg quantity.
+
+        Used by the AON combo pre-check (M5) to decide whether every leg can
+        fill before any leg is allowed to execute.
+        """
+        heap = self._asks if side == Side.BUY else self._bids
+        total = 0
+        for entry in heap:
+            if not entry.valid:
+                continue
+            o = entry.order
+            if o.status in _DEAD_STATUSES or o.price is None:
+                continue
+            if price_limit is not None:
+                if side == Side.BUY and o.price > price_limit:
+                    continue
+                if side == Side.SELL and o.price < price_limit:
+                    continue
+            total += o.remaining_qty
+        return total
+
     def _fok_available_qty(self, order: Order, heap: list[_HeapEntry]) -> int:
         """Liquidity a FOK could actually execute against.
 

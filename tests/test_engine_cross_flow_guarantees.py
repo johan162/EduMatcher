@@ -95,6 +95,13 @@ def flow_oco(engine, pub) -> str | None:
 
 def flow_combo(engine, pub) -> str | None:
     _rest_gw02_ask(engine)
+    # M5: an AON combo executes only when EVERY leg can fully fill, so the
+    # MSFT leg needs its own counterparty (GW03).  Without it the AON combo
+    # rests and prints no trade at all.  The guarantee assertions are scoped to
+    # the AAPL (SYMBOL) trade, so the extra MSFT print is invisible to them.
+    engine._handle_new_order(
+        order_payload(Side.SELL, OrderType.LIMIT, 10, "GW03", symbol="MSFT", price=50.0)
+    )
     combo = ComboOrder.create(
         combo_id="CMB-XF",
         gateway_id="GW01",
@@ -113,7 +120,7 @@ def flow_combo(engine, pub) -> str | None:
                 side=Side.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=10,
-                price=5000,  # rests, never trades
+                price=5000,  # 50.00 — fills against GW03's MSFT ask
             ),
         ],
     )

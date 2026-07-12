@@ -51,7 +51,7 @@ from edumatcher.engine.persistence import (
     save_gtc_combos,
 )
 from edumatcher.messaging.bus import make_puller, make_publisher
-from edumatcher.models.combo import ComboOrder, ComboStatus
+from edumatcher.models.combo import ComboOrder, ComboStatus, ComboType
 from edumatcher.models.clock import now_ns
 from edumatcher.models.message import (
     dumps,
@@ -2337,6 +2337,18 @@ class Engine:
                 f"({len(combo.legs)} legs) from {combo.gateway_id}"
             )
 
+        # M5: all-or-none combos must not execute ANY leg unless EVERY leg can
+        # fully fill simultaneously.  Pre-check each leg's fillability; if any
+        # leg is short, post all legs without matching (they rest as pending
+        # interest) so no partial, non-atomic execution occurs.
+        aon_blocked = False
+        if combo.combo_type == ComboType.AON:
+            aon_blocked = not all(
+                self._book(leg.symbol).fillable_quantity(leg.side, leg.price)
+                >= leg.quantity
+                for leg in combo.legs
+            )
+
         # Create child orders and post to books
         for i, leg in enumerate(combo.legs):
             child = Order.create(
@@ -2361,11 +2373,14 @@ class Engine:
             self._order_symbol[child.id] = leg.symbol
 
             book = self._book(leg.symbol)
-            # #16: combo children respect the session's matching state and the
+            # H9: combo children respect the session's matching state and the
             # per-symbol halt, exactly like ordinary orders — no continuous
             # matching outside CONTINUOUS or while the leg's symbol is halted.
-            do_match = is_matching_enabled(self._session_state) and not (
-                self._halted_symbols.get(leg.symbol)
+            # M5: an AON combo with any unfillable leg matches nothing.
+            do_match = (
+                is_matching_enabled(self._session_state)
+                and not self._halted_symbols.get(leg.symbol)
+                and not aon_blocked
             )
             trades, events = book.process(child, match=do_match)
 
