@@ -426,8 +426,13 @@ class Engine:
 
                 now = now_ns()
                 book = self._book(sym)
+                # #16: seeded quotes must not cross-match if the engine starts in
+                # a non-continuous phase (e.g. CLOSED) — they rest for the open.
+                seed_do_match = is_matching_enabled(self._session_state)
                 for quote_order in (bid, ask):
-                    trades, events = book.process(quote_order, match=True, now=now)
+                    trades, events = book.process(
+                        quote_order, match=seed_do_match, now=now
+                    )
                     # H5: dedup fills — a seeded quote sweeping k levels appears
                     # k times in `events` with the final cumulative qty.
                     # H6: report each order's own VWAP execution price.
@@ -1656,6 +1661,14 @@ class Engine:
             )
             return
 
+        # #16: quotes are subject to the same session gating as ordinary orders.
+        # Reject outright when the market is not accepting orders (e.g. CLOSED).
+        if self._sessions_enabled and not accepts_orders(self._session_state):
+            self.pub_sock.send_multipart(
+                make_quote_ack_msg(gateway_id, quote_id, False, "Market is closed")
+            )
+            return
+
         try:
             bid_price = to_ticks(float(payload["bid_price"]), symbol)
             ask_price = to_ticks(float(payload["ask_price"]), symbol)
@@ -1782,8 +1795,11 @@ class Engine:
 
         now = now_ns()
         book = self._book(symbol)
+        # #16: only match continuously in CONTINUOUS session state; in auction
+        # phases (PRE_OPEN etc.) quote legs rest and cross at the uncross.
+        do_match = is_matching_enabled(self._session_state)
         for quote_order in (bid, ask):
-            trades, events = book.process(quote_order, match=True, now=now)
+            trades, events = book.process(quote_order, match=do_match, now=now)
             # H5: dedup fills — an order sweeping k levels appears k times in
             # `events`, each reflecting the FINAL cumulative qty; publishing all
             # k would overcount for consumers summing fill_qty.
@@ -2328,7 +2344,13 @@ class Engine:
             self._order_symbol[child.id] = leg.symbol
 
             book = self._book(leg.symbol)
-            trades, events = book.process(child)
+            # #16: combo children respect the session's matching state and the
+            # per-symbol halt, exactly like ordinary orders — no continuous
+            # matching outside CONTINUOUS or while the leg's symbol is halted.
+            do_match = is_matching_enabled(self._session_state) and not (
+                self._halted_symbols.get(leg.symbol)
+            )
+            trades, events = book.process(child, match=do_match)
 
             # H5: dedup fills/terminals — a child sweeping k levels appears k
             # times in `events` with the final cumulative qty on every copy.
