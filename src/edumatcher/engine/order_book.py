@@ -804,7 +804,20 @@ class OrderBook:
                     events.append(aggressor)
                     return
 
-            fill_qty = min(aggressor.remaining_qty, best.remaining_qty)
+            # Cap the fill against a PASSIVE iceberg at its displayed slice, not
+            # its hidden remaining_qty (finding #17).  Filling the full hidden qty
+            # in one shot jumps the queue past same-price orders with better time
+            # priority and over-deducts the level index (which only ever held the
+            # displayed slice).  _apply_fill replenishes and re-queues the fresh
+            # peak to the back, so the loop naturally returns to this level in
+            # correct price-time order.
+            _passive_avail = (
+                best.displayed_qty
+                if best.order_type == OrderType.ICEBERG
+                and best.displayed_qty is not None
+                else best.remaining_qty
+            )
+            fill_qty = min(aggressor.remaining_qty, _passive_avail)
             fill_price = best.price
 
             _apply_fill(aggressor, best, fill_qty, fill_price, trades, events, now)  # type: ignore[arg-type]
@@ -847,9 +860,17 @@ class OrderBook:
                     events.append(iceberg)
                     return
 
-            # Iceberg fills up to its current displayed slice
+            # Iceberg fills up to its current displayed slice; and when the
+            # passive resting order is itself an iceberg, cap against its
+            # displayed slice too (finding #17) rather than its hidden qty.
             visible = iceberg.displayed_qty
-            fill_qty = min(visible, best.remaining_qty)  # type: ignore[type-var]
+            _passive_avail = (
+                best.displayed_qty
+                if best.order_type == OrderType.ICEBERG
+                and best.displayed_qty is not None
+                else best.remaining_qty
+            )
+            fill_qty = min(visible, _passive_avail)  # type: ignore[type-var]
             fill_price = best.price
 
             self._apply_fill(iceberg, best, fill_qty, fill_price, trades, events, now)  # type: ignore[arg-type]

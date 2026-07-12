@@ -236,12 +236,17 @@ def test_iceberg_exposes_only_visible_slice_in_book_snapshot() -> None:
     )
     trades, _ = book.process(market_buy)
 
-    assert len(trades) == 1
-    assert trades[0].quantity == 4
+    # #17 semantics: a passive iceberg fills only its displayed slice per pass.
+    # The 4-lot market order takes the 3-lot peak, the iceberg refreshes, and
+    # 1 more lot fills against the new peak — two executions totalling 4.
+    assert sum(t.quantity for t in trades) == 4
+    assert [t.quantity for t in trades] == [3, 1]
     assert iceberg_sell.status == OrderStatus.PARTIAL
     assert iceberg_sell.remaining_qty == 6
 
     snapshot = book.snapshot()
     assert snapshot["asks"]
-    # Only displayed_qty should be visible, never hidden remaining quantity.
-    assert snapshot["asks"][0]["qty"] == 3
+    # Only the current (partially consumed) displayed peak is visible — never
+    # the hidden remaining quantity.  After selling 4 from a peak size of 3,
+    # the refreshed peak has 2 lots left on show (hidden 6 stays hidden).
+    assert snapshot["asks"][0]["qty"] == 2
