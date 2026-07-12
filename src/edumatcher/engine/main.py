@@ -971,7 +971,7 @@ class Engine:
                 if self.verbose:
                     print(f"[ENGINE] CANCEL {evt.id[:8]} ({evt.gateway_id})")
 
-        # Publish trades and update per-gateway position ledger
+        # Publish trades — _publish_trade updates both position ledgers (H3).
         for trade in trades:
             if self.verbose:
                 print(
@@ -979,17 +979,6 @@ class Engine:
                     f"qty={trade.quantity} @{trade.price}"
                 )
             _ptrade(trade)
-            _trade_price = from_ticks(trade.price, trade.symbol)
-            self._update_position(
-                trade.buy_gateway_id, trade.symbol, "BUY", trade.quantity, _trade_price
-            )
-            self._update_position(
-                trade.sell_gateway_id,
-                trade.symbol,
-                "SELL",
-                trade.quantity,
-                _trade_price,
-            )
 
         # Mark book dirty; snapshot will be published on next throttle tick
         self._dirty_symbols.add(order.symbol)
@@ -1420,6 +1409,18 @@ class Engine:
                     }
                 ),
             ]
+        )
+        # #10: update BOTH counterparties' position ledgers for every trade,
+        # right here in the single trade-publication path — so fills produced
+        # by any flow (new order, quote, combo, OCO leg, auction uncross,
+        # stop cascade, amend rematch) are reflected in system.position_request.
+        # Callers must NOT also call _update_position or positions double-count.
+        _trade_px = from_ticks(trade.price, trade.symbol)
+        self._update_position(
+            trade.buy_gateway_id, trade.symbol, "BUY", trade.quantity, _trade_px
+        )
+        self._update_position(
+            trade.sell_gateway_id, trade.symbol, "SELL", trade.quantity, _trade_px
         )
         # Circuit breaker monitor — check if this fill triggered a halt.
         # Inline the null-guard to skip the function-call overhead entirely
@@ -2583,14 +2584,7 @@ class Engine:
                             self._check_combo_after_child_event(evt)
 
                 for trade in trades:
-                    self._publish_trade(trade)
-                    _tp = from_ticks(trade.price, symbol)
-                    self._update_position(
-                        trade.buy_gateway_id, symbol, "BUY", trade.quantity, _tp
-                    )
-                    self._update_position(
-                        trade.sell_gateway_id, symbol, "SELL", trade.quantity, _tp
-                    )
+                    self._publish_trade(trade)  # updates positions (H3)
 
             # Trigger stop and trailing-stop orders whose stop price is now
             # reached by the equilibrium price.  execute_uncross() sets
@@ -2630,22 +2624,7 @@ class Engine:
                                 ):
                                     self._check_oco_after_event(sub_evt)
                     for sub_trade in sub_trades:
-                        self._publish_trade(sub_trade)
-                        _stp = from_ticks(sub_trade.price, symbol)
-                        self._update_position(
-                            sub_trade.buy_gateway_id,
-                            symbol,
-                            "BUY",
-                            sub_trade.quantity,
-                            _stp,
-                        )
-                        self._update_position(
-                            sub_trade.sell_gateway_id,
-                            symbol,
-                            "SELL",
-                            sub_trade.quantity,
-                            _stp,
-                        )
+                        self._publish_trade(sub_trade)  # updates positions (H3)
 
                 if self.verbose:
                     print(
@@ -3258,14 +3237,7 @@ class Engine:
                     )
                 )
         for trade in trades:
-            self._publish_trade(trade)
-            trade_px = from_ticks(trade.price, trade.symbol)
-            self._update_position(
-                trade.buy_gateway_id, trade.symbol, "BUY", trade.quantity, trade_px
-            )
-            self._update_position(
-                trade.sell_gateway_id, trade.symbol, "SELL", trade.quantity, trade_px
-            )
+            self._publish_trade(trade)  # updates positions (H3)
         self._mark_dirty(aggressor.symbol)
 
     # ------------------------------------------------------------------
