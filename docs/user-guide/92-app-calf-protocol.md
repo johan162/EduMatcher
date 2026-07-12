@@ -1,17 +1,11 @@
 # Appendix: CALF Protocol Reference
 
-!!! note "Learning objectives"
-    After reading this appendix you will understand:
-
-    - what **CALF** is and how it differs from ALF and BALF
-    - the exact line-level wire format used by CALF over TCP
-    - channel, symbol, and subscription rules for `TOP`, `TRADE`, `STATE`,
-      `INDEX`, and `DEPTH`
-    - the `SYM=*` wildcard rules, including which channels allow it
-    - sequencing, gap detection, replay, and resynchronization behavior
-    - required and optional fields for every CALF message type
-    - how to detect gateway capability via `WELCOME|CH_SUPPORTED=`
-    - gateway and client behaviors required for CALF `1.0.0` interoperability
+> **Status: Normative.** This appendix is the single source of truth for the CALF
+> `1.0.0` wire contract as implemented by `pm-md-gwy` (`md_gateway/`). For an
+> operational, tutorial-style guide see [Market Data Feed (CALF)](20-market-data-feed.md);
+> for the gateway's configuration block see
+> [Engine Config Specification §6.3](99-app-config-spec.md#63-market_data_gateway-pm-md-gwy-calf).
+> The key words MUST, MUST NOT, SHOULD, and MAY are used per RFC 2119.
 
 
 
@@ -817,7 +811,7 @@ market_data_gateway:
 
 
 
-## Normative implementation truths
+## Conformance notes
 
 If you are implementing a CALF client, the most important protocol truths are:
 
@@ -840,3 +834,10 @@ If you are implementing a CALF client, the most important protocol truths are:
 12. A `SLOW_CLIENT` error indicates disconnect and reconnect is required.
 13. Protocol values and keys are uppercase by convention and should be emitted
     uppercase for interoperability.
+
+## See also
+
+- [Market Data Feed (CALF)](20-market-data-feed.md) — operational guide and client examples
+- [Processes](10-processes.md) — where `pm-md-gwy` sits in the process model
+- [Engine Config Specification](99-app-config-spec.md#63-market_data_gateway-pm-md-gwy-calf) — `market_data_gateway` field law
+- [External Protocols Overview](19-protocol-overview.md) — ALF/BALF/CALF/RALF at a glance

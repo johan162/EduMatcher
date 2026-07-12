@@ -1,14 +1,11 @@
 # Appendix: ALF Protocol Reference
 
-!!! note "Learning objectives"
-    After reading this appendix you will understand:
-
-    - what **ALF** means and how it differs from real FIX
-    - the exact token-level syntax accepted by `pm-alf-console`
-    - which fields are required for each supported command
-    - how all single-leg order types are expressed in ALF
-    - how amendments, cancels, quotes, OCO orders, and combo orders are encoded
-    - which parser behaviors are important when writing another client for EduMatcher
+> **Status: Normative.** This appendix is the single source of truth for the ALF
+> wire contract as implemented by `pm-alf-console` and `pm-alf-gwy` (`alf_gwy/`).
+> For an operational, tutorial-style guide see [Gateway Reference](08-gateway.md)
+> and [ALF TCP Gateway](24-alf-gateway.md); for the gateway's configuration block
+> see [Engine Config Specification §6.1](99-app-config-spec.md#61-alf_gateway-pm-alf-gwy).
+> The key words MUST, MUST NOT, SHOULD, and MAY are used per RFC 2119.
 
 
 
@@ -1098,41 +1095,7 @@ gateways:
 
 
 
-##  Worked examples
-
-###  Basic buy-side session
-
-```text
-NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00
-AMEND|ID=<returned-order-id>|QTY=80
-CANCEL|ID=<returned-order-id>
-```
-
-###  Stop-protected exit
-
-```text
-NEW|TYPE=OCO|OCO_ID=EXIT-AAPL|SYM=AAPL|QTY=100|TIF=GTC|LEG1_SIDE=SELL|LEG1_TYPE=LIMIT|LEG1_PRICE=155.00|LEG2_SIDE=SELL|LEG2_TYPE=STOP|LEG2_STOP=148.00
-```
-
-###  Market-maker quoting
-
-```text
-QUOTE|SYM=MSFT|BID=414.90|ASK=415.10|BID_QTY=250|ASK_QTY=250|QUOTE_ID=MSFT-MM-01
-QLEGS|SYM=MSFT
-QUOTE_CANCEL|SYM=MSFT
-QBOOT|SYM=MSFT
-QLEGS|SYM=MSFT|SHOW=ALL
-```
-
-###  Multi-symbol combo
-
-```text
-NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=DAY|LEG_COUNT=2|LEG0.SYM=MSFT|LEG0.SIDE=BUY|LEG0.QTY=100|LEG0.PRICE=415.00|LEG1.SYM=AAPL|LEG1.SIDE=SELL|LEG1.QTY=100|LEG1.PRICE=210.00
-```
-
-
-
-##  Summary of important implementation truths
+##  Conformance notes
 
 If you are writing another ALF producer, the most important exact behaviors are:
 

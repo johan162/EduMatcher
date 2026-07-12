@@ -416,6 +416,55 @@ See [ORDER_ACK reject codes](91-app-balf-protocol.md#order_ack-0x11-server-clien
 in the protocol reference.
 
 
+## Annotated wire-frame examples
+
+These byte-level examples show exactly how messages look on the wire. Every frame
+starts with a 4-byte header — magic `BA`, version `01`, message type, flags — then a
+little-endian `seq_no`, then the fixed-width body. (For the normative frame layouts
+and field offsets, see the [BALF Protocol Reference](91-app-balf-protocol.md).)
+
+**NEW_ORDER — LIMIT BUY 100 AAPL @ 150.25 (60 bytes):**
+
+```text
+Header:
+  BA 01 10 00  |  magic=0xBA, version=1, msg_type=NEW_ORDER(0x10), flags=0
+  01 00 00 00  |  seq_no=1 (LE)
+Body:
+  01 00 00 00  00 00 00 00  |  client_order_id = 1
+  41 50 50 4C  00 00 00 00  |  symbol = "AAPL\0\0\0\0"
+  00 10 28 65  03 00 00 00  |  price = 15_025_000_000
+  00 00 00 00  00 00 00 00  |  stop_price = 0
+  00 00 00 00  00 00 00 00  |  trail_offset = 0
+  64 00 00 00                |  quantity = 100
+  00 00 00 00                |  visible_qty = 0
+  01                         |  side = BUY
+  02                         |  order_type = LIMIT
+  01                         |  tif = DAY
+  00                         |  smp = NONE
+```
+
+**CANCEL_ORDER (24 bytes):**
+
+```text
+Header:
+  BA 01 12 00  |  msg_type=CANCEL_ORDER(0x12)
+  02 00 00 00  |  seq_no=2
+Body:
+  02 00 00 00  00 00 00 00  |  client_order_id = 2
+  01 00 00 00  00 00 00 00  |  order_id = 1
+```
+
+**HEARTBEAT (16 bytes):**
+
+```text
+Header:
+  BA 01 30 00  |  msg_type=HEARTBEAT(0x30)
+  03 00 00 00  |  seq_no=3
+Body:
+  78 56 34 12  00 00 00 00  |  send_time_ns (example)
+```
+
+
 ## Server-initiated messages
 
 These frames arrive **unsolicited** at any point during the session.  The

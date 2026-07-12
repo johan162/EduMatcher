@@ -1,14 +1,11 @@
 # Appendix: BALF Protocol Reference
 
-!!! note "Learning objectives"
-    After reading this appendix you will understand:
-
-    - what **BALF** is and how it differs from ALF and from exchange-style binary protocols
-    - the exact byte-level framing used on the wire
-    - which fields are required for each supported BALF message type
-    - how the fixed-width encodings work for prices, symbols, gateway IDs, and order IDs
-    - how logon, order entry, cancel, amend, execution, heartbeat, and logout behave
-    - which protocol features are intentionally out of scope for BALF `1.0.0`
+> **Status: Normative.** This appendix is the single source of truth for the BALF
+> `1.0.0` wire contract as implemented by `pm-balf-gwy` (`balf_gwy/`). For an
+> operational, tutorial-style guide see [BALF TCP Gateway](25-balf-gateway.md); for
+> the gateway's configuration block see
+> [Engine Config Specification §6.2](99-app-config-spec.md#62-balf_gateway-pm-balf-gwy).
+> The key words MUST, MUST NOT, SHOULD, and MAY are used per RFC 2119.
 
 
 
@@ -505,62 +502,6 @@ sequenceDiagram
   receivers should treat the session as out-of-sync and reconnect.
 - The `RETRANSMIT` flag is reserved for a future recovery extension and must be
   `0` in BALF `1.0.0`.
-
-
-
-## Worked examples
-
-### Submit a LIMIT BUY order for 100 AAPL at 150.25
-
-ALF equivalent:
-
-```text
-NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.25
-```
-
-BALF wire frame:
-
-```text
-Header:
-  BA 01 10 00  |  magic=0xBA, version=1, msg_type=NEW_ORDER(0x10), flags=0
-  01 00 00 00  |  seq_no=1 (LE)
-
-Body:
-  01 00 00 00  00 00 00 00  |  client_order_id = 1
-  41 50 50 4C  00 00 00 00  |  symbol = "AAPL\0\0\0\0"
-  00 10 28 65  03 00 00 00  |  price = 15_025_000_000
-  00 00 00 00  00 00 00 00  |  stop_price = 0
-  00 00 00 00  00 00 00 00  |  trail_offset = 0
-  64 00 00 00                |  quantity = 100
-  00 00 00 00                |  visible_qty = 0
-  01                         |  side = BUY
-  02                         |  order_type = LIMIT
-  01                         |  tif = DAY
-  00                         |  smp = NONE
-```
-
-### Cancel that order
-
-```text
-Header:
-  BA 01 12 00  |  msg_type=CANCEL_ORDER(0x12)
-  02 00 00 00  |  seq_no=2
-
-Body:
-  02 00 00 00  00 00 00 00  |  client_order_id = 2
-  01 00 00 00  00 00 00 00  |  order_id = 1
-```
-
-### Heartbeat
-
-```text
-Header:
-  BA 01 30 00  |  msg_type=HEARTBEAT(0x30)
-  03 00 00 00  |  seq_no=3
-
-Body:
-  78 56 34 12  00 00 00 00  |  send_time_ns (example)
-```
 
 
 
