@@ -292,8 +292,9 @@ class OrderBook:
                     else o.remaining_qty
                 )
                 self._deduct_qty_index(o, qty)  # type: ignore[arg-type]
-        # Stops live in the stop heaps but are also tracked in _entry_index;
-        # invalidating the entry above is enough to drop them lazily.
+        # H7: purge the cancelled order from both id maps (also invalidates the
+        # heap/stop entry for lazy deletion) so terminal orders do not linger.
+        self._purge_from_indexes(order)
         return order
 
     def amend_order(
@@ -996,10 +997,10 @@ class OrderBook:
         aggressor.status = (
             OrderStatus.FILLED if aggressor.remaining_qty == 0 else OrderStatus.PARTIAL
         )
-        if both_resting and aggressor.status == OrderStatus.FILLED:
-            entry = self._entry_index.get(aggressor.id)
-            if entry:
-                entry.valid = False
+        if aggressor.status == OrderStatus.FILLED:
+            # H7: purge terminal orders from the indexes so they do not grow
+            # without bound and resting_orders() stays O(resting).
+            self._purge_from_indexes(aggressor)
         events.append(aggressor)
 
         # Update passive order
@@ -1025,10 +1026,22 @@ class OrderBook:
             OrderStatus.FILLED if passive.remaining_qty == 0 else OrderStatus.PARTIAL
         )
         if passive.status == OrderStatus.FILLED:
-            entry = self._entry_index.get(passive.id)
-            if entry:
-                entry.valid = False
+            # H7: purge terminal orders from the indexes (also invalidates the
+            # heap entry for lazy deletion).
+            self._purge_from_indexes(passive)
         events.append(passive)
+
+    def _purge_from_indexes(self, order: Order) -> None:
+        """Remove a terminal order from the id→order and id→entry maps and
+        invalidate its heap entry so _peek drops it lazily (finding H7).
+
+        Safe to call for a pure taker that was never rested — the pops are
+        no-ops.  Idempotent.
+        """
+        entry = self._entry_index.pop(order.id, None)
+        if entry is not None:
+            entry.valid = False
+        self._order_index.pop(order.id, None)
 
     # ------------------------------------------------------------------
     # Heap management

@@ -213,7 +213,9 @@ class TestAmendRejections:
         amended, _, reason = book.amend_order(sell.id, new_price=99.0)
 
         assert amended is None
-        assert "FILLED" in reason
+        # H7: a fully filled order is purged from the book indexes, so amending
+        # it reports "not found" rather than lingering as a dead FILLED record.
+        assert "not found" in reason.lower()
 
     def test_cancelled_order(self):
         book = OrderBook("AAPL")
@@ -224,7 +226,9 @@ class TestAmendRejections:
         amended, _, reason = book.amend_order(buy.id, new_price=101.0)
 
         assert amended is None
-        assert "CANCELLED" in reason
+        # H7: a cancelled order is purged from the book indexes, so amending it
+        # reports "not found" rather than lingering as a dead CANCELLED record.
+        assert "not found" in reason.lower()
 
     def test_market_order_not_amendable(self):
         book = OrderBook("AAPL")

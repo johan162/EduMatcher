@@ -933,6 +933,11 @@ class Engine:
                     self._check_combo_after_child_event(evt)
                 if evt.status == OrderStatus.FILLED and evt.oco_group_id:
                     self._check_oco_after_event(evt)
+                # H7: a fully filled order is terminal — drop its engine-level
+                # order→symbol routing entry (the book already purged its own
+                # indexes).  A partially filled order that rests keeps it.
+                if evt.status == OrderStatus.FILLED:
+                    self._order_symbol.pop(evt.id, None)
 
             # ----------------------------------------------------------------
             # Terminal status notification (deduped per order id)
@@ -953,6 +958,8 @@ class Engine:
                 # REJECTED event carrying an oco_group_id → cancel the other leg
                 if evt.oco_group_id:
                     self._check_oco_after_event(evt)
+                # H7: rejected order is terminal — drop its routing entry.
+                self._order_symbol.pop(evt.id, None)
             elif (
                 evt.status == OrderStatus.CANCELLED
                 and evt.id not in _published_terminal_ids
@@ -971,6 +978,8 @@ class Engine:
                     self._check_combo_after_child_event(evt)
                 if evt.oco_group_id:
                     self._check_oco_after_event(evt)
+                # H7: cancelled order is terminal — drop its routing entry.
+                self._order_symbol.pop(evt.id, None)
                 if self.verbose:
                     print(f"[ENGINE] CANCEL {evt.id[:8]} ({evt.gateway_id})")
 
