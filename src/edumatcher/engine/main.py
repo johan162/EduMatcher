@@ -832,93 +832,102 @@ class Engine:
         # remaining_qty.  Combo/OCO side-effect checks are idempotent so they
         # run unconditionally and are safe to call on every occurrence.
         _published_fill_ids: set[str] = set()
+        _published_terminal_ids: set[str] = set()
         for evt in events:
-            if evt.status in _FILL_STATUSES:
+            # ----------------------------------------------------------------
+            # Fill notification (finding #5)
+            # ----------------------------------------------------------------
+            # Publish a fill whenever the order EXECUTED any quantity, keyed off
+            # cumulative filled qty — NOT off the order's final status.  `events`
+            # holds repeated references to the same live Order, and an
+            # IOC/MARKET/SMP-cancelled aggressor fills and is then mutated to
+            # CANCELLED on that same object.  Branching on the final status alone
+            # (the old `if evt.status in _FILL_STATUSES`) dropped the fill entirely
+            # while still emitting a cancel — the owner saw order.cancelled and no
+            # order.fill despite a real execution having printed.
+            _filled_qty = evt.quantity - evt.remaining_qty
+            if _filled_qty > 0 and evt.id not in _published_fill_ids:
+                _published_fill_ids.add(evt.id)
                 # PERF #9: Build the full fill payload in one dict literal and
                 # call encode() directly, bypassing make_fill_msg().
-                #
-                # make_fill_msg() builds a base dict, then calls .update() to
-                # merge order fields — that's 2 dict allocations + a hash merge.
-                # Building one flat dict is ~3x faster (~250ns vs ~750ns) and
-                # also eliminates the function call overhead (~50ns).
                 # PERF B: Use pre-cached fill topic bytes.
                 # PERF: For the aggressor fill event (evt is order) reuse the
                 # canonical string values already in the payload — skipping
-                # three enum.value property calls (~460 ns each) and one
-                # from_ticks call (~70 ns).  For passive fill events we still
-                # call .value / from_ticks as usual.
-                # Status never needs enum.value: remaining_qty==0 → FILLED.
+                # enum.value property calls and one from_ticks call.
                 _is_agg = evt is order
-                if evt.id not in _published_fill_ids:
-                    _published_fill_ids.add(evt.id)
-                    _pub.send_multipart(
-                        [
-                            (
-                                _fill_topic
-                                if evt.gateway_id == _gw
-                                else (
-                                    _tc.get(f"fill.{evt.gateway_id}")
-                                    or f"order.fill.{evt.gateway_id}".encode()
-                                )
-                            ),
-                            dumps(
-                                {
-                                    "order_id": evt.id,
-                                    "fill_qty": evt.quantity - evt.remaining_qty,
-                                    "fill_price": _fill_px,
-                                    "remaining_qty": evt.remaining_qty,
-                                    "status": (
-                                        "PARTIAL_FILL"
-                                        if evt.remaining_qty
-                                        else "FILLED"
-                                    ),
-                                    "symbol": evt.symbol,
-                                    "side": _side_v if _is_agg else evt.side.value,
-                                    "order_type": (
-                                        _ot_v if _is_agg else evt.order_type.value
-                                    ),
-                                    "qty": evt.quantity,
-                                    "price": (
-                                        _price_v
-                                        if _is_agg
-                                        else (
-                                            from_ticks(evt.price, evt.symbol)
-                                            if evt.price is not None
-                                            else None
-                                        )
-                                    ),
-                                    "client_tag": evt.client_tag,
-                                }
-                            ),
-                        ]
-                    )
-                    # Drop copy — forward fill to participant's risk/clearing system
-                    if self._drop_copy is not None:
-                        self._drop_copy.publish(
-                            gateway_id=evt.gateway_id,
-                            event_type="order.fill",
-                            payload={
+                _pub.send_multipart(
+                    [
+                        (
+                            _fill_topic
+                            if evt.gateway_id == _gw
+                            else (
+                                _tc.get(f"fill.{evt.gateway_id}")
+                                or f"order.fill.{evt.gateway_id}".encode()
+                            )
+                        ),
+                        dumps(
+                            {
                                 "order_id": evt.id,
-                                "symbol": evt.symbol,
-                                "fill_qty": evt.quantity - evt.remaining_qty,
-                                "fill_price": (
-                                    _fill_px if _fill_px is not None else 0.0
-                                ),
+                                "fill_qty": _filled_qty,
+                                "fill_price": _fill_px,
                                 "remaining_qty": evt.remaining_qty,
-                                "liquidity_flag": (
-                                    "MAKER_QUOTE"
-                                    if evt.origin == OrderOrigin.QUOTE
-                                    else "MAKER"
+                                "status": (
+                                    "PARTIAL_FILL" if evt.remaining_qty else "FILLED"
                                 ),
-                            },
-                        )
-                # If this event is for a combo child, update combo state
+                                "symbol": evt.symbol,
+                                "side": _side_v if _is_agg else evt.side.value,
+                                "order_type": (
+                                    _ot_v if _is_agg else evt.order_type.value
+                                ),
+                                "qty": evt.quantity,
+                                "price": (
+                                    _price_v
+                                    if _is_agg
+                                    else (
+                                        from_ticks(evt.price, evt.symbol)
+                                        if evt.price is not None
+                                        else None
+                                    )
+                                ),
+                                "client_tag": evt.client_tag,
+                            }
+                        ),
+                    ]
+                )
+                # Drop copy — forward fill to participant's risk/clearing system
+                if self._drop_copy is not None:
+                    self._drop_copy.publish(
+                        gateway_id=evt.gateway_id,
+                        event_type="order.fill",
+                        payload={
+                            "order_id": evt.id,
+                            "symbol": evt.symbol,
+                            "fill_qty": _filled_qty,
+                            "fill_price": (_fill_px if _fill_px is not None else 0.0),
+                            "remaining_qty": evt.remaining_qty,
+                            "liquidity_flag": (
+                                "MAKER_QUOTE"
+                                if evt.origin == OrderOrigin.QUOTE
+                                else "MAKER"
+                            ),
+                        },
+                    )
+
+            # Combo / OCO side-effects on fill (idempotent — safe every occurrence)
+            if evt.status in _FILL_STATUSES:
                 if evt.combo_parent_id:
                     self._check_combo_after_child_event(evt)
-                # If this order is an OCO leg, cancel the sibling when fully filled
                 if evt.status == OrderStatus.FILLED and evt.oco_group_id:
                     self._check_oco_after_event(evt)
-            elif evt.status == OrderStatus.REJECTED:
+
+            # ----------------------------------------------------------------
+            # Terminal status notification (deduped per order id)
+            # ----------------------------------------------------------------
+            if (
+                evt.status == OrderStatus.REJECTED
+                and evt.id not in _published_terminal_ids
+            ):
+                _published_terminal_ids.add(evt.id)
                 _pub.send_multipart(
                     make_ack_msg(
                         evt.gateway_id,
@@ -927,12 +936,15 @@ class Engine:
                         reason="Insufficient liquidity",
                     )
                 )
-                # IOC partial fill: remainder was cancelled, not rejected — but if a
-                # REJECTED event carries an oco_group_id the other leg should be cancelled
+                # REJECTED event carrying an oco_group_id → cancel the other leg
                 if evt.oco_group_id:
                     self._check_oco_after_event(evt)
-            elif evt.status == OrderStatus.CANCELLED:
-                # SMP-triggered cancellation — notify the affected gateway
+            elif (
+                evt.status == OrderStatus.CANCELLED
+                and evt.id not in _published_terminal_ids
+            ):
+                _published_terminal_ids.add(evt.id)
+                # Terminal cancellation (SMP, IOC/MARKET remainder) — notify owner
                 # PERF B: Use pre-cached cancel topic bytes + inline _dumps.
                 _pub.send_multipart(
                     [
@@ -946,7 +958,7 @@ class Engine:
                 if evt.oco_group_id:
                     self._check_oco_after_event(evt)
                 if self.verbose:
-                    print(f"[ENGINE] SMP CANCEL {evt.id[:8]} ({evt.gateway_id})")
+                    print(f"[ENGINE] CANCEL {evt.id[:8]} ({evt.gateway_id})")
 
         # Publish trades and update per-gateway position ledger
         for trade in trades:

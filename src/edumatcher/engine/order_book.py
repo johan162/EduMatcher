@@ -612,11 +612,12 @@ class OrderBook:
         self._sweep(
             order, opposite, price_limit=None, trades=trades, events=events, now=now
         )
-        # Remainder is discarded (no resting market orders)
+        # Remainder is discarded (no resting market orders).  Emit a terminal
+        # event so the owner is notified — without this append a totally
+        # unfilled MARKET order got a positive ACK and then silence (#5).
         if order.remaining_qty > 0 and order.status != OrderStatus.FILLED:
-            order.status = (
-                OrderStatus.CANCELLED
-            )  # unsatisfied market → discard silently
+            order.status = OrderStatus.CANCELLED  # unsatisfied market → discard
+            events.append(order)
 
     def _match_limit(
         self, order: Order, trades: list[Trade], events: list[Order], now: int
