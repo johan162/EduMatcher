@@ -66,12 +66,24 @@ def test_market_order_executes_and_discards_unfilled_remainder() -> None:
         qty=8,
         gateway_id="TRADER01",
     )
-    trades, _ = book.process(market_buy)
+    trades, events = book.process(market_buy)
 
     assert len(trades) == 1
     assert trades[0].quantity == 5
     assert market_buy.status == OrderStatus.CANCELLED
     assert market_buy.remaining_qty == 3
+    # Spec (review M1/C4): "discarding" the remainder is fine, doing it
+    # SILENTLY is not — a DEDICATED cancellation event must be emitted so the
+    # engine can notify the owner.  Because events currently hold mutable
+    # Order references, checking "some event has status CANCELLED" would pass
+    # by accident (the fill-time entry mutates underneath us — review C4), so
+    # we require one more event occurrence than the single fill produced.
+    occurrences = sum(1 for e in events if e.id == market_buy.id)
+    assert occurrences >= 2, (
+        f"M1: unfilled MARKET remainder was cancelled without emitting a "
+        f"cancellation event (order appears {occurrences}x in events: "
+        f"1 fill, no cancel)"
+    )
 
 
 def test_stop_order_triggers_into_market_after_trigger_trade() -> None:

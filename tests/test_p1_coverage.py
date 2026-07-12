@@ -87,6 +87,12 @@ class TestSmpCancelAggressor:
         assert trades == []
         assert buy.status == OrderStatus.CANCELLED
         assert sell.status == OrderStatus.NEW  # resting order untouched
+        # Spec (review C3): the cancelled aggressor must NOT be rested — no
+        # phantom quantity in the bid index, no re-registration in the book.
+        assert sum(book._bid_qty.values()) == 0, (
+            f"cancelled SMP aggressor left phantom bid qty: {dict(book._bid_qty)}"
+        )
+        assert book.get_order(buy.id) is None
 
     def test_sell_aggressor_cancelled(self):
         book = OrderBook("AAPL")
@@ -103,6 +109,11 @@ class TestSmpCancelAggressor:
         assert trades == []
         assert sell.status == OrderStatus.CANCELLED
         assert buy.status == OrderStatus.NEW
+        # Spec (review C3): the cancelled aggressor must NOT be rested.
+        assert sum(book._ask_qty.values()) == 0, (
+            f"cancelled SMP aggressor left phantom ask qty: {dict(book._ask_qty)}"
+        )
+        assert book.get_order(sell.id) is None
 
     def test_different_gateway_no_smp(self):
         """SMP should not trigger when gateways differ."""
@@ -209,6 +220,10 @@ class TestSmpCancelBoth:
         assert trades == []
         assert buy.status == OrderStatus.CANCELLED
         assert sell.status == OrderStatus.CANCELLED
+        # Spec (review C3): neither cancelled order may remain on the book.
+        assert sum(book._bid_qty.values()) == 0, (
+            f"cancelled SMP aggressor left phantom bid qty: {dict(book._bid_qty)}"
+        )
 
     def test_sell_both_cancelled(self):
         book = OrderBook("AAPL")
@@ -507,15 +522,20 @@ class TestSmpFok:
         """
         FOK BUY 100 @ 100.0, CANCEL_RESTING, against own resting SELL.
 
-        The pre-check counts 100 available (same-gateway qty included), so the
-        sweep starts.  SMP=CANCEL_RESTING then cancels the resting order and
-        continues — but there is no further liquidity, so the FOK ends up
-        unfilled.  _match_fok does not call _rest() or explicitly cancel the
-        aggressor after the sweep, so the FOK status stays NEW and the order
-        is silently discarded (neither resting nor cancelled in events).
+        The pre-check counts 100 available (same-gateway qty included), so
+        the sweep starts.  SMP=CANCEL_RESTING then cancels the resting order
+        and continues — but there is no further liquidity, so the FOK cannot
+        fill.
 
-        This is an edge case: SMP removes the liquidity that passed the pre-check.
-        The practical consequence is the same as a REJECTED FOK — no fill occurs.
+        Spec (review H8): a FOK must ALWAYS end in a terminal state — FILLED,
+        REJECTED, or CANCELLED — and its terminal event must be emitted so
+        the owner is notified.  It must never be silently discarded in a
+        non-terminal limbo.
+
+        NOTE: this test previously ASSERTED the limbo ("FOK is silently
+        discarded — not rested, not explicitly cancelled"), pinning the bug
+        as expected behaviour.  Rewritten as a specification test; it FAILS
+        until review finding H8 is fixed.
         """
         book = OrderBook("AAPL")
         own_sell = _limit(Side.SELL, 100.0, qty=100, gateway_id="GW1")
@@ -532,9 +552,14 @@ class TestSmpFok:
 
         assert trades == []
         assert own_sell.status == OrderStatus.CANCELLED
-        # FOK is silently discarded — not rested, not explicitly cancelled
-        assert fok.remaining_qty == 100
-        # verify no further buy-side liquidity remains at that price
+        # FOK must reach a terminal state and the owner must be told.
+        assert fok.status in (OrderStatus.REJECTED, OrderStatus.CANCELLED), (
+            f"H8: FOK left in non-terminal limbo state {fok.status.value}"
+        )
+        assert any(
+            e.id == fok.id and e.status == fok.status for e in events
+        ), "H8: no terminal event emitted for the unfillable FOK"
+        # And it must never rest:
         snap = book.snapshot()
         assert all(level["price"] != 100.0 for level in snap["bids"])
 
