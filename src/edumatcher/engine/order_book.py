@@ -102,7 +102,7 @@ class OrderBook:
         "last_sell_price",
         "recent_trades",
         "daily_qty",
-        "daily_value",
+        "daily_value_ticks",
         "daily_trades",
         "_has_stops",
         "_arrival_seq",
@@ -143,8 +143,11 @@ class OrderBook:
 
         # Daily cumulative stats — reset only on engine restart (new OrderBook instance).
         # pm-stats owns EOD aggregation; these counters are session-only.
+        # M11: accumulate turnover in INTEGER ticks (price_ticks * qty) and
+        # convert to display money once at the boundary — accumulating display
+        # floats loses exactness over many fills.
         self.daily_qty: int = 0
-        self.daily_value: float = 0.0
+        self.daily_value_ticks: int = 0
         self.daily_trades: int = 0
 
         # True when the book has any resting stop or trailing-stop orders.
@@ -162,6 +165,16 @@ class OrderBook:
         """Return the next monotonic arrival sequence number."""
         self._arrival_seq += 1
         return self._arrival_seq
+
+    @property
+    def daily_value(self) -> float:
+        """Session turnover in display money (M11).
+
+        Computed once from the exact integer-tick accumulator
+        (``daily_value_ticks`` = Σ price_ticks × qty), so no float drift
+        accumulates across fills.
+        """
+        return from_ticks(self.daily_value_ticks, self.symbol)
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -1129,7 +1142,7 @@ class OrderBook:
         self.last_trade_qty = fill_qty
         # Accumulate daily volume stats
         self.daily_qty += fill_qty
-        self.daily_value += from_ticks(fill_price, self.symbol) * fill_qty
+        self.daily_value_ticks += fill_price * fill_qty
         self.daily_trades += 1
         # Track side-specific last price (aggressor side determines the label)
         if aggressor.side == Side.BUY:
