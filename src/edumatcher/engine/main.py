@@ -2820,6 +2820,12 @@ class Engine:
         do_match = is_matching_enabled(self._session_state)
         book = self._book(symbol)
 
+        # Defer OCO fill/cancel checks until BOTH legs have been posted.
+        # Running _check_oco_after_event mid-loop (when leg 1 fills on entry)
+        # unregisters the group and pops leg 2's routing entries *before* leg 2
+        # is posted — leg 2 then rests unlinked and uncancellable (finding #6).
+        _oco_pending_checks: list[Order] = []
+
         for leg in (leg1, leg2):
             # Resolve trailing stop initial price if needed
             if leg.order_type == OrderType.TRAILING_STOP and leg.stop_price is None:
@@ -2870,13 +2876,13 @@ class Engine:
                         )
                     )
                     if evt.status == OrderStatus.FILLED and evt.oco_group_id:
-                        self._check_oco_after_event(evt)
+                        _oco_pending_checks.append(evt)
                 elif evt.status == OrderStatus.CANCELLED:
                     self.pub_sock.send_multipart(
                         make_cancelled_msg(evt.gateway_id, evt.id)
                     )
                     if evt.oco_group_id:
-                        self._check_oco_after_event(evt)
+                        _oco_pending_checks.append(evt)
                 elif evt.status == OrderStatus.REJECTED:
                     self.pub_sock.send_multipart(
                         make_ack_msg(
@@ -2891,6 +2897,11 @@ class Engine:
                 self._publish_trade(trade)
 
             self._mark_dirty(symbol)
+
+        # Both legs are now on the book — safe to resolve OCO terminal events.
+        # The sibling can be found and cancelled instead of being orphaned.
+        for evt in _oco_pending_checks:
+            self._check_oco_after_event(evt)
 
         if self.verbose:
             print(f"[ENGINE] OCO {oco_id}: legs {leg1.id[:8]} and {leg2.id[:8]} posted")
