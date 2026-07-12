@@ -130,9 +130,7 @@ def flow_stop_triggered(engine, pub) -> str | None:
     _rest_gw02_ask(engine, price=100.0, qty=50)
     _rest_gw02_ask(engine, price=PRICE, qty=QTY)
     # GW01 stop: converts to MARKET when a trade prints at/above 100.00.
-    stop = order_payload(
-        Side.BUY, OrderType.STOP, QTY, "GW01", stop_price=100.0
-    )
+    stop = order_payload(Side.BUY, OrderType.STOP, QTY, "GW01", stop_price=100.0)
     engine._handle_new_order(stop)
     # GW03 takes the 100.00 level → trade @100 triggers GW01's stop, which
     # then executes 100 @ 101.00 (50 remain at the trigger level? no — GW03
@@ -265,21 +263,19 @@ def test_g2_fill_messages_are_unique_per_order(
 
 
 @pytest.mark.parametrize("flow_name", FLOW_PARAMS)
-def test_g3_positions_updated_for_both_sides(
-    monkeypatch, tmp_path, flow_name
-) -> None:
+def test_g3_positions_updated_for_both_sides(monkeypatch, tmp_path, flow_name) -> None:
     engine, pub, drop, _ = _run_flow(monkeypatch, tmp_path, flow_name)
     assert _gw01_trades(pub), "precondition"
 
     gw01 = engine._gateway_positions.get("GW01", {}).get(SYMBOL, 0)
     gw02 = engine._gateway_positions.get("GW02", {}).get(SYMBOL, 0)
-    assert gw01 == QTY, (
-        f"[{flow_name}] buyer position not updated (expected +{QTY}, got {gw01})"
-    )
+    assert (
+        gw01 == QTY
+    ), f"[{flow_name}] buyer position not updated (expected +{QTY}, got {gw01})"
     # GW02 may have sold at 100.00 AND 101.00 in the stop flow.
-    assert gw02 <= -QTY, (
-        f"[{flow_name}] seller position not updated (expected <= -{QTY}, got {gw02})"
-    )
+    assert (
+        gw02 <= -QTY
+    ), f"[{flow_name}] seller position not updated (expected <= -{QTY}, got {gw02})"
 
 
 # ---------------------------------------------------------------------------
@@ -307,9 +303,7 @@ _PREOPEN_FLOWS = ["order", "quote", "oco", "combo"]
 
 
 @pytest.mark.parametrize("flow_name", _PREOPEN_FLOWS)
-def test_g5_no_flow_matches_during_pre_open(
-    monkeypatch, tmp_path, flow_name
-) -> None:
+def test_g5_no_flow_matches_during_pre_open(monkeypatch, tmp_path, flow_name) -> None:
     engine, pub = make_engine(
         monkeypatch,
         tmp_path,

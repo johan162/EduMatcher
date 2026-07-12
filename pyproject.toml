@@ -165,7 +165,7 @@ reportUntypedFunctionDecorator = false
 reportUntypedBaseClass = false
 reportUnknownLambdaType = false
 executionEnvironments = [
-    { root = "tests", reportPrivateUsage = false, reportUnusedVariable = false, reportUnusedFunction = false, reportUnusedImport = false, reportMissingTypeArgument = false, reportArgumentType = false, reportOptionalOperand = false, reportOptionalMemberAccess = false, reportOperatorIssue = false, reportAttributeAccessIssue = false, reportCallIssue = false, reportReturnType = false },
+    { root = "tests", extraPaths = ["."], reportPrivateUsage = false, reportUnusedVariable = false, reportUnusedFunction = false, reportUnusedImport = false, reportMissingTypeArgument = false, reportArgumentType = false, reportOptionalOperand = false, reportOptionalMemberAccess = false, reportOperatorIssue = false, reportAttributeAccessIssue = false, reportCallIssue = false, reportReturnType = false },
     { root = "tools", reportUnusedImport = false, reportMissingTypeArgument = false, reportArgumentType = false, reportOptionalMemberAccess = false },
     { root = "src" },
 ]

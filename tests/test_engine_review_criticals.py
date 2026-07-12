@@ -284,9 +284,9 @@ class TestC3SmpCancelledAggressorNotRested:
             f"{dict(book._bid_qty)}"
         )
         assert aggressor.id not in _resting_ids(book)
-        assert book.get_order(aggressor.id) is None, (
-            "C3: cancelled aggressor was re-registered in the order index"
-        )
+        assert (
+            book.get_order(aggressor.id) is None
+        ), "C3: cancelled aggressor was re-registered in the order index"
 
     def test_cancel_both_leaves_no_phantom_bid_qty(self) -> None:
         book, aggressor = self._run_smp(SmpAction.CANCEL_BOTH)
@@ -325,9 +325,7 @@ class TestC4FillNotifications:
         assert len(trades) == 1 and trades[0]["quantity"] == 50  # precondition
 
         # … so the aggressor's private feed must carry a fill for 50.
-        fills = [
-            m for m in _msgs(pub, "order.fill.GW01") if m["order_id"] == ioc["id"]
-        ]
+        fills = [m for m in _msgs(pub, "order.fill.GW01") if m["order_id"] == ioc["id"]]
         assert fills, (
             "C4: IOC partially filled (trade printed for 50) but no "
             "order.fill.GW01 message was published for the aggressor"
@@ -492,9 +490,9 @@ class TestC6TrailingStopNoMatchMode:
         engine._restore_gtc()
 
         book = engine.books.get(SYMBOL)
-        assert book is not None and book.get_order(gtc.id) is not None, (
-            "C6: GTC trailing stop must be restored as an active stop order"
-        )
+        assert (
+            book is not None and book.get_order(gtc.id) is not None
+        ), "C6: GTC trailing stop must be restored as an active stop order"
 
 
 # ---------------------------------------------------------------------------
@@ -570,10 +568,7 @@ class TestC7IcebergDisplayedSliceSemantics:
         )
         book.process(buy)
 
-        expected = (
-            (iceberg.displayed_qty or 0)
-            + plain.remaining_qty
-        )
+        expected = (iceberg.displayed_qty or 0) + plain.remaining_qty
         actual = book._ask_qty.get(10000, 0)
         assert actual == expected, (
             f"C7: shared price-level index corrupted by iceberg over-deduct — "

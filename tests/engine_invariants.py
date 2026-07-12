@@ -90,7 +90,7 @@ def assert_book_invariants(
             f"orders.\n  index    = {dict(sorted(actual.items()))}\n"
             f"  expected = {dict(sorted(expected.items()))}\n"
             f"  phantom  = "
-            f"{ {p: actual.get(p, 0) - expected.get(p, 0) for p in set(actual) | set(expected) if actual.get(p, 0) != expected.get(p, 0)} }"
+            f"{{p: actual.get(p, 0) - expected.get(p, 0) for p in set(actual) | set(expected) if actual.get(p, 0) != expected.get(p, 0)}}"
         )
 
     # ------------------------------------------------------------------

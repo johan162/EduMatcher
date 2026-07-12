@@ -115,16 +115,25 @@ class _OpDriver:
         if r < 0.40:  # LIMIT
             price = self._price()
             o = Order.create(
-                symbol=SYMBOL, side=side, order_type=OrderType.LIMIT,
-                quantity=qty, gateway_id=gw, price=price, smp_action=self._smp(),
+                symbol=SYMBOL,
+                side=side,
+                order_type=OrderType.LIMIT,
+                quantity=qty,
+                gateway_id=gw,
+                price=price,
+                smp_action=self._smp(),
             )
             self._submit(o)
             return f"LIMIT {side.value} {qty}@{price} gw={gw} smp={o.smp_action.value}"
 
         if r < 0.50:  # MARKET
             o = Order.create(
-                symbol=SYMBOL, side=side, order_type=OrderType.MARKET,
-                quantity=qty, gateway_id=gw, smp_action=self._smp(),
+                symbol=SYMBOL,
+                side=side,
+                order_type=OrderType.MARKET,
+                quantity=qty,
+                gateway_id=gw,
+                smp_action=self._smp(),
             )
             self._submit(o)
             return f"MARKET {side.value} {qty} gw={gw} smp={o.smp_action.value}"
@@ -132,8 +141,13 @@ class _OpDriver:
         if r < 0.60:  # IOC
             price = self._price()
             o = Order.create(
-                symbol=SYMBOL, side=side, order_type=OrderType.IOC,
-                quantity=qty, gateway_id=gw, price=price, smp_action=self._smp(),
+                symbol=SYMBOL,
+                side=side,
+                order_type=OrderType.IOC,
+                quantity=qty,
+                gateway_id=gw,
+                price=price,
+                smp_action=self._smp(),
             )
             self._submit(o)
             return f"IOC {side.value} {qty}@{price} gw={gw} smp={o.smp_action.value}"
@@ -141,8 +155,13 @@ class _OpDriver:
         if r < 0.67:  # FOK
             price = self._price()
             o = Order.create(
-                symbol=SYMBOL, side=side, order_type=OrderType.FOK,
-                quantity=qty, gateway_id=gw, price=price, smp_action=self._smp(),
+                symbol=SYMBOL,
+                side=side,
+                order_type=OrderType.FOK,
+                quantity=qty,
+                gateway_id=gw,
+                price=price,
+                smp_action=self._smp(),
             )
             self._submit(o)
             return f"FOK {side.value} {qty}@{price} gw={gw} smp={o.smp_action.value}"
@@ -151,16 +170,25 @@ class _OpDriver:
             price = self._price()
             if not self.allow_icebergs:
                 o = Order.create(
-                    symbol=SYMBOL, side=side, order_type=OrderType.LIMIT,
-                    quantity=qty, gateway_id=gw, price=price,
+                    symbol=SYMBOL,
+                    side=side,
+                    order_type=OrderType.LIMIT,
+                    quantity=qty,
+                    gateway_id=gw,
+                    price=price,
                     smp_action=self._smp(),
                 )
                 self._submit(o)
                 return f"LIMIT {side.value} {qty}@{price} gw={gw} (iceberg tier off)"
             visible = max(1, qty // rng.randint(2, 10))
             o = Order.create(
-                symbol=SYMBOL, side=side, order_type=OrderType.ICEBERG,
-                quantity=qty, gateway_id=gw, price=price, visible_qty=visible,
+                symbol=SYMBOL,
+                side=side,
+                order_type=OrderType.ICEBERG,
+                quantity=qty,
+                gateway_id=gw,
+                price=price,
+                visible_qty=visible,
                 smp_action=self._smp(),
             )
             self._submit(o)
@@ -231,9 +259,7 @@ def _run(
             op = driver.step()
         driver.history.append(op)
         recent = " | ".join(driver.history[-6:])
-        assert_book_invariants(
-            book, context=f"seed={seed} step={step_no}: …{recent}"
-        )
+        assert_book_invariants(book, context=f"seed={seed} step={step_no}: …{recent}")
 
     assert_qty_conservation(
         driver.all_orders, driver.all_trades, context=f"seed={seed} end-of-run"

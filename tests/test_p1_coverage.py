@@ -89,9 +89,9 @@ class TestSmpCancelAggressor:
         assert sell.status == OrderStatus.NEW  # resting order untouched
         # Spec (review C3): the cancelled aggressor must NOT be rested — no
         # phantom quantity in the bid index, no re-registration in the book.
-        assert sum(book._bid_qty.values()) == 0, (
-            f"cancelled SMP aggressor left phantom bid qty: {dict(book._bid_qty)}"
-        )
+        assert (
+            sum(book._bid_qty.values()) == 0
+        ), f"cancelled SMP aggressor left phantom bid qty: {dict(book._bid_qty)}"
         assert book.get_order(buy.id) is None
 
     def test_sell_aggressor_cancelled(self):
@@ -110,9 +110,9 @@ class TestSmpCancelAggressor:
         assert sell.status == OrderStatus.CANCELLED
         assert buy.status == OrderStatus.NEW
         # Spec (review C3): the cancelled aggressor must NOT be rested.
-        assert sum(book._ask_qty.values()) == 0, (
-            f"cancelled SMP aggressor left phantom ask qty: {dict(book._ask_qty)}"
-        )
+        assert (
+            sum(book._ask_qty.values()) == 0
+        ), f"cancelled SMP aggressor left phantom ask qty: {dict(book._ask_qty)}"
         assert book.get_order(sell.id) is None
 
     def test_different_gateway_no_smp(self):
@@ -221,9 +221,9 @@ class TestSmpCancelBoth:
         assert buy.status == OrderStatus.CANCELLED
         assert sell.status == OrderStatus.CANCELLED
         # Spec (review C3): neither cancelled order may remain on the book.
-        assert sum(book._bid_qty.values()) == 0, (
-            f"cancelled SMP aggressor left phantom bid qty: {dict(book._bid_qty)}"
-        )
+        assert (
+            sum(book._bid_qty.values()) == 0
+        ), f"cancelled SMP aggressor left phantom bid qty: {dict(book._bid_qty)}"
 
     def test_sell_both_cancelled(self):
         book = OrderBook("AAPL")
@@ -553,9 +553,10 @@ class TestSmpFok:
         assert trades == []
         assert own_sell.status == OrderStatus.CANCELLED
         # FOK must reach a terminal state and the owner must be told.
-        assert fok.status in (OrderStatus.REJECTED, OrderStatus.CANCELLED), (
-            f"H8: FOK left in non-terminal limbo state {fok.status.value}"
-        )
+        assert fok.status in (
+            OrderStatus.REJECTED,
+            OrderStatus.CANCELLED,
+        ), f"H8: FOK left in non-terminal limbo state {fok.status.value}"
         assert any(
             e.id == fok.id and e.status == fok.status for e in events
         ), "H8: no terminal event emitted for the unfillable FOK"

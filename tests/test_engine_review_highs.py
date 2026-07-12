@@ -264,9 +264,7 @@ class TestH2AmendSemantics:
         book = engine.books[SYMBOL]
         best_bid = max(book._bid_qty) if book._bid_qty else None
         best_ask = min(book._ask_qty) if book._ask_qty else None
-        assert (
-            best_bid is None or best_ask is None or best_bid < best_ask
-        ), (
+        assert best_bid is None or best_ask is None or best_bid < best_ask, (
             f"H2: book left crossed after price amend "
             f"(best_bid={best_bid}, best_ask={best_ask}) — a marketable amend "
             f"must match (cancel/replace semantics) or be rejected"
@@ -517,12 +515,12 @@ class TestH7TerminalOrderPurge:
         book.process(aggressor)
         assert filled.status == OrderStatus.FILLED  # precondition
 
-        assert book.get_order(filled.id) is None, (
-            "H7: fully FILLED order still retrievable from _order_index"
-        )
-        assert filled.id not in book._entry_index, (
-            "H7: fully FILLED order still present in _entry_index"
-        )
+        assert (
+            book.get_order(filled.id) is None
+        ), "H7: fully FILLED order still retrievable from _order_index"
+        assert (
+            filled.id not in book._entry_index
+        ), "H7: fully FILLED order still present in _entry_index"
 
         cancelled = Order.create(
             symbol=SYMBOL,
@@ -535,12 +533,12 @@ class TestH7TerminalOrderPurge:
         book.process(cancelled)
         assert book.cancel_order(cancelled.id) is not None  # precondition
 
-        assert book.get_order(cancelled.id) is None, (
-            "H7: CANCELLED order still retrievable from _order_index"
-        )
-        assert cancelled.id not in book._entry_index, (
-            "H7: CANCELLED order still present in _entry_index"
-        )
+        assert (
+            book.get_order(cancelled.id) is None
+        ), "H7: CANCELLED order still retrievable from _order_index"
+        assert (
+            cancelled.id not in book._entry_index
+        ), "H7: CANCELLED order still present in _entry_index"
 
     def test_engine_order_symbol_map_is_pruned_on_fill(
         self, monkeypatch, tmp_path
@@ -554,12 +552,12 @@ class TestH7TerminalOrderPurge:
         engine._handle_new_order(aggressor)
         assert len(_msgs(pub, "trade.executed")) == 1  # precondition: both filled
 
-        assert resting["id"] not in engine._order_symbol, (
-            "H7: filled resting order never pruned from Engine._order_symbol"
-        )
-        assert aggressor["id"] not in engine._order_symbol, (
-            "H7: filled aggressor never pruned from Engine._order_symbol"
-        )
+        assert (
+            resting["id"] not in engine._order_symbol
+        ), "H7: filled resting order never pruned from Engine._order_symbol"
+        assert (
+            aggressor["id"] not in engine._order_symbol
+        ), "H7: filled aggressor never pruned from Engine._order_symbol"
 
 
 # ---------------------------------------------------------------------------
@@ -678,9 +676,7 @@ class TestH9SessionGating:
             "subject to the same session gating as orders"
         )
 
-    def test_quote_does_not_match_during_pre_open(
-        self, monkeypatch, tmp_path
-    ) -> None:
+    def test_quote_does_not_match_during_pre_open(self, monkeypatch, tmp_path) -> None:
         engine, pub = _make_engine(
             monkeypatch, tmp_path, mm_gateways=("GW01",), sessions_enabled=True
         )

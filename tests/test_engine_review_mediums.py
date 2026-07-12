@@ -162,12 +162,22 @@ class TestM3CrossedBookRecovery:
     ) -> None:
         crossed = [
             Order.create(
-                symbol=SYMBOL, side=Side.BUY, order_type=OrderType.LIMIT,
-                quantity=100, gateway_id="GW01", tif=TIF.GTC, price=10100,
+                symbol=SYMBOL,
+                side=Side.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=100,
+                gateway_id="GW01",
+                tif=TIF.GTC,
+                price=10100,
             ),
             Order.create(
-                symbol=SYMBOL, side=Side.SELL, order_type=OrderType.LIMIT,
-                quantity=100, gateway_id="GW02", tif=TIF.GTC, price=10000,
+                symbol=SYMBOL,
+                side=Side.SELL,
+                order_type=OrderType.LIMIT,
+                quantity=100,
+                gateway_id="GW02",
+                tif=TIF.GTC,
+                price=10000,
             ),
         ]
         engine, pub = make_engine(monkeypatch, tmp_path, gtc_orders=crossed)
@@ -273,12 +283,18 @@ class TestM5AonComboAtomicity:
             tif=TIF.DAY,
             legs=[
                 ComboLeg(
-                    symbol=SYMBOL, side=Side.BUY, order_type=OrderType.LIMIT,
-                    quantity=100, price=10000,
+                    symbol=SYMBOL,
+                    side=Side.BUY,
+                    order_type=OrderType.LIMIT,
+                    quantity=100,
+                    price=10000,
                 ),
                 ComboLeg(
-                    symbol="MSFT", side=Side.BUY, order_type=OrderType.LIMIT,
-                    quantity=10, price=5000,  # empty book — cannot fill
+                    symbol="MSFT",
+                    side=Side.BUY,
+                    order_type=OrderType.LIMIT,
+                    quantity=10,
+                    price=5000,  # empty book — cannot fill
                 ),
             ],
         )
@@ -308,8 +324,11 @@ class TestM6StopCascadeDepth:
         for i in range(1, n + 1):
             book.process(
                 Order.create(
-                    symbol=SYMBOL, side=Side.BUY, order_type=OrderType.STOP,
-                    quantity=1, gateway_id="GW1",
+                    symbol=SYMBOL,
+                    side=Side.BUY,
+                    order_type=OrderType.STOP,
+                    quantity=1,
+                    gateway_id="GW1",
                     stop_price=10000 + 10 * (i - 1),
                 )
             )
@@ -320,9 +339,9 @@ class TestM6StopCascadeDepth:
         trigger = _limit(Side.BUY, 10000, qty=1, gw="GW3")
         trades, _events = book.process(trigger)
 
-        assert len(trades) == n + 1, (
-            f"M6: cascade produced {len(trades)} trades, expected {n + 1}"
-        )
+        assert (
+            len(trades) == n + 1
+        ), f"M6: cascade produced {len(trades)} trades, expected {n + 1}"
 
 
 # ---------------------------------------------------------------------------
@@ -411,9 +430,7 @@ class TestM9MonotonicEngineClock:
         # Wall clock that jumps back one second between the two orders.
         base = 1_800_000_000_000_000_000
         ticks = iter([base, base - 1_000_000_000])
-        monkeypatch.setattr(
-            "edumatcher.engine.main._time_ns", lambda: next(ticks)
-        )
+        monkeypatch.setattr("edumatcher.engine.main._time_ns", lambda: next(ticks))
 
         seen: list[int] = []
         orig = OrderBook.process

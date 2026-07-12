@@ -48,14 +48,12 @@ def _all_gtc_order_variants() -> list[Order]:
     partially_filled.status = OrderStatus.PARTIAL
 
     iceberg = _gtc(OrderType.ICEBERG, price=10020, visible_qty=10)
-    iceberg.remaining_qty = 55          # mid-lifecycle: partially consumed
-    iceberg.displayed_qty = 5           # mid-peak
+    iceberg.remaining_qty = 55  # mid-lifecycle: partially consumed
+    iceberg.displayed_qty = 5  # mid-peak
     iceberg.status = OrderStatus.PARTIAL
 
     stop = _gtc(OrderType.STOP, side=Side.SELL, stop_price=9900)
-    stop_limit = _gtc(
-        OrderType.STOP_LIMIT, side=Side.SELL, price=9890, stop_price=9900
-    )
+    stop_limit = _gtc(OrderType.STOP_LIMIT, side=Side.SELL, price=9890, stop_price=9900)
     trailing = _gtc(
         OrderType.TRAILING_STOP, side=Side.SELL, stop_price=9900, trail_offset=100
     )
@@ -74,9 +72,9 @@ class TestGtcOrderRoundTrip:
         save_gtc_orders(orders, path)
         loaded = load_gtc_orders(path)
 
-        assert len(loaded) == len(orders), (
-            f"round trip dropped orders: saved {len(orders)}, loaded {len(loaded)}"
-        )
+        assert len(loaded) == len(
+            orders
+        ), f"round trip dropped orders: saved {len(orders)}, loaded {len(loaded)}"
         by_id = {o.id: o for o in loaded}
         for original in orders:
             restored = by_id.get(original.id)

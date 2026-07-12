@@ -111,6 +111,7 @@ from edumatcher.models.session import (
     accepts_orders,
     is_matching_enabled,
 )
+from edumatcher.models.trade import Trade
 
 # PERF: cache time.time_ns as a module-level constant so the hot path
 # avoids the attribute lookup on the `time` module AND the threading lock
@@ -3229,9 +3230,7 @@ class Engine:
             if collar is not None:
                 from edumatcher.engine.collar import validate_collar
 
-                result = validate_collar(
-                    new_price_ticks, collar, book.last_trade_price
-                )
+                result = validate_collar(new_price_ticks, collar, book.last_trade_price)
                 if result.rejected:
                     self.pub_sock.send_multipart(
                         make_ack_msg(
@@ -3292,10 +3291,10 @@ class Engine:
             )
         ):
             if amended.side == Side.BUY:
-                best_ask = min(book._ask_qty) if book._ask_qty else None
+                best_ask = book.best_ask_ticks()
                 marketable = best_ask is not None and amended.price >= best_ask
             else:
-                best_bid = max(book._bid_qty) if book._bid_qty else None
+                best_bid = book.best_bid_ticks()
                 marketable = best_bid is not None and amended.price <= best_bid
 
             if marketable:
@@ -3348,9 +3347,7 @@ class Engine:
                 and evt.id not in published_terminal_ids
             ):
                 published_terminal_ids.add(evt.id)
-                self.pub_sock.send_multipart(
-                    make_cancelled_msg(evt.gateway_id, evt.id)
-                )
+                self.pub_sock.send_multipart(make_cancelled_msg(evt.gateway_id, evt.id))
             elif (
                 evt.status == OrderStatus.REJECTED
                 and evt.id not in published_terminal_ids

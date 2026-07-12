@@ -24,7 +24,6 @@ from typing import Any
 from edumatcher.models.order import OrderType, Side
 
 from tests.engine_harness import (
-    SYMBOL,
     all_msgs,
     connect,
     make_engine,
@@ -55,7 +54,11 @@ def _build_scenario(seed: int = 42, n: int = 60) -> list[tuple[str, dict[str, An
             live_ids.append(p["id"])
         elif r < 0.65:
             p = order_payload(
-                side, OrderType.ICEBERG, qty, gw, price=price,
+                side,
+                OrderType.ICEBERG,
+                qty,
+                gw,
+                price=price,
                 visible_qty=max(1, qty // 4),
             )
             script.append(("order.new", p))
@@ -86,9 +89,7 @@ def _run_scenario(
 ) -> list[tuple[str, dict[str, Any]]]:
     run_dir = tmp_path / f"run{run_id}"
     run_dir.mkdir(parents=True, exist_ok=True)
-    engine, pub = make_engine(
-        monkeypatch, run_dir, gateways=("GW01", "GW02", "GW03")
-    )
+    engine, pub = make_engine(monkeypatch, run_dir, gateways=("GW01", "GW02", "GW03"))
     connect(engine)
     for topic, payload in script:
         if topic == "order.new":
@@ -101,7 +102,7 @@ def _run_scenario(
 
 
 def _normalize(
-    stream: list[tuple[str, dict[str, Any]]]
+    stream: list[tuple[str, dict[str, Any]]],
 ) -> list[tuple[str, tuple[tuple[str, Any], ...]]]:
     out = []
     for topic, payload in stream:

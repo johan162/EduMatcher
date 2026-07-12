@@ -434,6 +434,14 @@ class OrderBook:
             if o.status in (OrderStatus.NEW, OrderStatus.PARTIAL)
         ]
 
+    def best_bid_ticks(self) -> int | None:
+        """Return best bid price in ticks, or None if no active bid exists."""
+        return max((px for px, qty in self._bid_qty.items() if qty > 0), default=None)
+
+    def best_ask_ticks(self) -> int | None:
+        """Return best ask price in ticks, or None if no active ask exists."""
+        return min((px for px, qty in self._ask_qty.items() if qty > 0), default=None)
+
     def restore_stats(
         self, last_buy_price: Optional[int], last_sell_price: Optional[int]
     ) -> None:
