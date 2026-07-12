@@ -35,6 +35,13 @@ def _make_engine(
     cfg_path.write_text(yaml_text)
     engine = Engine(config_path=str(cfg_path))
     engine._handle_gateway_connect({"gateway_id": "GW01"})
+    # These tests exercise MM-obligation config, not session gating.  Session
+    # handling defaults to enabled (engine starts CLOSED), which would reject
+    # quotes with "Market is closed" before the obligation check runs, so open
+    # the market to CONTINUOUS here.
+    if engine._sessions_enabled:
+        engine._handle_session_transition({"to_state": "PRE_OPEN"})
+        engine._handle_session_transition({"to_state": "CONTINUOUS"})
     pub_sock.sent.clear()
     return engine, pub_sock
 

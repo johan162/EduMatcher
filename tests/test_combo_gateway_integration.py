@@ -283,8 +283,13 @@ class TestComboEndToEnd:
         fills = _messages_by_topic(pub_sock, "order.fill")
         assert len(fills) >= 2  # At least one fill per leg
 
-    def test_combo_partial_then_complete_on_later_order(self, combo_engine) -> None:
-        """Only one leg has liquidity initially → PARTIALLY_MATCHED → later MATCHED."""
+    def test_combo_aon_does_not_partially_execute(self, combo_engine) -> None:
+        """M5: an AON combo must NOT partially execute.
+
+        With liquidity for only one leg, an AON combo executes nothing — no
+        leg fills and the combo rests PENDING (all-or-none).  The fully-fillable
+        MATCHED path is covered by test_combo_fills_both_legs_against_liquidity.
+        """
         engine, pub_sock = combo_engine
 
         _seed_resting(engine, "AAPL", Side.SELL, 100, 150.0)
@@ -308,30 +313,19 @@ class TestComboEndToEnd:
                     side=Side.SELL,
                     order_type=OrderType.LIMIT,
                     quantity=50,
-                    price=300.0,
+                    price=300.0,  # no MSFT counterparty — unfillable
                 ),
             ],
         )
         engine._handle_combo_order(combo.to_dict())
 
         tracked = list(engine._combos.values())[0]
-        assert tracked.status.value == "PARTIALLY_MATCHED"
-
-        # Now a buyer arrives on MSFT
-        pub_sock.sent.clear()
-        filler = Order.create(
-            symbol="MSFT",
-            side=Side.BUY,
-            order_type=OrderType.LIMIT,
-            quantity=50,
-            gateway_id="TRADER02",
-            price=300.0,
-        )
-        engine._handle_new_order(filler.to_dict())
-
-        assert tracked.status.value == "MATCHED"
-        statuses = _messages_by_topic(pub_sock, "combo.status")
-        assert any(s["status"] == "MATCHED" for s in statuses)
+        # M5: no leg may fill while another leg cannot — the combo rests PENDING.
+        assert tracked.status.value == "PENDING"
+        assert tracked.leg_fill_qty[0] == 0
+        assert tracked.leg_fill_qty[1] == 0
+        # No trade should have printed on either symbol.
+        assert not _messages_by_topic(pub_sock, "trade.executed")
 
     def test_cascade_cancel_when_child_cancelled(self, combo_engine) -> None:
         """Cancelling one child triggers cascade-cancel of the sibling."""
