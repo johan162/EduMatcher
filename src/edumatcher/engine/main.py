@@ -837,8 +837,9 @@ class Engine:
                 else:
                     order.stop_price = book.last_trade_price + order.trail_offset  # type: ignore[operator]
 
-        # Track order → symbol for O(1) cancel routing
-        self._order_symbol[order.id] = order.symbol
+        # M8: order→symbol registration happens AFTER book.process() succeeds
+        # (below), not here — so a failure mid-processing leaves no half-applied
+        # routing entry for an order that never reached the book.
 
         # PERF #3: Capture a single high-resolution timestamp at the start of
         # the hot path.  Uses time.time_ns directly (bypassing the threading
@@ -907,6 +908,11 @@ class Engine:
         )
 
         trades, events = book.process(order, match=do_match, now=now)
+
+        # M8: register the routing entry only now that the book has accepted the
+        # order.  The fill-publication loop below may prune it again if the
+        # order fully filled (H7), so this must precede that loop.
+        self._order_symbol[order.id] = order.symbol
 
         # H6: each order's fill message must carry ITS OWN execution price
         # (per-order VWAP over the trades it participated in), not the sweep's
