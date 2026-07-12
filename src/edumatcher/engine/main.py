@@ -22,7 +22,7 @@ import signal
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import zmq
 
@@ -40,7 +40,10 @@ from edumatcher.engine.auction import (
     execute_uncross,
 )
 from edumatcher.cli_version import add_version_argument
+from edumatcher.engine.circuit_breaker import CircuitBreakerState
+from edumatcher.engine.collar import CollarConfig, validate_collar
 from edumatcher.engine.config_loader import EngineConfig, load_engine_config
+from edumatcher.engine.drop_copy import DropCopyPublisher
 from edumatcher.engine.order_book import OrderBook
 from edumatcher.engine.persistence import (
     load_gtc_orders,
@@ -126,6 +129,26 @@ _TRADE_TOPIC = b"trade.executed"
 _FILL_STATUSES = frozenset({OrderStatus.PARTIAL, OrderStatus.FILLED})
 
 
+def order_to_display_dict(order: Order) -> dict[str, Any]:
+    """Serialize an order for an outbound snapshot in *display* units (L3).
+
+    Single source of truth built on ``Order.to_dict()`` (so fields never drift
+    from the model), with tick prices converted to display floats and the
+    timestamp expressed in seconds.
+    """
+    d = order.to_dict()
+    sym = order.symbol
+    d["price"] = from_ticks(order.price, sym) if order.price is not None else None
+    d["stop_price"] = (
+        from_ticks(order.stop_price, sym) if order.stop_price is not None else None
+    )
+    d["trail_offset"] = (
+        from_ticks(order.trail_offset, sym) if order.trail_offset is not None else None
+    )
+    d["timestamp"] = order.timestamp / 1_000_000_000
+    return d
+
+
 class Engine:
     # Minimum interval between book snapshot publishes per symbol (seconds)
     SNAPSHOT_INTERVAL = 0.5
@@ -150,11 +173,11 @@ class Engine:
         # _handle_symbols_request so prev_close is available without re-reading
         self._book_stats: dict[str, dict[str, Any]] = {}
         # Price collar configs — keyed by symbol; populated in _load_config()
-        self._collars: dict[str, Any] = {}  # values: CollarConfig
+        self._collars: dict[str, CollarConfig] = {}
         # Circuit breaker states — keyed by symbol; populated in _load_config()
-        self._circuit_breakers: dict[str, Any] = {}  # values: CircuitBreakerState
+        self._circuit_breakers: dict[str, CircuitBreakerState] = {}
         # Drop copy publisher — None until run() is called (avoids binding port 5557 in tests)
-        self._drop_copy: Any = None  # DropCopyPublisher created lazily in run()
+        self._drop_copy: Optional[DropCopyPublisher] = None
 
         # Global order_id → symbol map for O(1) cancel routing
         self._order_symbol: dict[str, str] = {}
@@ -528,8 +551,6 @@ class Engine:
                     self._collars[sym] = sym_cfg.collar
             if sym_cfg.circuit_breaker is not None:
                 sym_cfg.circuit_breaker.symbol = sym
-                from edumatcher.engine.circuit_breaker import CircuitBreakerState
-
                 cb_state = CircuitBreakerState(
                     symbol=sym, config=sym_cfg.circuit_breaker
                 )
@@ -781,8 +802,6 @@ class Engine:
         if self._enforce_collars and order.price is not None:
             collar = self._collars.get(order.symbol)
             if collar is not None:
-                from edumatcher.engine.collar import validate_collar
-
                 result = validate_collar(order.price, collar, book.last_trade_price)
                 if result.rejected:
                     self.pub_sock.send_multipart(
@@ -1362,43 +1381,7 @@ class Engine:
         for book in self.books.values():
             for order in book.resting_orders():
                 if order.gateway_id == gateway_id:
-                    orders.append(
-                        {
-                            "id": order.id,
-                            "symbol": order.symbol,
-                            "side": order.side.value,
-                            "order_type": order.order_type.value,
-                            "tif": order.tif.value,
-                            "quantity": order.quantity,
-                            "remaining_qty": order.remaining_qty,
-                            "gateway_id": order.gateway_id,
-                            "trail_offset": (
-                                from_ticks(order.trail_offset, order.symbol)
-                                if order.trail_offset is not None
-                                else None
-                            ),
-                            "oco_group_id": order.oco_group_id,
-                            "timestamp": order.timestamp / 1_000_000_000,
-                            "status": order.status.value,
-                            "price": (
-                                from_ticks(order.price, order.symbol)
-                                if order.price is not None
-                                else None
-                            ),
-                            "stop_price": (
-                                from_ticks(order.stop_price, order.symbol)
-                                if order.stop_price is not None
-                                else None
-                            ),
-                            "visible_qty": order.visible_qty,
-                            "displayed_qty": order.displayed_qty,
-                            "smp_action": order.smp_action.value,
-                            "combo_parent_id": order.combo_parent_id,
-                            "leg_index": order.leg_index,
-                            "origin": order.origin.value,
-                            "quote_id": order.quote_id,
-                        }
-                    )
+                    orders.append(order_to_display_dict(order))
         self.pub_sock.send_multipart(make_orders_msg(gateway_id, orders))
 
     def _handle_quote_bootstrap_request(self, payload: dict[str, Any]) -> None:
@@ -1463,7 +1446,13 @@ class Engine:
             return False
         self._order_symbol.pop(order_id, None)
         self._mark_dirty(cancelled.symbol)
-        self.pub_sock.send_multipart(make_cancelled_msg(cancelled.gateway_id, order_id))
+        # L8: echo the order's client_tag on the cancel so subscribers that
+        # correlate on it don't miss quote/combo-driven cancels.
+        self.pub_sock.send_multipart(
+            make_cancelled_msg(
+                cancelled.gateway_id, order_id, client_tag=cancelled.client_tag
+            )
+        )
         return True
 
     def _cancel_quote_entry(self, entry: QuoteEntry, reason: str = "") -> int:
@@ -3345,8 +3334,6 @@ class Engine:
         if self._enforce_collars and new_price_ticks is not None:
             collar = self._collars.get(symbol)
             if collar is not None:
-                from edumatcher.engine.collar import validate_collar
-
                 result = validate_collar(new_price_ticks, collar, book.last_trade_price)
                 if result.rejected:
                     self.pub_sock.send_multipart(
@@ -3550,8 +3537,6 @@ class Engine:
         # Create drop copy publisher here (not in __init__) so that unit tests
         # that call handlers directly never attempt to bind ZMQ port 5557.
         try:
-            from edumatcher.engine.drop_copy import DropCopyPublisher
-
             self._drop_copy = DropCopyPublisher(zmq.Context.instance())
             print("[ENGINE] Drop copy PUB bound on port 5557")
         except zmq.ZMQError as exc:

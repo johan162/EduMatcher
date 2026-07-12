@@ -47,6 +47,7 @@ from typing import Any, Optional
 
 import zmq
 
+from edumatcher.models.clock import now_ns
 from edumatcher.models.message import dumps
 
 # Per-process monotone counter — starts at 1 so seq=0 means "no events yet"
@@ -122,8 +123,6 @@ class DropCopyPublisher:
                      JSON alongside ``seq``, ``timestamp``, ``gateway_id``,
                      and ``event_type``.
         """
-        from edumatcher.models.clock import now_ns
-
         seq = next(_seq_counter)
         now = now_ns()
         msg = DropCopyMessage(

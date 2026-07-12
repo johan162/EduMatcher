@@ -36,6 +36,10 @@ from edumatcher.models.trade import Trade
 
 # Module-level frozenset avoids allocating a temporary tuple inside _peek()
 # on every heap operation (called O(N) times per aggressive order).
+# L9: neutral aggressor flag for auction (uncross) prints, where both orders
+# are resting and there is no true aggressor.
+_AUCTION_AGGRESSOR = "AUCTION"
+
 _DEAD_STATUSES: frozenset[OrderStatus] = frozenset(
     {
         OrderStatus.FILLED,
@@ -322,11 +326,11 @@ class OrderBook:
                 and o.price is not None
             ):
                 qty = (
-                    o.displayed_qty
+                    o.displayed_qty or 0
                     if o.order_type == OrderType.ICEBERG
                     else o.remaining_qty
                 )
-                self._deduct_qty_index(o, qty)  # type: ignore[arg-type]
+                self._deduct_qty_index(o, qty)
         # H7: purge the cancelled order from both id maps (also invalidates the
         # heap/stop entry for lazy deletion) so terminal orders do not linger.
         self._purge_from_indexes(order)
@@ -384,13 +388,17 @@ class OrderBook:
         # Resolve new values
         price = new_price if new_price is not None else old_price
         qty = new_qty if new_qty is not None else old_qty
+        # Only LIMIT / ICEBERG orders reach here (checked above) and they always
+        # carry a price — bind the narrowed int to a local (L7) so the qty-index
+        # updates below need no Optional-arithmetic type: ignores.
+        assert price is not None, "Amendable order must have a price"
 
         # Validation
         if qty <= 0:
             return None, False, "Quantity must be positive"
         if qty <= filled_qty:
             return None, False, "New quantity must exceed already-filled quantity"
-        if price <= 0:  # type: ignore[operator]
+        if price <= 0:
             return None, False, "Price must be positive"
 
         # Determine if priority is lost
@@ -402,11 +410,11 @@ class OrderBook:
         entry = self._entry_index.get(order_id)
         if entry and old_price is not None:
             old_visible = (
-                order.displayed_qty
+                order.displayed_qty or 0
                 if order.order_type == OrderType.ICEBERG
                 else order.remaining_qty
             )
-            self._deduct_qty_index(order, old_visible)  # type: ignore[arg-type]
+            self._deduct_qty_index(order, old_visible)
 
         # Update order fields
         order.price = price
@@ -415,6 +423,11 @@ class OrderBook:
         if order.order_type == OrderType.ICEBERG and order.visible_qty is not None:
             order.displayed_qty = min(order.visible_qty, order.remaining_qty)
 
+        new_visible = (
+            order.displayed_qty or 0
+            if order.order_type == OrderType.ICEBERG
+            else order.remaining_qty
+        )
         if priority_reset:
             order.timestamp = now
             # Priority lost: assign a fresh arrival sequence so the order goes
@@ -423,41 +436,23 @@ class OrderBook:
             # Invalidate old entry and re-insert with new key
             if entry:
                 entry.valid = False
-            new_visible = (
-                order.displayed_qty
-                if order.order_type == OrderType.ICEBERG
-                else order.remaining_qty
-            )
             if order.side == Side.BUY:
-                key = (-order.price, order.arrival_seq)  # type: ignore[operator]
+                key = (-price, order.arrival_seq)
                 heap = self._bids
-                self._bid_qty[order.price] = (  # type: ignore[index]
-                    self._bid_qty.get(order.price, 0) + new_visible  # type: ignore[operator, arg-type]
-                )
+                self._bid_qty[price] = self._bid_qty.get(price, 0) + new_visible
             else:
-                key = (order.price, order.arrival_seq)
+                key = (price, order.arrival_seq)
                 heap = self._asks
-                self._ask_qty[order.price] = (  # type: ignore[index]
-                    self._ask_qty.get(order.price, 0) + new_visible  # type: ignore[operator, arg-type]
-                )
+                self._ask_qty[price] = self._ask_qty.get(price, 0) + new_visible
             new_entry = _HeapEntry(key=key, order=order)
             heapq.heappush(heap, new_entry)
             self._entry_index[order.id] = new_entry
         else:
             # Priority preserved — update qty index with new visible amount
-            new_visible = (
-                order.displayed_qty
-                if order.order_type == OrderType.ICEBERG
-                else order.remaining_qty
-            )
             if order.side == Side.BUY:
-                self._bid_qty[order.price] = (  # type: ignore[index]
-                    self._bid_qty.get(order.price, 0) + new_visible  # type: ignore[operator, arg-type]
-                )
+                self._bid_qty[price] = self._bid_qty.get(price, 0) + new_visible
             else:
-                self._ask_qty[order.price] = (  # type: ignore[index]
-                    self._ask_qty.get(order.price, 0) + new_visible  # type: ignore[operator, arg-type]
-                )
+                self._ask_qty[price] = self._ask_qty.get(price, 0) + new_visible
 
         return order, priority_reset, ""
 
@@ -506,7 +501,8 @@ class OrderBook:
           ``bid_depth`` (total qty), ``ask_depth`` (total qty),
           ``imbalance`` (float in [-1, 1]; positive = more bids),
           ``microprice`` (imbalance-weighted midprice as a float price),
-          ``cost_to_move`` (same as bid_depth for now).
+          ``cost_to_move`` (display notional to sweep the asks within the
+          window — i.e. to move the price up by ``tolerance_ticks``).
 
         Returns an *empty dict* if no trades have occurred yet (no meaningful
         mid price to anchor the window on).
@@ -522,6 +518,14 @@ class OrderBook:
         ask_depth = sum(qty for px, qty in self._ask_qty.items() if mid <= px <= upper)
         total = bid_depth + ask_depth
         imbalance = (bid_depth - ask_depth) / total if total > 0 else 0.0
+
+        # L10: cost to move the market up by `tolerance_ticks` — the notional a
+        # buyer must spend to sweep every ask level within the window.  Computed
+        # in integer ticks (Σ price_ticks × qty) then converted once to display.
+        cost_to_move_ticks = sum(
+            px * qty for px, qty in self._ask_qty.items() if mid <= px <= upper
+        )
+        cost_to_move = from_ticks(cost_to_move_ticks, self.symbol)
 
         mid_price = from_ticks(mid, self.symbol)
 
@@ -554,7 +558,7 @@ class OrderBook:
             "ask_depth": ask_depth,
             "imbalance": imbalance,
             "microprice": microprice,
-            "cost_to_move": bid_depth,
+            "cost_to_move": cost_to_move,
         }
 
     def snapshot(self) -> dict[str, Any]:
@@ -577,13 +581,14 @@ class OrderBook:
                 OrderStatus.EXPIRED,
             ):
                 continue
-            price = o.price  # iceberg always has a price
+            price = o.price
+            assert price is not None  # resting orders always have a price (L7)
             qty = (
-                o.displayed_qty
+                o.displayed_qty or 0
                 if o.order_type == OrderType.ICEBERG
                 else o.remaining_qty
             )
-            lvl = bids.setdefault(price, {"price": price, "qty": 0, "count": 0})  # type: ignore[arg-type]
+            lvl = bids.setdefault(price, {"price": price, "qty": 0, "count": 0})
             lvl["qty"] += qty
             lvl["count"] += 1
 
@@ -599,12 +604,13 @@ class OrderBook:
             ):
                 continue
             price = o.price
+            assert price is not None  # resting orders always have a price (L7)
             qty = (
-                o.displayed_qty
+                o.displayed_qty or 0
                 if o.order_type == OrderType.ICEBERG
                 else o.remaining_qty
             )
-            lvl = asks.setdefault(price, {"price": price, "qty": 0, "count": 0})  # type: ignore[arg-type]
+            lvl = asks.setdefault(price, {"price": price, "qty": 0, "count": 0})
             lvl["qty"] += qty
             lvl["count"] += 1
 
@@ -939,11 +945,11 @@ class OrderBook:
             entry.valid = False
             if order.price is not None:
                 qty = (
-                    order.displayed_qty
+                    order.displayed_qty or 0
                     if order.order_type == OrderType.ICEBERG
                     else order.remaining_qty
                 )
-                self._deduct_qty_index(order, qty)  # type: ignore[arg-type]
+                self._deduct_qty_index(order, qty)
         self._order_index.pop(order.id, None)
         events.append(order)
 
@@ -975,11 +981,14 @@ class OrderBook:
             best = _peek(opposite_heap)
             if best is None:
                 break
+            # Resting bid/ask orders always carry a price (L7: local narrowing).
+            best_price = best.price
+            assert best_price is not None
             # Price check
             if price_limit is not None:
-                if _side == Side.BUY and best.price > price_limit:  # type: ignore[operator]
+                if _side == Side.BUY and best_price > price_limit:
                     break
-                if _side == Side.SELL and best.price < price_limit:  # type: ignore[operator]
+                if _side == Side.SELL and best_price < price_limit:
                     break
 
             # Self-match prevention
@@ -1011,9 +1020,8 @@ class OrderBook:
                 else best.remaining_qty
             )
             fill_qty = min(aggressor.remaining_qty, _passive_avail)
-            fill_price = best.price
 
-            _apply_fill(aggressor, best, fill_qty, fill_price, trades, events, now)  # type: ignore[arg-type]
+            _apply_fill(aggressor, best, fill_qty, best_price, trades, events, now)
 
     def _sweep_iceberg(
         self,
@@ -1030,9 +1038,13 @@ class OrderBook:
             best = self._peek(opposite_heap)
             if best is None:
                 break
-            if iceberg.side == Side.BUY and best.price > iceberg.price:  # type: ignore[operator]
+            # Both the iceberg and the resting order always carry a price
+            # (L7: local narrowing removes the Optional-comparison ignores).
+            best_price = best.price
+            assert best_price is not None and iceberg.price is not None
+            if iceberg.side == Side.BUY and best_price > iceberg.price:
                 break
-            if iceberg.side == Side.SELL and best.price < iceberg.price:  # type: ignore[operator]
+            if iceberg.side == Side.SELL and best_price < iceberg.price:
                 break
 
             # Self-match prevention
@@ -1056,21 +1068,20 @@ class OrderBook:
             # Iceberg fills up to its current displayed slice; and when the
             # passive resting order is itself an iceberg, cap against its
             # displayed slice too (finding #17) rather than its hidden qty.
-            visible = iceberg.displayed_qty
+            visible = iceberg.displayed_qty or 0
             _passive_avail = (
                 best.displayed_qty
                 if best.order_type == OrderType.ICEBERG
                 and best.displayed_qty is not None
                 else best.remaining_qty
             )
-            fill_qty = min(visible, _passive_avail)  # type: ignore[type-var]
-            fill_price = best.price
+            fill_qty = min(visible, _passive_avail)
 
-            self._apply_fill(iceberg, best, fill_qty, fill_price, trades, events, now)  # type: ignore[arg-type]
+            self._apply_fill(iceberg, best, fill_qty, best_price, trades, events, now)
 
             # After filling, replenish iceberg peak if needed and still resting
             if iceberg.remaining_qty > 0 and iceberg.displayed_qty == 0:
-                new_peak = min(iceberg.visible_qty, iceberg.remaining_qty)  # type: ignore[type-var]
+                new_peak = min(iceberg.visible_qty or 0, iceberg.remaining_qty)
                 iceberg.displayed_qty = new_peak
                 # PERF #3: Use cached `now` instead of time.time() syscall for
                 # the new timestamp that sends the replenished slice to the back
@@ -1124,6 +1135,11 @@ class OrderBook:
         else:
             buy_order, sell_order = passive, aggressor
 
+        # L9: in an auction uncross both orders are resting, so there is no
+        # true aggressor — the print carries a neutral flag ("AUCTION") rather
+        # than always labelling the buyer as aggressor.
+        aggressor_side = _AUCTION_AGGRESSOR if both_resting else aggressor.side.value
+
         # PERF #3: Pass cached `now` to Trade.create() so it doesn't call
         # time.time() again — saves one syscall per fill event (~0.3-0.5µs).
         trade = Trade.create(
@@ -1134,7 +1150,7 @@ class OrderBook:
             sell_gateway_id=sell_order.gateway_id,
             price=fill_price,
             quantity=fill_qty,
-            aggressor_side=aggressor.side.value,
+            aggressor_side=aggressor_side,
             now=now,
         )
         trades.append(trade)
@@ -1144,11 +1160,14 @@ class OrderBook:
         self.daily_qty += fill_qty
         self.daily_value_ticks += fill_price * fill_qty
         self.daily_trades += 1
-        # Track side-specific last price (aggressor side determines the label)
-        if aggressor.side == Side.BUY:
-            self.last_buy_price = fill_price
-        else:
-            self.last_sell_price = fill_price
+        # Track side-specific last price (aggressor side determines the label).
+        # L9: auction prints are neutral, so they update neither buy nor sell
+        # side label (only last_trade_price, above).
+        if not both_resting:
+            if aggressor.side == Side.BUY:
+                self.last_buy_price = fill_price
+            else:
+                self.last_sell_price = fill_price
         self.recent_trades.append(
             trade
         )  # deque(maxlen=20) handles eviction automatically
@@ -1159,7 +1178,7 @@ class OrderBook:
             aggressor.displayed_qty = max(0, (aggressor.displayed_qty or 0) - fill_qty)
             if both_resting:
                 if aggressor.remaining_qty > 0 and aggressor.displayed_qty == 0:
-                    new_peak = min(aggressor.visible_qty, aggressor.remaining_qty)  # type: ignore[type-var]
+                    new_peak = min(aggressor.visible_qty or 0, aggressor.remaining_qty)
                     aggressor.displayed_qty = new_peak
                     aggressor.timestamp = now
                     self._deduct_qty_index(aggressor, fill_qty)
@@ -1182,7 +1201,7 @@ class OrderBook:
         if passive.order_type == OrderType.ICEBERG:
             passive.displayed_qty = max(0, (passive.displayed_qty or 0) - fill_qty)
             if passive.remaining_qty > 0 and passive.displayed_qty == 0:
-                new_peak = min(passive.visible_qty, passive.remaining_qty)  # type: ignore[type-var]
+                new_peak = min(passive.visible_qty or 0, passive.remaining_qty)
                 passive.displayed_qty = new_peak
                 # PERF #3: Reuse cached timestamp for iceberg replenishment
                 # instead of another time.time() syscall.
@@ -1239,21 +1258,25 @@ class OrderBook:
     def _rest(self, order: Order) -> None:
         """Place a resting order on the appropriate heap and update the qty index."""
         assert order.price is not None, "Resting order must have a price"
+        # L7: bind the narrowed price to a local so mypy keeps the non-None
+        # narrowing across the following calls (attribute narrowing is dropped
+        # after a method call) — removes the Optional-arithmetic type: ignores.
+        price = order.price
         qty = (
-            order.displayed_qty
+            order.displayed_qty or 0
             if order.order_type == OrderType.ICEBERG
             else order.remaining_qty
         )
         # Engine-assigned arrival sequence drives time priority (finding H1).
         order.arrival_seq = self._next_seq()
         if order.side == Side.BUY:
-            key = (-order.price, order.arrival_seq)
+            key = (-price, order.arrival_seq)
             heap = self._bids
-            self._bid_qty[order.price] = self._bid_qty.get(order.price, 0) + qty  # type: ignore[operator]
+            self._bid_qty[price] = self._bid_qty.get(price, 0) + qty
         else:
-            key = (order.price, order.arrival_seq)
+            key = (price, order.arrival_seq)
             heap = self._asks
-            self._ask_qty[order.price] = self._ask_qty.get(order.price, 0) + qty  # type: ignore[operator]
+            self._ask_qty[price] = self._ask_qty.get(price, 0) + qty
         entry = _HeapEntry(key=key, order=order)
         heapq.heappush(heap, entry)
         self._order_index[order.id] = order
@@ -1261,6 +1284,8 @@ class OrderBook:
 
     def _reinsert_iceberg(self, order: Order) -> None:
         """Invalidate old heap entry and push fresh one after peak replenishment."""
+        assert order.price is not None, "Iceberg must have a price"
+        price = order.price
         old_entry = self._entry_index.get(order.id)
         if old_entry:
             old_entry.valid = False
@@ -1269,13 +1294,13 @@ class OrderBook:
         order.arrival_seq = self._next_seq()
         new_peak = order.displayed_qty or 0
         if order.side == Side.BUY:
-            key = (-order.price, order.arrival_seq)  # type: ignore[operator]
+            key = (-price, order.arrival_seq)
             heap = self._bids
-            self._bid_qty[order.price] = self._bid_qty.get(order.price, 0) + new_peak  # type: ignore[index, arg-type]
+            self._bid_qty[price] = self._bid_qty.get(price, 0) + new_peak
         else:
-            key = (order.price, order.arrival_seq)
+            key = (price, order.arrival_seq)
             heap = self._asks
-            self._ask_qty[order.price] = self._ask_qty.get(order.price, 0) + new_peak  # type: ignore[index, arg-type]
+            self._ask_qty[price] = self._ask_qty.get(price, 0) + new_peak
         entry = _HeapEntry(key=key, order=order)
         heapq.heappush(heap, entry)
         self._entry_index[order.id] = entry
