@@ -546,7 +546,18 @@ class Engine:
             # match=False: restore resting state only; do not replay execution.
             # Two crossed GTC orders saved from an auction phase would otherwise
             # silently match with no fill events or position updates.
-            book.process(order, match=False)
+            #
+            # Guard each order so one bad record cannot abort engine startup
+            # (finding C6): a persisted order that raises during restore is
+            # logged and skipped rather than crashing the whole engine.
+            try:
+                book.process(order, match=False)
+            except Exception as exc:
+                print(
+                    f"[ENGINE] Skipping GTC order {order.id[:8]} ({order.symbol}) "
+                    f"— restore failed: {exc}"
+                )
+                continue
             self._order_symbol[order.id] = order.symbol
             if self.verbose:
                 print(f"[ENGINE] Restored GTC order {order.id} ({order.symbol})")

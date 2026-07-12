@@ -197,6 +197,13 @@ class OrderBook:
             if order.order_type in (OrderType.STOP, OrderType.STOP_LIMIT):
                 self._add_stop(order, events)
                 return trades, events
+            # TRAILING_STOP has price=None, so it must go to the trailing-stop
+            # list, NOT _rest() (which asserts price is not None).  Without this
+            # branch a trailing stop submitted during a halt/auction crashed and
+            # a persisted GTC trailing stop bricked engine startup (finding C6).
+            if order.order_type == OrderType.TRAILING_STOP:
+                self._add_trailing_stop(order, events)
+                return trades, events
             # LIMIT / ICEBERG — rest without sweeping
             self._rest(order)
             return trades, events
