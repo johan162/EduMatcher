@@ -93,9 +93,21 @@ def save_book_stats(
             if book.last_trade_price is not None
             else None
         )
+        # Persist last buy/sell as *display* floats (not raw ticks) so the
+        # load path — which does to_ticks(float(...)) — round-trips exactly.
+        # Writing raw ticks here caused #2: to_ticks re-multiplied by
+        # 10^tick_decimals, inflating references 10^N× on restart.
         stats[symbol] = {
-            "last_buy_price": book.last_buy_price,
-            "last_sell_price": book.last_sell_price,
+            "last_buy_price": (
+                from_ticks(book.last_buy_price, symbol)
+                if book.last_buy_price is not None
+                else None
+            ),
+            "last_sell_price": (
+                from_ticks(book.last_sell_price, symbol)
+                if book.last_sell_price is not None
+                else None
+            ),
             "prev_close": prev_close,
         }
     path.parent.mkdir(parents=True, exist_ok=True)
