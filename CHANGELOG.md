@@ -10,12 +10,16 @@ a file.
 2. `pm-audit-cli` tool for inspecting the exchange audit trail and query and filter like it was a DB
 3. `pm-api-gwy` have been extended with ADMIN- operator commands 
 On top of these user visible feature this release also hardens `pm-config-gen` validation, the RALF gateway test suite, and `pm-cverifier`'s numeric field checks, alongside knowledge-check quiz polish.
+4. `pm-cverifier` improved cross-checking of settings
+5. `CALF` protocol enhacements, such as adding an index channel and the possibility to get book depths
+6. Added normative configuration file (ref-data) specification.
 
 ### ✨ Additions
 - Added `config-gui`, a new Web-application for creating configuration files (also known as reference data)
 - Added `pm-audit-cli`, a new CLI tool for inspecting the exchange audit trail, together with its design proposal and user-guide chapter
 - Added ADMIN-only operator commands to the API Gateway (requires role `ADMIN`)
 - Added design proposals for upcoming `pm-trading-ui`
+- Added several new channels to CALF
 
 ### 🚀 Improvements
 - Improved `pm-config-gen` with cross-gateway port collision detection, schedule chronological-order validation, and tick-aware decimal combo leg prices
@@ -25,10 +29,15 @@ On top of these user visible feature this release also hardens `pm-config-gen` v
 - Fixed the knowledge-check quiz bundle Makefile target using the wrong output name
 - fixed so that circuit-breaker reference prices from the opening price on day one (IPO)'
 - fixed collar static reference tracks persisted book stats, not stale config seed
+- fixed gateway parsing of corrupted config files will no longer crash
 
 ### 📚 Documentation
 - Renamed exchange knowledge-check quiz files for clarity
 - Added four more quizzes and four more self-study quizzes with answers
+- Added documentation for CALF additions (both in user guide and normative specification)
+- Added a new proposed design for a info-terminal
+- Added a new appendix with normative config-file specification
+- Various updates and additions across the user-guider
 
 ### 🛠 Internal
 - Hardened `test_ralf_gateway.py` to remove intermittent timing-related failures by replacing fixed sleeps with deterministic readiness polling
