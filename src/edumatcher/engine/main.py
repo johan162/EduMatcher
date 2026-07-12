@@ -113,9 +113,8 @@ from edumatcher.models.session import (
 )
 from edumatcher.models.trade import Trade
 
-# PERF: cache time.time_ns as a module-level constant so the hot path
-# avoids the attribute lookup on the `time` module AND the threading lock
-# inside now_ns().  Safe for the engine's single-threaded event loop.
+# Kept for backward compatibility (e.g. tests that reference it).  The hot path
+# uses the monotonic now_ns() for event timestamps (M9), not this raw source.
 _time_ns = time.time_ns
 
 # PERF B: Module-level pre-encoded topic constant for trade messages.
@@ -841,11 +840,13 @@ class Engine:
         # (below), not here — so a failure mid-processing leaves no half-applied
         # routing entry for an order that never reached the book.
 
-        # PERF #3: Capture a single high-resolution timestamp at the start of
-        # the hot path.  Uses time.time_ns directly (bypassing the threading
-        # lock in now_ns()) — safe because the engine's order loop is
-        # single-threaded.  Eliminates a mutex acquire+release per order.
-        now = _time_ns()
+        # M9: use the monotonic clock (now_ns) for the matching timestamp, not
+        # raw time.time_ns — a wall-clock regression (e.g. an NTP step) must
+        # never make event timestamps go backwards.  Since time priority is
+        # driven by the engine arrival sequence (H1), this is the correct
+        # source of truth for ordering; the small monotonic-guard cost is
+        # acceptable on the single-threaded hot path.
+        now = now_ns()
 
         # NOTE: accepted=True is published here, BEFORE book.process() runs.
         # This is the "gateway ACK" — it confirms the engine accepted the order
