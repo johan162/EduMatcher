@@ -175,7 +175,18 @@ def execute_uncross(
             break  # remaining asks above equilibrium
 
         fill_qty = min(best_bid.remaining_qty, best_ask.remaining_qty)
-        book._apply_fill(best_bid, best_ask, fill_qty, eq_price, trades, events, now)
+        # both_resting=True: in an uncross both orders are resting and counted
+        # in the level index, so both sides must be deducted (finding #3).
+        book._apply_fill(
+            best_bid,
+            best_ask,
+            fill_qty,
+            eq_price,
+            trades,
+            events,
+            now,
+            both_resting=True,
+        )
 
     # Update book state
     if trades:

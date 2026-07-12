@@ -880,8 +880,16 @@ class OrderBook:
         trades: list[Trade],
         events: list[Order],
         now: int,
+        both_resting: bool = False,
     ) -> None:
-        """Record fill, update quantities/statuses, build Trade object."""
+        """Record fill, update quantities/statuses, build Trade object.
+
+        In continuous matching the aggressor is *not* resting, so only the
+        passive side is counted in the price-level qty index and only that
+        side is deducted.  In an auction uncross (``both_resting=True``) both
+        orders are resting and both must be deducted from the index — omitting
+        the aggressor side leaves phantom bid quantity (finding #3).
+        """
         # Determine buy/sell sides
         if aggressor.side == Side.BUY:
             buy_order, sell_order = aggressor, passive
@@ -921,9 +929,24 @@ class OrderBook:
         aggressor.remaining_qty -= fill_qty
         if aggressor.order_type == OrderType.ICEBERG:
             aggressor.displayed_qty = max(0, (aggressor.displayed_qty or 0) - fill_qty)
+            if both_resting:
+                if aggressor.remaining_qty > 0 and aggressor.displayed_qty == 0:
+                    new_peak = min(aggressor.visible_qty, aggressor.remaining_qty)  # type: ignore[type-var]
+                    aggressor.displayed_qty = new_peak
+                    aggressor.timestamp = now
+                    self._deduct_qty_index(aggressor, fill_qty)
+                    self._reinsert_iceberg(aggressor)
+                else:
+                    self._deduct_qty_index(aggressor, fill_qty)
+        elif both_resting:
+            self._deduct_qty_index(aggressor, fill_qty)
         aggressor.status = (
             OrderStatus.FILLED if aggressor.remaining_qty == 0 else OrderStatus.PARTIAL
         )
+        if both_resting and aggressor.status == OrderStatus.FILLED:
+            entry = self._entry_index.get(aggressor.id)
+            if entry:
+                entry.valid = False
         events.append(aggressor)
 
         # Update passive order
