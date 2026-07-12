@@ -630,7 +630,11 @@ class OrderBook:
             events=events,
             now=now,
         )
-        if order.remaining_qty > 0:
+        # Guard against resting an order the sweep already killed — e.g. SMP
+        # CANCEL_AGGRESSOR / CANCEL_BOTH sets status=CANCELLED but leaves
+        # remaining_qty > 0.  Resting it re-registers a dead order and leaks
+        # phantom quantity into the level index (finding C3).
+        if order.remaining_qty > 0 and order.status not in _DEAD_STATUSES:
             self._rest(order)
 
     def _match_fok(
@@ -662,8 +666,10 @@ class OrderBook:
         opposite = self._asks if order.side == Side.BUY else self._bids
         # Try to fill the current peak against resting orders on the other side
         self._sweep_iceberg(order, opposite, trades, events, now)
-        # If still has quantity, rest the displayed slice
-        if order.remaining_qty > 0:
+        # If still has quantity, rest the displayed slice — but not if the
+        # sweep killed the order (e.g. SMP cancel), which would leak phantom
+        # quantity into the level index (finding C3).
+        if order.remaining_qty > 0 and order.status not in _DEAD_STATUSES:
             self._rest(order)
 
     def _match_ioc(
