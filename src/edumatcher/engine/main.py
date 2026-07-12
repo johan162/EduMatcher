@@ -1168,12 +1168,13 @@ class Engine:
         gateway_id = str(payload.get("gateway_id", "")).upper()
         symbols_vol: dict[str, dict[str, Any]] = {}
         total_qty = 0
-        total_value = 0.0
+        total_value = 0
         total_trades = 0
+        default_sym = next(iter(self.books), "UNKNOWN")
         for sym, book in sorted(self.books.items()):
             symbols_vol[sym] = {
                 "qty": book.daily_qty,
-                "value": round(book.daily_value, 2),
+                "value": round(from_ticks(book.daily_value, sym), 2),
                 "trades": book.daily_trades,
             }
             total_qty += book.daily_qty
@@ -1184,7 +1185,7 @@ class Engine:
                 gateway_id,
                 symbols_vol,
                 total_qty,
-                round(total_value, 2),
+                round(from_ticks(total_value, default_sym), 2),
                 total_trades,
             )
         )
