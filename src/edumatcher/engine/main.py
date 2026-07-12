@@ -619,6 +619,37 @@ class Engine:
     # Message handlers
     # ------------------------------------------------------------------
 
+    def _validate_new_order(self, order: Order) -> str | None:
+        """Boundary validation for an inbound order (M7 / A4).
+
+        Returns a human-readable rejection reason, or None if the order is
+        acceptable.  Runs before the positive ACK so malformed orders never
+        reach the book.
+        """
+        # A4: a duplicate order id (gateway retry / replay) would overwrite the
+        # routing map and rest a second heap entry, doubling liquidity.
+        if order.id in self._order_symbol:
+            return f"Duplicate order id {order.id}"
+        # M7: quantity must be positive.
+        if order.quantity <= 0 or order.remaining_qty <= 0:
+            return "Quantity must be positive"
+        # M7: order types that rest / price-limit must carry a positive price.
+        price_required = order.order_type in (
+            OrderType.LIMIT,
+            OrderType.FOK,
+            OrderType.STOP_LIMIT,
+            OrderType.ICEBERG,
+        )
+        if price_required and (order.price is None or order.price <= 0):
+            return f"{order.order_type.value} order requires a positive price"
+        # M7: iceberg visible slice must be present and not exceed quantity.
+        if order.order_type == OrderType.ICEBERG:
+            if order.visible_qty is None or order.visible_qty <= 0:
+                return "ICEBERG order requires a positive visible_qty"
+            if order.visible_qty > order.quantity:
+                return "ICEBERG visible_qty must not exceed quantity"
+        return None
+
     def _handle_new_order(self, payload: dict[str, Any]) -> None:
         order = Order.from_dict(payload)
 
@@ -661,6 +692,25 @@ class Engine:
                 print(
                     f"[ENGINE] REJECTED {order.id[:8]} — symbol not configured: {order.symbol}"
                 )
+            return
+
+        # Ensure the (configured) symbol's book exists even if the order is
+        # about to be rejected — keeps book state observable and consistent.
+        self._book(order.symbol)
+
+        # M7 / A4: validate the payload at the engine boundary BEFORE the
+        # positive ACK, so bad values are rejected with a reasoned NACK instead
+        # of ACKing accepted=True and then crashing inside the book (swallowed
+        # by the blanket handler → order silently lost) or corrupting the index.
+        validation_error = self._validate_new_order(order)
+        if validation_error is not None:
+            self.pub_sock.send_multipart(
+                make_ack_msg(
+                    order.gateway_id, order.id, accepted=False, reason=validation_error
+                )
+            )
+            if self.verbose:
+                print(f"[ENGINE] REJECTED {order.id[:8]} — {validation_error}")
             return
 
         # Session state gating
@@ -3189,6 +3239,23 @@ class Engine:
         gateway_id = str(payload["gateway_id"]).upper()
         new_price = payload.get("price")
         new_qty = payload.get("qty")
+
+        # M12: amend quantity arrives raw from JSON.  Coerce it to int (like
+        # prices are converted) so a float/string never propagates into
+        # quantity/remaining_qty; reject values that are not a valid number.
+        if new_qty is not None:
+            try:
+                new_qty = int(new_qty)
+            except (TypeError, ValueError):
+                self.pub_sock.send_multipart(
+                    make_ack_msg(
+                        gateway_id,
+                        order_id,
+                        accepted=False,
+                        reason="Amend quantity must be an integer",
+                    )
+                )
+                return
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
