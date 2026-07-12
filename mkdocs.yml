@@ -121,6 +121,7 @@ nav:
     - Appendix - BALF Protocol: user-guide/91-app-balf-protocol.md
     - Appendix - CALF Protocol: user-guide/92-app-calf-protocol.md
     - Appendix - RALF Protocol: user-guide/93-app-ralf-protocol.md
+    - Appendix - Engine Config Specification: user-guide/99-app-config-spec.md
   - Training:
     - Overview: training/index.md
     - "00 — Installation & Setup": training/00-installation.md
