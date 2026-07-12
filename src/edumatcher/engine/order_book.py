@@ -143,7 +143,7 @@ class OrderBook:
         # Daily cumulative stats — reset only on engine restart (new OrderBook instance).
         # pm-stats owns EOD aggregation; these counters are session-only.
         self.daily_qty: int = 0
-        self.daily_value: float = 0.0
+        self.daily_value: int = 0  # accumulated in integer ticks
         self.daily_trades: int = 0
 
         # True when the book has any resting stop or trailing-stop orders.
@@ -906,7 +906,7 @@ class OrderBook:
         self.last_trade_qty = fill_qty
         # Accumulate daily volume stats
         self.daily_qty += fill_qty
-        self.daily_value += from_ticks(fill_price, self.symbol) * fill_qty
+        self.daily_value += fill_price * fill_qty  # accumulate in integer ticks
         self.daily_trades += 1
         # Track side-specific last price (aggressor side determines the label)
         if aggressor.side == Side.BUY:
