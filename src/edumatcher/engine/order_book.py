@@ -227,7 +227,15 @@ class OrderBook:
             self._match_limit(order, trades, events, now)
 
         elif order.order_type in (OrderType.STOP, OrderType.STOP_LIMIT):
-            self._add_stop(order, events)
+            # M2: if the stop's trigger is already breached by the last trade
+            # price, trigger it on entry instead of parking it dormant until
+            # some unrelated future trade.
+            if self.last_trade_price is not None and self._stop_is_triggered(
+                order, self.last_trade_price
+            ):
+                self._trigger_stop_now(order, trades, events, now)
+            else:
+                self._add_stop(order, events)
 
         elif order.order_type == OrderType.FOK:
             self._match_fok(order, trades, events, now)
@@ -822,6 +830,34 @@ class OrderBook:
         self._order_index[order.id] = order
         self._has_stops = True
         events.append(order)  # ack (status = NEW)
+
+    @staticmethod
+    def _stop_is_triggered(order: Order, price: int) -> bool:
+        """True when *price* has breached *order*'s stop trigger (M2).
+
+        A BUY stop fires when the market rises to/through its stop price; a
+        SELL stop fires when the market falls to/through it.
+        """
+        if order.stop_price is None:
+            return False
+        if order.side == Side.BUY:
+            return price >= order.stop_price
+        return price <= order.stop_price
+
+    def _trigger_stop_now(
+        self, order: Order, trades: list[Trade], events: list[Order], now: int
+    ) -> None:
+        """Convert an already-breached stop to its live type and match it
+        immediately on entry (M2), instead of resting it until a future trade."""
+        if order.order_type == OrderType.STOP:
+            order.order_type = OrderType.MARKET
+            order.price = None
+            order.timestamp = now
+            self._match_market(order, trades, events, now)
+        else:  # STOP_LIMIT → LIMIT
+            order.order_type = OrderType.LIMIT
+            order.timestamp = now
+            self._match_limit(order, trades, events, now)
 
     def _add_stop(self, order: Order, events: list[Order]) -> None:
         assert order.stop_price is not None, "Stop order must have a stop_price"
