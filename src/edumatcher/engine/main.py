@@ -3096,12 +3096,49 @@ class Engine:
             )
             return
 
+        # #9: apply the same gates a NEW order at this price would face, so
+        # fat-finger / session / halt protections cannot be bypassed by amending
+        # instead of re-entering.
+        new_price_ticks = (
+            to_ticks(float(new_price), symbol) if new_price is not None else None
+        )
+
+        # Session gating — reject amends while the market does not accept orders.
+        if self._sessions_enabled and not accepts_orders(self._session_state):
+            self.pub_sock.send_multipart(
+                make_ack_msg(
+                    gateway_id, order_id, accepted=False, reason="Market is closed"
+                )
+            )
+            return
+
+        # Matching is disabled while the symbol is halted or the session is a
+        # non-continuous phase; a marketable amend then rests without crossing.
+        do_match = is_matching_enabled(self._session_state)
+        if self._halted_symbols.get(symbol):
+            do_match = False
+
+        # Price collar check on the amended price (same band as a new order).
+        if self._enforce_collars and new_price_ticks is not None:
+            collar = self._collars.get(symbol)
+            if collar is not None:
+                from edumatcher.engine.collar import validate_collar
+
+                result = validate_collar(
+                    new_price_ticks, collar, book.last_trade_price
+                )
+                if result.rejected:
+                    self.pub_sock.send_multipart(
+                        make_ack_msg(
+                            gateway_id, order_id, accepted=False, reason=result.reason
+                        )
+                    )
+                    return
+
         now = now_ns()
         amended, priority_reset, err = book.amend_order(
             order_id,
-            new_price=(
-                to_ticks(float(new_price), symbol) if new_price is not None else None
-            ),
+            new_price=new_price_ticks,
             new_qty=new_qty,
             now=now,
         )
@@ -3134,6 +3171,102 @@ class Engine:
                 f"[ENGINE] AMENDED {order_id[:8]} price={amended.price} "
                 f"qty={amended.quantity}{prio_str}"
             )
+
+        # H2: a marketable amend must not leave the book crossed.  If the
+        # amended order now crosses the opposite best, pull the re-inserted
+        # resting copy and run it through matching (cancel/replace semantics).
+        if (
+            do_match
+            and amended.price is not None
+            and amended.status
+            not in (
+                OrderStatus.FILLED,
+                OrderStatus.CANCELLED,
+                OrderStatus.REJECTED,
+                OrderStatus.EXPIRED,
+            )
+        ):
+            if amended.side == Side.BUY:
+                best_ask = min(book._ask_qty) if book._ask_qty else None
+                marketable = best_ask is not None and amended.price >= best_ask
+            else:
+                best_bid = max(book._bid_qty) if book._bid_qty else None
+                marketable = best_bid is not None and amended.price <= best_bid
+
+            if marketable:
+                # Remove the resting copy (deducts qty index, invalidates entry)
+                # then re-process the same order through the matching path.
+                book.cancel_order(order_id)
+                amended.status = OrderStatus.NEW
+                trades, events = book.process(amended, match=True, now=now)
+                self._publish_amend_rematch(book, amended, trades, events)
+
+    def _publish_amend_rematch(
+        self,
+        book: "OrderBook",
+        aggressor: Order,
+        trades: list[Trade],
+        events: list[Order],
+    ) -> None:
+        """Publish fills / terminal events / trades for an amend cancel-replace.
+
+        Mirrors the new-order publication contract (C4: a fill is published
+        whenever an order executed any quantity, regardless of final status)
+        and updates both counterparties' positions for every trade (H3).
+        """
+        fill_px = (
+            from_ticks(book.last_trade_price, aggressor.symbol)
+            if book.last_trade_price is not None
+            else 0.0
+        )
+        published_fill_ids: set[str] = set()
+        published_terminal_ids: set[str] = set()
+        for evt in events:
+            filled = evt.quantity - evt.remaining_qty
+            if filled > 0 and evt.id not in published_fill_ids:
+                published_fill_ids.add(evt.id)
+                self.pub_sock.send_multipart(
+                    make_fill_msg(
+                        evt.gateway_id,
+                        evt.id,
+                        fill_qty=filled,
+                        fill_price=fill_px,
+                        remaining_qty=evt.remaining_qty,
+                        status=("PARTIAL_FILL" if evt.remaining_qty else "FILLED"),
+                        order=evt.to_dict(),
+                    )
+                )
+            if (
+                evt.status == OrderStatus.CANCELLED
+                and evt.id not in published_terminal_ids
+            ):
+                published_terminal_ids.add(evt.id)
+                self.pub_sock.send_multipart(
+                    make_cancelled_msg(evt.gateway_id, evt.id)
+                )
+            elif (
+                evt.status == OrderStatus.REJECTED
+                and evt.id not in published_terminal_ids
+            ):
+                published_terminal_ids.add(evt.id)
+                self.pub_sock.send_multipart(
+                    make_ack_msg(
+                        evt.gateway_id,
+                        evt.id,
+                        accepted=False,
+                        reason="Insufficient liquidity",
+                    )
+                )
+        for trade in trades:
+            self._publish_trade(trade)
+            trade_px = from_ticks(trade.price, trade.symbol)
+            self._update_position(
+                trade.buy_gateway_id, trade.symbol, "BUY", trade.quantity, trade_px
+            )
+            self._update_position(
+                trade.sell_gateway_id, trade.symbol, "SELL", trade.quantity, trade_px
+            )
+        self._mark_dirty(aggressor.symbol)
 
     # ------------------------------------------------------------------
     # Shutdown
