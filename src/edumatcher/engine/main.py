@@ -428,29 +428,39 @@ class Engine:
                 book = self._book(sym)
                 for quote_order in (bid, ask):
                     trades, events = book.process(quote_order, match=True, now=now)
+                    # H5: dedup fills — a seeded quote sweeping k levels appears
+                    # k times in `events` with the final cumulative qty.
+                    _seed_fill_ids: set[str] = set()
+                    _seed_cancel_ids: set[str] = set()
                     for evt in events:
                         if evt.status in _FILL_STATUSES:
-                            self.pub_sock.send_multipart(
-                                make_fill_msg(
-                                    evt.gateway_id,
-                                    evt.id,
-                                    fill_qty=evt.quantity - evt.remaining_qty,
-                                    fill_price=(
-                                        from_ticks(book.last_trade_price, evt.symbol)
-                                        if book.last_trade_price is not None
-                                        else 0.0
-                                    ),
-                                    remaining_qty=evt.remaining_qty,
-                                    status=evt.status.value,
-                                    order=evt.to_dict(),
+                            if evt.id not in _seed_fill_ids:
+                                _seed_fill_ids.add(evt.id)
+                                self.pub_sock.send_multipart(
+                                    make_fill_msg(
+                                        evt.gateway_id,
+                                        evt.id,
+                                        fill_qty=evt.quantity - evt.remaining_qty,
+                                        fill_price=(
+                                            from_ticks(
+                                                book.last_trade_price, evt.symbol
+                                            )
+                                            if book.last_trade_price is not None
+                                            else 0.0
+                                        ),
+                                        remaining_qty=evt.remaining_qty,
+                                        status=evt.status.value,
+                                        order=evt.to_dict(),
+                                    )
                                 )
-                            )
-                            if evt.quote_id:
-                                self._on_quote_leg_filled(evt)
+                                if evt.quote_id:
+                                    self._on_quote_leg_filled(evt)
                         elif evt.status == OrderStatus.CANCELLED:
-                            self.pub_sock.send_multipart(
-                                make_cancelled_msg(evt.gateway_id, evt.id)
-                            )
+                            if evt.id not in _seed_cancel_ids:
+                                _seed_cancel_ids.add(evt.id)
+                                self.pub_sock.send_multipart(
+                                    make_cancelled_msg(evt.gateway_id, evt.id)
+                                )
                     for trade in trades:
                         self._publish_trade(trade)
 
@@ -1740,29 +1750,38 @@ class Engine:
         book = self._book(symbol)
         for quote_order in (bid, ask):
             trades, events = book.process(quote_order, match=True, now=now)
+            # H5: dedup fills — an order sweeping k levels appears k times in
+            # `events`, each reflecting the FINAL cumulative qty; publishing all
+            # k would overcount for consumers summing fill_qty.
+            _pub_fill_ids: set[str] = set()
+            _pub_cancel_ids: set[str] = set()
             for evt in events:
                 if evt.status in _FILL_STATUSES:
-                    self.pub_sock.send_multipart(
-                        make_fill_msg(
-                            evt.gateway_id,
-                            evt.id,
-                            fill_qty=evt.quantity - evt.remaining_qty,
-                            fill_price=(
-                                from_ticks(book.last_trade_price, evt.symbol)
-                                if book.last_trade_price is not None
-                                else 0.0
-                            ),
-                            remaining_qty=evt.remaining_qty,
-                            status=evt.status.value,
-                            order=evt.to_dict(),
+                    if evt.id not in _pub_fill_ids:
+                        _pub_fill_ids.add(evt.id)
+                        self.pub_sock.send_multipart(
+                            make_fill_msg(
+                                evt.gateway_id,
+                                evt.id,
+                                fill_qty=evt.quantity - evt.remaining_qty,
+                                fill_price=(
+                                    from_ticks(book.last_trade_price, evt.symbol)
+                                    if book.last_trade_price is not None
+                                    else 0.0
+                                ),
+                                remaining_qty=evt.remaining_qty,
+                                status=evt.status.value,
+                                order=evt.to_dict(),
+                            )
                         )
-                    )
-                    if evt.quote_id:
-                        self._on_quote_leg_filled(evt)
+                        if evt.quote_id:
+                            self._on_quote_leg_filled(evt)
                 elif evt.status == OrderStatus.CANCELLED:
-                    self.pub_sock.send_multipart(
-                        make_cancelled_msg(evt.gateway_id, evt.id)
-                    )
+                    if evt.id not in _pub_cancel_ids:
+                        _pub_cancel_ids.add(evt.id)
+                        self.pub_sock.send_multipart(
+                            make_cancelled_msg(evt.gateway_id, evt.id)
+                        )
             for trade in trades:
                 self._publish_trade(trade)
 
@@ -2272,38 +2291,48 @@ class Engine:
             book = self._book(leg.symbol)
             trades, events = book.process(child)
 
+            # H5: dedup fills/terminals — a child sweeping k levels appears k
+            # times in `events` with the final cumulative qty on every copy.
+            _pub_fill_ids: set[str] = set()
+            _pub_terminal_ids: set[str] = set()
             for evt in events:
                 if evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
-                    self.pub_sock.send_multipart(
-                        make_fill_msg(
-                            evt.gateway_id,
-                            evt.id,
-                            fill_qty=evt.quantity - evt.remaining_qty,
-                            fill_price=(
-                                from_ticks(book.last_trade_price, evt.symbol)
-                                if book.last_trade_price is not None
-                                else 0.0
-                            ),
-                            remaining_qty=evt.remaining_qty,
-                            status=evt.status.value,
-                            order=evt.to_dict(),
+                    if evt.id not in _pub_fill_ids:
+                        _pub_fill_ids.add(evt.id)
+                        self.pub_sock.send_multipart(
+                            make_fill_msg(
+                                evt.gateway_id,
+                                evt.id,
+                                fill_qty=evt.quantity - evt.remaining_qty,
+                                fill_price=(
+                                    from_ticks(book.last_trade_price, evt.symbol)
+                                    if book.last_trade_price is not None
+                                    else 0.0
+                                ),
+                                remaining_qty=evt.remaining_qty,
+                                status=evt.status.value,
+                                order=evt.to_dict(),
+                            )
                         )
-                    )
                     if evt.combo_parent_id and evt.id != child.id:
                         self._check_combo_after_child_event(evt)
                 elif evt.status == OrderStatus.REJECTED:
-                    self.pub_sock.send_multipart(
-                        make_ack_msg(
-                            evt.gateway_id,
-                            evt.id,
-                            accepted=False,
-                            reason="Insufficient liquidity",
+                    if evt.id not in _pub_terminal_ids:
+                        _pub_terminal_ids.add(evt.id)
+                        self.pub_sock.send_multipart(
+                            make_ack_msg(
+                                evt.gateway_id,
+                                evt.id,
+                                accepted=False,
+                                reason="Insufficient liquidity",
+                            )
                         )
-                    )
                 elif evt.status == OrderStatus.CANCELLED:
-                    self.pub_sock.send_multipart(
-                        make_cancelled_msg(evt.gateway_id, evt.id)
-                    )
+                    if evt.id not in _pub_terminal_ids:
+                        _pub_terminal_ids.add(evt.id)
+                        self.pub_sock.send_multipart(
+                            make_cancelled_msg(evt.gateway_id, evt.id)
+                        )
                     if evt.combo_parent_id and evt.id != child.id:
                         self._check_combo_after_child_event(evt)
 
@@ -2577,19 +2606,25 @@ class Engine:
             if result.eq_price is not None and result.eq_qty > 0:
                 trades, events = execute_uncross(book, result.eq_price)
 
+                # H5: dedup fills — an order that crosses multiple counterparties
+                # in the uncross appears once per fill in `events`, each with the
+                # final cumulative qty.
+                _pub_fill_ids: set[str] = set()
                 for evt in events:
                     if evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
-                        self.pub_sock.send_multipart(
-                            make_fill_msg(
-                                evt.gateway_id,
-                                evt.id,
-                                fill_qty=evt.quantity - evt.remaining_qty,
-                                fill_price=from_ticks(result.eq_price, symbol),
-                                remaining_qty=evt.remaining_qty,
-                                status=evt.status.value,
-                                order=evt.to_dict(),
+                        if evt.id not in _pub_fill_ids:
+                            _pub_fill_ids.add(evt.id)
+                            self.pub_sock.send_multipart(
+                                make_fill_msg(
+                                    evt.gateway_id,
+                                    evt.id,
+                                    fill_qty=evt.quantity - evt.remaining_qty,
+                                    fill_price=from_ticks(result.eq_price, symbol),
+                                    remaining_qty=evt.remaining_qty,
+                                    status=evt.status.value,
+                                    order=evt.to_dict(),
+                                )
                             )
-                        )
                         if evt.combo_parent_id:
                             self._check_combo_after_child_event(evt)
 
@@ -2858,40 +2893,50 @@ class Engine:
 
             trades, events = book.process(leg, match=do_match)
 
+            # H5: dedup fills/terminals — a leg sweeping k levels appears k
+            # times in `events` with the final cumulative qty on every copy.
+            _pub_fill_ids: set[str] = set()
+            _pub_terminal_ids: set[str] = set()
             for evt in events:
                 if evt.status in (OrderStatus.PARTIAL, OrderStatus.FILLED):
-                    self.pub_sock.send_multipart(
-                        make_fill_msg(
-                            evt.gateway_id,
-                            evt.id,
-                            fill_qty=evt.quantity - evt.remaining_qty,
-                            fill_price=(
-                                from_ticks(book.last_trade_price, evt.symbol)
-                                if book.last_trade_price is not None
-                                else 0.0
-                            ),
-                            remaining_qty=evt.remaining_qty,
-                            status=evt.status.value,
-                            order=evt.to_dict(),
+                    if evt.id not in _pub_fill_ids:
+                        _pub_fill_ids.add(evt.id)
+                        self.pub_sock.send_multipart(
+                            make_fill_msg(
+                                evt.gateway_id,
+                                evt.id,
+                                fill_qty=evt.quantity - evt.remaining_qty,
+                                fill_price=(
+                                    from_ticks(book.last_trade_price, evt.symbol)
+                                    if book.last_trade_price is not None
+                                    else 0.0
+                                ),
+                                remaining_qty=evt.remaining_qty,
+                                status=evt.status.value,
+                                order=evt.to_dict(),
+                            )
                         )
-                    )
-                    if evt.status == OrderStatus.FILLED and evt.oco_group_id:
-                        _oco_pending_checks.append(evt)
+                        if evt.status == OrderStatus.FILLED and evt.oco_group_id:
+                            _oco_pending_checks.append(evt)
                 elif evt.status == OrderStatus.CANCELLED:
-                    self.pub_sock.send_multipart(
-                        make_cancelled_msg(evt.gateway_id, evt.id)
-                    )
-                    if evt.oco_group_id:
-                        _oco_pending_checks.append(evt)
-                elif evt.status == OrderStatus.REJECTED:
-                    self.pub_sock.send_multipart(
-                        make_ack_msg(
-                            evt.gateway_id,
-                            evt.id,
-                            accepted=False,
-                            reason="Insufficient liquidity",
+                    if evt.id not in _pub_terminal_ids:
+                        _pub_terminal_ids.add(evt.id)
+                        self.pub_sock.send_multipart(
+                            make_cancelled_msg(evt.gateway_id, evt.id)
                         )
-                    )
+                        if evt.oco_group_id:
+                            _oco_pending_checks.append(evt)
+                elif evt.status == OrderStatus.REJECTED:
+                    if evt.id not in _pub_terminal_ids:
+                        _pub_terminal_ids.add(evt.id)
+                        self.pub_sock.send_multipart(
+                            make_ack_msg(
+                                evt.gateway_id,
+                                evt.id,
+                                accepted=False,
+                                reason="Insufficient liquidity",
+                            )
+                        )
 
             for trade in trades:
                 self._publish_trade(trade)
