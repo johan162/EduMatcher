@@ -586,6 +586,11 @@ class Engine:
             print(
                 f"[ENGINE] Restored {len(orders)} GTC order(s) from previous session."
             )
+            # M3: restore rests orders without matching, so two crossed GTC
+            # orders would leave the book crossed at startup.  Uncross each
+            # book at the equilibrium price before continuous trading begins.
+            for symbol in list(self.books.keys()):
+                self._run_uncross(symbol_filter=symbol)
             # Publish initial book snapshots immediately on startup
             for symbol, book in self.books.items():
                 self.pub_sock.send_multipart(make_book_msg(symbol, book.snapshot()))
@@ -1563,8 +1568,10 @@ class Engine:
             _resumption_mode = cb.active_resumption_mode
             cb.deactivate()
             self._halted_symbols[symbol] = False
-            if _resumption_mode == "AUCTION":
-                self._run_uncross(symbol_filter=symbol)
+            # M3: crossed interest accumulates while halted (LIMITs rest
+            # unmatched).  Uncross it at the equilibrium price on EVERY resume,
+            # not only AUCTION mode, so continuous trading never starts crossed.
+            self._run_uncross(symbol_filter=symbol)
             self.pub_sock.send_multipart(
                 encode(
                     f"circuit_breaker.resume.{symbol}",
