@@ -905,24 +905,9 @@ class Engine:
                         ),
                     ]
                 )
-                # Drop copy — forward fill to participant's risk/clearing system
-                if self._drop_copy is not None:
-                    self._drop_copy.publish(
-                        gateway_id=evt.gateway_id,
-                        event_type="order.fill",
-                        payload={
-                            "order_id": evt.id,
-                            "symbol": evt.symbol,
-                            "fill_qty": _filled_qty,
-                            "fill_price": (_fill_px if _fill_px is not None else 0.0),
-                            "remaining_qty": evt.remaining_qty,
-                            "liquidity_flag": (
-                                "MAKER_QUOTE"
-                                if evt.origin == OrderOrigin.QUOTE
-                                else "MAKER"
-                            ),
-                        },
-                    )
+                # Drop copy is published centrally in _publish_trade (#11,#30 so
+                # every flow's fills reach the clearing/risk feed uniformly —
+                # no per-flow drop-copy call is needed here.
 
             # Combo / OCO side-effects on fill (idempotent — safe every occurrence)
             if evt.status in _FILL_STATUSES:
@@ -1422,6 +1407,31 @@ class Engine:
         self._update_position(
             trade.sell_gateway_id, trade.symbol, "SELL", trade.quantity, _trade_px
         )
+
+        # H4: feed the drop-copy (clearing/risk) feed from this single trade
+        # path so EVERY fill reaches it — quote, combo, OCO, and auction fills
+        # were previously invisible because drop copy was only wired into the
+        # new-order loop.  One record per counterparty per execution.
+        # M13: derive the liquidity flag from the aggressor side instead of
+        # hard-coding MAKER — the taker side is the aggressor.
+        if self._drop_copy is not None:
+            _agg = trade.aggressor_side
+            for _gw, _oid, _sd in (
+                (trade.buy_gateway_id, trade.buy_order_id, "BUY"),
+                (trade.sell_gateway_id, trade.sell_order_id, "SELL"),
+            ):
+                self._drop_copy.publish(
+                    gateway_id=_gw,
+                    event_type="order.fill",
+                    payload={
+                        "order_id": _oid,
+                        "symbol": trade.symbol,
+                        "fill_qty": trade.quantity,
+                        "fill_price": _trade_px,
+                        "liquidity_flag": "TAKER" if _sd == _agg else "MAKER",
+                    },
+                )
+
         # Circuit breaker monitor — check if this fill triggered a halt.
         # Inline the null-guard to skip the function-call overhead entirely
         # when no circuit breaker is configured for the symbol.
