@@ -4,7 +4,7 @@
     After reading this page you will understand:
 
     - which external protocols EduMatcher defines and why each exists
-    - which protocols are implemented today vs. documented for planned gateways
+    - the runtime status of each protocol and the gateway/process that serves it
     - where to find each protocol's formal specification appendix
     - where to find the operational chapters that explain how each protocol is used
 
@@ -33,7 +33,7 @@ connects each protocol to:
 | Protocol | Primary purpose | Transport/format | Runtime status | Typical gateway/process |
 |---|---|---|---|---|
 | **ALF** | Human-readable order entry and gateway control | Text line protocol (`FIELD=VALUE|...`) | Implemented and active | `pm-alf-console` (interactive) · `pm-alf-gwy` (TCP) |
-| **BALF** | Low-latency binary order entry for programmatic clients | Binary framed protocol | Documented; planned gateway process | `pm-balf-gateway` (planned) |
+| **BALF** | Low-latency binary order entry for programmatic clients | Binary framed protocol | Implemented and active | `pm-balf-gwy` |
 | **CALF** | External market-data dissemination (top/book/trade/state style channels) | Text line protocol over TCP | Implemented and active | `pm-md-gwy` |
 | **RALF** | External post-trade dissemination for clearing, drop-copy, and audit consumers | Text line protocol over TCP (`RALF1`) | Implemented and active | `pm-ralf-gwy` |
 
@@ -73,8 +73,8 @@ BALF is the binary order-entry protocol family. It targets programmatic clients
 that need compact framing and lower parsing overhead than text order-entry
 formats.
 
-In the current User Guide state, BALF is documented as a protocol specification
-and process concept, but the runtime gateway is listed under planned processes.
+BALF is implemented and runs as `pm-balf-gwy`, a TCP gateway that accepts binary
+order-entry frames from programmatic clients.
 
 Use BALF when you need:
 
@@ -84,7 +84,8 @@ Use BALF when you need:
 
 Where to read more:
 
-- Planned runtime process and position in architecture: [Processes](10-processes.md#planned-processes)
+- Operational deployment and runbook: [BALF TCP Gateway](25-balf-gateway.md)
+- Runtime process and architecture placement: [Processes](10-processes.md)
 - Protocol design details and message/frame definitions: [Appendix - BALF Protocol](91-app-balf-protocol.md)
 - Configuration context and protocol family notes: [Configuration](01-configuration.md)
 

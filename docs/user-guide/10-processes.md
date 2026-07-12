@@ -136,7 +136,7 @@ A complete EduMatcher session uses **ten core runtime processes** across three c
 
 !!! info "Protocol landscape"
     EduMatcher supports multiple external protocol families with different roles:
-    ALF for order entry, BALF for planned binary order entry, CALF for planned
+    ALF for order entry, BALF for binary order entry, CALF for
     market-data dissemination, and RALF for post-trade dissemination. For a
     single map of purpose, runtime status, and links to detailed chapters and
     formal specs, see [External Protocols Overview](19-protocol-overview.md).
@@ -1879,16 +1879,14 @@ from the single PUB socket — none of them coordinate with each other.
 
 
 
-## Planned Processes
+## pm-balf-gwy — BALF TCP Gateway
 
-The following processes are documented as design proposals and are not yet
-available as runnable scripts.
+`pm-balf-gwy` is implemented and provides external binary order-entry over TCP.
+It accepts BALF binary frames from low-latency programmatic clients and
+translates them into the same engine order flow as the ALF gateways.
 
-| Process             | Protocol | Purpose                                                         | Status          |
-|---------------------|----------|-----------------------------------------------------------------|-----------------|
-| **pm-balf-gateway** | BALF     | Binary order entry gateway for low-latency programmatic clients | Design proposal |
-
-See the [BALF Protocol Reference](91-app-balf-protocol.md) for message specifications planned for future gateway implementations.
+See [BALF TCP Gateway](25-balf-gateway.md) for operational usage and
+[BALF Protocol Reference](91-app-balf-protocol.md) for the wire-level contract.
 
 ## pm-alf-gwy — ALF TCP gateway
 

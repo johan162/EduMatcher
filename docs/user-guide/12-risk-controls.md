@@ -27,9 +27,13 @@ disorderly markets.  EduMatcher implements four complementary mechanisms:
 | **Circuit breaker** | Config per symbol | Last trade price vs. rolling reference | Automatic halt + scheduled resume |
 | **Kill switch** | Any authenticated gateway | — | Cancels all resting orders for that gateway |
 
-All four operate at the engine level — *before* any order enters the book.
+All four operate at the engine level. The first three — instrument halt, price
+collar, and circuit breaker — act on the **order admission path**, *before* an
+order enters the book. The kill switch is different: it acts on orders that are
+**already resting**, cancelling a gateway's own exposure on demand.
 
-The following diagram shows the order admission path through all three controls:
+The following diagram shows the order admission path through those three
+admission-path controls:
 
 ```mermaid
 flowchart TD
@@ -469,8 +473,8 @@ For field-level schema and merge precedence details, see
 
 ##  Interaction between mechanisms
 
-All three controls can be active simultaneously on the same symbol.  The engine
-applies them in this order for every incoming order:
+All three admission-path controls can be active simultaneously on the same
+symbol.  The engine applies them in this order for every incoming order:
 
 ```
 1. Is the symbol halted?           → reject MARKET/FOK/IOC; suppress matching for LIMIT

@@ -171,15 +171,22 @@ Session gating in the engine is controlled by `sessions_enabled`:
 sessions_enabled: true
 ```
 
-- `true`: session transitions are enforced, the engine starts
-   `CLOSED`, and new orders are rejected outside order-accepting session
-   states.
-- `false` (default): session handling is disabled, `session.transition` messages are
+- `true` (the default when a config file is present but omits the field):
+   session transitions are enforced, the engine starts `CLOSED`, and new orders
+   are rejected outside order-accepting session states.
+- `false`: session handling is disabled, `session.transition` messages are
    ignored by the engine, and the engine starts (and remains) in `CONTINUOUS`
-   state — all order types are accepted and matched immediately.
+   state — all order types are accepted and matched immediately. This is also the
+   effective value when **no** config file is present at all (unrestricted mode).
 
 Use `sessions_enabled: false` when you want an always-open simulation without
 time-based session control.
+
+!!! note "Default value"
+    With a config file present, omitting `sessions_enabled` enables sessions
+    (`true`). It is only `false` when you set it explicitly or run with no config
+    file. See [Configuration → `sessions_enabled`](01-configuration.md#sessions_enabled)
+    for the full scenario table.
 
 ### Built-in default schedule
 
@@ -385,7 +392,7 @@ This short walkthrough uses two terminals with `sessions_enabled: true`.
 
 ```text
 # Terminal 1 — ADMIN gateway
-OPS01> ADVANCE
+OPS01> SESSION|STATE=OPENING_AUCTION
 [PRE_OPEN → OPENING_AUCTION]
 
 # Terminal 2 — trader submits orders during auction
@@ -393,7 +400,7 @@ TRADER01> NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00|TIF=ATO
 TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=ATO
 
 # Terminal 1 — trigger the uncross
-OPS01> ADVANCE
+OPS01> SESSION|STATE=CONTINUOUS
 [OPENING_AUCTION → CONTINUOUS]
 # Engine prints: auction.result AAPL price=149.75 qty=100 surplus=0
 ```

@@ -3,6 +3,7 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
+    - Every data file EduMatcher writes, which process creates it, when, why, and how to query it
     - Which data files survive an engine restart and what each one contains
     - How GTC orders preserve their price-time priority across sessions
     - The exact shutdown and startup sequence that keeps the order book consistent
@@ -25,6 +26,47 @@ sessions to preserve market state and historical records.
     | Custom             | `$EDUMATCHER_DATA_DIR`      |
 
     See [Getting Started → Environment variables](00-getting-started.md#environment-variables) for override details.
+
+
+
+## Data files at a glance
+
+This is the single reference for **every data file EduMatcher writes** — what it
+is, which process creates it, when, why, and how to read it. All paths are
+relative to the data directory shown above.
+
+The files fall into two groups.
+
+**Engine state files** — written by `pm-engine` on a clean shutdown and reloaded
+at the next startup so the market resumes where it left off.
+
+| File | Written by | When | Purpose | Read / extract with |
+|------|------------|------|---------|---------------------|
+| `gtc_orders.json` | `pm-engine` | Clean shutdown (Ctrl-C) | Resting GTC orders, restored with their price-time priority at next startup | JSON; loaded by the engine at startup |
+| `gtc_combos.json` | `pm-engine` | Clean shutdown | Resting GTC combo parents and their child-leg links | JSON; loaded by the engine at startup |
+| `book_stats.json` | `pm-engine` | Clean shutdown | Last buy/sell price per symbol + seed-once flags; seeds the collar and circuit-breaker reference at the next open | JSON; loaded by the engine at startup |
+
+**Accumulating data stores** — written by the optional subscriber processes while
+a session runs. They grow across sessions (never auto-truncated) and each has a
+dedicated query tool.
+
+| File | Written by | When | Purpose | Read / extract with |
+|------|------------|------|---------|---------------------|
+| `stats.db` (SQLite) | `pm-stats` | Per trade · a price snapshot every 15 min · at EOD | OHLCV daily stats, intraday price snapshots, per-trade log | **`pm-stats-cli`** or SQL — see [Statistics & Reporting](16-statistics-and-reporting.md) |
+| `clearing.db` (SQLite) | `pm-clearing` | Per trade · on gateway connect/disconnect · at EOD | Positions, VWAP cost, realized/unrealized P&L, daily summaries, trade events, sessions | **`pm-clearing-cli`** or SQL — see [P&L & Clearing](07-pnl-clearing.md) |
+| `audit.log` | `pm-audit` | Continuously (buffered flush); rotates at 10 MB × 5 backups | Full chronological trail of every message on the bus | **`pm-audit-cli`** — see [Audit Trail](26-audit.md) |
+| `audit_index.db` (SQLite) | `pm-audit-cli` | On demand, when you run an indexed query | Fast lookup index built over `audit.log` | **`pm-audit-cli`** |
+| `indexes/<ID>_history.jsonl` | `pm-index` | Throttled `LEVEL` records during trading · one `EOD` record per day · on structural events (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`) | Index level history for charts and analysis | **`pm-index-cli`** — see [Market Index](22-index.md) |
+| `indexes/<ID>_state.json` | `pm-index` | On each update | Persisted divisor + last levels so the index resumes correctly after a restart | JSON; loaded by `pm-index` at startup |
+
+!!! note "Reading the *When* column"
+    **Per trade** = on every `trade.executed` event. **EOD** (end of day) = when
+    the engine broadcasts `system.eod` on a clean shutdown. **Clean shutdown** =
+    the engine caught `Ctrl-C`/`SIGINT` and finished its shutdown sequence — a hard
+    kill (`SIGKILL`) skips these writes.
+
+The engine state files are described in detail in the sections below; the
+accumulating stores each have their own chapter (linked in the table).
 
 
 
@@ -306,41 +348,21 @@ grep '^\[2026-04-29T14:3' src/data/audit.log
 
 ---
 
-### `src/data/clearing_report.csv`
+### `src/data/clearing.db`
 
 **Written by**: `pm-clearing`  
-**Written**: one row appended per `trade.executed` event  
-**Read by**: manual inspection, spreadsheets, post-trade analysis scripts  
-**Reset**: delete manually; `pm-clearing` writes the header row to a new file on startup  
+**Written**: continuously — on every `trade.executed`, gateway connect/disconnect, and `system.eod` event  
+**Read by**: `pm-clearing-cli`, direct SQL queries, post-trade analysis scripts  
+**Reset**: delete manually; `pm-clearing` recreates the schema (`CREATE TABLE IF NOT EXISTS`) on startup, so restarting against an existing file is safe  
 
-A plain CSV with one row per executed trade. The file **accumulates across
-sessions** — it is never truncated. If `pm-clearing` is not running when a trade
-executes, that trade is not recorded here (it is still in `stats.db` and `audit.log`).
+A SQLite database that accumulates across sessions. It holds an append-only
+`trade_events` fact table plus running-state tables for positions and daily
+summaries, and clearing-lifecycle tables for sessions and connections. The full
+schema (five tables and two views) and the VWAP/realized/unrealized P&L formulas
+are documented in [P&L & Clearing](07-pnl-clearing.md#sqlite-database-schema).
 
-**Header and column definitions**:
-
-| Column          | Type          | Description                                          |
-|-----------------|---------------|------------------------------------------------------|
-| `trade_id`      | string (UUID) | Engine-assigned unique trade identifier              |
-| `symbol`        | string        | Traded instrument, e.g. `AAPL`                       |
-| `buy_order_id`  | string (UUID) | Order ID of the buy-side order                       |
-| `sell_order_id` | string (UUID) | Order ID of the sell-side order                      |
-| `buy_gateway`   | string        | Gateway ID of the buyer, e.g. `GW01`                 |
-| `sell_gateway`  | string        | Gateway ID of the seller, e.g. `MM01`                |
-| `price`         | decimal       | Execution price as a display decimal (e.g. `150.05`) |
-| `quantity`      | integer       | Executed quantity                                    |
-| `timestamp`     | ISO 8601      | UTC timestamp of the trade execution                 |
-
-**Example**:
-
-```csv
-trade_id,symbol,buy_order_id,sell_order_id,buy_gateway,sell_gateway,price,quantity,timestamp
-abc12345-...,AAPL,3f2a1b4c-...,7e9d0f11-...,GW01,MM01,150.05,200,2026-04-29T14:30:02+00:00
-def67890-...,MSFT,a1b2c3d4-...,e5f6g7h8-...,GW02,MM01,415.50,100,2026-04-29T14:31:15+00:00
-```
-
-The header row is written only once (when the file does not exist or is empty).
-Subsequent runs of `pm-clearing` open the file in append mode.
+If `pm-clearing` is not running when a trade executes, that trade is not recorded
+here (it is still in `stats.db` and `audit.log`).
 
 ---
 
@@ -462,15 +484,11 @@ ORDER BY ts;
 
 ## Summary of All Data Files
 
-| File (developer path under `src/data/`) | Written by    | When written       | Survives restart?      | Purpose                                   |
-|------------------------------------------|---------------|--------------------|------------------------|-------------------------------------------|
-| `gtc_orders.json`     | Engine        | Shutdown           | Used at next startup   | Resting GTC order book state              |
-| `gtc_combos.json`     | Engine        | Shutdown           | Used at next startup   | Resting GTC combo parent state            |
-| `book_stats.json`     | Engine        | Shutdown           | Used at next startup   | Last buy/sell prices; seed-once detection |
-| `audit.log`           | `pm-audit`    | Continuously       | Accumulates (rotating) | Full event audit trail                    |
-| `audit_index.db`      | `pm-audit-cli`| On demand          | Rebuilt / incremental  | Optional SQLite index for fast queries    |
-| `clearing_report.csv` | `pm-clearing` | Per trade          | Accumulates            | Trade settlement records                  |
-| `stats.db`            | `pm-stats`    | Per trade + 15 min | Accumulates            | OHLCV, intraday charts, trade log         |
+For the complete file-by-file map — every data file, the process that writes it,
+its cadence, its purpose, and the tool used to read it — see
+[Data files at a glance](#data-files-at-a-glance) near the top of this page. The
+engine state files (`gtc_orders.json`, `gtc_combos.json`, `book_stats.json`) are
+described in detail in the sections above.
 
 !!! note "Data directory path depends on how EduMatcher is run"
     The paths shown above use `src/data/` because that is the default for a

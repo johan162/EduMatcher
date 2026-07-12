@@ -274,7 +274,7 @@ pm-mm-bot --symbol AAPL    # autonomous market-maker bot
 | `pm-viewer` | No | SUB :5556, PUSH :5555 | Live L1/L2 order-book display for one symbol. Uses a push request to fetch the initial snapshot on connect; then updates on every `book.<SYMBOL>` event. |
 | `pm-orders` | No | SUB :5556 | Cross-gateway resting-order monitor. Subscribes to all `order.*` events and displays a live table of every active order regardless of which gateway submitted it. |
 | `pm-audit` | No | SUB :5556 | Passive event logger. Writes every message topic and payload to `data/audit.log`. Each line has the format `[TIMESTAMP] [TOPIC] {JSON_PAYLOAD}`. Produces the authoritative record of everything that happened in the session. |
-| `pm-clearing` | No | SUB :5556 | Trade settlement and P&L engine. Calculates realized/unrealized P&L per gateway using VWAP average cost, and writes `data/clearing_report.csv` on shutdown. |
+| `pm-clearing` | No | SUB :5556 | Trade settlement and P&L engine. Calculates realized/unrealized P&L per gateway using VWAP average cost, and persists positions, daily summaries, and trade events to the SQLite database `data/clearing.db`. |
 | `pm-stats` | No | SUB :5556, PUSH :5555 | OHLCV statistics aggregator. Writes open/high/low/close/volume bars to `data/stats.db` (SQLite). Required by `pm-ticker` and `pm-board`. |
 | `pm-ticker` | No | Reads `data/stats.db` | Scrolling one-line-per-interval market data ticker. Queries `pm-stats`'s database at a configurable interval and prints a formatted price/volume line. |
 | `pm-board` | No | SUB :5556, reads `data/stats.db` | Full-screen multi-symbol dashboard. Combines live order-book data from the PUB socket with OHLCV data from the stats database. |
@@ -408,11 +408,11 @@ new-window command depending on your terminal emulator.
 
 ### Immediate checks after startup
 
-**a) The engine prints `Ready.`**
+**a) The engine prints its `Listening on PULL=… PUB=…` line**
 
 The engine startup banner lists the loaded symbols, configured gateways, and
-bound socket addresses.  If it prints nothing or exits immediately, see the
-troubleshooting section.
+bound socket addresses, ending with the `Listening on PULL=… PUB=…` line.  If it
+prints nothing or exits immediately, see the troubleshooting section.
 
 **b) Gateways authenticate successfully**
 
@@ -532,7 +532,7 @@ Gateway authentication timed out.  Is the engine running at tcp://127.0.0.1:5555
 Causes (in order of likelihood):
 
 1. The engine is not running — start it first.
-2. The engine is still starting up — wait for `Ready.` before launching gateways.
+2. The engine is still starting up — wait for the `Listening on PULL=… PUB=…` line before launching gateways.
 3. The gateway ID is not in `engine_config.yaml` — the engine silently ignores
    the connect request.  Add the ID to the config and restart the engine.
 4. Port 5555 is blocked by a firewall rule or VPN.
@@ -629,16 +629,19 @@ pm-admin --id GW_ADMIN
 
 ```
 [GW_ADMIN|ADMIN]> SESSION_STATUS
-Session state : CONTINUOUS
-Sessions      : enabled
+  Session state     : CONTINUOUS
+  Auto-scheduling   : ON
 
 [GW_ADMIN|ADMIN]> SCHEDULE
-Sessions enabled : true
-PRE_OPEN          : 09:00
-OPENING_AUCTION   : 09:25
-CONTINUOUS        : 09:30
-CLOSING_AUCTION   : 16:00
-CLOSING_AUCTION_END: 16:05
+┌───────────────────────────┬──────────────┐
+│ Session schedule          │ Time (HH:MM) │
+├───────────────────────────┼──────────────┤
+│ Pre-Open                  │ 09:00        │
+│ Opening Auction Start     │ 09:25        │
+│ Continuous Trading Start  │ 09:30        │
+│ Closing Auction Start     │ 16:00        │
+│ Closing Auction End       │ 16:05        │
+└───────────────────────────┴──────────────┘
 
 [GW_ADMIN|ADMIN]> GATEWAYS
 ID          Role          Connected
@@ -757,6 +760,10 @@ sqlite3 data/stats.db "SELECT symbol, open_price, high_price, low_price, close_p
 
 See [pm-stats — Statistics Recorder](10-processes.md#pm-stats-statistics-recorder) for the full database schema (`daily_stats`, `price_snapshots`, `trade_log`) and details on how each statistic is computed.
 
+For a single map of **every data file the exchange writes** — which process
+creates each one, when, why, and which tool reads it — see
+[Persistence → Data files at a glance](11-persistence.md#data-files-at-a-glance).
+
 
 
 ## Frequently asked questions
@@ -768,18 +775,11 @@ No. The only mandatory process is `pm-engine`.  Everything else is optional:
 - You can trade without any viewer — you just won't see the live book.
 - You can run without `pm-audit` — you just won't have an event log.
 - You can run without `pm-scheduler` — session phases stay where you set them
-  manually (or in `PRE_OPEN` on a fresh start without `sessions_enabled: true`).
+  manually (with no config or `sessions_enabled: false`, the engine stays in
+  `CONTINUOUS` the whole time).
 
 For quick experiments, starting just the engine and one or two gateways is
 enough.
-
-## See also
-
-- [Configuration](01-configuration.md) — full `engine_config.yaml` reference
-- [Processes](10-processes.md) — what every process does and which ports it uses
-- [Gateway](08-gateway.md) — how to connect a participant terminal and place orders
-- [Persistence](11-persistence.md) — what data files survive a restart and how to manage them
-- [Auctions & Scheduling](06-auctions-scheduling.md) — how `pm-scheduler` drives session phases
 
 ### Does the exchange work without `engine_config.yaml`?
 
@@ -904,3 +904,11 @@ Yes, but you must change the ports.  All port constants are defined in
 most processes (only `pm-admin` and `pm-admin-cli` expose `--push` / `--sub`
 flags).  For a second instance, edit `config.py` or make a copy of the package
 with different defaults.
+
+## See also
+
+- [Configuration](01-configuration.md) — full `engine_config.yaml` reference
+- [Processes](10-processes.md) — what every process does and which ports it uses
+- [Gateway](08-gateway.md) — how to connect a participant terminal and place orders
+- [Persistence](11-persistence.md) — what data files survive a restart and how to manage them
+- [Auctions & Scheduling](06-auctions-scheduling.md) — how `pm-scheduler` drives session phases

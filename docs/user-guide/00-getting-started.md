@@ -293,12 +293,13 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | `pm-audit` | Background | Full event log capture from the bus | [Processes](10-processes.md), [Persistence](11-persistence.md) |
 | `pm-ralf-gwy` | Background | External post-trade dissemination gateway (RALF) | [Processes](10-processes.md), [Post-Trade Dissemination](18-post-trade.md), [RALF Protocol](93-app-ralf-protocol.md) |
 | `pm-admin` | Interactive terminal | Interactive operational console | [Processes](10-processes.md), [Risk Controls](12-risk-controls.md) |
-| `pm-ai-trader` | Background | Single autonomous trading bot gateway | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
-| `pm-ai-swarm` | Background | Multi-agent autonomous trading swarm | [Processes](10-processes.md), [AI Bot Traders](../developer/02-ai-bot.md) |
+| `pm-ai-trader` | Background | Single autonomous trading bot gateway | [Processes](10-processes.md), [AI Traders](15-ai-traders.md) |
+| `pm-ai-swarm` | Background | Multi-agent autonomous trading swarm | [Processes](10-processes.md), [AI Traders](15-ai-traders.md) |
 | `pm-mm-bot` | Background | Autonomous market-maker quoting bot | [Processes](10-processes.md), [Market-Maker Bot](17-mm-bot.md) |
 | `pm-md-gwy` | Background | Market-data distribution gateway (CALF) | [Processes](10-processes.md#pm-md-gwy-calf-market-data-gateway), [Market Data Feed](20-market-data-feed.md), [CALF Protocol](92-app-calf-protocol.md) |
 | `pm-api-gwy` | Background | REST/WebSocket order-entry and market-data API gateway | [Processes](10-processes.md#pm-api-gwy-restwebsocket-api-gateway), [API Gateway](21-api-gateway.md) |
 | `pm-index` | Background | Real-time cap-weighted index calculation and dissemination | [Processes](10-processes.md#pm-index-index-calculation-process), [Market Index](22-index.md) |
+| `pm-balf-gwy` | Background | Binary order-entry gateway (BALF) over TCP | [Processes](10-processes.md), [BALF Gateway](25-balf-gateway.md), [BALF Protocol](91-app-balf-protocol.md) |
 
 ### CLI utilities (runnable)
 
@@ -312,12 +313,6 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | `pm-index-cli` | Read-only query interface for index history files | [Processes](10-processes.md#pm-index-cli-index-history-query-tool), [Commands](02-commands.md), [Market Index](22-index.md#using-pm-index-cli-recommended) |
 | `pm-setup` |  Bootstrap local session directory and defaults | [Processes](10-processes.md), [Installation](00-getting-started.md#installation) |
 | `pm-config-gen` | Generate `engine_config.yaml` from CLI options | [Processes](10-processes.md), [Configuration generator](01-configuration.md#generate-configs-with-pm-config-gen) |
-
-### Planned runtime processes (design proposals)
-
-| Command | Interactivity | Purpose | More information |
-|---|---|---|---|
-| `pm-balf-gateway` | Background | Binary order-entry gateway (BALF) | [Processes planned section](10-processes.md#planned-processes), [BALF Protocol](91-app-balf-protocol.md) |
 
 For startup order and a practical first-run sequence, see
 [Processes](10-processes.md#process-overview).
@@ -374,13 +369,14 @@ pm-engine
 Expected output:
 
 ```
-[ENGINE] EduMatcher matching engine starting
-[ENGINE] Listening for orders on tcp://127.0.0.1:5555
-[ENGINE] Publishing events on tcp://127.0.0.1:5556
-[ENGINE] Drop-copy feed on tcp://127.0.0.1:5557
-[ENGINE] Session state: PRE_OPEN
-[ENGINE] Ready
+[ENGINE] WARNING: no engine_config.yaml found — running in unrestricted mode (no symbol/gateway allowlist)
+[ENGINE] Drop copy PUB bound on port 5557
+[ENGINE] Listening on PULL=tcp://127.0.0.1:5555  PUB=tcp://127.0.0.1:5556
 ```
+
+With no config file the engine runs in **unrestricted mode** and session
+handling is **disabled**, so it starts directly in the `CONTINUOUS` state and
+matches orders immediately — there is no auction phase to advance past.
 
 The engine is now running. Leave this terminal open.
 
@@ -435,16 +431,18 @@ On either gateway, ask what state the exchange is in:
 GW01> STATUS
 ```
 
-The engine replies with the current session state. In unrestricted mode it starts
-in `PRE_OPEN`. To enable matching, advance to `CONTINUOUS`:
+The engine replies with the current session state. In unrestricted mode (no
+config file) session handling is disabled, so the engine is already in
+`CONTINUOUS` and matching is enabled — you do **not** need to advance any phase.
 
-!!! tip "Skipping auctions in testing"
-    Without `pm-scheduler`, the session state stays where you set it. Advance
-    to `CONTINUOUS` with `pm-admin` or the operator console. The quickest way
-    if you just have the engine running is to start with a config that sets
-    `sessions_enabled: false` (which defaults to `CONTINUOUS`).
+!!! tip "Session phases only apply when sessions are enabled"
+    Auction phases (`PRE_OPEN → OPENING_AUCTION → CONTINUOUS → …`) only exist
+    when you run with `sessions_enabled: true` and a `pm-scheduler` (or advance
+    them manually from `pm-admin`). With no config, or with
+    `sessions_enabled: false`, the engine stays in `CONTINUOUS` the whole time.
 
-For this walkthrough, start the engine with:
+You can run this walkthrough with no config at all. If you prefer to be explicit,
+start the engine with a config that disables sessions:
 
 ```bash
 echo "sessions_enabled: false" > /tmp/demo.yaml
@@ -541,6 +539,12 @@ The engine is the only mandatory process. Add the others as you need them:
 | Add automated market-maker liquidity                | `pm-mm-bot --symbol AAPL`               | [Market-Maker Bot](17-mm-bot.md)                           |
 | Feed external clearing/drop-copy consumers over TCP | `pm-ralf-gwy`                           | [Post-Trade Dissemination](18-post-trade.md)               |
 | Feed compliance/risk systems                        | Subscribe to `:5557` (drop-copy socket) | [Drop Copy](13-drop-copy.md)                               |
+
+!!! tip "Where does all this data go?"
+    Several of these processes write data files (statistics, P&L, audit log,
+    index history). For a single map of **every data file EduMatcher creates —
+    which process writes it, when, why, and how to query it** — see
+    [Persistence → Data files at a glance](11-persistence.md#data-files-at-a-glance).
 
 For a full classroom session, use the provided launch script:
 

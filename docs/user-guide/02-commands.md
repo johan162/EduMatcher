@@ -438,11 +438,11 @@ pm-admin-cli --id GW_ADMIN schedule
 ┌─────────────────────────────────────────┬────────────────┐
 │   Session schedule                        │ Time (HH:MM)  │
 ├─────────────────────────────────────────┼────────────────┤
-│ Pre-Open                                │ 08:30         │
-│ Opening Auction Start                   │ 09:00         │
+│ Pre-Open                                │ 09:00         │
+│ Opening Auction Start                   │ 09:25         │
 │ Continuous Trading Start                │ 09:30         │
 │ Closing Auction Start                   │ 16:00         │
-│ Closing Auction End                     │ 16:15         │
+│ Closing Auction End                     │ 16:05         │
 └─────────────────────────────────────────┴────────────────┘
 ```
 If `sessions_enabled` is false in the engine config, a message is printed

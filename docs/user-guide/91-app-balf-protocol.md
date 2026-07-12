@@ -17,7 +17,7 @@
 **BALF** stands for **Binary ALF**.
 
 It is EduMatcher's fixed-width binary protocol for programmatic order entry
-through `pm-balf-gateway`. BALF carries the same trading intent as ALF, but it
+through `pm-balf-gwy`. BALF carries the same trading intent as ALF, but it
 replaces human-readable text parsing with deterministic byte offsets.
 
 BALF is designed for low-latency clients that want:
@@ -43,7 +43,7 @@ bot, or GUI wants to speak BALF, this document is the correct source to follow.
 
 ## Scope and boundaries
 
-BALF is the **binary client protocol accepted by `pm-balf-gateway`**. The gateway
+BALF is the **binary client protocol accepted by `pm-balf-gwy`**. The gateway
 translates BALF frames into the engine's internal ZeroMQ + JSON messages.
 
 That distinction matters:
@@ -466,7 +466,7 @@ any pending outbound messages and then close the connection on its side.
 ```mermaid
 sequenceDiagram
     participant Client
-    participant Gateway as pm-balf-gateway
+    participant Gateway as pm-balf-gwy
 
     Client->>Gateway: TCP SYN
     Gateway-->>Client: TCP SYN-ACK
