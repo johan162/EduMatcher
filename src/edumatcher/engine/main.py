@@ -2714,11 +2714,23 @@ class Engine:
         self._session_state = to_state
 
         if to_state == SessionState.CLOSED:
+            # M14: the close is the day boundary — expire all resting DAY orders
+            # so they do not silently carry into the next trading day (they were
+            # previously only expired at process shutdown).
+            self._expire_tif(TIF.DAY)
             # End-of-day reset for any still-halted symbols (e.g. L3 rest-of-day).
             for symbol, cb in self._circuit_breakers.items():
                 if cb.halted:
                     cb.deactivate()
                     self._halted_symbols[symbol] = False
+
+        if to_state == SessionState.PRE_OPEN:
+            # M14: reset per-symbol 'daily' counters at the start of a new
+            # trading day so a multi-day run does not report cumulative volume.
+            for book in self.books.values():
+                book.daily_qty = 0
+                book.daily_value_ticks = 0
+                book.daily_trades = 0
 
         self.pub_sock.send_multipart(
             make_session_state_msg(to_state.value, prev_state=from_state.value)
