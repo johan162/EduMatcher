@@ -553,6 +553,15 @@ class Engine:
     # ------------------------------------------------------------------
 
     def _restore_gtc(self) -> None:
+        # M4: register tick decimals BEFORE restoring and publishing snapshots.
+        # run() calls _restore_gtc() before _load_config(), so without this the
+        # startup snapshots format prices with the default 2 decimals — 100x
+        # off for a 4-decimal symbol.  Re-registration in _load_config is a
+        # harmless no-op.
+        if self._engine_config:
+            for sym, sym_cfg in self._engine_config.symbols.items():
+                register_tick_decimals(sym, sym_cfg.tick_decimals)
+
         orders = load_gtc_orders(GTC_ORDERS_FILE)
         for order in orders:
             # Skip GTC orders for symbols no longer in config
