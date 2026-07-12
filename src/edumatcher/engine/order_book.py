@@ -168,7 +168,12 @@ class OrderBook:
     # ------------------------------------------------------------------
 
     def process(
-        self, order: Order, *, match: bool = True, now: int | None = None
+        self,
+        order: Order,
+        *,
+        match: bool = True,
+        now: int | None = None,
+        _cascade_stops: bool = True,
     ) -> tuple[list[Trade], list[Order]]:
         """
         Accept an incoming order and attempt to match it.
@@ -249,14 +254,23 @@ class OrderBook:
         elif order.order_type == OrderType.TRAILING_STOP:
             self._add_trailing_stop(order, events)
 
-        # After any trade, check if stop orders should trigger
-        if trades and self._has_stops:
-            triggered = self._check_stops(now)
-            triggered += self._check_trailing_stops(now)
-            for t_order in triggered:
-                sub_trades, sub_events = self.process(t_order, now=now)
+        # After any trade, check if stop orders should trigger.
+        # #23: drive the cascade (stop → trade → stop → …) with an explicit work
+        # queue instead of recursion, so a long chain cannot exhaust Python's
+        # recursion limit.  Triggered orders are matched with _cascade_stops=
+        # False; any stops they trigger are picked up by the loop below.
+        if trades and self._has_stops and _cascade_stops:
+            pending = self._check_stops(now) + self._check_trailing_stops(now)
+            while pending:
+                t_order = pending.pop(0)
+                sub_trades, sub_events = self.process(
+                    t_order, now=now, _cascade_stops=False
+                )
                 trades.extend(sub_trades)
                 events.extend(sub_events)
+                if sub_trades and self._has_stops:
+                    pending.extend(self._check_stops(now))
+                    pending.extend(self._check_trailing_stops(now))
 
         return trades, events
 
