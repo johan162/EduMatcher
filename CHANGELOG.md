@@ -1,18 +1,9 @@
-## [v0.16.0] - 2026-07-09
+## [v0.16.0] - 2026-07-18
 
 Release Type: minor
 
 ### 📋 Summary
-This release adds a two new major features and one useful improvement.
-1. `config-gui` a powerful Web GUI for creating engine configuration data. This is a two-way tool that
-can import an existing config file, allow you to make modification through the UI and save it back to
-a file.
-2. `pm-audit-cli` tool for inspecting the exchange audit trail and query and filter like it was a DB
-3. `pm-api-gwy` have been extended with ADMIN- operator commands 
-On top of these user visible feature this release also hardens `pm-config-gen` validation, the RALF gateway test suite, and `pm-cverifier`'s numeric field checks, alongside knowledge-check quiz polish.
-4. `pm-cverifier` improved cross-checking of settings
-5. `CALF` protocol enhacements, such as adding an index channel and the possibility to get book depths
-6. Added normative configuration file (ref-data) specification.
+This release adds a new Web-application for creating configuration files (also known as reference data), a new CLI tool for inspecting the exchange audit trail, and ADMIN-only operator commands to the API Gateway. It also includes several improvements to existing tools, protocol enhancements, and documentation updates. Finally several critical, high, and medium severity bugs have been fixed in the matching engine and scheduler.
 
 ### ✨ Additions
 - Added `config-gui`, a new Web-application for creating configuration files (also known as reference data)
@@ -20,12 +11,18 @@ On top of these user visible feature this release also hardens `pm-config-gen` v
 - Added ADMIN-only operator commands to the API Gateway (requires role `ADMIN`)
 - Added design proposals for upcoming `pm-trading-ui`
 - Added several new channels to CALF
+- Use proper logger for both engine and schduler
+- `pm-api-gwy` have been extended with ADMIN- operator commands
+- `CALF` protocol enhancements, such as adding an index channel and the possibility to get book depths
 
 ### 🚀 Improvements
 - Improved `pm-config-gen` with cross-gateway port collision detection, schedule chronological-order validation, and tick-aware decimal combo leg prices
-- Improved `pm-cverifier` numeric field validation to reject booleans that would otherwise be silently coerced to 1/0
+- Improved `pm-cverifier` numeric field validation to reject booleans that would otherwise be silently coerced to 1/0, improved schedule verification to check time-specification and session ordering.
+- Hardened `pm-config-gen` validation, the RALF gateway test suite, and `pm-cverifier`'s numeric field checks, alongside knowledge-check quiz polish.
 
 ### 🐛 Bug Fixes
+- fixed a number of critical, high, and medium severity bugs in the matching engine
+- fixed a number of high and medium severity bugs in the scheduler
 - Fixed the knowledge-check quiz bundle Makefile target using the wrong output name
 - fixed so that circuit-breaker reference prices from the opening price on day one (IPO)'
 - fixed collar static reference tracks persisted book stats, not stale config seed
@@ -38,11 +35,14 @@ On top of these user visible feature this release also hardens `pm-config-gen` v
 - Added a new proposed design for a info-terminal
 - Added a new appendix with normative config-file specification
 - Various updates and additions across the user-guider
+- All protocol normative specifications have been updated to reflect the latest protocol changes and additions
+- Added normative configuration file (ref-data) specification.
 
 ### 🛠 Internal
 - Hardened `test_ralf_gateway.py` to remove intermittent timing-related failures by replacing fixed sleeps with deterministic readiness polling
 - Refactored `pm-admin`'s command dispatch from a large if/else chain into a proper handler-based dispatch
 - Bump library dependencies
+- The test suite has been refactored to remove deprecated `pytest` fixtures and to improve test isolation and determinism. 
 
 
 ## [v0.15.3] - 2026-07-07
