@@ -22,6 +22,7 @@ stored as INTEGER.  Columns derived from weighted-average math (``avg_cost``,
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,7 +43,15 @@ PRAGMA temp_store = MEMORY;
 # ---------------------------------------------------------------------------
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS trade_events (
-  id               TEXT    PRIMARY KEY,
+  -- Surrogate key.  The engine's trade ``id`` is only unique *within a single
+  -- engine run* (models/trade.py uses a per-process counter that restarts from
+  -- 1 on every launch), so it is NOT safe as the archive's identity.  A run-2
+  -- trade "1" would otherwise collide with a run-1 trade "1" and be silently
+  -- dropped by INSERT OR IGNORE (finding CL-C1).  The real idempotency key is
+  -- (id, ts_ns): a genuine duplicate delivery repeats both, while a post-restart
+  -- id reuse carries a different timestamp and is preserved as a distinct row.
+  event_rowid      INTEGER PRIMARY KEY AUTOINCREMENT,
+  id               TEXT    NOT NULL,
   ts_ns            INTEGER NOT NULL,
   trade_date       TEXT    NOT NULL,
   symbol           TEXT    NOT NULL,
@@ -54,7 +63,8 @@ CREATE TABLE IF NOT EXISTS trade_events (
   buy_gateway_id   TEXT    NOT NULL,
   sell_gateway_id  TEXT    NOT NULL,
   aggressor_side   TEXT,
-  ingest_ts_ns     INTEGER NOT NULL
+  ingest_ts_ns     INTEGER NOT NULL,
+  UNIQUE (id, ts_ns)
 );
 
 CREATE INDEX IF NOT EXISTS ix_trade_events_date
@@ -244,6 +254,10 @@ def apply_schema(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(
         conn, "trade_events", "tick_decimals", "INTEGER NOT NULL DEFAULT 2"
     )
+    # Rebuild pre-CL-C1 trade_events (single-column ``id`` PRIMARY KEY) into the
+    # collision-safe surrogate-key layout.  No-op for fresh or already-migrated
+    # DBs.  Runs after the tick_decimals back-fill so legacy rows copy cleanly.
+    _migrate_trade_events_schema(conn)
     _add_column_if_missing(
         conn,
         "gateway_symbol_positions",
@@ -305,6 +319,40 @@ def _create_table_if_missing(
     }
     if table not in existing:
         conn.executescript(ddl)
+
+
+def _migrate_trade_events_schema(conn: sqlite3.Connection) -> None:
+    """
+    Migrate a legacy ``trade_events`` table (with ``id TEXT PRIMARY KEY``) to the
+    CL-C1 layout (surrogate ``event_rowid`` PK + ``UNIQUE (id, ts_ns)``).
+
+    Detection is by presence of the ``event_rowid`` column, so this is a no-op on
+    fresh databases (created directly from ``SCHEMA``) and on already-migrated
+    ones.  Rows are copied with ``INSERT OR IGNORE`` on the new unique key, which
+    is harmless for a well-formed legacy archive (its ids were already unique).
+    """
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(trade_events)")}
+    if not cols or "event_rowid" in cols:
+        return  # fresh DB (SCHEMA built the new table) or already migrated
+
+    with conn:
+        conn.execute("ALTER TABLE trade_events RENAME TO _trade_events_legacy")
+        # SCHEMA's CREATE TABLE IF NOT EXISTS now builds the new-layout table
+        # (the old name is free) and recreates the trade_events indexes.
+        conn.executescript(SCHEMA)
+        conn.execute(
+            "INSERT OR IGNORE INTO trade_events ("
+            "  id, ts_ns, trade_date, symbol, quantity, price, tick_decimals,"
+            "  buy_order_id, sell_order_id, buy_gateway_id, sell_gateway_id,"
+            "  aggressor_side, ingest_ts_ns"
+            ") SELECT"
+            "  id, ts_ns, trade_date, symbol, quantity, price,"
+            "  COALESCE(tick_decimals, 2),"
+            "  buy_order_id, sell_order_id, buy_gateway_id, sell_gateway_id,"
+            "  aggressor_side, ingest_ts_ns"
+            " FROM _trade_events_legacy"
+        )
+        conn.execute("DROP TABLE _trade_events_legacy")
 
 
 def _add_column_if_missing(
@@ -430,6 +478,51 @@ ON CONFLICT(trade_date, gateway_id, symbol) DO UPDATE SET
 """
 
 
+def _record_id_collisions(
+    conn: sqlite3.Connection, trades: list[TradeEventRow]
+) -> None:
+    """
+    Write a ``session_events`` row of type ``ID_COLLISION`` for every incoming
+    trade whose ``id`` already exists in the archive under a *different* ts_ns.
+
+    This is the loud counterpart to the old silent ``INSERT OR IGNORE`` drop:
+    the row is still archived (the surrogate PK + ``UNIQUE (id, ts_ns)`` key
+    guarantee that), and the operator gets a durable, queryable alert that the
+    engine reused a trade id across a restart.  Must be called inside the flush
+    transaction, before the trade INSERT, so ``existing`` reflects prior state.
+    """
+    if not trades:
+        return
+    ids = [t.id for t in trades]
+    placeholders = ",".join("?" * len(ids))
+    existing: dict[str, set[int]] = {}
+    for row in conn.execute(
+        f"SELECT id, ts_ns FROM trade_events WHERE id IN ({placeholders})", ids
+    ):
+        existing.setdefault(row[0], set()).add(row[1])
+
+    for t in trades:
+        seen = existing.get(t.id)
+        if seen and t.ts_ns not in seen:
+            conn.execute(
+                "INSERT INTO session_events"
+                " (event_type, ts_ns, trade_date, payload_json)"
+                " VALUES (?, ?, ?, ?)",
+                (
+                    "ID_COLLISION",
+                    t.ts_ns,
+                    t.trade_date,
+                    json.dumps(
+                        {
+                            "id": t.id,
+                            "new_ts_ns": t.ts_ns,
+                            "existing_ts_ns": sorted(seen),
+                        }
+                    ),
+                ),
+            )
+
+
 def flush_batch(
     conn: sqlite3.Connection,
     trades: list[TradeEventRow],
@@ -440,12 +533,16 @@ def flush_batch(
     Atomically persist one buffer-worth of trades in a single transaction.
 
     Steps:
-    1. INSERT OR IGNORE trade_events (idempotent)
+    0. Alert (not silently ignore) any incoming id that collides with an
+       already-archived row carrying a different timestamp — the CL-C1
+       engine-restart signature.
+    1. INSERT OR IGNORE trade_events (idempotent on (id, ts_ns))
     2. UPSERT gateway_symbol_positions (full replace with current state)
     3. UPSERT gateway_daily_summary (increment deltas, update snapshots)
     4. COMMIT
     """
     with conn:
+        _record_id_collisions(conn, trades)
         conn.executemany(
             _INSERT_TRADE,
             [_trade_row_to_dict(t) for t in trades],

@@ -99,7 +99,22 @@ def make_engine(
     monkeypatch.setattr(
         "edumatcher.engine.main.load_book_stats", lambda _: dict(book_stats or {})
     )
-    monkeypatch.setattr("edumatcher.engine.main.time.sleep", lambda *_: None)
+    # Neutralize the engine's PUB-bind settle sleep WITHOUT touching the
+    # global time module: patching "edumatcher.engine.main.time.sleep" would
+    # no-op time.sleep process-wide (the module attribute IS the shared time
+    # module), silently breaking any test that spins threads with real
+    # sleeps (e.g. the clearing harness).  A scoped shim keeps the no-op
+    # local to the engine module.
+    import time as _time
+    import types as _types
+
+    _engine_time = _types.SimpleNamespace(
+        sleep=lambda *_: None,
+        monotonic=_time.monotonic,
+        time=_time.time,
+        time_ns=_time.time_ns,
+    )
+    monkeypatch.setattr("edumatcher.engine.main.time", _engine_time)
 
     cfg_path = tmp_path / "engine_config.yaml"
     cfg_path.write_text("dummy: true\n")
