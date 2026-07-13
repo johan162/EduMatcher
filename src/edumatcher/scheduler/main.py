@@ -3,23 +3,26 @@ Session Scheduler — drives the engine through daily trading phases.
 
 Reads a schedule (either from --config YAML or default times) and sends
 ``session.transition`` messages to the engine at the configured wall-clock
-times via a PUSH socket. When a confirmation subscriber is available it also
-listens to the engine's ``session.state`` broadcasts to verify each transition
-was actually applied (rather than blindly reporting success).
+times via a PUSH socket. It runs as a closed-loop driver:
+
+  - On startup it queries the engine's current session state and only replays
+    the transitions still needed to reach the correct current phase.
+  - After each transition it listens to the engine's ``session.state``
+    broadcast to confirm the change was actually applied.
 
 Usage:
   poetry run pm-scheduler                  # run today's schedule once, then exit
   poetry run pm-scheduler --daily          # run continuously, once per day
   poetry run pm-scheduler --now            # rapid-fire all transitions (for testing)
   poetry run pm-scheduler --config my.yaml # custom config file
-  poetry run pm-scheduler --no-confirm     # do not wait for engine confirmation
+  poetry run pm-scheduler --no-confirm     # do not query/confirm via the engine
 
 Same-day behavior:
   By default the scheduler drives *today's* timeline and then exits. If it is
-  started after some scheduled times have already passed, it first replays those
-  past transitions in order to bring the engine to the correct current phase
-  (engine session states are sequential and dependent). Use ``--daily`` to keep
-  the process running and repeat the schedule every calendar day.
+  started after some scheduled times have already passed, it brings the engine
+  to the correct current phase (engine session states are sequential and
+  dependent). Use ``--daily`` to keep the process running and repeat the
+  schedule every calendar day.
 
 Typical daily sequence:
   PRE_OPEN → OPENING_AUCTION → CONTINUOUS → CLOSING_AUCTION → CLOSED
@@ -31,6 +34,7 @@ import argparse
 import signal
 import sys
 import time
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable
@@ -39,7 +43,11 @@ import zmq
 
 from edumatcher.config import ENGINE_CONFIG_FILE, ENGINE_PUB_ADDR, ENGINE_PULL_ADDR
 from edumatcher.messaging.bus import make_pusher, make_subscriber
-from edumatcher.models.message import decode, make_session_transition_msg
+from edumatcher.models.message import (
+    decode,
+    make_session_state_request_msg,
+    make_session_transition_msg,
+)
 from edumatcher.models.session import VALID_TRANSITIONS, SessionState
 
 # Default schedule (HH:MM) — used when no config file provides one
@@ -64,6 +72,14 @@ LINGER_MS = 1000
 # How long to wait for the engine to broadcast an applied session.state before
 # warning that a transition could not be confirmed (review finding M3).
 CONFIRM_TIMEOUT_MS = 2000
+
+# How long to wait for the engine to answer a session-state query at startup
+# (review finding A2).
+QUERY_TIMEOUT_MS = 2000
+
+# Identifier the scheduler uses when talking to the engine (request/reply
+# replies come back on ``system.session_status.<ID>``).
+SCHEDULER_GATEWAY_ID = "SCHEDULER"
 
 # The engine boots CLOSED when the scheduler owns session state
 # (sessions_enabled=true), so a schedule must be a valid transition path
@@ -223,6 +239,21 @@ def _interruptible_sleep(seconds: float, is_running: Callable[[], bool]) -> None
         time.sleep(max(0.0, min(1.0, deadline - time.monotonic())))
 
 
+def _no_wait() -> float:
+    """A pre-send wait of zero (used for immediate/catch-up transitions)."""
+    return 0.0
+
+
+def _fixed_wait(seconds: float) -> Callable[[], float]:
+    """Return a pre-send wait of a fixed number of seconds (used by --now)."""
+    return lambda: seconds
+
+
+def _wait_until(target: datetime) -> Callable[[], float]:
+    """Return a pre-send wait that counts down to an absolute time."""
+    return lambda: (target - datetime.now()).total_seconds()
+
+
 def _send_transition(push_sock: zmq.Socket[bytes], state: str) -> bool:
     """Send one ``session.transition``; return ``False`` if not delivered.
 
@@ -267,6 +298,106 @@ def _confirm_transition(
     return False
 
 
+def _query_engine_state(
+    push_sock: zmq.Socket[bytes],
+    sub_sock: zmq.Socket[bytes],
+    gateway_id: str = SCHEDULER_GATEWAY_ID,
+    timeout_ms: int = QUERY_TIMEOUT_MS,
+) -> SessionState | None:
+    """Ask the engine for its current session state and wait for the reply.
+
+    Sends ``system.session_state_request`` and reads the matching
+    ``system.session_status.<ID>`` broadcast (review finding A2). Returns
+    ``None`` if the engine does not answer within ``timeout_ms`` or the reply
+    is unusable — the caller then falls back to assuming a CLOSED start.
+    """
+    reply_topic = f"system.session_status.{gateway_id.upper()}"
+    try:
+        push_sock.send_multipart(make_session_state_request_msg(gateway_id))
+    except zmq.Again:
+        return None
+
+    deadline = time.monotonic() + timeout_ms / 1000.0
+    while time.monotonic() < deadline:
+        remaining_ms = int(max(0.0, (deadline - time.monotonic()) * 1000.0))
+        if not sub_sock.poll(timeout=remaining_ms):
+            break
+        try:
+            topic, payload = decode(sub_sock.recv_multipart())
+        except Exception:
+            continue
+        if topic == reply_topic:
+            try:
+                return SessionState(str(payload.get("state", "")))
+            except ValueError:
+                return None
+    return None
+
+
+def _catch_up_transitions(
+    past: list[tuple[str, str]],
+    engine_state: SessionState | None,
+) -> list[tuple[str, str]]:
+    """Return the past transitions still needed to reach the current phase.
+
+    When the engine's current state is known (finding A2), skip the transitions
+    it has already applied by realigning to the *last* occurrence of that state
+    in the past sequence — this also disambiguates CLOSED, which is both the
+    daily start and end state. When unknown, replay every past transition
+    (assumes the engine booted CLOSED — the H1 fallback).
+    """
+    if engine_state is None:
+        return list(past)
+    result: list[tuple[str, str]] = []
+    for hhmm, state in past:
+        if state == engine_state.value:
+            result = []  # engine already here; realign to what comes after
+        else:
+            result.append((hhmm, state))
+    return result
+
+
+@dataclass(frozen=True)
+class _Step:
+    """One transition to drive: its target state, a live wait, and a log label."""
+
+    state: str
+    wait: Callable[[], float]  # seconds to wait before sending (evaluated live)
+    label: str = ""
+
+
+def _run_transitions(
+    push_sock: zmq.Socket[bytes],
+    confirm_sock: zmq.Socket[bytes] | None,
+    is_running: Callable[[], bool],
+    steps: list[_Step],
+) -> bool:
+    """Drive a sequence of transition steps through one interruptible loop.
+
+    Shared by every run mode so there is a single, tested execution path
+    (review finding A1). Returns ``True`` if all steps completed, or ``False``
+    if the run was interrupted.
+    """
+    for step in steps:
+        if not is_running():
+            print("[SCHEDULER] Interrupted")
+            return False
+
+        label = step.label or step.state
+        wait = step.wait()
+        if wait > 0:
+            print(f"[SCHEDULER] Waiting {wait:.0f}s for {label}")
+            _interruptible_sleep(wait, is_running)
+            if not is_running():
+                print("[SCHEDULER] Interrupted")
+                return False
+
+        print(f"[SCHEDULER] → {label}")
+        _dispatch_transition(push_sock, confirm_sock, step.state)
+
+    return True
+
+
 def _dispatch_transition(
     push_sock: zmq.Socket[bytes],
     confirm_sock: zmq.Socket[bytes] | None,
@@ -293,14 +424,16 @@ def _run_scheduled(
     *,
     confirm_sock: zmq.Socket[bytes] | None = None,
     is_running: Callable[[], bool] | None = None,
+    gateway_id: str = SCHEDULER_GATEWAY_ID,
 ) -> None:
-    """Run one day's schedule: catch up on past transitions, then time the rest.
+    """Run one day's schedule: catch up to the current phase, then time the rest.
 
     Engine session transitions are sequential and dependent
     (``CLOSED → PRE_OPEN → … → CLOSED``), so a scheduler that starts after some
-    scheduled times have already passed must *replay* those past transitions in
-    order to bring the engine to the correct current phase. Silently skipping
-    them (the previous behavior) left the engine stuck — see review finding H1.
+    scheduled times have already passed must bring the engine to the correct
+    current phase before waiting on future transitions (review finding H1).
+    When a confirmation socket is available the scheduler first asks the engine
+    for its current state so it only replays what is actually missing (A2).
     """
     running = is_running or (lambda: True)
 
@@ -308,6 +441,20 @@ def _run_scheduled(
     for hhmm, state in schedule:
         print(f"  {hhmm}  → {state}")
     print()
+
+    # A2: recover the engine's current state so catch-up only replays the
+    # transitions it still needs, instead of blindly assuming a CLOSED start.
+    engine_state: SessionState | None = None
+    if confirm_sock is not None:
+        engine_state = _query_engine_state(push_sock, confirm_sock, gateway_id)
+        if engine_state is not None:
+            print(f"[SCHEDULER] Engine reports current state: {engine_state.value}")
+        else:
+            print(
+                "[SCHEDULER] Warning: could not determine engine state; "
+                "assuming a CLOSED start",
+                file=sys.stderr,
+            )
 
     # Partition the schedule against a single "now" snapshot.
     now = datetime.now()
@@ -320,36 +467,24 @@ def _run_scheduled(
         else:
             upcoming.append((hhmm, state, target))
 
-    # Catch-up: replay every already-past transition in order so the engine
-    # reaches the correct current phase instead of being left behind (H1).
-    if past:
+    catch_up = _catch_up_transitions(past, engine_state)
+    if past and not catch_up:
+        print("[SCHEDULER] Engine already at the current phase; no catch-up needed")
+    elif catch_up:
         print(
-            f"[SCHEDULER] Catching up {len(past)} past transition(s) "
+            f"[SCHEDULER] Catching up {len(catch_up)} transition(s) "
             "to reach the current phase"
         )
-        for hhmm, state in past:
-            if not running():
-                break
-            print(f"[SCHEDULER] → Catch-up transition to {state} (was due {hhmm})")
-            _dispatch_transition(push_sock, confirm_sock, state)
 
+    steps: list[_Step] = []
+    for hhmm, state in catch_up:
+        steps.append(
+            _Step(state, _no_wait, label=f"{state} (catch-up, was due {hhmm})")
+        )
     for hhmm, state, target in upcoming:
-        if not running():
-            break
+        steps.append(_Step(state, _wait_until(target), label=f"{state} (at {hhmm})"))
 
-        wait_secs = (target - datetime.now()).total_seconds()
-        if wait_secs > 0:
-            print(f"[SCHEDULER] Waiting {wait_secs:.0f}s until {hhmm} for {state}")
-            _interruptible_sleep(wait_secs, running)
-
-        if not running():
-            print("[SCHEDULER] Interrupted")
-            break
-
-        print(f"[SCHEDULER] → Sending transition to {state}")
-        _dispatch_transition(push_sock, confirm_sock, state)
-
-    if running():
+    if _run_transitions(push_sock, confirm_sock, running, steps):
         print("[SCHEDULER] All transitions sent for today.")
 
 
@@ -393,15 +528,13 @@ def _run_now(
 
     print(f"[SCHEDULER] --now mode: sending all transitions with {delay}s delays\n")
 
-    for state in transitions:
-        if not running():
-            print("[SCHEDULER] Interrupted")
-            break
-        print(f"[SCHEDULER] → {state.value}")
-        _send_transition(push_sock, state.value)
-        _interruptible_sleep(delay, running)
+    # First transition fires immediately; the rest are spaced by ``delay``.
+    steps = [
+        _Step(state.value, _no_wait if i == 0 else _fixed_wait(delay))
+        for i, state in enumerate(transitions)
+    ]
 
-    if running():
+    if _run_transitions(push_sock, None, running, steps):
         print("[SCHEDULER] Done.")
 
 
@@ -435,7 +568,7 @@ def main() -> None:
     parser.add_argument(
         "--no-confirm",
         action="store_true",
-        help="Do not subscribe for engine session.state confirmations",
+        help="Do not query/confirm session state via the engine",
     )
     args = parser.parse_args()
     now_mode_delay = args.delay
@@ -483,12 +616,16 @@ def main() -> None:
                     )
                 sys.exit(1)
 
-            # Subscribe to engine session.state broadcasts so we can confirm
-            # each transition actually applied instead of blindly reporting
-            # success (review finding M3).
+            # Subscribe to the engine's session.state broadcasts (to confirm
+            # transitions, M3) and to our session-status reply topic (to recover
+            # the current state on startup, A2).
             confirm_sock: zmq.Socket[bytes] | None = None
             if not args.no_confirm:
-                confirm_sock = make_subscriber(ENGINE_PUB_ADDR, "session.state")
+                confirm_sock = make_subscriber(
+                    ENGINE_PUB_ADDR,
+                    "session.state",
+                    f"system.session_status.{SCHEDULER_GATEWAY_ID}",
+                )
                 time.sleep(0.05)  # let the SUB connect before the first send
 
             try:
