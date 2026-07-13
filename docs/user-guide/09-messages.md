@@ -297,6 +297,7 @@ Sent by a gateway to submit a new order for matching.
 | `trail_offset` | float \| null | Offset from best price for `TRAILING_STOP` orders |
 | `smp_action` | string | Self-match prevention: `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` |
 | `client_tag` | string \| absent | Optional client-supplied tag echoed back on every lifecycle event for this order (ack, fill, cancelled, expired). When present, subscribers can map events back to their submission without a FIFO scheme. |
+| `arrival_seq` | integer | Engine-assigned monotonic arrival sequence that determines time priority within a price level. Not supplied by the client (`0` on submission); populated by the engine and echoed in outbound order snapshots (see `order.orders.{GW_ID}`). |
 
 **Valid field combinations by order type:**
 
@@ -910,7 +911,13 @@ Response to an `order.orders_request` from a gateway; delivers the full current 
 
 | Field | Type | Description |
 |---|---|---|
-| `orders` | array of order dicts | Each element has the same shape as `order.new` plus a current `status` and `remaining_qty` |
+| `orders` | array of order dicts | Each element is a full order snapshot in display units. It has the same shape as `order.new` — including the current `status` and `remaining_qty`, the engine-assigned `arrival_seq`, and the echoed `client_tag` (when set) — plus the order-linkage metadata `oco_group_id`, `combo_parent_id`, `leg_index`, `origin`, and `quote_id`. Prices (`price`, `stop_price`, `trail_offset`) are display floats and `timestamp` is Unix epoch seconds. |
+
+!!! note "Snapshot fields"
+    The snapshot is built from the engine's own order record, so it always
+    carries `arrival_seq` and `client_tag` even when the original `order.new`
+    submission omitted `client_tag`. `arrival_seq` reflects the order's
+    engine arrival order (time priority), not the client `timestamp`.
 
 
 
