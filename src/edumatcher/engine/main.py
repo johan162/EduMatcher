@@ -126,12 +126,10 @@ _time_ns = time.time_ns
 # installs no handlers.
 log = logging.getLogger("edumatcher.engine")
 
-# PERF B: Module-level pre-encoded topic constant for trade messages.
-# Avoids re-encoding the same static string on every trade publication.
+# Pre-encoded static trade topic and a pre-built fill-status set — small hot-path
+# allocations avoided (see docs-design/perf-notes.md).
 _TRADE_TOPIC = b"trade.executed"
 
-# PERF: Pre-built frozenset for fill status check — avoids creating a
-# temporary tuple on every iteration of the events loop.
 _FILL_STATUSES = frozenset({OrderStatus.PARTIAL, OrderStatus.FILLED})
 
 
@@ -188,13 +186,8 @@ class Engine:
         # Global order_id → symbol map for O(1) cancel routing
         self._order_symbol: dict[str, str] = {}
 
-        # PERF improvement B: Pre-encoded topic bytes cache.
-        #
-        # ZMQ topic frames are the same bytes for every message to a given
-        # gateway (e.g. b"order.ack.GW01").  Building them with f-string +
-        # .encode() costs ~100ns each; with 3-4 messages per order that's
-        # ~300-400ns wasted on repeated string formatting.  Caching the
-        # encoded bytes reduces this to a single dict lookup (~50ns total).
+        # Per-gateway pre-encoded ZMQ topic bytes, cached on first contact so
+        # per-message frames are a dict lookup (see docs-design/perf-notes.md).
         self._topic_cache: dict[str, bytes] = {}
 
         # Per-symbol timestamp of last snapshot publish (for throttling)
@@ -882,16 +875,9 @@ class Engine:
         # follows in the events loop below.  Clients must treat the second ACK
         # as authoritative for these order types.
         #
-        # PERF A: Inline ack message — bypass make_ack_msg() entirely.
-        #
-        # make_ack_msg() allocates a base dict, conditionally merges order
-        # fields via .update(), then calls encode() which does f-string +
-        # .encode() + orjson.dumps().  Total cost: ~950ns.
-        # Inlining with pre-cached topic bytes and a single dict literal:
-        # ~450ns.  Saves ~500ns per order on the hot path.
-        #
-        # PERF B: Use pre-cached topic bytes instead of f-string + .encode().
-        # Saves ~60-100ns per message by avoiding repeated string formatting.
+        # Hot path: the ACK is built inline (bypassing make_ack_msg) with
+        # pre-cached per-gateway topic bytes and hot attributes bound to locals
+        # (see docs-design/perf-notes.md).
         _gw = order.gateway_id
         _tc = self._topic_cache
         ack_topic = _tc.get(_gw)
@@ -901,12 +887,6 @@ class Engine:
             _tc[f"fill.{_gw}"] = f"order.fill.{_gw}".encode()
             _tc[f"cancel.{_gw}"] = f"order.cancelled.{_gw}".encode()
             ack_topic = _tc[_gw]
-        # PERF C: Cache hot attributes as locals — LOAD_FAST (~15 ns) is
-        # 4× faster than LOAD_ATTR on a non-slotted object (~70 ns).
-        # _fill_topic avoids building an f-string per fill event.
-        # _side_v / _ot_v / _price_v: payload already holds canonical string
-        # values; reusing them in the fill message eliminates enum.value calls
-        # (~460 ns each) for the aggressor fill event.
         _pub = self.pub_sock
         _fill_topic = _tc[f"fill.{_gw}"]  # guaranteed set by ack-topic setup above
         _ptrade = self._publish_trade
@@ -980,12 +960,9 @@ class Engine:
             _filled_qty = evt.quantity - evt.remaining_qty
             if _filled_qty > 0 and evt.id not in _published_fill_ids:
                 _published_fill_ids.add(evt.id)
-                # PERF #9: Build the full fill payload in one dict literal and
-                # call encode() directly, bypassing make_fill_msg().
-                # PERF B: Use pre-cached fill topic bytes.
-                # PERF: For the aggressor fill event (evt is order) reuse the
-                # canonical string values already in the payload — skipping
-                # enum.value property calls and one from_ticks call.
+                # Hot path: fill payload built inline with pre-cached topic
+                # bytes; for the aggressor (evt is order) canonical string values
+                # from the payload are reused (see docs-design/perf-notes.md).
                 _is_agg = evt is order
                 _pub.send_multipart(
                     [
@@ -1068,8 +1045,7 @@ class Engine:
                 and evt.id not in _published_terminal_ids
             ):
                 _published_terminal_ids.add(evt.id)
-                # Terminal cancellation (SMP, IOC/MARKET remainder) — notify owner
-                # PERF B: Use pre-cached cancel topic bytes + inline _dumps.
+                # Terminal cancellation (SMP, IOC/MARKET remainder) — notify owner.
                 _pub.send_multipart(
                     [
                         _tc.get(f"cancel.{evt.gateway_id}")

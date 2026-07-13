@@ -34,12 +34,12 @@ from edumatcher.models.order import (
 )
 from edumatcher.models.trade import Trade
 
-# Module-level frozenset avoids allocating a temporary tuple inside _peek()
-# on every heap operation (called O(N) times per aggressive order).
 # L9: neutral aggressor flag for auction (uncross) prints, where both orders
 # are resting and there is no true aggressor.
 _AUCTION_AGGRESSOR = "AUCTION"
 
+# Module-level frozenset avoids allocating a temporary tuple inside _peek()
+# on every heap operation (called O(N) times per aggressive order).
 _DEAD_STATUSES: frozenset[OrderStatus] = frozenset(
     {
         OrderStatus.FILLED,
@@ -50,19 +50,8 @@ _DEAD_STATUSES: frozenset[OrderStatus] = frozenset(
 )
 
 
-# ---------------------------------------------------------------------------
-# PERF improvement #4: __slots__ on _HeapEntry.
-#
-# _HeapEntry is the most frequently allocated object in the matching engine —
-# one per resting order, one per stop.  Without __slots__, each instance
-# carries a __dict__ with 3 keys.  With __slots__:
-#   - Attribute access is ~30% faster (fixed offset, no hash lookup)
-#   - Memory per instance drops from ~200 bytes to ~72 bytes
-#   - heapq comparisons (__lt__) are faster because self.key access is cheaper
-#
-# In the TPS test with 5,000+ resting orders, this reduces both GC pressure
-# and the cost of every _peek() / heappush() / heappop() operation.
-# ---------------------------------------------------------------------------
+# __slots__ keeps this hot, high-frequency wrapper small and fast
+# (see docs-design/perf-notes.md).
 class _HeapEntry:
     """Wrapper so Order objects are never compared directly by heapq."""
 
@@ -77,17 +66,8 @@ class _HeapEntry:
         return self.key < other.key
 
 
-# ---------------------------------------------------------------------------
-# PERF improvement #7: __slots__ on OrderBook.
-#
-# OrderBook has ~15 instance attributes accessed on every order: _bids,
-# _asks, last_trade_price, _order_index, etc.  Without __slots__, each
-# self.xxx access goes through the instance __dict__ (hash table lookup).
-# With __slots__, access is a fixed-offset C-struct dereference — ~20-30%
-# faster per access.  In the sweep loop that accesses self._bids/self._asks
-# and in _apply_fill that writes self.last_trade_price, this compounds to
-# ~0.5-1µs saved per aggressive order.
-# ---------------------------------------------------------------------------
+# __slots__ speeds up the per-order attribute access on the hot path
+# (see docs-design/perf-notes.md).
 class OrderBook:
     __slots__ = (
         "symbol",
@@ -203,11 +183,9 @@ class OrderBook:
             to collect interest.  MARKET and FOK orders are rejected when
             match=False because they cannot rest.
         now : int | None
-            PERF #3: Pre-computed timestamp (time.time()) from the engine's
-            dispatch loop.  Passed through to Trade.create() and stop/trailing
-            stop conversion to avoid redundant time.time() syscalls.  Each
-            syscall costs ~0.3-0.5µs on macOS; an aggressive order that
-            triggers stops can save 2-4 calls = ~1-1.5µs.
+            Pre-computed timestamp from the engine's dispatch loop, threaded
+            through to Trade.create() and stop conversion so the whole batch
+            shares one clock read (see docs-design/perf-notes.md).
 
         Returns
         -------
@@ -218,7 +196,7 @@ class OrderBook:
         trades: list[Trade] = []
         events: list[Order] = []
 
-        # PERF #3: Compute timestamp once if caller didn't provide one.
+        # Compute the batch timestamp once if the caller did not provide one.
         if now is None:
             now = now_ns()
 
@@ -963,14 +941,8 @@ class OrderBook:
         now: int,
     ) -> None:
         """Generic price-time sweep for MARKET / LIMIT / FOK."""
-        # PERF improvement #8: Cache immutable aggressor attributes as locals.
-        #
-        # In CPython, local variable access is a LOAD_FAST bytecode (array
-        # index, ~30ns) vs. attribute access which is LOAD_ATTR (descriptor
-        # protocol, ~50-70ns with __slots__).  In a tight loop that may
-        # iterate 10+ times for a single aggressive order sweeping through
-        # multiple price levels, caching side/smp_action/gateway_id saves
-        # ~20-40ns per iteration × N levels = ~0.2-0.8µs per aggressive order.
+        # Cache immutable aggressor attributes / bound methods as locals for the
+        # tight sweep loop (see docs-design/perf-notes.md).
         _side = aggressor.side
         _smp_action = aggressor.smp_action
         _gw_id = aggressor.gateway_id
@@ -1083,9 +1055,8 @@ class OrderBook:
             if iceberg.remaining_qty > 0 and iceberg.displayed_qty == 0:
                 new_peak = min(iceberg.visible_qty or 0, iceberg.remaining_qty)
                 iceberg.displayed_qty = new_peak
-                # PERF #3: Use cached `now` instead of time.time() syscall for
-                # the new timestamp that sends the replenished slice to the back
-                # of the price-time queue.
+                # Reuse the cached batch timestamp for the replenished slice
+                # that re-queues to the back at the same price level.
                 iceberg.timestamp = now
 
     def _available_qty(
@@ -1140,8 +1111,8 @@ class OrderBook:
         # than always labelling the buyer as aggressor.
         aggressor_side = _AUCTION_AGGRESSOR if both_resting else aggressor.side.value
 
-        # PERF #3: Pass cached `now` to Trade.create() so it doesn't call
-        # time.time() again — saves one syscall per fill event (~0.3-0.5µs).
+        # Pass the cached batch timestamp to Trade.create() so it does not
+        # read the clock again (see docs-design/perf-notes.md).
         trade = Trade.create(
             symbol=self.symbol,
             buy_order_id=buy_order.id,
@@ -1203,8 +1174,7 @@ class OrderBook:
             if passive.remaining_qty > 0 and passive.displayed_qty == 0:
                 new_peak = min(passive.visible_qty or 0, passive.remaining_qty)
                 passive.displayed_qty = new_peak
-                # PERF #3: Reuse cached timestamp for iceberg replenishment
-                # instead of another time.time() syscall.
+                # Reuse the cached batch timestamp for iceberg replenishment.
                 passive.timestamp = now
                 # Deduct the consumed peak from the qty index BEFORE reinserting
                 # the fresh peak.  Without this call the index over-counts by
@@ -1358,7 +1328,7 @@ class OrderBook:
                 stop_order.price = None
             else:
                 stop_order.order_type = OrderType.LIMIT
-            # PERF #3: Reuse cached timestamp for triggered stop conversion.
+            # Reuse the cached batch timestamp.
             stop_order.timestamp = now
             self._order_index.pop(stop_order.id, None)
             # Remove from _entry_index; if the triggered order converts to MARKET
@@ -1388,7 +1358,7 @@ class OrderBook:
                 stop_order.price = None
             else:
                 stop_order.order_type = OrderType.LIMIT
-            # PERF #3: Reuse cached timestamp for triggered stop conversion.
+            # Reuse the cached batch timestamp.
             stop_order.timestamp = now
             self._order_index.pop(stop_order.id, None)
             self._entry_index.pop(stop_order.id, None)
@@ -1445,7 +1415,7 @@ class OrderBook:
                 if trade_price <= stop_price:
                     order.order_type = OrderType.MARKET
                     order.trail_offset = None
-                    # PERF #3: Reuse cached timestamp for trailing stop trigger.
+                    # Reuse the cached batch timestamp.
                     order.timestamp = now
                     self._order_index.pop(order.id, None)
                     triggered.append(order)
@@ -1460,7 +1430,7 @@ class OrderBook:
                 if trade_price >= stop_price:
                     order.order_type = OrderType.MARKET
                     order.trail_offset = None
-                    # PERF #3: Reuse cached timestamp for trailing stop trigger.
+                    # Reuse the cached batch timestamp.
                     order.timestamp = now
                     self._order_index.pop(order.id, None)
                     triggered.append(order)
