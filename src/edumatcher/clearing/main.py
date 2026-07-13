@@ -25,6 +25,7 @@ import signal
 import sys
 import threading
 import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
@@ -168,6 +169,16 @@ class ClearingProcess:
         self._ledger = Ledger()
         self._trade_count = 0
 
+        # Idempotency, decided ONCE for both the ledger and the archive
+        # (finding CL-M1).  A trade is keyed by (id, ts_ns) — the same key the
+        # archive dedups on — so a duplicate delivery (retransmit / replay) is
+        # dropped before it can double-count a position.  Bounded LRU of recent
+        # keys; the archive's UNIQUE(id, ts_ns) constraint is the durable
+        # backstop for anything evicted.
+        self._seen_keys: OrderedDict[tuple[str, int], None] = OrderedDict()
+        self._seen_cap = 200_000
+        self._dup_count = 0
+
         self._running = False
         self._lock = threading.RLock()
         self._last_flush_mono = time.monotonic()
@@ -310,10 +321,16 @@ class ClearingProcess:
                     continue
 
                 with self._lock:
-                    self._buffer.append(trade)
+                    # Count every observed trade message (used for progress /
+                    # print cadence), then dedup before buffering so a replay
+                    # is neither re-applied to the ledger nor re-archived.
                     self._trade_count += 1
-                    if len(self._buffer) >= self._flush_size:
-                        self._flush()
+                    if self._is_duplicate(trade):
+                        self._dup_count += 1
+                    else:
+                        self._buffer.append(trade)
+                        if len(self._buffer) >= self._flush_size:
+                            self._flush()
 
                 if self._print_every > 0 and self._trade_count % self._print_every == 0:
                     self._print_pnl_table()
@@ -348,6 +365,21 @@ class ClearingProcess:
     # ------------------------------------------------------------------
     # Flush (must be called with self._lock held)
     # ------------------------------------------------------------------
+
+    def _is_duplicate(self, trade: Trade) -> bool:
+        """
+        Return True if this (id, ts_ns) has already been seen (must be called
+        with ``self._lock`` held).  First sightings are recorded in a bounded
+        LRU; the oldest key is evicted once the cap is reached.
+        """
+        key = (trade.id, trade.timestamp)
+        if key in self._seen_keys:
+            self._seen_keys.move_to_end(key)
+            return True
+        self._seen_keys[key] = None
+        if len(self._seen_keys) > self._seen_cap:
+            self._seen_keys.popitem(last=False)
+        return False
 
     def _flush(self) -> int:
         """Flush the buffer to SQLite. Returns the number of trades written."""
