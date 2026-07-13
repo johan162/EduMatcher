@@ -69,7 +69,7 @@ class ClearingUnderTest:
 
     process: ClearingProcess
     db_path: Path
-    _pub: zmq.Socket  # type: ignore[type-arg]
+    _pub: zmq.Socket[Any]
     _thread: threading.Thread
     _sent_trades: int = 0
     _extra_conns: list[sqlite3.Connection] = field(default_factory=list)
@@ -162,7 +162,7 @@ def start_clearing(
 ) -> ClearingUnderTest:
     """Bind a PUB socket and run a real ClearingProcess against it."""
     addr = f"inproc://clearing-test-{uuid.uuid4().hex}"
-    ctx = zmq.Context.instance()  # same context the bus module uses
+    ctx: zmq.Context[Any] = zmq.Context.instance()  # same context the bus module uses
     pub = ctx.socket(zmq.PUB)
     pub.bind(addr)
 

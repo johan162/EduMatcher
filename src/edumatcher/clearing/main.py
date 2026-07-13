@@ -21,6 +21,7 @@ the count of deleted rows.
 from __future__ import annotations
 
 import errno
+import json
 import signal
 import sys
 import threading
@@ -179,6 +180,16 @@ class ClearingProcess:
         self._seen_cap = 200_000
         self._dup_count = 0
 
+        # Gap detection (finding CL-H1).  trade.executed carries no sequence
+        # number, but the engine's trade id is a per-run monotonic counter, so
+        # a forward jump in it means the lossy PUB/SUB transport dropped one or
+        # more trades.  We can't recover them without a replay feed, but we can
+        # raise a durable, queryable alarm instead of silently carrying a wrong
+        # position.  Reset (not alarmed) on a backward move — that is an engine
+        # restart, not a gap.
+        self._last_seq: int | None = None
+        self._gap_count = 0
+
         self._running = False
         self._lock = threading.RLock()
         self._last_flush_mono = time.monotonic()
@@ -328,6 +339,7 @@ class ClearingProcess:
                     if self._is_duplicate(trade):
                         self._dup_count += 1
                     else:
+                        self._check_sequence_gap(trade)
                         self._buffer.append(trade)
                         if len(self._buffer) >= self._flush_size:
                             self._flush()
@@ -380,6 +392,52 @@ class ClearingProcess:
         if len(self._seen_keys) > self._seen_cap:
             self._seen_keys.popitem(last=False)
         return False
+
+    def _check_sequence_gap(self, trade: Trade) -> None:
+        """
+        Detect a dropped-trade gap from the engine's monotonic trade id and
+        record a durable ``GAP`` alarm in ``session_events`` (must be called
+        with ``self._lock`` held).
+
+        Non-numeric ids (e.g. a future UUID scheme) disable sequencing rather
+        than false-alarm.  A backward move resets the tracker without alarming —
+        that is an engine restart (counter reset), not a transport gap.
+        """
+        try:
+            seq = int(trade.id)
+        except (TypeError, ValueError):
+            self._last_seq = None
+            return
+
+        last = self._last_seq
+        if last is not None and seq > last + 1:
+            missing = seq - last - 1
+            self._gap_count += 1
+            try:
+                record_session_event(
+                    self._conn,
+                    event_type="GAP",
+                    ts_ns=trade.timestamp,
+                    trade_date=trade_date_utc(trade.timestamp),
+                    payload_json=json.dumps(
+                        {
+                            "last_seq": last,
+                            "next_seq": seq,
+                            "missing_trades": missing,
+                        }
+                    ),
+                )
+                console.print(
+                    f"[CLEARING] WARNING: trade feed gap — {missing} trade(s)"
+                    f" missing between id {last} and {seq}.",
+                    style="yellow",
+                )
+            except Exception as exc:
+                console.print(
+                    f"[CLEARING] WARNING: failed to record feed gap: {exc}",
+                    style="yellow",
+                )
+        self._last_seq = seq
 
     def _flush(self) -> int:
         """Flush the buffer to SQLite. Returns the number of trades written."""
@@ -436,8 +494,6 @@ class ClearingProcess:
            can report exact session close times.
         """
         try:
-            import json
-
             ts_ns = now_ns()
             trade_date = trade_date_utc(ts_ns)
 
