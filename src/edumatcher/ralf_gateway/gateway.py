@@ -69,7 +69,11 @@ class RalfGateway:
     def __init__(self, config: RalfGatewayConfig) -> None:
         self.config = config
         self._running = False
+        # Internal watermark used by tests/polling loops to detect that at
+        # least one event has been emitted.
         self._next_seq = 1
+        # Wire-level SEQ is maintained independently per channel.
+        self._next_seq_by_channel: dict[str, int] = {ch: 1 for ch in _ALLOWED_CHANNELS}
         self._journal: deque[JournalEvent] = deque()
         self._clients: dict[int, ClientSession] = {}
         self._server: socket.socket | None = None
@@ -347,7 +351,7 @@ class RalfGateway:
             {
                 "CH": ",".join(channels),
                 "SYM": ",".join(symbols),
-                "SEQ": str(self._next_seq - 1),
+                "SEQ": str(self._latest_seq_for_channels(channels)),
                 "TS": iso_utc(time.time()),
             },
         )
@@ -368,8 +372,19 @@ class RalfGateway:
     def _replay_from(self, sess: ClientSession, last_seq: int) -> None:
         if not self._journal:
             return
-        oldest = self._journal[0].seq
-        if last_seq < oldest - 1:
+
+        entitled_channels = self._entitled_channels(sess)
+        if not entitled_channels:
+            return
+
+        oldest_by_channel: dict[str, int] = {}
+        for evt in self._journal:
+            if evt.channel not in entitled_channels:
+                continue
+            if evt.channel not in oldest_by_channel:
+                oldest_by_channel[evt.channel] = evt.seq
+
+        if any(last_seq < oldest - 1 for oldest in oldest_by_channel.values()):
             self._queue_line(
                 sess,
                 "ERR",
@@ -379,23 +394,19 @@ class RalfGateway:
                 sess,
                 "SNAP",
                 {
-                    "CH": "CLEARING",
+                    "CH": ",".join(sorted(entitled_channels)),
                     "SYM": "*",
-                    "SEQ": str(self._next_seq - 1),
+                    "SEQ": str(self._latest_seq_for_channels(list(entitled_channels))),
                     "TS": iso_utc(time.time()),
                 },
             )
             return
 
         for evt in self._journal:
+            if evt.channel not in entitled_channels:
+                continue
             if evt.seq > last_seq:
-                # Enforce the same role-entitlement matrix that _handle_sub uses:
-                # a session may only receive events on its own channel, except
-                # AUDIT which is entitled to all channels.  Subscription state is
-                # not checked here because SUB commands arrive after HELLO and
-                # replay must still filter by entitlement alone.
-                if evt.channel == sess.role or sess.role == "AUDIT":
-                    self._queue_raw(sess, evt.line)
+                self._queue_raw(sess, evt.line)
 
     # ------------------------------------------------------------------
     # Engine event mapping
@@ -477,7 +488,8 @@ class RalfGateway:
         channel: str,
         symbol: str,
     ) -> None:
-        seq = self._next_seq
+        seq = self._next_seq_by_channel.get(channel, 1)
+        self._next_seq_by_channel[channel] = seq + 1
         self._next_seq += 1
 
         merged = dict(fields)
@@ -497,6 +509,19 @@ class RalfGateway:
                 continue
             if self._session_wants(sess, channel, symbol):
                 self._queue_raw(sess, line)
+
+    def _entitled_channels(self, sess: ClientSession) -> set[str]:
+        if sess.role == "AUDIT":
+            return set(_ALLOWED_CHANNELS)
+        if sess.role in _ALLOWED_CHANNELS:
+            return {sess.role}
+        return set()
+
+    def _latest_seq_for_channels(self, channels: list[str]) -> int:
+        latest = 0
+        for ch in channels:
+            latest = max(latest, self._next_seq_by_channel.get(ch, 1) - 1)
+        return latest
 
     def _session_wants(self, sess: ClientSession, channel: str, symbol: str) -> bool:
         for ch, sym in sess.subscriptions:

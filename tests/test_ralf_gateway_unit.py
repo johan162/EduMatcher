@@ -112,6 +112,7 @@ def test_parse_error_branch(unit_gateway: RalfGateway) -> None:
 def test_replay_miss_emits_err_and_snap(unit_gateway: RalfGateway) -> None:
     sess, peer = _make_session()
     sess.authenticated = True
+    sess.role = "CLEARING"
     unit_gateway._journal.append(
         JournalEvent(
             seq=100,
@@ -191,7 +192,7 @@ def test_replay_filters_by_role_entitlement(unit_gateway: RalfGateway) -> None:
     sess.authenticated = True
     sess.role = "CLEARING"
 
-    for seq, ch in ((1, "CLEARING"), (2, "DROP_COPY"), (3, "AUDIT")):
+    for seq, ch in ((1, "CLEARING"), (1, "DROP_COPY"), (1, "AUDIT")):
         unit_gateway._journal.append(
             JournalEvent(
                 seq=seq,
@@ -216,7 +217,7 @@ def test_replay_audit_role_receives_all_channels(unit_gateway: RalfGateway) -> N
     sess.authenticated = True
     sess.role = "AUDIT"
 
-    for seq, ch in ((1, "CLEARING"), (2, "DROP_COPY"), (3, "AUDIT")):
+    for seq, ch in ((1, "CLEARING"), (1, "DROP_COPY"), (1, "AUDIT")):
         unit_gateway._journal.append(
             JournalEvent(
                 seq=seq,
@@ -233,6 +234,72 @@ def test_replay_audit_role_receives_all_channels(unit_gateway: RalfGateway) -> N
     channels = [f.fields["CH"] for f in replayed]
     assert set(channels) == {"CLEARING", "DROP_COPY", "AUDIT"}
     peer.close()
+
+
+def test_emit_event_uses_per_channel_seq(unit_gateway: RalfGateway) -> None:
+    unit_gateway._emit_event(
+        "EXEC",
+        {
+            "CH": "CLEARING",
+            "SYM": "AAPL",
+            "TS": "2026-01-01T00:00:00Z",
+            "EXEC_ID": "1",
+            "MATCH_ID": "1",
+            "BUY_ORDER_ID": "B1",
+            "SELL_ORDER_ID": "S1",
+            "BUY_GW": "GW1",
+            "SELL_GW": "GW2",
+            "SIDE": "BUY",
+            "QTY": "10",
+            "PX": "1.23",
+        },
+        channel="CLEARING",
+        symbol="AAPL",
+    )
+    unit_gateway._emit_event(
+        "EXEC",
+        {
+            "CH": "DROP_COPY",
+            "SYM": "AAPL",
+            "TS": "2026-01-01T00:00:01Z",
+            "EXEC_ID": "2",
+            "MATCH_ID": "2",
+            "BUY_ORDER_ID": "B2",
+            "SELL_ORDER_ID": "S2",
+            "BUY_GW": "GW1",
+            "SELL_GW": "GW2",
+            "SIDE": "SELL",
+            "QTY": "20",
+            "PX": "2.34",
+        },
+        channel="DROP_COPY",
+        symbol="AAPL",
+    )
+    unit_gateway._emit_event(
+        "EXEC",
+        {
+            "CH": "CLEARING",
+            "SYM": "AAPL",
+            "TS": "2026-01-01T00:00:02Z",
+            "EXEC_ID": "3",
+            "MATCH_ID": "3",
+            "BUY_ORDER_ID": "B3",
+            "SELL_ORDER_ID": "S3",
+            "BUY_GW": "GW1",
+            "SELL_GW": "GW2",
+            "SIDE": "BUY",
+            "QTY": "30",
+            "PX": "3.45",
+        },
+        channel="CLEARING",
+        symbol="AAPL",
+    )
+
+    seqs = [
+        parse_line(evt.line.decode("utf-8")).fields["SEQ"]
+        for evt in unit_gateway._journal
+    ]
+    assert seqs == ["1", "1", "2"]
 
 
 def test_drop_idle_clients_marks_for_close(unit_gateway: RalfGateway) -> None:

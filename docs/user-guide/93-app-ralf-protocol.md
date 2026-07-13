@@ -62,7 +62,7 @@ MSGTYPE|KEY=VALUE|KEY=VALUE|...\n
 |-----|---------|
 | `CH` | Channel: `CLEARING`, `DROP_COPY`, or `AUDIT` |
 | `SYM` | Symbol filter (control) or event symbol (data); `*` = all |
-| `SEQ` | Global monotonic message sequence (see §8) |
+| `SEQ` | Channel-local monotonic message sequence (see §8) |
 | `TS` | UTC ISO-8601 timestamp with milliseconds and `Z` suffix |
 
 ## 5. Message catalog
@@ -122,9 +122,9 @@ A missing/empty `CH` → `ERR|CODE=INVALID_CHANNEL`; an unknown channel →
 ### `SNAP` (gateway → client)
 
 Baseline emitted after a `SUB` and on replay-miss recovery. Carries `CH` (the
-subscribed channels, comma-joined), `SYM`, `SEQ` (the current global high-water
-sequence), and `TS`. RALF `SNAP` carries **no book/position state** — it is a
-sequence baseline only: store its `SEQ` as the starting point for gap tracking.
+subscribed channels, comma-joined), `SYM`, `SEQ` (the highest current sequence over
+the `CH` set in that `SNAP`), and `TS`. RALF `SNAP` carries **no book/position
+state** — it is a sequence baseline only.
 
 ### `EXEC` (gateway → client)
 
@@ -178,29 +178,30 @@ Only roles listed in `post_trade_gateway.allowed_roles` may authenticate.
 
 ## 8. Sequencing & recovery
 
-`SEQ` is a **single global monotonic counter** for the gateway, incremented once per
-**emitted line**. Because a trade is emitted once per channel (§6), consecutive
-`SEQ` values span channels.
+`SEQ` is maintained **per channel** (`CLEARING`, `DROP_COPY`, `AUDIT`).
 
-!!! warning "⚠ Known deviation — SEQ is not contiguous within one channel"
-    A client subscribed to a single channel receives a **non-contiguous** `SEQ`
-    stream (values increase but skip the sequence numbers spent on other channels'
-    copies). A naive "gap when `received_seq != last_seq + 1`" check will therefore
-    **false-positive**. Clients SHOULD treat `SEQ` as strictly increasing but not
-    dense. (A per-`(channel)` sequence would remove this; tracked as a suspected
-    implementation issue.)
+- Within one channel, `SEQ` is strictly increasing by 1 per emitted line.
+- Across different channels, `SEQ` values are independent and are not globally
+  ordered or globally unique.
+- Clients MUST do gap detection and ordering **within a given `CH` stream**, not
+  across mixed channels.
+
+`LASTSEQ` in `HELLO` is a single integer checkpoint. The gateway applies that same
+threshold to each entitled channel independently and replays events where
+`event.SEQ > LASTSEQ` for that event's channel.
 
 **Replay.** If `HELLO` carries `LASTSEQ`, the gateway attempts to resend journalled
-events with `SEQ > LASTSEQ`. If `LASTSEQ` predates the retained journal window
-(`replay_retention_sec`), the gateway emits `ERR|CODE=REPLAY_MISS` followed by a
-`SNAP` baseline; the client MUST reset to that baseline.
+events with `SEQ > LASTSEQ` (per channel, as above) and only for channels the role
+is entitled to receive (§7). If `LASTSEQ` predates the retained journal window for
+any entitled channel (`replay_retention_sec`), the gateway emits
+`ERR|CODE=REPLAY_MISS` followed by a `SNAP` baseline; the client MUST reset to that
+baseline.
 
-!!! warning "⚠ Known deviation — replay is not entitlement/subscription filtered"
-    The current replay path resends the **entire** journal for `SEQ > LASTSEQ`,
-    regardless of the reconnecting client's role or subscriptions. A `CLEARING`
-    client can thus receive `DROP_COPY`/`AUDIT` event lines on reconnect. Treat this
-    as a known issue; a conforming gateway SHOULD filter replay by the session's
-    entitlement and subscriptions exactly as live delivery does.
+!!! warning "⚠ Known deviation — replay is entitlement-filtered but not subscription-filtered"
+    Replay happens during `HELLO`, before any `SUB` is processed, so replay cannot
+    apply symbol/channel subscription state from the current connection. The current
+    gateway filters replay by role entitlement (§7), but does **not** filter by
+    subscriptions.
 
 ## 9. Liveness & timeouts
 
@@ -255,9 +256,10 @@ A conforming `RALF1` implementation:
 - MUST send `HELLO`/`WELCOME` before any data; MUST reject pre-auth data with
   `AUTH_REQUIRED`.
 - MUST enforce the §7 entitlement matrix on `SUB` (live path).
+- MUST apply per-channel `SEQ` semantics from §8 (no global `SEQ` stream).
 - MUST advertise `REPLAY`/`HBINT` in `WELCOME` matching its configuration.
-- treats `SEQ` as strictly increasing (see the §8 deviations for the contiguity and
-  replay-filtering caveats a production revision should close).
+- SHOULD treat replay as role-entitled but pre-`SUB` (therefore not
+  subscription-filtered) on reconnect.
 
 Future revisions may add `CORRECT`, `BUST`, `ALLOC`, and `SETTLE` event families as
 the corresponding engine events become available; they are **not** part of `RALF1`.
