@@ -36,7 +36,7 @@ correct source to follow.
 
 
 
-## Scope and boundaries
+## Scope & conformance
 
 ALF is the **text command language accepted by `pm-alf-console`**. It is not the
 internal engine wire format. The gateway converts ALF commands into the engine's
@@ -51,7 +51,7 @@ This appendix describes the **ALF side**, not the internal message bus.
 
 
 
-## Core syntax rules
+## Wire format
 
 ### Line structure
 

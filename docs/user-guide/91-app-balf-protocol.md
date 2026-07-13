@@ -38,7 +38,7 @@ bot, or GUI wants to speak BALF, this document is the correct source to follow.
 
 
 
-## Scope and boundaries
+## Scope & conformance
 
 BALF is the **binary client protocol accepted by `pm-balf-gwy`**. The gateway
 translates BALF frames into the engine's internal ZeroMQ + JSON messages.
@@ -67,7 +67,7 @@ This appendix describes the BALF side, not the internal message bus.
 
 
 
-## Core wire rules
+## Wire format
 
 ### Connection model
 
@@ -210,7 +210,7 @@ BALF uses a compact `u64` session-scoped order ID on the wire.
 
 
 
-## Message reference
+## Message definitions
 
 ### Summary table
 

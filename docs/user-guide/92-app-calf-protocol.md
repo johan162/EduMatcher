@@ -29,7 +29,7 @@ This appendix is the **normative reference** for CALF `1.0.0` semantics.
 
 
 
-## Scope and boundaries
+## Scope & conformance
 
 CALF is the external market-data protocol exposed by `pm-md-gwy`. The gateway
 subscribes to internal engine PUB topics and translates them into CALF lines
@@ -89,7 +89,7 @@ If no `HELLO` is received within 5 seconds, the gateway closes the socket.
 
 
 
-## Core syntax rules
+## Wire format
 
 ### Line structure
 
@@ -197,68 +197,6 @@ SUB|CH=STATE|SYM=*
 SUB|CH=TRADE|SYM=*
 SUB|CH=TOP,TRADE,STATE|SYM=*
 SUB|CH=DEPTH|SYM=AAPL
-```
-
-
-
-## Sequence and recovery semantics
-
-### Stream identity
-
-Sequence numbers are maintained per `(CH, SYM)` stream.
-
-Examples:
-
-- `(TOP, AAPL)` has its own counter
-- `(TRADE, AAPL)` has a different counter
-- `(STATE, *)` and `(STATE, AAPL)` are distinct counters
-
-### Sequence rules
-
-- Start value is `1` for each stream.
-- Increment by `1` per emitted message in that stream.
-- Sequence appears in `SNAP`, `MD`, `TRADE`, and `STATE`.
-- A client-detected gap means one or more missed messages.
-
-### First connect behavior
-
-On first subscribe to a `TOP` or `STATE` stream:
-
-1. Gateway sends `SNAP` with current stream `SEQ`.
-2. Client stores `last_seq[(CH,SYM)] = SNAP.SEQ`.
-3. Next incremental event for that stream must be `SEQ + 1`.
-
-### Reconnect behavior (`RESUME=1`)
-
-`RESUME=1` applies to one stream per `HELLO`.
-
-- Client supplies `CH`, `SYM`, and `LASTSEQ`.
-- `CH` and `SYM` must each contain exactly one value when `RESUME=1`.
-- `LASTSEQ` must be a positive base-10 integer.
-- If missing events are inside replay window, gateway replays in order then
-  continues live.
-- If missing range is outside window, gateway sends `ERR|CODE=REPLAY_MISS`
-  followed by a fresh `SNAP`.
-
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant G as pm-md-gwy
-
-    Note over C,G: Last seen on (TOP,AAPL): SEQ=1042
-    C->>G: HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
-    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
-
-    alt Replay hit
-        G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=1043|...
-        G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=1044|...
-        G-->>C: ...
-        G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=1050|...
-        G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=1051|... (live)
-    else Replay miss
-        G-->>C: ERR|CODE=REPLAY_MISS|CH=TOP|SYM=AAPL
-        G-->>C: SNAP|CH=TOP|SYM=AAPL|SEQ=1105|...
-    end
 ```
 
 
@@ -666,6 +604,68 @@ Requests clean disconnect.
 
 ```text
 EXIT
+```
+
+
+
+## Sequence and recovery semantics
+
+### Stream identity
+
+Sequence numbers are maintained per `(CH, SYM)` stream.
+
+Examples:
+
+- `(TOP, AAPL)` has its own counter
+- `(TRADE, AAPL)` has a different counter
+- `(STATE, *)` and `(STATE, AAPL)` are distinct counters
+
+### Sequence rules
+
+- Start value is `1` for each stream.
+- Increment by `1` per emitted message in that stream.
+- Sequence appears in `SNAP`, `MD`, `TRADE`, and `STATE`.
+- A client-detected gap means one or more missed messages.
+
+### First connect behavior
+
+On first subscribe to a `TOP` or `STATE` stream:
+
+1. Gateway sends `SNAP` with current stream `SEQ`.
+2. Client stores `last_seq[(CH,SYM)] = SNAP.SEQ`.
+3. Next incremental event for that stream must be `SEQ + 1`.
+
+### Reconnect behavior (`RESUME=1`)
+
+`RESUME=1` applies to one stream per `HELLO`.
+
+- Client supplies `CH`, `SYM`, and `LASTSEQ`.
+- `CH` and `SYM` must each contain exactly one value when `RESUME=1`.
+- `LASTSEQ` must be a positive base-10 integer.
+- If missing events are inside replay window, gateway replays in order then
+  continues live.
+- If missing range is outside window, gateway sends `ERR|CODE=REPLAY_MISS`
+  followed by a fresh `SNAP`.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant G as pm-md-gwy
+
+    Note over C,G: Last seen on (TOP,AAPL): SEQ=1042
+    C->>G: HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
+    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30
+
+    alt Replay hit
+        G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=1043|...
+        G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=1044|...
+        G-->>C: ...
+        G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=1050|...
+        G-->>C: MD|CH=TOP|SYM=AAPL|SEQ=1051|... (live)
+    else Replay miss
+        G-->>C: ERR|CODE=REPLAY_MISS|CH=TOP|SYM=AAPL
+        G-->>C: SNAP|CH=TOP|SYM=AAPL|SEQ=1105|...
+    end
 ```
 
 
