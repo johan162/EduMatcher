@@ -321,6 +321,16 @@ def _build_parser() -> argparse.ArgumentParser:
     rec.add_argument("--symbol", metavar="SYMBOL")
     rec.add_argument("--from", dest="from_date", metavar="YYYY-MM-DD")
     rec.add_argument("--to", dest="to_date", metavar="YYYY-MM-DD")
+    rec.add_argument(
+        "--retention-days",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Ignore dates older than N days (match pm-clearing --retention-days)"
+            " so pruned-raw days are not reported as false positives"
+        ),
+    )
 
     # sessions
     ses = sub.add_parser(
@@ -600,6 +610,7 @@ def _run_query(
         symbol=_upper(getattr(args, "symbol", None)),
         from_date=args.from_date,
         to_date=args.to_date,
+        retention_days=getattr(args, "retention_days", None),
     )
     if not rows:
         print("OK — no discrepancies found.")

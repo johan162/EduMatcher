@@ -1176,6 +1176,7 @@ def query_reconcile(
     symbol: str | None = None,
     from_date: str | None = None,
     to_date: str | None = None,
+    retention_days: int | None = None,
 ) -> list[dict[str, Any]]:
     """
     Compare raw trade_events totals against gateway_daily_summary aggregates
@@ -1270,34 +1271,55 @@ def query_reconcile(
       SELECT * FROM summary_buy
       UNION ALL
       SELECT * FROM summary_sell
+    ),
+    -- Full set of (side, date, gateway, symbol) keys present on EITHER side.
+    -- Driving the comparison from raw_all alone (a LEFT JOIN) made keys that
+    -- exist ONLY in the summaries invisible — precisely the total-raw-loss
+    -- shape CL-C1 produces for a whole day (finding CL-H4).  The UNION anchor
+    -- makes it a full outer comparison so a summary-only key surfaces too.
+    keys AS (
+      SELECT side, trade_date, gateway_id, symbol FROM raw_all
+      UNION
+      SELECT side, trade_date, gateway_id, symbol FROM summary_all
     )
     SELECT
-      r.side,
-      r.trade_date,
-      r.gateway_id,
-      r.symbol,
-      r.raw_qty,
-      COALESCE(s.summary_qty, 0)       AS summary_qty,
-      (r.raw_qty - COALESCE(s.summary_qty, 0)) AS qty_diff,
-      r.raw_notional,
-      COALESCE(s.summary_notional, 0)  AS summary_notional,
-      ROUND(
-        r.raw_notional - COALESCE(s.summary_notional, 0),
-        8
-      ) AS notional_diff
-    FROM raw_all r
+      k.side,
+      k.trade_date,
+      k.gateway_id,
+      k.symbol,
+      COALESCE(r.raw_qty, 0)          AS raw_qty,
+      COALESCE(s.summary_qty, 0)      AS summary_qty,
+      (COALESCE(r.raw_qty, 0) - COALESCE(s.summary_qty, 0))          AS qty_diff,
+      COALESCE(r.raw_notional, 0)     AS raw_notional,
+      COALESCE(s.summary_notional, 0) AS summary_notional,
+      -- qty and notional are both INTEGER ticks, so an exact difference is the
+      -- right test (no float epsilon needed).
+      (COALESCE(r.raw_notional, 0) - COALESCE(s.summary_notional, 0))
+                                      AS notional_diff
+    FROM keys k
+    LEFT JOIN raw_all r
+      ON  r.side       = k.side
+      AND r.trade_date = k.trade_date
+      AND r.gateway_id = k.gateway_id
+      AND r.symbol     = k.symbol
     LEFT JOIN summary_all s
-      ON  s.side       = r.side
-      AND s.trade_date = r.trade_date
-      AND s.gateway_id = r.gateway_id
-      AND s.symbol     = r.symbol
-    WHERE ABS(r.raw_qty - COALESCE(s.summary_qty, 0)) > 0
-       -- Notional values are stored as REAL after dividing by tick scale, so
-       -- floating-point rounding can produce sub-cent differences.  0.0001 is
-       -- well below any meaningful tick increment (minimum tick = 0.01) while
-       -- still catching genuine mismatches.
-       OR ABS(r.raw_notional - COALESCE(s.summary_notional, 0)) > 0.0001
-    ORDER BY r.trade_date ASC, r.side ASC, r.gateway_id ASC, r.symbol ASC
+      ON  s.side       = k.side
+      AND s.trade_date = k.trade_date
+      AND s.gateway_id = k.gateway_id
+      AND s.symbol     = k.symbol
+    WHERE (
+        ABS(COALESCE(r.raw_qty, 0) - COALESCE(s.summary_qty, 0)) > 0
+        OR ABS(COALESCE(r.raw_notional, 0) - COALESCE(s.summary_notional, 0)) > 0
+      )
+      -- Optional retention guard: once raw rows are pruned (prune_old_events
+      -- keeps summaries) a two-sided compare would flag every pruned day as a
+      -- false positive.  When the CLI passes its retention window, exclude
+      -- dates older than it.  NULL = no guard (used by direct callers/tests).
+      AND (
+        :retention_days IS NULL
+        OR k.trade_date >= date('now', '-' || :retention_days || ' days')
+      )
+    ORDER BY k.trade_date ASC, k.side ASC, k.gateway_id ASC, k.symbol ASC
     """
     rows = conn.execute(
         sql,
@@ -1306,6 +1328,7 @@ def query_reconcile(
             "to_date": to_date,
             "gateway": gateway,
             "symbol": symbol,
+            "retention_days": retention_days,
         },
     ).fetchall()
     return [dict(r) for r in rows]
