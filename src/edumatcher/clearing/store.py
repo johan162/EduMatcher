@@ -125,24 +125,56 @@ CREATE INDEX IF NOT EXISTS ix_gds_gateway_date
 CREATE INDEX IF NOT EXISTS ix_gds_symbol_date
   ON gateway_daily_summary(symbol, trade_date);
 
-CREATE VIEW IF NOT EXISTS gateway_pnl_totals AS
+-- P&L / notional are stored in tick units, and one tick is a different amount
+-- of currency per symbol (100 ticks = $1.00 at 2 decimals but $0.01 at 4).
+-- Summing raw ticks across symbols with different tick_decimals is meaningless
+-- (finding CL-H2), and these totals views expose no tick_decimals column for
+-- the CLI to normalize with — so normalize to display currency *inside* the
+-- view, per row, before aggregating.  Quantities (net_qty, traded_qty) are
+-- share counts, not tick-scaled, so they are summed raw.  DROP+CREATE (rather
+-- than IF NOT EXISTS) keeps the definition current on pre-existing databases.
+DROP VIEW IF EXISTS gateway_pnl_totals;
+CREATE VIEW gateway_pnl_totals AS
 SELECT
   gateway_id,
-  SUM(realized_pnl)                     AS realized_pnl_total,
-  SUM(unrealized_pnl)                   AS unrealized_pnl_total,
-  SUM(realized_pnl + unrealized_pnl)    AS total_pnl,
-  SUM(net_qty)                          AS net_qty_total
-FROM gateway_symbol_positions
+  SUM(realized_pnl / scale)                    AS realized_pnl_total,
+  SUM(unrealized_pnl / scale)                  AS unrealized_pnl_total,
+  SUM((realized_pnl + unrealized_pnl) / scale) AS total_pnl,
+  SUM(net_qty)                                 AS net_qty_total
+FROM (
+  SELECT
+    gateway_id, net_qty, realized_pnl, unrealized_pnl,
+    CASE tick_decimals
+      WHEN 0 THEN 1.0        WHEN 1 THEN 10.0
+      WHEN 2 THEN 100.0      WHEN 3 THEN 1000.0
+      WHEN 4 THEN 10000.0    WHEN 5 THEN 100000.0
+      WHEN 6 THEN 1000000.0  WHEN 7 THEN 10000000.0
+      WHEN 8 THEN 100000000.0 ELSE 100.0
+    END AS scale
+  FROM gateway_symbol_positions
+)
 GROUP BY gateway_id;
 
-CREATE VIEW IF NOT EXISTS daily_exchange_totals AS
+DROP VIEW IF EXISTS daily_exchange_totals;
+CREATE VIEW daily_exchange_totals AS
 SELECT
   trade_date,
-  SUM(traded_qty)       AS traded_qty_total,
-  SUM(traded_notional)  AS traded_notional_total,
-  SUM(net_amount)       AS net_amount_total,
-  SUM(realized_pnl)     AS realized_pnl_total
-FROM gateway_daily_summary
+  SUM(traded_qty)               AS traded_qty_total,
+  SUM(traded_notional / scale)  AS traded_notional_total,
+  SUM(net_amount / scale)       AS net_amount_total,
+  SUM(realized_pnl / scale)     AS realized_pnl_total
+FROM (
+  SELECT
+    trade_date, traded_qty, traded_notional, net_amount, realized_pnl,
+    CASE tick_decimals
+      WHEN 0 THEN 1.0        WHEN 1 THEN 10.0
+      WHEN 2 THEN 100.0      WHEN 3 THEN 1000.0
+      WHEN 4 THEN 10000.0    WHEN 5 THEN 100000.0
+      WHEN 6 THEN 1000000.0  WHEN 7 THEN 10000000.0
+      WHEN 8 THEN 100000000.0 ELSE 100.0
+    END AS scale
+  FROM gateway_daily_summary
+)
 GROUP BY trade_date;
 
 CREATE TABLE IF NOT EXISTS session_events (
