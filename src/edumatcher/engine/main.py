@@ -18,6 +18,7 @@ Shutdown (SIGINT / Ctrl-C):
 from __future__ import annotations
 
 import argparse
+import logging
 import signal
 import sys
 import time
@@ -119,6 +120,11 @@ from edumatcher.models.trade import Trade
 # Kept for backward compatibility (e.g. tests that reference it).  The hot path
 # uses the monotonic now_ns() for event timestamps (M9), not this raw source.
 _time_ns = time.time_ns
+
+# L2: operational logging goes through the logging module (not log.info()).  The
+# process entry point (main()) configures the handler/level; the library itself
+# installs no handlers.
+log = logging.getLogger("edumatcher.engine")
 
 # PERF B: Module-level pre-encoded topic constant for trade messages.
 # Avoids re-encoding the same static string on every trade publication.
@@ -241,13 +247,13 @@ class Engine:
                 if self._sessions_enabled:
                     # Start CLOSED and wait for scheduler transitions.
                     self._session_state = SessionState.CLOSED
-                print(
+                log.info(
                     f"[ENGINE] Loaded config from {path}  "
                     f"({len(self._allowed_symbols)} symbol(s): "
                     f"{', '.join(sorted(self._allowed_symbols))}; "
                     f"{len(self._allowed_fix_gateways)} gateway id(s))"
                 )
-                print(
+                log.info(
                     "[ENGINE] Session handling: "
                     + (
                         "enabled (startup state: CLOSED)"
@@ -255,22 +261,23 @@ class Engine:
                         else "disabled"
                     )
                 )
-                print(
+                log.info(
                     "[ENGINE] Risk enforcement: "
                     f"collars={'on' if self._enforce_collars else 'off'}, "
                     f"circuit_breakers={'on' if self._enforce_circuit_breakers else 'off'}"
                 )
             except (FileNotFoundError, PermissionError) as exc:
-                print(
-                    f"[ENGINE] WARNING: Config file {path} could not be read — "
-                    f"running without symbol restrictions. ({exc})",
-                    file=sys.stderr,
+                log.warning(
+                    "[ENGINE] Config file %s could not be read — "
+                    "running without symbol restrictions. (%s)",
+                    path,
+                    exc,
                 )
             except Exception as exc:
-                print(f"[ENGINE] FATAL: Invalid config {path}: {exc}", file=sys.stderr)
+                log.error("[ENGINE] FATAL: Invalid config %s: %s", path, exc)
                 sys.exit(1)
         else:
-            print(
+            log.info(
                 f"[ENGINE] No config file at {path} — running without symbol restrictions."
             )
 
@@ -278,10 +285,10 @@ class Engine:
             self.pull_sock = make_puller(ENGINE_PULL_ADDR)
             self.pub_sock = make_publisher(ENGINE_PUB_ADDR)
         except zmq.ZMQError as exc:
-            print(
-                f"[ENGINE] FATAL: Cannot bind sockets — {exc}\n"
-                f"         Is another engine instance already running?",
-                file=sys.stderr,
+            log.error(
+                "[ENGINE] FATAL: Cannot bind sockets — %s\n"
+                "         Is another engine instance already running?",
+                exc,
             )
             sys.exit(1)
 
@@ -388,7 +395,7 @@ class Engine:
             )
             book.restore_stats(lbp, lsp)
         if stats:
-            print(f"[ENGINE] Restored book statistics for {len(stats)} symbol(s).")
+            log.info(f"[ENGINE] Restored book statistics for {len(stats)} symbol(s).")
 
         n_mm_quotes = 0
         for sym, sym_cfg in self._engine_config.symbols.items():
@@ -397,7 +404,7 @@ class Engine:
                 # entry, meaning it has been started at least once before.
                 if quote_seed.seed_once and sym in stats:
                     if self.verbose:
-                        print(
+                        log.info(
                             f"[ENGINE] Skipping seed quote for {sym} "
                             f"(seed_once=true, symbol has prior history)"
                         )
@@ -500,7 +507,7 @@ class Engine:
                 self._mark_dirty(sym)
                 n_mm_quotes += 1
                 if self.verbose:
-                    print(
+                    log.info(
                         f"[ENGINE] MM quote {quote_id} {sym} "
                         f"bid={quote_seed.bid_price}x{quote_seed.bid_qty} "
                         f"ask={quote_seed.ask_price}x{quote_seed.ask_qty} "
@@ -520,7 +527,7 @@ class Engine:
                 n_mm_combos += 1
 
         if n_mm_quotes or n_mm_combos:
-            print(
+            log.info(
                 f"[ENGINE] Injected {n_mm_quotes} market-maker quote(s) "
                 f"and {n_mm_combos} combo(s)."
             )
@@ -587,7 +594,7 @@ class Engine:
             # Skip GTC orders for symbols no longer in config
             if self._allowed_symbols and order.symbol not in self._allowed_symbols:
                 if self.verbose:
-                    print(
+                    log.info(
                         f"[ENGINE] Skipping GTC order {order.id[:8]} for removed symbol {order.symbol}"
                     )
                 continue
@@ -603,16 +610,16 @@ class Engine:
             try:
                 book.process(order, match=False)
             except Exception as exc:
-                print(
+                log.info(
                     f"[ENGINE] Skipping GTC order {order.id[:8]} ({order.symbol}) "
                     f"— restore failed: {exc}"
                 )
                 continue
             self._order_symbol[order.id] = order.symbol
             if self.verbose:
-                print(f"[ENGINE] Restored GTC order {order.id} ({order.symbol})")
+                log.info(f"[ENGINE] Restored GTC order {order.id} ({order.symbol})")
         if orders:
-            print(
+            log.info(
                 f"[ENGINE] Restored {len(orders)} GTC order(s) from previous session."
             )
             # M3: restore rests orders without matching, so two crossed GTC
@@ -631,7 +638,7 @@ class Engine:
             for child_id in combo.child_order_ids:
                 self._order_to_combo[child_id] = combo.id
         if combos:
-            print(
+            log.info(
                 f"[ENGINE] Restored {len(combos)} GTC combo(s) from previous session."
             )
 
@@ -695,7 +702,7 @@ class Engine:
                     )
                 )
                 if self.verbose:
-                    print(f"[ENGINE] REJECTED {order.id[:8]} — {reason}")
+                    log.info(f"[ENGINE] REJECTED {order.id[:8]} — {reason}")
                 return
 
         # Symbol allowlist check
@@ -709,7 +716,7 @@ class Engine:
                 )
             )
             if self.verbose:
-                print(
+                log.info(
                     f"[ENGINE] REJECTED {order.id[:8]} — symbol not configured: {order.symbol}"
                 )
             return
@@ -730,7 +737,7 @@ class Engine:
                 )
             )
             if self.verbose:
-                print(f"[ENGINE] REJECTED {order.id[:8]} — {validation_error}")
+                log.info(f"[ENGINE] REJECTED {order.id[:8]} — {validation_error}")
             return
 
         # Session state gating
@@ -831,7 +838,7 @@ class Engine:
             return
 
         if self.verbose:
-            print(
+            log.info(
                 f"[ENGINE] NEW {order.id[:8]} {order.symbol} {order.side.value} "
                 f"{order.order_type.value} qty={order.quantity} price={order.price}"
             )
@@ -1077,12 +1084,12 @@ class Engine:
                 # H7: cancelled order is terminal — drop its routing entry.
                 self._order_symbol.pop(evt.id, None)
                 if self.verbose:
-                    print(f"[ENGINE] CANCEL {evt.id[:8]} ({evt.gateway_id})")
+                    log.info(f"[ENGINE] CANCEL {evt.id[:8]} ({evt.gateway_id})")
 
         # Publish trades — _publish_trade updates both position ledgers (H3).
         for trade in trades:
             if self.verbose:
-                print(
+                log.info(
                     f"[ENGINE] TRADE {trade.id[:8]} {trade.symbol} "
                     f"qty={trade.quantity} @{trade.price}"
                 )
@@ -1334,7 +1341,7 @@ class Engine:
                 )
             )
             if self.verbose:
-                print(f"[ENGINE] REFUSED gateway connect: {gateway_id}")
+                log.info(f"[ENGINE] REFUSED gateway connect: {gateway_id}")
             return
 
         cfg = (
@@ -1358,9 +1365,9 @@ class Engine:
         if self.verbose:
             desc = self._gateway_descriptions.get(gateway_id, "")
             if desc:
-                print(f"[ENGINE] Gateway connected: {gateway_id} — {desc}")
+                log.info(f"[ENGINE] Gateway connected: {gateway_id} — {desc}")
             else:
-                print(f"[ENGINE] Gateway connected: {gateway_id}")
+                log.info(f"[ENGINE] Gateway connected: {gateway_id}")
 
     def _handle_book_snapshot_request(self, payload: dict[str, Any]) -> None:
         symbol = payload.get("symbol", "").upper()
@@ -1601,7 +1608,7 @@ class Engine:
             )
         )
         self._mark_dirty(symbol)
-        print(
+        log.info(
             f"[ENGINE] CIRCUIT BREAKER HALT {symbol}: "
             f"level={cb.triggered_level} "
             f"trigger={cb.trigger_price}, ref={cb.reference_price} ticks"
@@ -1634,7 +1641,7 @@ class Engine:
                 )
             )
             self._mark_dirty(symbol)
-            print(f"[ENGINE] CIRCUIT BREAKER RESUME {symbol}")
+            log.info(f"[ENGINE] CIRCUIT BREAKER RESUME {symbol}")
 
     def _on_quote_leg_filled(self, order: Order) -> None:
         if not order.quote_id:
@@ -2132,7 +2139,7 @@ class Engine:
             )
         )
         if halted_symbols:
-            print(
+            log.info(
                 f"[ENGINE] ADMIN CIRCUIT BREAKER RESUME ALL — "
                 f"{len(halted_symbols)} symbol(s): {', '.join(halted_symbols)}"
             )
@@ -2217,7 +2224,7 @@ class Engine:
                 cancelled_quotes=cancelled_quotes,
             )
         )
-        print(f"[ENGINE] ADMIN SYMBOL HALT — {symbol} by {gateway_id}")
+        log.info(f"[ENGINE] ADMIN SYMBOL HALT — {symbol} by {gateway_id}")
 
     def _handle_symbol_resume(self, payload: dict[str, Any]) -> None:
         """Resume a single symbol that was halted by a per-symbol or global halt (ADMIN only)."""
@@ -2274,7 +2281,7 @@ class Engine:
         self.pub_sock.send_multipart(
             make_symbol_resume_ack_msg(gateway_id, symbol, True)
         )
-        print(f"[ENGINE] ADMIN SYMBOL RESUME — {symbol} by {gateway_id}")
+        log.info(f"[ENGINE] ADMIN SYMBOL RESUME — {symbol} by {gateway_id}")
 
     def _handle_cancel_symbol(self, payload: dict[str, Any]) -> None:
         """Cancel all resting orders for a symbol across every gateway (ADMIN only)."""
@@ -2329,7 +2336,7 @@ class Engine:
                 cancelled_quotes=cancelled_quotes,
             )
         )
-        print(
+        log.info(
             f"[ENGINE] ADMIN CANCEL SYMBOL — {symbol} by {gateway_id}:"
             f" orders={cancelled_orders} quotes={cancelled_quotes}"
         )
@@ -2378,7 +2385,7 @@ class Engine:
             return False
 
         if self.verbose:
-            print(
+            log.info(
                 f"[ENGINE] COMBO {combo.combo_id} accepted "
                 f"({len(combo.legs)} legs) from {combo.gateway_id}"
             )
@@ -2608,7 +2615,7 @@ class Engine:
                 )
             )
             if self.verbose:
-                print(f"[ENGINE] COMBO {combo.combo_id} MATCHED (all legs filled)")
+                log.info(f"[ENGINE] COMBO {combo.combo_id} MATCHED (all legs filled)")
             return
 
         # Check if at least one leg has partial or full fill
@@ -2654,7 +2661,7 @@ class Engine:
             )
         )
         if self.verbose:
-            print(
+            log.info(
                 f"[ENGINE] COMBO {combo.combo_id} {terminal_status.value}"
                 + (f" — {reason}" if reason else "")
             )
@@ -2671,7 +2678,7 @@ class Engine:
         try:
             to_state = SessionState(payload["to_state"])
         except (KeyError, ValueError) as exc:
-            print(f"[ENGINE] Invalid session transition: {exc}", file=sys.stderr)
+            log.warning("[ENGINE] Invalid session transition: %s", exc)
             return
 
         from_state = self._session_state
@@ -2679,10 +2686,11 @@ class Engine:
         # Validate transition
         allowed = VALID_TRANSITIONS.get(from_state, set())
         if to_state not in allowed:
-            print(
-                f"[ENGINE] Invalid transition {from_state.value} → {to_state.value} "
-                f"(allowed: {', '.join(s.value for s in allowed)})",
-                file=sys.stderr,
+            log.warning(
+                "[ENGINE] Invalid transition %s → %s (allowed: %s)",
+                from_state.value,
+                to_state.value,
+                ", ".join(s.value for s in allowed),
             )
             return
 
@@ -2724,7 +2732,7 @@ class Engine:
         self.pub_sock.send_multipart(
             make_session_state_msg(to_state.value, prev_state=from_state.value)
         )
-        print(f"[ENGINE] Session: {from_state.value} → {to_state.value}")
+        log.info(f"[ENGINE] Session: {from_state.value} → {to_state.value}")
 
     def _expire_tif(self, tif: TIF) -> None:
         """Expire all resting orders with the given TIF."""
@@ -2828,14 +2836,14 @@ class Engine:
                         self._publish_trade(sub_trade)  # updates positions (H3)
 
                 if self.verbose:
-                    print(
+                    log.info(
                         f"[ENGINE] UNCROSS {symbol}: {len(trades)} trade(s) "
                         f"@ {result.eq_price}, qty={result.eq_qty}, "
                         f"surplus={result.surplus} ({result.imbalance_side})"
                     )
             else:
                 if self.verbose:
-                    print(f"[ENGINE] UNCROSS {symbol}: no crossable interest")
+                    log.info(f"[ENGINE] UNCROSS {symbol}: no crossable interest")
 
             self.pub_sock.send_multipart(
                 make_auction_result_msg(
@@ -3110,7 +3118,9 @@ class Engine:
             self._check_oco_after_event(evt)
 
         if self.verbose:
-            print(f"[ENGINE] OCO {oco_id}: legs {leg1.id[:8]} and {leg2.id[:8]} posted")
+            log.info(
+                f"[ENGINE] OCO {oco_id}: legs {leg1.id[:8]} and {leg2.id[:8]} posted"
+            )
 
     def _handle_oco_cancel(self, payload: dict[str, Any]) -> None:
         """Cancel an OCO pair and both its legs."""
@@ -3147,7 +3157,7 @@ class Engine:
         self._oco_groups.pop(oco_id, None)
 
         if self.verbose:
-            print(f"[ENGINE] OCO {oco_id} cancelled by {gateway_id}")
+            log.info(f"[ENGINE] OCO {oco_id} cancelled by {gateway_id}")
 
     def _check_oco_after_event(self, order: Order) -> None:
         """
@@ -3184,7 +3194,7 @@ class Engine:
         self._oco_groups.pop(oco_id, None)
 
         if self.verbose:
-            print(
+            log.info(
                 f"[ENGINE] OCO {oco_id}: sibling cancelled after {order.id[:8]} {order.status.value}"
             )
 
@@ -3228,7 +3238,7 @@ class Engine:
             )
             self._mark_dirty(cancelled.symbol)
             if self.verbose:
-                print(f"[ENGINE] CANCELLED {order_id[:8]}")
+                log.info(f"[ENGINE] CANCELLED {order_id[:8]}")
             # If this was a combo child, cascade-cancel the parent combo
             if cancelled.combo_parent_id:
                 self._check_combo_after_child_event(cancelled)
@@ -3375,7 +3385,7 @@ class Engine:
         self._mark_dirty(amended.symbol)
         if self.verbose:
             prio_str = " (priority reset)" if priority_reset else " (priority kept)"
-            print(
+            log.info(
                 f"[ENGINE] AMENDED {order_id[:8]} price={amended.price} "
                 f"qty={amended.quantity}{prio_str}"
             )
@@ -3474,7 +3484,7 @@ class Engine:
     # ------------------------------------------------------------------
 
     def _shutdown(self) -> None:
-        print("\n[ENGINE] Shutting down …")
+        log.info("\n[ENGINE] Shutting down …")
         self._running = False
 
         all_resting: list[Order] = []
@@ -3499,7 +3509,7 @@ class Engine:
                         self._check_combo_after_child_event(order)
 
         save_gtc_orders(all_resting, GTC_ORDERS_FILE)
-        print(f"[ENGINE] Saved {len(all_resting)} GTC order(s) to {GTC_ORDERS_FILE}")
+        log.info(f"[ENGINE] Saved {len(all_resting)} GTC order(s) to {GTC_ORDERS_FILE}")
 
         # Persist resting GTC combos
         save_gtc_combos(list(self._combos.values()), GTC_COMBOS_FILE)
@@ -3510,10 +3520,10 @@ class Engine:
             and c.status in (ComboStatus.PENDING, ComboStatus.PARTIALLY_MATCHED)
         )
         if n_combos:
-            print(f"[ENGINE] Saved {n_combos} GTC combo(s) to {GTC_COMBOS_FILE}")
+            log.info(f"[ENGINE] Saved {n_combos} GTC combo(s) to {GTC_COMBOS_FILE}")
 
         save_book_stats(self.books, BOOK_STATS_FILE)
-        print(
+        log.info(
             f"[ENGINE] Saved book statistics for {len(self.books)} symbol(s) to {BOOK_STATS_FILE}"
         )
 
@@ -3538,19 +3548,18 @@ class Engine:
         # that call handlers directly never attempt to bind ZMQ port 5557.
         try:
             self._drop_copy = DropCopyPublisher(zmq.Context.instance())
-            print("[ENGINE] Drop copy PUB bound on port 5557")
+            log.info("[ENGINE] Drop copy PUB bound on port 5557")
         except zmq.ZMQError as exc:
-            print(
-                f"[ENGINE] WARNING: Drop copy unavailable — {exc}",
-                file=sys.stderr,
-            )
+            log.warning("[ENGINE] Drop copy unavailable — %s", exc)
 
         self._running = True
 
         poller = zmq.Poller()
         poller.register(self.pull_sock, zmq.POLLIN)
 
-        print(f"[ENGINE] Listening on PULL={ENGINE_PULL_ADDR}  PUB={ENGINE_PUB_ADDR}")
+        log.info(
+            f"[ENGINE] Listening on PULL={ENGINE_PULL_ADDR}  PUB={ENGINE_PUB_ADDR}"
+        )
 
         # Signal handlers only set the stop flag.  Calling _shutdown() directly
         # from a signal handler is unsafe: the handler can interrupt mid-message
@@ -3626,10 +3635,11 @@ class Engine:
                         self._handle_position_request(payload)
                 except Exception as exc:
                     self._error_count += 1
-                    print(
-                        f"[ENGINE] Error processing {topic} "
-                        f"(#{self._error_count}): {exc}",
-                        file=sys.stderr,
+                    log.error(
+                        "[ENGINE] Error processing %s (#%d): %s",
+                        topic,
+                        self._error_count,
+                        exc,
                     )
             # Throttled snapshot publish — runs every poll tick (max 200ms)
             self._flush_snapshots()
@@ -3655,6 +3665,14 @@ def main() -> None:
         help="Engine config YAML (default: engine_config.yaml)",
     )
     args = parser.parse_args()
+    # Configure logging at the process entry point (not at import).  Message-only
+    # format on stdout preserves the operator-facing output that print() gave;
+    # --verbose lowers the level to DEBUG.
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(message)s",
+        stream=sys.stdout,
+    )
     Engine(verbose=args.verbose, config_path=args.config).run()
 
 

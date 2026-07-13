@@ -4,6 +4,7 @@ Tests for messaging/bus.py, engine _shutdown, and remaining engine gaps.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
@@ -305,7 +306,8 @@ class TestOCOStopLimitValidation:
 
 
 class TestVerboseCombo:
-    def test_verbose_combo_accepted_logs(self, monkeypatch, tmp_path, capsys) -> None:
+    def test_verbose_combo_accepted_logs(self, monkeypatch, tmp_path, caplog) -> None:
+        caplog.set_level(logging.DEBUG, logger="edumatcher.engine")
         engine, pub_sock = _make_engine(
             monkeypatch, tmp_path, symbols=("AAPL", "MSFT"), verbose=True
         )
@@ -333,10 +335,10 @@ class TestVerboseCombo:
             ],
         )
         engine._handle_combo_order(combo.to_dict())
-        out = capsys.readouterr().out
-        assert "COMBO" in out
+        assert "COMBO" in caplog.text
 
-    def test_verbose_cascade_cancel_logs(self, monkeypatch, tmp_path, capsys) -> None:
+    def test_verbose_cascade_cancel_logs(self, monkeypatch, tmp_path, caplog) -> None:
+        caplog.set_level(logging.DEBUG, logger="edumatcher.engine")
         engine, pub_sock = _make_engine(
             monkeypatch, tmp_path, symbols=("AAPL", "MSFT"), verbose=True
         )
@@ -364,10 +366,9 @@ class TestVerboseCombo:
             ],
         )
         engine._handle_combo_order(combo.to_dict())
-        capsys.readouterr()  # clear
+        caplog.clear()
         engine._handle_combo_cancel({"gateway_id": "GW01", "combo_id": "VC02"})
-        out = capsys.readouterr().out
-        assert "CANCELLED" in out or "COMBO" in out
+        assert "CANCELLED" in caplog.text or "COMBO" in caplog.text
 
 
 # ---------------------------------------------------------------------------
@@ -376,7 +377,8 @@ class TestVerboseCombo:
 
 
 class TestVerboseOCO:
-    def test_verbose_oco_accepted_logs(self, monkeypatch, tmp_path, capsys) -> None:
+    def test_verbose_oco_accepted_logs(self, monkeypatch, tmp_path, caplog) -> None:
+        caplog.set_level(logging.DEBUG, logger="edumatcher.engine")
         engine, pub_sock = _make_engine(monkeypatch, tmp_path, verbose=True)
         _connect(engine)
         engine._handle_oco_order(
@@ -390,10 +392,10 @@ class TestVerboseOCO:
                 "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 105.0},
             }
         )
-        out = capsys.readouterr().out
-        assert "OCO" in out
+        assert "OCO" in caplog.text
 
-    def test_verbose_oco_cancel_logs(self, monkeypatch, tmp_path, capsys) -> None:
+    def test_verbose_oco_cancel_logs(self, monkeypatch, tmp_path, caplog) -> None:
+        caplog.set_level(logging.DEBUG, logger="edumatcher.engine")
         engine, pub_sock = _make_engine(monkeypatch, tmp_path, verbose=True)
         _connect(engine)
         engine._handle_oco_order(
@@ -407,10 +409,9 @@ class TestVerboseOCO:
                 "leg2": {"side": "BUY", "order_type": "STOP", "stop_price": 105.0},
             }
         )
-        capsys.readouterr()
+        caplog.clear()
         engine._handle_oco_cancel({"gateway_id": "GW01", "oco_id": "VO02"})
-        out = capsys.readouterr().out
-        assert "OCO" in out
+        assert "OCO" in caplog.text
 
 
 # ---------------------------------------------------------------------------
