@@ -18,6 +18,7 @@ from edumatcher.cverifier.helpers import (
     symbol_cfg_by_upper_name,
 )
 from edumatcher.cverifier.models import CheckResult, Severity
+from edumatcher.models.session import VALID_TRANSITIONS, SessionState
 
 _TIME_FIELDS = (
     "pre_open",
@@ -26,6 +27,17 @@ _TIME_FIELDS = (
     "closing_auction_start",
     "closing_auction_end",
 )
+
+# Schedule field -> the session state it transitions the engine into. Mirrors
+# edumatcher.scheduler.main._load_schedule's mapping, so the chain check below
+# validates the same path the scheduler will actually drive at runtime.
+_FIELD_TO_STATE: dict[str, SessionState] = {
+    "pre_open": SessionState.PRE_OPEN,
+    "opening_auction_start": SessionState.OPENING_AUCTION,
+    "continuous_start": SessionState.CONTINUOUS,
+    "closing_auction_start": SessionState.CLOSING_AUCTION,
+    "closing_auction_end": SessionState.CLOSED,
+}
 
 
 def check(raw: dict[str, Any], path: Path) -> list[CheckResult]:  # noqa: ARG001
@@ -252,9 +264,17 @@ def _check_sessions_schedule(raw: dict[str, Any], results: list[CheckResult]) ->
             )
         )
 
-    # M006: schedule times out of order
     if isinstance(schedule, dict):
+        # M021/M023: values must be quoted "HH:MM" strings, not unquoted
+        # times that YAML mis-parses as sexagesimal integers.
+        _check_schedule_value_types(schedule, results)
+        # M006: schedule times out of order
         _check_schedule_order(schedule, results)
+        if sessions_enabled:
+            # M024: schedule must define every phase
+            _check_schedule_completeness(schedule, results)
+            # M025: present phases must form a legal transition chain from CLOSED
+            _check_schedule_chain(schedule, results)
 
 
 def _parse_hhmm(t: Any) -> int | None:
@@ -300,6 +320,135 @@ def _check_schedule_order(schedule: dict[str, Any], results: list[CheckResult]) 
                     path="schedule",
                 )
             )
+
+
+def _check_schedule_value_types(
+    schedule: dict[str, Any], results: list[CheckResult]
+) -> None:
+    """Flag schedule time values that are not valid quoted ``"HH:MM"`` strings.
+
+    PyYAML (YAML 1.1) parses an unquoted ``09:30`` as the base-60 integer 570
+    (sexagesimal), not the string ``"09:30"``. That value silently fails
+    string-based time parsing downstream, so flag it explicitly instead of
+    letting it disappear from ordering/chain checks with no diagnostic.
+    """
+    for field in _TIME_FIELDS:
+        if field not in schedule:
+            continue
+        val = schedule[field]
+        if val is None:
+            continue
+        if isinstance(val, str):
+            if _parse_hhmm(val) is None:
+                results.append(
+                    CheckResult(
+                        code="M023",
+                        severity=Severity.ERROR,
+                        message=(
+                            f"'schedule.{field}' value '{val}' is not a valid "
+                            '24-hour "HH:MM" time.'
+                        ),
+                        suggestion=(
+                            f"Use a zero-padded 24-hour time, e.g. {field}: '09:30'."
+                        ),
+                        path=f"schedule.{field}",
+                    )
+                )
+            continue
+
+        if isinstance(val, int) and not isinstance(val, bool) and 0 <= val < 24 * 60:
+            suggestion = (
+                f"Quote the value, e.g. {field}: '{val // 60:02d}:{val % 60:02d}'."
+            )
+            detail = (
+                f"'schedule.{field}' is {val!r} — an unquoted time that YAML parsed "
+                "as a base-60 integer (sexagesimal) instead of a string."
+            )
+        else:
+            suggestion = f"Set {field} to a quoted 24-hour time, e.g. '09:30'."
+            detail = (
+                f"'schedule.{field}' must be a quoted \"HH:MM\" string. Got {val!r}."
+            )
+
+        results.append(
+            CheckResult(
+                code="M021",
+                severity=Severity.ERROR,
+                message=detail,
+                suggestion=suggestion,
+                path=f"schedule.{field}",
+            )
+        )
+
+
+def _check_schedule_completeness(
+    schedule: dict[str, Any], results: list[CheckResult]
+) -> None:
+    """M024: sessions_enabled requires all five schedule phases to be set.
+
+    A partial schedule sends the engine an out-of-sequence transition (e.g.
+    ``CONTINUOUS`` first), which it rejects since session transitions are
+    sequential and dependent.
+    """
+    missing = [f for f in _TIME_FIELDS if schedule.get(f) is None]
+    if missing:
+        results.append(
+            CheckResult(
+                code="M024",
+                severity=Severity.ERROR,
+                message=(
+                    "sessions_enabled is true but 'schedule' is missing: "
+                    f"{', '.join(missing)}. Engine session transitions are "
+                    "sequential, so a partial schedule will be rejected at "
+                    "runtime once it reaches the missing phase."
+                ),
+                suggestion=(
+                    "Add the missing schedule field(s), or set "
+                    "sessions_enabled: false if partial scheduling is intended."
+                ),
+                path="schedule",
+            )
+        )
+
+
+def _check_schedule_chain(schedule: dict[str, Any], results: list[CheckResult]) -> None:
+    """M025: present schedule phases must form a legal path through
+    ``VALID_TRANSITIONS``, starting from the engine's boot state (CLOSED).
+
+    Mirrors ``edumatcher.scheduler.main._validate_schedule`` so a schedule
+    that would desync the engine is caught statically, not just at scheduler
+    runtime.
+    """
+    prev_state = SessionState.CLOSED
+    for field in _TIME_FIELDS:
+        val = schedule.get(field)
+        if not isinstance(val, str) or _parse_hhmm(val) is None:
+            # Not a well-formed entry; already reported by
+            # _check_schedule_value_types. Skip it here so one bad value
+            # doesn't cascade into spurious chain errors.
+            continue
+        state = _FIELD_TO_STATE[field]
+        if state not in VALID_TRANSITIONS.get(prev_state, set()):
+            results.append(
+                CheckResult(
+                    code="M025",
+                    severity=Severity.ERROR,
+                    message=(
+                        f"Schedule transition {prev_state.value} -> {state.value} "
+                        f"(schedule.{field}) is not a legal transition. The engine "
+                        "will reject it and remain in its current state."
+                    ),
+                    suggestion=(
+                        "A schedule must be a valid path through the session "
+                        "lifecycle starting from CLOSED: CLOSED -> PRE_OPEN -> "
+                        "OPENING_AUCTION -> CONTINUOUS -> CLOSING_AUCTION -> "
+                        f"CLOSED. Add the missing intermediate phase, or remove "
+                        f"schedule.{field}."
+                    ),
+                    path=f"schedule.{field}",
+                )
+            )
+        prev_state = state
 
 
 # ---------------------------------------------------------------------------
