@@ -29,7 +29,7 @@ import itertools
 import random
 import sqlite3
 from contextlib import contextmanager
-from typing import Iterator
+from typing import Generator
 
 import pytest
 
@@ -62,7 +62,7 @@ def _cross(engine, *, buyer, seller, qty, price, symbol=SYMBOL) -> None:
 
 
 @contextmanager
-def _rw(db_path) -> Iterator[sqlite3.Connection]:
+def _rw(db_path) -> Generator[sqlite3.Connection, None, None]:
     """Read/write connection that is actually CLOSED on exit.
 
     NB: ``with sqlite3.connect(...)`` alone only manages the transaction —

@@ -37,7 +37,7 @@ import itertools
 import json
 import sqlite3
 from contextlib import contextmanager
-from typing import Iterator
+from typing import Generator
 
 from edumatcher.clearing.cli import _normalize_rows
 from edumatcher.clearing.store import (
@@ -91,7 +91,7 @@ def _new_engine(monkeypatch, tmp_path, run_name: str, **kw):
 
 
 @contextmanager
-def _rw(db_path) -> Iterator[sqlite3.Connection]:
+def _rw(db_path) -> Generator[sqlite3.Connection, None, None]:
     """Read/write connection that is actually CLOSED on exit.
 
     NB: ``with sqlite3.connect(...)`` alone only manages the transaction —
