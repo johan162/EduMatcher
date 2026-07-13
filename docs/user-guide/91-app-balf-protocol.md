@@ -349,6 +349,7 @@ Offset 27  |  reason           |  u8[25]  |  Rejection reason string (ASCII); ze
 | `0x06` | Unknown order type |
 | `0x07` | ICEBERG visible_qty >= quantity |
 | `0x08` | TRAILING_STOP - no prior trade price |
+| `0x0C` | Invalid field / gateway validation failure |
 | `0xFF` | Other (see `reason` field) |
 
 ### `CANCEL_ORDER` (0x12) - Client -> Server

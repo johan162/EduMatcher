@@ -46,6 +46,7 @@ from edumatcher.balf_gwy.codec import (
 )
 from edumatcher.balf_gwy.config import BalfGatewayConfig
 from edumatcher.balf_gwy.gateway import BalfGateway
+from edumatcher.balf_gwy.protocol import RC_INVALID_FIELD
 from edumatcher.models.message import encode
 
 # ---------------------------------------------------------------------------
@@ -876,6 +877,7 @@ def test_new_order_invalid_side_rejects(running_gateway: GatewayFixture) -> None
 
         body = bc.recv_until(MSG_ORDER_ACK, timeout=3.0)
         assert body[24] == 0  # accepted=false
+        assert body[25] == RC_INVALID_FIELD  # reject_code
         # Gateway must NOT have forwarded it to the engine
         with pytest.raises(TimeoutError):
             _drain_pull_until(pull, "order.new", timeout=0.3)

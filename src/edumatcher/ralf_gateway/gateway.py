@@ -465,7 +465,7 @@ class RalfGateway:
                 continue
             symbol = str(raw_book.get("symbol", "")).upper()
             exec_count = str(self._trade_counts.get(symbol, 0))
-            for channel in ("CLEARING", "AUDIT"):
+            for channel in ("CLEARING", "DROP_COPY", "AUDIT"):
                 self._emit_event(
                     "EOD",
                     {

@@ -406,6 +406,7 @@ When `ORDER_ACK.accepted = 0`, the `reject_code` byte classifies the rejection.
 | `0x09` | Trailing stop — no prior trade price and no explicit STOP= |
 | `0x0A` | Insufficient liquidity |
 | `0x0B` | Price collar rejection |
+| `0x0C` | Invalid field / gateway validation failure |
 | `0xFF` | Other — read the `reason` field for the engine detail text |
 
 The `reason` field (25 bytes, ASCII) always contains the authoritative engine
