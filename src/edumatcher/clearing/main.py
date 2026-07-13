@@ -45,6 +45,7 @@ from edumatcher.clearing.store import (
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.clock import now_ns  # used in _flush
 from edumatcher.models.message import decode
+from edumatcher.models.price import to_ticks
 from edumatcher.models.trade import Trade
 
 FLUSH_SIZE: int = 100
@@ -369,17 +370,34 @@ class ClearingProcess:
             trade_date = trade_date_utc(ts_ns)
 
             # Parse EOD marks before acquiring the lock.
+            #
+            # The engine sends ``book.snapshot()`` dicts (models/message.py
+            # make_eod_msg, engine/order_book.py snapshot): the keys are
+            # ``last_price`` (a DISPLAY float) and ``bids`` / ``asks`` (lists of
+            # {price, qty, count} with display-float prices) — NOT the old
+            # ``last_trade_price`` / ``best_bid`` / ``best_ask`` this handler used
+            # to look for (finding CL-C2, which left eod_marks permanently empty).
+            # Everything downstream stores marks in integer ticks, so convert at
+            # this ingress boundary via to_ticks (CL-M4: keeps mark and avg_cost
+            # in the same unit).
             eod_marks: dict[str, int] = {}
             books = payload.get("books") or []
             for book in books:
                 sym = book.get("symbol", "")
-                ltp = book.get("last_trade_price")
-                best_bid = book.get("best_bid")
-                best_ask = book.get("best_ask")
-                if sym and ltp is not None:
-                    eod_marks[sym] = int(ltp)
-                elif sym and best_bid is not None and best_ask is not None:
-                    eod_marks[sym] = (int(best_bid) + int(best_ask)) // 2
+                if not sym:
+                    continue
+                last_price = book.get("last_price")
+                bids = book.get("bids") or []
+                asks = book.get("asks") or []
+                if last_price is not None:
+                    eod_marks[sym] = to_ticks(last_price, sym)
+                elif bids and asks:
+                    best_bid = bids[0].get("price")
+                    best_ask = asks[0].get("price")
+                    if best_bid is not None and best_ask is not None:
+                        eod_marks[sym] = (
+                            to_ticks(best_bid, sym) + to_ticks(best_ask, sym)
+                        ) // 2
 
             with self._lock:
                 # 1. Flush all buffered trades first.

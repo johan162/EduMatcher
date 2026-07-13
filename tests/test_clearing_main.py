@@ -421,14 +421,14 @@ class TestHandleEod:
     def test_eod_writes_session_event(
         self, process: ClearingProcess, db_path: Path
     ) -> None:
-        """EOD handler with last_trade_price should write an EOD session_events row."""
+        """EOD handler with a book.snapshot() last_price writes an EOD row."""
         payload = {
             "books": [
                 {
                     "symbol": "AAPL",
-                    "last_trade_price": 15000,
-                    "best_bid": 14900,
-                    "best_ask": 15100,
+                    "last_price": 150.0,
+                    "bids": [{"price": 149.0, "qty": 10, "count": 1}],
+                    "asks": [{"price": 151.0, "qty": 10, "count": 1}],
                 }
             ]
         }
@@ -442,17 +442,27 @@ class TestHandleEod:
     def test_eod_uses_bid_ask_mid_when_no_last_trade(
         self, process: ClearingProcess, db_path: Path
     ) -> None:
-        """When last_trade_price is absent, mid = (bid+ask)//2 is used."""
+        """When last_price is absent, mid = (best_bid+best_ask)//2 in ticks."""
         import json
 
-        payload = {"books": [{"symbol": "MSFT", "best_bid": 4000, "best_ask": 4100}]}
+        # book.snapshot() carries display-float prices in bids[0]/asks[0]; the
+        # handler converts each to ticks (MSFT default 2 decimals) and averages.
+        payload = {
+            "books": [
+                {
+                    "symbol": "MSFT",
+                    "bids": [{"price": 40.0, "qty": 5, "count": 1}],
+                    "asks": [{"price": 41.0, "qty": 5, "count": 1}],
+                }
+            ]
+        }
         process._handle_eod(payload)
         conn = open_writer_connection(db_path)
         rows = query_session_events(conn, event_type="EOD")
         conn.close()
         assert len(rows) == 1
         data = json.loads(rows[0]["payload_json"])
-        # mid = (4000+4100)//2 = 4050
+        # mid = (4000+4100)//2 = 4050 ticks
         assert data["eod_marks"].get("MSFT") == 4050
 
     def test_eod_empty_books_still_writes_sentinel(
@@ -480,7 +490,8 @@ class TestHandleEod:
             ts_ns=1_000_000,
             ingest_ts_ns=1_000_001,
         )
-        process._handle_eod({"books": [{"symbol": "AAPL", "last_trade_price": 12000}]})
+        # book.snapshot() last_price is a display float; 120.0 → 12000 ticks.
+        process._handle_eod({"books": [{"symbol": "AAPL", "last_price": 120.0}]})
         pos = process._ledger.position("GW_BUY", "AAPL")
         assert pos is not None
         assert pos.mark_price == 12000

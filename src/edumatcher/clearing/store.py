@@ -43,14 +43,14 @@ PRAGMA temp_store = MEMORY;
 # ---------------------------------------------------------------------------
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS trade_events (
-  -- Surrogate key.  The engine's trade ``id`` is only unique *within a single
-  -- engine run* (models/trade.py uses a per-process counter that restarts from
-  -- 1 on every launch), so it is NOT safe as the archive's identity.  A run-2
-  -- trade "1" would otherwise collide with a run-1 trade "1" and be silently
-  -- dropped by INSERT OR IGNORE (finding CL-C1).  The real idempotency key is
-  -- (id, ts_ns): a genuine duplicate delivery repeats both, while a post-restart
-  -- id reuse carries a different timestamp and is preserved as a distinct row.
-  event_rowid      INTEGER PRIMARY KEY AUTOINCREMENT,
+  -- Composite identity (id, ts_ns).  The engine's trade ``id`` is only unique
+  -- *within a single engine run* (models/trade.py uses a per-process counter
+  -- that restarts from 1 on every launch), so ``id`` alone is NOT safe as the
+  -- archive's key.  A run-2 trade "1" would otherwise collide with a run-1
+  -- trade "1" and be silently dropped by INSERT OR IGNORE (finding CL-C1).
+  -- Keying on (id, ts_ns) means a genuine duplicate delivery repeats both and
+  -- is deduped, while a post-restart id reuse carries a different timestamp and
+  -- is preserved as a distinct row.
   id               TEXT    NOT NULL,
   ts_ns            INTEGER NOT NULL,
   trade_date       TEXT    NOT NULL,
@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS trade_events (
   sell_gateway_id  TEXT    NOT NULL,
   aggressor_side   TEXT,
   ingest_ts_ns     INTEGER NOT NULL,
-  UNIQUE (id, ts_ns)
+  PRIMARY KEY (id, ts_ns)
 );
 
 CREATE INDEX IF NOT EXISTS ix_trade_events_date
@@ -323,17 +323,21 @@ def _create_table_if_missing(
 
 def _migrate_trade_events_schema(conn: sqlite3.Connection) -> None:
     """
-    Migrate a legacy ``trade_events`` table (with ``id TEXT PRIMARY KEY``) to the
-    CL-C1 layout (surrogate ``event_rowid`` PK + ``UNIQUE (id, ts_ns)``).
+    Migrate a legacy ``trade_events`` table (single-column ``id TEXT PRIMARY
+    KEY``) to the CL-C1 layout (composite ``PRIMARY KEY (id, ts_ns)``).
 
-    Detection is by presence of the ``event_rowid`` column, so this is a no-op on
-    fresh databases (created directly from ``SCHEMA``) and on already-migrated
-    ones.  Rows are copied with ``INSERT OR IGNORE`` on the new unique key, which
-    is harmless for a well-formed legacy archive (its ids were already unique).
+    Detection is by primary-key composition: the legacy table has exactly one PK
+    column (``id``) while the new one has two (``id``, ``ts_ns``).  This is a
+    no-op on fresh databases (created directly from ``SCHEMA``) and on
+    already-migrated ones.  Rows are copied with ``INSERT OR IGNORE`` on the new
+    key, harmless for a well-formed legacy archive (its ids were already unique).
     """
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(trade_events)")}
-    if not cols or "event_rowid" in cols:
-        return  # fresh DB (SCHEMA built the new table) or already migrated
+    info = list(conn.execute("PRAGMA table_info(trade_events)"))
+    if not info:
+        return  # fresh DB — SCHEMA already built the new-layout table
+    pk_columns = {row[1] for row in info if row[5]}  # row[5] = pk position (>0)
+    if pk_columns == {"id", "ts_ns"}:
+        return  # already the composite-key layout
 
     with conn:
         conn.execute("ALTER TABLE trade_events RENAME TO _trade_events_legacy")
