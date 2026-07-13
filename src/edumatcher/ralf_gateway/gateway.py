@@ -389,7 +389,13 @@ class RalfGateway:
 
         for evt in self._journal:
             if evt.seq > last_seq:
-                self._queue_raw(sess, evt.line)
+                # Enforce the same role-entitlement matrix that _handle_sub uses:
+                # a session may only receive events on its own channel, except
+                # AUDIT which is entitled to all channels.  Subscription state is
+                # not checked here because SUB commands arrive after HELLO and
+                # replay must still filter by entitlement alone.
+                if evt.channel == sess.role or sess.role == "AUDIT":
+                    self._queue_raw(sess, evt.line)
 
     # ------------------------------------------------------------------
     # Engine event mapping

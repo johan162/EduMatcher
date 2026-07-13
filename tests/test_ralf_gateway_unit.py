@@ -185,6 +185,56 @@ def test_prune_journal(unit_gateway: RalfGateway) -> None:
     assert unit_gateway._journal[0].seq == 2
 
 
+def test_replay_filters_by_role_entitlement(unit_gateway: RalfGateway) -> None:
+    """A CLEARING-role session must not receive DROP_COPY or AUDIT events."""
+    sess, peer = _make_session()
+    sess.authenticated = True
+    sess.role = "CLEARING"
+
+    for seq, ch in ((1, "CLEARING"), (2, "DROP_COPY"), (3, "AUDIT")):
+        unit_gateway._journal.append(
+            JournalEvent(
+                seq=seq,
+                created_mono=time.monotonic(),
+                line=f"EXEC|CH={ch}|SYM=AAPL|SEQ={seq}\n".encode(),
+                channel=ch,
+                symbol="AAPL",
+            )
+        )
+
+    unit_gateway._replay_from(sess, last_seq=0)
+
+    replayed = [parse_line(m.decode()) for m in sess.out_queue]
+    channels = [f.fields["CH"] for f in replayed]
+    assert channels == ["CLEARING"]
+    peer.close()
+
+
+def test_replay_audit_role_receives_all_channels(unit_gateway: RalfGateway) -> None:
+    """An AUDIT-role session must receive events from all channels."""
+    sess, peer = _make_session()
+    sess.authenticated = True
+    sess.role = "AUDIT"
+
+    for seq, ch in ((1, "CLEARING"), (2, "DROP_COPY"), (3, "AUDIT")):
+        unit_gateway._journal.append(
+            JournalEvent(
+                seq=seq,
+                created_mono=time.monotonic(),
+                line=f"EXEC|CH={ch}|SYM=AAPL|SEQ={seq}\n".encode(),
+                channel=ch,
+                symbol="AAPL",
+            )
+        )
+
+    unit_gateway._replay_from(sess, last_seq=0)
+
+    replayed = [parse_line(m.decode()) for m in sess.out_queue]
+    channels = [f.fields["CH"] for f in replayed]
+    assert set(channels) == {"CLEARING", "DROP_COPY", "AUDIT"}
+    peer.close()
+
+
 def test_drop_idle_clients_marks_for_close(unit_gateway: RalfGateway) -> None:
     sess, peer = _make_session()
     sess.authenticated = True
