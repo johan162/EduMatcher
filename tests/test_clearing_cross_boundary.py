@@ -52,7 +52,9 @@ def _new_engine(monkeypatch, tmp_path, run_name: str, **kw):
 
 def _cross(engine, *, buyer, seller, qty, price, symbol=SYMBOL) -> None:
     engine._handle_new_order(
-        order_payload(Side.SELL, OrderType.LIMIT, qty, seller, price=price, symbol=symbol)
+        order_payload(
+            Side.SELL, OrderType.LIMIT, qty, seller, price=price, symbol=symbol
+        )
     )
     engine._handle_new_order(
         order_payload(Side.BUY, OrderType.LIMIT, qty, buyer, price=price, symbol=symbol)
@@ -149,8 +151,7 @@ class TestXB1ZeroSumConservation:
                 (SYMBOL,),
             ).fetchone()["q"]
             assert row["b"] == traded, (
-                f"XB1: ledger buy total {row['b']} != archived trade total "
-                f"{traded}"
+                f"XB1: ledger buy total {row['b']} != archived trade total " f"{traded}"
             )
         finally:
             cut.stop()
@@ -204,13 +205,13 @@ class TestXB2DuplicateDelivery:
 
 # (tick_decimals, price_ticks) — chosen to stress binary float representation.
 _NASTY_PRICES = [
-    (2, 15075),          # 150.75 — plain
-    (2, 1),              # 0.01 — smallest tick
-    (2, 9999999),        # 99999.99 — large
-    (4, 333333),         # 33.3333 — repeating decimal
-    (4, 501234),         # 50.1234
-    (8, 1),              # 0.00000001 — smallest representable tick
-    (8, 12345678901),    # 123.45678901 — many significant digits
+    (2, 15075),  # 150.75 — plain
+    (2, 1),  # 0.01 — smallest tick
+    (2, 9999999),  # 99999.99 — large
+    (4, 333333),  # 33.3333 — repeating decimal
+    (4, 501234),  # 50.1234
+    (8, 1),  # 0.00000001 — smallest representable tick
+    (8, 12345678901),  # 123.45678901 — many significant digits
 ]
 
 
@@ -275,9 +276,9 @@ class TestXB4EodResilience:
 
         cut = start_clearing(tmp_path / "clearing.db")
         try:
-            cut.publish_frames([make_eod_msg([])])           # empty day
-            cut.publish_frames([make_eod_msg([])])           # duplicate
-            cut.publish_frames([encode("system.eod", {})])   # books key absent
+            cut.publish_frames([make_eod_msg([])])  # empty day
+            cut.publish_frames([make_eod_msg([])])  # duplicate
+            cut.publish_frames([encode("system.eod", {})])  # books key absent
             cut.fence()
 
             # Clearing must still be alive and ingesting.
@@ -319,9 +320,7 @@ class TestXB5CrossSystemPositionAgreement:
         that fix consolidated position updates into _publish_trade.  Keep it
         as the permanent cross-system agreement guard — it fails again the
         moment any new flow forgets either tracker."""
-        engine, pub = _new_engine(
-            monkeypatch, tmp_path, "run1", mm_gateways=("GW01",)
-        )
+        engine, pub = _new_engine(monkeypatch, tmp_path, "run1", mm_gateways=("GW01",))
         engine._handle_new_order(
             order_payload(Side.SELL, OrderType.LIMIT, 100, "GW02", price=101.0)
         )
@@ -330,7 +329,7 @@ class TestXB5CrossSystemPositionAgreement:
                 "gateway_id": "GW01",
                 "symbol": SYMBOL,
                 "quote_id": "QXB5",
-                "bid_price": 101.0,   # crosses the resting ask → trade
+                "bid_price": 101.0,  # crosses the resting ask → trade
                 "ask_price": 102.0,
                 "bid_qty": 100,
                 "ask_qty": 100,
@@ -378,13 +377,13 @@ class TestXB6HostileFrames:
         cut = start_clearing(tmp_path / "clearing.db")
         try:
             raw = cut._pub  # deliberate: raw hostile bytes, bypassing helpers
-            raw.send_multipart([b"trade.executed"])                    # 1 frame only
-            raw.send_multipart([b"trade.executed", b"{not json"])     # broken JSON
-            raw.send_multipart([b"trade.executed", b"[1, 2, 3]"])     # wrong shape
+            raw.send_multipart([b"trade.executed"])  # 1 frame only
+            raw.send_multipart([b"trade.executed", b"{not json"])  # broken JSON
+            raw.send_multipart([b"trade.executed", b"[1, 2, 3]"])  # wrong shape
             raw.send_multipart(
                 [b"trade.executed", b'{"price": "NaN", "timestamp": null}']
-            )                                                          # missing fields
-            raw.send_multipart([b"system.eod", b"null"])              # null payload
+            )  # missing fields
+            raw.send_multipart([b"system.eod", b"null"])  # null payload
 
             # A valid, engine-built trade must still get through.
             _cross(engine, buyer="GW01", seller="GW02", qty=9, price=150.0)
@@ -393,9 +392,7 @@ class TestXB6HostileFrames:
             cut.flush()
 
             conn = cut.db()
-            row = conn.execute(
-                "SELECT quantity FROM trade_events"
-            ).fetchone()
+            row = conn.execute("SELECT quantity FROM trade_events").fetchone()
             assert row is not None and row["quantity"] == 9, (
                 "XB6: hostile frames on the feed prevented a subsequent "
                 "valid trade from being archived — the receive loop must "

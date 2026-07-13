@@ -71,6 +71,7 @@ from edumatcher.models.message import (
     make_expired_msg,
     make_fill_msg,
     make_gateway_auth_msg,
+    make_gateway_bye_msg,
     make_circuit_breaker_halt_all_ack_msg,
     make_circuit_breaker_resume_all_ack_msg,
     make_symbol_halt_ack_msg,
@@ -1931,6 +1932,13 @@ class Engine:
         session = self._session_for_gateway(gateway_id)
         session.connected = False
         self._connected_fix_gateways.discard(gateway_id)
+
+        # Republish the disconnect on the PUB feed as the lifecycle counterpart
+        # to system.gateway_auth.{id}, so PUB-only subscribers (e.g. clearing)
+        # can close the matching session.  Emitted before any behaviour-specific
+        # early return so it always fires.
+        reason = str(payload.get("reason", ""))
+        self.pub_sock.send_multipart(make_gateway_bye_msg(gateway_id, reason))
 
         if session.disconnect_behaviour == DisconnectBehaviour.LEAVE_ALL:
             return

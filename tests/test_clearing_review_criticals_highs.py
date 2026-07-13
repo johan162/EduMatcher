@@ -53,7 +53,6 @@ from edumatcher.models.order import OrderType, Side
 from tests.clearing_harness import PROBE_GW, start_clearing
 from tests.engine_harness import SYMBOL, connect, make_engine, order_payload
 
-
 # ---------------------------------------------------------------------------
 # Engine-flow helpers — all market activity goes through real Engine handlers.
 # ---------------------------------------------------------------------------
@@ -70,7 +69,9 @@ def _cross(
 ) -> None:
     """One guaranteed trade: seller rests, buyer lifts."""
     engine._handle_new_order(
-        order_payload(Side.SELL, OrderType.LIMIT, qty, seller, price=price, symbol=symbol)
+        order_payload(
+            Side.SELL, OrderType.LIMIT, qty, seller, price=price, symbol=symbol
+        )
     )
     engine._handle_new_order(
         order_payload(Side.BUY, OrderType.LIMIT, qty, buyer, price=price, symbol=symbol)
@@ -81,7 +82,11 @@ def _new_engine(monkeypatch, tmp_path, run_name: str, **kw):
     run_dir = tmp_path / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
     engine, pub = make_engine(monkeypatch, run_dir, **kw)
-    connect(engine)
+    # Connect the gateways this engine was actually configured with (default
+    # GW01/GW02/GW03) — not a hardcoded set — so a test that allow-lists a
+    # different gateway (e.g. gateways=("GW77",)) gets a real *accepted*
+    # handshake for it instead of refusals for gateways the engine rejects.
+    connect(engine, *kw.get("gateways", ("GW01", "GW02", "GW03")))
     return engine, pub
 
 
@@ -288,7 +293,7 @@ class TestCLC4ClearingRestartWarmStart:
 
         # --- clearing restarts; engine keeps running: GW01 buys 50 more ---
         _cross(engine, qty=50, price=151.0)
-        frames_after = pub.sent[len(frames_day1):]
+        frames_after = pub.sent[len(frames_day1) :]
         cut2 = start_clearing(db_path)
         try:
             cut2.publish_engine_output(frames_after)
@@ -310,8 +315,7 @@ class TestCLC4ClearingRestartWarmStart:
             f"supposed to protect (no warm start)"
         )
         assert row["buy_qty"] == 150, (
-            f"CL-C4: cumulative buy_qty {row['buy_qty']} lost pre-restart "
-            f"history"
+            f"CL-C4: cumulative buy_qty {row['buy_qty']} lost pre-restart " f"history"
         )
 
 
@@ -321,9 +325,7 @@ class TestCLC4ClearingRestartWarmStart:
 
 
 class TestCLH1GapDetection:
-    def test_dropped_trade_is_recovered_or_flagged(
-        self, monkeypatch, tmp_path
-    ) -> None:
+    def test_dropped_trade_is_recovered_or_flagged(self, monkeypatch, tmp_path) -> None:
         """The engine prints three trades; the transport drops the middle
         one (exactly what ZMQ PUB/SUB does during a subscriber hiccup).
         A correct clearing process either ends up with all three trades
@@ -401,10 +403,14 @@ class TestCLH2CrossScaleTotals:
         # GLD4: buy 1 @ 50.0000, sell 1 @ 50.0001 → realized +0.0001
         _cross(engine, qty=1, price=50.0, symbol="GLD4")
         engine._handle_new_order(
-            order_payload(Side.BUY, OrderType.LIMIT, 1, "GW02", price=50.0001, symbol="GLD4")
+            order_payload(
+                Side.BUY, OrderType.LIMIT, 1, "GW02", price=50.0001, symbol="GLD4"
+            )
         )
         engine._handle_new_order(
-            order_payload(Side.SELL, OrderType.LIMIT, 1, "GW01", price=50.0001, symbol="GLD4")
+            order_payload(
+                Side.SELL, OrderType.LIMIT, 1, "GW01", price=50.0001, symbol="GLD4"
+            )
         )
 
         cut = start_clearing(tmp_path / "clearing.db")
@@ -414,9 +420,7 @@ class TestCLH2CrossScaleTotals:
             cut.flush()
 
             conn = cut.db()
-            gw01 = next(
-                r for r in query_gateways(conn) if r["gateway_id"] == "GW01"
-            )
+            gw01 = next(r for r in query_gateways(conn) if r["gateway_id"] == "GW01")
             total = gw01["realized_pnl_total"]
             assert abs(total - 1.0001) < 1e-9, (
                 f"CL-H2: GW01 realized total reported as {total} — expected "

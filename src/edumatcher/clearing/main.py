@@ -213,6 +213,18 @@ class ClearingProcess:
             self._pub_addr,
             "trade.executed",
             "system.eod",
+            # The engine broadcasts gateway lifecycle on PUB as
+            # ``system.gateway_auth.{id}`` (models/message.py make_gateway_auth_msg,
+            # engine/main.py _handle_gateway_connect).  ``system.gateway_connect``
+            # / ``system.gateway_disconnect`` are gateway→engine PULL topics that
+            # never reach this subscriber (finding CL-C3), so subscribe to the
+            # auth-broadcast prefix as the real "gateway connected" signal.
+            "system.gateway_auth.",
+            # Disconnect broadcast — the PUB counterpart to gateway_auth
+            # (engine/main.py _handle_gateway_disconnect → make_gateway_bye_msg).
+            "system.gateway_bye.",
+            # Kept for the test harness's readiness/ordering probe and any
+            # direct-injection clients; harmless in production where it is silent.
             "system.gateway_connect",
             "system.gateway_disconnect",
         )
@@ -286,6 +298,12 @@ class ClearingProcess:
 
             elif topic == "system.eod":
                 self._handle_eod(payload)
+
+            elif topic.startswith("system.gateway_auth."):
+                self._handle_gateway_auth(payload)
+
+            elif topic.startswith("system.gateway_bye."):
+                self._handle_gateway_bye(payload)
 
             elif topic == "system.gateway_connect":
                 self._handle_gateway_connect(payload)
@@ -441,6 +459,27 @@ class ClearingProcess:
                 f"[CLEARING] WARNING: error handling system.eod: {exc}",
                 style="yellow",
             )
+
+    def _handle_gateway_auth(self, payload: dict[str, Any]) -> None:
+        """
+        Handle system.gateway_auth.{id} — the engine's PUB broadcast emitted when
+        a gateway completes (or is refused) the connect handshake.
+
+        An *accepted* auth is the observable "gateway connected" event on the
+        public feed, so record it exactly as a connect.  A refused auth carries
+        ``accepted=False`` and is ignored (no session opened).
+        """
+        if not payload.get("accepted", False):
+            return
+        self._handle_gateway_connect(payload)
+
+    def _handle_gateway_bye(self, payload: dict[str, Any]) -> None:
+        """
+        Handle system.gateway_bye.{id} — the engine's PUB broadcast emitted when
+        a gateway disconnects.  Record it exactly as a disconnect (the inbound
+        system.gateway_disconnect topic is PULL-only and never reaches here).
+        """
+        self._handle_gateway_disconnect(payload)
 
     def _handle_gateway_connect(self, payload: dict[str, Any]) -> None:
         """

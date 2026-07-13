@@ -52,7 +52,9 @@ _SLEEP = time.sleep
 _MONO = time.monotonic
 
 
-def wait_until(cond: Callable[[], bool], *, what: str, deadline: float = _DEADLINE) -> None:
+def wait_until(
+    cond: Callable[[], bool], *, what: str, deadline: float = _DEADLINE
+) -> None:
     end = _MONO() + deadline
     while _MONO() < end:
         if cond():
@@ -82,7 +84,10 @@ class ClearingUnderTest:
             self._pub.send_multipart(frames)
 
     def publish_engine_output(
-        self, engine_pub_sent: list[list[bytes]], *, topics: tuple[str, ...] | None = None
+        self,
+        engine_pub_sent: list[list[bytes]],
+        *,
+        topics: tuple[str, ...] | None = None,
     ) -> None:
         """Forward everything a (fake-socketed) engine published.
 
@@ -168,16 +173,16 @@ def start_clearing(
         flush_interval_sec=flush_interval_sec,
         print_every=0,  # keep test output clean
     )
-    thread = threading.Thread(target=process.run, daemon=True, name="clearing-under-test")
+    thread = threading.Thread(
+        target=process.run, daemon=True, name="clearing-under-test"
+    )
     thread.start()
 
     cut = ClearingUnderTest(process=process, db_path=db_path, _pub=pub, _thread=thread)
 
     # Readiness: probe until the SUB is provably receiving.
     def _probed() -> bool:
-        pub.send_multipart(
-            encode("system.gateway_connect", {"gateway_id": PROBE_GW})
-        )
+        pub.send_multipart(encode("system.gateway_connect", {"gateway_id": PROBE_GW}))
         _SLEEP(0.03)
         return PROBE_GW in process._gw_connect_ts
 
@@ -197,7 +202,9 @@ def start_clearing(
 # ---------------------------------------------------------------------------
 
 
-def engine_frames(engine_pub_sent: list[list[bytes]], topic_prefix: str) -> list[list[bytes]]:
+def engine_frames(
+    engine_pub_sent: list[list[bytes]], topic_prefix: str
+) -> list[list[bytes]]:
     """Frames from a captured engine stream whose topic starts with *prefix*."""
     out = []
     for frames in engine_pub_sent:

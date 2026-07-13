@@ -10,7 +10,9 @@ Topic conventions
   order.new          — gateway → engine (PUSH/PULL, but we still include a topic for audit)
   order.cancel       — gateway → engine
     system.gateway_connect   — gateway → engine: authenticate gateway_id
-    system.gateway_auth.{GW_ID} — engine → gateway: auth accepted/rejected
+    system.gateway_auth.{GW_ID} — engine → all: auth accepted/rejected (connect)
+    system.gateway_disconnect — gateway → engine: graceful disconnect
+    system.gateway_bye.{GW_ID} — engine → all: disconnect broadcast
   order.ack.{GW_ID}  — engine → gateway: accepted or rejected
   order.fill.{GW_ID} — engine → gateway: partial or full fill
   order.cancelled.{GW_ID} — engine → gateway: cancel confirmed
@@ -601,6 +603,25 @@ def make_gateway_disconnect_msg(gateway_id: str, reason: str = "") -> list[bytes
     """Gateway → engine: graceful disconnect notification."""
     return encode(
         "system.gateway_disconnect",
+        {
+            "gateway_id": gateway_id,
+            "reason": reason,
+        },
+    )
+
+
+def make_gateway_bye_msg(gateway_id: str, reason: str = "") -> list[bytes]:
+    """
+    Engine → all subscribers: gateway lifecycle *disconnect* broadcast.
+
+    The PUB-side counterpart to ``system.gateway_auth.{id}`` (connect).  The
+    inbound ``system.gateway_disconnect`` is a gateway→engine PULL message and
+    never reaches PUB subscribers such as clearing; this broadcast republishes
+    the disconnect on the public feed so downstream consumers can close the
+    matching session.
+    """
+    return encode(
+        f"system.gateway_bye.{gateway_id}",
         {
             "gateway_id": gateway_id,
             "reason": reason,
