@@ -35,6 +35,7 @@ from rich.table import Table
 from edumatcher.clearing.ledger import Ledger, trade_date_utc
 from edumatcher.clearing.store import (
     TradeEventRow,
+    fetch_all_positions,
     flush_batch,
     open_writer_connection,
     prune_old_events,
@@ -177,9 +178,30 @@ class ClearingProcess:
 
         self._conn = open_writer_connection(self._db_path)
 
+        # Warm start: rebuild the ledger from durable position state before any
+        # trades arrive, so a restart accumulates onto the persisted positions
+        # rather than overwriting them from flat (finding CL-C4).
+        self._hydrate_ledger()
+
     # ------------------------------------------------------------------
     # Public interface
     # ------------------------------------------------------------------
+
+    def _hydrate_ledger(self) -> None:
+        """Restore in-memory positions from ``gateway_symbol_positions``."""
+        try:
+            rows = fetch_all_positions(self._conn)
+            self._ledger.restore(rows)
+            if rows:
+                console.print(
+                    f"[CLEARING] Warm start: restored {len(rows)} position(s)"
+                    " from the database."
+                )
+        except Exception as exc:
+            console.print(
+                f"[CLEARING] WARNING: warm-start hydration failed: {exc}",
+                style="yellow",
+            )
 
     def run(self) -> None:
         """Start the clearing process; blocks until stop() is called."""

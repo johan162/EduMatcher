@@ -561,6 +561,24 @@ def flush_batch(
         )
 
 
+def fetch_all_positions(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """
+    Return every persisted row of ``gateway_symbol_positions`` as a dict.
+
+    Used at clearing startup to warm-start the in-memory ledger (finding CL-C4)
+    so a restart accumulates onto durable position state instead of overwriting
+    it from flat.  Every column the ledger needs to reconstruct a position is
+    already stored, so no ``trade_events`` replay is required.
+    """
+    rows = conn.execute(
+        "SELECT gateway_id, symbol, net_qty, avg_cost, realized_pnl,"
+        " unrealized_pnl, mark_price, tick_decimals,"
+        " buy_qty, sell_qty, buy_notional, sell_notional, last_trade_ts_ns"
+        " FROM gateway_symbol_positions"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def prune_old_events(conn: sqlite3.Connection, retention_days: int = 90) -> int:
     """
     Delete trade_events rows older than ``retention_days`` days (UTC).

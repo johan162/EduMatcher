@@ -29,6 +29,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Any
 
 from edumatcher.clearing.store import DailySummaryRow, PositionRow
 
@@ -179,6 +180,39 @@ class Ledger:
     # ------------------------------------------------------------------
     # Public interface
     # ------------------------------------------------------------------
+
+    def restore(self, rows: list[dict[str, Any]]) -> None:
+        """
+        Warm-start the persistent position state from stored rows (CL-C4).
+
+        Rebuilds ``_positions`` so that after a clearing restart the next trade
+        for a (gateway, symbol) key accumulates onto its true cumulative state
+        instead of starting from flat and overwriting it.  Only persistent state
+        is restored; batch deltas stay empty (the next flush emits fresh deltas
+        for post-restart trades only).  Accepts the dicts from
+        ``store.fetch_all_positions``.
+        """
+        for r in rows:
+            key = (r["gateway_id"], r["symbol"])
+            self._positions[key] = _Position(
+                gateway_id=r["gateway_id"],
+                symbol=r["symbol"],
+                net_qty=int(r["net_qty"]),
+                avg_cost=float(r["avg_cost"]),
+                realized_pnl=float(r["realized_pnl"]),
+                unrealized_pnl=float(r["unrealized_pnl"]),
+                mark_price=(None if r["mark_price"] is None else int(r["mark_price"])),
+                buy_qty=int(r["buy_qty"]),
+                sell_qty=int(r["sell_qty"]),
+                buy_notional=int(r["buy_notional"]),
+                sell_notional=int(r["sell_notional"]),
+                last_trade_ts_ns=(
+                    None
+                    if r["last_trade_ts_ns"] is None
+                    else int(r["last_trade_ts_ns"])
+                ),
+                tick_decimals=int(r["tick_decimals"]),
+            )
 
     def apply_trade(
         self,
