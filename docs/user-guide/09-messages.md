@@ -22,6 +22,7 @@ Quick index of all defined message topics with publisher and purpose.
 | Topic | Published by | Short description |
 |---|---|---|
 | `system.gateway_connect` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by an ALF gateway at startup to authenticate its gateway ID against `engine_config.yaml`. |
+| `system.gateway_auth.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Engine reply to `system.gateway_connect`: authentication accepted or rejected. Also the public "gateway connected" signal for observers such as pm-clearing. |
 | `order.new` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to submit a new order for matching. |
 | `order.cancel` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to cancel a resting order. |
 | `order.amend` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to amend the price and/or quantity of a resting order. |
@@ -40,6 +41,7 @@ Quick index of all defined message topics with publisher and purpose.
 | `risk.circuit_breaker_halt_all` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Administrative global halt request. |
 | `risk.circuit_breaker_resume_all` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Administrative global resume request. |
 | `system.gateway_disconnect` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Graceful disconnect notice from gateway to engine. |
+| `system.gateway_bye.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Engine broadcast when a gateway disconnects — the PUB counterpart to `system.gateway_auth.{GW_ID}`. Consumed by observers such as pm-clearing to close session history. |
 | `order.combo` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to submit a combo (multi-leg) order. |
 | `order.combo_cancel` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Sent by a gateway to cancel a combo and all its child legs. |
 | `order.ack.{GW_ID}` | pm-engine via PUB (mostly :5556; drop-copy events on :5557) | Acknowledgement of an `order.new` submission. |
@@ -743,6 +745,32 @@ Graceful disconnect notice from gateway to engine.
 |---|---|---|
 | `gateway_id` | string | Gateway identifier |
 | `reason` | string | Optional disconnect reason |
+
+!!! note "PULL in, PUB out"
+    `system.gateway_connect` / `system.gateway_disconnect` travel gateway → engine
+    on the PULL socket (:5555) and are **not** visible to PUB subscribers. The
+    engine re-broadcasts the lifecycle on PUB (:5556) as
+    `system.gateway_auth.{GW_ID}` (connect) and `system.gateway_bye.{GW_ID}`
+    (disconnect) so observers can see it.
+
+
+
+### `system.gateway_bye.{GW_ID}`
+
+**Motivation:** Enables explicit control/state synchronization so clients do not depend on timing of unsolicited events.
+**Published by:** pm-engine via PUB (mostly :5556; drop-copy events on :5557)
+
+Broadcast by the engine when a gateway disconnects. This is the PUB-side
+counterpart to `system.gateway_auth.{GW_ID}` (published on connect): the inbound
+`system.gateway_disconnect` is a gateway → engine PULL message that PUB
+subscribers never see, so the engine republishes it on PUB. Consumed by
+observers such as `pm-clearing`, which records the disconnect time and reason in
+its gateway-session history.
+
+| Field | Type | Description |
+|---|---|---|
+| `gateway_id` | string | Gateway identifier |
+| `reason` | string | Disconnect reason (empty string when none supplied) |
 
 
 
@@ -1537,7 +1565,7 @@ every constituent trade or forced recalculation.
 | Gateway | `order.ack.{GW}`, `order.fill.{GW}`, `order.amended.{GW}`, `order.cancelled.{GW}`, `order.expired.{GW}`, `order.orders.{GW}`, `combo.ack.{GW}`, `combo.status.{GW}`, `oco.ack.{GW}`, `oco.cancelled.{GW}`, `quote.ack.{GW}`, `quote.status.{GW}`, `risk.kill_switch_ack.{GW}`, `system.symbols.{GW}`, `system.quote_bootstrap.{GW}`, `system.gateway_auth.{GW}`, `trade.executed` |
 | Order-book viewer | `book.{SYMBOL}`, `depth.{SYMBOL}`, `session.state` |
 | Order monitor | `order.` (prefix — all order events), `combo.`, `session.state` |
-| Clearing | `trade.executed` |
+| Clearing | `trade.executed`, `system.eod`, `system.gateway_auth.`, `system.gateway_bye.` |
 | Audit | *(empty filter — receives everything)* |
 | Statistics | `trade.`, `book.`, `system.eod`, `system.symbols.STATS`, `session.state`, `auction.result.` |
 | AI trader / bot | `session.state`, `circuit_breaker.halt.`, `circuit_breaker.resume.`, `book.`, `depth.`, `trade.executed`, `order.ack.{GW}`, `order.fill.{GW}`, `order.cancelled.{GW}`, `order.expired.{GW}`, `system.symbols.{GW}`, `system.gateway_auth.{GW}`, `system.halt_status.{GW}`, `system.position_snapshot.{GW}`, `system.eod` |

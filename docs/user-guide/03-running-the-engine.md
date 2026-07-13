@@ -518,10 +518,10 @@ the `data/` directory.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `Config error: symbols must be a mapping` | `symbols:` is a list or missing | Correct `engine_config.yaml` |
-| `Config error: gateways.alf must be a list` | `gateways.alf:` is not a list | Correct `engine_config.yaml` |
-| `Address already in use — :5555` | Another engine (or other process) is already bound | `lsof -i :5555` to find and kill the conflicting process |
-| Silent exit with code 1 | Syntax error in the YAML file | `python -c "import yaml; yaml.safe_load(open('engine_config.yaml'))"` |
+| `[ENGINE] FATAL: Invalid config …: Engine config must have a 'gateways.alf' list` | `gateways.alf:` is missing or not a list | Correct `engine_config.yaml` |
+| `[ENGINE] FATAL: Invalid config …: Config for symbol '<SYM>' must be a mapping` | A `symbols:` entry is not a mapping | Correct `engine_config.yaml` |
+| `[ENGINE] FATAL: Cannot bind sockets …` (address already in use) | Another engine (or other process) is already bound to :5555/:5556/:5557 | `lsof -i :5555` to find and kill the conflicting process |
+| `[ENGINE] FATAL: Invalid config …` (other message) | A structural error in the YAML — the message names the offending key | Read the named key in the message and correct `engine_config.yaml` |
 
 ### Gateway authentication timeout
 
@@ -827,6 +827,21 @@ The engine applies the gateway's configured `disconnect_behaviour`:
 | `LEAVE_ALL` | Nothing is cancelled — orders rest until explicitly removed |
 
 You can override this at runtime with `KICK|GW=<gw>` from the ADMIN console.
+
+Whenever a gateway disconnects, the engine also broadcasts a
+`system.gateway_bye.{gateway_id}` event on the PUB socket (:5556). This is the
+disconnect counterpart to the `system.gateway_auth.{gateway_id}` event the
+engine publishes when a gateway authenticates. Observer processes use the pair
+to track participant sessions — for example, `pm-clearing` records connect and
+disconnect times (and the disconnect reason) in its gateway-session history from
+these two broadcasts.
+
+!!! note "Lifecycle topics: PUB vs PULL"
+    `system.gateway_connect` / `system.gateway_disconnect` are **gateway → engine**
+    messages on the PULL socket (:5555) and are not visible to PUB subscribers.
+    The engine re-broadcasts the lifecycle on PUB as
+    `system.gateway_auth.{id}` (connect) and `system.gateway_bye.{id}`
+    (disconnect) so downstream observers can see them.
 
 ### What is the correct order if I want to use the scheduler?
 

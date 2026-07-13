@@ -334,7 +334,8 @@ See [Configuration](01-configuration.md) for full details on the config file.
 | `book.{SYMBOL}`               | Book snapshot after every change |
 | `session.state`               | Session phase change             |
 | `auction.result.{SYMBOL}`     | Auction uncross result           |
-| `system.gateway_auth.{GW_ID}` | Gateway authentication reply     |
+| `system.gateway_auth.{GW_ID}` | Gateway authentication reply (connect) |
+| `system.gateway_bye.{GW_ID}`  | Gateway disconnect broadcast     |
 | `system.symbols.{GW_ID}`      | Symbol list reply                |
 | `system.eod`                  | End-of-day broadcast             |
 
@@ -657,7 +658,7 @@ pm-audit --buffer-size 1 --flush-interval 0.1
 SQLite-backed clearing writer for P&L and position state.
 
 ```bash
-pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interval SEC] [--print-every N]
+pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interval SEC] [--print-every N] [--retention-days N]
 ```
 
 **Startup options:**
@@ -669,6 +670,7 @@ pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interva
 | `--flush-size` | `100` | Flush immediately when buffered trades reaches N |
 | `--flush-interval` | `5.0` | Flush interval in seconds when buffer is non-empty |
 | `--print-every` | `100` | Print in-memory P&L snapshot every N trades (`0` disables) |
+| `--retention-days` | `90` | Prune `trade_events` rows older than N days on startup (`0` disables pruning) |
 
 `pm-clearing-cli` global options include `--raw-output` to disable display
 normalization and print raw tick-unit values for price-derived fields.
@@ -693,6 +695,9 @@ price-derived values for table/JSON/CSV rendering.
 | Topic            | Purpose                                            |
 |------------------|----------------------------------------------------|
 | `trade.executed` | Every matched trade pair (including `tick_decimals`) — drives P&L calculations |
+| `system.eod` | End-of-day marks and the session-close `session_events` row |
+| `system.gateway_auth.` | Gateway connect (accepted) — opens a `gateway_sessions` row |
+| `system.gateway_bye.` | Gateway disconnect — closes the matching `gateway_sessions` row |
 
 See [P&L & Clearing](07-pnl-clearing.md) for the full accounting model.
 
@@ -733,7 +738,7 @@ output, and exits.
 | `symbols` | 1000 | Symbol-level totals and open exposure snapshot | `--date`, `--from`, `--to`, `--sort` |
 | `dates` | 1000 | Available trade dates (optionally with totals) | `--gateway`, `--symbol`, `--from`, `--to`, `--with-totals` |
 | `health` | n/a | DB row counts, flush metadata, and WAL mode | none |
-| `reconcile` | n/a | Compares raw `trade_events` buy-side aggregates vs daily summary | `--gateway`, `--symbol`, `--from`, `--to` |
+| `reconcile` | n/a | Compares raw `trade_events` vs daily summary (both buy and sell sides; also reports summary-only keys) | `--gateway`, `--symbol`, `--from`, `--to`, `--retention-days` |
 | `prune` | n/a | Deletes old `trade_events` rows by retention window | `--days`, `--dry-run` |
 
 **Sort options:**
@@ -1022,16 +1027,19 @@ CLOSING_AUCTION → CLOSED) by sending `session.transition` messages to the
 engine at configured wall-clock times.
 
 ```bash
-pm-scheduler [--config engine_config.yaml] [--now] [--delay 3]
+pm-scheduler [--config engine_config.yaml] [--now] [--delay 3] [--daily] [--no-confirm] [--verbose]
 ```
 
 **Startup options:**
 
-| Flag              | Default              | Description                                                                         |
-|-------------------|----------------------|-------------------------------------------------------------------------------------|
-| `--config` / `-c` | `engine_config.yaml` | Config file containing the `schedule` section                                       |
-| `--now`           | off                  | Skip wall-clock waiting; send all transitions immediately with a delay between each |
-| `--delay`         | 3                    | Seconds between transitions in `--now` mode                                         |
+| Flag               | Default              | Description                                                                         |
+|--------------------|----------------------|-------------------------------------------------------------------------------------|
+| `--config` / `-c`  | `engine_config.yaml` | Config file containing the `schedule` section                                       |
+| `--now`            | off                  | Skip wall-clock waiting; send all transitions immediately with a delay between each |
+| `--delay`          | 3                    | Seconds between transitions in `--now` mode (ignored, with a warning, outside `--now`) |
+| `--daily`          | off                  | Run continuously, repeating the schedule every calendar day                         |
+| `--no-confirm`     | off                  | Do not query/confirm session state via the engine before sending a transition       |
+| `--verbose` / `-v` | off                  | Enable DEBUG-level diagnostic logging                                               |
 
 **Expected runtime input arguments:**
 
