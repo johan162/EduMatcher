@@ -154,8 +154,8 @@ Per-symbol end-of-day marker, derived from the engine `system.eod` broadcast.
 | `TRADE_COUNT` | trades seen for the symbol this session |
 | `EXEC_COUNT` | execution count — **identical to `TRADE_COUNT`** in `RALF1` |
 
-`EOD` is emitted on the `CLEARING` and `AUDIT` channels **only** — it is **not**
-disseminated on `DROP_COPY`.
+`EOD` is emitted once per symbol on all three channels:
+`CLEARING`, `DROP_COPY`, and `AUDIT`.
 
 ### `HB`, `PING`/`PONG`, `EXIT`
 

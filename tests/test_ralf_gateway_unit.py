@@ -140,16 +140,32 @@ def test_replay_from_empty_journal_is_noop(unit_gateway: RalfGateway) -> None:
 
 
 def test_handle_eod_emits_for_subscribed_channels(unit_gateway: RalfGateway) -> None:
-    sess, peer = _make_session()
-    sess.authenticated = True
-    sess.subscriptions.add(("AUDIT", "AAPL"))
-    unit_gateway._clients[sess.sock.fileno()] = sess
+    sess_audit, peer_audit = _make_session()
+    sess_audit.authenticated = True
+    sess_audit.subscriptions.add(("AUDIT", "AAPL"))
+    unit_gateway._clients[sess_audit.sock.fileno()] = sess_audit
+
+    sess_drop_copy, peer_drop_copy = _make_session()
+    sess_drop_copy.authenticated = True
+    sess_drop_copy.subscriptions.add(("DROP_COPY", "AAPL"))
+    unit_gateway._clients[sess_drop_copy.sock.fileno()] = sess_drop_copy
 
     unit_gateway._handle_eod({"books": [{"symbol": "AAPL"}]})
-    assert sess.out_queue
-    lines = [parse_line(x.decode("utf-8")) for x in sess.out_queue]
-    assert any(frame.msg_type == "EOD" for frame in lines)
-    peer.close()
+
+    assert sess_audit.out_queue
+    audit_lines = [parse_line(x.decode("utf-8")) for x in sess_audit.out_queue]
+    assert any(frame.msg_type == "EOD" for frame in audit_lines)
+    assert any(frame.fields.get("CH") == "AUDIT" for frame in audit_lines)
+
+    assert sess_drop_copy.out_queue
+    drop_copy_lines = [
+        parse_line(x.decode("utf-8")) for x in sess_drop_copy.out_queue
+    ]
+    assert any(frame.msg_type == "EOD" for frame in drop_copy_lines)
+    assert any(frame.fields.get("CH") == "DROP_COPY" for frame in drop_copy_lines)
+
+    peer_audit.close()
+    peer_drop_copy.close()
 
 
 def test_handle_unsub_removes_subscription(unit_gateway: RalfGateway) -> None:
