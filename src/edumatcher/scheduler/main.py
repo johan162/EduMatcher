@@ -42,6 +42,48 @@ DEFAULT_SCHEDULE: list[tuple[str, str]] = [
 # Rapid-fire delays for --now mode (seconds between transitions)
 NOW_MODE_DELAY = 3.0
 
+# Bounded ZMQ send timeout and linger (milliseconds) so the scheduler can never
+# block forever when the engine is not consuming (review finding H2). Without
+# these, a PUSH ``send`` blocks until a peer appears and ``close`` waits
+# forever on undelivered messages.
+SEND_TIMEOUT_MS = 2000
+LINGER_MS = 1000
+
+
+def _normalize_hhmm(raw: object) -> str | None:
+    """Normalize a schedule time to canonical ``"HH:MM"``, or ``None`` if invalid.
+
+    Accepts:
+      - ``"HH:MM"`` strings (quoted in YAML), validated as a real 24-hour time.
+      - integers, which PyYAML produces for *unquoted* sexagesimal values such
+        as ``9:30`` (parsed as ``9 * 60 + 30 == 570`` minutes past midnight).
+        These are interpreted as minutes-since-midnight and recovered so the
+        documented — but unquoted — config form does not crash the scheduler
+        (review finding H3).
+
+    Out-of-range or malformed values return ``None`` so the caller can skip
+    them with a warning instead of crashing later in ``_time_today``.
+    """
+    # bool is a subclass of int — reject it explicitly.
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int):
+        if 0 <= raw < 24 * 60:
+            return f"{raw // 60:02d}:{raw % 60:02d}"
+        return None
+    if isinstance(raw, str):
+        parts = raw.strip().split(":")
+        if len(parts) != 2:
+            return None
+        hh, mm = parts
+        if not (hh.isdigit() and mm.isdigit()):
+            return None
+        hours, minutes = int(hh), int(mm)
+        if 0 <= hours < 24 and 0 <= minutes < 60:
+            return f"{hours:02d}:{minutes:02d}"
+        return None
+    return None
+
 
 def _load_schedule(config_path: Path | None) -> list[tuple[str, str]]:
     """Load schedule from YAML config or fall back to defaults."""
@@ -60,11 +102,23 @@ def _load_schedule(config_path: Path | None) -> list[tuple[str, str]]:
                     ("closing_auction_start", SessionState.CLOSING_AUCTION.value),
                     ("closing_auction_end", SessionState.CLOSED.value),
                 ]
-                result = []
+                result: list[tuple[str, str]] = []
                 for key, state in mapping:
-                    t = sched.get(key)
-                    if t:
-                        result.append((str(t), state))
+                    raw_time = sched.get(key)
+                    if raw_time is None:
+                        continue
+                    # Validate/normalize so malformed or unquoted (sexagesimal)
+                    # times never crash scheduling downstream (finding H3).
+                    normalized = _normalize_hhmm(raw_time)
+                    if normalized is None:
+                        print(
+                            "[SCHEDULER] Warning: ignoring invalid schedule time "
+                            f"for {key!r}: {raw_time!r} "
+                            "(times must be quoted, e.g. '09:30')",
+                            file=sys.stderr,
+                        )
+                        continue
+                    result.append((normalized, state))
                 if result:
                     print(f"[SCHEDULER] Loaded schedule from {config_path}")
                     return result
@@ -77,16 +131,47 @@ def _load_schedule(config_path: Path | None) -> list[tuple[str, str]]:
 
 
 def _time_today(hhmm: str) -> datetime:
-    """Parse 'HH:MM' into a datetime for today."""
+    """Parse a validated ``"HH:MM"`` string into a datetime for today.
+
+    Callers must pass a normalized value (see :func:`_normalize_hhmm`); the
+    schedule loader guarantees this, so this helper stays deliberately simple.
+    """
     h, m = hhmm.split(":")
     now = datetime.now()
     return now.replace(hour=int(h), minute=int(m), second=0, microsecond=0)
 
 
+def _send_transition(push_sock: zmq.Socket[bytes], state: str) -> bool:
+    """Send one ``session.transition``; return ``False`` if not delivered.
+
+    The PUSH socket carries a bounded send timeout (finding H2), so a send
+    raises ``zmq.Again`` instead of blocking forever when the engine is not
+    consuming. We log and continue rather than hang or crash.
+    """
+    try:
+        push_sock.send_multipart(make_session_transition_msg(state))
+        return True
+    except zmq.Again:
+        print(
+            "[SCHEDULER] Warning: engine not reachable; "
+            f"transition to {state} was not delivered",
+            file=sys.stderr,
+        )
+        return False
+
+
 def _run_scheduled(
     push_sock: zmq.Socket[bytes], schedule: list[tuple[str, str]]
 ) -> None:
-    """Wait for each scheduled time and send transitions."""
+    """Wait for each scheduled time and send transitions.
+
+    Engine session transitions are sequential and dependent
+    (``CLOSED → PRE_OPEN → … → CLOSED``), so a scheduler that starts after some
+    scheduled times have already passed must *replay* those past transitions in
+    order to bring the engine to the correct current phase. Silently skipping
+    them (the previous behavior) left the engine stuck in whatever state it
+    started in — see review finding H1.
+    """
     print("[SCHEDULER] Schedule for today:")
     for hhmm, state in schedule:
         print(f"  {hhmm}  → {state}")
@@ -101,28 +186,48 @@ def _run_scheduled(
     signal.signal(signal.SIGINT, _stop)
     signal.signal(signal.SIGTERM, _stop)
 
+    # Partition the schedule against a single "now" snapshot.
+    now = datetime.now()
+    past: list[tuple[str, str]] = []
+    upcoming: list[tuple[str, str, datetime]] = []
     for hhmm, state in schedule:
         target = _time_today(hhmm)
-        now = datetime.now()
-
         if target < now:
-            print(f"[SCHEDULER] {hhmm} {state} — already past, skipping")
-            continue
+            past.append((hhmm, state))
+        else:
+            upcoming.append((hhmm, state, target))
 
-        wait_secs = (target - now).total_seconds()
-        print(f"[SCHEDULER] Waiting {wait_secs:.0f}s until {hhmm} for {state}")
+    # Catch-up: replay every already-past transition in order so the engine
+    # reaches the correct current phase instead of being left behind (H1).
+    if past:
+        print(
+            f"[SCHEDULER] Catching up {len(past)} past transition(s) "
+            "to reach the current phase"
+        )
+        for hhmm, state in past:
+            if not running:
+                break
+            print(f"[SCHEDULER] → Catch-up transition to {state} (was due {hhmm})")
+            _send_transition(push_sock, state)
 
-        # Sleep in small increments so SIGINT can interrupt
-        deadline = time.monotonic() + wait_secs
-        while running and time.monotonic() < deadline:
-            time.sleep(min(1.0, deadline - time.monotonic()))
+    for hhmm, state, target in upcoming:
+        if not running:
+            break
+
+        wait_secs = (target - datetime.now()).total_seconds()
+        if wait_secs > 0:
+            print(f"[SCHEDULER] Waiting {wait_secs:.0f}s until {hhmm} for {state}")
+            # Sleep in small increments so SIGINT can interrupt promptly.
+            deadline = time.monotonic() + wait_secs
+            while running and time.monotonic() < deadline:
+                time.sleep(max(0.0, min(1.0, deadline - time.monotonic())))
 
         if not running:
             print("[SCHEDULER] Interrupted")
             break
 
         print(f"[SCHEDULER] → Sending transition to {state}")
-        push_sock.send_multipart(make_session_transition_msg(state))
+        _send_transition(push_sock, state)
 
     if running:
         print("[SCHEDULER] All transitions sent. Done.")
@@ -154,10 +259,10 @@ def _run_now(push_sock: zmq.Socket[bytes], delay: float = NOW_MODE_DELAY) -> Non
             print("[SCHEDULER] Interrupted")
             break
         print(f"[SCHEDULER] → {state.value}")
-        push_sock.send_multipart(make_session_transition_msg(state.value))
+        _send_transition(push_sock, state.value)
         deadline = time.monotonic() + delay
         while running and time.monotonic() < deadline:
-            time.sleep(min(1.0, deadline - time.monotonic()))
+            time.sleep(max(0.0, min(1.0, deadline - time.monotonic())))
 
     if running:
         print("[SCHEDULER] Done.")
@@ -189,6 +294,10 @@ def main() -> None:
     now_mode_delay = args.delay
 
     push_sock = make_pusher(ENGINE_PULL_ADDR)
+    # Bound the send timeout and linger so the scheduler can never block forever
+    # when the engine is not consuming (review finding H2).
+    push_sock.setsockopt(zmq.SNDTIMEO, SEND_TIMEOUT_MS)
+    push_sock.setsockopt(zmq.LINGER, LINGER_MS)
     time.sleep(0.1)  # let socket connect
 
     try:

@@ -805,8 +805,15 @@ class TestGatewaySendCombo:
 
 
 class TestSchedulerRunScheduled:
-    def test_all_past_times_skips_all(self) -> None:
+    def test_all_past_times_catch_engine_up_to_last_state(self) -> None:
+        # Regression for scheduler review finding H1
+        # (docs-design/EduMatcher-scheduler-review.md): engine session
+        # transitions are sequential and dependent, so a scheduler that starts
+        # after every scheduled time has passed must still drive the engine to
+        # the most-recent-past state instead of silently skipping every entry
+        # (which would leave the engine stuck in its startup state).
         from datetime import datetime as _dt
+        from edumatcher.models.message import decode
         from edumatcher.scheduler.main import _run_scheduled
 
         fake_sock = MagicMock()
@@ -819,8 +826,18 @@ class TestSchedulerRunScheduled:
         ):
             mock_dt.now.return_value = fixed_now
             _run_scheduled(fake_sock, schedule)
-        # Since all times are past, no messages should be sent
-        fake_sock.send_multipart.assert_not_called()
+
+        # The engine must be caught up to the most-recent-past state rather
+        # than left untouched.
+        assert fake_sock.send_multipart.called, (
+            "scheduler skipped all past transitions and sent nothing — "
+            "engine would be stuck in its startup state"
+        )
+        sent_states = [
+            decode(call.args[0])[1]["to_state"]
+            for call in fake_sock.send_multipart.call_args_list
+        ]
+        assert sent_states[-1] == "OPENING_AUCTION"
 
     def test_run_now_sends_all_transitions(self) -> None:
         from edumatcher.scheduler.main import _run_now
