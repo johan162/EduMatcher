@@ -16,6 +16,13 @@ Usage:
   poetry run pm-scheduler --now            # rapid-fire all transitions (for testing)
   poetry run pm-scheduler --config my.yaml # custom config file
   poetry run pm-scheduler --no-confirm     # do not query/confirm via the engine
+  poetry run pm-scheduler --verbose        # DEBUG-level diagnostics
+
+Logging:
+  Operational messages go through the ``logging`` module (configured at the
+  process entry point, mirroring pm-engine). The default level is INFO; pass
+  ``--verbose`` / ``-v`` to drop to DEBUG for connection, schedule-table and
+  state-query diagnostics.
 
 Same-day behavior:
   By default the scheduler drives *today's* timeline and then exits. If it is
@@ -31,6 +38,7 @@ Typical daily sequence:
 from __future__ import annotations
 
 import argparse
+import logging
 import signal
 import sys
 import time
@@ -49,6 +57,11 @@ from edumatcher.models.message import (
     make_session_transition_msg,
 )
 from edumatcher.models.session import VALID_TRANSITIONS, SessionState
+
+# Operational logging goes through the logging module; the process entry point
+# (main()) configures the handler/level, the library installs no handlers
+# (mirrors the engine's setup — review finding L3).
+log = logging.getLogger("edumatcher.scheduler")
 
 # Default schedule (HH:MM) — used when no config file provides one
 DEFAULT_SCHEDULE: list[tuple[str, str]] = [
@@ -76,6 +89,11 @@ CONFIRM_TIMEOUT_MS = 2000
 # How long to wait for the engine to answer a session-state query at startup
 # (review finding A2).
 QUERY_TIMEOUT_MS = 2000
+
+# Brief settle so the confirmation SUB subscription takes effect before the
+# startup state query — PUB/SUB is subject to the slow-joiner problem, so a
+# request sent too early can miss its reply (review finding L5).
+SUB_CONNECT_SETTLE_SEC = 0.1
 
 # Identifier the scheduler uses when talking to the engine (request/reply
 # replies come back on ``system.session_status.<ID>``).
@@ -154,21 +172,20 @@ def _load_schedule(config_path: Path | None) -> list[tuple[str, str]]:
                     # times never crash scheduling downstream (finding H3).
                     normalized = _normalize_hhmm(raw_time)
                     if normalized is None:
-                        print(
-                            "[SCHEDULER] Warning: ignoring invalid schedule time "
-                            f"for {key!r}: {raw_time!r} "
+                        log.warning(
+                            "[SCHEDULER] ignoring invalid schedule time for %r: %r "
                             "(times must be quoted, e.g. '09:30')",
-                            file=sys.stderr,
+                            key,
+                            raw_time,
                         )
                         continue
                     result.append((normalized, state))
                 if result:
-                    print(f"[SCHEDULER] Loaded schedule from {config_path}")
+                    log.info("[SCHEDULER] Loaded schedule from %s", config_path)
                     return result
         except Exception as exc:
-            print(
-                f"[SCHEDULER] Warning: could not load schedule from {config_path}: {exc}",
-                file=sys.stderr,
+            log.warning(
+                "[SCHEDULER] could not load schedule from %s: %s", config_path, exc
             )
     return DEFAULT_SCHEDULE
 
@@ -213,29 +230,53 @@ def _validate_schedule(schedule: list[tuple[str, str]]) -> list[str]:
 
 
 def _time_today(hhmm: str) -> datetime:
-    """Parse a validated ``"HH:MM"`` string into a datetime for today.
+    """Parse a validated ``"HH:MM"`` string into a naive datetime for today.
 
-    Callers must pass a normalized value (see :func:`_normalize_hhmm`); the
-    schedule loader guarantees this, so this helper stays deliberately simple.
+    Used for classifying past/upcoming entries and for log labels. Wall-clock
+    wait *durations* are computed by :func:`_seconds_until_local`, which is
+    DST-aware; a naive subtraction here would only ever misclassify an entry by
+    an hour right at a DST boundary.
     """
     h, m = hhmm.split(":")
     now = datetime.now()
     return now.replace(hour=int(h), minute=int(m), second=0, microsecond=0)
 
 
-def _seconds_until_next_day() -> float:
-    """Seconds from now until 00:00 tomorrow (local time)."""
-    now = datetime.now()
-    tomorrow = (now + timedelta(days=1)).replace(
-        hour=0, minute=0, second=0, microsecond=0
+def _seconds_until_local(target: datetime) -> float:
+    """Seconds from now until the local wall-clock ``target`` (DST-aware).
+
+    Resolves the target's wall-clock components to epoch seconds via the OS
+    timezone database (``time.mktime`` with ``tm_isdst=-1``), so the wait is
+    correct even across a daylight-saving transition. A plain naive subtraction
+    can be off by an hour on those days (review finding L1).
+    """
+    tm = (
+        target.year,
+        target.month,
+        target.day,
+        target.hour,
+        target.minute,
+        target.second,
+        0,  # tm_wday (ignored by mktime)
+        0,  # tm_yday (ignored by mktime)
+        -1,  # tm_isdst = -1 → let the OS resolve DST
     )
-    return (tomorrow - now).total_seconds()
+    return time.mktime(tm) - time.time()
+
+
+def _seconds_until_next_day() -> float:
+    """Seconds from now until 00:00 tomorrow (local time, DST-aware)."""
+    tomorrow = datetime.now() + timedelta(days=1)
+    midnight = tomorrow.replace(hour=0, minute=0, second=0, microsecond=0)
+    return _seconds_until_local(midnight)
 
 
 def _interruptible_sleep(seconds: float, is_running: Callable[[], bool]) -> None:
     """Sleep up to ``seconds`` in small increments, stopping early if requested."""
     deadline = time.monotonic() + seconds
     while is_running() and time.monotonic() < deadline:
+        # ``max(0.0, ...)`` guards against a negative duration if the clock
+        # advances between the loop check and this call (review finding L6).
         time.sleep(max(0.0, min(1.0, deadline - time.monotonic())))
 
 
@@ -250,8 +291,8 @@ def _fixed_wait(seconds: float) -> Callable[[], float]:
 
 
 def _wait_until(target: datetime) -> Callable[[], float]:
-    """Return a pre-send wait that counts down to an absolute time."""
-    return lambda: (target - datetime.now()).total_seconds()
+    """Return a pre-send wait that counts down to an absolute local time."""
+    return lambda: _seconds_until_local(target)
 
 
 def _send_transition(push_sock: zmq.Socket[bytes], state: str) -> bool:
@@ -259,17 +300,22 @@ def _send_transition(push_sock: zmq.Socket[bytes], state: str) -> bool:
 
     The PUSH socket carries a bounded send timeout (finding H2), so a send
     raises ``zmq.Again`` instead of blocking forever when the engine is not
-    consuming. We log and continue rather than hang or crash.
+    consuming. Any other ZMQ error (e.g. a terminated context) is caught too so
+    a transport failure degrades gracefully instead of crashing the scheduler
+    (review finding L7).
     """
     try:
         push_sock.send_multipart(make_session_transition_msg(state))
         return True
     except zmq.Again:
-        print(
-            "[SCHEDULER] Warning: engine not reachable; "
-            f"transition to {state} was not delivered",
-            file=sys.stderr,
+        log.warning(
+            "[SCHEDULER] engine not reachable; transition to %s was not "
+            "delivered (send timed out)",
+            state,
         )
+        return False
+    except zmq.ZMQError as exc:
+        log.error("[SCHEDULER] failed to send transition to %s: %s", state, exc)
         return False
 
 
@@ -314,7 +360,8 @@ def _query_engine_state(
     reply_topic = f"system.session_status.{gateway_id.upper()}"
     try:
         push_sock.send_multipart(make_session_state_request_msg(gateway_id))
-    except zmq.Again:
+    except zmq.ZMQError as exc:
+        log.debug("[SCHEDULER] session-state request could not be sent: %s", exc)
         return None
 
     deadline = time.monotonic() + timeout_ms / 1000.0
@@ -380,19 +427,19 @@ def _run_transitions(
     """
     for step in steps:
         if not is_running():
-            print("[SCHEDULER] Interrupted")
+            log.info("[SCHEDULER] Interrupted")
             return False
 
         label = step.label or step.state
         wait = step.wait()
         if wait > 0:
-            print(f"[SCHEDULER] Waiting {wait:.0f}s for {label}")
+            log.info("[SCHEDULER] Waiting %.0fs for %s", wait, label)
             _interruptible_sleep(wait, is_running)
             if not is_running():
-                print("[SCHEDULER] Interrupted")
+                log.info("[SCHEDULER] Interrupted")
                 return False
 
-        print(f"[SCHEDULER] → {label}")
+        log.info("[SCHEDULER] -> %s", label)
         _dispatch_transition(push_sock, confirm_sock, step.state)
 
     return True
@@ -409,12 +456,12 @@ def _dispatch_transition(
     if confirm_sock is None:
         return
     if _confirm_transition(confirm_sock, state):
-        print(f"[SCHEDULER]   confirmed: engine applied {state}")
+        log.debug("[SCHEDULER]   confirmed: engine applied %s", state)
     else:
-        print(
-            f"[SCHEDULER]   WARNING: no confirmation that the engine applied {state} "
+        log.warning(
+            "[SCHEDULER] no confirmation that the engine applied %s "
             "(it may have been rejected or the engine is unreachable)",
-            file=sys.stderr,
+            state,
         )
 
 
@@ -437,10 +484,9 @@ def _run_scheduled(
     """
     running = is_running or (lambda: True)
 
-    print("[SCHEDULER] Schedule for today:")
+    log.debug("[SCHEDULER] Schedule for today:")
     for hhmm, state in schedule:
-        print(f"  {hhmm}  → {state}")
-    print()
+        log.debug("[SCHEDULER]   %s -> %s", hhmm, state)
 
     # A2: recover the engine's current state so catch-up only replays the
     # transitions it still needs, instead of blindly assuming a CLOSED start.
@@ -448,12 +494,11 @@ def _run_scheduled(
     if confirm_sock is not None:
         engine_state = _query_engine_state(push_sock, confirm_sock, gateway_id)
         if engine_state is not None:
-            print(f"[SCHEDULER] Engine reports current state: {engine_state.value}")
+            log.info("[SCHEDULER] Engine reports current state: %s", engine_state.value)
         else:
-            print(
-                "[SCHEDULER] Warning: could not determine engine state; "
-                "assuming a CLOSED start",
-                file=sys.stderr,
+            log.warning(
+                "[SCHEDULER] could not determine engine state; assuming a "
+                "CLOSED start"
             )
 
     # Partition the schedule against a single "now" snapshot.
@@ -469,11 +514,11 @@ def _run_scheduled(
 
     catch_up = _catch_up_transitions(past, engine_state)
     if past and not catch_up:
-        print("[SCHEDULER] Engine already at the current phase; no catch-up needed")
+        log.info("[SCHEDULER] Engine already at the current phase; no catch-up needed")
     elif catch_up:
-        print(
-            f"[SCHEDULER] Catching up {len(catch_up)} transition(s) "
-            "to reach the current phase"
+        log.info(
+            "[SCHEDULER] Catching up %d transition(s) to reach the current phase",
+            len(catch_up),
         )
 
     steps: list[_Step] = []
@@ -485,7 +530,7 @@ def _run_scheduled(
         steps.append(_Step(state, _wait_until(target), label=f"{state} (at {hhmm})"))
 
     if _run_transitions(push_sock, confirm_sock, running, steps):
-        print("[SCHEDULER] All transitions sent for today.")
+        log.info("[SCHEDULER] All transitions sent for today.")
 
 
 def _run_forever(
@@ -502,12 +547,12 @@ def _run_forever(
         if not is_running():
             break
         secs = _seconds_until_next_day()
-        print(
-            f"[SCHEDULER] Day complete; sleeping {secs / 3600.0:.1f}h "
-            "until the next trading day"
+        log.info(
+            "[SCHEDULER] Day complete; sleeping %.1fh until the next trading day",
+            secs / 3600.0,
         )
         _interruptible_sleep(secs, is_running)
-    print("[SCHEDULER] Stopped.")
+    log.info("[SCHEDULER] Stopped.")
 
 
 def _run_now(
@@ -526,7 +571,7 @@ def _run_now(
         SessionState.CLOSED,
     ]
 
-    print(f"[SCHEDULER] --now mode: sending all transitions with {delay}s delays\n")
+    log.info("[SCHEDULER] --now mode: sending all transitions with %ss delays", delay)
 
     # First transition fires immediately; the rest are spaced by ``delay``.
     steps = [
@@ -535,7 +580,7 @@ def _run_now(
     ]
 
     if _run_transitions(push_sock, None, running, steps):
-        print("[SCHEDULER] Done.")
+        log.info("[SCHEDULER] Done.")
 
 
 def main() -> None:
@@ -562,16 +607,39 @@ def main() -> None:
     parser.add_argument(
         "--delay",
         type=float,
-        default=NOW_MODE_DELAY,
-        help=f"Seconds between transitions in --now mode (default: {NOW_MODE_DELAY})",
+        default=None,
+        help=(
+            "Seconds between transitions in --now mode "
+            f"(default: {NOW_MODE_DELAY}; ignored outside --now)"
+        ),
     )
     parser.add_argument(
         "--no-confirm",
         action="store_true",
         help="Do not query/confirm session state via the engine",
     )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Enable DEBUG-level diagnostic logging",
+    )
     args = parser.parse_args()
-    now_mode_delay = args.delay
+
+    # Configure logging at the process entry point (not at import), mirroring
+    # pm-engine: message-only format on stdout, --verbose lowers to DEBUG
+    # (review finding L3).
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(message)s",
+        stream=sys.stdout,
+    )
+
+    # --delay only applies to --now mode; warn rather than silently ignore it
+    # (review finding L4).
+    if args.delay is not None and not args.now:
+        log.warning("[SCHEDULER] --delay is ignored outside --now mode")
+    now_mode_delay = args.delay if args.delay is not None else NOW_MODE_DELAY
 
     running = True
 
@@ -590,7 +658,15 @@ def main() -> None:
     # when the engine is not consuming (review finding H2).
     push_sock.setsockopt(zmq.SNDTIMEO, SEND_TIMEOUT_MS)
     push_sock.setsockopt(zmq.LINGER, LINGER_MS)
-    time.sleep(0.1)  # let socket connect
+    log.debug(
+        "[SCHEDULER] PUSH -> engine at %s (send timeout %dms, linger %dms)",
+        ENGINE_PULL_ADDR,
+        SEND_TIMEOUT_MS,
+        LINGER_MS,
+    )
+    # No connect sleep for the PUSH socket: PUSH/PULL queues messages until the
+    # peer connects and SNDTIMEO bounds the wait, so a sleep here is unnecessary
+    # (review finding L5).
 
     try:
         if args.now:
@@ -598,10 +674,7 @@ def main() -> None:
         else:
             config_path = Path(args.config) if args.config else ENGINE_CONFIG_FILE
             if args.config and not config_path.exists():
-                print(
-                    f"[SCHEDULER] FATAL: Config file not found: {config_path}",
-                    file=sys.stderr,
-                )
+                log.error("[SCHEDULER] FATAL: config file not found: %s", config_path)
                 sys.exit(1)
 
             schedule = _load_schedule(config_path)
@@ -610,10 +683,7 @@ def main() -> None:
             errors = _validate_schedule(schedule)
             if errors:
                 for err in errors:
-                    print(
-                        f"[SCHEDULER] FATAL: invalid schedule: {err}",
-                        file=sys.stderr,
-                    )
+                    log.error("[SCHEDULER] FATAL: invalid schedule: %s", err)
                 sys.exit(1)
 
             # Subscribe to the engine's session.state broadcasts (to confirm
@@ -626,7 +696,14 @@ def main() -> None:
                     "session.state",
                     f"system.session_status.{SCHEDULER_GATEWAY_ID}",
                 )
-                time.sleep(0.05)  # let the SUB connect before the first send
+                # Let the SUB subscription take effect before the state query
+                # (slow-joiner — review finding L5).
+                time.sleep(SUB_CONNECT_SETTLE_SEC)
+                log.debug(
+                    "[SCHEDULER] subscribed to session.state and "
+                    "system.session_status.%s",
+                    SCHEDULER_GATEWAY_ID,
+                )
 
             try:
                 if args.daily:

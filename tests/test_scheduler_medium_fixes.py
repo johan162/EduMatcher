@@ -80,7 +80,9 @@ class TestM1ValidateSchedule:
 class TestM2DailyRollover:
     def test_seconds_until_next_day_is_bounded(self) -> None:
         secs = _seconds_until_next_day()
-        assert 0 < secs <= 24 * 60 * 60
+        # Upper bound allows for a 25-hour day on a DST "fall back" boundary,
+        # since the wait is now computed DST-aware (review finding L1).
+        assert 0 < secs <= 25 * 60 * 60
 
     @patch("edumatcher.scheduler.main._seconds_until_next_day", return_value=10.0)
     @patch("edumatcher.scheduler.main._interruptible_sleep")
