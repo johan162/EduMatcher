@@ -137,6 +137,8 @@ class MarketDataGateway:
                 conn, addr = self._server.accept()
             except BlockingIOError:
                 break
+            except OSError:
+                break
 
             if len(self._clients) >= self.config.max_connections:
                 try:
@@ -157,7 +159,7 @@ class MarketDataGateway:
         readable = [session.sock for session in self._clients.values()]
         try:
             ready, _, _ = select.select(readable, [], [], 0)
-        except OSError:
+        except (OSError, ValueError):
             return
 
         for sock_obj in ready:
@@ -240,19 +242,14 @@ class MarketDataGateway:
                     break
 
                 session.out_offset += sent
-                session.last_activity = time.monotonic()
 
                 if session.out_offset >= len(payload):
                     session.out_queue.popleft()
                     session.out_offset = 0
 
             if len(session.out_queue) > self.config.max_client_queue:
-                self._queue_line(
-                    session,
-                    "ERR",
-                    {"CODE": "SLOW_CLIENT", "MSG": "outbound queue overflow"},
-                )
-                self._close_after_flush(session)
+                self._disconnect(session)
+                continue
 
             if session.closing and not session.out_queue:
                 self._disconnect(session)
@@ -547,7 +544,7 @@ class MarketDataGateway:
         self._replay.append(ch, sym, seq, line)
 
         for target in self._clients.values():
-            if not target.authenticated:
+            if not target.authenticated or target.closing:
                 continue
             if self._subs.session_wants(target.sock.fileno(), ch, sym):
                 self._queue_raw(target, line, is_market_data=True)
@@ -565,63 +562,70 @@ class MarketDataGateway:
                 budget -= 1
                 continue
             budget -= 1
-            now_seconds = _extract_ts(payload)
+            try:
+                now_seconds = _extract_ts(payload)
 
-            if topic.startswith("book."):
-                sym = topic[5:].upper()
-                self._known_symbols.add(sym)
-                md_fields = self._normaliser.normalise_book(sym, payload)
-                if md_fields:
-                    self._emit_stream_event("MD", "TOP", sym, md_fields, now_seconds)
-                depth_fields = self._normaliser.normalise_depth(sym, payload)
-                if depth_fields:
-                    self._emit_stream_event(
-                        "DEPTH", "DEPTH", sym, depth_fields, now_seconds
-                    )
-                continue
-
-            if topic == "trade.executed":
-                sym, trade_fields = self._normaliser.normalise_trade(payload)
-                if sym:
+                if topic.startswith("book."):
+                    sym = topic[5:].upper()
                     self._known_symbols.add(sym)
+                    md_fields = self._normaliser.normalise_book(sym, payload)
+                    if md_fields:
+                        self._emit_stream_event(
+                            "MD", "TOP", sym, md_fields, now_seconds
+                        )
+                    depth_fields = self._normaliser.normalise_depth(sym, payload)
+                    if depth_fields:
+                        self._emit_stream_event(
+                            "DEPTH", "DEPTH", sym, depth_fields, now_seconds
+                        )
+                    continue
+
+                if topic == "trade.executed":
+                    sym, trade_fields = self._normaliser.normalise_trade(payload)
+                    if sym:
+                        self._known_symbols.add(sym)
+                        self._emit_stream_event(
+                            "TRADE",
+                            "TRADE",
+                            sym,
+                            trade_fields,
+                            now_seconds,
+                        )
+                    continue
+
+                if topic == "session.state":
+                    sym, state_fields = self._normaliser.normalise_session_state(
+                        payload
+                    )
                     self._emit_stream_event(
-                        "TRADE",
-                        "TRADE",
-                        sym,
-                        trade_fields,
+                        "STATE", "STATE", sym, state_fields, now_seconds
+                    )
+                    continue
+
+                if topic.startswith("circuit_breaker.halt."):
+                    sym = topic.split(".", 2)[2].upper()
+                    state_sym, state_fields = self._normaliser.normalise_halt(sym)
+                    self._emit_stream_event(
+                        "STATE",
+                        "STATE",
+                        state_sym,
+                        state_fields,
                         now_seconds,
                     )
-                continue
+                    continue
 
-            if topic == "session.state":
-                sym, state_fields = self._normaliser.normalise_session_state(payload)
-                self._emit_stream_event(
-                    "STATE", "STATE", sym, state_fields, now_seconds
-                )
+                if topic.startswith("circuit_breaker.resume."):
+                    sym = topic.split(".", 2)[2].upper()
+                    state_sym, state_fields = self._normaliser.normalise_resume(sym)
+                    self._emit_stream_event(
+                        "STATE",
+                        "STATE",
+                        state_sym,
+                        state_fields,
+                        now_seconds,
+                    )
+            except Exception:
                 continue
-
-            if topic.startswith("circuit_breaker.halt."):
-                sym = topic.split(".", 2)[2].upper()
-                state_sym, state_fields = self._normaliser.normalise_halt(sym)
-                self._emit_stream_event(
-                    "STATE",
-                    "STATE",
-                    state_sym,
-                    state_fields,
-                    now_seconds,
-                )
-                continue
-
-            if topic.startswith("circuit_breaker.resume."):
-                sym = topic.split(".", 2)[2].upper()
-                state_sym, state_fields = self._normaliser.normalise_resume(sym)
-                self._emit_stream_event(
-                    "STATE",
-                    "STATE",
-                    state_sym,
-                    state_fields,
-                    now_seconds,
-                )
 
         while budget > 0 and self._index_sub.poll(timeout=0):
             try:
@@ -630,13 +634,16 @@ class MarketDataGateway:
                 budget -= 1
                 continue
             budget -= 1
-            now_seconds = _extract_ts(payload)
-            if topic == "index.update":
-                index_id, fields = self._normaliser.normalise_index_update(payload)
-                if index_id:
-                    self._emit_stream_event(
-                        "IDX", "INDEX", index_id, fields, now_seconds
-                    )
+            try:
+                now_seconds = _extract_ts(payload)
+                if topic == "index.update":
+                    index_id, fields = self._normaliser.normalise_index_update(payload)
+                    if index_id:
+                        self._emit_stream_event(
+                            "IDX", "INDEX", index_id, fields, now_seconds
+                        )
+            except Exception:
+                continue
 
     # ------------------------------------------------------------------
     # Maintenance
@@ -685,6 +692,8 @@ class MarketDataGateway:
         *,
         is_market_data: bool,
     ) -> None:
+        if session.closing and is_market_data:
+            return
         if len(session.out_queue) >= self.config.max_client_queue:
             if not session.closing:
                 session.out_queue.clear()
