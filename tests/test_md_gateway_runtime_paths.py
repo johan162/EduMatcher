@@ -370,6 +370,65 @@ def test_poll_engine_events_nonfatal_handler_exception(
     assert ("TRADE", "TRADE", "AAPL") in seen
 
 
+def test_poll_engine_events_logs_decode_error(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    unit_gateway._sub_sock.close()
+    unit_gateway._sub_sock = _FakeSubscriber(
+        [
+            (
+                "book.aapl",
+                {
+                    "bids": [{"price": 100.0, "qty": 1}],
+                    "asks": [{"price": 100.1, "qty": 1}],
+                },
+            )
+        ]
+    )
+
+    monkeypatch.setattr(
+        gateway_mod,
+        "decode",
+        lambda _payload: (_ for _ in ()).throw(ValueError("bad decode")),
+    )
+
+    caplog.set_level("WARNING")
+    unit_gateway._poll_engine_events()
+
+    assert "decode error on engine SUB event" in caplog.text
+
+
+def test_poll_index_events_logs_decode_error(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    unit_gateway._sub_sock.close()
+    unit_gateway._index_sub.close()
+    unit_gateway._sub_sock = _FakeSubscriber([])
+    unit_gateway._index_sub = _FakeSubscriber(
+        [
+            (
+                "index.update",
+                {"index_id": "EDU100", "level": 1000.0},
+            )
+        ]
+    )
+
+    monkeypatch.setattr(
+        gateway_mod,
+        "decode",
+        lambda _payload: (_ for _ in ()).throw(ValueError("bad decode")),
+    )
+
+    caplog.set_level("WARNING")
+    unit_gateway._poll_engine_events()
+
+    assert "decode error on index SUB event" in caplog.text
+
+
 def test_drop_idle_clients(unit_gateway: MarketDataGateway) -> None:
     auth_session, auth_peer = _make_session()
     auth_session.authenticated = True

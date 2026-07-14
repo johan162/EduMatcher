@@ -10,6 +10,7 @@ The gateway bridges engine PUB topics onto CALF/TCP streams.
 
 from __future__ import annotations
 
+import logging
 import select
 import signal
 import socket
@@ -37,6 +38,8 @@ _WILDCARD_ELIGIBLE_CHANNELS = frozenset({"STATE", "TOP", "TRADE"})
 _MAX_LINE_BYTES = 4096
 _HELLO_TIMEOUT_SEC = 5
 _MAX_ENGINE_EVENTS_PER_LOOP = 2000
+
+log = logging.getLogger(__name__)
 
 
 class MarketDataGateway:
@@ -87,9 +90,12 @@ class MarketDataGateway:
             signal.signal(signal.SIGINT, lambda *_: self.stop())
             signal.signal(signal.SIGTERM, lambda *_: self.stop())
 
-        print(
-            f"[CALF] Listening on {self.config.bind_address}:{self.config.port} "
-            f"(engine pub: {self.config.engine_pub_addr})"
+        log.info(
+            "listening on %s:%s (engine_pub=%s index_pub=%s)",
+            self.config.bind_address,
+            self.config.port,
+            self.config.engine_pub_addr,
+            self.config.index_pub_addr,
         )
 
         try:
@@ -105,9 +111,11 @@ class MarketDataGateway:
             self.close()
 
     def stop(self) -> None:
+        log.info("stop requested")
         self._running = False
 
     def close(self) -> None:
+        log.info("closing market data gateway")
         for session in list(self._clients.values()):
             try:
                 session.sock.close()
@@ -137,10 +145,15 @@ class MarketDataGateway:
                 conn, addr = self._server.accept()
             except BlockingIOError:
                 break
-            except OSError:
+            except OSError as exc:
+                log.warning("accept failed: %s", exc)
                 break
 
             if len(self._clients) >= self.config.max_connections:
+                log.warning(
+                    "connection rejected: max_connections=%d reached",
+                    self.config.max_connections,
+                )
                 try:
                     conn.close()
                 except OSError:
@@ -151,6 +164,9 @@ class MarketDataGateway:
             session = ClientSession(sock=conn, addr=addr)
             session.rate_tokens = float(self.config.max_messages_per_second)
             self._clients[conn.fileno()] = session
+            log.info(
+                "client connected addr=%s:%s fd=%d", addr[0], addr[1], conn.fileno()
+            )
 
     def _read_client_data(self) -> None:
         if not self._clients:
@@ -159,7 +175,8 @@ class MarketDataGateway:
         readable = [session.sock for session in self._clients.values()]
         try:
             ready, _, _ = select.select(readable, [], [], 0)
-        except (OSError, ValueError):
+        except (OSError, ValueError) as exc:
+            log.warning("read select failed: %s", exc)
             return
 
         for sock_obj in ready:
@@ -173,7 +190,7 @@ class MarketDataGateway:
                 continue
 
             if not chunk:
-                self._disconnect(session)
+                self._disconnect(session, reason="peer_closed")
                 continue
 
             session.in_buffer.extend(chunk)
@@ -189,6 +206,10 @@ class MarketDataGateway:
                     session,
                     "ERR",
                     {"CODE": "BAD_MESSAGE", "MSG": "line exceeds 4096 bytes"},
+                )
+                log.warning(
+                    "dropping client fd=%d due to oversized inbound line",
+                    session.sock.fileno(),
                 )
                 self._close_after_flush(session)
                 continue
@@ -216,6 +237,10 @@ class MarketDataGateway:
                     session,
                     "ERR",
                     {"CODE": "BAD_MESSAGE", "MSG": "line exceeds 4096 bytes"},
+                )
+                log.warning(
+                    "dropping client fd=%d due to oversized framed line",
+                    session.sock.fileno(),
                 )
                 self._close_after_flush(session)
                 return
@@ -248,11 +273,17 @@ class MarketDataGateway:
                     session.out_offset = 0
 
             if len(session.out_queue) > self.config.max_client_queue:
-                self._disconnect(session)
+                log.warning(
+                    "disconnecting slow client fd=%d queue=%d max=%d",
+                    session.sock.fileno(),
+                    len(session.out_queue),
+                    self.config.max_client_queue,
+                )
+                self._disconnect(session, reason="slow_client")
                 continue
 
             if session.closing and not session.out_queue:
-                self._disconnect(session)
+                self._disconnect(session, reason="close_after_flush")
 
     # ------------------------------------------------------------------
     # Protocol handling
@@ -261,7 +292,10 @@ class MarketDataGateway:
     def _handle_client_line(self, session: ClientSession, line: str) -> None:
         try:
             frame = parse_line(line)
-        except Exception:
+        except Exception as exc:
+            log.debug(
+                "parse error for fd=%d line=%r err=%s", session.sock.fileno(), line, exc
+            )
             self._queue_line(
                 session,
                 "ERR",
@@ -270,6 +304,7 @@ class MarketDataGateway:
             return
 
         if not self._allow_message_now(session):
+            log.debug("rate-limited client fd=%d", session.sock.fileno())
             self._queue_line(
                 session,
                 "ERR",
@@ -283,6 +318,11 @@ class MarketDataGateway:
                     session,
                     "ERR",
                     {"CODE": "AUTH_REQUIRED", "MSG": "send HELLO first"},
+                )
+                log.info(
+                    "pre-auth command rejected fd=%d cmd=%s",
+                    session.sock.fileno(),
+                    frame.msg_type,
                 )
                 self._close_after_flush(session)
                 return
@@ -302,6 +342,11 @@ class MarketDataGateway:
                 session,
                 "ERR",
                 {"CODE": "BAD_MESSAGE", "MSG": f"unsupported {frame.msg_type}"},
+            )
+            log.debug(
+                "unsupported command fd=%d cmd=%s",
+                session.sock.fileno(),
+                frame.msg_type,
             )
 
     def _handle_hello(self, session: ClientSession, fields: dict[str, str]) -> None:
@@ -337,6 +382,7 @@ class MarketDataGateway:
             welcome_fields["SYMBOLS"] = ",".join(sorted(self._known_symbols))
 
         self._queue_line(session, "WELCOME", welcome_fields)
+        log.info("client authenticated fd=%d client=%s", session.sock.fileno(), client)
 
         resume_raw = fields.get("RESUME", "0")
         if resume_raw == "1":
@@ -457,6 +503,12 @@ class MarketDataGateway:
         new_pairs = requested_pairs - session.subscriptions
         session.subscriptions = merged_subs
         self._subs.set_for_client(session.sock.fileno(), session.subscriptions)
+        log.debug(
+            "subscriptions updated fd=%d total=%d new=%d",
+            session.sock.fileno(),
+            len(session.subscriptions),
+            len(new_pairs),
+        )
 
         for ch, sym in sorted(new_pairs):
             # Wildcard TOP has no single meaningful "top of book" of its own
@@ -492,6 +544,11 @@ class MarketDataGateway:
             for sym in symbols:
                 session.subscriptions.discard((ch, sym))
         self._subs.set_for_client(session.sock.fileno(), session.subscriptions)
+        log.debug(
+            "subscriptions removed fd=%d now=%d",
+            session.sock.fileno(),
+            len(session.subscriptions),
+        )
 
     # ------------------------------------------------------------------
     # Snapshot and stream emission
@@ -542,6 +599,7 @@ class MarketDataGateway:
 
         line = build_line(msg_type, fields)
         self._replay.append(ch, sym, seq, line)
+        log.debug("stream event msg=%s ch=%s sym=%s seq=%d", msg_type, ch, sym, seq)
 
         for target in self._clients.values():
             if not target.authenticated or target.closing:
@@ -558,7 +616,8 @@ class MarketDataGateway:
         while budget > 0 and self._sub_sock.poll(timeout=0):
             try:
                 topic, payload = decode(self._sub_sock.recv_multipart())
-            except Exception:
+            except Exception as exc:
+                log.warning("md_gateway decode error on engine SUB event: %s", exc)
                 budget -= 1
                 continue
             budget -= 1
@@ -625,12 +684,16 @@ class MarketDataGateway:
                         now_seconds,
                     )
             except Exception:
+                log.warning(
+                    "md_gateway handler error on engine topic=%s", topic, exc_info=True
+                )
                 continue
 
         while budget > 0 and self._index_sub.poll(timeout=0):
             try:
                 topic, payload = decode(self._index_sub.recv_multipart())
-            except Exception:
+            except Exception as exc:
+                log.warning("md_gateway decode error on index SUB event: %s", exc)
                 budget -= 1
                 continue
             budget -= 1
@@ -643,6 +706,9 @@ class MarketDataGateway:
                             "IDX", "INDEX", index_id, fields, now_seconds
                         )
             except Exception:
+                log.warning(
+                    "md_gateway handler error on index topic=%s", topic, exc_info=True
+                )
                 continue
 
     # ------------------------------------------------------------------
@@ -668,10 +734,10 @@ class MarketDataGateway:
                 not session.authenticated
                 and now - session.connected_at > _HELLO_TIMEOUT_SEC
             ):
-                self._disconnect(session)
+                self._disconnect(session, reason="auth_timeout")
                 continue
             if session.authenticated and idle > self.config.idle_timeout_sec:
-                self._disconnect(session)
+                self._disconnect(session, reason="idle_timeout")
 
     # ------------------------------------------------------------------
     # Queue/disconnect helpers
@@ -711,21 +777,25 @@ class MarketDataGateway:
         max_rate = float(self.config.max_messages_per_second)
         session.rate_tokens = min(max_rate, session.rate_tokens + elapsed * max_rate)
         if session.rate_tokens < 1.0:
+            log.debug("message bucket empty fd=%d", session.sock.fileno())
             return False
         session.rate_tokens -= 1.0
         return True
 
-    def _disconnect(self, session: ClientSession) -> None:
+    def _disconnect(self, session: ClientSession, reason: str = "unspecified") -> None:
         fd = session.sock.fileno()
+        client_id = session.client_id or "-"
         try:
             session.sock.close()
         except OSError:
             pass
         self._clients.pop(fd, None)
         self._subs.remove_client(fd)
+        log.info("client disconnected fd=%d client=%s reason=%s", fd, client_id, reason)
 
     def _close_after_flush(self, session: ClientSession) -> None:
         session.closing = True
+        log.debug("session fd=%d marked closing-after-flush", session.sock.fileno())
 
     @staticmethod
     def _parse_csv_upper(raw: str) -> list[str]:
