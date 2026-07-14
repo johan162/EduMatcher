@@ -48,7 +48,7 @@ from edumatcher.balf_gwy.codec import (
 )
 from edumatcher.balf_gwy.config import BalfGatewayConfig
 from edumatcher.balf_gwy.gateway import BalfGateway
-from edumatcher.models.message import encode
+from edumatcher.models.message import decode, encode
 
 # ---------------------------------------------------------------------------
 # Wire-level helpers
@@ -377,6 +377,75 @@ class TestAuthTimeout:
             assert not bc.is_closed(timeout=0.2), "connection should still be open"
             # Clean up by completing auth
             _do_auth(bc, pull, pub)
+
+    def test_auth_timeout_not_extended_by_byte_dribble(
+        self, balf_gw_factory: FactoryFn
+    ) -> None:
+        """Slowloris-style byte dribble must not bypass auth timeout."""
+        _, _, _, port = balf_gw_factory(auth_timeout_sec=0.4)
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+            bc = _BalfClient(cli)
+            for _ in range(8):
+                try:
+                    cli.sendall(b"\xbe")
+                except OSError:
+                    break
+                time.sleep(0.08)
+            assert bc.is_closed(timeout=1.5), "auth timeout must close dribbling peer"
+
+
+class TestPreAuthHardening:
+    """Pre-auth LOGON path should not allow amplification or handshake leaks."""
+
+    def test_duplicate_logon_while_pending_is_rejected_without_second_connect(
+        self, balf_gw_factory: FactoryFn
+    ) -> None:
+        _, pull, _pub, port = balf_gw_factory()
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+            bc = _BalfClient(cli)
+
+            bc.send(_build_logon("TRADER01"))
+            topic, _ = _drain_until(pull, "system.gateway_connect")
+            assert topic == "system.gateway_connect"
+
+            bc.send(_build_logon("TRADER01"))
+            body = bc.recv_until(MSG_LOGON_ACK, timeout=1.5)
+            accepted = body[16]
+            reject_code = body[17]
+            msg_len = body[18]
+            msg = body[20 : 20 + msg_len].decode("ascii", errors="ignore")
+
+            assert accepted == 0
+            assert reject_code == LOGON_REJECT_OTHER
+            assert "LOGON_ALREADY_PENDING" in msg
+
+            # Ensure the second LOGON did not emit another gateway_connect.
+            got_second_connect = False
+            deadline = time.monotonic() + 0.4
+            while time.monotonic() < deadline:
+                if not pull.poll(timeout=20):
+                    continue
+                evt_topic, _payload = decode(pull.recv_multipart())
+                if evt_topic == "system.gateway_connect":
+                    got_second_connect = True
+                    break
+            assert not got_second_connect
+
+    def test_auth_pending_disconnect_emits_gateway_disconnect(
+        self, balf_gw_factory: FactoryFn
+    ) -> None:
+        _, pull, _pub, port = balf_gw_factory()
+
+        cli = socket.create_connection(("127.0.0.1", port), timeout=3)
+        bc = _BalfClient(cli)
+        bc.send(_build_logon("TRADER01"))
+        topic, _ = _drain_until(pull, "system.gateway_connect")
+        assert topic == "system.gateway_connect"
+
+        cli.close()
+        disc_topic, disc_payload = _drain_until(pull, "system.gateway_disconnect")
+        assert disc_topic == "system.gateway_disconnect"
+        assert str(disc_payload.get("gateway_id", "")).upper() == "TRADER01"
 
 
 # ===========================================================================

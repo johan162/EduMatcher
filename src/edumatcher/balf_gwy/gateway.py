@@ -133,6 +133,7 @@ class ClientSession:
     outbound_seq: int = 0
 
     # Timestamps
+    connected_at: float = field(default_factory=time.monotonic)
     last_activity: float = field(default_factory=time.monotonic)
     last_outbound: float = field(default_factory=time.monotonic)
 
@@ -156,6 +157,9 @@ class ClientSession:
     # Soft-close flag: flush and then disconnect
     closing: bool = False
 
+    # True once gateway_connect was emitted for this session.
+    connect_emitted: bool = False
+
     # Rate limiting
     rate_tokens: float = 0.0
     rate_updated: float = field(default_factory=time.monotonic)
@@ -165,6 +169,7 @@ class ClientSession:
     error_times: deque[float] = field(default_factory=deque)
 
     def __post_init__(self) -> None:
+        self.connected_at = time.monotonic()
         self.last_activity = time.monotonic()
         self.last_outbound = time.monotonic()
         self.rate_updated = time.monotonic()
@@ -441,6 +446,30 @@ class BalfGateway:
     ) -> None:
         if not session.authenticated:
             if msg_type == MSG_LOGON:
+                if session.auth_pending:
+                    self._queue_frame(
+                        session,
+                        build_logon_ack(
+                            session.gateway_id or "",
+                            accepted=False,
+                            reject_code=LOGON_REJECT_OTHER,
+                            msg="LOGON_ALREADY_PENDING",
+                        ),
+                    )
+                    return
+
+                if not self._allow_message_now(session):
+                    self._global_stats["frames_rejected_total"] += 1
+                    self._queue_frame(
+                        session,
+                        build_logon_ack(
+                            session.gateway_id or "",
+                            accepted=False,
+                            reject_code=LOGON_REJECT_OTHER,
+                            msg="RATE_LIMITED",
+                        ),
+                    )
+                    return
                 self._handle_logon(session, body)
             else:
                 log.warning(
@@ -557,6 +586,7 @@ class BalfGateway:
 
         session.gateway_id = gw_id
         session.auth_pending = True
+        session.connect_emitted = False
 
         # Subscribe to the auth reply topic and send gateway_connect to engine
         auth_topic = f"system.gateway_auth.{gw_id}"
@@ -567,6 +597,7 @@ class BalfGateway:
                 make_gateway_connect_msg(gw_id),
                 count_as_command=False,
             )
+            session.connect_emitted = True
         except BalfValidationError:
             # Engine unavailable: reject logon immediately so the client can retry
             # instead of waiting on a handshake that will never complete.
@@ -1142,7 +1173,7 @@ class BalfGateway:
                 continue
             if not session.authenticated:
                 # Unauthenticated sessions must send LOGON within auth_timeout
-                if now - session.last_activity > self.config.auth_timeout_sec:
+                if now - session.connected_at > self.config.auth_timeout_sec:
                     log.warning(
                         "BALF auth timeout from %s — hard-closing", session.addr
                     )
@@ -1220,17 +1251,16 @@ class BalfGateway:
     def _disconnect(self, session: ClientSession, *, reason: str) -> None:
         gw_id = session.gateway_id
 
-        if (
-            gw_id
-            and session.authenticated
-            and self._active_gateway_sessions.get(gw_id) == session.sock.fileno()
-        ):
+        if gw_id and self._active_gateway_sessions.get(gw_id) == session.sock.fileno():
             self._active_gateway_sessions.pop(gw_id, None)
+
+        if gw_id and session.connect_emitted:
             self._send_to_engine(
                 make_gateway_disconnect_msg(gw_id, reason=reason),
                 count_as_command=False,
                 require_engine=False,
             )
+            session.connect_emitted = False
 
         # Unsubscribe all ZMQ topics owned by this session
         for t in list(session.subscriptions):
