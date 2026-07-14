@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import socket
+import time
 from collections import deque
 
 import pytest
@@ -90,7 +91,10 @@ def _make_session() -> tuple[ClientSession, socket.socket]:
     left, right = socket.socketpair()
     left.setblocking(False)
     right.setblocking(False)
-    return ClientSession(sock=left, addr=("local", 0)), right
+    session = ClientSession(sock=left, addr=("local", 0))
+    session.rate_tokens = 100.0
+    session.rate_updated = time.monotonic()
+    return session, right
 
 
 def test_requires_hello_first(gateway: AlfGateway) -> None:
@@ -232,6 +236,7 @@ def test_disconnect_sends_gateway_disconnect(gateway: AlfGateway) -> None:
     session, peer = _make_session()
     session.authenticated = True
     session.gateway_id = "TRADER01"
+    session.connect_emitted = True
     gateway._clients[session.sock.fileno()] = session
     gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
 
@@ -281,6 +286,96 @@ def test_hello_eagain_returns_engine_unavailable_without_disconnect(
     assert frame.command == "ERR"
     assert frame.fields["CODE"] == "ENGINE_UNAVAILABLE"
     assert session.closing is False
+    assert session.auth_pending is False
+    assert session.gateway_id is None
+    peer.close()
+
+
+def test_duplicate_hello_while_pending_is_rejected_without_disconnect(
+    gateway: AlfGateway,
+) -> None:
+    session, peer = _make_session()
+    gateway._clients[session.sock.fileno()] = session
+
+    gateway._handle_client_line(session, "HELLO|CLIENT=BOT|PROTO=ALF1|ID=TRADER01")
+    gateway._handle_client_line(session, "HELLO|CLIENT=BOT|PROTO=ALF1|ID=TRADER01")
+
+    assert session.auth_pending is True
+    assert session.closing is False
+    assert session.out_queue
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ERR"
+    assert frame.fields["CODE"] == "HELLO_ALREADY_PENDING"
+    peer.close()
+
+
+def test_pre_auth_lines_are_rate_limited(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    gateway._clients[session.sock.fileno()] = session
+    session.rate_tokens = 0.0
+
+    gateway._handle_client_line(session, "HELLO|CLIENT=BOT|PROTO=ALF1|ID=TRADER01")
+
+    assert session.out_queue
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ERR"
+    assert frame.fields["CODE"] == "RATE_LIMITED"
+    assert session.auth_pending is False
+    peer.close()
+
+
+def test_disconnect_sends_gateway_disconnect_for_auth_pending_session(
+    gateway: AlfGateway,
+) -> None:
+    session, peer = _make_session()
+    gateway._clients[session.sock.fileno()] = session
+
+    gateway._handle_client_line(session, "HELLO|CLIENT=BOT|PROTO=ALF1|ID=TRADER01")
+    assert session.auth_pending is True
+
+    gateway._disconnect(session, reason="peer_closed")
+
+    fake_push = gateway._push
+    assert isinstance(fake_push, _FakePush)
+    assert fake_push.sent
+    topic = fake_push.sent[-1][0].decode("utf-8")
+    assert topic == "system.gateway_disconnect"
+    peer.close()
+
+
+def test_handshake_timeout_disconnects_unauthenticated_client(
+    gateway: AlfGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = [1_000.0]
+    monkeypatch.setattr("edumatcher.alf_gwy.gateway.time.monotonic", lambda: now[0])
+
+    session, peer = _make_session()
+    gateway._clients[session.sock.fileno()] = session
+    session.connected_at = 990.0
+    gateway.config = AlfGatewayConfig(
+        bind_address=gateway.config.bind_address,
+        port=gateway.config.port,
+        engine_pull_addr=gateway.config.engine_pull_addr,
+        engine_pub_addr=gateway.config.engine_pub_addr,
+        heartbeat_interval_sec=gateway.config.heartbeat_interval_sec,
+        handshake_timeout_sec=5,
+        idle_timeout_sec=gateway.config.idle_timeout_sec,
+        max_connections=gateway.config.max_connections,
+        max_client_queue=gateway.config.max_client_queue,
+        max_commands_per_second=gateway.config.max_commands_per_second,
+        max_errors_before_disconnect=gateway.config.max_errors_before_disconnect,
+        error_window_sec=gateway.config.error_window_sec,
+        gateway_roles=gateway.config.gateway_roles,
+    )
+
+    gateway._drop_idle_clients()
+
+    assert session.closing is True
+    assert session.out_queue
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ERR"
+    assert frame.fields["CODE"] == "AUTH_TIMEOUT"
     peer.close()
 
 

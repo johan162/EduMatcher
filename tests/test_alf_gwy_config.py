@@ -22,6 +22,7 @@ alf_gateway:
   bind_address: 127.0.0.1
   port: 6005
   heartbeat_interval_sec: 3
+  handshake_timeout_sec: 9
   idle_timeout_sec: 20
   max_connections: 10
   max_client_queue: 200
@@ -41,6 +42,7 @@ gateways:
     assert cfg.name == "alf-lab"
     assert cfg.bind_address == "127.0.0.1"
     assert cfg.port == 6005
+    assert cfg.handshake_timeout_sec == 9
     assert cfg.max_connections == 10
     assert cfg.max_client_queue == 200
     assert cfg.max_commands_per_second == 25
@@ -62,6 +64,7 @@ def test_invalid_alf_gateway_mapping_raises(tmp_path: Path) -> None:
     [
         "port",
         "heartbeat_interval_sec",
+        "handshake_timeout_sec",
         "idle_timeout_sec",
         "max_connections",
         "max_client_queue",

@@ -69,8 +69,10 @@ class ClientSession:
     out_offset: int = 0
     in_buffer: bytearray = field(default_factory=bytearray)
     closing: bool = False
+    connected_at: float = field(default_factory=time.monotonic)
     last_activity: float = field(default_factory=time.monotonic)
     last_outbound: float = field(default_factory=time.monotonic)
+    connect_emitted: bool = False
     lines_received: int = 0
     lines_sent: int = 0
     errors: int = 0
@@ -79,6 +81,7 @@ class ClientSession:
     rate_updated: float = 0.0
 
     def __post_init__(self) -> None:
+        self.connected_at = time.monotonic()
         self.last_activity = time.monotonic()
         self.last_outbound = time.monotonic()
         self.rate_updated = time.monotonic()
@@ -322,6 +325,23 @@ class AlfGateway:
         fields = frame.fields
 
         if not session.authenticated:
+            if cmd == "HELLO" and session.auth_pending:
+                self._register_error(
+                    session,
+                    "HELLO_ALREADY_PENDING",
+                    "HELLO already received; awaiting auth result",
+                    close_connection=False,
+                )
+                return
+
+            if not self._allow_command_now(session):
+                self._register_error(
+                    session,
+                    "RATE_LIMITED",
+                    "Too many commands per second",
+                    close_connection=False,
+                )
+                return
             if cmd != "HELLO":
                 self._register_error(
                     session,
@@ -333,7 +353,10 @@ class AlfGateway:
             try:
                 self._handle_hello(session, fields)
             except ValidationError as exc:
-                close_conn = exc.code != "ENGINE_UNAVAILABLE"
+                close_conn = exc.code not in {
+                    "ENGINE_UNAVAILABLE",
+                    "HELLO_ALREADY_PENDING",
+                }
                 self._register_error(
                     session, exc.code, exc.detail, close_connection=close_conn
                 )
@@ -421,6 +444,12 @@ class AlfGateway:
         raise ValidationError("UNKNOWN_COMMAND", f"Unknown command: {cmd}")
 
     def _handle_hello(self, session: ClientSession, fields: dict[str, str]) -> None:
+        if session.auth_pending:
+            raise ValidationError(
+                "HELLO_ALREADY_PENDING",
+                "HELLO already received; awaiting auth result",
+            )
+
         client, _proto, gateway_id = validate_hello_fields(fields)
 
         if self._gateway_in_use(gateway_id):
@@ -435,13 +464,24 @@ class AlfGateway:
         session.client_name = client
         session.gateway_id = gateway_id
         session.auth_pending = True
+        session.connect_emitted = False
 
         auth_topic = f"system.gateway_auth.{gateway_id}"
         self._subscribe_topic(auth_topic)
         session.subscriptions.add(auth_topic)
-        self._send_to_engine(
-            make_gateway_connect_msg(gateway_id), count_as_command=False
-        )
+        try:
+            self._send_to_engine(
+                make_gateway_connect_msg(gateway_id), count_as_command=False
+            )
+        except ValidationError:
+            session.auth_pending = False
+            session.gateway_id = None
+            session.client_name = ""
+            if auth_topic in session.subscriptions:
+                session.subscriptions.remove(auth_topic)
+                self._unsubscribe_topic(auth_topic)
+            raise
+        session.connect_emitted = True
 
     def _handle_new(self, session: ClientSession, fields: dict[str, str]) -> None:
         req_type = fields.get("TYPE", "LIMIT")
@@ -1071,6 +1111,21 @@ class AlfGateway:
     def _drop_idle_clients(self) -> None:
         now = time.monotonic()
         for session in list(self._clients.values()):
+            if (
+                not session.authenticated
+                and now - session.connected_at > self.config.handshake_timeout_sec
+            ):
+                self._queue_line(
+                    session,
+                    "ERR",
+                    {
+                        "CODE": "AUTH_TIMEOUT",
+                        "DETAIL": "Handshake timeout",
+                    },
+                )
+                self._close_after_flush(session)
+                continue
+
             if now - session.last_activity <= self.config.idle_timeout_sec:
                 continue
             self._queue_line(
@@ -1263,12 +1318,13 @@ class AlfGateway:
             self._unsubscribe_topic(topic)
         session.subscriptions.clear()
 
-        if gateway_id and session.authenticated:
+        if gateway_id and session.connect_emitted:
             self._send_to_engine(
                 make_gateway_disconnect_msg(gateway_id, reason=reason),
                 count_as_command=False,
                 require_engine=False,
             )
+            session.connect_emitted = False
 
         fileno = session.sock.fileno()
         session.close()
