@@ -50,7 +50,7 @@ For a public-facing service, an unauthenticated peer can take the whole gateway 
 
 ## High
 
-### MD-H1. Slow-client disconnect is ineffective and leaks memory unboundedly
+### MD-H1. Slow-client disconnect is ineffective and leaks memory unboundedly **fixed**
 
 The overflow handling in `_flush_client_writes`:
 
@@ -71,7 +71,7 @@ There is also no per-append bound: `_queue_raw` appends unconditionally, and the
 
 **Fix:** on overflow, hard-disconnect immediately (don't wait for an empty queue), and stop fanning out to sessions flagged `closing`.
 
-### MD-H2. Engine-event hot path is only partially guarded → one bad event crashes the gateway
+### MD-H2. Engine-event hot path is only partially guarded → one bad event crashes the gateway **fixed**
 
 `_poll_engine_events` wraps only `decode` in try/except:
 
@@ -95,19 +95,19 @@ Normalisation, sequence allocation, replay append, `build_line`, and fanout all 
 
 ## Medium
 
-### MD-M1. Idle timeout is effectively defeated for authenticated clients
+### MD-M1. Idle timeout is effectively defeated for authenticated clients **fixed**
 
 `last_activity` is refreshed both on `recv` (`_read_client_data`) **and on every successful `send`** (`_flush_client_writes`: `session.last_activity = time.monotonic()`). Since heartbeats are flushed every `heartbeat_interval_sec` (default 1s) and `idle_timeout_sec` defaults to 5s, an authenticated client's `last_activity` is continuously refreshed by the gateway's own outbound writes — so `_drop_idle_clients` never fires for it, even if the client never reads or sends anything. Idle detection only kicks in once sends stop succeeding, at which point the (broken, see MD-H1) slow-client path is supposed to take over. Net effect: the idle timeout does not do its stated job for authenticated clients.
 
 **Fix:** base idle detection on inbound activity (and/or unacked outbound backlog), not on successful sends.
 
-### MD-M2. No command rate limiting; SUB/UNSUB toggling amplifies snapshots
+### MD-M2. No command rate limiting; SUB/UNSUB toggling amplifies snapshots **fixed**
 
 Unlike the ALF gateway (token bucket), there is no per-client command rate limit. `_handle_sub` sends a fresh SNAP for each newly-added pair, and for `CH=TOP, SYM=*` it emits one SNAP per known symbol. Because `new_pairs = requested_pairs - session.subscriptions`, a client can repeatedly `UNSUB` then `SUB` a wildcard TOP stream to force the gateway to regenerate a per-symbol snapshot storm on demand — CPU/bandwidth amplification from a single connection.
 
 **Fix:** add a lightweight per-client command rate limit (and/or a cooldown on snapshot regeneration).
 
-### MD-M3. `_poll_engine_events` drains the entire SUB backlog per iteration
+### MD-M3. `_poll_engine_events` drains the entire SUB backlog per iteration **fixed**
 
 `while self._sub_sock.poll(timeout=0):` (and the index socket likewise) processes *all* currently-available engine messages before returning to `_flush_client_writes`. On a market-data hot path this means a burst is fully appended to every subscriber's `out_queue` before any flush occurs — latency and memory spikes, and it interacts badly with MD-H1. Consider bounding messages processed per iteration and interleaving flushes.
 

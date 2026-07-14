@@ -20,7 +20,7 @@ No true in-process race conditions were found in the client-handling code — th
 
 ## Critical
 
-### C1. Blocking send to the engine can hang the whole gateway
+### C1. Blocking send to the engine can hang the whole gateway **fixed**
 
 `make_pusher` (`bus.py`) creates a `zmq.PUSH` socket with default options (no `SNDTIMEO`, no `SNDHWM` override), and `_send_to_engine` calls `send_multipart` in blocking mode:
 
@@ -42,7 +42,7 @@ For a public-facing gateway this is the highest-impact bug: engine unavailabilit
 
 ## High
 
-### H2. Pre-auth HELLO amplification / unbounded resource growth
+### H2. Pre-auth HELLO amplification / unbounded resource growth **fixed**
 
 Before authentication, `_handle_client_line` routes every line to `_handle_hello` as long as the command is `HELLO`, and the per-command rate limiter (`_allow_command_now`) is only applied *after* auth. Each HELLO with a fresh `ID`:
 
@@ -53,7 +53,7 @@ with no cap. A single unauthenticated TCP peer can loop HELLOs with distinct IDs
 
 **Fix:** rate-limit (and count) pre-auth lines too; reject a second HELLO on an already-HELLO'd session instead of re-processing it.
 
-### H3. Gateway↔engine state desync when a session dies mid-handshake
+### H3. Gateway↔engine state desync when a session dies mid-handshake **fixed**
 
 `_handle_hello` emits `gateway_connect` to the engine, but `_disconnect` only emits `gateway_disconnect` when `session.authenticated` is true:
 
@@ -66,7 +66,7 @@ If the client disconnects (or idle-times-out) while `auth_pending` — after `ga
 
 **Fix:** send `gateway_disconnect` whenever `gateway_id` is set and a connect was emitted (track a `_connect_sent` flag), regardless of `authenticated`.
 
-### H4. No pre-authentication / handshake timeout (slowloris)
+### H4. No pre-authentication / handshake timeout (slowloris) **fixed**
 
 `last_activity` is refreshed on *any* inbound bytes (`_read_client_data`), and the only eviction is `idle_timeout_sec` against `last_activity`. A client that dribbles one byte every `< idle_timeout` seconds (default 30s) — never sending a full HELLO — holds a connection slot indefinitely. With `max_connections` default 64, ~64 such peers exhaust the pool and deny service to legitimate clients.
 
@@ -76,23 +76,23 @@ If the client disconnects (or idle-times-out) while `auth_pending` — after `ga
 
 ## Medium
 
-### M5. Symbol validation window / shared global registry
+### M5. Symbol validation window / shared global registry **fixed**
 
 `_validate_symbol` only rejects unknown symbols once `_known_symbols` is non-empty, which is populated asynchronously by the first `SYMBOLS` response. Orders sent between auth and that response bypass symbol validation. Also `_known_symbols` and the `price.py` tick registry are process-global/shared across gateways and mutated from engine responses — fine functionally, but worth a comment since it is shared mutable state.
 
-### M6. `_poll_engine_events` drains the whole SUB queue per iteration and can crash the loop
+### M6. `_poll_engine_events` drains the whole SUB queue per iteration and can crash the loop **fixed**
 
 `while self._sub.poll(timeout=0):` processes all pending engine messages before returning to client I/O, so an engine burst can starve clients for that iteration. Additionally, a non-`EINTR` `zmq.ZMQError` is re-raised and propagates out of `run()`'s loop, tearing down the gateway.
 
 **Fix:** bound messages-per-iteration and handle unexpected ZMQErrors without process teardown.
 
-### M7. Self-inflicted disconnect on duplicate HELLO for the same ID
+### M7. Self-inflicted disconnect on duplicate HELLO for the same ID **fixed**
 
 While `auth_pending`, a second HELLO for the *same* gateway hits `_gateway_in_use(...) == True` and returns `GATEWAY_ALREADY_CONNECTED` with `close_connection=True`, closing the client's own in-flight session. A retrying client gets disconnected rather than a benign "already authenticating" response.
 
 ---
 
-## Low
+## Low **fixed**
 
 - **L8. Busy-poll with fixed `time.sleep(0.01)`** instead of a `select`/`poll` timeout adds up to ~10ms latency per step and constant wakeups. `select.select` also caps at `FD_SETSIZE` (~1024) — fine at `max_connections=64`, but a latent ceiling if raised. Consider a timeout-driven `select` covering both readable and pending-write sockets.
 - **L9. Global uppercasing of all field values** in `parse_alf_line` (`value.strip().upper()`) also uppercases the `CLIENT` name and any free-text — cosmetic surprise, and means client identifiers cannot preserve case.
