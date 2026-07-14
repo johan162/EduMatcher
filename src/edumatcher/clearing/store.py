@@ -674,7 +674,8 @@ def record_gateway_disconnect(
     disconnected_at_ns: int,
     reason: str | None,
 ) -> None:
-    """Update the matching connect row with disconnect timestamp and reason."""
+    """Update the matching connect row (exact ``connected_at_ns``) with the
+    disconnect timestamp and reason."""
     conn.execute(
         "UPDATE gateway_sessions"
         " SET disconnected_at_ns = ?, disconnect_reason = ?"
@@ -682,6 +683,35 @@ def record_gateway_disconnect(
         (disconnected_at_ns, reason, gateway_id, connected_at_ns),
     )
     conn.commit()
+
+
+def close_latest_gateway_session(
+    conn: sqlite3.Connection,
+    *,
+    gateway_id: str,
+    disconnected_at_ns: int,
+    reason: str | None,
+) -> int:
+    """
+    Close the most recent still-open session for ``gateway_id`` (finding CL-M5).
+
+    Matches on ``MAX(connected_at_ns)`` among the gateway's rows whose
+    ``disconnected_at_ns IS NULL``, so a disconnect is recorded from durable SQL
+    state alone — even after a clearing restart that lost the in-memory connect
+    timestamp.  No-op (returns 0) when the gateway has no open session.
+    Returns the number of rows updated.
+    """
+    cur = conn.execute(
+        "UPDATE gateway_sessions"
+        " SET disconnected_at_ns = ?, disconnect_reason = ?"
+        " WHERE gateway_id = ? AND connected_at_ns = ("
+        "   SELECT MAX(connected_at_ns) FROM gateway_sessions"
+        "   WHERE gateway_id = ? AND disconnected_at_ns IS NULL"
+        " )",
+        (disconnected_at_ns, reason, gateway_id, gateway_id),
+    )
+    conn.commit()
+    return cur.rowcount
 
 
 # ---------------------------------------------------------------------------

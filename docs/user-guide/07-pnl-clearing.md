@@ -97,9 +97,20 @@ pm-clearing [OPTIONS]
   --print-every N        Print P&L summary every N trades (0 = never, default: 100)
   --retention-days N     Prune trade_events rows older than N days on startup
                          (default: 90; use 0 to disable startup pruning)
+  --timezone TZ          Exchange session timezone (IANA name, e.g.
+                         America/New_York) used to bucket trades into a
+                         trading day (default: UTC)
   --version              Show version and exit
   --help                 Show help and exit
 ```
+
+!!! note "Trade-date bucketing and the session timezone"
+    Each trade is assigned a `trade_date` (used by `gateway_daily_summary`,
+    the `daily`/`dates` verbs, and the EOD row) based on the calendar day of
+    its timestamp in the `--timezone` you pass. The default is UTC. Set it to
+    the exchange's local timezone so an evening session — or any session that
+    straddles 00:00 UTC — stays in a single `trade_date` bucket instead of
+    being split across two days.
 
 ### What pm-clearing subscribes to
 
@@ -207,7 +218,7 @@ to `session_events` rather than silently dropping the row.
 |---|---|---|
 | `id` | TEXT | Engine trade id — unique only *within* one engine run (part of the composite primary key `(id, ts_ns)`) |
 | `ts_ns` | INTEGER | Engine event timestamp in nanoseconds (part of the composite primary key) |
-| `trade_date` | TEXT | UTC date (`YYYY-MM-DD`) derived from `ts_ns` |
+| `trade_date` | TEXT | Session-timezone date (`YYYY-MM-DD`) derived from `ts_ns` (default UTC; see `--timezone`) |
 | `symbol` | TEXT | Instrument symbol |
 | `quantity` | INTEGER | Matched trade size |
 | `price` | INTEGER | Execution price in ticks |
@@ -254,7 +265,7 @@ Daily incremental aggregates. Updated in the same transaction as
 
 | Column | Type | Description |
 |---|---|---|
-| `trade_date` | TEXT | UTC date (`YYYY-MM-DD`) |
+| `trade_date` | TEXT | Session-timezone date (`YYYY-MM-DD`); default UTC (see `--timezone`) |
 | `gateway_id` | TEXT | Gateway identifier |
 | `symbol` | TEXT | Instrument symbol |
 | `traded_qty` | INTEGER | Daily total filled quantity for this key |
@@ -287,7 +298,7 @@ Append-only log of clearing-significant events. Three event types are written:
 | `id` | INTEGER (autoincrement) | Surrogate key |
 | `event_type` | TEXT | `EOD`, `GAP`, or `ID_COLLISION` |
 | `ts_ns` | INTEGER | Ingestion timestamp |
-| `trade_date` | TEXT | UTC date derived from `ts_ns` |
+| `trade_date` | TEXT | Session-timezone date derived from `ts_ns` (default UTC) |
 | `payload_json` | TEXT | Event-specific JSON (see table above) |
 
 `EOD` rows are surfaced by `pm-clearing-cli eod`. `GAP` and `ID_COLLISION` are

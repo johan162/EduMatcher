@@ -21,7 +21,9 @@ import zmq
 
 from edumatcher.clearing.main import (
     ClearingProcess,
+    _to_timestamp_ns,
     _to_trade_event_row,
+    _trade_from_payload,
 )
 from edumatcher.clearing.store import (
     open_writer_connection,
@@ -495,6 +497,9 @@ class TestHandleEod:
         pos = process._ledger.position("GW_BUY", "AAPL")
         assert pos is not None
         assert pos.mark_price == 12000
+        # CL-M4: mark and avg_cost are both in ticks, so unrealized_pnl is in
+        # ticks — net_qty 10 * (12000 - 10000) = 20000 (no 100x unit error).
+        assert pos.unrealized_pnl == pytest.approx(10 * (12000 - 10000))
 
     def test_eod_does_not_raise_on_bad_payload(self, process: ClearingProcess) -> None:
         """Malformed payload should be silently absorbed, not crash."""
@@ -547,6 +552,42 @@ class TestHandleGatewayConnect:
         assert "TRADER01" in process._gw_connect_ts
 
 
+class TestHandleSessionState:
+    def _proc(self, db_path: Path, zmq_addr: str) -> ClearingProcess:
+        return ClearingProcess(
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=3650,
+        )
+
+    def test_records_phase_row(self, db_path: Path, zmq_addr: str) -> None:
+        """CL-M7: session.state is recorded as a PHASE row in session_events."""
+        p = self._proc(db_path, zmq_addr)
+        try:
+            p._handle_session_state(
+                {"state": "continuous", "prev_state": "opening_auction"}
+            )
+            rows = query_session_events(p._conn, event_type="PHASE")
+        finally:
+            p._conn.close()
+        assert len(rows) == 1
+        data = json.loads(rows[0]["payload_json"])
+        assert data["state"] == "CONTINUOUS"
+        assert data["prev_state"] == "opening_auction"
+
+    def test_empty_state_ignored(self, db_path: Path, zmq_addr: str) -> None:
+        p = self._proc(db_path, zmq_addr)
+        try:
+            p._handle_session_state({})
+            rows = query_session_events(p._conn, event_type="PHASE")
+        finally:
+            p._conn.close()
+        assert rows == []
+
+
 class TestHandleGatewayDisconnect:
     @pytest.fixture()
     def process(
@@ -590,6 +631,45 @@ class TestHandleGatewayDisconnect:
         """Disconnect with no matching connect_ts should not raise."""
         process._handle_gateway_disconnect({"gateway_id": "UNKNOWN"})
 
+    def test_disconnect_closes_session_after_restart(
+        self, db_path: Path, zmq_addr: str
+    ) -> None:
+        """CL-M5: a disconnect after a clearing restart (empty in-memory
+        connect map) must still close the session opened before the restart,
+        matched from durable SQL state alone."""
+        p1 = ClearingProcess(
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=3650,
+        )
+        try:
+            p1._handle_gateway_connect({"gateway_id": "GW_R"})
+        finally:
+            p1._conn.close()
+
+        # Restart: a fresh process has an empty _gw_connect_ts.
+        p2 = ClearingProcess(
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=3650,
+        )
+        try:
+            assert "GW_R" not in p2._gw_connect_ts
+            p2._handle_gateway_disconnect({"gateway_id": "GW_R", "reason": "restart"})
+            rows = query_sessions(p2._conn, gateway="GW_R")
+        finally:
+            p2._conn.close()
+
+        assert len(rows) == 1
+        assert rows[0]["disconnected_at_ns"] is not None
+        assert rows[0]["disconnect_reason"] == "restart"
+
     def test_retention_days_prunes_old_rows(self, db_path: Path, zmq_addr: str) -> None:
         """retention_days=1 should prune a row from year 2000."""
         conn = open_writer_connection(db_path)
@@ -612,3 +692,54 @@ class TestHandleGatewayDisconnect:
         deleted = prune_old_events(p._conn, retention_days=1)
         p._conn.close()
         assert deleted == 1
+
+
+# ---------------------------------------------------------------------------
+# CL-M6 — parse trade.executed to its declared units, not by guessing
+# ---------------------------------------------------------------------------
+
+
+def _trade_payload(
+    price: Any, timestamp: Any, tick_decimals: int = 2
+) -> dict[str, Any]:
+    return {
+        "id": "T1",
+        "symbol": "AAPL",
+        "buy_order_id": "O1",
+        "sell_order_id": "O2",
+        "buy_gateway_id": "GW1",
+        "sell_gateway_id": "GW2",
+        "price": price,
+        "quantity": 10,
+        "aggressor_side": "BUY",
+        "timestamp": timestamp,
+        "tick_decimals": tick_decimals,
+    }
+
+
+class TestPayloadParsing:
+    def test_timestamp_seconds_to_ns(self) -> None:
+        assert _to_timestamp_ns(1.5) == 1_500_000_000
+        assert _to_timestamp_ns(2) == 2_000_000_000
+
+    def test_timestamp_bad_values_return_zero(self) -> None:
+        assert _to_timestamp_ns(0) == 0
+        assert _to_timestamp_ns(None) == 0
+        assert _to_timestamp_ns("nope") == 0
+
+    def test_timestamp_milliseconds_best_effort(self) -> None:
+        # 1_700_000_000_000 ms == 1.7e18 ns (converted, with a warning).
+        assert _to_timestamp_ns(1_700_000_000_000) == 1_700_000_000_000_000_000
+
+    def test_timestamp_nanoseconds_passthrough(self) -> None:
+        assert _to_timestamp_ns(1_700_000_000_000_000_000) == 1_700_000_000_000_000_000
+
+    def test_price_float_display_to_ticks(self) -> None:
+        t = _trade_from_payload(_trade_payload(price=150.75, timestamp=1.0))
+        assert t.price == 15075
+        assert t.timestamp == 1_000_000_000
+
+    def test_price_integer_display_to_ticks(self) -> None:
+        # CL-M6: an integer display price is a display value, not raw ticks.
+        t = _trade_from_payload(_trade_payload(price=150, timestamp=1.0))
+        assert t.price == 15000

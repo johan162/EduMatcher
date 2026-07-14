@@ -28,7 +28,7 @@ they involve division and subtraction that can produce non-integer results.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, tzinfo
 from typing import Any
 
 from edumatcher.clearing.store import DailySummaryRow, PositionRow
@@ -82,10 +82,25 @@ class _BatchDelta:
 # ---------------------------------------------------------------------------
 
 
+def trade_date(ts_ns: int, tz: tzinfo = timezone.utc) -> str:
+    """
+    Return the trade-date string (YYYY-MM-DD) for a nanosecond timestamp in the
+    exchange's session timezone.
+
+    The trading day should align to the exchange's wall-clock calendar day, not
+    UTC (finding CL-M3): bucketing on UTC splits a single evening session — or
+    any session that straddles 00:00 UTC — across two ``trade_date`` values, so
+    daily summaries no longer match the session the participants actually traded.
+    ``tz`` defaults to UTC to preserve the historical behaviour when no session
+    timezone is configured.
+    """
+    ts_sec = ts_ns / 1_000_000_000
+    return datetime.fromtimestamp(ts_sec, tz=tz).strftime("%Y-%m-%d")
+
+
 def trade_date_utc(ts_ns: int) -> str:
     """Return the UTC trade-date string (YYYY-MM-DD) for a nanosecond timestamp."""
-    ts_sec = ts_ns / 1_000_000_000
-    return datetime.fromtimestamp(ts_sec, tz=timezone.utc).strftime("%Y-%m-%d")
+    return trade_date(ts_ns, timezone.utc)
 
 
 def _apply_fill_to_position(
@@ -171,11 +186,14 @@ class Ledger:
     4. Call ``clear_batch`` to reset the incremental delta accumulators.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, tz: tzinfo = timezone.utc) -> None:
         # Persistent position state — never cleared.
         self._positions: dict[tuple[str, str], _Position] = {}
         # Batch incremental deltas — cleared after each successful flush.
         self._batch_deltas: dict[tuple[str, str, str], _BatchDelta] = {}
+        # Exchange session timezone used to bucket trades into a trading day
+        # (finding CL-M3).  Defaults to UTC.
+        self._tz = tz
 
     # ------------------------------------------------------------------
     # Public interface
@@ -232,7 +250,7 @@ class Ledger:
         ``ingest_ts_ns`` is not used for P&L math but is stored for the
         ``last_trade_ts_ns`` column in daily accumulators.
         """
-        trade_date = trade_date_utc(ts_ns)
+        bucket_date = trade_date(ts_ns, self._tz)
 
         for gateway_id, is_buy in (
             (buy_gateway_id, True),
@@ -246,20 +264,32 @@ class Ledger:
                 quantity=quantity,
                 is_buy=is_buy,
                 ts_ns=ts_ns,
-                trade_date=trade_date,
+                trade_date=bucket_date,
             )
 
     def get_flush_rows(
         self,
         updated_ts_ns: int,
+        position_keys: set[tuple[str, str]] | None = None,
     ) -> tuple[list[PositionRow], list[DailySummaryRow]]:
         """
         Return DB-ready rows for the current batch.
 
         ``updated_ts_ns`` is written as the flush timestamp on every row.
+
+        Only the positions that actually changed this batch are emitted
+        (finding CL-M9): re-writing every position ever seen on every 5-second
+        flush rewrites the whole table to touch a handful of rows.  ``position_keys``
+        overrides which ``(gateway_id, symbol)`` positions to emit — passed by the
+        EOD mark pass, which mutates positions outside the delta accumulator.
+        When ``None``, the keys are derived from the current batch deltas.
         """
+        if position_keys is None:
+            position_keys = {(gw, sym) for (_date, gw, sym) in self._batch_deltas}
         position_rows = [
-            _position_to_row(pos, updated_ts_ns) for pos in self._positions.values()
+            _position_to_row(self._positions[key], updated_ts_ns)
+            for key in position_keys
+            if key in self._positions
         ]
         daily_rows = [
             _delta_to_daily_row(key, delta, self._positions, updated_ts_ns)

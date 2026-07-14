@@ -658,7 +658,7 @@ pm-audit --buffer-size 1 --flush-interval 0.1
 SQLite-backed clearing writer for P&L and position state.
 
 ```bash
-pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interval SEC] [--print-every N] [--retention-days N]
+pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interval SEC] [--print-every N] [--retention-days N] [--timezone TZ]
 ```
 
 **Startup options:**
@@ -671,6 +671,7 @@ pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interva
 | `--flush-interval` | `5.0` | Flush interval in seconds when buffer is non-empty |
 | `--print-every` | `100` | Print in-memory P&L snapshot every N trades (`0` disables) |
 | `--retention-days` | `90` | Prune `trade_events` rows older than N days on startup (`0` disables pruning) |
+| `--timezone` | `UTC` | Exchange session timezone (IANA name) used to bucket trades into a trading day; keeps a single wall-clock session in one `trade_date` |
 
 `pm-clearing-cli` global options include `--raw-output` to disable display
 normalization and print raw tick-unit values for price-derived fields.

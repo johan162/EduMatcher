@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
-from edumatcher.clearing.ledger import Ledger, _apply_fill_to_position, _Position
+from edumatcher.clearing.ledger import (
+    Ledger,
+    _apply_fill_to_position,
+    _Position,
+    trade_date,
+    trade_date_utc,
+)
 
 # ---------------------------------------------------------------------------
 # Low-level fill helper tests
@@ -378,6 +386,56 @@ class TestLedger:
         # GW_A: AAPL and MSFT; GW_B: AAPL; GW_C: MSFT
         assert len(positions) == 4
 
+    def test_get_flush_rows_emits_only_touched_positions(self) -> None:
+        """CL-M9: a flush emits position rows only for keys changed in the
+        current batch, not every position ever seen."""
+        ledger = Ledger()
+        ts = self._make_ts(1)
+        # Batch 1 touches AAPL for GW_A / GW_B, then is flushed.
+        ledger.apply_trade(
+            symbol="AAPL",
+            buy_gateway_id="GW_A",
+            sell_gateway_id="GW_B",
+            price=100,
+            quantity=1,
+            ts_ns=ts,
+            ingest_ts_ns=ts,
+        )
+        ledger.clear_batch()
+        # Batch 2 touches only MSFT for GW_A / GW_C.
+        ledger.apply_trade(
+            symbol="MSFT",
+            buy_gateway_id="GW_A",
+            sell_gateway_id="GW_C",
+            price=200,
+            quantity=1,
+            ts_ns=ts,
+            ingest_ts_ns=ts,
+        )
+        pos_rows, _ = ledger.get_flush_rows(updated_ts_ns=ts)
+        emitted = {(r.gateway_id, r.symbol) for r in pos_rows}
+        assert emitted == {("GW_A", "MSFT"), ("GW_C", "MSFT")}
+        # Four positions exist, but only the two touched this batch are written.
+        assert len(ledger.all_positions()) == 4
+
+    def test_get_flush_rows_explicit_keys(self) -> None:
+        """Explicit position_keys override (used by the EOD mark pass)."""
+        ledger = Ledger()
+        ts = self._make_ts(1)
+        ledger.apply_trade(
+            symbol="AAPL",
+            buy_gateway_id="GW_A",
+            sell_gateway_id="GW_B",
+            price=100,
+            quantity=1,
+            ts_ns=ts,
+            ingest_ts_ns=ts,
+        )
+        pos_rows, _ = ledger.get_flush_rows(
+            updated_ts_ns=ts, position_keys={("GW_A", "AAPL")}
+        )
+        assert {(r.gateway_id, r.symbol) for r in pos_rows} == {("GW_A", "AAPL")}
+
     def test_duplicate_trade_date_in_same_batch(self) -> None:
         """Two trades on the same day accumulate into one DailySummaryRow per key."""
         ledger = Ledger()
@@ -408,3 +466,40 @@ class TestLedger:
         gw1_row = next(r for r in daily_rows if r.gateway_id == "GW1")
         assert gw1_row.delta_buy_qty == 15
         assert gw1_row.delta_buy_notional == 100 * 10 + 110 * 5
+
+
+# ---------------------------------------------------------------------------
+# CL-M3 — trades bucket by the exchange session day, not by UTC
+# ---------------------------------------------------------------------------
+
+
+def _ns(dt: datetime) -> int:
+    return int(dt.timestamp() * 1_000_000_000)
+
+
+class TestSessionDayBucketing:
+    # 2026-07-02 02:00 UTC is still 2026-07-01 in a UTC-5 session.
+    _TS = _ns(datetime(2026, 7, 2, 2, 0, tzinfo=timezone.utc))
+    _EST = timezone(timedelta(hours=-5))
+
+    def test_trade_date_default_is_utc(self) -> None:
+        assert trade_date(self._TS) == "2026-07-02"
+        assert trade_date_utc(self._TS) == "2026-07-02"
+
+    def test_trade_date_uses_session_timezone(self) -> None:
+        assert trade_date(self._TS, self._EST) == "2026-07-01"
+
+    def test_ledger_buckets_daily_rows_by_session_tz(self) -> None:
+        led = Ledger(tz=self._EST)
+        led.apply_trade(
+            symbol="AAPL",
+            buy_gateway_id="GW1",
+            sell_gateway_id="GW2",
+            price=15000,
+            tick_decimals=2,
+            quantity=10,
+            ts_ns=self._TS,
+            ingest_ts_ns=self._TS,
+        )
+        _, daily_rows = led.get_flush_rows(updated_ts_ns=self._TS)
+        assert {r.trade_date for r in daily_rows} == {"2026-07-01"}

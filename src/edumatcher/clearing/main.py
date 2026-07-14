@@ -20,6 +20,7 @@ the count of deleted rows.
 
 from __future__ import annotations
 
+import copy
 import errno
 import json
 import signal
@@ -27,6 +28,7 @@ import sys
 import threading
 import time
 from collections import OrderedDict
+from datetime import timezone, tzinfo
 from pathlib import Path
 from typing import Any
 
@@ -34,15 +36,15 @@ import zmq
 from rich.console import Console
 from rich.table import Table
 
-from edumatcher.clearing.ledger import Ledger, trade_date_utc
+from edumatcher.clearing.ledger import Ledger, trade_date
 from edumatcher.clearing.store import (
     TradeEventRow,
+    close_latest_gateway_session,
     fetch_all_positions,
     flush_batch,
     open_writer_connection,
     prune_old_events,
     record_gateway_connect,
-    record_gateway_disconnect,
     record_session_event,
 )
 from edumatcher.messaging.bus import make_subscriber
@@ -55,11 +57,14 @@ FLUSH_SIZE: int = 100
 FLUSH_INTERVAL_SEC: float = 5.0
 _TIMER_POLL_SEC: float = 0.5
 _RETENTION_DAYS: int = 90
-# Unix epoch 2001-09-09T01:46:40Z expressed in nanoseconds.
-# Any timestamp value above this is already in nanoseconds; any value below
-# is treated as seconds and multiplied by 1e9.  Seconds-based timestamps
-# cannot plausibly exceed this value for ~30 billion years.
-_NS_THRESHOLD: int = 1_000_000_000_000_000_000  # 1e18 ns
+# The documented trade.executed contract (docs/user-guide/09-messages.md) is:
+#   timestamp = Unix epoch SECONDS (float);  price = display float.
+# Clearing parses to the declared units rather than guessing (finding CL-M6).
+# These magnitude bounds are only a defensive guard: an out-of-contract producer
+# sending milliseconds or nanoseconds is detected, warned about, and converted
+# best-effort — instead of silently projecting a ms value to the year ~55,000.
+_SECONDS_MAX: int = 100_000_000_000  # ~ year 5138 in epoch seconds
+_MILLIS_MAX: int = _SECONDS_MAX * 1000
 
 console = Console()
 
@@ -69,12 +74,14 @@ console = Console()
 # ---------------------------------------------------------------------------
 
 
-def _to_trade_event_row(trade: Trade, ingest_ts_ns: int) -> TradeEventRow:
+def _to_trade_event_row(
+    trade: Trade, ingest_ts_ns: int, tz: tzinfo = timezone.utc
+) -> TradeEventRow:
     """Convert a Trade model to the DB row type, deriving trade_date from ts_ns."""
     return TradeEventRow(
         id=trade.id,
         ts_ns=trade.timestamp,
-        trade_date=trade_date_utc(trade.timestamp),
+        trade_date=trade_date(trade.timestamp, tz),
         symbol=trade.symbol,
         quantity=trade.quantity,
         price=trade.price,
@@ -98,14 +105,33 @@ def _parse_tick_decimals(payload: dict[str, Any]) -> int:
 
 
 def _to_timestamp_ns(raw: Any) -> int:
-    if isinstance(raw, float):
-        if raw > _NS_THRESHOLD:
-            return int(raw)
-        return int(raw * 1_000_000_000)
-    ts = int(raw)
-    if ts > _NS_THRESHOLD:
-        return ts
-    return ts * 1_000_000_000
+    """
+    Convert a ``trade.executed`` timestamp to integer nanoseconds.
+
+    The declared contract is Unix epoch **seconds** (float), so that is the
+    primary interpretation.  A value whose magnitude is implausible for seconds
+    (already milliseconds or nanoseconds) is converted best-effort with a loud
+    warning rather than silently mis-scaled (finding CL-M6).
+    """
+    try:
+        val = float(raw)
+    except (TypeError, ValueError):
+        return 0
+    if val < _SECONDS_MAX:
+        return int(round(val * 1_000_000_000))
+    if val < _MILLIS_MAX:
+        console.print(
+            "[CLEARING] WARNING: trade timestamp looks like milliseconds, not the"
+            " documented seconds — converting best-effort.",
+            style="yellow",
+        )
+        return int(round(val * 1_000_000))
+    console.print(
+        "[CLEARING] WARNING: trade timestamp looks like nanoseconds, not the"
+        " documented seconds — converting best-effort.",
+        style="yellow",
+    )
+    return int(val)
 
 
 def _trade_from_payload(payload: dict[str, Any]) -> Trade:
@@ -113,11 +139,11 @@ def _trade_from_payload(payload: dict[str, Any]) -> Trade:
     tick_decimals = _parse_tick_decimals(normalized)
     scale = 10**tick_decimals
 
+    # trade.executed.price is a DISPLAY value by contract; convert to ticks
+    # unconditionally rather than treating an integer as if it were already ticks
+    # (finding CL-M6).
     price_raw = normalized.get("price", 0)
-    if isinstance(price_raw, float):
-        normalized["price"] = int(round(price_raw * scale))
-    else:
-        normalized["price"] = int(price_raw)
+    normalized["price"] = int(round(float(price_raw) * scale))
 
     normalized["timestamp"] = _to_timestamp_ns(normalized.get("timestamp", 0))
     normalized["tick_decimals"] = tick_decimals
@@ -158,6 +184,7 @@ class ClearingProcess:
         flush_interval_sec: float = FLUSH_INTERVAL_SEC,
         print_every: int = 100,
         retention_days: int = _RETENTION_DAYS,
+        session_tz: tzinfo = timezone.utc,
     ) -> None:
         self._pub_addr = pub_addr
         self._db_path = Path(db_path)
@@ -165,9 +192,12 @@ class ClearingProcess:
         self._flush_interval_sec = flush_interval_sec
         self._print_every = print_every
         self._retention_days = retention_days
+        # Exchange session timezone used to bucket trades into a trading day
+        # (finding CL-M3); defaults to UTC.
+        self._tz = session_tz
 
         self._buffer: list[Trade] = []
-        self._ledger = Ledger()
+        self._ledger = Ledger(tz=session_tz)
         self._trade_count = 0
 
         # Idempotency, decided ONCE for both the ledger and the archive
@@ -257,6 +287,10 @@ class ClearingProcess:
             self._pub_addr,
             "trade.executed",
             "system.eod",
+            # Session-phase transitions — recorded as PHASE rows in
+            # session_events (finding CL-M7) so operators can bucket activity by
+            # session phase and the advertised PHASE filter is real.
+            "session.state",
             # The engine broadcasts gateway lifecycle on PUB as
             # ``system.gateway_auth.{id}`` (models/message.py make_gateway_auth_msg,
             # engine/main.py _handle_gateway_connect).  ``system.gateway_connect``
@@ -350,6 +384,9 @@ class ClearingProcess:
             elif topic == "system.eod":
                 self._handle_eod(payload)
 
+            elif topic == "session.state":
+                self._handle_session_state(payload)
+
             elif topic.startswith("system.gateway_auth."):
                 self._handle_gateway_auth(payload)
 
@@ -418,7 +455,7 @@ class ClearingProcess:
                     self._conn,
                     event_type="GAP",
                     ts_ns=trade.timestamp,
-                    trade_date=trade_date_utc(trade.timestamp),
+                    trade_date=trade_date(trade.timestamp, self._tz),
                     payload_json=json.dumps(
                         {
                             "last_seq": last,
@@ -446,7 +483,9 @@ class ClearingProcess:
 
         updated_ts = now_ns()
 
-        trade_rows = [_to_trade_event_row(t, updated_ts) for t in self._buffer]
+        trade_rows = [
+            _to_trade_event_row(t, updated_ts, self._tz) for t in self._buffer
+        ]
 
         for trade in self._buffer:
             self._ledger.apply_trade(
@@ -495,7 +534,7 @@ class ClearingProcess:
         """
         try:
             ts_ns = now_ns()
-            trade_date = trade_date_utc(ts_ns)
+            eod_trade_date = trade_date(ts_ns, self._tz)
 
             # Parse EOD marks before acquiring the lock.
             #
@@ -533,6 +572,7 @@ class ClearingProcess:
 
                 # 2. EOD mark-to-market: update mark_price from EOD snapshot.
                 if eod_marks:
+                    marked_keys: set[tuple[str, str]] = set()
                     for pos in self._ledger.all_positions():
                         mark = eod_marks.get(pos.symbol)
                         if mark is not None:
@@ -540,11 +580,15 @@ class ClearingProcess:
                             pos.unrealized_pnl = pos.net_qty * (
                                 float(mark) - pos.avg_cost
                             )
-                    # Flush updated position snapshots to DB.
-                    position_rows, daily_rows = self._ledger.get_flush_rows(
-                        updated_ts_ns=ts_ns
-                    )
-                    flush_batch(self._conn, [], position_rows, daily_rows)
+                            marked_keys.add((pos.gateway_id, pos.symbol))
+                    # Flush only the re-marked position snapshots (CL-M9); the
+                    # mark pass runs outside the batch-delta accumulator, so pass
+                    # the touched keys explicitly.
+                    if marked_keys:
+                        position_rows, _ = self._ledger.get_flush_rows(
+                            updated_ts_ns=ts_ns, position_keys=marked_keys
+                        )
+                        flush_batch(self._conn, [], position_rows, [])
                     self._ledger.clear_batch()
 
                 # 3. Write EOD sentinel row.
@@ -552,7 +596,7 @@ class ClearingProcess:
                     self._conn,
                     event_type="EOD",
                     ts_ns=ts_ns,
-                    trade_date=trade_date,
+                    trade_date=eod_trade_date,
                     payload_json=json.dumps(
                         {
                             "eod_marks": eod_marks,
@@ -562,11 +606,44 @@ class ClearingProcess:
                 )
             console.print(
                 f"[CLEARING] EOD received — {len(eod_marks)} symbol mark(s) applied,"
-                f" session_events row written for {trade_date}."
+                f" session_events row written for {eod_trade_date}."
             )
         except Exception as exc:
             console.print(
                 f"[CLEARING] WARNING: error handling system.eod: {exc}",
+                style="yellow",
+            )
+
+    def _handle_session_state(self, payload: dict[str, Any]) -> None:
+        """
+        Handle session.state — record a PHASE row in session_events (CL-M7).
+
+        The engine broadcasts session-phase transitions on PUB
+        (``{state, prev_state}``).  Recording them makes the advertised
+        ``event_type='PHASE'`` filter real and lets operators align trade
+        activity with the session phase it occurred in.
+        """
+        try:
+            state = str(payload.get("state", "")).upper()
+            if not state:
+                return
+            ts_ns = now_ns()
+            with self._lock:
+                record_session_event(
+                    self._conn,
+                    event_type="PHASE",
+                    ts_ns=ts_ns,
+                    trade_date=trade_date(ts_ns, self._tz),
+                    payload_json=json.dumps(
+                        {
+                            "state": state,
+                            "prev_state": str(payload.get("prev_state", "")),
+                        }
+                    ),
+                )
+        except Exception as exc:
+            console.print(
+                f"[CLEARING] WARNING: error handling session.state: {exc}",
                 style="yellow",
             )
 
@@ -626,20 +703,23 @@ class ClearingProcess:
 
             ts_ns = now_ns()
             reason = payload.get("reason") or payload.get("disconnect_reason")
-            connect_ts = self._gw_connect_ts.pop(gateway_id, 0)
+            # Drop the in-memory connect timestamp (housekeeping only); the DB
+            # is the source of truth for matching the open session (CL-M5).
+            self._gw_connect_ts.pop(gateway_id, None)
 
             with self._lock:
                 # Force flush so any buffered fills for this gateway are persisted
                 # before the engine-side order cancellations arrive.
                 self._flush()
-                if connect_ts:
-                    record_gateway_disconnect(
-                        self._conn,
-                        gateway_id=gateway_id,
-                        connected_at_ns=connect_ts,
-                        disconnected_at_ns=ts_ns,
-                        reason=str(reason) if reason else None,
-                    )
+                # Close the latest open session in SQL (MAX open connected_at_ns)
+                # rather than relying on the in-memory dict — so a clearing
+                # restart does not orphan a session opened before the restart.
+                close_latest_gateway_session(
+                    self._conn,
+                    gateway_id=gateway_id,
+                    disconnected_at_ns=ts_ns,
+                    reason=str(reason) if reason else None,
+                )
         except Exception as exc:
             console.print(
                 f"[CLEARING] WARNING: error handling gateway_disconnect: {exc}",
@@ -651,7 +731,13 @@ class ClearingProcess:
     # ------------------------------------------------------------------
 
     def _print_pnl_table(self) -> None:
-        positions = self._ledger.all_positions()
+        # CL-M2: this runs on the receive thread while the timer thread mutates
+        # _positions inside _flush.  Snapshot the positions under the lock (each
+        # a shallow copy, so field values are captured atomically) before
+        # iterating/printing — otherwise the read can tear a row or raise
+        # "dictionary changed size during iteration" and kill the receive loop.
+        with self._lock:
+            positions = [copy.copy(p) for p in self._ledger.all_positions()]
         if not positions:
             return
 
@@ -698,6 +784,24 @@ class ClearingProcess:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
+
+def _resolve_timezone(name: str) -> tzinfo | None:
+    """
+    Resolve a timezone name to a ``tzinfo``, or ``None`` if it is unknown.
+
+    ``UTC`` maps to the builtin ``timezone.utc`` (no tzdata dependency); any
+    other name is looked up via ``zoneinfo`` and falls back to ``None`` when the
+    IANA database is missing or the name is invalid.
+    """
+    if name.upper() == "UTC":
+        return timezone.utc
+    try:
+        from zoneinfo import ZoneInfo
+
+        return ZoneInfo(name)
+    except Exception:
+        return None
 
 
 def main() -> None:
@@ -756,6 +860,15 @@ def main() -> None:
             f" (default: {_RETENTION_DAYS}; 0 = disable pruning)"
         ),
     )
+    parser.add_argument(
+        "--timezone",
+        metavar="TZ",
+        default="UTC",
+        help=(
+            "Exchange session timezone used to bucket trades into a trading day"
+            " (IANA name, e.g. America/New_York; default: UTC)"
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -767,6 +880,13 @@ def main() -> None:
         raise SystemExit(2)
     if args.retention_days < 0:
         print("[ERROR] --retention-days must be >= 0", file=sys.stderr)
+        raise SystemExit(2)
+
+    session_tz = _resolve_timezone(args.timezone)
+    if session_tz is None:
+        print(
+            f"[ERROR] --timezone: unknown timezone {args.timezone!r}", file=sys.stderr
+        )
         raise SystemExit(2)
 
     if args.datapath is not None:
@@ -783,6 +903,7 @@ def main() -> None:
             flush_interval_sec=args.flush_interval,
             print_every=args.print_every,
             retention_days=args.retention_days,
+            session_tz=session_tz,
         )
     except Exception as exc:
         print(f"[CLEARING] FATAL: {exc}", file=sys.stderr)
