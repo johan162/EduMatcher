@@ -7,6 +7,7 @@ and bridges traffic to/from the engine ZMQ bus.
 from __future__ import annotations
 
 import errno
+import logging
 import select
 import signal
 import socket
@@ -53,6 +54,9 @@ from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
 from edumatcher.models.price import register_tick_decimals, to_ticks
 
 _MAX_LINE_BYTES = 4096
+_MAX_ENGINE_EVENTS_PER_LOOP = 1000
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -105,7 +109,9 @@ class AlfGateway:
         self._active_gateway_sessions: dict[str, int] = {}
         self._topic_refcounts: dict[str, int] = {}
         self._gateway_roles = {gw_id: role for gw_id, role in config.gateway_roles}
+        # Shared ref-data snapshot state loaded from engine symbols responses.
         self._known_symbols: set[str] = set()
+        self._symbols_snapshot_loaded = False
 
         self._push: zmq.Socket[bytes] = make_pusher(config.engine_pull_addr)
         self._sub: zmq.Socket[bytes] = make_subscriber(
@@ -767,15 +773,22 @@ class AlfGateway:
     # ------------------------------------------------------------------
 
     def _poll_engine_events(self) -> None:
-        while self._sub.poll(timeout=0):
+        budget = _MAX_ENGINE_EVENTS_PER_LOOP
+        while budget > 0 and self._sub.poll(timeout=0):
             try:
                 topic, payload = decode(self._sub.recv_multipart())
             except zmq.ZMQError as exc:
                 if exc.errno != errno.EINTR:
-                    raise
+                    log.warning(
+                        "ALF gateway SUB recv error (errno=%s); dropping remaining events for this tick",
+                        exc.errno,
+                    )
                 break
             except Exception:
+                budget -= 1
                 continue
+
+            budget -= 1
 
             if topic.startswith("system.gateway_auth."):
                 gateway_id = topic.rsplit(".", 1)[-1].upper()
@@ -897,6 +910,7 @@ class AlfGateway:
         symbols_raw = payload.get("symbols", [])
         symbol_meta = payload.get("symbol_meta", {})
         symbols = [str(s).upper() for s in symbols_raw if isinstance(s, str)]
+        self._symbols_snapshot_loaded = True
         self._known_symbols.update(symbols)
 
         if isinstance(symbol_meta, dict):
@@ -1191,7 +1205,12 @@ class AlfGateway:
             ) from exc
 
     def _validate_symbol(self, symbol: str) -> None:
-        if self._known_symbols and symbol not in self._known_symbols:
+        if not self._symbols_snapshot_loaded:
+            raise ValidationError(
+                "SYMBOLS_NOT_READY",
+                "Symbol metadata not loaded yet; retry shortly",
+            )
+        if symbol not in self._known_symbols:
             raise ValidationError("SYMBOL_NOT_CONFIGURED", f"Unknown symbol: {symbol}")
 
     def _require_gw(self, session: ClientSession) -> str:

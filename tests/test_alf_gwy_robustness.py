@@ -97,6 +97,8 @@ def _authed_session(
     session.rate_tokens = rate_tokens
     gateway._clients[session.sock.fileno()] = session
     gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
+    gateway._symbols_snapshot_loaded = True
+    gateway._known_symbols.add("AAPL")
     return session, peer
 
 

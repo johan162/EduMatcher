@@ -62,6 +62,22 @@ class _FakeSub:
         self.closed = True
 
 
+class _ErrorSub:
+    def __init__(self, err_no: int) -> None:
+        self._err_no = err_no
+        self.closed = False
+
+    def poll(self, timeout: int = 0) -> int:
+        _ = timeout
+        return 1
+
+    def recv_multipart(self) -> list[bytes]:
+        raise zmq.ZMQError(self._err_no)
+
+    def close(self) -> None:
+        self.closed = True
+
+
 @pytest.fixture()
 def gateway(monkeypatch: pytest.MonkeyPatch) -> AlfGateway:
     fake_push = _FakePush()
@@ -422,3 +438,68 @@ def test_line_exceeds_max_bytes_adds_bad_message(gateway: AlfGateway) -> None:
     frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
     assert frame.fields["CODE"] == "BAD_MESSAGE"
     peer.close()
+
+
+def test_symbol_commands_require_symbols_snapshot_loaded(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.role = "TRADER"
+    session.rate_tokens = 10.0
+
+    gateway._symbols_snapshot_loaded = False
+    gateway._known_symbols.clear()
+
+    gateway._handle_client_line(
+        session,
+        "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=100",
+    )
+
+    assert session.out_queue
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ERR"
+    assert frame.fields["CODE"] == "SYMBOLS_NOT_READY"
+    peer.close()
+
+
+def test_unknown_symbol_rejected_after_symbols_snapshot(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.role = "TRADER"
+    session.rate_tokens = 10.0
+
+    gateway._symbols_snapshot_loaded = True
+    gateway._known_symbols = {"AAPL"}
+
+    gateway._handle_client_line(
+        session,
+        "NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=100",
+    )
+
+    assert session.out_queue
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ERR"
+    assert frame.fields["CODE"] == "SYMBOL_NOT_CONFIGURED"
+    peer.close()
+
+
+def test_poll_engine_events_non_eintr_does_not_raise(gateway: AlfGateway) -> None:
+    gateway._sub = _ErrorSub(zmq.EFAULT)
+    gateway._poll_engine_events()
+
+
+def test_poll_engine_events_respects_budget(
+    gateway: AlfGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(encode("session.state", {"state": "CONTINUOUS"}))
+    fake_sub._queue.append(encode("session.state", {"state": "CLOSED"}))
+
+    monkeypatch.setattr("edumatcher.alf_gwy.gateway._MAX_ENGINE_EVENTS_PER_LOOP", 1)
+
+    gateway._poll_engine_events()
+
+    assert len(fake_sub._queue) == 1
