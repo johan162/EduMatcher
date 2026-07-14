@@ -333,8 +333,9 @@ class AlfGateway:
             try:
                 self._handle_hello(session, fields)
             except ValidationError as exc:
+                close_conn = exc.code != "ENGINE_UNAVAILABLE"
                 self._register_error(
-                    session, exc.code, exc.detail, close_connection=True
+                    session, exc.code, exc.detail, close_connection=close_conn
                 )
             return
 
@@ -1181,13 +1182,33 @@ class AlfGateway:
         session.out_queue.append(payload)
 
     def _send_to_engine(
-        self, frames: list[bytes], *, count_as_command: bool = True
+        self,
+        frames: list[bytes],
+        *,
+        count_as_command: bool = True,
+        require_engine: bool = True,
     ) -> None:
         try:
             self._push.send_multipart(frames)
-        except zmq.ZMQError:
-            if not self._running or self._push.closed:
+        except zmq.Again:
+            if self._push.closed:
                 return
+            if not require_engine:
+                return
+            raise ValidationError(
+                "ENGINE_UNAVAILABLE",
+                "Engine unavailable: command not forwarded; retry shortly",
+            )
+        except zmq.ZMQError as exc:
+            if self._push.closed:
+                return
+            if exc.errno == zmq.EAGAIN:
+                if not require_engine:
+                    return
+                raise ValidationError(
+                    "ENGINE_UNAVAILABLE",
+                    "Engine unavailable: command not forwarded; retry shortly",
+                )
             raise
         if count_as_command:
             self._global_stats["commands_forwarded_total"] += 1
@@ -1246,6 +1267,7 @@ class AlfGateway:
             self._send_to_engine(
                 make_gateway_disconnect_msg(gateway_id, reason=reason),
                 count_as_command=False,
+                require_engine=False,
             )
 
         fileno = session.sock.fileno()

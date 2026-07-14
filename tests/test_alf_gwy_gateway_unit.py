@@ -9,6 +9,7 @@ import zmq
 from edumatcher.alf_gwy.config import AlfGatewayConfig
 from edumatcher.alf_gwy.gateway import AlfGateway, ClientSession
 from edumatcher.alf_gwy.protocol import parse_alf_line
+from edumatcher.messaging import bus as bus_mod
 from edumatcher.models.message import encode
 
 
@@ -32,6 +33,12 @@ class _ClosedFakePush(_FakePush):
     def send_multipart(self, frames: list[bytes]) -> None:
         _ = frames
         raise zmq.ZMQError()
+
+
+class _EagainFakePush(_FakePush):
+    def send_multipart(self, frames: list[bytes]) -> None:
+        _ = frames
+        raise zmq.Again()
 
 
 class _FakeSub:
@@ -242,6 +249,72 @@ def test_closed_push_during_shutdown_does_not_raise(gateway: AlfGateway) -> None
     gateway._push = _ClosedFakePush()
 
     gateway._send_to_engine([b"topic", b"{}"])
+
+
+def test_send_to_engine_eagain_rejects_command(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.rate_tokens = 10.0
+    gateway._push = _EagainFakePush()
+
+    gateway._handle_client_line(session, "SYMBOLS")
+
+    assert session.out_queue
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ERR"
+    assert frame.fields["CODE"] == "ENGINE_UNAVAILABLE"
+    peer.close()
+
+
+def test_hello_eagain_returns_engine_unavailable_without_disconnect(
+    gateway: AlfGateway,
+) -> None:
+    session, peer = _make_session()
+    gateway._clients[session.sock.fileno()] = session
+    gateway._push = _EagainFakePush()
+
+    gateway._handle_client_line(session, "HELLO|CLIENT=BOT|PROTO=ALF1|ID=TRADER01")
+
+    assert session.out_queue
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ERR"
+    assert frame.fields["CODE"] == "ENGINE_UNAVAILABLE"
+    assert session.closing is False
+    peer.close()
+
+
+class _FakePushSocket:
+    def __init__(self) -> None:
+        self.opts: list[tuple[int, int]] = []
+        self.connected: str | None = None
+
+    def setsockopt(self, opt: int, value: int) -> None:
+        self.opts.append((opt, value))
+
+    def connect(self, addr: str) -> None:
+        self.connected = addr
+
+
+class _FakeContext:
+    def __init__(self, sock: _FakePushSocket) -> None:
+        self._sock = sock
+
+    def socket(self, _sock_type: int) -> _FakePushSocket:
+        return self._sock
+
+
+def test_make_pusher_sets_send_timeout_and_hwm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_sock = _FakePushSocket()
+    monkeypatch.setattr(bus_mod, "get_context", lambda: _FakeContext(fake_sock))
+
+    bus_mod.make_pusher("tcp://127.0.0.1:5555")
+
+    assert (zmq.SNDTIMEO, 0) in fake_sock.opts
+    assert (zmq.SNDHWM, 1000) in fake_sock.opts
+    assert fake_sock.connected == "tcp://127.0.0.1:5555"
 
 
 def test_line_exceeds_max_bytes_adds_bad_message(gateway: AlfGateway) -> None:
