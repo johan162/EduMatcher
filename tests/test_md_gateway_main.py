@@ -7,7 +7,11 @@ import sys
 import pytest
 
 from edumatcher.md_gateway import main as md_main
-from edumatcher.md_gateway.main import _build_parser, _resolve_config
+from edumatcher.md_gateway.main import (
+    _build_parser,
+    _configure_logging,
+    _resolve_config,
+)
 
 
 def test_build_parser_defaults() -> None:
@@ -15,6 +19,27 @@ def test_build_parser_defaults() -> None:
     args = parser.parse_args([])
     assert args.bind is None
     assert args.port is None
+    assert args.log_level is None
+    assert args.verbose == 0
+    assert args.quiet is False
+
+
+def test_build_parser_logging_flags() -> None:
+    parser = _build_parser()
+    args = parser.parse_args(["-vv", "--quiet", "--log-level", "ERROR"])
+    assert args.verbose == 2
+    assert args.quiet is True
+    assert args.log_level == "ERROR"
+
+
+def test_configure_logging_prefers_explicit_level() -> None:
+    args = Namespace(log_level="INFO", verbose=2, quiet=True)
+    assert _configure_logging(args) == 20
+
+
+def test_configure_logging_uses_verbose_levels() -> None:
+    assert _configure_logging(Namespace(log_level=None, verbose=2, quiet=False)) == 10
+    assert _configure_logging(Namespace(log_level=None, verbose=1, quiet=False)) == 20
 
 
 def test_resolve_config_overrides(tmp_path: Path) -> None:

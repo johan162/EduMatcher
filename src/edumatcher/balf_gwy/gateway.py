@@ -133,6 +133,7 @@ class ClientSession:
     outbound_seq: int = 0
 
     # Timestamps
+    connected_at: float = field(default_factory=time.monotonic)
     last_activity: float = field(default_factory=time.monotonic)
     last_outbound: float = field(default_factory=time.monotonic)
 
@@ -156,6 +157,9 @@ class ClientSession:
     # Soft-close flag: flush and then disconnect
     closing: bool = False
 
+    # True once gateway_connect was emitted for this session.
+    connect_emitted: bool = False
+
     # Rate limiting
     rate_tokens: float = 0.0
     rate_updated: float = field(default_factory=time.monotonic)
@@ -165,6 +169,7 @@ class ClientSession:
     error_times: deque[float] = field(default_factory=deque)
 
     def __post_init__(self) -> None:
+        self.connected_at = time.monotonic()
         self.last_activity = time.monotonic()
         self.last_outbound = time.monotonic()
         self.rate_updated = time.monotonic()
@@ -441,6 +446,30 @@ class BalfGateway:
     ) -> None:
         if not session.authenticated:
             if msg_type == MSG_LOGON:
+                if session.auth_pending:
+                    self._queue_frame(
+                        session,
+                        build_logon_ack(
+                            session.gateway_id or "",
+                            accepted=False,
+                            reject_code=LOGON_REJECT_OTHER,
+                            msg="LOGON_ALREADY_PENDING",
+                        ),
+                    )
+                    return
+
+                if not self._allow_message_now(session):
+                    self._global_stats["frames_rejected_total"] += 1
+                    self._queue_frame(
+                        session,
+                        build_logon_ack(
+                            session.gateway_id or "",
+                            accepted=False,
+                            reject_code=LOGON_REJECT_OTHER,
+                            msg="RATE_LIMITED",
+                        ),
+                    )
+                    return
                 self._handle_logon(session, body)
             else:
                 log.warning(
@@ -557,13 +586,35 @@ class BalfGateway:
 
         session.gateway_id = gw_id
         session.auth_pending = True
+        session.connect_emitted = False
 
         # Subscribe to the auth reply topic and send gateway_connect to engine
         auth_topic = f"system.gateway_auth.{gw_id}"
         self._subscribe_topic(auth_topic)
         session.subscriptions.add(auth_topic)
-
-        self._send_to_engine(make_gateway_connect_msg(gw_id), count_as_command=False)
+        try:
+            self._send_to_engine(
+                make_gateway_connect_msg(gw_id),
+                count_as_command=False,
+            )
+            session.connect_emitted = True
+        except BalfValidationError:
+            # Engine unavailable: reject logon immediately so the client can retry
+            # instead of waiting on a handshake that will never complete.
+            session.auth_pending = False
+            session.gateway_id = None
+            if auth_topic in session.subscriptions:
+                session.subscriptions.remove(auth_topic)
+            self._unsubscribe_topic(auth_topic)
+            self._queue_frame(
+                session,
+                build_logon_ack(
+                    gw_id,
+                    accepted=False,
+                    reject_code=LOGON_REJECT_OTHER,
+                    msg="ENGINE_UNAVAILABLE",
+                ),
+            )
 
     def _handle_logout(self, session: ClientSession) -> None:
         log.info("BALF LOGOUT from %s (%s)", session.addr, session.gateway_id)
@@ -604,7 +655,26 @@ class BalfGateway:
         session.balf_to_engine[balf_id] = engine_uuid
         session.order_symbol[engine_uuid] = str(parsed["symbol"])
 
-        self._send_to_engine(make_order_new_msg(order_dict))
+        try:
+            self._send_to_engine(make_order_new_msg(order_dict))
+        except BalfValidationError as exc:
+            session.engine_to_balf.pop(engine_uuid, None)
+            session.balf_to_engine.pop(balf_id, None)
+            session.order_symbol.pop(engine_uuid, None)
+            self._queue_frame(
+                session,
+                build_order_ack(
+                    client_order_id=client_order_id,
+                    balf_order_id=0,
+                    seq_no=session.next_seq(),
+                    accepted=False,
+                    reject_code=exc.reject_code,
+                    reason=exc.reason,
+                ),
+            )
+            self._global_stats["frames_rejected_total"] += 1
+            self._register_error(session, exc)
+            return
         self._global_stats["frames_forwarded_total"] += 1
 
     def _handle_cancel_order(self, session: ClientSession, body: bytes) -> None:
@@ -651,7 +721,23 @@ class BalfGateway:
             balf_order_id=balf_order_id,
         )
 
-        self._send_to_engine(make_order_cancel_msg(engine_uuid, gw_id))
+        try:
+            self._send_to_engine(make_order_cancel_msg(engine_uuid, gw_id))
+        except BalfValidationError as exc:
+            session.pending_cancel.pop(engine_uuid, None)
+            self._queue_frame(
+                session,
+                build_cancel_ack(
+                    client_order_id=balf_cancel_clordid,
+                    balf_order_id=balf_order_id,
+                    seq_no=session.next_seq(),
+                    accepted=False,
+                    cancel_reason=CANCEL_REASON_SYSTEM,
+                ),
+            )
+            self._global_stats["frames_rejected_total"] += 1
+            self._register_error(session, exc)
+            return
         self._global_stats["frames_forwarded_total"] += 1
 
     def _handle_amend_order(self, session: ClientSession, body: bytes) -> None:
@@ -741,9 +827,24 @@ class BalfGateway:
             balf_order_id=balf_order_id,
         )
 
-        self._send_to_engine(
-            make_order_amend_msg(engine_uuid, gw_id, price=price_display, qty=qty)
-        )
+        try:
+            self._send_to_engine(
+                make_order_amend_msg(engine_uuid, gw_id, price=price_display, qty=qty)
+            )
+        except BalfValidationError as exc:
+            session.pending_amend.pop(engine_uuid, None)
+            self._queue_frame(
+                session,
+                build_amend_ack(
+                    client_order_id=balf_amend_clordid,
+                    balf_order_id=balf_order_id,
+                    seq_no=session.next_seq(),
+                    accepted=False,
+                ),
+            )
+            self._global_stats["frames_rejected_total"] += 1
+            self._register_error(session, exc)
+            return
         self._global_stats["frames_forwarded_total"] += 1
 
     def _handle_heartbeat(self, session: ClientSession, body: bytes) -> None:
@@ -1072,7 +1173,7 @@ class BalfGateway:
                 continue
             if not session.authenticated:
                 # Unauthenticated sessions must send LOGON within auth_timeout
-                if now - session.last_activity > self.config.auth_timeout_sec:
+                if now - session.connected_at > self.config.auth_timeout_sec:
                     log.warning(
                         "BALF auth timeout from %s — hard-closing", session.addr
                     )
@@ -1150,16 +1251,16 @@ class BalfGateway:
     def _disconnect(self, session: ClientSession, *, reason: str) -> None:
         gw_id = session.gateway_id
 
-        if (
-            gw_id
-            and session.authenticated
-            and self._active_gateway_sessions.get(gw_id) == session.sock.fileno()
-        ):
+        if gw_id and self._active_gateway_sessions.get(gw_id) == session.sock.fileno():
             self._active_gateway_sessions.pop(gw_id, None)
+
+        if gw_id and session.connect_emitted:
             self._send_to_engine(
                 make_gateway_disconnect_msg(gw_id, reason=reason),
                 count_as_command=False,
+                require_engine=False,
             )
+            session.connect_emitted = False
 
         # Unsubscribe all ZMQ topics owned by this session
         for t in list(session.subscriptions):
@@ -1174,13 +1275,27 @@ class BalfGateway:
         log.info("BALF disconnected %s (%s) reason=%s", session.addr, gw_id, reason)
 
     def _send_to_engine(
-        self, frames: list[bytes], *, count_as_command: bool = True
+        self,
+        frames: list[bytes],
+        *,
+        count_as_command: bool = True,
+        require_engine: bool = True,
     ) -> None:
         try:
             self._push.send_multipart(frames)
-        except zmq.ZMQError:
-            if not self._running or self._push.closed:
+        except zmq.Again:
+            if self._push.closed:
                 return
+            if not require_engine:
+                return
+            raise BalfValidationError(RC_OTHER, "ENGINE_UNAVAILABLE")
+        except zmq.ZMQError as exc:
+            if self._push.closed:
+                return
+            if exc.errno == zmq.EAGAIN:
+                if not require_engine:
+                    return
+                raise BalfValidationError(RC_OTHER, "ENGINE_UNAVAILABLE")
             raise
         if count_as_command:
             self._global_stats["frames_forwarded_total"] += 1

@@ -10,6 +10,7 @@ trade messages and asserts the DB is updated correctly.
 from __future__ import annotations
 
 import json
+import logging
 import threading
 import time
 from collections.abc import Generator
@@ -21,7 +22,9 @@ import zmq
 
 from edumatcher.clearing.main import (
     ClearingProcess,
+    _to_timestamp_ns,
     _to_trade_event_row,
+    _trade_from_payload,
 )
 from edumatcher.clearing.store import (
     open_writer_connection,
@@ -31,6 +34,7 @@ from edumatcher.clearing.store import (
     query_trades,
 )
 from edumatcher.models.trade import Trade
+from edumatcher.models.message import make_trade_msg, decode
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -398,6 +402,21 @@ class TestClearingMainCli:
         assert exc_info.value.code == 0
 
 
+def test_open_writer_connection_sql_trace_logs_statements(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    db_path = tmp_path / "clearing_sql_trace.db"
+    caplog.set_level(logging.DEBUG, logger="edumatcher.clearing.sql")
+
+    conn = open_writer_connection(db_path, sql_trace=True)
+    try:
+        conn.execute("SELECT 1").fetchone()
+    finally:
+        conn.close()
+
+    assert any("SELECT 1" in rec.message for rec in caplog.records)
+
+
 class TestHandleEod:
     """Unit tests for ClearingProcess._handle_eod."""
 
@@ -421,14 +440,14 @@ class TestHandleEod:
     def test_eod_writes_session_event(
         self, process: ClearingProcess, db_path: Path
     ) -> None:
-        """EOD handler with last_trade_price should write an EOD session_events row."""
+        """EOD handler with a book.snapshot() last_price writes an EOD row."""
         payload = {
             "books": [
                 {
                     "symbol": "AAPL",
-                    "last_trade_price": 15000,
-                    "best_bid": 14900,
-                    "best_ask": 15100,
+                    "last_price": 150.0,
+                    "bids": [{"price": 149.0, "qty": 10, "count": 1}],
+                    "asks": [{"price": 151.0, "qty": 10, "count": 1}],
                 }
             ]
         }
@@ -442,17 +461,27 @@ class TestHandleEod:
     def test_eod_uses_bid_ask_mid_when_no_last_trade(
         self, process: ClearingProcess, db_path: Path
     ) -> None:
-        """When last_trade_price is absent, mid = (bid+ask)//2 is used."""
+        """When last_price is absent, mid = (best_bid+best_ask)//2 in ticks."""
         import json
 
-        payload = {"books": [{"symbol": "MSFT", "best_bid": 4000, "best_ask": 4100}]}
+        # book.snapshot() carries display-float prices in bids[0]/asks[0]; the
+        # handler converts each to ticks (MSFT default 2 decimals) and averages.
+        payload = {
+            "books": [
+                {
+                    "symbol": "MSFT",
+                    "bids": [{"price": 40.0, "qty": 5, "count": 1}],
+                    "asks": [{"price": 41.0, "qty": 5, "count": 1}],
+                }
+            ]
+        }
         process._handle_eod(payload)
         conn = open_writer_connection(db_path)
         rows = query_session_events(conn, event_type="EOD")
         conn.close()
         assert len(rows) == 1
         data = json.loads(rows[0]["payload_json"])
-        # mid = (4000+4100)//2 = 4050
+        # mid = (4000+4100)//2 = 4050 ticks
         assert data["eod_marks"].get("MSFT") == 4050
 
     def test_eod_empty_books_still_writes_sentinel(
@@ -480,14 +509,84 @@ class TestHandleEod:
             ts_ns=1_000_000,
             ingest_ts_ns=1_000_001,
         )
-        process._handle_eod({"books": [{"symbol": "AAPL", "last_trade_price": 12000}]})
+        # book.snapshot() last_price is a display float; 120.0 → 12000 ticks.
+        process._handle_eod({"books": [{"symbol": "AAPL", "last_price": 120.0}]})
         pos = process._ledger.position("GW_BUY", "AAPL")
         assert pos is not None
         assert pos.mark_price == 12000
+        # CL-M4: mark and avg_cost are both in ticks, so unrealized_pnl is in
+        # ticks — net_qty 10 * (12000 - 10000) = 20000 (no 100x unit error).
+        assert pos.unrealized_pnl == pytest.approx(10 * (12000 - 10000))
 
     def test_eod_does_not_raise_on_bad_payload(self, process: ClearingProcess) -> None:
         """Malformed payload should be silently absorbed, not crash."""
         process._handle_eod(cast(dict[str, Any], None))
+
+    def test_eod_triggers_retention_prune(self, db_path: Path, zmq_addr: str) -> None:
+        """CL-L7: long-running clearing should prune old raw rows on EOD."""
+        p = ClearingProcess(
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=1,
+        )
+        try:
+            # Insert one stale and one recent raw trade row directly.
+            p._conn.execute(
+                "INSERT INTO trade_events "
+                "(id, ts_ns, trade_date, symbol, quantity, price, tick_decimals,"
+                " buy_order_id, sell_order_id, buy_gateway_id, sell_gateway_id,"
+                " aggressor_side, ingest_ts_ns)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    "OLD",
+                    1,
+                    "2000-01-01",
+                    "AAPL",
+                    1,
+                    100,
+                    2,
+                    None,
+                    None,
+                    "GW1",
+                    "GW2",
+                    None,
+                    1,
+                ),
+            )
+            p._conn.execute(
+                "INSERT INTO trade_events "
+                "(id, ts_ns, trade_date, symbol, quantity, price, tick_decimals,"
+                " buy_order_id, sell_order_id, buy_gateway_id, sell_gateway_id,"
+                " aggressor_side, ingest_ts_ns)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    "RECENT",
+                    2,
+                    "2999-01-01",
+                    "AAPL",
+                    1,
+                    100,
+                    2,
+                    None,
+                    None,
+                    "GW1",
+                    "GW2",
+                    None,
+                    2,
+                ),
+            )
+            p._conn.commit()
+
+            p._handle_eod({"books": []})
+            ids = [r[0] for r in p._conn.execute("SELECT id FROM trade_events")]
+        finally:
+            p._conn.close()
+
+        assert "OLD" not in ids
+        assert "RECENT" in ids
 
 
 class TestHandleGatewayConnect:
@@ -536,6 +635,42 @@ class TestHandleGatewayConnect:
         assert "TRADER01" in process._gw_connect_ts
 
 
+class TestHandleSessionState:
+    def _proc(self, db_path: Path, zmq_addr: str) -> ClearingProcess:
+        return ClearingProcess(
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=3650,
+        )
+
+    def test_records_phase_row(self, db_path: Path, zmq_addr: str) -> None:
+        """CL-M7: session.state is recorded as a PHASE row in session_events."""
+        p = self._proc(db_path, zmq_addr)
+        try:
+            p._handle_session_state(
+                {"state": "continuous", "prev_state": "opening_auction"}
+            )
+            rows = query_session_events(p._conn, event_type="PHASE")
+        finally:
+            p._conn.close()
+        assert len(rows) == 1
+        data = json.loads(rows[0]["payload_json"])
+        assert data["state"] == "CONTINUOUS"
+        assert data["prev_state"] == "opening_auction"
+
+    def test_empty_state_ignored(self, db_path: Path, zmq_addr: str) -> None:
+        p = self._proc(db_path, zmq_addr)
+        try:
+            p._handle_session_state({})
+            rows = query_session_events(p._conn, event_type="PHASE")
+        finally:
+            p._conn.close()
+        assert rows == []
+
+
 class TestHandleGatewayDisconnect:
     @pytest.fixture()
     def process(
@@ -579,6 +714,45 @@ class TestHandleGatewayDisconnect:
         """Disconnect with no matching connect_ts should not raise."""
         process._handle_gateway_disconnect({"gateway_id": "UNKNOWN"})
 
+    def test_disconnect_closes_session_after_restart(
+        self, db_path: Path, zmq_addr: str
+    ) -> None:
+        """CL-M5: a disconnect after a clearing restart (empty in-memory
+        connect map) must still close the session opened before the restart,
+        matched from durable SQL state alone."""
+        p1 = ClearingProcess(
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=3650,
+        )
+        try:
+            p1._handle_gateway_connect({"gateway_id": "GW_R"})
+        finally:
+            p1._conn.close()
+
+        # Restart: a fresh process has an empty _gw_connect_ts.
+        p2 = ClearingProcess(
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=3650,
+        )
+        try:
+            assert "GW_R" not in p2._gw_connect_ts
+            p2._handle_gateway_disconnect({"gateway_id": "GW_R", "reason": "restart"})
+            rows = query_sessions(p2._conn, gateway="GW_R")
+        finally:
+            p2._conn.close()
+
+        assert len(rows) == 1
+        assert rows[0]["disconnected_at_ns"] is not None
+        assert rows[0]["disconnect_reason"] == "restart"
+
     def test_retention_days_prunes_old_rows(self, db_path: Path, zmq_addr: str) -> None:
         """retention_days=1 should prune a row from year 2000."""
         conn = open_writer_connection(db_path)
@@ -601,3 +775,77 @@ class TestHandleGatewayDisconnect:
         deleted = prune_old_events(p._conn, retention_days=1)
         p._conn.close()
         assert deleted == 1
+
+
+# ---------------------------------------------------------------------------
+# CL-M6 — parse trade.executed to its declared units, not by guessing
+# ---------------------------------------------------------------------------
+
+
+def _trade_payload(
+    price: Any, timestamp: Any, tick_decimals: int = 2
+) -> dict[str, Any]:
+    return {
+        "id": "T1",
+        "symbol": "AAPL",
+        "buy_order_id": "O1",
+        "sell_order_id": "O2",
+        "buy_gateway_id": "GW1",
+        "sell_gateway_id": "GW2",
+        "price": price,
+        "quantity": 10,
+        "aggressor_side": "BUY",
+        "timestamp": timestamp,
+        "tick_decimals": tick_decimals,
+    }
+
+
+class TestPayloadParsing:
+    def test_timestamp_seconds_to_ns(self) -> None:
+        assert _to_timestamp_ns(1.5) == 1_500_000_000
+        assert _to_timestamp_ns(2) == 2_000_000_000
+
+    def test_timestamp_bad_values_return_zero(self) -> None:
+        assert _to_timestamp_ns(0) == 0
+        assert _to_timestamp_ns(None) == 0
+        assert _to_timestamp_ns("nope") == 0
+
+    def test_timestamp_milliseconds_best_effort(self) -> None:
+        # 1_700_000_000_000 ms == 1.7e18 ns (converted, with a warning).
+        assert _to_timestamp_ns(1_700_000_000_000) == 1_700_000_000_000_000_000
+
+    def test_timestamp_nanoseconds_passthrough(self) -> None:
+        assert _to_timestamp_ns(1_700_000_000_000_000_000) == 1_700_000_000_000_000_000
+
+    def test_price_float_display_to_ticks(self) -> None:
+        t = _trade_from_payload(_trade_payload(price=150.75, timestamp=1.0))
+        assert t.price == 15075
+        assert t.timestamp == 1_000_000_000
+
+    def test_price_integer_display_to_ticks(self) -> None:
+        # CL-M6: an integer display price is a display value, not raw ticks.
+        t = _trade_from_payload(_trade_payload(price=150, timestamp=1.0))
+        assert t.price == 15000
+
+    def test_trade_builder_payload_parses_with_declared_units(self) -> None:
+        frames = make_trade_msg(
+            {
+                "id": "7",
+                "symbol": "AAPL",
+                "buy_order_id": "B1",
+                "sell_order_id": "S1",
+                "buy_gateway_id": "GW1",
+                "sell_gateway_id": "GW2",
+                "price": 150.75,
+                "tick_decimals": 2,
+                "quantity": 3,
+                "aggressor_side": "BUY",
+                "timestamp": 1_700_000_000.0,
+            }
+        )
+        topic, payload = decode(frames)
+        trade = _trade_from_payload(payload)
+
+        assert topic == "trade.executed"
+        assert trade.price == 15075
+        assert trade.timestamp == 1_700_000_000_000_000_000

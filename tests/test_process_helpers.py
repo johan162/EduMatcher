@@ -1,6 +1,5 @@
 """
 Tests for process helper functions and classes that don't require live ZMQ:
-  - clearing_v1.main.PositionRecord  (legacy v1 clearing — moved to clearing_v1)
   - stats.main._DayAccum
   - ticker.main._build_line
   - viewer.main._build_display
@@ -19,7 +18,6 @@ from typing import Any, Callable, cast
 import pytest
 import zmq
 
-from edumatcher.clearing_v1.main import PositionRecord
 from edumatcher.stats.main import _DayAccum
 from edumatcher.ticker.main import _build_line
 from edumatcher.viewer.main import _build_display
@@ -28,103 +26,6 @@ from edumatcher.scheduler.main import (
     _load_schedule,
     _time_today,
 )
-
-# ===========================================================================
-# PositionRecord (clearing)
-# ===========================================================================
-
-
-class TestPositionRecord:
-    def _make(self) -> PositionRecord:
-        return PositionRecord(symbol="AAPL", gateway_id="GW01")
-
-    # Opening positions
-    def test_open_long_position(self) -> None:
-        rec = self._make()
-        rec.apply_fill(100, 150.0, is_buy=True)
-        assert rec.position == 100
-        assert rec.avg_cost == 150.0
-        assert rec.realized_pnl == 0.0
-
-    def test_open_short_position(self) -> None:
-        rec = self._make()
-        rec.apply_fill(50, 200.0, is_buy=False)
-        assert rec.position == -50
-        assert rec.avg_cost == 200.0
-
-    # Unrealized P&L
-    def test_unrealized_pnl_long_profit(self) -> None:
-        rec = self._make()
-        rec.apply_fill(100, 100.0, is_buy=True)
-        rec.last_price = 110.0
-        assert rec.unrealized_pnl == pytest.approx(1000.0)
-
-    def test_unrealized_pnl_short_profit(self) -> None:
-        rec = self._make()
-        rec.apply_fill(100, 100.0, is_buy=False)
-        rec.last_price = 90.0
-        assert rec.unrealized_pnl == pytest.approx(1000.0)
-
-    def test_unrealized_pnl_zero_position(self) -> None:
-        rec = self._make()
-        assert rec.unrealized_pnl == 0.0
-
-    # Adding to position (VWAP update)
-    def test_add_to_long_updates_vwap(self) -> None:
-        rec = self._make()
-        rec.apply_fill(100, 100.0, is_buy=True)
-        rec.apply_fill(100, 110.0, is_buy=True)
-        assert rec.position == 200
-        assert rec.avg_cost == pytest.approx(105.0)
-
-    def test_add_to_short_updates_vwap(self) -> None:
-        rec = self._make()
-        rec.apply_fill(100, 100.0, is_buy=False)
-        rec.apply_fill(100, 90.0, is_buy=False)
-        assert rec.position == -200
-        assert rec.avg_cost == pytest.approx(95.0)
-
-    # Reducing position
-    def test_reduce_long_realizes_profit(self) -> None:
-        rec = self._make()
-        rec.apply_fill(100, 100.0, is_buy=True)
-        rec.apply_fill(50, 120.0, is_buy=False)
-        assert rec.realized_pnl == pytest.approx(1000.0)  # 50 * (120-100)
-        assert rec.position == 50
-
-    def test_reduce_short_realizes_profit(self) -> None:
-        rec = self._make()
-        rec.apply_fill(100, 100.0, is_buy=False)
-        rec.apply_fill(50, 80.0, is_buy=True)
-        assert rec.realized_pnl == pytest.approx(1000.0)  # 50 * (100-80)
-        assert rec.position == -50
-
-    # Closing position fully
-    def test_close_long_zeroes_position(self) -> None:
-        rec = self._make()
-        rec.apply_fill(100, 100.0, is_buy=True)
-        rec.apply_fill(100, 110.0, is_buy=False)
-        assert rec.position == 0.0
-        assert rec.avg_cost == 0.0
-        assert rec.realized_pnl == pytest.approx(1000.0)
-
-    # Reversing position (long → short)
-    def test_reverse_long_to_short(self) -> None:
-        rec = self._make()
-        rec.apply_fill(100, 100.0, is_buy=True)
-        rec.apply_fill(150, 110.0, is_buy=False)
-        # 100 closed at profit, 50 new short
-        assert rec.position == -50
-        assert rec.realized_pnl == pytest.approx(1000.0)
-
-    # Reversing short → long
-    def test_reverse_short_to_long(self) -> None:
-        rec = self._make()
-        rec.apply_fill(100, 100.0, is_buy=False)
-        rec.apply_fill(150, 90.0, is_buy=True)
-        assert rec.position == 50
-        assert rec.realized_pnl == pytest.approx(1000.0)
-
 
 # ===========================================================================
 # _DayAccum (stats)

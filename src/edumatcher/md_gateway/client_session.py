@@ -23,8 +23,15 @@ class ClientSession:
     authenticated: bool = False
     client_id: str = ""
 
+    # Absolute connection timestamp for handshake-timeout checks.
+    connected_at: float = field(default_factory=time.monotonic)
+
     # Timestamp used for both auth-timeout and idle-timeout checks.
     last_activity: float = field(default_factory=time.monotonic)
+
+    # Token-bucket limiter used for inbound client message pacing.
+    rate_tokens: float = 100.0
+    rate_updated: float = field(default_factory=time.monotonic)
 
     # Per-client subscriptions. Stream key is (channel, symbol)
     subscriptions: set[tuple[str, str]] = field(default_factory=set)

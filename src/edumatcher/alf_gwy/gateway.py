@@ -7,6 +7,7 @@ and bridges traffic to/from the engine ZMQ bus.
 from __future__ import annotations
 
 import errno
+import logging
 import select
 import signal
 import socket
@@ -53,6 +54,9 @@ from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
 from edumatcher.models.price import register_tick_decimals, to_ticks
 
 _MAX_LINE_BYTES = 4096
+_MAX_ENGINE_EVENTS_PER_LOOP = 1000
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -69,8 +73,10 @@ class ClientSession:
     out_offset: int = 0
     in_buffer: bytearray = field(default_factory=bytearray)
     closing: bool = False
+    connected_at: float = field(default_factory=time.monotonic)
     last_activity: float = field(default_factory=time.monotonic)
     last_outbound: float = field(default_factory=time.monotonic)
+    connect_emitted: bool = False
     lines_received: int = 0
     lines_sent: int = 0
     errors: int = 0
@@ -79,6 +85,7 @@ class ClientSession:
     rate_updated: float = 0.0
 
     def __post_init__(self) -> None:
+        self.connected_at = time.monotonic()
         self.last_activity = time.monotonic()
         self.last_outbound = time.monotonic()
         self.rate_updated = time.monotonic()
@@ -102,7 +109,9 @@ class AlfGateway:
         self._active_gateway_sessions: dict[str, int] = {}
         self._topic_refcounts: dict[str, int] = {}
         self._gateway_roles = {gw_id: role for gw_id, role in config.gateway_roles}
+        # Shared ref-data snapshot state loaded from engine symbols responses.
         self._known_symbols: set[str] = set()
+        self._symbols_snapshot_loaded = False
 
         self._push: zmq.Socket[bytes] = make_pusher(config.engine_pull_addr)
         self._sub: zmq.Socket[bytes] = make_subscriber(
@@ -136,9 +145,12 @@ class AlfGateway:
             signal.signal(signal.SIGINT, lambda *_: self.stop())
             signal.signal(signal.SIGTERM, lambda *_: self.stop())
 
-        print(
-            f"[ALF-GWY] Listening on {self.config.bind_address}:{self.config.port} "
-            f"(engine pull: {self.config.engine_pull_addr}, pub: {self.config.engine_pub_addr})"
+        log.info(
+            "listening on %s:%s (engine_pull=%s engine_pub=%s)",
+            self.config.bind_address,
+            self.config.port,
+            self.config.engine_pull_addr,
+            self.config.engine_pub_addr,
         )
 
         try:
@@ -154,9 +166,11 @@ class AlfGateway:
             self.close()
 
     def stop(self) -> None:
+        log.info("stop requested")
         self._running = False
 
     def close(self) -> None:
+        log.info("closing ALF gateway")
         for session in list(self._clients.values()):
             self._disconnect(session, reason="gateway_shutdown")
         self._clients.clear()
@@ -322,6 +336,23 @@ class AlfGateway:
         fields = frame.fields
 
         if not session.authenticated:
+            if cmd == "HELLO" and session.auth_pending:
+                self._register_error(
+                    session,
+                    "HELLO_ALREADY_PENDING",
+                    "HELLO already received; awaiting auth result",
+                    close_connection=False,
+                )
+                return
+
+            if not self._allow_command_now(session):
+                self._register_error(
+                    session,
+                    "RATE_LIMITED",
+                    "Too many commands per second",
+                    close_connection=False,
+                )
+                return
             if cmd != "HELLO":
                 self._register_error(
                     session,
@@ -333,8 +364,12 @@ class AlfGateway:
             try:
                 self._handle_hello(session, fields)
             except ValidationError as exc:
+                close_conn = exc.code not in {
+                    "ENGINE_UNAVAILABLE",
+                    "HELLO_ALREADY_PENDING",
+                }
                 self._register_error(
-                    session, exc.code, exc.detail, close_connection=True
+                    session, exc.code, exc.detail, close_connection=close_conn
                 )
             return
 
@@ -420,6 +455,12 @@ class AlfGateway:
         raise ValidationError("UNKNOWN_COMMAND", f"Unknown command: {cmd}")
 
     def _handle_hello(self, session: ClientSession, fields: dict[str, str]) -> None:
+        if session.auth_pending:
+            raise ValidationError(
+                "HELLO_ALREADY_PENDING",
+                "HELLO already received; awaiting auth result",
+            )
+
         client, _proto, gateway_id = validate_hello_fields(fields)
 
         if self._gateway_in_use(gateway_id):
@@ -434,13 +475,24 @@ class AlfGateway:
         session.client_name = client
         session.gateway_id = gateway_id
         session.auth_pending = True
+        session.connect_emitted = False
 
         auth_topic = f"system.gateway_auth.{gateway_id}"
         self._subscribe_topic(auth_topic)
         session.subscriptions.add(auth_topic)
-        self._send_to_engine(
-            make_gateway_connect_msg(gateway_id), count_as_command=False
-        )
+        try:
+            self._send_to_engine(
+                make_gateway_connect_msg(gateway_id), count_as_command=False
+            )
+        except ValidationError:
+            session.auth_pending = False
+            session.gateway_id = None
+            session.client_name = ""
+            if auth_topic in session.subscriptions:
+                session.subscriptions.remove(auth_topic)
+                self._unsubscribe_topic(auth_topic)
+            raise
+        session.connect_emitted = True
 
     def _handle_new(self, session: ClientSession, fields: dict[str, str]) -> None:
         req_type = fields.get("TYPE", "LIMIT")
@@ -726,15 +778,22 @@ class AlfGateway:
     # ------------------------------------------------------------------
 
     def _poll_engine_events(self) -> None:
-        while self._sub.poll(timeout=0):
+        budget = _MAX_ENGINE_EVENTS_PER_LOOP
+        while budget > 0 and self._sub.poll(timeout=0):
             try:
                 topic, payload = decode(self._sub.recv_multipart())
             except zmq.ZMQError as exc:
                 if exc.errno != errno.EINTR:
-                    raise
+                    log.warning(
+                        "ALF gateway SUB recv error (errno=%s); dropping remaining events for this tick",
+                        exc.errno,
+                    )
                 break
             except Exception:
+                budget -= 1
                 continue
+
+            budget -= 1
 
             if topic.startswith("system.gateway_auth."):
                 gateway_id = topic.rsplit(".", 1)[-1].upper()
@@ -856,6 +915,7 @@ class AlfGateway:
         symbols_raw = payload.get("symbols", [])
         symbol_meta = payload.get("symbol_meta", {})
         symbols = [str(s).upper() for s in symbols_raw if isinstance(s, str)]
+        self._symbols_snapshot_loaded = True
         self._known_symbols.update(symbols)
 
         if isinstance(symbol_meta, dict):
@@ -1070,6 +1130,21 @@ class AlfGateway:
     def _drop_idle_clients(self) -> None:
         now = time.monotonic()
         for session in list(self._clients.values()):
+            if (
+                not session.authenticated
+                and now - session.connected_at > self.config.handshake_timeout_sec
+            ):
+                self._queue_line(
+                    session,
+                    "ERR",
+                    {
+                        "CODE": "AUTH_TIMEOUT",
+                        "DETAIL": "Handshake timeout",
+                    },
+                )
+                self._close_after_flush(session)
+                continue
+
             if now - session.last_activity <= self.config.idle_timeout_sec:
                 continue
             self._queue_line(
@@ -1135,7 +1210,12 @@ class AlfGateway:
             ) from exc
 
     def _validate_symbol(self, symbol: str) -> None:
-        if self._known_symbols and symbol not in self._known_symbols:
+        if not self._symbols_snapshot_loaded:
+            raise ValidationError(
+                "SYMBOLS_NOT_READY",
+                "Symbol metadata not loaded yet; retry shortly",
+            )
+        if symbol not in self._known_symbols:
             raise ValidationError("SYMBOL_NOT_CONFIGURED", f"Unknown symbol: {symbol}")
 
     def _require_gw(self, session: ClientSession) -> str:
@@ -1181,13 +1261,33 @@ class AlfGateway:
         session.out_queue.append(payload)
 
     def _send_to_engine(
-        self, frames: list[bytes], *, count_as_command: bool = True
+        self,
+        frames: list[bytes],
+        *,
+        count_as_command: bool = True,
+        require_engine: bool = True,
     ) -> None:
         try:
             self._push.send_multipart(frames)
-        except zmq.ZMQError:
-            if not self._running or self._push.closed:
+        except zmq.Again:
+            if self._push.closed:
                 return
+            if not require_engine:
+                return
+            raise ValidationError(
+                "ENGINE_UNAVAILABLE",
+                "Engine unavailable: command not forwarded; retry shortly",
+            )
+        except zmq.ZMQError as exc:
+            if self._push.closed:
+                return
+            if exc.errno == zmq.EAGAIN:
+                if not require_engine:
+                    return
+                raise ValidationError(
+                    "ENGINE_UNAVAILABLE",
+                    "Engine unavailable: command not forwarded; retry shortly",
+                )
             raise
         if count_as_command:
             self._global_stats["commands_forwarded_total"] += 1
@@ -1242,11 +1342,13 @@ class AlfGateway:
             self._unsubscribe_topic(topic)
         session.subscriptions.clear()
 
-        if gateway_id and session.authenticated:
+        if gateway_id and session.connect_emitted:
             self._send_to_engine(
                 make_gateway_disconnect_msg(gateway_id, reason=reason),
                 count_as_command=False,
+                require_engine=False,
             )
+            session.connect_emitted = False
 
         fileno = session.sock.fileno()
         session.close()

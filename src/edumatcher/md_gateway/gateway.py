@@ -10,11 +10,13 @@ The gateway bridges engine PUB topics onto CALF/TCP streams.
 
 from __future__ import annotations
 
+import logging
 import select
 import signal
 import socket
 import threading
 import time
+from collections import defaultdict
 from typing import Any
 
 from edumatcher.md_gateway.client_session import ClientSession
@@ -36,6 +38,10 @@ _ALLOWED_CHANNELS = frozenset({"TOP", "TRADE", "STATE", "INDEX", "DEPTH"})
 _WILDCARD_ELIGIBLE_CHANNELS = frozenset({"STATE", "TOP", "TRADE"})
 _MAX_LINE_BYTES = 4096
 _HELLO_TIMEOUT_SEC = 5
+_MAX_ENGINE_EVENTS_PER_LOOP = 2000
+_DEBUG_SUMMARY_INTERVAL_SEC = 5.0
+
+log = logging.getLogger(__name__)
 
 
 class MarketDataGateway:
@@ -57,6 +63,8 @@ class MarketDataGateway:
         self._normaliser = EngineNormaliser(depth_levels=config.depth_levels)
         self._sequencer = SequenceAllocator()
         self._replay = ReplayBuffer(config.replay_window_sec)
+        self._debug_counts: defaultdict[str, int] = defaultdict(int)
+        self._debug_last_summary = time.monotonic()
 
         self._sub_sock = make_subscriber(
             config.engine_pub_addr,
@@ -67,6 +75,28 @@ class MarketDataGateway:
             "circuit_breaker.resume.",
         )
         self._index_sub = make_subscriber(config.index_pub_addr, "index.")
+
+    def _dbg_count(self, key: str, amount: int = 1) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        self._debug_counts[key] += amount
+        self._flush_debug_summary()
+
+    def _flush_debug_summary(self, force: bool = False) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        now = time.monotonic()
+        if not force and now - self._debug_last_summary < _DEBUG_SUMMARY_INTERVAL_SEC:
+            return
+        if not self._debug_counts:
+            self._debug_last_summary = now
+            return
+        summary = ", ".join(
+            f"{key}={value}" for key, value in sorted(self._debug_counts.items())
+        )
+        log.debug("md_gateway flow summary: %s", summary)
+        self._debug_counts.clear()
+        self._debug_last_summary = now
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -86,9 +116,12 @@ class MarketDataGateway:
             signal.signal(signal.SIGINT, lambda *_: self.stop())
             signal.signal(signal.SIGTERM, lambda *_: self.stop())
 
-        print(
-            f"[CALF] Listening on {self.config.bind_address}:{self.config.port} "
-            f"(engine pub: {self.config.engine_pub_addr})"
+        log.info(
+            "listening on %s:%s (engine_pub=%s index_pub=%s)",
+            self.config.bind_address,
+            self.config.port,
+            self.config.engine_pub_addr,
+            self.config.index_pub_addr,
         )
 
         try:
@@ -104,9 +137,12 @@ class MarketDataGateway:
             self.close()
 
     def stop(self) -> None:
+        log.info("stop requested")
         self._running = False
 
     def close(self) -> None:
+        self._flush_debug_summary(force=True)
+        log.info("closing market data gateway")
         for session in list(self._clients.values()):
             try:
                 session.sock.close()
@@ -136,8 +172,28 @@ class MarketDataGateway:
                 conn, addr = self._server.accept()
             except BlockingIOError:
                 break
+            except OSError as exc:
+                log.warning("accept failed: %s", exc)
+                break
+
+            if len(self._clients) >= self.config.max_connections:
+                log.warning(
+                    "connection rejected: max_connections=%d reached",
+                    self.config.max_connections,
+                )
+                try:
+                    conn.close()
+                except OSError:
+                    pass
+                continue
+
             conn.setblocking(False)
-            self._clients[conn.fileno()] = ClientSession(sock=conn, addr=addr)
+            session = ClientSession(sock=conn, addr=addr)
+            session.rate_tokens = float(self.config.max_messages_per_second)
+            self._clients[conn.fileno()] = session
+            log.info(
+                "client connected addr=%s:%s fd=%d", addr[0], addr[1], conn.fileno()
+            )
 
     def _read_client_data(self) -> None:
         if not self._clients:
@@ -146,10 +202,12 @@ class MarketDataGateway:
         readable = [session.sock for session in self._clients.values()]
         try:
             ready, _, _ = select.select(readable, [], [], 0)
-        except OSError:
+        except (OSError, ValueError) as exc:
+            log.warning("read select failed: %s", exc)
             return
 
         for sock_obj in ready:
+            self._dbg_count("readable_sockets")
             session = self._clients.get(sock_obj.fileno())
             if session is None:
                 continue
@@ -160,7 +218,7 @@ class MarketDataGateway:
                 continue
 
             if not chunk:
-                self._disconnect(session)
+                self._disconnect(session, reason="peer_closed")
                 continue
 
             session.in_buffer.extend(chunk)
@@ -176,6 +234,10 @@ class MarketDataGateway:
                     session,
                     "ERR",
                     {"CODE": "BAD_MESSAGE", "MSG": "line exceeds 4096 bytes"},
+                )
+                log.warning(
+                    "dropping client fd=%d due to oversized inbound line",
+                    session.sock.fileno(),
                 )
                 self._close_after_flush(session)
                 continue
@@ -204,6 +266,10 @@ class MarketDataGateway:
                     "ERR",
                     {"CODE": "BAD_MESSAGE", "MSG": "line exceeds 4096 bytes"},
                 )
+                log.warning(
+                    "dropping client fd=%d due to oversized framed line",
+                    session.sock.fileno(),
+                )
                 self._close_after_flush(session)
                 return
 
@@ -229,22 +295,23 @@ class MarketDataGateway:
                     break
 
                 session.out_offset += sent
-                session.last_activity = time.monotonic()
 
                 if session.out_offset >= len(payload):
                     session.out_queue.popleft()
                     session.out_offset = 0
 
             if len(session.out_queue) > self.config.max_client_queue:
-                self._queue_line(
-                    session,
-                    "ERR",
-                    {"CODE": "SLOW_CLIENT", "MSG": "outbound queue overflow"},
+                log.warning(
+                    "disconnecting slow client fd=%d queue=%d max=%d",
+                    session.sock.fileno(),
+                    len(session.out_queue),
+                    self.config.max_client_queue,
                 )
-                self._close_after_flush(session)
+                self._disconnect(session, reason="slow_client")
+                continue
 
             if session.closing and not session.out_queue:
-                self._disconnect(session)
+                self._disconnect(session, reason="close_after_flush")
 
     # ------------------------------------------------------------------
     # Protocol handling
@@ -253,11 +320,23 @@ class MarketDataGateway:
     def _handle_client_line(self, session: ClientSession, line: str) -> None:
         try:
             frame = parse_line(line)
-        except Exception:
+        except Exception as exc:
+            log.debug(
+                "parse error for fd=%d line=%r err=%s", session.sock.fileno(), line, exc
+            )
             self._queue_line(
                 session,
                 "ERR",
                 {"CODE": "BAD_MESSAGE", "MSG": "parse error"},
+            )
+            return
+
+        if not self._allow_message_now(session):
+            log.debug("rate-limited client fd=%d", session.sock.fileno())
+            self._queue_line(
+                session,
+                "ERR",
+                {"CODE": "RATE_LIMITED", "MSG": "too many messages"},
             )
             return
 
@@ -267,6 +346,11 @@ class MarketDataGateway:
                     session,
                     "ERR",
                     {"CODE": "AUTH_REQUIRED", "MSG": "send HELLO first"},
+                )
+                log.info(
+                    "pre-auth command rejected fd=%d cmd=%s",
+                    session.sock.fileno(),
+                    frame.msg_type,
                 )
                 self._close_after_flush(session)
                 return
@@ -286,6 +370,11 @@ class MarketDataGateway:
                 session,
                 "ERR",
                 {"CODE": "BAD_MESSAGE", "MSG": f"unsupported {frame.msg_type}"},
+            )
+            log.debug(
+                "unsupported command fd=%d cmd=%s",
+                session.sock.fileno(),
+                frame.msg_type,
             )
 
     def _handle_hello(self, session: ClientSession, fields: dict[str, str]) -> None:
@@ -321,6 +410,7 @@ class MarketDataGateway:
             welcome_fields["SYMBOLS"] = ",".join(sorted(self._known_symbols))
 
         self._queue_line(session, "WELCOME", welcome_fields)
+        log.info("client authenticated fd=%d client=%s", session.sock.fileno(), client)
 
         resume_raw = fields.get("RESUME", "0")
         if resume_raw == "1":
@@ -441,6 +531,12 @@ class MarketDataGateway:
         new_pairs = requested_pairs - session.subscriptions
         session.subscriptions = merged_subs
         self._subs.set_for_client(session.sock.fileno(), session.subscriptions)
+        log.debug(
+            "subscriptions updated fd=%d total=%d new=%d",
+            session.sock.fileno(),
+            len(session.subscriptions),
+            len(new_pairs),
+        )
 
         for ch, sym in sorted(new_pairs):
             # Wildcard TOP has no single meaningful "top of book" of its own
@@ -476,6 +572,11 @@ class MarketDataGateway:
             for sym in symbols:
                 session.subscriptions.discard((ch, sym))
         self._subs.set_for_client(session.sock.fileno(), session.subscriptions)
+        log.debug(
+            "subscriptions removed fd=%d now=%d",
+            session.sock.fileno(),
+            len(session.subscriptions),
+        )
 
     # ------------------------------------------------------------------
     # Snapshot and stream emission
@@ -526,9 +627,10 @@ class MarketDataGateway:
 
         line = build_line(msg_type, fields)
         self._replay.append(ch, sym, seq, line)
+        self._dbg_count("stream_events")
 
         for target in self._clients.values():
-            if not target.authenticated:
+            if not target.authenticated or target.closing:
                 continue
             if self._subs.session_wants(target.sock.fileno(), ch, sym):
                 self._queue_raw(target, line, is_market_data=True)
@@ -538,81 +640,112 @@ class MarketDataGateway:
     # ------------------------------------------------------------------
 
     def _poll_engine_events(self) -> None:
-        while self._sub_sock.poll(timeout=0):
+        budget = _MAX_ENGINE_EVENTS_PER_LOOP
+        while budget > 0 and self._sub_sock.poll(timeout=0):
+            self._dbg_count("engine_sub_messages")
             try:
                 topic, payload = decode(self._sub_sock.recv_multipart())
-            except Exception:
+            except Exception as exc:
+                log.warning("md_gateway decode error on engine SUB event: %s", exc)
+                budget -= 1
                 continue
-            now_seconds = _extract_ts(payload)
+            budget -= 1
+            try:
+                now_seconds = _extract_ts(payload)
 
-            if topic.startswith("book."):
-                sym = topic[5:].upper()
-                self._known_symbols.add(sym)
-                md_fields = self._normaliser.normalise_book(sym, payload)
-                if md_fields:
-                    self._emit_stream_event("MD", "TOP", sym, md_fields, now_seconds)
-                depth_fields = self._normaliser.normalise_depth(sym, payload)
-                if depth_fields:
-                    self._emit_stream_event(
-                        "DEPTH", "DEPTH", sym, depth_fields, now_seconds
-                    )
-                continue
-
-            if topic == "trade.executed":
-                sym, trade_fields = self._normaliser.normalise_trade(payload)
-                if sym:
+                if topic.startswith("book."):
+                    self._dbg_count("book_topics")
+                    sym = topic[5:].upper()
                     self._known_symbols.add(sym)
+                    md_fields = self._normaliser.normalise_book(sym, payload)
+                    if md_fields:
+                        self._emit_stream_event(
+                            "MD", "TOP", sym, md_fields, now_seconds
+                        )
+                    depth_fields = self._normaliser.normalise_depth(sym, payload)
+                    if depth_fields:
+                        self._emit_stream_event(
+                            "DEPTH", "DEPTH", sym, depth_fields, now_seconds
+                        )
+                    continue
+
+                if topic == "trade.executed":
+                    self._dbg_count("trade_topics")
+                    sym, trade_fields = self._normaliser.normalise_trade(payload)
+                    if sym:
+                        self._known_symbols.add(sym)
+                        self._emit_stream_event(
+                            "TRADE",
+                            "TRADE",
+                            sym,
+                            trade_fields,
+                            now_seconds,
+                        )
+                    continue
+
+                if topic == "session.state":
+                    self._dbg_count("session_state_topics")
+                    sym, state_fields = self._normaliser.normalise_session_state(
+                        payload
+                    )
                     self._emit_stream_event(
-                        "TRADE",
-                        "TRADE",
-                        sym,
-                        trade_fields,
+                        "STATE", "STATE", sym, state_fields, now_seconds
+                    )
+                    continue
+
+                if topic.startswith("circuit_breaker.halt."):
+                    self._dbg_count("halt_topics")
+                    sym = topic.split(".", 2)[2].upper()
+                    state_sym, state_fields = self._normaliser.normalise_halt(sym)
+                    self._emit_stream_event(
+                        "STATE",
+                        "STATE",
+                        state_sym,
+                        state_fields,
                         now_seconds,
                     )
-                continue
+                    continue
 
-            if topic == "session.state":
-                sym, state_fields = self._normaliser.normalise_session_state(payload)
-                self._emit_stream_event(
-                    "STATE", "STATE", sym, state_fields, now_seconds
+                if topic.startswith("circuit_breaker.resume."):
+                    self._dbg_count("resume_topics")
+                    sym = topic.split(".", 2)[2].upper()
+                    state_sym, state_fields = self._normaliser.normalise_resume(sym)
+                    self._emit_stream_event(
+                        "STATE",
+                        "STATE",
+                        state_sym,
+                        state_fields,
+                        now_seconds,
+                    )
+            except Exception:
+                log.warning(
+                    "md_gateway handler error on engine topic=%s", topic, exc_info=True
                 )
                 continue
 
-            if topic.startswith("circuit_breaker.halt."):
-                sym = topic.split(".", 2)[2].upper()
-                state_sym, state_fields = self._normaliser.normalise_halt(sym)
-                self._emit_stream_event(
-                    "STATE",
-                    "STATE",
-                    state_sym,
-                    state_fields,
-                    now_seconds,
-                )
-                continue
-
-            if topic.startswith("circuit_breaker.resume."):
-                sym = topic.split(".", 2)[2].upper()
-                state_sym, state_fields = self._normaliser.normalise_resume(sym)
-                self._emit_stream_event(
-                    "STATE",
-                    "STATE",
-                    state_sym,
-                    state_fields,
-                    now_seconds,
-                )
-
-        while self._index_sub.poll(timeout=0):
+        while budget > 0 and self._index_sub.poll(timeout=0):
+            self._dbg_count("index_sub_messages")
             try:
                 topic, payload = decode(self._index_sub.recv_multipart())
-            except Exception:
+            except Exception as exc:
+                log.warning("md_gateway decode error on index SUB event: %s", exc)
+                budget -= 1
                 continue
-            now_seconds = _extract_ts(payload)
-            if topic == "index.update":
-                index_id, fields = self._normaliser.normalise_index_update(payload)
-                if index_id:
-                    self._emit_stream_event(
-                        "IDX", "INDEX", index_id, fields, now_seconds
-                    )
+            budget -= 1
+            try:
+                now_seconds = _extract_ts(payload)
+                if topic == "index.update":
+                    self._dbg_count("index_update_topics")
+                    index_id, fields = self._normaliser.normalise_index_update(payload)
+                    if index_id:
+                        self._emit_stream_event(
+                            "IDX", "INDEX", index_id, fields, now_seconds
+                        )
+            except Exception:
+                log.warning(
+                    "md_gateway handler error on index topic=%s", topic, exc_info=True
+                )
+                continue
 
     # ------------------------------------------------------------------
     # Maintenance
@@ -633,11 +766,14 @@ class MarketDataGateway:
         now = time.monotonic()
         for session in list(self._clients.values()):
             idle = now - session.last_activity
-            if not session.authenticated and idle > _HELLO_TIMEOUT_SEC:
-                self._disconnect(session)
+            if (
+                not session.authenticated
+                and now - session.connected_at > _HELLO_TIMEOUT_SEC
+            ):
+                self._disconnect(session, reason="auth_timeout")
                 continue
             if session.authenticated and idle > self.config.idle_timeout_sec:
-                self._disconnect(session)
+                self._disconnect(session, reason="idle_timeout")
 
     # ------------------------------------------------------------------
     # Queue/disconnect helpers
@@ -658,21 +794,44 @@ class MarketDataGateway:
         *,
         is_market_data: bool,
     ) -> None:
+        if session.closing and is_market_data:
+            return
+        if len(session.out_queue) >= self.config.max_client_queue:
+            if not session.closing:
+                session.out_queue.clear()
+                session.out_offset = 0
+                session.closing = True
+            return
         session.out_queue.append(payload)
         if is_market_data:
             session.last_market_data_sent = time.monotonic()
 
-    def _disconnect(self, session: ClientSession) -> None:
+    def _allow_message_now(self, session: ClientSession) -> bool:
+        now = time.monotonic()
+        elapsed = now - session.rate_updated
+        session.rate_updated = now
+        max_rate = float(self.config.max_messages_per_second)
+        session.rate_tokens = min(max_rate, session.rate_tokens + elapsed * max_rate)
+        if session.rate_tokens < 1.0:
+            self._dbg_count("rate_limited")
+            return False
+        session.rate_tokens -= 1.0
+        return True
+
+    def _disconnect(self, session: ClientSession, reason: str = "unspecified") -> None:
         fd = session.sock.fileno()
+        client_id = session.client_id or "-"
         try:
             session.sock.close()
         except OSError:
             pass
         self._clients.pop(fd, None)
         self._subs.remove_client(fd)
+        log.info("client disconnected fd=%d client=%s reason=%s", fd, client_id, reason)
 
     def _close_after_flush(self, session: ClientSession) -> None:
         session.closing = True
+        log.debug("session fd=%d marked closing-after-flush", session.sock.fileno())
 
     @staticmethod
     def _parse_csv_upper(raw: str) -> list[str]:

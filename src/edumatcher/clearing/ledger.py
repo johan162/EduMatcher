@@ -28,9 +28,13 @@ they involve division and subtraction that can produce non-integer results.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, tzinfo
+import logging
+from typing import Any
 
 from edumatcher.clearing.store import DailySummaryRow, PositionRow
+
+log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Internal position state (one per gateway_id + symbol key)
@@ -81,10 +85,25 @@ class _BatchDelta:
 # ---------------------------------------------------------------------------
 
 
+def trade_date(ts_ns: int, tz: tzinfo = timezone.utc) -> str:
+    """
+    Return the trade-date string (YYYY-MM-DD) for a nanosecond timestamp in the
+    exchange's session timezone.
+
+    The trading day should align to the exchange's wall-clock calendar day, not
+    UTC (finding CL-M3): bucketing on UTC splits a single evening session — or
+    any session that straddles 00:00 UTC — across two ``trade_date`` values, so
+    daily summaries no longer match the session the participants actually traded.
+    ``tz`` defaults to UTC to preserve the historical behaviour when no session
+    timezone is configured.
+    """
+    ts_sec = ts_ns / 1_000_000_000
+    return datetime.fromtimestamp(ts_sec, tz=tz).strftime("%Y-%m-%d")
+
+
 def trade_date_utc(ts_ns: int) -> str:
     """Return the UTC trade-date string (YYYY-MM-DD) for a nanosecond timestamp."""
-    ts_sec = ts_ns / 1_000_000_000
-    return datetime.fromtimestamp(ts_sec, tz=timezone.utc).strftime("%Y-%m-%d")
+    return trade_date(ts_ns, timezone.utc)
 
 
 def _apply_fill_to_position(
@@ -170,15 +189,52 @@ class Ledger:
     4. Call ``clear_batch`` to reset the incremental delta accumulators.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, tz: tzinfo = timezone.utc) -> None:
         # Persistent position state — never cleared.
         self._positions: dict[tuple[str, str], _Position] = {}
         # Batch incremental deltas — cleared after each successful flush.
         self._batch_deltas: dict[tuple[str, str, str], _BatchDelta] = {}
+        # Exchange session timezone used to bucket trades into a trading day
+        # (finding CL-M3).  Defaults to UTC.
+        self._tz = tz
 
     # ------------------------------------------------------------------
     # Public interface
     # ------------------------------------------------------------------
+
+    def restore(self, rows: list[dict[str, Any]]) -> None:
+        """
+        Warm-start the persistent position state from stored rows (CL-C4).
+
+        Rebuilds ``_positions`` so that after a clearing restart the next trade
+        for a (gateway, symbol) key accumulates onto its true cumulative state
+        instead of starting from flat and overwriting it.  Only persistent state
+        is restored; batch deltas stay empty (the next flush emits fresh deltas
+        for post-restart trades only).  Accepts the dicts from
+        ``store.fetch_all_positions``.
+        """
+        for r in rows:
+            key = (r["gateway_id"], r["symbol"])
+            self._positions[key] = _Position(
+                gateway_id=r["gateway_id"],
+                symbol=r["symbol"],
+                net_qty=int(r["net_qty"]),
+                avg_cost=float(r["avg_cost"]),
+                realized_pnl=float(r["realized_pnl"]),
+                unrealized_pnl=float(r["unrealized_pnl"]),
+                mark_price=(None if r["mark_price"] is None else int(r["mark_price"])),
+                buy_qty=int(r["buy_qty"]),
+                sell_qty=int(r["sell_qty"]),
+                buy_notional=int(r["buy_notional"]),
+                sell_notional=int(r["sell_notional"]),
+                last_trade_ts_ns=(
+                    None
+                    if r["last_trade_ts_ns"] is None
+                    else int(r["last_trade_ts_ns"])
+                ),
+                tick_decimals=int(r["tick_decimals"]),
+            )
+            log.debug("ledger restored positions=%d", len(rows))
 
     def apply_trade(
         self,
@@ -198,7 +254,17 @@ class Ledger:
         ``ingest_ts_ns`` is not used for P&L math but is stored for the
         ``last_trade_ts_ns`` column in daily accumulators.
         """
-        trade_date = trade_date_utc(ts_ns)
+        bucket_date = trade_date(ts_ns, self._tz)
+        log.debug(
+            "apply trade symbol=%s qty=%d price_ticks=%d tick_decimals=%d buy_gw=%s sell_gw=%s trade_date=%s",
+            symbol,
+            quantity,
+            price,
+            tick_decimals,
+            buy_gateway_id,
+            sell_gateway_id,
+            bucket_date,
+        )
 
         for gateway_id, is_buy in (
             (buy_gateway_id, True),
@@ -212,25 +278,43 @@ class Ledger:
                 quantity=quantity,
                 is_buy=is_buy,
                 ts_ns=ts_ns,
-                trade_date=trade_date,
+                trade_date=bucket_date,
             )
 
     def get_flush_rows(
         self,
         updated_ts_ns: int,
+        position_keys: set[tuple[str, str]] | None = None,
     ) -> tuple[list[PositionRow], list[DailySummaryRow]]:
         """
         Return DB-ready rows for the current batch.
 
         ``updated_ts_ns`` is written as the flush timestamp on every row.
+
+        Only the positions that actually changed this batch are emitted
+        (finding CL-M9): re-writing every position ever seen on every 5-second
+        flush rewrites the whole table to touch a handful of rows.  ``position_keys``
+        overrides which ``(gateway_id, symbol)`` positions to emit — passed by the
+        EOD mark pass, which mutates positions outside the delta accumulator.
+        When ``None``, the keys are derived from the current batch deltas.
         """
+        if position_keys is None:
+            position_keys = {(gw, sym) for (_date, gw, sym) in self._batch_deltas}
         position_rows = [
-            _position_to_row(pos, updated_ts_ns) for pos in self._positions.values()
+            _position_to_row(self._positions[key], updated_ts_ns)
+            for key in position_keys
+            if key in self._positions
         ]
         daily_rows = [
             _delta_to_daily_row(key, delta, self._positions, updated_ts_ns)
             for key, delta in self._batch_deltas.items()
         ]
+        log.debug(
+            "ledger flush rows prepared positions=%d daily=%d updated_ts_ns=%d",
+            len(position_rows),
+            len(daily_rows),
+            updated_ts_ns,
+        )
         return position_rows, daily_rows
 
     def clear_batch(self) -> None:
@@ -267,6 +351,11 @@ class Ledger:
         pos = self._positions[pos_key]
         pos.tick_decimals = tick_decimals
 
+        before_net_qty = pos.net_qty
+        before_avg_cost = pos.avg_cost
+        before_realized = pos.realized_pnl
+        before_unrealized = pos.unrealized_pnl
+
         realized_delta = _apply_fill_to_position(pos, quantity, price, is_buy, ts_ns)
 
         # Update side-specific cumulative totals.
@@ -293,6 +382,45 @@ class Ledger:
             delta.sell_notional += quantity * price
         delta.realized_pnl += realized_delta
         delta.last_trade_ts_ns = max(delta.last_trade_ts_ns, ts_ns)
+
+        if before_net_qty == 0 and pos.net_qty != 0:
+            transition = "OPEN"
+        elif before_net_qty != 0 and pos.net_qty == 0:
+            transition = "CLOSE_TO_FLAT"
+        elif before_net_qty > 0 and pos.net_qty < 0:
+            transition = "CROSS_LONG_TO_SHORT"
+        elif before_net_qty < 0 and pos.net_qty > 0:
+            transition = "CROSS_SHORT_TO_LONG"
+        elif before_net_qty * pos.net_qty > 0 and abs(pos.net_qty) > abs(
+            before_net_qty
+        ):
+            transition = "ADD"
+        elif before_net_qty * pos.net_qty > 0 and abs(pos.net_qty) < abs(
+            before_net_qty
+        ):
+            transition = "REDUCE"
+        else:
+            transition = "UNCHANGED_SIDE"
+
+        log.debug(
+            "position leg gateway=%s symbol=%s side=%s qty=%d px_ticks=%d transition=%s "
+            "net_qty=%d->%d avg_cost=%.6f->%.6f realized_delta=%.6f realized=%.6f->%.6f unrealized=%.6f->%.6f",
+            gateway_id,
+            symbol,
+            "BUY" if is_buy else "SELL",
+            quantity,
+            price,
+            transition,
+            before_net_qty,
+            pos.net_qty,
+            before_avg_cost,
+            pos.avg_cost,
+            realized_delta,
+            before_realized,
+            pos.realized_pnl,
+            before_unrealized,
+            pos.unrealized_pnl,
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -334,7 +334,8 @@ See [Configuration](01-configuration.md) for full details on the config file.
 | `book.{SYMBOL}`               | Book snapshot after every change |
 | `session.state`               | Session phase change             |
 | `auction.result.{SYMBOL}`     | Auction uncross result           |
-| `system.gateway_auth.{GW_ID}` | Gateway authentication reply     |
+| `system.gateway_auth.{GW_ID}` | Gateway authentication reply (connect) |
+| `system.gateway_bye.{GW_ID}`  | Gateway disconnect broadcast     |
 | `system.symbols.{GW_ID}`      | Symbol list reply                |
 | `system.eod`                  | End-of-day broadcast             |
 
@@ -428,7 +429,7 @@ but is designed for programmatic clients, not interactive terminals.  One
 connection per gateway ID; all configured `gateways.alf` IDs may connect.
 
 ```bash
-pm-alf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5565] [--engine-host HOST]
+pm-alf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5565] [--engine-host HOST] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -439,6 +440,9 @@ pm-alf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5565] [--engin
 | `--bind`          | from config / `0.0.0.0` | TCP bind address for external clients                 |
 | `--port`          | from config / `5565`    | TCP listen port for ALF clients                       |
 | `--engine-host`   | from config             | Override engine host for ZMQ ports `5555` / `5556`   |
+| `--log-level`     | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose`| off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)  |
+| `-q` / `--quiet`  | off                     | Reduce output to warnings/errors                      |
 
 **Expected runtime input arguments:**
 
@@ -591,7 +595,7 @@ Status colours: green=NEW, yellow=PARTIAL, bright green=FILLED, red=REJECTED/CAN
 Records every message on the bus to a rotating log file.
 
 ```bash
-pm-audit [--log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10]
+pm-audit [--log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -602,6 +606,9 @@ pm-audit [--log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-i
 | `--terminal` / `-t`   | off              | Also print each entry to stdout                              |
 | `--buffer-size`       | 100              | Number of messages to buffer in memory before writing to disk |
 | `--flush-interval`    | 10.0             | Maximum seconds to wait before flushing buffer to disk       |
+| `--log-level`         | `WARNING`        | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose`    | off              | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)         |
+| `-q` / `--quiet`      | off              | Reduce output to warnings/errors                             |
 
 **Expected runtime input arguments:**
 
@@ -627,6 +634,9 @@ automatically flushed to disk before the process exits, ensuring no data is lost
 Log files rotate at 10 MB with 5 backups kept.
 
 Use `--terminal` during demos so the class can see every event in real time.
+Use `-vv` or `--log-level DEBUG` when you want aggregated operational summaries
+about buffering, flushes, decode errors, and broad topic-family mix without
+changing the raw event log format.
 
 **Examples:**
 
@@ -657,7 +667,7 @@ pm-audit --buffer-size 1 --flush-interval 0.1
 SQLite-backed clearing writer for P&L and position state.
 
 ```bash
-pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interval SEC] [--print-every N]
+pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interval SEC] [--print-every N] [--retention-days N] [--timezone TZ] [--sql-trace] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -669,6 +679,12 @@ pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interva
 | `--flush-size` | `100` | Flush immediately when buffered trades reaches N |
 | `--flush-interval` | `5.0` | Flush interval in seconds when buffer is non-empty |
 | `--print-every` | `100` | Print in-memory P&L snapshot every N trades (`0` disables) |
+| `--retention-days` | `90` | Prune `trade_events` rows older than N days on startup (`0` disables pruning) |
+| `--timezone` | `UTC` | Exchange session timezone (IANA name) used to bucket trades into a trading day; keeps a single wall-clock session in one `trade_date` |
+| `--sql-trace` | off | Log executed SQLite SQL statements from the clearing writer connection |
+| `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
+| `-q` / `--quiet` | off | Reduce output to warnings/errors |
 
 `pm-clearing-cli` global options include `--raw-output` to disable display
 normalization and print raw tick-unit values for price-derived fields.
@@ -693,6 +709,9 @@ price-derived values for table/JSON/CSV rendering.
 | Topic            | Purpose                                            |
 |------------------|----------------------------------------------------|
 | `trade.executed` | Every matched trade pair (including `tick_decimals`) — drives P&L calculations |
+| `system.eod` | End-of-day marks and the session-close `session_events` row |
+| `system.gateway_auth.` | Gateway connect (accepted) — opens a `gateway_sessions` row |
+| `system.gateway_bye.` | Gateway disconnect — closes the matching `gateway_sessions` row |
 
 See [P&L & Clearing](07-pnl-clearing.md) for the full accounting model.
 
@@ -733,7 +752,7 @@ output, and exits.
 | `symbols` | 1000 | Symbol-level totals and open exposure snapshot | `--date`, `--from`, `--to`, `--sort` |
 | `dates` | 1000 | Available trade dates (optionally with totals) | `--gateway`, `--symbol`, `--from`, `--to`, `--with-totals` |
 | `health` | n/a | DB row counts, flush metadata, and WAL mode | none |
-| `reconcile` | n/a | Compares raw `trade_events` buy-side aggregates vs daily summary | `--gateway`, `--symbol`, `--from`, `--to` |
+| `reconcile` | n/a | Compares raw `trade_events` vs daily summary (both buy and sell sides; also reports summary-only keys) | `--gateway`, `--symbol`, `--from`, `--to`, `--retention-days` |
 | `prune` | n/a | Deletes old `trade_events` rows by retention window | `--days`, `--dry-run` |
 
 **Sort options:**
@@ -793,7 +812,7 @@ See [P&L & Clearing](07-pnl-clearing.md) for the accounting model and schema-lev
 Records market statistics for every symbol to a SQLite database (`data/stats.db`).
 
 ```bash
-pm-stats [--db data/stats.db] [--snapshot-interval SEC]
+pm-stats [--db data/stats.db] [--snapshot-interval SEC] [--sql-trace] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -802,6 +821,10 @@ pm-stats [--db data/stats.db] [--snapshot-interval SEC]
 |-----------------------|-----------------|-------------------------------------------------------------------------------------------------|
 | `--db`                | `data/stats.db` | SQLite database file path                                                                       |
 | `--snapshot-interval` | `900` (15 min)  | Seconds between `price_snapshots` rows per symbol. Use a smaller value for finer intraday resolution, e.g. `60` for one-minute snapshots. |
+| `--sql-trace`         | off             | Log executed SQLite SQL statements from the stats writer connection                             |
+| `--log-level`         | `WARNING`       | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                            |
+| `-v` / `--verbose`    | off             | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                             |
+| `-q` / `--quiet`      | off             | Reduce output to warnings/errors                                                                 |
 
 **Expected runtime input arguments:**
 
@@ -1022,16 +1045,21 @@ CLOSING_AUCTION → CLOSED) by sending `session.transition` messages to the
 engine at configured wall-clock times.
 
 ```bash
-pm-scheduler [--config engine_config.yaml] [--now] [--delay 3]
+pm-scheduler [--config engine_config.yaml] [--now] [--delay 3] [--daily] [--no-confirm] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
 
-| Flag              | Default              | Description                                                                         |
-|-------------------|----------------------|-------------------------------------------------------------------------------------|
-| `--config` / `-c` | `engine_config.yaml` | Config file containing the `schedule` section                                       |
-| `--now`           | off                  | Skip wall-clock waiting; send all transitions immediately with a delay between each |
-| `--delay`         | 3                    | Seconds between transitions in `--now` mode                                         |
+| Flag               | Default              | Description                                                                         |
+|--------------------|----------------------|-------------------------------------------------------------------------------------|
+| `--config` / `-c`  | `engine_config.yaml` | Config file containing the `schedule` section                                       |
+| `--now`            | off                  | Skip wall-clock waiting; send all transitions immediately with a delay between each |
+| `--delay`          | 3                    | Seconds between transitions in `--now` mode (ignored, with a warning, outside `--now`) |
+| `--daily`          | off                  | Run continuously, repeating the schedule every calendar day                         |
+| `--no-confirm`     | off                  | Do not query/confirm session state via the engine before sending a transition       |
+| `--log-level`      | `WARNING`            | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                 |
+| `-v` / `--verbose` | off                  | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                 |
+| `-q` / `--quiet`   | off                  | Reduce output to warnings/errors                                                     |
 
 **Expected runtime input arguments:**
 
@@ -1391,7 +1419,7 @@ Runs the external machine-facing post-trade dissemination gateway that publishes
 RALF over TCP for clearing, drop-copy, and audit consumers.
 
 ```bash
-pm-ralf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5580] [--engine-pub tcp://127.0.0.1:5556]
+pm-ralf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5580] [--engine-pub tcp://127.0.0.1:5556] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -1402,6 +1430,9 @@ pm-ralf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5580] [--engi
 | `--bind`          | from config / `0.0.0.0` | TCP bind address for external clients              |
 | `--port`          | from config / `5580`    | TCP listen port for RALF clients                   |
 | `--engine-pub`    | `tcp://127.0.0.1:5556`  | Engine PUB address consumed by the gateway         |
+| `--log-level`     | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose`| off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)  |
+| `-q` / `--quiet`  | off                     | Reduce output to warnings/errors                      |
 
 **Expected runtime input arguments:**
 
@@ -1446,7 +1477,7 @@ dedicated ZMQ PUB socket so `pm-md-gwy` can forward them to external subscribers
 over the CALF `INDEX` channel.
 
 ```bash
-pm-index [--config engine_config.yaml] [--reset]
+pm-index [--config engine_config.yaml] [--reset] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -1455,6 +1486,9 @@ pm-index [--config engine_config.yaml] [--reset]
 |-------------------|----------------------|-----------------------------------------------------------------------|
 | `--config` / `-c` | `engine_config.yaml` | Path to engine config YAML containing the `indices:` section          |
 | `--reset`         | off                  | Delete persisted state files and reinitialise all indices from config |
+| `--log-level`     | `WARNING`            | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`   |
+| `-v` / `--verbose`| off                  | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                   |
+| `-q` / `--quiet`  | off                  | Reduce output to warnings/errors                                       |
 
 **Expected runtime input arguments:**
 
@@ -1887,6 +1921,22 @@ translates them into the same engine order flow as the ALF gateways.
 
 See [BALF TCP Gateway](25-balf-gateway.md) for operational usage and
 [BALF Protocol Reference](91-app-balf-protocol.md) for the wire-level contract.
+
+```bash
+pm-balf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5566] [--engine-host HOST] [--log-level LEVEL] [-v|-vv] [-q]
+```
+
+**Startup options:**
+
+| Flag               | Default                 | Description                                                          |
+|--------------------|-------------------------|----------------------------------------------------------------------|
+| `--config` / `-c`  | `engine_config.yaml`    | Config file with optional `balf_gateway:` section                    |
+| `--bind`           | from config / `0.0.0.0` | TCP bind address for BALF clients                                    |
+| `--port`           | from config / `5566`    | TCP listen port for BALF clients                                     |
+| `--engine-host`    | from config             | Override engine host for ZMQ ports `5555` / `5556`                  |
+| `--log-level`      | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose` | off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                 |
+| `-q` / `--quiet`   | off                     | Reduce output to warnings/errors                                     |
 
 ## pm-alf-gwy — ALF TCP gateway
 

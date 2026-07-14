@@ -1155,8 +1155,21 @@ class TestMain:
     def test_parser_has_log_level(self):
         from edumatcher.balf_gwy.main import _build_parser
 
-        args = _build_parser().parse_args(["--log-level", "debug"])
-        assert args.log_level == "debug"
+        args = _build_parser().parse_args(["--log-level", "DEBUG"])
+        assert args.log_level == "DEBUG"
+
+    def test_parser_has_verbose_and_quiet(self):
+        from edumatcher.balf_gwy.main import _build_parser
+
+        args = _build_parser().parse_args(["-vv", "--quiet"])
+        assert args.verbose == 2
+        assert args.quiet is True
+
+    def test_configure_logging_prefers_explicit_level(self):
+        from edumatcher.balf_gwy.main import _configure_logging
+
+        args = Namespace(log_level="INFO", verbose=2, quiet=True)
+        assert _configure_logging(args) == 20
 
     def test_resolve_config_bind_port_override(self, tmp_path: Path):
         from edumatcher.balf_gwy.main import _resolve_config

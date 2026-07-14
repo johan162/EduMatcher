@@ -428,6 +428,9 @@ def test_build_parser_and_main(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     parser = index_main._build_parser()
     args = parser.parse_args(["--config", str(tmp_path / "cfg.yaml"), "--reset"])
     assert args.reset is True
+    assert args.log_level is None
+    assert args.verbose == 0
+    assert args.quiet is False
 
     called: dict[str, Any] = {"run": 0, "close": 0}
 
@@ -446,10 +449,27 @@ def test_build_parser_and_main(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
         argparse.ArgumentParser,
         "parse_args",
         lambda _self: argparse.Namespace(
-            config=str(tmp_path / "cfg.yaml"), reset=False
+            config=str(tmp_path / "cfg.yaml"),
+            reset=False,
+            log_level=None,
+            verbose=0,
+            quiet=False,
         ),
     )
 
     index_main.main()
     assert called["run"] == 1
     assert called["close"] == 1
+
+
+def test_build_parser_logging_flags() -> None:
+    parser = index_main._build_parser()
+    args = parser.parse_args(["-vv", "--quiet", "--log-level", "ERROR"])
+    assert args.verbose == 2
+    assert args.quiet is True
+    assert args.log_level == "ERROR"
+
+
+def test_configure_logging_prefers_explicit_level() -> None:
+    args = argparse.Namespace(log_level="INFO", verbose=2, quiet=True)
+    assert index_main._configure_logging(args) == 20

@@ -108,6 +108,60 @@ def test_accept_new_clients(unit_gateway: MarketDataGateway) -> None:
     server.close()
 
 
+def test_accept_new_clients_respects_max_connections(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind(("127.0.0.1", _free_port()))
+    server.listen(5)
+    server.setblocking(False)
+    unit_gateway._server = server
+    unit_gateway.config = MarketDataGatewayConfig(
+        enabled=unit_gateway.config.enabled,
+        name=unit_gateway.config.name,
+        bind_address=unit_gateway.config.bind_address,
+        port=unit_gateway.config.port,
+        engine_pub_addr=unit_gateway.config.engine_pub_addr,
+        index_pub_addr=unit_gateway.config.index_pub_addr,
+        heartbeat_interval_sec=unit_gateway.config.heartbeat_interval_sec,
+        idle_timeout_sec=unit_gateway.config.idle_timeout_sec,
+        replay_window_sec=unit_gateway.config.replay_window_sec,
+        max_connections=1,
+        max_messages_per_second=unit_gateway.config.max_messages_per_second,
+        max_symbols_per_client=unit_gateway.config.max_symbols_per_client,
+        max_client_queue=unit_gateway.config.max_client_queue,
+        depth_levels=unit_gateway.config.depth_levels,
+    )
+
+    held, held_peer = _make_session()
+    unit_gateway._clients[held.sock.fileno()] = held
+
+    client = socket.create_connection(server.getsockname())
+    client.settimeout(1.0)
+    select.select([server], [], [], 2.0)
+    unit_gateway._accept_new_clients()
+
+    # Server-side map should still only contain the existing held session.
+    assert len(unit_gateway._clients) == 1
+
+    client.close()
+    held_peer.close()
+    server.close()
+
+
+def test_accept_new_clients_handles_oserror(unit_gateway: MarketDataGateway) -> None:
+    class _Server:
+        def accept(self) -> tuple[socket.socket, tuple[str, int]]:
+            raise OSError("too many open files")
+
+        def close(self) -> None:
+            return None
+
+    unit_gateway._server = _Server()
+    unit_gateway._accept_new_clients()
+
+
 def test_read_client_data_disconnect_on_eof(unit_gateway: MarketDataGateway) -> None:
     session, peer = _make_session()
     unit_gateway._clients[session.sock.fileno()] = session
@@ -142,6 +196,22 @@ def test_flush_client_writes_and_disconnect(unit_gateway: MarketDataGateway) -> 
     session.closing = True
     unit_gateway._clients[session.sock.fileno()] = session
     unit_gateway._flush_client_writes()
+    assert session.sock.fileno() not in unit_gateway._clients
+    peer.close()
+
+
+def test_flush_writes_do_not_extend_idle_timeout(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.last_activity = time.monotonic() - 10
+    session.out_queue.append(b"HB|TS=2026-01-01T00:00:00Z\n")
+    unit_gateway._clients[session.sock.fileno()] = session
+
+    unit_gateway._flush_client_writes()
+    unit_gateway._drop_idle_clients()
+
     assert session.sock.fileno() not in unit_gateway._clients
     peer.close()
 
@@ -253,6 +323,112 @@ def test_poll_index_events_emits_idx(
     assert fields["LEVEL"] == "1042.5"
 
 
+def test_poll_engine_events_nonfatal_handler_exception(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeSubscriber(
+        [
+            ("book.aapl", {"bids": [{"price": 100.0, "qty": 1}], "asks": []}),
+            (
+                "trade.executed",
+                {
+                    "symbol": "AAPL",
+                    "price": 100.2,
+                    "quantity": 3,
+                    "aggressor_side": "BUY",
+                    "timestamp": 2.0,
+                },
+            ),
+        ]
+    )
+    unit_gateway._sub_sock.close()
+    unit_gateway._sub_sock = fake
+    monkeypatch.setattr(gateway_mod, "decode", lambda payload: payload)
+    monkeypatch.setattr(
+        unit_gateway._normaliser,
+        "normalise_book",
+        lambda _sym, _payload: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    seen: list[tuple[str, str, str]] = []
+
+    def _capture(
+        msg_type: str,
+        ch: str,
+        sym: str,
+        payload_fields: dict[str, str],
+        ts_seconds: float,
+    ) -> None:
+        _ = (payload_fields, ts_seconds)
+        seen.append((msg_type, ch, sym))
+
+    monkeypatch.setattr(unit_gateway, "_emit_stream_event", _capture)
+
+    unit_gateway._poll_engine_events()
+
+    assert ("TRADE", "TRADE", "AAPL") in seen
+
+
+def test_poll_engine_events_logs_decode_error(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    unit_gateway._sub_sock.close()
+    unit_gateway._sub_sock = _FakeSubscriber(
+        [
+            (
+                "book.aapl",
+                {
+                    "bids": [{"price": 100.0, "qty": 1}],
+                    "asks": [{"price": 100.1, "qty": 1}],
+                },
+            )
+        ]
+    )
+
+    monkeypatch.setattr(
+        gateway_mod,
+        "decode",
+        lambda _payload: (_ for _ in ()).throw(ValueError("bad decode")),
+    )
+
+    caplog.set_level("WARNING")
+    unit_gateway._poll_engine_events()
+
+    assert "decode error on engine SUB event" in caplog.text
+
+
+def test_poll_index_events_logs_decode_error(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    unit_gateway._sub_sock.close()
+    unit_gateway._index_sub.close()
+    unit_gateway._sub_sock = _FakeSubscriber([])
+    unit_gateway._index_sub = _FakeSubscriber(
+        [
+            (
+                "index.update",
+                {"index_id": "EDU100", "level": 1000.0},
+            )
+        ]
+    )
+
+    monkeypatch.setattr(
+        gateway_mod,
+        "decode",
+        lambda _payload: (_ for _ in ()).throw(ValueError("bad decode")),
+    )
+
+    caplog.set_level("WARNING")
+    unit_gateway._poll_engine_events()
+
+    assert "decode error on index SUB event" in caplog.text
+
+
 def test_drop_idle_clients(unit_gateway: MarketDataGateway) -> None:
     auth_session, auth_peer = _make_session()
     auth_session.authenticated = True
@@ -261,6 +437,7 @@ def test_drop_idle_clients(unit_gateway: MarketDataGateway) -> None:
     new_session, new_peer = _make_session()
     new_session.authenticated = False
     new_session.last_activity = time.monotonic() - 10
+    new_session.connected_at = time.monotonic() - 10
 
     unit_gateway._clients[auth_session.sock.fileno()] = auth_session
     unit_gateway._clients[new_session.sock.fileno()] = new_session
@@ -270,6 +447,129 @@ def test_drop_idle_clients(unit_gateway: MarketDataGateway) -> None:
 
     auth_peer.close()
     new_peer.close()
+
+
+def test_emit_stream_event_skips_closing_clients(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.closing = True
+    session.subscriptions.add(("TOP", "AAPL"))
+    unit_gateway._clients[session.sock.fileno()] = session
+    unit_gateway._subs.set_for_client(session.sock.fileno(), session.subscriptions)
+
+    unit_gateway._emit_stream_event(
+        "MD",
+        "TOP",
+        "AAPL",
+        {"BID_PX": "100.0", "BID_QTY": "1", "ASK_PX": "100.1", "ASK_QTY": "1"},
+        time.time(),
+    )
+
+    assert not session.out_queue
+    peer.close()
+
+
+def test_drop_idle_clients_uses_connect_age_for_pre_auth(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    sess, peer = _make_session()
+    sess.authenticated = False
+    sess.connected_at = time.monotonic() - 10
+    sess.last_activity = time.monotonic()
+    unit_gateway._clients[sess.sock.fileno()] = sess
+
+    unit_gateway._drop_idle_clients()
+
+    assert sess.sock.fileno() not in unit_gateway._clients
+    peer.close()
+
+
+def test_queue_raw_marks_slow_client_on_full_queue(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    sess, peer = _make_session()
+    unit_gateway.config = MarketDataGatewayConfig(
+        enabled=unit_gateway.config.enabled,
+        name=unit_gateway.config.name,
+        bind_address=unit_gateway.config.bind_address,
+        port=unit_gateway.config.port,
+        engine_pub_addr=unit_gateway.config.engine_pub_addr,
+        index_pub_addr=unit_gateway.config.index_pub_addr,
+        heartbeat_interval_sec=unit_gateway.config.heartbeat_interval_sec,
+        idle_timeout_sec=unit_gateway.config.idle_timeout_sec,
+        replay_window_sec=unit_gateway.config.replay_window_sec,
+        max_connections=unit_gateway.config.max_connections,
+        max_messages_per_second=unit_gateway.config.max_messages_per_second,
+        max_symbols_per_client=unit_gateway.config.max_symbols_per_client,
+        max_client_queue=1,
+        depth_levels=unit_gateway.config.depth_levels,
+    )
+
+    sess.out_queue.append(b"A\n")
+    unit_gateway._queue_raw(sess, b"B\n", is_market_data=True)
+
+    assert sess.closing is True
+    assert len(sess.out_queue) == 0
+    peer.close()
+
+
+def test_poll_engine_events_respects_budget(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeSubscriber(
+        [
+            (
+                "book.aapl",
+                {
+                    "bids": [{"price": 100.1, "qty": 10}],
+                    "asks": [{"price": 100.2, "qty": 11}],
+                    "timestamp": 1.0,
+                },
+            ),
+            (
+                "book.msft",
+                {
+                    "bids": [{"price": 100.1, "qty": 10}],
+                    "asks": [{"price": 100.2, "qty": 11}],
+                    "timestamp": 1.0,
+                },
+            ),
+            (
+                "book.goog",
+                {
+                    "bids": [{"price": 100.1, "qty": 10}],
+                    "asks": [{"price": 100.2, "qty": 11}],
+                    "timestamp": 1.0,
+                },
+            ),
+        ]
+    )
+    unit_gateway._sub_sock.close()
+    unit_gateway._sub_sock = fake
+    monkeypatch.setattr(gateway_mod, "decode", lambda payload: payload)
+    monkeypatch.setattr(gateway_mod, "_MAX_ENGINE_EVENTS_PER_LOOP", 2)
+
+    seen: list[str] = []
+
+    def _capture(
+        msg_type: str,
+        ch: str,
+        sym: str,
+        payload_fields: dict[str, str],
+        ts_seconds: float,
+    ) -> None:
+        _ = (msg_type, ch, payload_fields, ts_seconds)
+        seen.append(sym)
+
+    monkeypatch.setattr(unit_gateway, "_emit_stream_event", _capture)
+
+    unit_gateway._poll_engine_events()
+
+    assert len(seen) == 4
+    assert set(seen) == {"AAPL", "MSFT"}
 
 
 def test_extract_ts_fallback_and_parse_csv(unit_gateway: MarketDataGateway) -> None:

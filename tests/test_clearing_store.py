@@ -14,6 +14,7 @@ from edumatcher.clearing.store import (
     PositionRow,
     TradeEventRow,
     apply_schema,
+    close_latest_gateway_session,
     flush_batch,
     open_readonly_connection,
     open_writer_connection,
@@ -532,6 +533,33 @@ class TestQueryTrades:
         rows = query_trades(seeded_conn, date_value="2026-07-02")
         assert len(rows) == 1
 
+    def test_order_uses_ingest_ts_for_same_trade_ts(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        """CL-L3: for equal ts_ns, newest ingest_ts_ns should sort first."""
+        flush_batch(
+            conn,
+            [
+                _trade_row(
+                    "T-OLD-INGEST",
+                    ts_ns=9_000_000_000,
+                    ingest_ts_ns=100,
+                    trade_date="2026-07-01",
+                ),
+                _trade_row(
+                    "T-NEW-INGEST",
+                    ts_ns=9_000_000_000,
+                    ingest_ts_ns=200,
+                    trade_date="2026-07-01",
+                ),
+            ],
+            [],
+            [],
+        )
+
+        rows = query_trades(conn)
+        assert [r["id"] for r in rows] == ["T-NEW-INGEST", "T-OLD-INGEST"]
+
 
 class TestQueryExposure:
     def test_returns_rows_with_notional(self, seeded_conn: sqlite3.Connection) -> None:
@@ -731,6 +759,39 @@ class TestGatewaySessionsWrite:
             "SELECT COUNT(*) FROM gateway_sessions WHERE gateway_id='GW04'"
         ).fetchone()[0]
         assert count == 1
+
+    def test_close_latest_session_matches_newest_open(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        """CL-M5: close_latest_gateway_session closes the most recent OPEN
+        session without needing the exact connect timestamp in memory."""
+        record_gateway_connect(conn, gateway_id="GW_M5", connected_at_ns=1_000)
+        record_gateway_connect(conn, gateway_id="GW_M5", connected_at_ns=5_000)
+        updated = close_latest_gateway_session(
+            conn, gateway_id="GW_M5", disconnected_at_ns=9_000, reason="bye"
+        )
+        assert updated == 1
+        rows = {
+            r["connected_at_ns"]: r
+            for r in conn.execute(
+                "SELECT connected_at_ns, disconnected_at_ns, disconnect_reason"
+                " FROM gateway_sessions WHERE gateway_id='GW_M5'"
+            ).fetchall()
+        }
+        # Newest session (5_000) closed; the older one (1_000) untouched.
+        assert rows[5_000]["disconnected_at_ns"] == 9_000
+        assert rows[5_000]["disconnect_reason"] == "bye"
+        assert rows[1_000]["disconnected_at_ns"] is None
+
+    def test_close_latest_session_no_open_is_noop(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        assert (
+            close_latest_gateway_session(
+                conn, gateway_id="NOBODY", disconnected_at_ns=1, reason=None
+            )
+            == 0
+        )
 
 
 class TestQuerySessions:

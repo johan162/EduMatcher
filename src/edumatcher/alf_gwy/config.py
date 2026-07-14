@@ -22,6 +22,7 @@ class AlfGatewayConfig:
     engine_pull_addr: str = ENGINE_PULL_ADDR
     engine_pub_addr: str = ENGINE_PUB_ADDR
     heartbeat_interval_sec: int = 5
+    handshake_timeout_sec: int = 10
     idle_timeout_sec: int = 30
     max_connections: int = 64
     max_client_queue: int = 10_000
@@ -89,6 +90,9 @@ def _load_alf_gateway_config_from_raw(raw: dict[str, Any]) -> AlfGatewayConfig:
     heartbeat_interval_sec = _as_int(
         section.get("heartbeat_interval_sec", 5), "heartbeat_interval_sec"
     )
+    handshake_timeout_sec = _as_int(
+        section.get("handshake_timeout_sec", 10), "handshake_timeout_sec"
+    )
     idle_timeout_sec = _as_int(section.get("idle_timeout_sec", 30), "idle_timeout_sec")
     max_connections = _as_int(section.get("max_connections", 64), "max_connections")
     max_client_queue = _as_int(
@@ -107,6 +111,8 @@ def _load_alf_gateway_config_from_raw(raw: dict[str, Any]) -> AlfGatewayConfig:
         raise ValueError("alf_gateway.port must be > 0")
     if heartbeat_interval_sec <= 0:
         raise ValueError("alf_gateway.heartbeat_interval_sec must be > 0")
+    if handshake_timeout_sec <= 0:
+        raise ValueError("alf_gateway.handshake_timeout_sec must be > 0")
     if idle_timeout_sec <= 0:
         raise ValueError("alf_gateway.idle_timeout_sec must be > 0")
     if max_connections <= 0:
@@ -128,6 +134,7 @@ def _load_alf_gateway_config_from_raw(raw: dict[str, Any]) -> AlfGatewayConfig:
         engine_pull_addr=ENGINE_PULL_ADDR,
         engine_pub_addr=ENGINE_PUB_ADDR,
         heartbeat_interval_sec=heartbeat_interval_sec,
+        handshake_timeout_sec=handshake_timeout_sec,
         idle_timeout_sec=idle_timeout_sec,
         max_connections=max_connections,
         max_client_queue=max_client_queue,

@@ -861,6 +861,7 @@ class TestAuditProcess:
         with patch("edumatcher.audit.main.make_subscriber", return_value=fake_sub):
             proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
         assert proc.logger is not None
+        assert proc._to_terminal is False
 
     def test_init_with_terminal_flag(self, tmp_path: Path) -> None:
         from edumatcher.audit.main import AuditProcess
@@ -869,6 +870,7 @@ class TestAuditProcess:
         with patch("edumatcher.audit.main.make_subscriber", return_value=fake_sub):
             proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=True)
         assert proc.logger is not None
+        assert proc._to_terminal is True
 
     def test_stop_sets_running_false(self, tmp_path: Path) -> None:
         from edumatcher.audit.main import AuditProcess
@@ -878,6 +880,15 @@ class TestAuditProcess:
             proc = AuditProcess(log_path=tmp_path / "audit.log", to_terminal=False)
         proc._stop()
         assert proc._running is False
+
+    def test_build_parser_logging_flags(self) -> None:
+        from edumatcher.audit.main import _build_parser
+
+        parser = _build_parser()
+        args = parser.parse_args(["-vv", "--quiet", "--log-level", "ERROR"])
+        assert args.verbose == 2
+        assert args.quiet is True
+        assert args.log_level == "ERROR"
 
 
 # ---------------------------------------------------------------------------
@@ -1038,31 +1049,6 @@ class TestGatewayCompleterEdgeCases:
             partial_key="",
         )
         assert isinstance(result, list)
-
-
-# ---------------------------------------------------------------------------
-# clearing/main.py — _stop
-# ---------------------------------------------------------------------------
-
-
-class TestClearingStop:
-    def test_stop_sets_running_false(self, tmp_path: Path) -> None:
-        from edumatcher.clearing_v1.main import ClearingProcess
-
-        fake_sock = MagicMock()
-        with (
-            patch(
-                "edumatcher.clearing_v1.main.make_subscriber", return_value=fake_sock
-            ),
-            patch("edumatcher.clearing_v1.main.DATA_DIR", tmp_path),
-            patch(
-                "edumatcher.clearing_v1.main.CLEARING_REPORT_FILE",
-                tmp_path / "report.csv",
-            ),
-        ):
-            proc = ClearingProcess()
-        proc._stop()
-        assert proc._running is False
 
 
 # ---------------------------------------------------------------------------

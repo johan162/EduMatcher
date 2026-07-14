@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import socket
+import time
 from collections import deque
 
 import pytest
@@ -9,6 +10,7 @@ import zmq
 from edumatcher.alf_gwy.config import AlfGatewayConfig
 from edumatcher.alf_gwy.gateway import AlfGateway, ClientSession
 from edumatcher.alf_gwy.protocol import parse_alf_line
+from edumatcher.messaging import bus as bus_mod
 from edumatcher.models.message import encode
 
 
@@ -34,6 +36,12 @@ class _ClosedFakePush(_FakePush):
         raise zmq.ZMQError()
 
 
+class _EagainFakePush(_FakePush):
+    def send_multipart(self, frames: list[bytes]) -> None:
+        _ = frames
+        raise zmq.Again()
+
+
 class _FakeSub:
     def __init__(self) -> None:
         self.closed = False
@@ -49,6 +57,22 @@ class _FakeSub:
 
     def recv_multipart(self) -> list[bytes]:
         return self._queue.popleft()
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _ErrorSub:
+    def __init__(self, err_no: int) -> None:
+        self._err_no = err_no
+        self.closed = False
+
+    def poll(self, timeout: int = 0) -> int:
+        _ = timeout
+        return 1
+
+    def recv_multipart(self) -> list[bytes]:
+        raise zmq.ZMQError(self._err_no)
 
     def close(self) -> None:
         self.closed = True
@@ -83,7 +107,10 @@ def _make_session() -> tuple[ClientSession, socket.socket]:
     left, right = socket.socketpair()
     left.setblocking(False)
     right.setblocking(False)
-    return ClientSession(sock=left, addr=("local", 0)), right
+    session = ClientSession(sock=left, addr=("local", 0))
+    session.rate_tokens = 100.0
+    session.rate_updated = time.monotonic()
+    return session, right
 
 
 def test_requires_hello_first(gateway: AlfGateway) -> None:
@@ -225,6 +252,7 @@ def test_disconnect_sends_gateway_disconnect(gateway: AlfGateway) -> None:
     session, peer = _make_session()
     session.authenticated = True
     session.gateway_id = "TRADER01"
+    session.connect_emitted = True
     gateway._clients[session.sock.fileno()] = session
     gateway._active_gateway_sessions["TRADER01"] = session.sock.fileno()
 
@@ -244,6 +272,163 @@ def test_closed_push_during_shutdown_does_not_raise(gateway: AlfGateway) -> None
     gateway._send_to_engine([b"topic", b"{}"])
 
 
+def test_send_to_engine_eagain_rejects_command(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.rate_tokens = 10.0
+    gateway._push = _EagainFakePush()
+
+    gateway._handle_client_line(session, "SYMBOLS")
+
+    assert session.out_queue
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ERR"
+    assert frame.fields["CODE"] == "ENGINE_UNAVAILABLE"
+    peer.close()
+
+
+def test_hello_eagain_returns_engine_unavailable_without_disconnect(
+    gateway: AlfGateway,
+) -> None:
+    session, peer = _make_session()
+    gateway._clients[session.sock.fileno()] = session
+    gateway._push = _EagainFakePush()
+
+    gateway._handle_client_line(session, "HELLO|CLIENT=BOT|PROTO=ALF1|ID=TRADER01")
+
+    assert session.out_queue
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ERR"
+    assert frame.fields["CODE"] == "ENGINE_UNAVAILABLE"
+    assert session.closing is False
+    assert session.auth_pending is False
+    assert session.gateway_id is None
+    peer.close()
+
+
+def test_duplicate_hello_while_pending_is_rejected_without_disconnect(
+    gateway: AlfGateway,
+) -> None:
+    session, peer = _make_session()
+    gateway._clients[session.sock.fileno()] = session
+
+    gateway._handle_client_line(session, "HELLO|CLIENT=BOT|PROTO=ALF1|ID=TRADER01")
+    gateway._handle_client_line(session, "HELLO|CLIENT=BOT|PROTO=ALF1|ID=TRADER01")
+
+    assert session.auth_pending is True
+    assert session.closing is False
+    assert session.out_queue
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ERR"
+    assert frame.fields["CODE"] == "HELLO_ALREADY_PENDING"
+    peer.close()
+
+
+def test_pre_auth_lines_are_rate_limited(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    gateway._clients[session.sock.fileno()] = session
+    session.rate_tokens = 0.0
+
+    gateway._handle_client_line(session, "HELLO|CLIENT=BOT|PROTO=ALF1|ID=TRADER01")
+
+    assert session.out_queue
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ERR"
+    assert frame.fields["CODE"] == "RATE_LIMITED"
+    assert session.auth_pending is False
+    peer.close()
+
+
+def test_disconnect_sends_gateway_disconnect_for_auth_pending_session(
+    gateway: AlfGateway,
+) -> None:
+    session, peer = _make_session()
+    gateway._clients[session.sock.fileno()] = session
+
+    gateway._handle_client_line(session, "HELLO|CLIENT=BOT|PROTO=ALF1|ID=TRADER01")
+    assert session.auth_pending is True
+
+    gateway._disconnect(session, reason="peer_closed")
+
+    fake_push = gateway._push
+    assert isinstance(fake_push, _FakePush)
+    assert fake_push.sent
+    topic = fake_push.sent[-1][0].decode("utf-8")
+    assert topic == "system.gateway_disconnect"
+    peer.close()
+
+
+def test_handshake_timeout_disconnects_unauthenticated_client(
+    gateway: AlfGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = [1_000.0]
+    monkeypatch.setattr("edumatcher.alf_gwy.gateway.time.monotonic", lambda: now[0])
+
+    session, peer = _make_session()
+    gateway._clients[session.sock.fileno()] = session
+    session.connected_at = 990.0
+    gateway.config = AlfGatewayConfig(
+        bind_address=gateway.config.bind_address,
+        port=gateway.config.port,
+        engine_pull_addr=gateway.config.engine_pull_addr,
+        engine_pub_addr=gateway.config.engine_pub_addr,
+        heartbeat_interval_sec=gateway.config.heartbeat_interval_sec,
+        handshake_timeout_sec=5,
+        idle_timeout_sec=gateway.config.idle_timeout_sec,
+        max_connections=gateway.config.max_connections,
+        max_client_queue=gateway.config.max_client_queue,
+        max_commands_per_second=gateway.config.max_commands_per_second,
+        max_errors_before_disconnect=gateway.config.max_errors_before_disconnect,
+        error_window_sec=gateway.config.error_window_sec,
+        gateway_roles=gateway.config.gateway_roles,
+    )
+
+    gateway._drop_idle_clients()
+
+    assert session.closing is True
+    assert session.out_queue
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ERR"
+    assert frame.fields["CODE"] == "AUTH_TIMEOUT"
+    peer.close()
+
+
+class _FakePushSocket:
+    def __init__(self) -> None:
+        self.opts: list[tuple[int, int]] = []
+        self.connected: str | None = None
+
+    def setsockopt(self, opt: int, value: int) -> None:
+        self.opts.append((opt, value))
+
+    def connect(self, addr: str) -> None:
+        self.connected = addr
+
+
+class _FakeContext:
+    def __init__(self, sock: _FakePushSocket) -> None:
+        self._sock = sock
+
+    def socket(self, _sock_type: int) -> _FakePushSocket:
+        return self._sock
+
+
+def test_make_pusher_sets_send_timeout_and_hwm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_sock = _FakePushSocket()
+    monkeypatch.setattr(bus_mod, "get_context", lambda: _FakeContext(fake_sock))
+
+    bus_mod.make_pusher("tcp://127.0.0.1:5555")
+
+    assert (zmq.SNDTIMEO, 0) in fake_sock.opts
+    assert (zmq.SNDHWM, 1000) in fake_sock.opts
+    assert (zmq.IMMEDIATE, 1) in fake_sock.opts
+    assert fake_sock.connected == "tcp://127.0.0.1:5555"
+
+
 def test_line_exceeds_max_bytes_adds_bad_message(gateway: AlfGateway) -> None:
     session, peer = _make_session()
     gateway._register_error(
@@ -253,3 +438,68 @@ def test_line_exceeds_max_bytes_adds_bad_message(gateway: AlfGateway) -> None:
     frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
     assert frame.fields["CODE"] == "BAD_MESSAGE"
     peer.close()
+
+
+def test_symbol_commands_require_symbols_snapshot_loaded(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.role = "TRADER"
+    session.rate_tokens = 10.0
+
+    gateway._symbols_snapshot_loaded = False
+    gateway._known_symbols.clear()
+
+    gateway._handle_client_line(
+        session,
+        "NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=100",
+    )
+
+    assert session.out_queue
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ERR"
+    assert frame.fields["CODE"] == "SYMBOLS_NOT_READY"
+    peer.close()
+
+
+def test_unknown_symbol_rejected_after_symbols_snapshot(gateway: AlfGateway) -> None:
+    session, peer = _make_session()
+    session.authenticated = True
+    session.gateway_id = "TRADER01"
+    session.role = "TRADER"
+    session.rate_tokens = 10.0
+
+    gateway._symbols_snapshot_loaded = True
+    gateway._known_symbols = {"AAPL"}
+
+    gateway._handle_client_line(
+        session,
+        "NEW|SYM=MSFT|SIDE=BUY|TYPE=LIMIT|QTY=1|PRICE=100",
+    )
+
+    assert session.out_queue
+    frame = parse_alf_line(session.out_queue[0].decode("utf-8"))
+    assert frame.command == "ERR"
+    assert frame.fields["CODE"] == "SYMBOL_NOT_CONFIGURED"
+    peer.close()
+
+
+def test_poll_engine_events_non_eintr_does_not_raise(gateway: AlfGateway) -> None:
+    gateway._sub = _ErrorSub(zmq.EFAULT)
+    gateway._poll_engine_events()
+
+
+def test_poll_engine_events_respects_budget(
+    gateway: AlfGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_sub = gateway._sub
+    assert isinstance(fake_sub, _FakeSub)
+    fake_sub._queue.append(encode("session.state", {"state": "CONTINUOUS"}))
+    fake_sub._queue.append(encode("session.state", {"state": "CLOSED"}))
+
+    monkeypatch.setattr("edumatcher.alf_gwy.gateway._MAX_ENGINE_EVENTS_PER_LOOP", 1)
+
+    gateway._poll_engine_events()
+
+    assert len(fake_sub._queue) == 1

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
+
+log = logging.getLogger(__name__)
 
 
 class IndexHistory:
@@ -19,6 +22,12 @@ class IndexHistory:
 
     def append(self, record: dict[str, Any]) -> None:
         self._fh.write(json.dumps(record, separators=(",", ":")) + "\n")
+        log.debug(
+            "history append path=%s type=%s index_id=%s",
+            self._path,
+            record.get("type", "?"),
+            record.get("index_id", "?"),
+        )
 
     def flush(self) -> None:
         self._fh.flush()
@@ -96,4 +105,14 @@ class IndexHistory:
         except FileNotFoundError:
             return [], []
 
+        log.debug(
+            "history query path=%s from_ts=%.3f to_ts=%.3f types=%s max_records=%d returned=%d warnings=%d",
+            self._path,
+            from_ts,
+            to_ts,
+            sorted(types),
+            max_records,
+            len(results),
+            len(warnings),
+        )
         return results, warnings

@@ -10,7 +10,9 @@ Topic conventions
   order.new          — gateway → engine (PUSH/PULL, but we still include a topic for audit)
   order.cancel       — gateway → engine
     system.gateway_connect   — gateway → engine: authenticate gateway_id
-    system.gateway_auth.{GW_ID} — engine → gateway: auth accepted/rejected
+    system.gateway_auth.{GW_ID} — engine → all: auth accepted/rejected (connect)
+    system.gateway_disconnect — gateway → engine: graceful disconnect
+    system.gateway_bye.{GW_ID} — engine → all: disconnect broadcast
   order.ack.{GW_ID}  — engine → gateway: accepted or rejected
   order.fill.{GW_ID} — engine → gateway: partial or full fill
   order.cancelled.{GW_ID} — engine → gateway: cancel confirmed
@@ -23,6 +25,14 @@ from __future__ import annotations
 
 import time
 from typing import Any
+
+from edumatcher.models.feed_schema import (
+    GatewayAuthPayload,
+    GatewayByePayload,
+    SessionStatePayload,
+    SystemEodPayload,
+    TradeExecutedPayload,
+)
 
 # PERF improvement #6: Use orjson instead of stdlib json.
 #
@@ -87,13 +97,14 @@ def make_gateway_auth_msg(
     reason: str = "",
     description: str = "",
 ) -> list[bytes]:
-    topic = f"system.gateway_auth.{gateway_id}"
-    payload = {
-        "gateway_id": gateway_id,
-        "accepted": accepted,
-        "reason": reason,
-        "description": description,
-    }
+    typed = GatewayAuthPayload(
+        gateway_id=gateway_id,
+        accepted=accepted,
+        reason=reason,
+        description=description,
+    )
+    topic = f"system.gateway_auth.{typed.gateway_id}"
+    payload = typed.to_dict()
     return encode(topic, payload)
 
 
@@ -223,7 +234,8 @@ def make_expired_msg(
 
 
 def make_trade_msg(trade_dict: dict[str, Any]) -> list[bytes]:
-    return encode("trade.executed", trade_dict)
+    typed = TradeExecutedPayload.from_dict(trade_dict)
+    return encode("trade.executed", typed.to_dict())
 
 
 def make_book_msg(symbol: str, book_snapshot: dict[str, Any]) -> list[bytes]:
@@ -249,7 +261,8 @@ def make_eod_msg(books: list[dict[str, Any]]) -> list[bytes]:
     ``books`` is a list of book snapshots (one per symbol), each containing
     the current best bid/ask so subscribers can record closing prices.
     """
-    return encode("system.eod", {"books": books})
+    typed = SystemEodPayload.from_dict({"books": books})
+    return encode("system.eod", typed.to_dict())
 
 
 def make_symbols_request_msg(gateway_id: str) -> list[bytes]:
@@ -464,10 +477,8 @@ def make_session_transition_msg(to_state: str) -> list[bytes]:
 
 def make_session_state_msg(state: str, prev_state: str = "") -> list[bytes]:
     """Engine → all: broadcast current session state."""
-    payload: dict[str, Any] = {"state": state}
-    if prev_state:
-        payload["prev_state"] = prev_state
-    return encode("session.state", payload)
+    typed = SessionStatePayload(state=state, prev_state=prev_state)
+    return encode("session.state", typed.to_dict())
 
 
 def make_auction_result_msg(
@@ -606,6 +617,20 @@ def make_gateway_disconnect_msg(gateway_id: str, reason: str = "") -> list[bytes
             "reason": reason,
         },
     )
+
+
+def make_gateway_bye_msg(gateway_id: str, reason: str = "") -> list[bytes]:
+    """
+    Engine → all subscribers: gateway lifecycle *disconnect* broadcast.
+
+    The PUB-side counterpart to ``system.gateway_auth.{id}`` (connect).  The
+    inbound ``system.gateway_disconnect`` is a gateway→engine PULL message and
+    never reaches PUB subscribers such as clearing; this broadcast republishes
+    the disconnect on the public feed so downstream consumers can close the
+    matching session.
+    """
+    typed = GatewayByePayload(gateway_id=gateway_id, reason=reason)
+    return encode(f"system.gateway_bye.{typed.gateway_id}", typed.to_dict())
 
 
 def make_kill_switch_msg(gateway_id: str, symbol: str = "") -> list[bytes]:
