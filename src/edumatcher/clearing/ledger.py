@@ -29,9 +29,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone, tzinfo
+import logging
 from typing import Any
 
 from edumatcher.clearing.store import DailySummaryRow, PositionRow
+
+log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Internal position state (one per gateway_id + symbol key)
@@ -231,6 +234,7 @@ class Ledger:
                 ),
                 tick_decimals=int(r["tick_decimals"]),
             )
+            log.debug("ledger restored positions=%d", len(rows))
 
     def apply_trade(
         self,
@@ -251,6 +255,16 @@ class Ledger:
         ``last_trade_ts_ns`` column in daily accumulators.
         """
         bucket_date = trade_date(ts_ns, self._tz)
+        log.debug(
+            "apply trade symbol=%s qty=%d price_ticks=%d tick_decimals=%d buy_gw=%s sell_gw=%s trade_date=%s",
+            symbol,
+            quantity,
+            price,
+            tick_decimals,
+            buy_gateway_id,
+            sell_gateway_id,
+            bucket_date,
+        )
 
         for gateway_id, is_buy in (
             (buy_gateway_id, True),
@@ -295,6 +309,12 @@ class Ledger:
             _delta_to_daily_row(key, delta, self._positions, updated_ts_ns)
             for key, delta in self._batch_deltas.items()
         ]
+        log.debug(
+            "ledger flush rows prepared positions=%d daily=%d updated_ts_ns=%d",
+            len(position_rows),
+            len(daily_rows),
+            updated_ts_ns,
+        )
         return position_rows, daily_rows
 
     def clear_batch(self) -> None:
@@ -331,6 +351,11 @@ class Ledger:
         pos = self._positions[pos_key]
         pos.tick_decimals = tick_decimals
 
+        before_net_qty = pos.net_qty
+        before_avg_cost = pos.avg_cost
+        before_realized = pos.realized_pnl
+        before_unrealized = pos.unrealized_pnl
+
         realized_delta = _apply_fill_to_position(pos, quantity, price, is_buy, ts_ns)
 
         # Update side-specific cumulative totals.
@@ -357,6 +382,45 @@ class Ledger:
             delta.sell_notional += quantity * price
         delta.realized_pnl += realized_delta
         delta.last_trade_ts_ns = max(delta.last_trade_ts_ns, ts_ns)
+
+        if before_net_qty == 0 and pos.net_qty != 0:
+            transition = "OPEN"
+        elif before_net_qty != 0 and pos.net_qty == 0:
+            transition = "CLOSE_TO_FLAT"
+        elif before_net_qty > 0 and pos.net_qty < 0:
+            transition = "CROSS_LONG_TO_SHORT"
+        elif before_net_qty < 0 and pos.net_qty > 0:
+            transition = "CROSS_SHORT_TO_LONG"
+        elif before_net_qty * pos.net_qty > 0 and abs(pos.net_qty) > abs(
+            before_net_qty
+        ):
+            transition = "ADD"
+        elif before_net_qty * pos.net_qty > 0 and abs(pos.net_qty) < abs(
+            before_net_qty
+        ):
+            transition = "REDUCE"
+        else:
+            transition = "UNCHANGED_SIDE"
+
+        log.debug(
+            "position leg gateway=%s symbol=%s side=%s qty=%d px_ticks=%d transition=%s "
+            "net_qty=%d->%d avg_cost=%.6f->%.6f realized_delta=%.6f realized=%.6f->%.6f unrealized=%.6f->%.6f",
+            gateway_id,
+            symbol,
+            "BUY" if is_buy else "SELL",
+            quantity,
+            price,
+            transition,
+            before_net_qty,
+            pos.net_qty,
+            before_avg_cost,
+            pos.avg_cost,
+            realized_delta,
+            before_realized,
+            pos.realized_pnl,
+            before_unrealized,
+            pos.unrealized_pnl,
+        )
 
 
 # ---------------------------------------------------------------------------

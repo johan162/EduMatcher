@@ -31,6 +31,7 @@ SQLite tables
 from __future__ import annotations
 
 import argparse
+import logging
 import signal
 import sqlite3
 import sys
@@ -58,11 +59,15 @@ from edumatcher.models.message import (
     make_symbols_request_msg,
 )
 
+log = logging.getLogger(__name__)
+_sql_log = logging.getLogger("edumatcher.stats.sql")
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
 SNAPSHOT_INTERVAL_SEC = 15 * 60  # 15 minutes — overridable via --snapshot-interval
+_DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
 
 # ---------------------------------------------------------------------------
@@ -237,11 +242,29 @@ VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 """
 
 
-def _open_db(path: Path) -> sqlite3.Connection:
+def _configure_sql_trace(conn: sqlite3.Connection, enabled: bool) -> None:
+    """Enable/disable SQLite statement trace logging for this connection."""
+    if not enabled:
+        conn.set_trace_callback(None)
+        return
+
+    def _trace(statement: str) -> None:
+        stmt = statement.strip()
+        if not stmt:
+            return
+        _sql_log.debug("sqlite: %s", stmt)
+
+    conn.set_trace_callback(_trace)
+
+
+def _open_db(path: Path, *, sql_trace: bool = False) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
+    resolved_path = path.resolve()
     conn = sqlite3.connect(str(path), check_same_thread=False)
     conn.executescript(SCHEMA)
+    _configure_sql_trace(conn, enabled=sql_trace)
     conn.commit()
+    log.info("opened stats DB connection path=%s", resolved_path)
     return conn
 
 
@@ -252,9 +275,14 @@ def _open_db(path: Path) -> sqlite3.Connection:
 
 class StatsProcess:
     def __init__(
-        self, db_path: Path, snapshot_interval_sec: float = SNAPSHOT_INTERVAL_SEC
+        self,
+        db_path: Path,
+        snapshot_interval_sec: float = SNAPSHOT_INTERVAL_SEC,
+        sql_trace: bool = False,
     ) -> None:
-        self._conn = _open_db(db_path)
+        self._db_path = db_path
+        self._sql_trace = bool(sql_trace)
+        self._conn = _open_db(db_path, sql_trace=self._sql_trace)
         self._lock = threading.Lock()
         self._running = True
         self._snapshot_interval_sec = snapshot_interval_sec
@@ -288,6 +316,39 @@ class StatsProcess:
         )
         self.push = make_pusher(ENGINE_PULL_ADDR)
         self._push_lock = threading.Lock()
+        self._debug_counts: defaultdict[str, int] = defaultdict(int)
+        self._debug_last_summary = time.monotonic()
+        log.debug(
+            "stats process initialized db=%s snapshot_interval=%ss sub=%s push=%s",
+            self._db_path,
+            self._snapshot_interval_sec,
+            ENGINE_PUB_ADDR,
+            ENGINE_PULL_ADDR,
+        )
+        if self._sql_trace:
+            log.info("SQLite SQL trace enabled for stats writer connection")
+
+    def _dbg_count(self, key: str, amount: int = 1) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        self._debug_counts[key] += amount
+        self._flush_debug_summary()
+
+    def _flush_debug_summary(self, force: bool = False) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        now = time.monotonic()
+        if not force and now - self._debug_last_summary < _DEBUG_SUMMARY_INTERVAL_SEC:
+            return
+        if not self._debug_counts:
+            self._debug_last_summary = now
+            return
+        summary = ", ".join(
+            f"{key}={value}" for key, value in sorted(self._debug_counts.items())
+        )
+        log.debug("stats flow summary: %s", summary)
+        self._debug_counts.clear()
+        self._debug_last_summary = now
 
     # ------------------------------------------------------------------
     # Accumulator helpers
@@ -362,6 +423,7 @@ class StatsProcess:
                         payload.get("sell_gateway_id"),
                     ),
                 )
+        self._dbg_count("trades_persisted")
 
     def _on_book(self, symbol: str, payload: dict[str, Any]) -> None:
         with self._lock:
@@ -407,6 +469,12 @@ class StatsProcess:
                     self._conn.execute(
                         INSERT_SNAPSHOT, (snap_ts, symbol, mid, best_bid, best_ask, pct)
                     )
+                log.debug(
+                    "wrote snapshot symbol=%s ts=%s",
+                    symbol,
+                    snap_ts,
+                )
+                self._dbg_count("snapshots_written")
 
     def _on_eod(self, payload: dict[str, Any]) -> None:
         with self._lock:
@@ -422,8 +490,9 @@ class StatsProcess:
                 acc.on_eod_book(best_bid, best_ask)
                 # close_price already set by last trade; if no trades today keep None
                 self._flush_daily(acc)
-            print(
-                f"[STATS] EOD received — flushed {len(payload.get('books', []))} symbol(s)."
+            log.info(
+                "EOD received; flushed %d symbol(s)",
+                len(payload.get("books", [])),
             )
 
     def _on_order_event(self, topic: str, payload: dict[str, Any]) -> None:
@@ -473,6 +542,7 @@ class StatsProcess:
                     ),
                 ),
             )
+        self._dbg_count("order_events_written")
 
     # ------------------------------------------------------------------
     # Main receive loop
@@ -496,20 +566,27 @@ class StatsProcess:
             except Exception:
                 continue
 
+            self._dbg_count("messages_received")
+
             try:
                 if topic.startswith("trade.executed"):
+                    self._dbg_count("trade_topics")
                     self._on_trade(payload)
                 elif topic.startswith("book."):
+                    self._dbg_count("book_topics")
                     symbol = topic.split(".", 1)[1]
                     self._on_book(symbol, payload)
                 elif topic == "system.eod":
+                    self._dbg_count("eod_topics")
                     self._on_eod(payload)
                 elif topic == "system.symbols.STATS":
+                    self._dbg_count("startup_symbols_topics")
                     self._on_startup_symbols(payload)
                 elif _is_order_event_topic(topic):
+                    self._dbg_count("order_event_topics")
                     self._on_order_event(topic, payload)
             except Exception as exc:
-                print(f"[STATS] WARNING: error handling {topic}: {exc}", flush=True)
+                log.warning("error handling topic=%s err=%s", topic, exc)
 
     def _on_startup_symbols(self, payload: dict[str, Any]) -> None:
         """Received in response to our startup symbols request.
@@ -522,7 +599,7 @@ class StatsProcess:
             for sym in symbols:
                 self.push.send_multipart(make_book_snapshot_request_msg(sym))
         if symbols:
-            print(f"[STATS] Requested opening snapshots for: {', '.join(symbols)}")
+            log.info("requested opening snapshots for: %s", ", ".join(symbols))
 
     def run(self) -> None:
         signal.signal(signal.SIGINT, lambda *_: self._stop())
@@ -537,8 +614,9 @@ class StatsProcess:
         time.sleep(0.3)
         with self._push_lock:
             self.push.send_multipart(make_symbols_request_msg("STATS"))
+        log.debug("requested startup symbols for gateway_id=STATS")
 
-        print("[STATS] Recording market statistics …  (Ctrl-C to stop)")
+        log.info("recording market statistics (Ctrl-C to stop)")
         try:
             while self._running:
                 t.join(timeout=0.5)
@@ -550,9 +628,11 @@ class StatsProcess:
 
     def _stop(self) -> None:
         self._running = False
-        print("\n[STATS] Stopped.")
+        log.info("stopped")
 
     def close(self) -> None:
+        self._flush_debug_summary(force=True)
+        log.info("closing stats process")
         if hasattr(self, "_conn"):
             self._conn.close()
         if hasattr(self, "sub") and getattr(self.sub, "closed", False) is not True:
@@ -611,7 +691,7 @@ def _event_type_from_topic(topic: str, payload: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def main() -> None:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="EduMatcher statistics recorder")
     from edumatcher.cli_version import add_version_argument
 
@@ -634,15 +714,89 @@ def main() -> None:
             "e.g. 60 for one-minute snapshots."
         ),
     )
+    parser.add_argument(
+        "--sql-trace",
+        action="store_true",
+        help="Log executed SQLite statements from the stats writer connection",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+        help="Logging level override (default: WARNING)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase log verbosity (-v: INFO, -vv: DEBUG)",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Reduce log output to warnings/errors",
+    )
+    return parser
+
+
+def _configure_logging(args: argparse.Namespace) -> int:
+    if args.log_level:
+        level_name = str(args.log_level).upper()
+        level = getattr(logging, level_name, logging.WARNING)
+    elif args.verbose >= 2:
+        level = logging.DEBUG
+    elif args.verbose == 1:
+        level = logging.INFO
+    elif args.quiet:
+        level = logging.WARNING
+    else:
+        level = logging.WARNING
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+        stream=sys.stdout,
+    )
+    return int(level)
+
+
+def _enable_sql_trace_logging() -> None:
+    """Install a dedicated handler for verbose SQLite statement tracing."""
+    _sql_log.setLevel(logging.DEBUG)
+    _sql_log.propagate = False
+    if _sql_log.handlers:
+        return
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s")
+    )
+    _sql_log.addHandler(handler)
+
+
+def main() -> None:
+    parser = _build_parser()
     args = parser.parse_args()
+    log_level = _configure_logging(args)
+    if args.sql_trace:
+        _enable_sql_trace_logging()
+    log.info("starting pm-stats with log level %s", logging.getLevelName(log_level))
+    log.debug(
+        "resolved stats config: db=%s snapshot_interval=%s",
+        args.db,
+        args.snapshot_interval,
+    )
     if args.snapshot_interval <= 0:
         parser.error("--snapshot-interval must be greater than 0")
     try:
         process = StatsProcess(
-            Path(args.db), snapshot_interval_sec=args.snapshot_interval
+            Path(args.db),
+            snapshot_interval_sec=args.snapshot_interval,
+            sql_trace=args.sql_trace,
         )
     except Exception as exc:
-        print(f"[STATS] FATAL: {exc}", file=sys.stderr)
+        log.error("fatal startup error: %s", exc)
         sys.exit(1)
     process.run()
 

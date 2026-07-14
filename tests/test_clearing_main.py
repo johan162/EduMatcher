@@ -10,6 +10,7 @@ trade messages and asserts the DB is updated correctly.
 from __future__ import annotations
 
 import json
+import logging
 import threading
 import time
 from collections.abc import Generator
@@ -399,6 +400,21 @@ class TestClearingMainCli:
         with pytest.raises(SystemExit) as exc_info:
             main()
         assert exc_info.value.code == 0
+
+
+def test_open_writer_connection_sql_trace_logs_statements(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    db_path = tmp_path / "clearing_sql_trace.db"
+    caplog.set_level(logging.DEBUG, logger="edumatcher.clearing.sql")
+
+    conn = open_writer_connection(db_path, sql_trace=True)
+    try:
+        conn.execute("SELECT 1").fetchone()
+    finally:
+        conn.close()
+
+    assert any("SELECT 1" in rec.message for rec in caplog.records)
 
 
 class TestHandleEod:

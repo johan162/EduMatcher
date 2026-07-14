@@ -429,7 +429,7 @@ but is designed for programmatic clients, not interactive terminals.  One
 connection per gateway ID; all configured `gateways.alf` IDs may connect.
 
 ```bash
-pm-alf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5565] [--engine-host HOST]
+pm-alf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5565] [--engine-host HOST] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -440,6 +440,9 @@ pm-alf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5565] [--engin
 | `--bind`          | from config / `0.0.0.0` | TCP bind address for external clients                 |
 | `--port`          | from config / `5565`    | TCP listen port for ALF clients                       |
 | `--engine-host`   | from config             | Override engine host for ZMQ ports `5555` / `5556`   |
+| `--log-level`     | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose`| off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)  |
+| `-q` / `--quiet`  | off                     | Reduce output to warnings/errors                      |
 
 **Expected runtime input arguments:**
 
@@ -658,7 +661,7 @@ pm-audit --buffer-size 1 --flush-interval 0.1
 SQLite-backed clearing writer for P&L and position state.
 
 ```bash
-pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interval SEC] [--print-every N] [--retention-days N] [--timezone TZ]
+pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interval SEC] [--print-every N] [--retention-days N] [--timezone TZ] [--sql-trace] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -672,6 +675,10 @@ pm-clearing [--datapath PATH] [--db-name NAME] [--flush-size N] [--flush-interva
 | `--print-every` | `100` | Print in-memory P&L snapshot every N trades (`0` disables) |
 | `--retention-days` | `90` | Prune `trade_events` rows older than N days on startup (`0` disables pruning) |
 | `--timezone` | `UTC` | Exchange session timezone (IANA name) used to bucket trades into a trading day; keeps a single wall-clock session in one `trade_date` |
+| `--sql-trace` | off | Log executed SQLite SQL statements from the clearing writer connection |
+| `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
+| `-q` / `--quiet` | off | Reduce output to warnings/errors |
 
 `pm-clearing-cli` global options include `--raw-output` to disable display
 normalization and print raw tick-unit values for price-derived fields.
@@ -799,7 +806,7 @@ See [P&L & Clearing](07-pnl-clearing.md) for the accounting model and schema-lev
 Records market statistics for every symbol to a SQLite database (`data/stats.db`).
 
 ```bash
-pm-stats [--db data/stats.db] [--snapshot-interval SEC]
+pm-stats [--db data/stats.db] [--snapshot-interval SEC] [--sql-trace] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -808,6 +815,10 @@ pm-stats [--db data/stats.db] [--snapshot-interval SEC]
 |-----------------------|-----------------|-------------------------------------------------------------------------------------------------|
 | `--db`                | `data/stats.db` | SQLite database file path                                                                       |
 | `--snapshot-interval` | `900` (15 min)  | Seconds between `price_snapshots` rows per symbol. Use a smaller value for finer intraday resolution, e.g. `60` for one-minute snapshots. |
+| `--sql-trace`         | off             | Log executed SQLite SQL statements from the stats writer connection                             |
+| `--log-level`         | `WARNING`       | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                            |
+| `-v` / `--verbose`    | off             | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                             |
+| `-q` / `--quiet`      | off             | Reduce output to warnings/errors                                                                 |
 
 **Expected runtime input arguments:**
 
@@ -1028,7 +1039,7 @@ CLOSING_AUCTION → CLOSED) by sending `session.transition` messages to the
 engine at configured wall-clock times.
 
 ```bash
-pm-scheduler [--config engine_config.yaml] [--now] [--delay 3] [--daily] [--no-confirm] [--verbose]
+pm-scheduler [--config engine_config.yaml] [--now] [--delay 3] [--daily] [--no-confirm] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -1040,7 +1051,9 @@ pm-scheduler [--config engine_config.yaml] [--now] [--delay 3] [--daily] [--no-c
 | `--delay`          | 3                    | Seconds between transitions in `--now` mode (ignored, with a warning, outside `--now`) |
 | `--daily`          | off                  | Run continuously, repeating the schedule every calendar day                         |
 | `--no-confirm`     | off                  | Do not query/confirm session state via the engine before sending a transition       |
-| `--verbose` / `-v` | off                  | Enable DEBUG-level diagnostic logging                                               |
+| `--log-level`      | `WARNING`            | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                 |
+| `-v` / `--verbose` | off                  | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                 |
+| `-q` / `--quiet`   | off                  | Reduce output to warnings/errors                                                     |
 
 **Expected runtime input arguments:**
 
@@ -1400,7 +1413,7 @@ Runs the external machine-facing post-trade dissemination gateway that publishes
 RALF over TCP for clearing, drop-copy, and audit consumers.
 
 ```bash
-pm-ralf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5580] [--engine-pub tcp://127.0.0.1:5556]
+pm-ralf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5580] [--engine-pub tcp://127.0.0.1:5556] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -1411,6 +1424,9 @@ pm-ralf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5580] [--engi
 | `--bind`          | from config / `0.0.0.0` | TCP bind address for external clients              |
 | `--port`          | from config / `5580`    | TCP listen port for RALF clients                   |
 | `--engine-pub`    | `tcp://127.0.0.1:5556`  | Engine PUB address consumed by the gateway         |
+| `--log-level`     | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose`| off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)  |
+| `-q` / `--quiet`  | off                     | Reduce output to warnings/errors                      |
 
 **Expected runtime input arguments:**
 
@@ -1455,7 +1471,7 @@ dedicated ZMQ PUB socket so `pm-md-gwy` can forward them to external subscribers
 over the CALF `INDEX` channel.
 
 ```bash
-pm-index [--config engine_config.yaml] [--reset]
+pm-index [--config engine_config.yaml] [--reset] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -1464,6 +1480,9 @@ pm-index [--config engine_config.yaml] [--reset]
 |-------------------|----------------------|-----------------------------------------------------------------------|
 | `--config` / `-c` | `engine_config.yaml` | Path to engine config YAML containing the `indices:` section          |
 | `--reset`         | off                  | Delete persisted state files and reinitialise all indices from config |
+| `--log-level`     | `WARNING`            | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`   |
+| `-v` / `--verbose`| off                  | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                   |
+| `-q` / `--quiet`  | off                  | Reduce output to warnings/errors                                       |
 
 **Expected runtime input arguments:**
 
@@ -1896,6 +1915,22 @@ translates them into the same engine order flow as the ALF gateways.
 
 See [BALF TCP Gateway](25-balf-gateway.md) for operational usage and
 [BALF Protocol Reference](91-app-balf-protocol.md) for the wire-level contract.
+
+```bash
+pm-balf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5566] [--engine-host HOST] [--log-level LEVEL] [-v|-vv] [-q]
+```
+
+**Startup options:**
+
+| Flag               | Default                 | Description                                                          |
+|--------------------|-------------------------|----------------------------------------------------------------------|
+| `--config` / `-c`  | `engine_config.yaml`    | Config file with optional `balf_gateway:` section                    |
+| `--bind`           | from config / `0.0.0.0` | TCP bind address for BALF clients                                    |
+| `--port`           | from config / `5566`    | TCP listen port for BALF clients                                     |
+| `--engine-host`    | from config             | Override engine host for ZMQ ports `5555` / `5556`                  |
+| `--log-level`      | `WARNING`               | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose` | off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                 |
+| `-q` / `--quiet`   | off                     | Reduce output to warnings/errors                                     |
 
 ## pm-alf-gwy — ALF TCP gateway
 

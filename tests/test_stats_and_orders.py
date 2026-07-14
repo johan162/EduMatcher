@@ -7,6 +7,7 @@ need a live ZMQ socket.
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 import time
 from pathlib import Path
@@ -15,6 +16,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import edumatcher.stats.main as stats_main_mod
 from edumatcher.stats.main import (
     SNAPSHOT_INTERVAL_SEC,
     SCHEMA,
@@ -74,6 +76,18 @@ class TestOpenDb:
         conn = _open_db(p)
         assert p.exists()
         conn.close()
+
+    def test_sql_trace_logs_statements(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        p = tmp_path / "stats_sql_trace.db"
+        caplog.set_level(logging.DEBUG, logger="edumatcher.stats.sql")
+        conn = _open_db(p, sql_trace=True)
+        try:
+            conn.execute("SELECT 1").fetchone()
+        finally:
+            conn.close()
+        assert any("SELECT 1" in rec.message for rec in caplog.records)
 
 
 # ---------------------------------------------------------------------------
@@ -594,6 +608,23 @@ class TestStatsRun:
 
 
 class TestStatsMain:
+    def test_build_parser_logging_flags(self) -> None:
+        parser = stats_main_mod._build_parser()
+        args = parser.parse_args(
+            ["-vv", "--quiet", "--log-level", "ERROR", "--sql-trace"]
+        )
+        assert args.verbose == 2
+        assert args.quiet is True
+        assert args.log_level == "ERROR"
+        assert args.sql_trace is True
+
+    def test_configure_logging_prefers_explicit_level(self) -> None:
+        from argparse import Namespace
+        from edumatcher.stats.main import _configure_logging
+
+        args = Namespace(log_level="INFO", verbose=2, quiet=True)
+        assert _configure_logging(args) == 20
+
     @patch("edumatcher.stats.main.StatsProcess.run", return_value=None)
     @patch("edumatcher.stats.main.make_pusher", return_value=MagicMock())
     @patch("edumatcher.stats.main.make_subscriber", return_value=MagicMock())

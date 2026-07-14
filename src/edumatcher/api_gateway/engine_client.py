@@ -46,6 +46,7 @@ from edumatcher.models.order import Order
 from edumatcher.models.price import register_tick_decimals
 
 log = logging.getLogger(__name__)
+_DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
 
 @dataclass
@@ -63,6 +64,8 @@ class EngineClient:
         self, pull_addr: str, pub_addr: str, loop: asyncio.AbstractEventLoop
     ) -> None:
         self._loop = loop
+        self._pull_addr = pull_addr
+        self._pub_addr = pub_addr
         self._push = make_pusher(pull_addr)
         # Subscribing to all engine events keeps the gateway implementation easy
         # to reason about; filtering happens before events reach clients.
@@ -81,22 +84,54 @@ class EngineClient:
         # Cache of resolved gateway roles (keyed by upper-cased gateway id).
         self._role_cache: dict[str, str] = {}
         self._pending: dict[str, list[_PendingWait]] = defaultdict(list)
+        self._debug_counts: defaultdict[str, int] = defaultdict(int)
+        self._debug_last_summary = 0.0
+
+    def _dbg_count(self, key: str, amount: int = 1) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        self._debug_counts[key] += amount
+        self._flush_debug_summary()
+
+    def _flush_debug_summary(self, force: bool = False) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        now = self._loop.time()
+        if not force and now - self._debug_last_summary < _DEBUG_SUMMARY_INTERVAL_SEC:
+            return
+        if not self._debug_counts:
+            self._debug_last_summary = now
+            return
+        summary = ", ".join(
+            f"{key}={value}" for key, value in sorted(self._debug_counts.items())
+        )
+        log.debug("api_gateway engine flow summary: %s", summary)
+        self._debug_counts.clear()
+        self._debug_last_summary = now
 
     def start_listener(self) -> None:
         """Start the daemon thread that receives engine PUB events."""
         if self._running:
             return
         self._running = True
+        self._debug_last_summary = self._loop.time()
         self._thread = threading.Thread(target=self._receive_loop, daemon=True)
         self._thread.start()
+        log.info(
+            "engine listener started (pull=%s pub=%s)",
+            self._pull_addr,
+            self._pub_addr,
+        )
 
     def stop_listener(self) -> None:
         """Stop the receiver thread and close sockets."""
         self._running = False
         if self._thread is not None:
             self._thread.join(timeout=1.0)
+        self._flush_debug_summary(force=True)
         self._push.close(linger=0)
         self._sub.close(linger=0)
+        log.info("engine listener stopped")
 
     def active_gateways(self) -> set[str]:
         return set(self._authenticated)
@@ -127,17 +162,31 @@ class EngineClient:
             # already completed authentication while we were waiting.
             if gateway_id in self._authenticated:
                 return True, ""
+            log.info(
+                "auth handshake started gateway_id=%s timeout=%.2fs",
+                gateway_id,
+                timeout,
+            )
             future = self._register_future(f"system.gateway_auth.{gateway_id}")
             self._push.send_multipart(make_gateway_connect_msg(gateway_id))
+            self._dbg_count("gateway_connect_sent")
             try:
                 payload = await asyncio.wait_for(future, timeout=timeout)
             except TimeoutError:
+                log.warning("auth handshake timed out gateway_id=%s", gateway_id)
                 return False, "Engine authentication timed out"
             accepted = bool(payload.get("accepted", False))
             reason = str(payload.get("reason", ""))
+            log.info(
+                "auth handshake completed gateway_id=%s accepted=%s reason=%s",
+                gateway_id,
+                accepted,
+                reason or "-",
+            )
             if accepted:
                 self._authenticated.add(gateway_id)
                 self._push.send_multipart(make_symbols_request_msg(gateway_id))
+                self._dbg_count("symbols_request_sent")
             return accepted, reason
 
     def _register_future(
@@ -145,6 +194,7 @@ class EngineClient:
     ) -> asyncio.Future[dict[str, Any]]:
         future: asyncio.Future[dict[str, Any]] = self._loop.create_future()
         self._pending[key].append(_PendingWait(future=future, match=match))
+        self._dbg_count("futures_registered")
         return future
 
     async def await_topic(self, key: str, timeout: float) -> dict[str, Any]:
@@ -195,6 +245,7 @@ class EngineClient:
             while self._running:
                 try:
                     ready = dict(poller.poll(timeout=200))
+                    self._dbg_count("poll_cycles")
                 except zmq.ZMQError as exc:
                     if exc.errno != errno.EINTR:
                         raise
@@ -204,40 +255,56 @@ class EngineClient:
                 try:
                     topic, payload = decode(self._sub.recv_multipart())
                 except Exception as exc:
+                    self._dbg_count("decode_errors")
                     log.warning("Dropping malformed engine PUB message: %s", exc)
                     continue
+                self._dbg_count("pub_messages")
                 self._loop.call_soon_threadsafe(self._handle_event, topic, payload)
         finally:
+            self._flush_debug_summary(force=True)
             # Ensure is_running()/`/healthz` reflect reality even if this thread
             # exits on EINTR or an unrecoverable ZMQError instead of a clean stop.
             self._running = False
 
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
+        self._dbg_count("events_handled")
         self._resolve_pending(topic, payload)
         gateway_id = gateway_from_topic(topic)
         if gateway_id is not None:
+            self._dbg_count("gateway_scoped_events")
             cache = self._caches[gateway_id]
             cache.apply(topic, payload)
             self._register_tick_metadata(payload)
             event = envelope(topic, payload)
             for queue in list(self._sinks.get(gateway_id, set())):
-                self._try_put(queue, event)
+                if self._try_put(queue, event):
+                    self._dbg_count("gateway_sink_events")
+                else:
+                    self._dbg_count("gateway_sink_drops")
         else:
+            self._dbg_count("market_data_events")
             for cache in self._caches.values():
                 cache.apply(topic, payload)
             event = envelope(topic, payload)
             for queue in list(self._market_data_sinks):
-                self._try_put(queue, event)
+                if self._try_put(queue, event):
+                    self._dbg_count("market_data_sink_events")
+                else:
+                    self._dbg_count("market_data_sink_drops")
         # The ADMIN monitor feed sees every event regardless of routing branch.
         for queue in list(self._admin_sinks):
-            self._try_put(queue, event)
+            if self._try_put(queue, event):
+                self._dbg_count("admin_sink_events")
+            else:
+                self._dbg_count("admin_sink_drops")
 
     @staticmethod
-    def _try_put(queue: asyncio.Queue[dict[str, Any]], event: dict[str, Any]) -> None:
+    def _try_put(queue: asyncio.Queue[dict[str, Any]], event: dict[str, Any]) -> bool:
         try:
             queue.put_nowait(event)
+            return True
         except asyncio.QueueFull:
-            pass
+            return False
 
     @staticmethod
     def _register_tick_metadata(payload: dict[str, Any]) -> None:

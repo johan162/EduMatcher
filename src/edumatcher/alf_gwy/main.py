@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 from pathlib import Path
 
 from edumatcher.alf_gwy.config import (
@@ -12,6 +13,8 @@ from edumatcher.alf_gwy.config import (
 )
 from edumatcher.alf_gwy.gateway import AlfGateway
 from edumatcher.config import ENGINE_CONFIG_FILE
+
+log = logging.getLogger(__name__)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -35,7 +38,45 @@ def _build_parser() -> argparse.ArgumentParser:
             "(uses tcp://<host>:5555 and tcp://<host>:5556)"
         ),
     )
+    parser.add_argument(
+        "--log-level",
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+        help="Logging level override (default: WARNING)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase log verbosity (-v: INFO, -vv: DEBUG)",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Reduce log output to warnings/errors",
+    )
     return parser
+
+
+def _configure_logging(args: argparse.Namespace) -> int:
+    if args.log_level:
+        level_name = str(args.log_level).upper()
+        level = getattr(logging, level_name, logging.WARNING)
+    elif args.verbose >= 2:
+        level = logging.DEBUG
+    elif args.verbose == 1:
+        level = logging.INFO
+    elif args.quiet:
+        level = logging.WARNING
+    else:
+        level = logging.WARNING
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+    )
+    return int(level)
 
 
 def _resolve_config(args: argparse.Namespace) -> AlfGatewayConfig:
@@ -72,18 +113,33 @@ def _resolve_config(args: argparse.Namespace) -> AlfGatewayConfig:
 def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
+    log_level = _configure_logging(args)
+    log.info("starting pm-alf-gwy with log level %s", logging.getLevelName(log_level))
 
     try:
         config = _resolve_config(args)
     except Exception as exc:
+        log.error("failed to resolve configuration: %s", exc)
         parser.error(str(exc))
 
     if not config.enabled:
+        log.warning("alf_gateway.enabled is false; refusing to start")
         parser.error("alf_gateway.enabled is false")
+
+    log.debug(
+        "resolved alf-gateway config: bind=%s port=%s engine_pull=%s engine_pub=%s",
+        config.bind_address,
+        config.port,
+        config.engine_pull_addr,
+        config.engine_pub_addr,
+    )
 
     gateway = AlfGateway(config)
     try:
         gateway.run()
+    except Exception as exc:
+        log.error("fatal runtime error: %s", exc)
+        raise
     finally:
         gateway.close()
 
@@ -91,6 +147,7 @@ def main() -> None:
 __all__ = [
     "main",
     "_build_parser",
+    "_configure_logging",
     "_resolve_config",
     "load_default_alf_gateway_config",
 ]

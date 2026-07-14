@@ -583,6 +583,27 @@ def _run_now(
         log.info("[SCHEDULER] Done.")
 
 
+def _configure_logging(args: argparse.Namespace) -> int:
+    if getattr(args, "log_level", None):
+        level_name = str(args.log_level).upper()
+        level = getattr(logging, level_name, logging.WARNING)
+    elif int(getattr(args, "verbose", 0)) >= 2:
+        level = logging.DEBUG
+    elif int(getattr(args, "verbose", 0)) == 1:
+        level = logging.INFO
+    elif bool(getattr(args, "quiet", False)):
+        level = logging.WARNING
+    else:
+        level = logging.WARNING
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+        stream=sys.stdout,
+    )
+    return int(level)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="EduMatcher session scheduler")
     from edumatcher.cli_version import add_version_argument
@@ -619,20 +640,29 @@ def main() -> None:
         help="Do not query/confirm session state via the engine",
     )
     parser.add_argument(
+        "--log-level",
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+        help="Logging level override (default: WARNING)",
+    )
+    parser.add_argument(
         "--verbose",
         "-v",
+        action="count",
+        default=0,
+        help="Increase log verbosity (-v: INFO, -vv: DEBUG)",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
         action="store_true",
-        help="Enable DEBUG-level diagnostic logging",
+        help="Reduce log output to warnings/errors",
     )
     args = parser.parse_args()
 
-    # Configure logging at the process entry point (not at import), mirroring
-    # pm-engine: message-only format on stdout, --verbose lowers to DEBUG
-    # (review finding L3).
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format="%(message)s",
-        stream=sys.stdout,
+    log_level = _configure_logging(args)
+    log.info(
+        "[SCHEDULER] starting pm-scheduler with log level %s",
+        logging.getLevelName(log_level),
     )
 
     # --delay only applies to --now mode; warn rather than silently ignore it

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -57,6 +60,14 @@ class IndexCalculator:
                 raise ValueError("divisor must be > 0")
             self._divisor = float(divisor)
 
+        log.info(
+            "index calculator initialized constituents=%d base_value=%.6f initial_cap=%.6f divisor=%.6f",
+            len(self._constituents),
+            self._base_value,
+            initial_cap,
+            self._divisor,
+        )
+
     @property
     def divisor(self) -> float:
         return self._divisor
@@ -93,15 +104,31 @@ class IndexCalculator:
     def recalculate(self) -> float:
         if self._divisor == 0.0:
             raise ValueError("Divisor is zero - index is not initialised")
-        return self._aggregate_cap() / self._divisor
+        aggregate_cap = self._aggregate_cap()
+        level = aggregate_cap / self._divisor
+        log.debug(
+            "index recalculation aggregate_cap=%.6f divisor=%.6f level=%.6f",
+            aggregate_cap,
+            self._divisor,
+            level,
+        )
+        return level
 
     def update_price(self, symbol: str, price: float) -> None:
         sym = symbol.upper()
         if sym not in self._constituents:
+            log.debug("ignoring price update for non-constituent symbol=%s", sym)
             return
         if price <= 0.0:
             raise ValueError("price must be > 0")
+        old_price = self._last_prices.get(sym, self._reference_prices[sym])
         self._last_prices[sym] = float(price)
+        log.debug(
+            "price update symbol=%s old_price=%.6f new_price=%.6f",
+            sym,
+            old_price,
+            float(price),
+        )
 
     def apply_split(
         self, symbol: str, ratio_numerator: int, ratio_denominator: int
@@ -127,6 +154,19 @@ class IndexCalculator:
         new_cap = self._aggregate_cap()
         if new_cap != old_cap:
             self._divisor = self._divisor * (new_cap / old_cap)
+        log.info(
+            "applied split symbol=%s ratio=%d:%d shares=%d->%d price=%.6f->%.6f cap=%.6f->%.6f divisor=%.6f",
+            sym,
+            ratio_numerator,
+            ratio_denominator,
+            old_shares,
+            self._outstanding_shares[sym],
+            old_price,
+            new_price,
+            old_cap,
+            new_cap,
+            self._divisor,
+        )
 
     def apply_cash_dividend(self, symbol: str, dividend_per_share: float) -> None:
         sym = symbol.upper()
@@ -146,6 +186,16 @@ class IndexCalculator:
         if old_cap <= 0.0:
             raise ValueError("Cannot apply dividend when aggregate cap is non-positive")
         self._divisor = self._divisor * (new_cap / old_cap)
+        log.info(
+            "applied cash dividend symbol=%s dividend=%.6f price=%.6f->%.6f cap=%.6f->%.6f divisor=%.6f",
+            sym,
+            dividend_per_share,
+            old_price,
+            new_price,
+            old_cap,
+            new_cap,
+            self._divisor,
+        )
 
     def apply_shares_issuance(self, symbol: str, new_shares_outstanding: int) -> None:
         sym = symbol.upper()
@@ -159,9 +209,19 @@ class IndexCalculator:
             raise ValueError(
                 "Cannot apply shares issuance when aggregate cap is non-positive"
             )
+        old_shares = self._outstanding_shares[sym]
         self._outstanding_shares[sym] = new_shares_outstanding
         new_cap = self._aggregate_cap()
         self._divisor = self._divisor * (new_cap / old_cap)
+        log.info(
+            "applied shares issuance symbol=%s shares=%d->%d cap=%.6f->%.6f divisor=%.6f",
+            sym,
+            old_shares,
+            new_shares_outstanding,
+            old_cap,
+            new_cap,
+            self._divisor,
+        )
 
     def delist_symbol(self, symbol: str) -> None:
         sym = symbol.upper()
@@ -169,6 +229,8 @@ class IndexCalculator:
             raise KeyError(f"Symbol {sym!r} is not an index constituent")
 
         old_cap = self._aggregate_cap()
+        old_shares = self._outstanding_shares[sym]
+        old_price = self._last_prices.get(sym, self._reference_prices[sym])
         del self._constituents[sym]
         self._outstanding_shares.pop(sym, None)
         self._reference_prices.pop(sym, None)
@@ -178,6 +240,15 @@ class IndexCalculator:
         if new_cap == 0.0:
             raise ValueError("Delisting last constituent would make aggregate cap zero")
         self._divisor = self._divisor * (new_cap / old_cap)
+        log.info(
+            "delisted constituent symbol=%s shares=%d last_price=%.6f cap=%.6f->%.6f divisor=%.6f",
+            sym,
+            old_shares,
+            old_price,
+            old_cap,
+            new_cap,
+            self._divisor,
+        )
 
     def add_constituent(
         self, symbol: str, shares_outstanding: int, initial_price: float
@@ -201,3 +272,12 @@ class IndexCalculator:
             self._divisor = new_cap / self._base_value
         else:
             self._divisor = self._divisor * (new_cap / old_cap)
+        log.info(
+            "added constituent symbol=%s shares=%d initial_price=%.6f cap=%.6f->%.6f divisor=%.6f",
+            sym,
+            shares_outstanding,
+            initial_price,
+            old_cap,
+            new_cap,
+            self._divisor,
+        )

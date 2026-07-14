@@ -18,6 +18,7 @@ Shutdown (SIGINT / Ctrl-C):
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 import logging
 import signal
 import sys
@@ -132,6 +133,7 @@ log = logging.getLogger("edumatcher.engine")
 _TRADE_TOPIC = b"trade.executed"
 
 _FILL_STATUSES = frozenset({OrderStatus.PARTIAL, OrderStatus.FILLED})
+_DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
 
 def order_to_display_dict(order: Order) -> dict[str, Any]:
@@ -218,6 +220,8 @@ class Engine:
         self._session_state: SessionState = SessionState.CONTINUOUS
         self._enforce_collars: bool = True
         self._enforce_circuit_breakers: bool = True
+        self._debug_counts: defaultdict[str, int] = defaultdict(int)
+        self._debug_last_summary = time.monotonic()
 
         DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -288,6 +292,28 @@ class Engine:
 
         # Give PUB socket a moment to bind before any client can connect
         time.sleep(0.05)
+
+    def _dbg_count(self, key: str, amount: int = 1) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        self._debug_counts[key] += amount
+        self._flush_debug_summary()
+
+    def _flush_debug_summary(self, force: bool = False) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        now = time.monotonic()
+        if not force and now - self._debug_last_summary < _DEBUG_SUMMARY_INTERVAL_SEC:
+            return
+        if not self._debug_counts:
+            self._debug_last_summary = now
+            return
+        summary = ", ".join(
+            f"{key}={value}" for key, value in sorted(self._debug_counts.items())
+        )
+        log.debug("[ENGINE] decision summary: %s", summary)
+        self._debug_counts.clear()
+        self._debug_last_summary = now
 
     def _gateway_status(self, gateway_id: str) -> tuple[bool, str]:
         """Return (is_allowed_and_connected, reason_if_not)."""
@@ -673,6 +699,7 @@ class Engine:
 
     def _handle_new_order(self, payload: dict[str, Any]) -> None:
         order = Order.from_dict(payload)
+        self._dbg_count("new_order_requests")
 
         # Boundary conversion: inbound payload prices are display decimals.
         if order.price is not None and isinstance(order.price, float):
@@ -690,6 +717,7 @@ class Engine:
         if _gw_id_upper not in self._connected_fix_gateways:
             ok, reason = self._gateway_status(order.gateway_id)
             if not ok:
+                self._dbg_count("new_order_reject_gateway")
                 self.pub_sock.send_multipart(
                     make_ack_msg(
                         order.gateway_id, order.id, accepted=False, reason=reason
@@ -701,6 +729,7 @@ class Engine:
 
         # Symbol allowlist check
         if self._allowed_symbols and order.symbol not in self._allowed_symbols:
+            self._dbg_count("new_order_reject_symbol")
             self.pub_sock.send_multipart(
                 make_ack_msg(
                     order.gateway_id,
@@ -725,6 +754,7 @@ class Engine:
         # by the blanket handler → order silently lost) or corrupting the index.
         validation_error = self._validate_new_order(order)
         if validation_error is not None:
+            self._dbg_count("new_order_reject_validation")
             self.pub_sock.send_multipart(
                 make_ack_msg(
                     order.gateway_id, order.id, accepted=False, reason=validation_error
@@ -736,6 +766,7 @@ class Engine:
 
         # Session state gating
         if self._sessions_enabled and not accepts_orders(self._session_state):
+            self._dbg_count("new_order_reject_session")
             self.pub_sock.send_multipart(
                 make_ack_msg(
                     order.gateway_id,
@@ -752,6 +783,7 @@ class Engine:
             and order.tif == TIF.ATO
             and self._session_state != SessionState.OPENING_AUCTION
         ):
+            self._dbg_count("new_order_reject_ato_window")
             self.pub_sock.send_multipart(
                 make_ack_msg(
                     order.gateway_id,
@@ -768,6 +800,7 @@ class Engine:
             and order.tif == TIF.ATC
             and self._session_state != SessionState.CLOSING_AUCTION
         ):
+            self._dbg_count("new_order_reject_atc_window")
             self.pub_sock.send_multipart(
                 make_ack_msg(
                     order.gateway_id,
@@ -784,6 +817,7 @@ class Engine:
         # Halt check — circuit breaker has halted this symbol
         if self._halted_symbols.get(order.symbol):
             if order.order_type in (OrderType.MARKET, OrderType.FOK, OrderType.IOC):
+                self._dbg_count("new_order_reject_halt")
                 self.pub_sock.send_multipart(
                     make_ack_msg(
                         order.gateway_id,
@@ -805,6 +839,7 @@ class Engine:
             if collar is not None:
                 result = validate_collar(order.price, collar, book.last_trade_price)
                 if result.rejected:
+                    self._dbg_count("new_order_reject_collar")
                     self.pub_sock.send_multipart(
                         make_ack_msg(
                             order.gateway_id,
@@ -821,6 +856,7 @@ class Engine:
             OrderType.FOK,
             OrderType.IOC,
         ):
+            self._dbg_count("new_order_reject_no_match_phase")
             self.pub_sock.send_multipart(
                 make_ack_msg(
                     order.gateway_id,
@@ -914,8 +950,11 @@ class Engine:
                 ),
             ]
         )
+        self._dbg_count("new_order_accepted")
 
         trades, events = book.process(order, match=do_match, now=now)
+        self._dbg_count("new_order_events", len(events))
+        self._dbg_count("new_order_trades", len(trades))
 
         # M8: register the routing entry only now that the book has accepted the
         # order.  The fill-publication loop below may prune it again if the
@@ -1660,9 +1699,11 @@ class Engine:
         gateway_id = str(payload.get("gateway_id", "")).upper()
         symbol = str(payload.get("symbol", "")).upper()
         quote_id = str(payload.get("quote_id", ""))
+        self._dbg_count("quote_requests")
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
+            self._dbg_count("quote_reject_gateway")
             self.pub_sock.send_multipart(
                 make_quote_ack_msg(gateway_id, quote_id, False, reason)
             )
@@ -1670,6 +1711,7 @@ class Engine:
 
         session = self._session_for_gateway(gateway_id)
         if session.role != ParticipantRole.MARKET_MAKER:
+            self._dbg_count("quote_reject_role")
             self.pub_sock.send_multipart(
                 make_quote_ack_msg(
                     gateway_id,
@@ -1681,11 +1723,13 @@ class Engine:
             return
 
         if not symbol:
+            self._dbg_count("quote_reject_payload")
             self.pub_sock.send_multipart(
                 make_quote_ack_msg(gateway_id, quote_id, False, "Missing symbol")
             )
             return
         if self._allowed_symbols and symbol not in self._allowed_symbols:
+            self._dbg_count("quote_reject_symbol")
             self.pub_sock.send_multipart(
                 make_quote_ack_msg(
                     gateway_id,
@@ -1698,6 +1742,7 @@ class Engine:
 
         # Halt check — circuit breaker has halted this symbol; reject incoming quotes
         if self._halted_symbols.get(symbol):
+            self._dbg_count("quote_reject_halt")
             self.pub_sock.send_multipart(
                 make_quote_ack_msg(
                     gateway_id,
@@ -1711,6 +1756,7 @@ class Engine:
         # #16: quotes are subject to the same session gating as ordinary orders.
         # Reject outright when the market is not accepting orders (e.g. CLOSED).
         if self._sessions_enabled and not accepts_orders(self._session_state):
+            self._dbg_count("quote_reject_session")
             self.pub_sock.send_multipart(
                 make_quote_ack_msg(gateway_id, quote_id, False, "Market is closed")
             )
@@ -1723,12 +1769,14 @@ class Engine:
             ask_qty = int(payload["ask_qty"])
             tif = TIF(str(payload.get("tif", "DAY")).upper())
         except (KeyError, TypeError, ValueError):
+            self._dbg_count("quote_reject_payload")
             self.pub_sock.send_multipart(
                 make_quote_ack_msg(gateway_id, quote_id, False, "Invalid quote payload")
             )
             return
 
         if bid_qty <= 0 or ask_qty <= 0:
+            self._dbg_count("quote_reject_payload")
             self.pub_sock.send_multipart(
                 make_quote_ack_msg(
                     gateway_id, quote_id, False, "Quote quantities must be positive"
@@ -1736,6 +1784,7 @@ class Engine:
             )
             return
         if bid_price >= ask_price:
+            self._dbg_count("quote_reject_payload")
             self.pub_sock.send_multipart(
                 make_quote_ack_msg(
                     gateway_id, quote_id, False, "Quote requires bid_price < ask_price"
@@ -1776,6 +1825,7 @@ class Engine:
         if cfg and enforce_mm:
             spread_ticks = ask_price - bid_price
             if spread_ticks > mm_max_spread_ticks:
+                self._dbg_count("quote_reject_mm_obligation")
                 self.pub_sock.send_multipart(
                     make_quote_ack_msg(
                         gateway_id,
@@ -1789,6 +1839,7 @@ class Engine:
                 )
                 return
             if bid_qty < mm_min_qty or ask_qty < mm_min_qty:
+                self._dbg_count("quote_reject_mm_obligation")
                 self.pub_sock.send_multipart(
                     make_quote_ack_msg(
                         gateway_id,
@@ -1897,6 +1948,7 @@ class Engine:
                 ask_order_id=ask.id,
             )
         )
+        self._dbg_count("quote_accepted")
         self.pub_sock.send_multipart(
             make_quote_status_msg(gateway_id, quote_id, "ACTIVE")
         )
@@ -3185,9 +3237,11 @@ class Engine:
     def _handle_cancel(self, payload: dict[str, Any]) -> None:
         order_id = payload["order_id"]
         gateway_id = str(payload["gateway_id"]).upper()
+        self._dbg_count("cancel_requests")
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
+            self._dbg_count("cancel_reject_gateway")
             self.pub_sock.send_multipart(
                 make_ack_msg(gateway_id, order_id, accepted=False, reason=reason)
             )
@@ -3201,6 +3255,7 @@ class Engine:
         if book is not None:
             resting = book.get_order(order_id)
             if resting is not None and resting.gateway_id != gateway_id:
+                self._dbg_count("cancel_reject_ownership")
                 self.pub_sock.send_multipart(
                     make_ack_msg(
                         gateway_id,
@@ -3214,6 +3269,7 @@ class Engine:
         cancelled = book.cancel_order(order_id) if book else None
 
         if cancelled:
+            self._dbg_count("cancel_accepted")
             self._order_symbol.pop(order_id, None)
             self.pub_sock.send_multipart(
                 make_cancelled_msg(
@@ -3235,12 +3291,14 @@ class Engine:
         self.pub_sock.send_multipart(
             make_ack_msg(gateway_id, order_id, accepted=False, reason="Order not found")
         )
+        self._dbg_count("cancel_reject_not_found")
 
     def _handle_amend(self, payload: dict[str, Any]) -> None:
         order_id = payload["order_id"]
         gateway_id = str(payload["gateway_id"]).upper()
         new_price = payload.get("price")
         new_qty = payload.get("qty")
+        self._dbg_count("amend_requests")
 
         # M12: amend quantity arrives raw from JSON.  Coerce it to int (like
         # prices are converted) so a float/string never propagates into
@@ -3249,6 +3307,7 @@ class Engine:
             try:
                 new_qty = int(new_qty)
             except (TypeError, ValueError):
+                self._dbg_count("amend_reject_payload")
                 self.pub_sock.send_multipart(
                     make_ack_msg(
                         gateway_id,
@@ -3261,12 +3320,14 @@ class Engine:
 
         ok, reason = self._gateway_status(gateway_id)
         if not ok:
+            self._dbg_count("amend_reject_gateway")
             self.pub_sock.send_multipart(
                 make_ack_msg(gateway_id, order_id, accepted=False, reason=reason)
             )
             return
 
         if new_price is None and new_qty is None:
+            self._dbg_count("amend_reject_payload")
             self.pub_sock.send_multipart(
                 make_ack_msg(
                     gateway_id,
@@ -3281,6 +3342,7 @@ class Engine:
         symbol = self._order_symbol.get(order_id)
         book = self.books.get(symbol) if symbol else None
         if book is None:
+            self._dbg_count("amend_reject_not_found")
             self.pub_sock.send_multipart(
                 make_ack_msg(
                     gateway_id, order_id, accepted=False, reason="Order not found"
@@ -3292,6 +3354,7 @@ class Engine:
         # Ownership check: a gateway may only amend its own orders.
         resting = book.get_order(order_id)
         if resting is not None and resting.gateway_id != gateway_id:
+            self._dbg_count("amend_reject_ownership")
             self.pub_sock.send_multipart(
                 make_ack_msg(
                     gateway_id,
@@ -3311,6 +3374,7 @@ class Engine:
 
         # Session gating — reject amends while the market does not accept orders.
         if self._sessions_enabled and not accepts_orders(self._session_state):
+            self._dbg_count("amend_reject_session")
             self.pub_sock.send_multipart(
                 make_ack_msg(
                     gateway_id, order_id, accepted=False, reason="Market is closed"
@@ -3330,6 +3394,7 @@ class Engine:
             if collar is not None:
                 result = validate_collar(new_price_ticks, collar, book.last_trade_price)
                 if result.rejected:
+                    self._dbg_count("amend_reject_collar")
                     self.pub_sock.send_multipart(
                         make_ack_msg(
                             gateway_id, order_id, accepted=False, reason=result.reason
@@ -3346,6 +3411,7 @@ class Engine:
         )
 
         if amended is None:
+            self._dbg_count("amend_reject_book")
             self.pub_sock.send_multipart(
                 make_ack_msg(gateway_id, order_id, accepted=False, reason=err)
             )
@@ -3366,6 +3432,7 @@ class Engine:
                 priority_reset=priority_reset,
             )
         )
+        self._dbg_count("amend_accepted")
         self._mark_dirty(amended.symbol)
         if self.verbose:
             prio_str = " (priority reset)" if priority_reset else " (priority kept)"
@@ -3560,6 +3627,8 @@ class Engine:
             if self.pull_sock in socks:
                 frames = self.pull_sock.recv_multipart()
                 topic, payload = decode(frames)
+                self._dbg_count("pull_messages")
+                self._dbg_count(f"topic_{topic}")
                 try:
                     if topic == "order.new":
                         self._handle_new_order(payload)
@@ -3618,6 +3687,7 @@ class Engine:
                     elif topic == "system.position_request":
                         self._handle_position_request(payload)
                 except Exception as exc:
+                    self._dbg_count("handler_errors")
                     self._error_count += 1
                     log.error(
                         "[ENGINE] Error processing %s (#%d): %s",
@@ -3629,7 +3699,9 @@ class Engine:
             self._flush_snapshots()
             # Check circuit breaker timers — resume halted symbols
             self._flush_circuit_breakers()
+            self._flush_debug_summary()
 
+        self._flush_debug_summary(force=True)
         self._shutdown()
 
 

@@ -16,6 +16,7 @@ import signal
 import socket
 import threading
 import time
+from collections import defaultdict
 from typing import Any
 
 from edumatcher.md_gateway.client_session import ClientSession
@@ -38,6 +39,7 @@ _WILDCARD_ELIGIBLE_CHANNELS = frozenset({"STATE", "TOP", "TRADE"})
 _MAX_LINE_BYTES = 4096
 _HELLO_TIMEOUT_SEC = 5
 _MAX_ENGINE_EVENTS_PER_LOOP = 2000
+_DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
 log = logging.getLogger(__name__)
 
@@ -61,6 +63,8 @@ class MarketDataGateway:
         self._normaliser = EngineNormaliser(depth_levels=config.depth_levels)
         self._sequencer = SequenceAllocator()
         self._replay = ReplayBuffer(config.replay_window_sec)
+        self._debug_counts: defaultdict[str, int] = defaultdict(int)
+        self._debug_last_summary = time.monotonic()
 
         self._sub_sock = make_subscriber(
             config.engine_pub_addr,
@@ -71,6 +75,28 @@ class MarketDataGateway:
             "circuit_breaker.resume.",
         )
         self._index_sub = make_subscriber(config.index_pub_addr, "index.")
+
+    def _dbg_count(self, key: str, amount: int = 1) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        self._debug_counts[key] += amount
+        self._flush_debug_summary()
+
+    def _flush_debug_summary(self, force: bool = False) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        now = time.monotonic()
+        if not force and now - self._debug_last_summary < _DEBUG_SUMMARY_INTERVAL_SEC:
+            return
+        if not self._debug_counts:
+            self._debug_last_summary = now
+            return
+        summary = ", ".join(
+            f"{key}={value}" for key, value in sorted(self._debug_counts.items())
+        )
+        log.debug("md_gateway flow summary: %s", summary)
+        self._debug_counts.clear()
+        self._debug_last_summary = now
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -115,6 +141,7 @@ class MarketDataGateway:
         self._running = False
 
     def close(self) -> None:
+        self._flush_debug_summary(force=True)
         log.info("closing market data gateway")
         for session in list(self._clients.values()):
             try:
@@ -180,6 +207,7 @@ class MarketDataGateway:
             return
 
         for sock_obj in ready:
+            self._dbg_count("readable_sockets")
             session = self._clients.get(sock_obj.fileno())
             if session is None:
                 continue
@@ -599,7 +627,7 @@ class MarketDataGateway:
 
         line = build_line(msg_type, fields)
         self._replay.append(ch, sym, seq, line)
-        log.debug("stream event msg=%s ch=%s sym=%s seq=%d", msg_type, ch, sym, seq)
+        self._dbg_count("stream_events")
 
         for target in self._clients.values():
             if not target.authenticated or target.closing:
@@ -614,6 +642,7 @@ class MarketDataGateway:
     def _poll_engine_events(self) -> None:
         budget = _MAX_ENGINE_EVENTS_PER_LOOP
         while budget > 0 and self._sub_sock.poll(timeout=0):
+            self._dbg_count("engine_sub_messages")
             try:
                 topic, payload = decode(self._sub_sock.recv_multipart())
             except Exception as exc:
@@ -625,6 +654,7 @@ class MarketDataGateway:
                 now_seconds = _extract_ts(payload)
 
                 if topic.startswith("book."):
+                    self._dbg_count("book_topics")
                     sym = topic[5:].upper()
                     self._known_symbols.add(sym)
                     md_fields = self._normaliser.normalise_book(sym, payload)
@@ -640,6 +670,7 @@ class MarketDataGateway:
                     continue
 
                 if topic == "trade.executed":
+                    self._dbg_count("trade_topics")
                     sym, trade_fields = self._normaliser.normalise_trade(payload)
                     if sym:
                         self._known_symbols.add(sym)
@@ -653,6 +684,7 @@ class MarketDataGateway:
                     continue
 
                 if topic == "session.state":
+                    self._dbg_count("session_state_topics")
                     sym, state_fields = self._normaliser.normalise_session_state(
                         payload
                     )
@@ -662,6 +694,7 @@ class MarketDataGateway:
                     continue
 
                 if topic.startswith("circuit_breaker.halt."):
+                    self._dbg_count("halt_topics")
                     sym = topic.split(".", 2)[2].upper()
                     state_sym, state_fields = self._normaliser.normalise_halt(sym)
                     self._emit_stream_event(
@@ -674,6 +707,7 @@ class MarketDataGateway:
                     continue
 
                 if topic.startswith("circuit_breaker.resume."):
+                    self._dbg_count("resume_topics")
                     sym = topic.split(".", 2)[2].upper()
                     state_sym, state_fields = self._normaliser.normalise_resume(sym)
                     self._emit_stream_event(
@@ -690,6 +724,7 @@ class MarketDataGateway:
                 continue
 
         while budget > 0 and self._index_sub.poll(timeout=0):
+            self._dbg_count("index_sub_messages")
             try:
                 topic, payload = decode(self._index_sub.recv_multipart())
             except Exception as exc:
@@ -700,6 +735,7 @@ class MarketDataGateway:
             try:
                 now_seconds = _extract_ts(payload)
                 if topic == "index.update":
+                    self._dbg_count("index_update_topics")
                     index_id, fields = self._normaliser.normalise_index_update(payload)
                     if index_id:
                         self._emit_stream_event(
@@ -777,7 +813,7 @@ class MarketDataGateway:
         max_rate = float(self.config.max_messages_per_second)
         session.rate_tokens = min(max_rate, session.rate_tokens + elapsed * max_rate)
         if session.rate_tokens < 1.0:
-            log.debug("message bucket empty fd=%d", session.sock.fileno())
+            self._dbg_count("rate_limited")
             return False
         session.rate_tokens -= 1.0
         return True

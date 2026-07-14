@@ -36,10 +36,13 @@ analytics.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+_sql_log = logging.getLogger("edumatcher.clearing.sql")
 
 # ---------------------------------------------------------------------------
 # Pragmas — applied to every new connection.
@@ -371,7 +374,24 @@ def _add_column_if_missing(
     conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_ddl}")
 
 
-def open_writer_connection(db_path: Path) -> sqlite3.Connection:
+def _configure_sql_trace(conn: sqlite3.Connection, enabled: bool) -> None:
+    """Enable/disable SQLite statement trace logging for this connection."""
+    if not enabled:
+        conn.set_trace_callback(None)
+        return
+
+    def _trace(statement: str) -> None:
+        stmt = statement.strip()
+        if not stmt:
+            return
+        _sql_log.debug("sqlite: %s", stmt)
+
+    conn.set_trace_callback(_trace)
+
+
+def open_writer_connection(
+    db_path: Path, *, sql_trace: bool = False
+) -> sqlite3.Connection:
     """
     Open (or create) the clearing DB for read/write access.
 
@@ -385,6 +405,7 @@ def open_writer_connection(db_path: Path) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     try:
         apply_schema(conn)
+        _configure_sql_trace(conn, enabled=sql_trace)
     except Exception:
         conn.close()
         raise

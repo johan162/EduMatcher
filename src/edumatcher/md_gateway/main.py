@@ -137,9 +137,11 @@ def main() -> None:
     try:
         config, known_symbols = _resolve_config(args)
     except Exception as exc:
+        log.error("failed to resolve configuration: %s", exc)
         parser.error(str(exc))
 
     if not config.enabled:
+        log.warning("market_data_gateway.enabled=false; exiting")
         log.info("market_data_gateway.enabled=false; exiting")
         return
 
@@ -154,6 +156,9 @@ def main() -> None:
     gateway = MarketDataGateway(config=config, known_symbols=known_symbols)
     try:
         gateway.run()
+    except Exception as exc:
+        log.error("fatal runtime error: %s", exc)
+        raise
     finally:
         gateway.close()
 

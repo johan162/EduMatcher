@@ -30,6 +30,7 @@ from __future__ import annotations
 import copy
 import errno
 import json
+import logging
 import signal
 import sys
 import threading
@@ -71,6 +72,7 @@ FLUSH_SIZE: int = 100
 FLUSH_INTERVAL_SEC: float = 5.0
 _TIMER_POLL_SEC: float = 0.5
 _RETENTION_DAYS: int = 90
+_DEBUG_SUMMARY_INTERVAL_SEC: float = 5.0
 # The documented trade.executed contract (docs/user-guide/09-messages.md) is:
 #   timestamp = Unix epoch SECONDS (float);  price = display float.
 # Clearing parses to the declared units rather than guessing (finding CL-M6).
@@ -81,6 +83,7 @@ _SECONDS_MAX: int = 100_000_000_000  # ~ year 5138 in epoch seconds
 _MILLIS_MAX: int = _SECONDS_MAX * 1000
 
 console = Console()
+log = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -201,6 +204,7 @@ class ClearingProcess:
         print_every: int = 100,
         retention_days: int = _RETENTION_DAYS,
         session_tz: tzinfo = timezone.utc,
+        sql_trace: bool = False,
     ) -> None:
         self._pub_addr = pub_addr
         self._db_path = Path(db_path)
@@ -208,6 +212,7 @@ class ClearingProcess:
         self._flush_interval_sec = flush_interval_sec
         self._print_every = print_every
         self._retention_days = retention_days
+        self._sql_trace = bool(sql_trace)
         # Exchange session timezone used to bucket trades into a trading day
         # (finding CL-M3); defaults to UTC.
         self._tz = session_tz
@@ -243,13 +248,40 @@ class ClearingProcess:
         # Track the latest connect_at_ns per gateway so we can match the
         # corresponding row when a disconnect message arrives.
         self._gw_connect_ts: dict[str, int] = {}
+        self._debug_counts: OrderedDict[str, int] = OrderedDict()
+        self._debug_last_summary = time.monotonic()
 
-        self._conn = open_writer_connection(self._db_path)
+        self._conn = open_writer_connection(self._db_path, sql_trace=self._sql_trace)
+        log.info("opened clearing DB connection path=%s", self._db_path.resolve())
+        if self._sql_trace:
+            log.info("SQLite SQL trace enabled for clearing writer connection")
 
         # Warm start: rebuild the ledger from durable position state before any
         # trades arrive, so a restart accumulates onto the persisted positions
         # rather than overwriting them from flat (finding CL-C4).
         self._hydrate_ledger()
+
+    def _dbg_count(self, key: str, amount: int = 1) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        self._debug_counts[key] = self._debug_counts.get(key, 0) + amount
+        self._flush_debug_summary()
+
+    def _flush_debug_summary(self, force: bool = False) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        now = time.monotonic()
+        if not force and now - self._debug_last_summary < _DEBUG_SUMMARY_INTERVAL_SEC:
+            return
+        if not self._debug_counts:
+            self._debug_last_summary = now
+            return
+        summary = ", ".join(
+            f"{key}={value}" for key, value in self._debug_counts.items()
+        )
+        log.debug("clearing flow summary: %s", summary)
+        self._debug_counts.clear()
+        self._debug_last_summary = now
 
     # ------------------------------------------------------------------
     # Public interface
@@ -265,6 +297,7 @@ class ClearingProcess:
                     f"[CLEARING] Warm start: restored {len(rows)} position(s)"
                     " from the database."
                 )
+            log.debug("warm start restored positions=%d", len(rows))
         except Exception as exc:
             console.print(
                 f"[CLEARING] WARNING: warm-start hydration failed: {exc}",
@@ -274,6 +307,13 @@ class ClearingProcess:
     def run(self) -> None:
         """Start the clearing process; blocks until stop() is called."""
         pruned = prune_old_events(self._conn, retention_days=self._retention_days)
+        log.info(
+            "starting clearing runtime db=%s flush_size=%d flush_interval=%ss retention_days=%d",
+            self._db_path,
+            self._flush_size,
+            self._flush_interval_sec,
+            self._retention_days,
+        )
         if pruned:
             console.print(
                 f"[CLEARING] Pruned {pruned} trade_events rows older than"
@@ -293,6 +333,7 @@ class ClearingProcess:
             signal.signal(signal.SIGTERM, lambda *_: self.stop())
 
         self._running = True
+        log.debug("clearing receive/timer loops enabled")
 
         timer = threading.Thread(
             target=self._timer_loop, daemon=True, name="clearing-timer"
@@ -327,11 +368,14 @@ class ClearingProcess:
         finally:
             sub.close()
             self._force_flush()
+            self._flush_debug_summary(force=True)
             self._conn.close()
+            log.info("clearing DB connection closed")
             console.print("[CLEARING] Shutdown complete.")
 
     def stop(self) -> None:
         """Signal the receive loop to exit cleanly."""
+        log.info("stop requested")
         self._running = False
 
     def flush_now(self) -> int:
@@ -371,6 +415,8 @@ class ClearingProcess:
                 )
                 continue
 
+            self._dbg_count("messages_received")
+
             if topic == "trade.executed":
                 try:
                     trade = _trade_from_payload(payload)
@@ -388,9 +434,11 @@ class ClearingProcess:
                     self._trade_count += 1
                     if self._is_duplicate(trade):
                         self._dup_count += 1
+                        self._dbg_count("duplicates")
                     else:
                         self._check_sequence_gap(trade)
                         self._buffer.append(trade)
+                        self._dbg_count("trades_buffered")
                         if len(self._buffer) >= self._flush_size:
                             self._flush()
 
@@ -401,21 +449,27 @@ class ClearingProcess:
                     self._print_pnl_table()
 
             elif topic == "system.eod":
+                self._dbg_count("eod_topics")
                 self._handle_eod(payload)
 
             elif topic == "session.state":
+                self._dbg_count("phase_topics")
                 self._handle_session_state(payload)
 
             elif topic.startswith("system.gateway_auth."):
+                self._dbg_count("gateway_auth_topics")
                 self._handle_gateway_auth(payload)
 
             elif topic.startswith("system.gateway_bye."):
+                self._dbg_count("gateway_bye_topics")
                 self._handle_gateway_bye(payload)
 
             elif topic == "system.gateway_connect":
+                self._dbg_count("gateway_connect_topics")
                 self._handle_gateway_connect(payload)
 
             elif topic == "system.gateway_disconnect":
+                self._dbg_count("gateway_disconnect_topics")
                 self._handle_gateway_disconnect(payload)
 
     # ------------------------------------------------------------------
@@ -428,6 +482,7 @@ class ClearingProcess:
             with self._lock:
                 elapsed = time.monotonic() - self._last_flush_mono
                 if elapsed >= self._flush_interval_sec and self._buffer:
+                    self._dbg_count("timer_flushes")
                     self._flush()
 
     # ------------------------------------------------------------------
@@ -500,6 +555,8 @@ class ClearingProcess:
         if not self._buffer:
             return 0
 
+        self._dbg_count("flush_calls")
+
         updated_ts = now_ns()
 
         trade_rows = [
@@ -528,6 +585,10 @@ class ClearingProcess:
         self._buffer.clear()
         self._ledger.clear_batch()
         self._last_flush_mono = time.monotonic()
+
+        self._dbg_count("flushed_trades", count)
+        self._dbg_count("position_rows_written", len(position_rows))
+        self._dbg_count("daily_rows_written", len(daily_rows))
 
         return count
 
@@ -608,6 +669,10 @@ class ClearingProcess:
                             updated_ts_ns=ts_ns, position_keys=marked_keys
                         )
                         flush_batch(self._conn, [], position_rows, [])
+                        log.debug(
+                            "EOD mark-to-market applied position_rows=%d",
+                            len(position_rows),
+                        )
                     self._ledger.clear_batch()
 
                 # 3. Write EOD sentinel row.
@@ -717,6 +782,7 @@ class ClearingProcess:
                     gateway_id=gateway_id,
                     connected_at_ns=ts_ns,
                 )
+            log.info("gateway connected gateway_id=%s", gateway_id)
         except Exception as exc:
             console.print(
                 f"[CLEARING] WARNING: error handling gateway_connect: {exc}",
@@ -753,6 +819,11 @@ class ClearingProcess:
                     disconnected_at_ns=ts_ns,
                     reason=str(reason) if reason else None,
                 )
+            log.info(
+                "gateway disconnected gateway_id=%s reason=%s",
+                gateway_id,
+                reason,
+            )
         except Exception as exc:
             console.print(
                 f"[CLEARING] WARNING: error handling gateway_disconnect: {exc}",
@@ -837,6 +908,21 @@ def _resolve_timezone(name: str) -> tzinfo | None:
         return None
 
 
+def _enable_sql_trace_logging() -> None:
+    """Install a dedicated handler for verbose SQLite statement tracing."""
+    sql_logger = logging.getLogger("edumatcher.clearing.sql")
+    sql_logger.setLevel(logging.DEBUG)
+    sql_logger.propagate = False
+    if sql_logger.handlers:
+        return
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s")
+    )
+    sql_logger.addHandler(handler)
+
+
 def main() -> None:
     import argparse
 
@@ -902,25 +988,63 @@ def main() -> None:
             " (IANA name, e.g. America/New_York; default: UTC)"
         ),
     )
+    parser.add_argument(
+        "--sql-trace",
+        action="store_true",
+        help="Log executed SQLite statements from the clearing writer connection",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+        help="Logging level override (default: WARNING)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase log verbosity (-v: INFO, -vv: DEBUG)",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Reduce log output to warnings/errors",
+    )
 
     args = parser.parse_args()
 
+    if args.log_level:
+        level_name = str(args.log_level).upper()
+        level = getattr(logging, level_name, logging.WARNING)
+    elif args.verbose >= 2:
+        level = logging.DEBUG
+    elif args.verbose == 1:
+        level = logging.INFO
+    elif args.quiet:
+        level = logging.WARNING
+    else:
+        level = logging.WARNING
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+        stream=sys.stdout,
+    )
+    if args.sql_trace:
+        _enable_sql_trace_logging()
+    log.info("starting pm-clearing with log level %s", logging.getLevelName(level))
+
     if not (1 <= args.flush_size <= 100):
-        print("[ERROR] --flush-size must be 1..100", file=sys.stderr)
-        raise SystemExit(2)
+        parser.error("--flush-size must be 1..100")
     if args.flush_interval < 0.1:
-        print("[ERROR] --flush-interval must be >= 0.1", file=sys.stderr)
-        raise SystemExit(2)
+        parser.error("--flush-interval must be >= 0.1")
     if args.retention_days < 0:
-        print("[ERROR] --retention-days must be >= 0", file=sys.stderr)
-        raise SystemExit(2)
+        parser.error("--retention-days must be >= 0")
 
     session_tz = _resolve_timezone(args.timezone)
     if session_tz is None:
-        print(
-            f"[ERROR] --timezone: unknown timezone {args.timezone!r}", file=sys.stderr
-        )
-        raise SystemExit(2)
+        parser.error(f"--timezone: unknown timezone {args.timezone!r}")
 
     if args.datapath is not None:
         dp = Path(args.datapath).expanduser()
@@ -937,9 +1061,10 @@ def main() -> None:
             print_every=args.print_every,
             retention_days=args.retention_days,
             session_tz=session_tz,
+            sql_trace=args.sql_trace,
         )
     except Exception as exc:
-        print(f"[CLEARING] FATAL: {exc}", file=sys.stderr)
+        log.error("fatal startup error: %s", exc)
         raise SystemExit(1) from exc
 
     process.run()

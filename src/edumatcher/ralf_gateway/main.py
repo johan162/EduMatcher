@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 from pathlib import Path
 
 from edumatcher.config import ENGINE_CONFIG_FILE
@@ -12,6 +13,8 @@ from edumatcher.ralf_gateway.config import (
     load_ralf_gateway_config,
 )
 from edumatcher.ralf_gateway.gateway import RalfGateway
+
+log = logging.getLogger(__name__)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -34,7 +37,45 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Engine PUB socket address (default: value from config, then tcp://127.0.0.1:5556)",
     )
+    parser.add_argument(
+        "--log-level",
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+        help="Logging level override (default: WARNING)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase log verbosity (-v: INFO, -vv: DEBUG)",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Reduce log output to warnings/errors",
+    )
     return parser
+
+
+def _configure_logging(args: argparse.Namespace) -> int:
+    if args.log_level:
+        level_name = str(args.log_level).upper()
+        level = getattr(logging, level_name, logging.WARNING)
+    elif args.verbose >= 2:
+        level = logging.DEBUG
+    elif args.verbose == 1:
+        level = logging.INFO
+    elif args.quiet:
+        level = logging.WARNING
+    else:
+        level = logging.WARNING
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+    )
+    return int(level)
 
 
 def _resolve_config(args: argparse.Namespace) -> RalfGatewayConfig:
@@ -61,15 +102,28 @@ def _resolve_config(args: argparse.Namespace) -> RalfGatewayConfig:
 def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
+    log_level = _configure_logging(args)
+    log.info("starting pm-ralf-gwy with log level %s", logging.getLevelName(log_level))
 
     try:
         config = _resolve_config(args)
     except Exception as exc:
+        log.error("failed to resolve configuration: %s", exc)
         parser.error(str(exc))
+
+    log.debug(
+        "resolved ralf-gateway config: bind=%s port=%s engine_pub=%s",
+        config.bind_address,
+        config.port,
+        config.engine_pub_addr,
+    )
 
     gateway = RalfGateway(config)
     try:
         gateway.run()
+    except Exception as exc:
+        log.error("fatal runtime error: %s", exc)
+        raise
     finally:
         gateway.close()
 
@@ -77,6 +131,7 @@ def main() -> None:
 __all__ = [
     "main",
     "_build_parser",
+    "_configure_logging",
     "_resolve_config",
     "load_default_ralf_gateway_config",
 ]

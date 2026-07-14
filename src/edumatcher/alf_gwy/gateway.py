@@ -145,9 +145,12 @@ class AlfGateway:
             signal.signal(signal.SIGINT, lambda *_: self.stop())
             signal.signal(signal.SIGTERM, lambda *_: self.stop())
 
-        print(
-            f"[ALF-GWY] Listening on {self.config.bind_address}:{self.config.port} "
-            f"(engine pull: {self.config.engine_pull_addr}, pub: {self.config.engine_pub_addr})"
+        log.info(
+            "listening on %s:%s (engine_pull=%s engine_pub=%s)",
+            self.config.bind_address,
+            self.config.port,
+            self.config.engine_pull_addr,
+            self.config.engine_pub_addr,
         )
 
         try:
@@ -163,9 +166,11 @@ class AlfGateway:
             self.close()
 
     def stop(self) -> None:
+        log.info("stop requested")
         self._running = False
 
     def close(self) -> None:
+        log.info("closing ALF gateway")
         for session in list(self._clients.values()):
             self._disconnect(session, reason="gateway_shutdown")
         self._clients.clear()

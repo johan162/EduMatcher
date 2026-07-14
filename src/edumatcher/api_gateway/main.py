@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import logging
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -20,6 +21,8 @@ from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.routers import admin, history, orders, reference, ws
 from edumatcher.api_gateway.sessions import SessionRegistry
 from edumatcher.config import ENGINE_CONFIG_FILE
+
+log = logging.getLogger(__name__)
 
 
 def create_app(config: ApiGatewayConfig) -> FastAPI:
@@ -148,16 +151,26 @@ def main() -> None:
         help="uvicorn logging level",
     )
     args = parser.parse_args()
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+    )
     try:
         config = _config_with_overrides(args)
     except Exception as exc:
+        log.error("failed to resolve configuration: %s", exc)
         print(f"[API-GW] FATAL: {exc}", file=sys.stderr)
         sys.exit(1)
     if not config.enabled:
+        log.warning("selected api_gateways entry is disabled")
         print("[API-GW] selected api_gateways entry is disabled", file=sys.stderr)
         sys.exit(1)
     app = create_app(config)
-    uvicorn.run(app, host=config.host, port=config.port, log_level=config.log_level)
+    try:
+        uvicorn.run(app, host=config.host, port=config.port, log_level=config.log_level)
+    except Exception as exc:
+        log.error("fatal runtime error: %s", exc)
+        raise
 
 
 if __name__ == "__main__":

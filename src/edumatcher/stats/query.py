@@ -2,18 +2,32 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+log = logging.getLogger(__name__)
+
+
+def _execute_fetchall(
+    conn: sqlite3.Connection, sql: str, params: list[Any] | tuple[Any, ...]
+) -> list[sqlite3.Row]:
+    log.debug("executing SQL: %s | params=%s", sql, list(params))
+    rows = conn.execute(sql, params).fetchall()
+    log.debug("SQL returned %d row(s)", len(rows))
+    return rows
 
 
 def open_readonly_connection(db_path: Path) -> sqlite3.Connection:
     """Open stats SQLite DB in read-only mode."""
     if not db_path.exists():
         raise FileNotFoundError(f"Statistics DB not found: {db_path}")
+    resolved_path = db_path.resolve()
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
+    log.info("opened read-only stats DB connection path=%s", resolved_path)
     return conn
 
 
@@ -37,7 +51,8 @@ def validate_iso_ts(raw: str) -> None:
 
 
 def latest_daily_date(conn: sqlite3.Connection) -> str | None:
-    row = conn.execute("SELECT MAX(date) AS d FROM daily_stats").fetchone()
+    rows = _execute_fetchall(conn, "SELECT MAX(date) AS d FROM daily_stats", [])
+    row = rows[0] if rows else None
     if row is None:
         return None
     value = row["d"]
@@ -69,7 +84,7 @@ def query_daily(
     sql += " ORDER BY date DESC, symbol ASC LIMIT ?"
     params.append(limit)
 
-    rows = conn.execute(sql, params).fetchall()
+    rows = _execute_fetchall(conn, sql, params)
     return [dict(row) for row in rows]
 
 
@@ -101,7 +116,7 @@ def query_snapshots(
     sql += " ORDER BY ts ASC LIMIT ?"
     params.append(limit)
 
-    rows = conn.execute(sql, params).fetchall()
+    rows = _execute_fetchall(conn, sql, params)
     return [dict(row) for row in rows]
 
 
@@ -136,7 +151,7 @@ def query_trades(
     sql += " ORDER BY ts ASC LIMIT ?"
     params.append(limit)
 
-    rows = conn.execute(sql, params).fetchall()
+    rows = _execute_fetchall(conn, sql, params)
     return [dict(row) for row in rows]
 
 
@@ -170,7 +185,7 @@ def query_order_events(
         params.append(to_ts)
     sql += " ORDER BY ts ASC, seq ASC LIMIT ?"
     params.append(limit)
-    rows = conn.execute(sql, params).fetchall()
+    rows = _execute_fetchall(conn, sql, params)
     return [dict(row) for row in rows]
 
 
@@ -180,11 +195,12 @@ def query_order_lifecycle(
     gateway_id: str,
     order_id: str,
 ) -> list[dict[str, Any]]:
-    rows = conn.execute(
+    rows = _execute_fetchall(
+        conn,
         "SELECT * FROM order_events WHERE gateway_id = ? AND order_id = ? "
         "ORDER BY ts ASC, seq ASC",
         (gateway_id, order_id),
-    ).fetchall()
+    )
     return [dict(row) for row in rows]
 
 
@@ -210,7 +226,7 @@ def query_symbols(
         )
         params = [date_value, date_value, date_value]
 
-    rows = conn.execute(sql, params).fetchall()
+    rows = _execute_fetchall(conn, sql, params)
     return [dict(row) for row in rows]
 
 
@@ -226,5 +242,5 @@ def query_dates(
         params.append(symbol)
     sql += " ORDER BY date DESC"
 
-    rows = conn.execute(sql, params).fetchall()
+    rows = _execute_fetchall(conn, sql, params)
     return [dict(row) for row in rows]
