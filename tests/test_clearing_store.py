@@ -533,6 +533,33 @@ class TestQueryTrades:
         rows = query_trades(seeded_conn, date_value="2026-07-02")
         assert len(rows) == 1
 
+    def test_order_uses_ingest_ts_for_same_trade_ts(
+        self, conn: sqlite3.Connection
+    ) -> None:
+        """CL-L3: for equal ts_ns, newest ingest_ts_ns should sort first."""
+        flush_batch(
+            conn,
+            [
+                _trade_row(
+                    "T-OLD-INGEST",
+                    ts_ns=9_000_000_000,
+                    ingest_ts_ns=100,
+                    trade_date="2026-07-01",
+                ),
+                _trade_row(
+                    "T-NEW-INGEST",
+                    ts_ns=9_000_000_000,
+                    ingest_ts_ns=200,
+                    trade_date="2026-07-01",
+                ),
+            ],
+            [],
+            [],
+        )
+
+        rows = query_trades(conn)
+        assert [r["id"] for r in rows] == ["T-NEW-INGEST", "T-OLD-INGEST"]
+
 
 class TestQueryExposure:
     def test_returns_rows_with_notional(self, seeded_conn: sqlite3.Connection) -> None:

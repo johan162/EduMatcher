@@ -18,6 +18,19 @@ decimal scaling).  All price-derived columns (``price``, ``mark_price``,
 ``traded_notional``, ``buy_notional``, ``sell_notional``, ``net_amount``) are
 stored as INTEGER.  Columns derived from weighted-average math (``avg_cost``,
 ``realized_pnl``, ``unrealized_pnl`` and their end-of-day variants) are REAL.
+
+Ingest timestamp note
+---------------------
+``trade_events.ingest_ts_ns`` is the clearing-local ingest/write timestamp
+recorded when the flush transaction is built.  It is not an exchange event
+clock and should be interpreted as local pipeline timing metadata.
+
+Aggressor-side note
+-------------------
+``trade_events.aggressor_side`` mirrors the engine payload as-is.  For auction
+trades the upstream engine can mark buyer aggressor by construction, so this
+column should not be treated as an authoritative aggressor signal for auction
+analytics.
 """
 
 from __future__ import annotations
@@ -62,6 +75,8 @@ CREATE TABLE IF NOT EXISTS trade_events (
   sell_order_id    TEXT,
   buy_gateway_id   TEXT    NOT NULL,
   sell_gateway_id  TEXT    NOT NULL,
+  -- Mirrored from the engine payload verbatim.  See module docstring note:
+  -- auction trades can carry a biased aggressor marker upstream.
   aggressor_side   TEXT,
   ingest_ts_ns     INTEGER NOT NULL,
   PRIMARY KEY (id, ts_ns)
@@ -302,55 +317,6 @@ def apply_schema(conn: sqlite3.Connection) -> None:
         "tick_decimals",
         "INTEGER NOT NULL DEFAULT 2",
     )
-    # Ensure session / gateway-lifecycle tables exist on DB files created
-    # before these tables were added to SCHEMA.
-    _create_table_if_missing(
-        conn,
-        "session_events",
-        """
-        CREATE TABLE IF NOT EXISTS session_events (
-          id           INTEGER PRIMARY KEY AUTOINCREMENT,
-          event_type   TEXT    NOT NULL,
-          ts_ns        INTEGER NOT NULL,
-          trade_date   TEXT    NOT NULL,
-          payload_json TEXT
-        );
-        CREATE INDEX IF NOT EXISTS ix_session_events_date
-          ON session_events(trade_date);
-        CREATE INDEX IF NOT EXISTS ix_session_events_type
-          ON session_events(event_type);
-        """,
-    )
-    _create_table_if_missing(
-        conn,
-        "gateway_sessions",
-        """
-        CREATE TABLE IF NOT EXISTS gateway_sessions (
-          gateway_id         TEXT    NOT NULL,
-          connected_at_ns    INTEGER NOT NULL,
-          disconnected_at_ns INTEGER,
-          disconnect_reason  TEXT,
-          PRIMARY KEY (gateway_id, connected_at_ns)
-        );
-        CREATE INDEX IF NOT EXISTS ix_gateway_sessions_gateway
-          ON gateway_sessions(gateway_id);
-        """,
-    )
-
-
-def _create_table_if_missing(
-    conn: sqlite3.Connection,
-    table: str,
-    ddl: str,
-) -> None:
-    existing = {
-        row[0]
-        for row in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
-    }
-    if table not in existing:
-        conn.executescript(ddl)
 
 
 def _migrate_trade_events_schema(conn: sqlite3.Connection) -> None:
@@ -406,7 +372,14 @@ def _add_column_if_missing(
 
 
 def open_writer_connection(db_path: Path) -> sqlite3.Connection:
-    """Open (or create) the clearing DB for read/write access."""
+    """
+    Open (or create) the clearing DB for read/write access.
+
+    The returned connection is created with ``check_same_thread=False`` so the
+    receive thread and timer thread can share one handle.  This is safe only
+    because all write paths in ``ClearingProcess`` serialize DB access under
+    its process lock; callers must preserve that invariant.
+    """
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db_path), check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -919,7 +892,7 @@ def query_trades(
         "   AND (:date_value IS NULL OR trade_date = :date_value)"
         "   AND (:from_date IS NULL OR trade_date >= :from_date)"
         "   AND (:to_date IS NULL OR trade_date <= :to_date)"
-        " ORDER BY ts_ns DESC, id ASC"
+        " ORDER BY ts_ns DESC, ingest_ts_ns DESC"
         " LIMIT :limit"
     )
     rows = conn.execute(

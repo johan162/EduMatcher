@@ -505,6 +505,72 @@ class TestHandleEod:
         """Malformed payload should be silently absorbed, not crash."""
         process._handle_eod(cast(dict[str, Any], None))
 
+    def test_eod_triggers_retention_prune(self, db_path: Path, zmq_addr: str) -> None:
+        """CL-L7: long-running clearing should prune old raw rows on EOD."""
+        p = ClearingProcess(
+            pub_addr=zmq_addr,
+            db_path=db_path,
+            flush_size=100,
+            flush_interval_sec=60.0,
+            print_every=0,
+            retention_days=1,
+        )
+        try:
+            # Insert one stale and one recent raw trade row directly.
+            p._conn.execute(
+                "INSERT INTO trade_events "
+                "(id, ts_ns, trade_date, symbol, quantity, price, tick_decimals,"
+                " buy_order_id, sell_order_id, buy_gateway_id, sell_gateway_id,"
+                " aggressor_side, ingest_ts_ns)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    "OLD",
+                    1,
+                    "2000-01-01",
+                    "AAPL",
+                    1,
+                    100,
+                    2,
+                    None,
+                    None,
+                    "GW1",
+                    "GW2",
+                    None,
+                    1,
+                ),
+            )
+            p._conn.execute(
+                "INSERT INTO trade_events "
+                "(id, ts_ns, trade_date, symbol, quantity, price, tick_decimals,"
+                " buy_order_id, sell_order_id, buy_gateway_id, sell_gateway_id,"
+                " aggressor_side, ingest_ts_ns)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    "RECENT",
+                    2,
+                    "2999-01-01",
+                    "AAPL",
+                    1,
+                    100,
+                    2,
+                    None,
+                    None,
+                    "GW1",
+                    "GW2",
+                    None,
+                    2,
+                ),
+            )
+            p._conn.commit()
+
+            p._handle_eod({"books": []})
+            ids = [r[0] for r in p._conn.execute("SELECT id FROM trade_events")]
+        finally:
+            p._conn.close()
+
+        assert "OLD" not in ids
+        assert "RECENT" in ids
+
 
 class TestHandleGatewayConnect:
     @pytest.fixture()

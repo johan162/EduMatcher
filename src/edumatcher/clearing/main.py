@@ -16,6 +16,13 @@ The flush transaction atomically writes:
 
 On startup the process prunes trade_events rows older than 90 days and logs
 the count of deleted rows.
+
+Timestamp semantics
+-------------------
+Session/gateway lifecycle rows written by this process (EOD markers and
+gateway connect/disconnect events) are stamped with local ``now_ns()`` at
+ingest time.  They represent clearing-observed timing, not exchange-event
+timestamps.
 """
 
 from __future__ import annotations
@@ -378,6 +385,9 @@ class ClearingProcess:
                         if len(self._buffer) >= self._flush_size:
                             self._flush()
 
+                # CL-L6: read _trade_count outside the lock intentionally.
+                # Worst-case effect is a skipped or duplicated print cadence,
+                # never a data-integrity issue.
                 if self._print_every > 0 and self._trade_count % self._print_every == 0:
                     self._print_pnl_table()
 
@@ -604,10 +614,21 @@ class ClearingProcess:
                         }
                     ),
                 )
+
+                # CL-L7: also prune retention-window raw rows on EOD so a
+                # long-running process does not only prune at startup.
+                pruned = prune_old_events(
+                    self._conn, retention_days=self._retention_days
+                )
             console.print(
                 f"[CLEARING] EOD received — {len(eod_marks)} symbol mark(s) applied,"
                 f" session_events row written for {eod_trade_date}."
             )
+            if pruned:
+                console.print(
+                    f"[CLEARING] EOD prune removed {pruned} trade_events row(s)"
+                    f" older than {self._retention_days} days."
+                )
         except Exception as exc:
             console.print(
                 f"[CLEARING] WARNING: error handling system.eod: {exc}",
