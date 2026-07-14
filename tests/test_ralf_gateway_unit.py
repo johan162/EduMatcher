@@ -158,9 +158,7 @@ def test_handle_eod_emits_for_subscribed_channels(unit_gateway: RalfGateway) -> 
     assert any(frame.fields.get("CH") == "AUDIT" for frame in audit_lines)
 
     assert sess_drop_copy.out_queue
-    drop_copy_lines = [
-        parse_line(x.decode("utf-8")) for x in sess_drop_copy.out_queue
-    ]
+    drop_copy_lines = [parse_line(x.decode("utf-8")) for x in sess_drop_copy.out_queue]
     assert any(frame.msg_type == "EOD" for frame in drop_copy_lines)
     assert any(frame.fields.get("CH") == "DROP_COPY" for frame in drop_copy_lines)
 
