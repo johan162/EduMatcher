@@ -108,6 +108,48 @@ def test_accept_new_clients(unit_gateway: MarketDataGateway) -> None:
     server.close()
 
 
+def test_accept_new_clients_respects_max_connections(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind(("127.0.0.1", _free_port()))
+    server.listen(5)
+    server.setblocking(False)
+    unit_gateway._server = server
+    unit_gateway.config = MarketDataGatewayConfig(
+        enabled=unit_gateway.config.enabled,
+        name=unit_gateway.config.name,
+        bind_address=unit_gateway.config.bind_address,
+        port=unit_gateway.config.port,
+        engine_pub_addr=unit_gateway.config.engine_pub_addr,
+        index_pub_addr=unit_gateway.config.index_pub_addr,
+        heartbeat_interval_sec=unit_gateway.config.heartbeat_interval_sec,
+        idle_timeout_sec=unit_gateway.config.idle_timeout_sec,
+        replay_window_sec=unit_gateway.config.replay_window_sec,
+        max_connections=1,
+        max_messages_per_second=unit_gateway.config.max_messages_per_second,
+        max_symbols_per_client=unit_gateway.config.max_symbols_per_client,
+        max_client_queue=unit_gateway.config.max_client_queue,
+        depth_levels=unit_gateway.config.depth_levels,
+    )
+
+    held, held_peer = _make_session()
+    unit_gateway._clients[held.sock.fileno()] = held
+
+    client = socket.create_connection(server.getsockname())
+    client.settimeout(1.0)
+    select.select([server], [], [], 2.0)
+    unit_gateway._accept_new_clients()
+
+    # Server-side map should still only contain the existing held session.
+    assert len(unit_gateway._clients) == 1
+
+    client.close()
+    held_peer.close()
+    server.close()
+
+
 def test_read_client_data_disconnect_on_eof(unit_gateway: MarketDataGateway) -> None:
     session, peer = _make_session()
     unit_gateway._clients[session.sock.fileno()] = session
@@ -261,6 +303,7 @@ def test_drop_idle_clients(unit_gateway: MarketDataGateway) -> None:
     new_session, new_peer = _make_session()
     new_session.authenticated = False
     new_session.last_activity = time.monotonic() - 10
+    new_session.connected_at = time.monotonic() - 10
 
     unit_gateway._clients[auth_session.sock.fileno()] = auth_session
     unit_gateway._clients[new_session.sock.fileno()] = new_session
@@ -270,6 +313,107 @@ def test_drop_idle_clients(unit_gateway: MarketDataGateway) -> None:
 
     auth_peer.close()
     new_peer.close()
+
+
+def test_drop_idle_clients_uses_connect_age_for_pre_auth(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    sess, peer = _make_session()
+    sess.authenticated = False
+    sess.connected_at = time.monotonic() - 10
+    sess.last_activity = time.monotonic()
+    unit_gateway._clients[sess.sock.fileno()] = sess
+
+    unit_gateway._drop_idle_clients()
+
+    assert sess.sock.fileno() not in unit_gateway._clients
+    peer.close()
+
+
+def test_queue_raw_marks_slow_client_on_full_queue(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    sess, peer = _make_session()
+    unit_gateway.config = MarketDataGatewayConfig(
+        enabled=unit_gateway.config.enabled,
+        name=unit_gateway.config.name,
+        bind_address=unit_gateway.config.bind_address,
+        port=unit_gateway.config.port,
+        engine_pub_addr=unit_gateway.config.engine_pub_addr,
+        index_pub_addr=unit_gateway.config.index_pub_addr,
+        heartbeat_interval_sec=unit_gateway.config.heartbeat_interval_sec,
+        idle_timeout_sec=unit_gateway.config.idle_timeout_sec,
+        replay_window_sec=unit_gateway.config.replay_window_sec,
+        max_connections=unit_gateway.config.max_connections,
+        max_messages_per_second=unit_gateway.config.max_messages_per_second,
+        max_symbols_per_client=unit_gateway.config.max_symbols_per_client,
+        max_client_queue=1,
+        depth_levels=unit_gateway.config.depth_levels,
+    )
+
+    sess.out_queue.append(b"A\n")
+    unit_gateway._queue_raw(sess, b"B\n", is_market_data=True)
+
+    assert sess.closing is True
+    assert len(sess.out_queue) == 0
+    peer.close()
+
+
+def test_poll_engine_events_respects_budget(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeSubscriber(
+        [
+            (
+                "book.aapl",
+                {
+                    "bids": [{"price": 100.1, "qty": 10}],
+                    "asks": [{"price": 100.2, "qty": 11}],
+                    "timestamp": 1.0,
+                },
+            ),
+            (
+                "book.msft",
+                {
+                    "bids": [{"price": 100.1, "qty": 10}],
+                    "asks": [{"price": 100.2, "qty": 11}],
+                    "timestamp": 1.0,
+                },
+            ),
+            (
+                "book.goog",
+                {
+                    "bids": [{"price": 100.1, "qty": 10}],
+                    "asks": [{"price": 100.2, "qty": 11}],
+                    "timestamp": 1.0,
+                },
+            ),
+        ]
+    )
+    unit_gateway._sub_sock.close()
+    unit_gateway._sub_sock = fake
+    monkeypatch.setattr(gateway_mod, "decode", lambda payload: payload)
+    monkeypatch.setattr(gateway_mod, "_MAX_ENGINE_EVENTS_PER_LOOP", 2)
+
+    seen: list[str] = []
+
+    def _capture(
+        msg_type: str,
+        ch: str,
+        sym: str,
+        payload_fields: dict[str, str],
+        ts_seconds: float,
+    ) -> None:
+        _ = (msg_type, ch, payload_fields, ts_seconds)
+        seen.append(sym)
+
+    monkeypatch.setattr(unit_gateway, "_emit_stream_event", _capture)
+
+    unit_gateway._poll_engine_events()
+
+    assert len(seen) == 4
+    assert set(seen) == {"AAPL", "MSFT"}
 
 
 def test_extract_ts_fallback_and_parse_csv(unit_gateway: MarketDataGateway) -> None:

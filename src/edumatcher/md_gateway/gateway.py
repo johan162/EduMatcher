@@ -36,6 +36,7 @@ _ALLOWED_CHANNELS = frozenset({"TOP", "TRADE", "STATE", "INDEX", "DEPTH"})
 _WILDCARD_ELIGIBLE_CHANNELS = frozenset({"STATE", "TOP", "TRADE"})
 _MAX_LINE_BYTES = 4096
 _HELLO_TIMEOUT_SEC = 5
+_MAX_ENGINE_EVENTS_PER_LOOP = 2000
 
 
 class MarketDataGateway:
@@ -136,8 +137,18 @@ class MarketDataGateway:
                 conn, addr = self._server.accept()
             except BlockingIOError:
                 break
+
+            if len(self._clients) >= self.config.max_connections:
+                try:
+                    conn.close()
+                except OSError:
+                    pass
+                continue
+
             conn.setblocking(False)
-            self._clients[conn.fileno()] = ClientSession(sock=conn, addr=addr)
+            session = ClientSession(sock=conn, addr=addr)
+            session.rate_tokens = float(self.config.max_messages_per_second)
+            self._clients[conn.fileno()] = session
 
     def _read_client_data(self) -> None:
         if not self._clients:
@@ -258,6 +269,14 @@ class MarketDataGateway:
                 session,
                 "ERR",
                 {"CODE": "BAD_MESSAGE", "MSG": "parse error"},
+            )
+            return
+
+        if not self._allow_message_now(session):
+            self._queue_line(
+                session,
+                "ERR",
+                {"CODE": "RATE_LIMITED", "MSG": "too many messages"},
             )
             return
 
@@ -538,11 +557,14 @@ class MarketDataGateway:
     # ------------------------------------------------------------------
 
     def _poll_engine_events(self) -> None:
-        while self._sub_sock.poll(timeout=0):
+        budget = _MAX_ENGINE_EVENTS_PER_LOOP
+        while budget > 0 and self._sub_sock.poll(timeout=0):
             try:
                 topic, payload = decode(self._sub_sock.recv_multipart())
             except Exception:
+                budget -= 1
                 continue
+            budget -= 1
             now_seconds = _extract_ts(payload)
 
             if topic.startswith("book."):
@@ -601,11 +623,13 @@ class MarketDataGateway:
                     now_seconds,
                 )
 
-        while self._index_sub.poll(timeout=0):
+        while budget > 0 and self._index_sub.poll(timeout=0):
             try:
                 topic, payload = decode(self._index_sub.recv_multipart())
             except Exception:
+                budget -= 1
                 continue
+            budget -= 1
             now_seconds = _extract_ts(payload)
             if topic == "index.update":
                 index_id, fields = self._normaliser.normalise_index_update(payload)
@@ -633,7 +657,10 @@ class MarketDataGateway:
         now = time.monotonic()
         for session in list(self._clients.values()):
             idle = now - session.last_activity
-            if not session.authenticated and idle > _HELLO_TIMEOUT_SEC:
+            if (
+                not session.authenticated
+                and now - session.connected_at > _HELLO_TIMEOUT_SEC
+            ):
                 self._disconnect(session)
                 continue
             if session.authenticated and idle > self.config.idle_timeout_sec:
@@ -658,9 +685,26 @@ class MarketDataGateway:
         *,
         is_market_data: bool,
     ) -> None:
+        if len(session.out_queue) >= self.config.max_client_queue:
+            if not session.closing:
+                session.out_queue.clear()
+                session.out_offset = 0
+                session.closing = True
+            return
         session.out_queue.append(payload)
         if is_market_data:
             session.last_market_data_sent = time.monotonic()
+
+    def _allow_message_now(self, session: ClientSession) -> bool:
+        now = time.monotonic()
+        elapsed = now - session.rate_updated
+        session.rate_updated = now
+        max_rate = float(self.config.max_messages_per_second)
+        session.rate_tokens = min(max_rate, session.rate_tokens + elapsed * max_rate)
+        if session.rate_tokens < 1.0:
+            return False
+        session.rate_tokens -= 1.0
+        return True
 
     def _disconnect(self, session: ClientSession) -> None:
         fd = session.sock.fileno()

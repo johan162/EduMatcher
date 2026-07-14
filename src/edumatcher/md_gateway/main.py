@@ -77,6 +77,8 @@ def _resolve_config(
             heartbeat_interval_sec=cfg.heartbeat_interval_sec,
             idle_timeout_sec=cfg.idle_timeout_sec,
             replay_window_sec=cfg.replay_window_sec,
+            max_connections=cfg.max_connections,
+            max_messages_per_second=cfg.max_messages_per_second,
             max_symbols_per_client=cfg.max_symbols_per_client,
             max_client_queue=cfg.max_client_queue,
             depth_levels=cfg.depth_levels,

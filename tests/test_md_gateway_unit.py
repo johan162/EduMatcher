@@ -54,6 +54,21 @@ def test_non_hello_requires_auth(unit_gateway: MarketDataGateway) -> None:
     peer.close()
 
 
+def test_pre_auth_rate_limited(unit_gateway: MarketDataGateway) -> None:
+    sess, peer = _make_session()
+    sess.rate_tokens = 0.0
+    sess.rate_updated = time.monotonic()
+    unit_gateway._clients[sess.sock.fileno()] = sess
+
+    unit_gateway._handle_client_line(sess, "HELLO|CLIENT=x|PROTO=CALF1")
+
+    assert sess.authenticated is False
+    assert sess.out_queue
+    frame = parse_line(sess.out_queue[0].decode("utf-8"))
+    assert frame.fields["CODE"] == "RATE_LIMITED"
+    peer.close()
+
+
 def test_hello_bad_proto(unit_gateway: MarketDataGateway) -> None:
     sess, peer = _make_session()
     unit_gateway._handle_client_line(sess, "HELLO|CLIENT=x|PROTO=NOPE")
