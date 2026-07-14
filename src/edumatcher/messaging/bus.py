@@ -17,6 +17,7 @@ _context: zmq.Context[Any] | None = None
 # reactor when engine PULL is unavailable or backpressured.
 _PUSH_SEND_TIMEOUT_MS = 0
 _PUSH_SEND_HWM = 1000
+_PUSH_IMMEDIATE = 1
 
 
 def get_context() -> zmq.Context[Any]:
@@ -55,6 +56,7 @@ def make_pusher(addr: str) -> zmq.Socket[bytes]:
     sock = get_context().socket(zmq.PUSH)
     sock.setsockopt(zmq.SNDTIMEO, _PUSH_SEND_TIMEOUT_MS)
     sock.setsockopt(zmq.SNDHWM, _PUSH_SEND_HWM)
+    sock.setsockopt(zmq.IMMEDIATE, _PUSH_IMMEDIATE)
     sock.connect(addr)
     return sock  # type: ignore[no-any-return]
 

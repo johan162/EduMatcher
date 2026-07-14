@@ -314,6 +314,7 @@ def test_make_pusher_sets_send_timeout_and_hwm(
 
     assert (zmq.SNDTIMEO, 0) in fake_sock.opts
     assert (zmq.SNDHWM, 1000) in fake_sock.opts
+    assert (zmq.IMMEDIATE, 1) in fake_sock.opts
     assert fake_sock.connected == "tcp://127.0.0.1:5555"
 
 

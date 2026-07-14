@@ -40,6 +40,7 @@ from edumatcher.balf_gwy.codec import (
     MSG_LOGON_ACK,
     MSG_NEW_ORDER,
     MSG_ORDER_ACK,
+    LOGON_REJECT_OTHER,
     SIDE_BUY,
     build_header,
     encode_price,
@@ -376,6 +377,66 @@ class TestAuthTimeout:
             assert not bc.is_closed(timeout=0.2), "connection should still be open"
             # Clean up by completing auth
             _do_auth(bc, pull, pub)
+
+
+# ===========================================================================
+# Engine unavailable / backpressure fail-fast — critical (C1)
+# ===========================================================================
+
+
+class TestEngineUnavailableFailFast:
+    """Gateway must reject instead of hanging when engine PUSH cannot queue."""
+
+    def test_logon_rejected_when_engine_unavailable(
+        self, balf_gw_factory: FactoryFn
+    ) -> None:
+        _, pull, _pub, port = balf_gw_factory()
+
+        # Simulate engine unavailable: close the only PULL peer.
+        pull.close(linger=0)
+        time.sleep(0.05)
+
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+            bc = _BalfClient(cli)
+            bc.send(_build_logon("TRADER01"))
+
+            body = bc.recv_until(MSG_LOGON_ACK, timeout=1.5)
+            accepted = body[16]
+            reject_code = body[17]
+            msg_len = body[18]
+            msg = body[20 : 20 + msg_len].decode("ascii", errors="ignore")
+
+            assert accepted == 0
+            assert reject_code == LOGON_REJECT_OTHER
+            assert "ENGINE_UNAVAILABLE" in msg
+
+    def test_new_order_rejected_when_engine_unavailable(
+        self, balf_gw_factory: FactoryFn
+    ) -> None:
+        _, pull, pub, port = balf_gw_factory()
+
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as cli:
+            bc = _BalfClient(cli)
+            _do_auth(bc, pull, pub)
+
+            # Engine goes down after auth.
+            pull.close(linger=0)
+            time.sleep(0.05)
+
+            bc.send(_build_new_order(seq_no=2))
+            body = bc.recv_until(MSG_ORDER_ACK, timeout=1.5)
+
+            # ORDER_ACK body:
+            # client_order_id Q | order_id Q | timestamp_ns Q |
+            # accepted B | reject_code B | reason_len B | reason[25]
+            accepted = body[24]
+            reject_code = body[25]
+            reason_len = body[26]
+            reason = body[27 : 27 + reason_len].decode("ascii", errors="ignore")
+
+            assert accepted == 0
+            assert reject_code == 0xFF
+            assert "ENGINE_UNAVAILABLE" in reason
 
 
 # ===========================================================================
