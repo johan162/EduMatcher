@@ -595,7 +595,7 @@ Status colours: green=NEW, yellow=PARTIAL, bright green=FILLED, red=REJECTED/CAN
 Records every message on the bus to a rotating log file.
 
 ```bash
-pm-audit [--log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10]
+pm-audit [--log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-interval 10] [--log-level LEVEL] [-v|-vv] [-q]
 ```
 
 **Startup options:**
@@ -606,6 +606,9 @@ pm-audit [--log-file data/audit.log] [--terminal] [--buffer-size 100] [--flush-i
 | `--terminal` / `-t`   | off              | Also print each entry to stdout                              |
 | `--buffer-size`       | 100              | Number of messages to buffer in memory before writing to disk |
 | `--flush-interval`    | 10.0             | Maximum seconds to wait before flushing buffer to disk       |
+| `--log-level`         | `WARNING`        | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose`    | off              | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)         |
+| `-q` / `--quiet`      | off              | Reduce output to warnings/errors                             |
 
 **Expected runtime input arguments:**
 
@@ -631,6 +634,9 @@ automatically flushed to disk before the process exits, ensuring no data is lost
 Log files rotate at 10 MB with 5 backups kept.
 
 Use `--terminal` during demos so the class can see every event in real time.
+Use `-vv` or `--log-level DEBUG` when you want aggregated operational summaries
+about buffering, flushes, decode errors, and broad topic-family mix without
+changing the raw event log format.
 
 **Examples:**
 
