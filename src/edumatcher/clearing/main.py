@@ -56,6 +56,13 @@ from edumatcher.clearing.store import (
 )
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.clock import now_ns  # used in _flush
+from edumatcher.models.feed_schema import (
+    GatewayAuthPayload,
+    GatewayByePayload,
+    SessionStatePayload,
+    SystemEodPayload,
+    TradeExecutedPayload,
+)
 from edumatcher.models.message import decode
 from edumatcher.models.price import to_ticks
 from edumatcher.models.trade import Trade
@@ -142,17 +149,19 @@ def _to_timestamp_ns(raw: Any) -> int:
 
 
 def _trade_from_payload(payload: dict[str, Any]) -> Trade:
-    normalized = dict(payload)
+    typed = TradeExecutedPayload.from_dict(payload)
+
+    normalized = typed.to_dict()
     tick_decimals = _parse_tick_decimals(normalized)
     scale = 10**tick_decimals
 
     # trade.executed.price is a DISPLAY value by contract; convert to ticks
     # unconditionally rather than treating an integer as if it were already ticks
     # (finding CL-M6).
-    price_raw = normalized.get("price", 0)
+    price_raw = typed.price
     normalized["price"] = int(round(float(price_raw) * scale))
 
-    normalized["timestamp"] = _to_timestamp_ns(normalized.get("timestamp", 0))
+    normalized["timestamp"] = _to_timestamp_ns(typed.timestamp)
     normalized["tick_decimals"] = tick_decimals
     return Trade.from_dict(normalized)
 
@@ -558,19 +567,19 @@ class ClearingProcess:
             # this ingress boundary via to_ticks (CL-M4: keeps mark and avg_cost
             # in the same unit).
             eod_marks: dict[str, int] = {}
-            books = payload.get("books") or []
-            for book in books:
-                sym = book.get("symbol", "")
+            eod_payload = SystemEodPayload.from_dict(payload)
+            for book in eod_payload.books:
+                sym = book.symbol
                 if not sym:
                     continue
-                last_price = book.get("last_price")
-                bids = book.get("bids") or []
-                asks = book.get("asks") or []
+                last_price = book.last_price
+                bids = book.bids
+                asks = book.asks
                 if last_price is not None:
                     eod_marks[sym] = to_ticks(last_price, sym)
                 elif bids and asks:
-                    best_bid = bids[0].get("price")
-                    best_ask = asks[0].get("price")
+                    best_bid = bids[0].price
+                    best_ask = asks[0].price
                     if best_bid is not None and best_ask is not None:
                         eod_marks[sym] = (
                             to_ticks(best_bid, sym) + to_ticks(best_ask, sym)
@@ -645,7 +654,8 @@ class ClearingProcess:
         activity with the session phase it occurred in.
         """
         try:
-            state = str(payload.get("state", "")).upper()
+            typed = SessionStatePayload.from_dict(payload)
+            state = typed.state.upper()
             if not state:
                 return
             ts_ns = now_ns()
@@ -658,7 +668,7 @@ class ClearingProcess:
                     payload_json=json.dumps(
                         {
                             "state": state,
-                            "prev_state": str(payload.get("prev_state", "")),
+                            "prev_state": typed.prev_state,
                         }
                     ),
                 )
@@ -677,9 +687,10 @@ class ClearingProcess:
         public feed, so record it exactly as a connect.  A refused auth carries
         ``accepted=False`` and is ignored (no session opened).
         """
-        if not payload.get("accepted", False):
+        typed = GatewayAuthPayload.from_dict(payload)
+        if not typed.accepted:
             return
-        self._handle_gateway_connect(payload)
+        self._handle_gateway_connect(typed.to_dict())
 
     def _handle_gateway_bye(self, payload: dict[str, Any]) -> None:
         """
@@ -687,7 +698,8 @@ class ClearingProcess:
         a gateway disconnects.  Record it exactly as a disconnect (the inbound
         system.gateway_disconnect topic is PULL-only and never reaches here).
         """
-        self._handle_gateway_disconnect(payload)
+        typed = GatewayByePayload.from_dict(payload)
+        self._handle_gateway_disconnect(typed.to_dict())
 
     def _handle_gateway_connect(self, payload: dict[str, Any]) -> None:
         """

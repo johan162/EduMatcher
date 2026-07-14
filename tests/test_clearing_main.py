@@ -33,6 +33,7 @@ from edumatcher.clearing.store import (
     query_trades,
 )
 from edumatcher.models.trade import Trade
+from edumatcher.models.message import make_trade_msg, decode
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -809,3 +810,26 @@ class TestPayloadParsing:
         # CL-M6: an integer display price is a display value, not raw ticks.
         t = _trade_from_payload(_trade_payload(price=150, timestamp=1.0))
         assert t.price == 15000
+
+    def test_trade_builder_payload_parses_with_declared_units(self) -> None:
+        frames = make_trade_msg(
+            {
+                "id": "7",
+                "symbol": "AAPL",
+                "buy_order_id": "B1",
+                "sell_order_id": "S1",
+                "buy_gateway_id": "GW1",
+                "sell_gateway_id": "GW2",
+                "price": 150.75,
+                "tick_decimals": 2,
+                "quantity": 3,
+                "aggressor_side": "BUY",
+                "timestamp": 1_700_000_000.0,
+            }
+        )
+        topic, payload = decode(frames)
+        trade = _trade_from_payload(payload)
+
+        assert topic == "trade.executed"
+        assert trade.price == 15075
+        assert trade.timestamp == 1_700_000_000_000_000_000
