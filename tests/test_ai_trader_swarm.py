@@ -77,11 +77,91 @@ class TestSwarmHelpers:
 
 
 class TestSwarmMain:
+    def test_parse_args_logging_flags(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "pm-ai-swarm",
+                "--count",
+                "1",
+                "-vv",
+                "--quiet",
+                "--log-level",
+                "ERROR",
+            ],
+        )
+        args = swarm_main._parse_args()
+        assert args.count == 1
+        assert args.verbose == 2
+        assert args.quiet is True
+        assert args.log_level == "ERROR"
+
+    def test_main_forwards_logging_flags_to_child(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen_cmds: list[list[str]] = []
+
+        class _Proc:
+            def __init__(self, cmd: list[str]) -> None:
+                seen_cmds.append(cmd)
+                self._rc = 0
+
+            def wait(self, timeout: float | None = None) -> int:
+                _ = timeout
+                return self._rc
+
+            def poll(self) -> int | None:
+                return self._rc
+
+            def send_signal(self, _sig: int) -> None:
+                return
+
+            def kill(self) -> None:
+                return
+
+        monkeypatch.setattr(
+            swarm_main,
+            "_parse_args",
+            lambda: argparse.Namespace(
+                count=1,
+                prefix="AI",
+                start_index=1,
+                profiles="aggressive",
+                symbols="",
+                config="engine_config.yaml",
+                seed_base=1,
+                duration=1.0,
+                python="python",
+                max_position=100,
+                max_rejects=5,
+                reject_window=10.0,
+                reject_cooldown=1.0,
+                stale_data=4.0,
+                log_level="INFO",
+                verbose=2,
+                quiet=True,
+            ),
+        )
+        monkeypatch.setattr(
+            swarm_main, "_load_symbols", lambda _symbols, _cfg: ["AAPL"]
+        )
+        monkeypatch.setattr("edumatcher.ai_trader.swarm.subprocess.Popen", _Proc)
+        monkeypatch.setattr("edumatcher.ai_trader.swarm.time.sleep", lambda _s: None)
+
+        with pytest.raises(SystemExit) as exc:
+            swarm_main.main()
+        assert exc.value.code == 0
+        assert len(seen_cmds) == 1
+        joined = " ".join(seen_cmds[0])
+        assert "--log-level INFO" in joined
+        assert "-vv" in joined
+        assert "-q" in joined
+
     def test_main_count_must_be_positive(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
             swarm_main,
             "_parse_args",
-            lambda: argparse.Namespace(count=0),
+            lambda: argparse.Namespace(count=0, log_level=None, verbose=0, quiet=False),
         )
         with pytest.raises(SystemExit):
             swarm_main.main()
@@ -105,6 +185,9 @@ class TestSwarmMain:
                 reject_window=10.0,
                 reject_cooldown=1.0,
                 stale_data=4.0,
+                log_level=None,
+                verbose=0,
+                quiet=False,
             ),
         )
         monkeypatch.setattr(swarm_main, "_load_symbols", lambda _symbols, _cfg: [])
@@ -147,6 +230,9 @@ class TestSwarmMain:
                 reject_window=10.0,
                 reject_cooldown=1.0,
                 stale_data=4.0,
+                log_level=None,
+                verbose=0,
+                quiet=False,
             ),
         )
         monkeypatch.setattr(
@@ -199,6 +285,9 @@ class TestSwarmMain:
                 reject_window=10.0,
                 reject_cooldown=1.0,
                 stale_data=4.0,
+                log_level=None,
+                verbose=0,
+                quiet=False,
             ),
         )
         monkeypatch.setattr(

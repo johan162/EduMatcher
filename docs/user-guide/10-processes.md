@@ -363,9 +363,12 @@ pm-alf-console --id <GW_ID>
 
 **Startup options:**
 
-| Flag   | Required | Description                                      |
-|--------|----------|--------------------------------------------------|
-| `--id` | Yes      | Unique gateway identifier (e.g. `GW01`, `ALICE`) |
+| Flag              | Required | Description                                           |
+|-------------------|----------|-------------------------------------------------------|
+| `--id`            | Yes      | Unique gateway identifier (e.g. `GW01`, `ALICE`)     |
+| `--log-level`     | No       | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose`| No       | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)  |
+| `-q` / `--quiet`  | No       | Reduce output to warnings/errors                      |
 
 **Expected runtime input arguments:**
 
@@ -1230,6 +1233,9 @@ pm-ai-trader --id AI01 [options]
 | `--reject-window`   | `10.0`        | Rolling reject window in seconds                    |
 | `--reject-cooldown` | `5.0`         | Pause interval after reject breaker trips           |
 | `--stale-data`      | `4.0`         | Max market-data age (seconds) before pausing orders |
+| `--log-level`       | `WARNING`     | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose`  | off           | Increase verbosity (`-v` enables bot debug prints, `-vv` sets DEBUG) |
+| `-q` / `--quiet`    | off           | Reduce output to warnings/errors                    |
 
 **Expected runtime input arguments:**
 
@@ -1286,6 +1292,9 @@ pm-ai-swarm [options]
 | `--reject-window`   | `10.0`               | Passed through to child bots               |
 | `--reject-cooldown` | `5.0`                | Passed through to child bots               |
 | `--stale-data`      | `4.0`                | Passed through to child bots               |
+| `--log-level`       | `WARNING`            | Logging level for swarm launcher; also forwarded to child bots |
+| `-v` / `--verbose`  | off                  | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`); forwarded to child bots |
+| `-q` / `--quiet`    | off                  | Reduce output to warnings/errors; forwarded to child bots |
 
 **Expected runtime input arguments:**
 
@@ -1329,7 +1338,9 @@ pm-mm-bot --symbol AAPL [options]
 | `--initial_max`                  | unset                  | Upper bound for random bootstrap price                           |
 | `--engine-pull`                  | `tcp://127.0.0.1:5555` | Engine PUSH/PULL address                                         |
 | `--engine-pub`                   | `tcp://127.0.0.1:5556` | Engine PUB address                                               |
-| `-v` / `--verbose`               | off                    | Print debug-level events                                         |
+| `--log-level`                    | `WARNING`              | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose`               | off                    | Increase verbosity (`-v` enables bot debug prints, `-vv` sets DEBUG) |
+| `-q` / `--quiet`                 | off                    | Reduce output to warnings/errors                                |
 
 **Expected runtime input arguments:**
 

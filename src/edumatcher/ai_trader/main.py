@@ -8,7 +8,9 @@ Usage examples:
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 from collections import deque
+import logging
 import random
 import sys
 import time
@@ -27,6 +29,10 @@ from edumatcher.models.message import (
     make_order_new_msg,
     make_symbols_request_msg,
 )
+
+_DEBUG_SUMMARY_INTERVAL_SEC = 5.0
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -58,6 +64,7 @@ class AITraderBot:
         reject_window_sec: float,
         reject_cooldown_sec: float,
         stale_data_sec: float,
+        verbose: bool = False,
     ) -> None:
         self.gateway_id = gateway_id.upper()
         self.profile = get_profile(profile_name)
@@ -74,12 +81,15 @@ class AITraderBot:
         self._reject_times: deque[float] = deque()
         self._risk_pause_until = 0.0
         self.metrics = BotMetrics()
+        self.verbose = bool(verbose)
 
         self._max_position = max_position
         self._max_rejects = max_rejects
         self._reject_window_sec = reject_window_sec
         self._reject_cooldown_sec = reject_cooldown_sec
         self._stale_data_sec = stale_data_sec
+        self._debug_counts: defaultdict[str, int] = defaultdict(int)
+        self._debug_last_summary = time.monotonic()
 
         self.push_sock = make_pusher(ENGINE_PULL_ADDR)
         self.sub_sock = make_subscriber(
@@ -98,7 +108,46 @@ class AITraderBot:
         now = time.strftime("%H:%M:%S")
         print(f"[AI:{self.gateway_id} {now}] {text}")
 
+    def _debug(self, text: str) -> None:
+        if self.verbose:
+            self._log(text)
+
+    def _dbg_count(self, key: str, amount: int = 1) -> None:
+        if not self.verbose:
+            return
+        self._debug_counts[key] += amount
+        self._flush_debug_summary()
+
+    def _flush_debug_summary(self, force: bool = False) -> None:
+        if not self.verbose:
+            return
+        now = time.monotonic()
+        if not force and now - self._debug_last_summary < _DEBUG_SUMMARY_INTERVAL_SEC:
+            return
+        if not self._debug_counts:
+            self._debug_last_summary = now
+            return
+        summary = ", ".join(
+            f"{key}={value}" for key, value in sorted(self._debug_counts.items())
+        )
+        self._debug(f"flow summary: {summary}")
+        self._debug_counts.clear()
+        self._debug_last_summary = now
+
+    @staticmethod
+    def _topic_family(topic: str) -> str:
+        if topic.startswith("book."):
+            return "book"
+        if topic.startswith("trade."):
+            return "trade"
+        if topic.startswith("order."):
+            return "order"
+        if topic.startswith("system."):
+            return "system"
+        return "other"
+
     def _authenticate(self, timeout_sec: float = 3.0) -> bool:
+        log.info("starting ai_trader authentication gateway_id=%s", self.gateway_id)
         time.sleep(0.1)
         self.push_sock.send_multipart(make_gateway_connect_msg(self.gateway_id))
 
@@ -112,20 +161,29 @@ class AITraderBot:
             if self.sub_sock not in socks:
                 continue
             topic, payload = decode(self.sub_sock.recv_multipart())
+            self._dbg_count("auth_messages")
             if topic == f"system.gateway_auth.{self.gateway_id}":
                 accepted = bool(payload.get("accepted", False))
                 if accepted:
                     self._log("authenticated")
+                    log.info("authentication accepted gateway_id=%s", self.gateway_id)
                 else:
                     reason = str(payload.get("reason", "unknown reason"))
                     self._log(f"authentication rejected: {reason}")
+                    log.warning(
+                        "authentication rejected gateway_id=%s reason=%s",
+                        self.gateway_id,
+                        reason,
+                    )
                 return accepted
 
         self._log("authentication timed out")
+        log.warning("authentication timed out gateway_id=%s", self.gateway_id)
         return False
 
     def _request_symbols(self) -> None:
         self.push_sock.send_multipart(make_symbols_request_msg(self.gateway_id))
+        self._dbg_count("symbols_requests")
 
     def _on_book(self, symbol: str, payload: dict[str, Any]) -> None:
         bids = payload.get("bids", [])
@@ -138,6 +196,7 @@ class AITraderBot:
         snap.best_bid = _as_float(bids[0].get("price")) if bids else None
         snap.best_ask = _as_float(asks[0].get("price")) if asks else None
         self._last_market_update[symbol] = time.monotonic()
+        self._dbg_count("book_updates")
 
     def _on_trade(self, payload: dict[str, Any]) -> None:
         symbol = str(payload.get("symbol", "")).upper()
@@ -147,6 +206,7 @@ class AITraderBot:
             self._market[symbol] = MarketSnapshot()
         self._market[symbol].last_price = _as_float(payload.get("price"))
         self._last_market_update[symbol] = time.monotonic()
+        self._dbg_count("trade_updates")
 
     def _trim_reject_times(self, now: float) -> None:
         threshold = now - self._reject_window_sec
@@ -160,6 +220,11 @@ class AITraderBot:
         if len(self._reject_times) >= self._max_rejects:
             self._risk_pause_until = now + self._reject_cooldown_sec
             self._reject_times.clear()
+            log.warning(
+                "reject breaker tripped gateway_id=%s cooldown=%ss",
+                self.gateway_id,
+                self._reject_cooldown_sec,
+            )
             self._log(
                 "reject breaker tripped; pausing submissions "
                 f"for {self._reject_cooldown_sec:.1f}s"
@@ -187,6 +252,8 @@ class AITraderBot:
         self._positions[symbol] = pos
 
     def _handle_event(self, topic: str, payload: dict[str, Any]) -> None:
+        self._dbg_count("incoming_total")
+        self._dbg_count(f"incoming_topic_{self._topic_family(topic)}")
         if topic.startswith("book."):
             self._on_book(topic.split(".", 1)[1].upper(), payload)
             return
@@ -223,6 +290,9 @@ class AITraderBot:
             f"order.expired.{self.gateway_id}",
         }:
             self.metrics.cancelled += 1
+            return
+
+        self._dbg_count("incoming_unhandled")
 
     def _active_symbols(self) -> list[str]:
         if self._known_symbols:
@@ -311,28 +381,42 @@ class AITraderBot:
     def _maybe_submit_order(self) -> None:
         now = time.monotonic()
         self._trim_reject_times(now)
+        self._dbg_count("decision_ticks")
 
         if now < self._risk_pause_until:
+            self._dbg_count("skips_risk_pause")
             return
 
         interval = self.profile.decision_interval_ms / 1000.0
         if now - self._last_submit_ts < interval:
+            self._dbg_count("skips_interval_gate")
             return
 
         symbol = self._pick_symbol()
         if symbol is None:
+            self._dbg_count("skips_no_symbol")
             return
 
         payload = self._make_order_payload(symbol)
         if payload is None:
+            self._dbg_count("skips_no_payload")
             return
 
         self.push_sock.send_multipart(make_order_new_msg(payload))
         self.metrics.submitted += 1
         self._last_submit_ts = now
+        self._dbg_count("orders_submitted")
 
     def run(self, duration_sec: float) -> int:
+        log.info(
+            "starting ai_trader runtime gateway_id=%s profile=%s duration=%s run_id=%s",
+            self.gateway_id,
+            self.profile.name,
+            duration_sec,
+            self._run_id,
+        )
         if not self._authenticate():
+            log.error("startup failed: authentication gateway_id=%s", self.gateway_id)
             return 1
 
         self._request_symbols()
@@ -357,13 +441,23 @@ class AITraderBot:
                 next_symbols_refresh = time.monotonic() + 2.0
 
             self._maybe_submit_order()
+            self._flush_debug_summary()
 
+        self._flush_debug_summary(force=True)
         self._log(
             "stopped "
             f"submitted={self.metrics.submitted} "
             f"acked={self.metrics.acknowledged} "
             f"rejected={self.metrics.rejected} "
             f"fills={self.metrics.filled}"
+        )
+        log.info(
+            "ai_trader stopped gateway_id=%s submitted=%s acked=%s rejected=%s fills=%s",
+            self.gateway_id,
+            self.metrics.submitted,
+            self.metrics.acknowledged,
+            self.metrics.rejected,
+            self.metrics.filled,
         )
         self.push_sock.close()
         self.sub_sock.close()
@@ -379,7 +473,7 @@ def _as_float(value: Any) -> float | None:
         return None
 
 
-def _parse_args() -> argparse.Namespace:
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="EduMatcher autonomous AI trader")
     from edumatcher.cli_version import add_version_argument
 
@@ -443,13 +537,66 @@ def _parse_args() -> argparse.Namespace:
         default=4.0,
         help="Max age in seconds for market data before pausing submissions",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--log-level",
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+        help="Logging level override (default: WARNING)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase verbosity (-v: INFO + bot debug prints, -vv: DEBUG)",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Reduce output to warnings/errors",
+    )
+    return parser.parse_args(argv)
+
+
+def _configure_logging(args: argparse.Namespace) -> int:
+    if getattr(args, "log_level", None):
+        level_name = str(args.log_level).upper()
+        level = getattr(logging, level_name, logging.WARNING)
+    elif int(getattr(args, "verbose", 0)) >= 2:
+        level = logging.DEBUG
+    elif int(getattr(args, "verbose", 0)) == 1:
+        level = logging.INFO
+    elif bool(getattr(args, "quiet", False)):
+        level = logging.WARNING
+    else:
+        level = logging.WARNING
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+        stream=sys.stdout,
+    )
+    return int(level)
 
 
 def main() -> None:
     args = _parse_args()
+    log_level = _configure_logging(args)
+    log.info(
+        "starting pm-ai-trader with log level %s",
+        logging.getLevelName(log_level),
+    )
     symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
     run_id = args.run_id or f"botrun-{uuid.uuid4().hex[:12]}"
+    bot_verbose = bool(int(getattr(args, "verbose", 0)) >= 1)
+    log.debug(
+        "resolved ai_trader config: id=%s profile=%s symbols=%s duration=%s run_id=%s",
+        args.id,
+        args.profile,
+        symbols,
+        args.duration,
+        run_id,
+    )
 
     try:
         bot = AITraderBot(
@@ -463,13 +610,16 @@ def main() -> None:
             reject_window_sec=float(args.reject_window),
             reject_cooldown_sec=float(args.reject_cooldown),
             stale_data_sec=float(args.stale_data),
+            verbose=bot_verbose,
         )
         rc = bot.run(duration_sec=float(args.duration))
         raise SystemExit(rc)
     except KeyboardInterrupt:
+        log.info("pm-ai-trader interrupted")
         print("\n[AI] interrupted")
         raise SystemExit(0)
     except Exception as exc:
+        log.error("pm-ai-trader fatal: %s", exc)
         print(f"[AI] FATAL: {exc}", file=sys.stderr)
         raise SystemExit(1)
 

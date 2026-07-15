@@ -891,6 +891,29 @@ class TestAuditProcess:
         assert args.log_level == "ERROR"
 
 
+class TestAlfConsoleMain:
+    def test_build_parser_logging_flags(self) -> None:
+        from edumatcher.alf_console.main import _build_parser
+
+        parser = _build_parser()
+        args = parser.parse_args(
+            ["--id", "GW01", "-vv", "--quiet", "--log-level", "ERROR"]
+        )
+        assert args.id == "GW01"
+        assert args.verbose == 2
+        assert args.quiet is True
+        assert args.log_level == "ERROR"
+
+    def test_configure_logging_defaults_to_warning(self) -> None:
+        from argparse import Namespace
+        import logging
+
+        from edumatcher.alf_console.main import _configure_logging
+
+        args = Namespace(log_level=None, verbose=0, quiet=False)
+        assert _configure_logging(args) == logging.WARNING
+
+
 # ---------------------------------------------------------------------------
 # stats/main.py — remaining receive paths
 # ---------------------------------------------------------------------------

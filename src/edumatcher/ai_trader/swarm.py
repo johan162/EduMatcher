@@ -8,6 +8,7 @@ Usage examples:
 from __future__ import annotations
 
 import argparse
+import logging
 import signal
 import subprocess
 import sys
@@ -18,6 +19,8 @@ from pathlib import Path
 from edumatcher.ai_trader.personality import available_profiles
 from edumatcher.config import ENGINE_CONFIG_FILE
 from edumatcher.engine.config_loader import load_engine_config
+
+log = logging.getLogger(__name__)
 
 
 def build_gateway_ids(prefix: str, start_index: int, count: int) -> list[str]:
@@ -98,6 +101,31 @@ def build_bot_command(
     ]
 
 
+def _configure_logging(args: argparse.Namespace) -> int:
+    log_level = getattr(args, "log_level", None)
+    verbose = int(getattr(args, "verbose", 0) or 0)
+    quiet = bool(getattr(args, "quiet", False))
+
+    if log_level:
+        level_name = str(log_level).upper()
+        level = getattr(logging, level_name, logging.WARNING)
+    elif verbose >= 2:
+        level = logging.DEBUG
+    elif verbose == 1:
+        level = logging.INFO
+    elif quiet:
+        level = logging.WARNING
+    else:
+        level = logging.WARNING
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+        stream=sys.stdout,
+    )
+    return int(level)
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="EduMatcher AI trader swarm launcher")
     from edumatcher.cli_version import add_version_argument
@@ -131,17 +159,42 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--reject-window", type=float, default=10.0)
     parser.add_argument("--reject-cooldown", type=float, default=5.0)
     parser.add_argument("--stale-data", type=float, default=4.0)
+    parser.add_argument(
+        "--log-level",
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+        help="Logging level override (default: WARNING)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase verbosity (-v: INFO, -vv: DEBUG); forwarded to child bots",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Reduce output to warnings/errors; forwarded to child bots",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = _parse_args()
+    resolved_level = _configure_logging(args)
+    log.info(
+        "starting pm-ai-swarm with log level %s",
+        logging.getLevelName(resolved_level),
+    )
     if args.count <= 0:
+        log.error("invalid startup value: --count must be > 0 (got %s)", args.count)
         raise SystemExit("--count must be > 0")
 
     config_path = Path(str(args.config))
     symbols = _load_symbols(str(args.symbols), config_path)
     if not symbols:
+        log.error("no symbols available for swarm")
         raise SystemExit("No symbols available for swarm")
 
     profiles = _parse_profile_cycle(str(args.profiles))
@@ -150,9 +203,19 @@ def main() -> None:
     )
     symbol_by_gw = assign_primary_symbols(gateway_ids, symbols)
     run_id = f"swarm-{uuid.uuid4().hex[:8]}"
+    child_verbose = int(getattr(args, "verbose", 0) or 0)
+    child_quiet = bool(getattr(args, "quiet", False))
+    child_log_level = str(getattr(args, "log_level", "") or "")
 
     procs: list[subprocess.Popen[bytes]] = []
     print(f"[SWARM] run_id={run_id} count={len(gateway_ids)} symbols={len(symbols)}")
+    log.info(
+        "swarm resolved config run_id=%s count=%s symbols=%s profiles=%s",
+        run_id,
+        len(gateway_ids),
+        len(symbols),
+        ",".join(profiles),
+    )
 
     try:
         for i, gw in enumerate(gateway_ids):
@@ -172,7 +235,14 @@ def main() -> None:
                 reject_cooldown=float(args.reject_cooldown),
                 stale_data=float(args.stale_data),
             )
+            if child_log_level:
+                cmd.extend(["--log-level", child_log_level])
+            if child_verbose > 0:
+                cmd.extend(["-" + ("v" * child_verbose)])
+            if child_quiet:
+                cmd.append("-q")
             print(f"[SWARM] launching {gw} profile={profile} symbol={symbol}")
+            log.debug("launch command for %s: %s", gw, " ".join(cmd))
             procs.append(subprocess.Popen(cmd))
             time.sleep(0.02)
 
@@ -181,9 +251,12 @@ def main() -> None:
             rc = p.wait()
             if rc != 0:
                 exit_code = rc
+                log.warning("child process exited non-zero rc=%s", rc)
 
+        log.info("swarm finished run_id=%s exit_code=%s", run_id, exit_code)
         raise SystemExit(exit_code)
     except KeyboardInterrupt:
+        log.info("swarm interrupted; stopping bots")
         print("\n[SWARM] interrupted; stopping bots...")
         for p in procs:
             if p.poll() is None:
@@ -202,4 +275,5 @@ def main() -> None:
         for p in procs:
             if p.poll() is None:
                 p.kill()
+        log.info("swarm shutdown complete after interrupt")
         raise SystemExit(130)
