@@ -166,8 +166,15 @@ def test_python_example_client_connects_and_exits(
 
 def test_c_example_client_builds_connects_and_exits(
     running_alf_gateway: tuple[int, zmq.Socket[bytes]],
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
+    def _emit_info(*lines: str) -> None:
+        with capsys.disabled():
+            for line in lines:
+                print(line, file=sys.stderr, flush=True)
+
     if shutil.which("make") is None or shutil.which("cc") is None:
+        _emit_info("INFO: skipping C ALF example test because make or cc is missing")
         pytest.skip("make and cc are required for the C ALF example test")
 
     gateway_port, _ = running_alf_gateway
@@ -223,8 +230,13 @@ def test_c_example_client_builds_connects_and_exits(
             or "ld: cannot find -lreadline" in combined
             or "library not found for -lreadline" in combined
         ):
-            print(
-                "INFO: skipping C ALF example test because GNU readline is not available"
+            _emit_info(
+                f"INFO: make failed in {c_dir}",
+                "INFO: make stdout:",
+                (build.stdout or "<empty>").rstrip(),
+                "INFO: make stderr:",
+                (build.stderr or "<empty>").rstrip(),
+                "INFO: skipping C ALF example test because GNU readline is not available",
             )
             pytest.skip(
                 "GNU readline development headers/libs are required for the C ALF example test"
