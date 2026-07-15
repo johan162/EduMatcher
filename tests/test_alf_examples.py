@@ -173,7 +173,31 @@ def test_c_example_client_builds_connects_and_exits(
     c_dir = EXAMPLE_DIR / "c"
 
     subprocess.run(["make", "clean"], cwd=c_dir, check=True)
-    subprocess.run(["make"], cwd=c_dir, check=True)
+    build = subprocess.run(
+        ["make"],
+        cwd=c_dir,
+        text=True,
+        capture_output=True,
+    )
+    if build.returncode != 0:
+        combined = (build.stdout or "") + "\n" + (build.stderr or "")
+        if (
+            "readline/readline.h" in combined
+            or "cannot find -lreadline" in combined
+            or "library not found for -lreadline" in combined
+        ):
+            print(
+                "INFO: skipping C ALF example test because GNU readline is not available"
+            )
+            pytest.skip(
+                "GNU readline development headers/libs are required for the C ALF example test"
+            )
+        raise subprocess.CalledProcessError(
+            build.returncode,
+            build.args,
+            output=build.stdout,
+            stderr=build.stderr,
+        )
 
     proc = subprocess.run(
         [
