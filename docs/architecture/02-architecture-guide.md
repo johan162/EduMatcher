@@ -1556,7 +1556,7 @@ second, more than sufficient for most exchange volumes.
 ### The Gateway: User Interface
 
 The gateway translates human-readable ALF commands into ZMQ messages
-(see [ALF Protocol Reference](../user-guide/90-app-alf-protocol.md)):
+(see [ALF Protocol Reference](../user-guide/900-app-alf-protocol.md)):
 
 ```mermaid
 flowchart TD

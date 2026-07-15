@@ -208,9 +208,9 @@ engineer reruns a non-idempotent halt/clear/resume script by mistake?
 
 ## Further Reading
 
-- [Controlling the Exchange](../user-guide/02-commands.md)
-- [Market-Maker Bot (pm-mm-bot)](../user-guide/17-mm-bot.md)
-- [Market-Maker Bot CLI Reference](../user-guide/17-mm-bot.md#cli-reference)
-- [Processes](../user-guide/10-processes.md)
+- [Controlling the Exchange](../user-guide/160-commands.md)
+- [Market-Maker Bot (pm-mm-bot)](../user-guide/100-mm-bot.md)
+- [Market-Maker Bot CLI Reference](../user-guide/100-mm-bot.md#cli-reference)
+- [Processes](../user-guide/170-processes.md)
 
 You have completed the full training curriculum, including advanced operations.

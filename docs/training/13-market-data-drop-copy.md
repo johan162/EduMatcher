@@ -187,10 +187,10 @@ high-volume book/viewer traffic?
 
 ## Further Reading
 
-- [Messages](../user-guide/09-messages.md)
-- [Drop Copy](../user-guide/13-drop-copy.md)
-- [Processes](../user-guide/10-processes.md)
-- [CALF Protocol Reference](../user-guide/92-app-calf-protocol.md)
+- [Messages](../user-guide/270-messages.md)
+- [Drop Copy](../user-guide/200-drop-copy.md)
+- [Processes](../user-guide/170-processes.md)
+- [CALF Protocol Reference](../user-guide/920-app-calf-protocol.md)
 - [Market Data Feed](../concepts/06-concepts-market-data-feed.md)
 
 **Next:** [14 — AI Traders & Swarm](14-ai-traders.md)

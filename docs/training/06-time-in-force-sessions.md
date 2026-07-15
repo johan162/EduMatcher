@@ -194,8 +194,8 @@ were accidentally submitted as DAY instead of GTC?
 
 ## Further Reading
 
-- [Auctions & Scheduling](../user-guide/06-auctions-scheduling.md)
-- [Persistence](../user-guide/11-persistence.md)
+- [Auctions & Scheduling](../user-guide/080-auctions-scheduling.md)
+- [Persistence](../user-guide/180-persistence.md)
 - [A Full Trading Day](../concepts/05-concepts-trading-day.md)
 
  

@@ -188,8 +188,8 @@ bad price" risk?
 
 ## Further Reading
 
-- [Order Types](../user-guide/04-order-types.md)
-- [ALF Protocol — Single-leg Orders](../user-guide/90-app-alf-protocol.md)
+- [Order Types](../user-guide/060-order-types.md)
+- [ALF Protocol — Single-leg Orders](../user-guide/900-app-alf-protocol.md)
 
  
 

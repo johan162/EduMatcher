@@ -275,8 +275,8 @@ events vs. price/quote state) rather than just their names.
 
 ## Further Reading
 
-- [Market Data Feed (CALF)](../user-guide/20-market-data-feed.md)
-- [CALF Protocol Appendix](../user-guide/92-app-calf-protocol.md)
-- [Protocol Support Library Examples](../user-guide/80-examples.md)
-- [Processes](../user-guide/10-processes.md)
+- [Market Data Feed (CALF)](../user-guide/240-market-data-feed.md)
+- [CALF Protocol Appendix](../user-guide/920-app-calf-protocol.md)
+- [Protocol Support Library Examples](../user-guide/800-examples.md)
+- [Processes](../user-guide/170-processes.md)
 

@@ -255,8 +255,8 @@ had to be restarted together?
 
 ## Further Reading
 
-- [Processes](../user-guide/10-processes.md)
-- [Messages](../user-guide/09-messages.md)
+- [Processes](../user-guide/170-processes.md)
+- [Messages](../user-guide/270-messages.md)
 - [Market Data & Drop Copy](13-market-data-drop-copy.md)
 - [Statistics & Reporting](15-statistics-reporting.md)
 - [Market Data Feed](../concepts/06-concepts-market-data-feed.md)

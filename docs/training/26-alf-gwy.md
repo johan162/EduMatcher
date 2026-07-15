@@ -553,8 +553,8 @@ chapter.
 
 ## Further Reading
 
-- [ALF TCP Gateway](../user-guide/24-alf-gateway.md) — configuration, session lifecycle, command reference, and troubleshooting
-- [ALF Protocol Reference](../user-guide/90-app-alf-protocol.md) — formal wire syntax and full field/enum definitions
-- [Gateway Commands](../user-guide/08-gateway.md) — interactive command reference for `pm-alf-console`
-- [Protocol Support Library Examples](../user-guide/80-examples.md)
-- [Processes](../user-guide/10-processes.md)
+- [ALF TCP Gateway](../user-guide/220-alf-gateway.md) — configuration, session lifecycle, command reference, and troubleshooting
+- [ALF Protocol Reference](../user-guide/900-app-alf-protocol.md) — formal wire syntax and full field/enum definitions
+- [Gateway Commands](../user-guide/050-gateway.md) — interactive command reference for `pm-alf-console`
+- [Protocol Support Library Examples](../user-guide/800-examples.md)
+- [Processes](../user-guide/170-processes.md)

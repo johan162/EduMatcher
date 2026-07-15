@@ -158,10 +158,10 @@ if you launched only `aggressive` bots with no market maker running?
 
 ## Further Reading
 
-- [AI Traders](../user-guide/15-ai-traders.md)
-- [Market-Maker Bot (pm-mm-bot)](../user-guide/17-mm-bot.md) — sibling automation tool for liquidity provision
+- [AI Traders](../user-guide/110-ai-traders.md)
+- [Market-Maker Bot (pm-mm-bot)](../user-guide/100-mm-bot.md) — sibling automation tool for liquidity provision
 - [Developer AI Bot Traders](../developer/02-ai-bot.md)
-- [Risk Controls](../user-guide/12-risk-controls.md)
+- [Risk Controls](../user-guide/120-risk-controls.md)
 - [Order Book Deep Dive](../concepts/02-concepts-order-book-deep-dive.md)
 
  

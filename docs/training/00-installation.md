@@ -123,10 +123,10 @@ multipass purge
 
 ### Relevant User Guide chapters
 
-- [Getting Started](../user-guide/00-getting-started.md) (see VM bootstrap mode)
-- [Running the Engine](../user-guide/03-running-the-engine.md)
-- [Processes](../user-guide/10-processes.md)
-- [Examples](../user-guide/80-examples.md)
+- [Getting Started](../user-guide/000-getting-started.md) (see VM bootstrap mode)
+- [Running the Engine](../user-guide/040-running-the-engine.md)
+- [Processes](../user-guide/170-processes.md)
+- [Examples](../user-guide/800-examples.md)
 
 :material-checkbox-blank-outline: **Checkpoint:** You can enter
 `edumatcher-vm` and `pm-engine --version` succeeds inside the VM.
@@ -293,8 +293,8 @@ sessions ended up pointing at two different data directories?
 
 ## Further Reading
 
-- [Getting Started](../user-guide/00-getting-started.md)
-- [Running the Engine](../user-guide/03-running-the-engine.md)
-- [Processes](../user-guide/10-processes.md)
+- [Getting Started](../user-guide/000-getting-started.md)
+- [Running the Engine](../user-guide/040-running-the-engine.md)
+- [Processes](../user-guide/170-processes.md)
 
 **Next:** [01 — Configuring & Starting Up](01-configuring-startup.md)

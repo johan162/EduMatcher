@@ -35,7 +35,7 @@ three levels:
 If you are new to the code base, start by reading these pages in order:
 
 1. [How an Exchange Works](../how-exchange-works.md)
-2. [Running the Exchange](../user-guide/03-running-the-engine.md)
+2. [Running the Exchange](../user-guide/040-running-the-engine.md)
 3. [Architecture Overview](../architecture/01-architecture.md)
 4. [Verification](04-verification.md)
 
@@ -222,7 +222,7 @@ symbols:
         quote_id: MM-AAPL-SEED
 ```
 
-See [Configuration](../user-guide/01-configuration.md) for the full schema.
+See [Configuration](../user-guide/010-configuration.md) for the full schema.
 
 ### Recommended startup order
 
@@ -413,10 +413,10 @@ poetry run mkdocs build
 
 If you change:
 
-- **configuration semantics** → update `docs/user-guide/01-configuration.md`
-- **runtime commands or startup behavior** → update `docs/user-guide/03-running-the-engine.md`
-- **gateway commands** → update `docs/user-guide/08-gateway.md`
-- **message payloads or topics** → update `docs/user-guide/09-messages.md`
+- **configuration semantics** → update `docs/user-guide/010-configuration.md`
+- **runtime commands or startup behavior** → update `docs/user-guide/040-running-the-engine.md`
+- **gateway commands** → update `docs/user-guide/050-gateway.md`
+- **message payloads or topics** → update `docs/user-guide/270-messages.md`
 - **risk, MM quotes, persistence, or drop copy** → update the corresponding user-guide page
 - **developer workflow** → update this page and related developer docs
 

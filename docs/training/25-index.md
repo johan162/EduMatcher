@@ -518,7 +518,7 @@ types?
 
 ## See Also
 
-- [Market Index — User Guide](../user-guide/22-index.md) — full reference for config fields, formulas, and history record types
-- [pm-index-cli reference](../user-guide/02-commands.md) — all subcommands, column descriptions, and output-format options
-- [Engine Configuration](../user-guide/01-configuration.md#configuring-pm-index) — `indices:` YAML field reference
-- [Process Reference — pm-index](../user-guide/10-processes.md#pm-index-index-calculation-process) — socket layout and message types
+- [Market Index — User Guide](../user-guide/150-index.md) — full reference for config fields, formulas, and history record types
+- [pm-index-cli reference](../user-guide/160-commands.md) — all subcommands, column descriptions, and output-format options
+- [Engine Configuration](../user-guide/010-configuration.md#configuring-pm-index) — `indices:` YAML field reference
+- [Process Reference — pm-index](../user-guide/170-processes.md#pm-index-index-calculation-process) — socket layout and message types

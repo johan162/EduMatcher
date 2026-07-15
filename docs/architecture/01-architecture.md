@@ -1145,7 +1145,7 @@ startup, and subscriber **data stores** written continuously during the session.
 | `indexes/<ID>_{history.jsonl,state.json}` | pm-index | throttled + EOD / on update | accumulates | index history and restart state |
 
 (Full field-level detail is in the user guide's
-[Persistence chapter](../user-guide/11-persistence.md#data-files-at-a-glance).)
+[Persistence chapter](../user-guide/180-persistence.md#data-files-at-a-glance).)
 
 **Shutdown is an ordered sequence**, not a hard stop — this is what makes GTC
 recovery and clean consumer flush possible:

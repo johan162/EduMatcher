@@ -103,7 +103,7 @@ Interrupt/restart the subscriber while trades are flowing to simulate missed eve
 
 Confirm current behavior from docs:
 
-1. Review replay section in [Drop Copy](../user-guide/13-drop-copy.md).
+1. Review replay section in [Drop Copy](../user-guide/200-drop-copy.md).
 2. Note that replay is in-process and there is no external replay-request
    handler wired into the engine loop.
 
@@ -179,8 +179,8 @@ subscriber's socket briefly dropped messages?
 
 ## Further Reading
 
-- [Drop Copy](../user-guide/13-drop-copy.md)
-- [Messages](../user-guide/09-messages.md)
-- [Persistence](../user-guide/11-persistence.md)
+- [Drop Copy](../user-guide/200-drop-copy.md)
+- [Messages](../user-guide/270-messages.md)
+- [Persistence](../user-guide/180-persistence.md)
 
 **Next:** [21 - Automation with CommandClient & MM Bot Tuning](21-automation-commandclient-mm-bot.md)

@@ -175,9 +175,9 @@ queries itself, in-process, for every connected client?
 
 ## Further Reading
 
-- [Statistics and Reporting](../user-guide/16-statistics-and-reporting.md)
-- [Processes](../user-guide/10-processes.md)
-- [Persistence](../user-guide/11-persistence.md)
+- [Statistics and Reporting](../user-guide/140-statistics-and-reporting.md)
+- [Processes](../user-guide/170-processes.md)
+- [Persistence](../user-guide/180-persistence.md)
 - [Market Data Feed](../concepts/06-concepts-market-data-feed.md)
 
 **Next:** [16 — Persistence & Recovery](16-persistence-recovery.md)

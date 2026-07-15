@@ -463,8 +463,8 @@ can stop them and start fresh for the next chapter.
 
 ## Further Reading
 
-- [BALF TCP Gateway](../user-guide/25-balf-gateway.md) — configuration, lifecycle, and troubleshooting
-- [BALF Protocol Reference](../user-guide/91-app-balf-protocol.md) — formal frame layouts and enum/reference tables
-- [Configuration](../user-guide/01-configuration.md) — `balf_gateway:` generation with `pm-config-gen`
-- [Protocol Support Library Examples](../user-guide/80-examples.md)
-- [Processes](../user-guide/10-processes.md)
+- [BALF TCP Gateway](../user-guide/230-balf-gateway.md) — configuration, lifecycle, and troubleshooting
+- [BALF Protocol Reference](../user-guide/910-app-balf-protocol.md) — formal frame layouts and enum/reference tables
+- [Configuration](../user-guide/010-configuration.md) — `balf_gateway:` generation with `pm-config-gen`
+- [Protocol Support Library Examples](../user-guide/800-examples.md)
+- [Processes](../user-guide/170-processes.md)

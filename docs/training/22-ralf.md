@@ -309,7 +309,7 @@ incidents versus routine noise.
 
 ## Further Reading
 
-- [Post-Trade Dissemination](../user-guide/18-post-trade.md)
-- [RALF Protocol Appendix](../user-guide/93-app-ralf-protocol.md)
-- [Protocol Support Library Examples](../user-guide/80-examples.md)
-- [Processes](../user-guide/10-processes.md)
+- [Post-Trade Dissemination](../user-guide/250-post-trade.md)
+- [RALF Protocol Appendix](../user-guide/930-app-ralf-protocol.md)
+- [Protocol Support Library Examples](../user-guide/800-examples.md)
+- [Processes](../user-guide/170-processes.md)

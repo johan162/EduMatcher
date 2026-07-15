@@ -199,7 +199,7 @@ Quote status values used by the engine:
 
 ## Refresh Policies
 
-Each gateway can define quote refresh behavior in [Configuration](../user-guide/01-configuration.md):
+Each gateway can define quote refresh behavior in [Configuration](../user-guide/010-configuration.md):
 
 - `INACTIVATE_ON_ANY_FILL`: any fill on one leg inactivates the quote
 - `INACTIVATE_ON_FULL_FILL`: only full fill inactivates the quote
