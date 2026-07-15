@@ -1,9 +1,11 @@
 ## [v0.16.0] - 2026-07-18
 
-Release Type: minor
+Release Type: major
 
 ### 📋 Summary
 This release adds a new Web-application for creating configuration files (also known as reference data), a new CLI tool for inspecting the exchange audit trail, and ADMIN-only operator commands to the API Gateway. It also includes several improvements to existing tools, protocol enhancements, and documentation updates. Finally several critical, high, and medium severity bugs have been fixed in the matching engine and scheduler.
+This release also adds configurable logging across the CLI and gateway processes, improves logging consistency and test diagnostics, and reorganizes the user guide into a more logical chapter order with updated navigation.
+
 
 ### ✨ Additions
 - Added `config-gui`, a new Web-application for creating configuration files (also known as reference data)
@@ -14,6 +16,7 @@ This release adds a new Web-application for creating configuration files (also k
 - Use proper logger for both engine and schduler
 - `pm-api-gwy` have been extended with ADMIN- operator commands
 - `CALF` protocol enhancements, such as adding an index channel and the possibility to get book depths
+- Added CLI-controlled logging options for the main gateway and supporting tools
 
 ### 🚀 Improvements
 - Improved `pm-config-gen` with cross-gateway port collision detection, schedule chronological-order validation, and tick-aware decimal combo leg prices
@@ -27,6 +30,8 @@ This release adds a new Web-application for creating configuration files (also k
 - fixed so that circuit-breaker reference prices from the opening price on day one (IPO)'
 - fixed collar static reference tracks persisted book stats, not stale config seed
 - fixed gateway parsing of corrupted config files will no longer crash
+- Fixed test execution in CI when the readline library is unavailable
+- Fixed logging initialization issues that could leave output formatting inconsistent
 
 ### 📚 Documentation
 - Renamed exchange knowledge-check quiz files for clarity
@@ -37,12 +42,17 @@ This release adds a new Web-application for creating configuration files (also k
 - Various updates and additions across the user-guider
 - All protocol normative specifications have been updated to reflect the latest protocol changes and additions
 - Added normative configuration file (ref-data) specification.
+- Updated the user-guide cover image
+- Updated user-guide navigation and cross-references for the new chapter order
+- Updated CLI documentation to include the logging options
 
 ### 🛠 Internal
 - Hardened `test_ralf_gateway.py` to remove intermittent timing-related failures by replacing fixed sleeps with deterministic readiness polling
 - Refactored `pm-admin`'s command dispatch from a large if/else chain into a proper handler-based dispatch
 - Bump library dependencies
 - The test suite has been refactored to remove deprecated `pytest` fixtures and to improve test isolation and determinism. 
+- Added CI/test diagnostics for skipped tests and formatting checks
+- Fixed black formatting in tests
 
 
 ## [v0.15.3] - 2026-07-07
