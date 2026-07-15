@@ -6,6 +6,7 @@ import subprocess
 import sys
 import threading
 import time
+import platform
 from collections.abc import Generator
 from pathlib import Path
 
@@ -171,6 +172,33 @@ def test_c_example_client_builds_connects_and_exits(
 
     gateway_port, _ = running_alf_gateway
     c_dir = EXAMPLE_DIR / "c"
+    cc_path = shutil.which("cc") or "<missing>"
+    make_path = shutil.which("make") or "<missing>"
+
+    print(f"INFO: ALF C example build directory: {c_dir}")
+    print(f"INFO: platform={platform.platform()}")
+    print(f"INFO: sys.platform={sys.platform}")
+    print(f"INFO: make={make_path}")
+    print(f"INFO: cc={cc_path}")
+
+    cc_version = subprocess.run(
+        [cc_path, "--version"],
+        text=True,
+        capture_output=True,
+    )
+    print("INFO: cc --version stdout:")
+    print((cc_version.stdout or "<empty>").strip())
+    if cc_version.stderr:
+        print("INFO: cc --version stderr:")
+        print(cc_version.stderr.strip())
+
+    uname = subprocess.run(
+        ["uname", "-a"],
+        text=True,
+        capture_output=True,
+    )
+    print("INFO: uname -a:")
+    print((uname.stdout or "<empty>").strip())
 
     subprocess.run(["make", "clean"], cwd=c_dir, check=True)
     build = subprocess.run(
@@ -181,9 +209,18 @@ def test_c_example_client_builds_connects_and_exits(
     )
     if build.returncode != 0:
         combined = (build.stdout or "") + "\n" + (build.stderr or "")
+        print(f"INFO: make failed in {c_dir}")
+        if build.stdout:
+            print("INFO: make stdout:")
+            print(build.stdout)
+        if build.stderr:
+            print("INFO: make stderr:")
+            print(build.stderr)
         if (
             "readline/readline.h" in combined
+            or "readline/history.h" in combined
             or "cannot find -lreadline" in combined
+            or "ld: cannot find -lreadline" in combined
             or "library not found for -lreadline" in combined
         ):
             print(
@@ -192,11 +229,10 @@ def test_c_example_client_builds_connects_and_exits(
             pytest.skip(
                 "GNU readline development headers/libs are required for the C ALF example test"
             )
-        raise subprocess.CalledProcessError(
-            build.returncode,
-            build.args,
-            output=build.stdout,
-            stderr=build.stderr,
+        pytest.fail(
+            f"make failed in {c_dir} with exit code {build.returncode}\n"
+            f"stdout:\n{build.stdout or '<empty>'}\n"
+            f"stderr:\n{build.stderr or '<empty>'}"
         )
 
     proc = subprocess.run(
