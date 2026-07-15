@@ -559,14 +559,18 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def _configure_logging(args: argparse.Namespace) -> int:
-    if getattr(args, "log_level", None):
-        level_name = str(args.log_level).upper()
+    log_level = getattr(args, "log_level", None)
+    verbose = getattr(args, "verbose", 0)
+    quiet = getattr(args, "quiet", False)
+    
+    if log_level:
+        level_name = str(log_level).upper()
         level = getattr(logging, level_name, logging.WARNING)
-    elif int(getattr(args, "verbose", 0)) >= 2:
+    elif verbose >= 2:
         level = logging.DEBUG
-    elif int(getattr(args, "verbose", 0)) == 1:
+    elif verbose == 1:
         level = logging.INFO
-    elif bool(getattr(args, "quiet", False)):
+    elif quiet:
         level = logging.WARNING
     else:
         level = logging.WARNING
