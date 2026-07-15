@@ -18,6 +18,8 @@ Each page shows up to --rows symbols (default 8). Pages auto-rotate every
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
+import logging
 import select
 import sys
 import time
@@ -36,6 +38,8 @@ from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.message import decode
 
 console = Console()
+log = logging.getLogger(__name__)
+_DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
 
 def _colour_change(pct: float) -> str:
@@ -140,27 +144,38 @@ def _build_table(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="EduMatcher multi-symbol board")
-    from edumatcher.cli_version import add_version_argument
-
-    add_version_argument(parser, "pm-board")
-    parser.add_argument(
-        "--rows",
-        "-r",
-        type=int,
-        default=8,
-        help="Max symbols (rows) per page (default 8)",
-    )
-    parser.add_argument(
-        "--interval",
-        "-i",
-        type=int,
-        default=10,
-        help="Auto-rotate interval in seconds (default 10)",
-    )
+    parser = _build_parser()
     args = parser.parse_args()
+    log_level = _configure_logging(args)
+    log.info("starting pm-board with log level %s", logging.getLevelName(log_level))
     rows_per_page = max(1, args.rows)
     interval = max(1, args.interval)
+
+    debug_counts: defaultdict[str, int] = defaultdict(int)
+    debug_last_summary = time.monotonic()
+
+    def _dbg_count(key: str, amount: int = 1) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        debug_counts[key] += amount
+        _flush_debug_summary()
+
+    def _flush_debug_summary(force: bool = False) -> None:
+        nonlocal debug_last_summary
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        now = time.monotonic()
+        if not force and now - debug_last_summary < _DEBUG_SUMMARY_INTERVAL_SEC:
+            return
+        if not debug_counts:
+            debug_last_summary = now
+            return
+        summary = ", ".join(
+            f"{key}={value}" for key, value in sorted(debug_counts.items())
+        )
+        log.debug("board flow summary: %s", summary)
+        debug_counts.clear()
+        debug_last_summary = now
 
     # Subscribe to all book snapshots and trade feed
     sub = make_subscriber(ENGINE_PUB_ADDR, "book.", "trade.executed")
@@ -192,13 +207,16 @@ def main() -> None:
                 except zmq.ZMQError as exc:
                     if exc.errno != errno.EINTR:
                         raise
+                    _dbg_count("poll_eintr")
                     break
 
                 if sub in socks:
                     frames = sub.recv_multipart()
                     topic_str, payload = decode(frames)
+                    _dbg_count("incoming_total")
 
                     if topic_str.startswith("book."):
+                        _dbg_count("incoming_book")
                         sym = topic_str[5:]  # strip "book."
                         entry = symbols.setdefault(
                             sym,
@@ -226,6 +244,7 @@ def main() -> None:
                             entry["first_price"] = entry["last_price"]
 
                     elif topic_str == "trade.executed":
+                        _dbg_count("incoming_trade")
                         trade_sym: str | None = payload.get("symbol")
                         if trade_sym:
                             entry = symbols.setdefault(
@@ -242,6 +261,8 @@ def main() -> None:
                             entry["updated"] = datetime.now()
                             if entry["first_price"] is None and trade_price is not None:
                                 entry["first_price"] = trade_price
+                    else:
+                        _dbg_count("incoming_unhandled")
 
                 # Check for page advance
                 now = time.monotonic()
@@ -253,15 +274,81 @@ def main() -> None:
                 if advance:
                     page += 1
                     last_page_change = now
+                    _dbg_count("page_advances")
 
                 # Render
                 live.update(_build_table(symbols, page, rows_per_page, interval))
                 live.refresh()
+                _dbg_count("renders")
+                _flush_debug_summary()
 
     except KeyboardInterrupt:
         pass
     finally:
         sub.close()
+        _flush_debug_summary(force=True)
+        log.info("board shutdown complete")
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="EduMatcher multi-symbol board")
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-board")
+    parser.add_argument(
+        "--rows",
+        "-r",
+        type=int,
+        default=8,
+        help="Max symbols (rows) per page (default 8)",
+    )
+    parser.add_argument(
+        "--interval",
+        "-i",
+        type=int,
+        default=10,
+        help="Auto-rotate interval in seconds (default 10)",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+        help="Logging level override (default: WARNING)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase log verbosity (-v: INFO, -vv: DEBUG)",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Reduce log output to warnings/errors",
+    )
+    return parser
+
+
+def _configure_logging(args: argparse.Namespace) -> int:
+    if args.log_level:
+        level_name = str(args.log_level).upper()
+        level = getattr(logging, level_name, logging.WARNING)
+    elif args.verbose >= 2:
+        level = logging.DEBUG
+    elif args.verbose == 1:
+        level = logging.INFO
+    elif args.quiet:
+        level = logging.WARNING
+    else:
+        level = logging.WARNING
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+        stream=sys.stdout,
+    )
+    return int(level)
 
 
 if __name__ == "__main__":

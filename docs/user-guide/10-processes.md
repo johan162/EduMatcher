@@ -521,6 +521,9 @@ pm-viewer --symbol AAPL [--depth 10]
 |-------------------|----------|-----------------------------------------|
 | `--symbol` / `-s` | required | Symbol to watch                         |
 | `--depth` / `-d`  | 10       | Number of price levels to show per side |
+| `--log-level`     | `WARNING`| Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose`| off      | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
+| `-q` / `--quiet`  | off      | Reduce output to warnings/errors        |
 
 **Expected runtime input arguments:**
 
@@ -1097,6 +1100,9 @@ pm-ticker [--interval 30] [--db data/stats.db] [--db-interval 900]
 | `--interval`    | 30              | Seconds between printed ticker lines               |
 | `--db`          | `data/stats.db` | Path to the statistics SQLite database             |
 | `--db-interval` | 900             | Seconds between daily_stats DB re-queries (15 min) |
+| `--log-level`   | `WARNING`       | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose`| off           | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
+| `-q` / `--quiet`  | off           | Reduce output to warnings/errors                    |
 
 **Expected runtime input arguments:**
 
@@ -1152,6 +1158,9 @@ pm-board [--rows 8] [--interval 10]
 |---------------------|---------|-----------------------------------------------------|
 | `--rows` / `-r`     | 8       | Maximum number of symbols (rows) displayed per page |
 | `--interval` / `-i` | 10      | Seconds before auto-rotating to the next page       |
+| `--log-level`       | `WARNING`| Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose`  | off     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
+| `-q` / `--quiet`    | off     | Reduce output to warnings/errors                    |
 
 **Expected runtime input arguments:**
 

@@ -16,11 +16,14 @@ invisible, demonstrating the privacy feature of iceberg orders.
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 import errno
+import logging
 import threading
 import time
 from datetime import datetime
 from typing import Any
+import sys
 
 import zmq
 from rich.columns import Columns
@@ -35,9 +38,11 @@ from edumatcher.messaging.bus import make_subscriber, make_pusher
 from edumatcher.models.message import decode, make_book_snapshot_request_msg
 
 console = Console()
+log = logging.getLogger(__name__)
 
 _REFRESH_HZ = 2  # rich Live refresh rate
 _MAX_RECENT_TRADES = 5
+_DEBUG_SUMMARY_INTERVAL_SEC = 5.0
 
 
 def _build_display(snapshot: dict[str, Any], symbol: str, depth: int) -> Panel:
@@ -102,26 +107,37 @@ def _build_display(snapshot: dict[str, Any], symbol: str, depth: int) -> Panel:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="EduMatcher order book viewer")
-    from edumatcher.cli_version import add_version_argument
-
-    add_version_argument(parser, "pm-viewer")
-    parser.add_argument(
-        "--symbol",
-        "-s",
-        required=True,
-        metavar="SYMBOL",
-        help="Symbol to watch, e.g. AAPL",
-    )
-    parser.add_argument(
-        "--depth",
-        "-d",
-        type=int,
-        default=ORDERBOOK_DEPTH,
-        help=f"Price levels to display (default {ORDERBOOK_DEPTH})",
-    )
+    parser = _build_parser()
     args = parser.parse_args()
+    log_level = _configure_logging(args)
+    log.info("starting pm-viewer with log level %s", logging.getLevelName(log_level))
     symbol = args.symbol.upper()
+
+    debug_counts: defaultdict[str, int] = defaultdict(int)
+    debug_last_summary = time.monotonic()
+
+    def _dbg_count(key: str, amount: int = 1) -> None:
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        debug_counts[key] += amount
+        _flush_debug_summary()
+
+    def _flush_debug_summary(force: bool = False) -> None:
+        nonlocal debug_last_summary
+        if not log.isEnabledFor(logging.DEBUG):
+            return
+        now = time.monotonic()
+        if not force and now - debug_last_summary < _DEBUG_SUMMARY_INTERVAL_SEC:
+            return
+        if not debug_counts:
+            debug_last_summary = now
+            return
+        summary = ", ".join(
+            f"{key}={value}" for key, value in sorted(debug_counts.items())
+        )
+        log.debug("viewer flow summary: %s", summary)
+        debug_counts.clear()
+        debug_last_summary = now
 
     sub = make_subscriber(ENGINE_PUB_ADDR, f"book.{symbol}")
 
@@ -152,17 +168,84 @@ def main() -> None:
                 except zmq.ZMQError as exc:
                     if exc.errno != errno.EINTR:
                         raise
+                    _dbg_count("poll_eintr")
                     break  # EINTR: signal interrupted poll — exit cleanly
                 if sub in socks:
                     frames = sub.recv_multipart()
                     _, payload = decode(frames)
                     latest_snapshot = payload
+                    _dbg_count("book_snapshots")
                 live.update(_build_display(latest_snapshot, symbol, args.depth))
                 live.refresh()
+                _dbg_count("renders")
+                _flush_debug_summary()
     except KeyboardInterrupt:
         pass
     finally:
         sub.close()
+        _flush_debug_summary(force=True)
+        log.info("viewer shutdown complete for symbol=%s", symbol)
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="EduMatcher order book viewer")
+    from edumatcher.cli_version import add_version_argument
+
+    add_version_argument(parser, "pm-viewer")
+    parser.add_argument(
+        "--symbol",
+        "-s",
+        required=True,
+        metavar="SYMBOL",
+        help="Symbol to watch, e.g. AAPL",
+    )
+    parser.add_argument(
+        "--depth",
+        "-d",
+        type=int,
+        default=ORDERBOOK_DEPTH,
+        help=f"Price levels to display (default {ORDERBOOK_DEPTH})",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
+        help="Logging level override (default: WARNING)",
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase log verbosity (-v: INFO, -vv: DEBUG)",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Reduce log output to warnings/errors",
+    )
+    return parser
+
+
+def _configure_logging(args: argparse.Namespace) -> int:
+    if args.log_level:
+        level_name = str(args.log_level).upper()
+        level = getattr(logging, level_name, logging.WARNING)
+    elif args.verbose >= 2:
+        level = logging.DEBUG
+    elif args.verbose == 1:
+        level = logging.INFO
+    elif args.quiet:
+        level = logging.WARNING
+    else:
+        level = logging.WARNING
+
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+        stream=sys.stdout,
+    )
+    return int(level)
 
 
 if __name__ == "__main__":
