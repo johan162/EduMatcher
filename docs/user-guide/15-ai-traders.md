@@ -148,6 +148,9 @@ Common options:
 | `--reject-window` | `10.0` | Rolling window in seconds for reject counting |
 | `--reject-cooldown` | `5.0` | Pause duration in seconds after reject breaker trips |
 | `--stale-data` | `4.0` | Seconds before market data is considered too old to trade on |
+| `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v`, `--verbose` | off | Increase verbosity (`-v` enables bot debug prints, `-vv` sets DEBUG) |
+| `-q`, `--quiet` | off | Reduce output to warnings/errors |
 
 Example with all options:
 
@@ -195,6 +198,9 @@ through all four profiles.
 | `--duration` | `60.0` | Seconds each bot runs; 0 = run until Ctrl-C |
 | `--max-position` | `1000` | Position limit per bot per symbol |
 | `--python` | current Python | Path to Python executable |
+| `--log-level` | `WARNING` | Logging level for swarm launcher; also forwarded to child bots |
+| `-v`, `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`); forwarded to child bots |
+| `-q`, `--quiet` | off | Reduce output to warnings/errors; forwarded to child bots |
 
 ```mermaid
 flowchart LR

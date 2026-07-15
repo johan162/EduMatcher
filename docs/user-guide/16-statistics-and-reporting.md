@@ -210,6 +210,9 @@ pm-stats
 |-------------------------|-----------------|----------------------------------------------------------------------------------------|
 | `--db`                  | `data/stats.db` | Custom statistics database path                                                        |
 | `--snapshot-interval`   | `900` (15 min)  | Seconds between `price_snapshots` rows per symbol. Lower values give finer intraday resolution at the cost of more database writes. |
+| `--log-level`           | `WARNING`       | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                       |
+| `-v`, `--verbose`       | off             | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                   |
+| `-q`, `--quiet`         | off             | Reduce output to warnings/errors                                                       |
 
 Use `--db` if you want to record into a different location:
 

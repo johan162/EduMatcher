@@ -296,7 +296,9 @@ pm-mm-bot --symbol AAPL --initial_min 95.00 --initial_max 105.00
 | `--initial_max PRICE`              | *unset*                | Upper bound for random bootstrap price                             |
 | `--engine-pull ADDR`               | `tcp://127.0.0.1:5555` | Engine PUSH/PULL address                                           |
 | `--engine-pub ADDR`                | `tcp://127.0.0.1:5556` | Engine PUB address                                                 |
-| `-v`, `--verbose`                  | `false`                | Print debug-level events                                           |
+| `--log-level`                      | `WARNING`              | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`    |
+| `-v`, `--verbose`                  | `false`                | Increase verbosity (`-v` enables bot debug prints, `-vv` sets DEBUG) |
+| `-q`, `--quiet`                    | `false`                | Reduce output to warnings/errors                                   |
 
 ---
 

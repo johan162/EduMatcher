@@ -96,6 +96,9 @@ pm-audit [options]
 | `--terminal` / `-t` | off | Also print each entry to stdout (useful during demos) |
 | `--buffer-size N` | `100` | Number of messages to buffer in memory before flushing to disk |
 | `--flush-interval SECONDS` | `10.0` | Maximum seconds to wait before flushing buffer regardless of size |
+| `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
+| `-q` / `--quiet` | off | Reduce output to warnings/errors |
 
 ### Write buffering
 

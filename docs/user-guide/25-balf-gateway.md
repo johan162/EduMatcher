@@ -159,6 +159,9 @@ CLI override options:
 | `--port PORT` | from config / `5560` | Override TCP listen port |
 | `--engine-host HOST` | from config | Override engine host (sets `tcp://HOST:5555` and `tcp://HOST:5556`) |
 | `--config` / `-c` | see resolution order below | Path to engine config YAML |
+| `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
+| `-q` / `--quiet` | off | Reduce output to warnings/errors |
 
 **Config file resolution order** (first match wins):
 

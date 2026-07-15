@@ -100,6 +100,10 @@ pm-clearing [OPTIONS]
   --timezone TZ          Exchange session timezone (IANA name, e.g.
                          America/New_York) used to bucket trades into a
                          trading day (default: UTC)
+  --log-level LEVEL      Explicit log level: CRITICAL, ERROR, WARNING,
+                         INFO, DEBUG (default: WARNING)
+  -v, --verbose          Increase verbosity (-v: INFO, -vv: DEBUG)
+  -q, --quiet            Reduce log output to warnings/errors
   --version              Show version and exit
   --help                 Show help and exit
 ```

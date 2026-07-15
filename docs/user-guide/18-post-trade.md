@@ -119,6 +119,16 @@ CLI overrides:
 pm-ralf-gwy --config engine_config.yaml --bind 127.0.0.1 --port 5580 --engine-pub tcp://127.0.0.1:5556
 ```
 
+| Option | Default | Description |
+|---|---|---|
+| `--config` / `-c` | `engine_config.yaml` | Engine config YAML path |
+| `--bind ADDR` | from config / `0.0.0.0` | Override TCP bind address |
+| `--port PORT` | from config / `5580` | Override TCP listen port |
+| `--engine-pub ADDR` | from config / `tcp://127.0.0.1:5556` | Override engine PUB socket address |
+| `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
+| `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
+| `-q` / `--quiet` | off | Reduce output to warnings/errors |
+
 
 ## Generate config with `pm-config-gen`
 

@@ -68,6 +68,9 @@ poetry run pm-index --reset
 |-----------------------------|----------------------|------------------------------------------------------------------------|
 | `--config FILE` / `-c FILE` | `engine_config.yaml` | Path to the engine config YAML file                                    |
 | `--reset`                   | off                  | Delete persisted state files and re-initialise all indices from config |
+| `--log-level`               | `WARNING`            | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`        |
+| `-v` / `--verbose`          | off                  | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                    |
+| `-q` / `--quiet`            | off                  | Reduce output to warnings/errors                                        |
 
 `--reset` is useful after:
 
