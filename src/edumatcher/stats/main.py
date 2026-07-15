@@ -743,8 +743,8 @@ def _build_parser() -> argparse.ArgumentParser:
 def _configure_logging(args: argparse.Namespace) -> int:
     log_level = getattr(args, "log_level", None)
     verbose = getattr(args, "verbose", 0)
-    quiet = getattr(args, "quiet", False)    
-    
+    quiet = getattr(args, "quiet", False)
+
     if log_level:
         level_name = str(log_level).upper()
         level = getattr(logging, level_name, logging.WARNING)
