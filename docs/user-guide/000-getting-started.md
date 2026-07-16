@@ -160,7 +160,7 @@ pipx ensurepath        # adds ~/.local/bin to PATH; reopen your shell after this
 
 
 
-# Install EduMatcher — all pm-* commands land on your PATH
+## Install EduMatcher — all pm-* commands land on your PATH
 
 
 ```bash
