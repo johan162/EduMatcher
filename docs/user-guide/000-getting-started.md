@@ -63,7 +63,11 @@ This might seem overwhelming at first and the best way to get started is to skim
 
 ## Installation
 
-EduMatcher supports two installation modes. Choose the one that matches your role.
+EduMatcher supports three installation modes. Choose the one that matches your role:
+
+- **VM bootstrap** — a ready-to-run VM; nothing to install on your host
+- **End-user / pipx** — quickest way to just run an exchange session (recommended)
+- **Developer / Poetry** — for modifying the engine, running tests, or contributing
 
 
 ### VM bootstrap mode — `curl` + Multipass (no repo clone)
@@ -159,9 +163,11 @@ pipx ensurepath        # adds ~/.local/bin to PATH; reopen your shell after this
 ```
 
 
+**Install EduMatcher — all pm-* commands land on your PATH**
 
-## Install EduMatcher — all pm-* commands land on your PATH
-
+Run the commands below to install EduMatcher with `pipx`, create a fresh working
+directory for your exchange session, and initialize it with `pm-setup` so the
+`pm-*` commands and local defaults are ready to use.
 
 ```bash
 pipx install edumatcher
@@ -350,21 +356,17 @@ This walkthrough starts a matching engine, connects two participant terminals,
 and executes one trade. No configuration file is required — the engine starts in
 *unrestricted mode* when `engine_config.yaml` is absent.
 
+!!! tip "pipx vs. developer mode"
+    Commands below are shown in pipx (installed) form. In developer mode, prepend
+    `poetry run` to every `pm-*` command, e.g. `poetry run pm-engine`.
+
 ### Step 1 — Start the engine
 
 Open a terminal and run:
 
-**"Installed (pipx)"** mode
-
 ```bash
 pm-engine
 ```
-
-**"Developer (Poetry)"** mode
-
- ```bash
- poetry run pm-engine
- ```
 
 Expected output:
 
@@ -384,16 +386,8 @@ The engine is now running. Leave this terminal open.
 
 Open a second terminal:
 
-**"Installed (pipx)" mode**
-
 ```bash
 pm-alf-console --id GW01
-```
-
-**"Developer (Poetry)" mode**
-
-```bash
-poetry run pm-alf-console --id GW01
 ```
 
 You should see a prompt after the connection banner:
@@ -407,15 +401,8 @@ GW01>
 
 Open a third terminal:
 
-**"Installed (pipx)"** mode
-
- ```bash
- pm-alf-console --id GW02
- ```
-
-**"Developer (Poetry)"** mode
 ```bash
-poetry run pm-alf-console --id GW02
+pm-alf-console --id GW02
 ```
 
 ```
