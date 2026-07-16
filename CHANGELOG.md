@@ -1,58 +1,53 @@
-## [v0.16.0] - 2026-07-18
+## [v0.16.0] - 2026-07-16
 
 Release Type: major
 
 ### 📋 Summary
-This release adds a new Web-application for creating configuration files (also known as reference data), a new CLI tool for inspecting the exchange audit trail, and ADMIN-only operator commands to the API Gateway. It also includes several improvements to existing tools, protocol enhancements, and documentation updates. Finally several critical, high, and medium severity bugs have been fixed in the matching engine and scheduler.
-This release also adds configurable logging across the CLI and gateway processes, improves logging consistency and test diagnostics, and reorganizes the user guide into a more logical chapter order with updated navigation.
+This release introduces the new Config GUI, the new `pm-audit-cli` audit-trail inspection tool, expanded API Gateway operator controls, and broader CALF market-data capabilities. It also hardens the matching engine, scheduler, gateways, and clearing pipeline, adds consistent logging controls across processes, and refreshes the user-guide, Exchange Intro, and protocol documentation at much larger scale than a typical minor release.
 
+### ⚠️ Breaking Changes
+- Removed the legacy `clearing_v1` implementation in favor of the current SQLite-backed clearing flow and shared feed-schema contract
 
 ### ✨ Additions
-- Added `config-gui`, a new Web-application for creating configuration files (also known as reference data)
-- Added `pm-audit-cli`, a new CLI tool for inspecting the exchange audit trail, together with its design proposal and user-guide chapter
-- Added ADMIN-only operator commands to the API Gateway (requires role `ADMIN`)
-- Added design proposals for upcoming `pm-trading-ui`
-- Added several new channels to CALF
-- Use proper logger for both engine and schduler
-- `pm-api-gwy` have been extended with ADMIN- operator commands
-- `CALF` protocol enhancements, such as adding an index channel and the possibility to get book depths
-- Added CLI-controlled logging options for the main gateway and supporting tools
+- Added `config-gui`, a web application for creating and editing exchange reference data with Docker, Makefile, and workspace support
+- Added `pm-audit-cli` together with audit indexing, querying, formatting, and a dedicated user-guide chapter
+- Added ADMIN-only API Gateway operator commands and supporting session/schema updates
+- Added CALF protocol extensions including deeper market-data coverage, configurable depth levels, and index-channel support
+- Added consistent CLI-controlled logging options across gateway and operator processes, including AI trader, swarm, console, market-data, board, ticker, and viewer entrypoints
+- Added Config GUI features for circuit-breaker settings, expert tuning, market-maker configuration, symbol overview, and proxy/frontend support
+- Added an explicit shared clearing/engine feed contract in `models/feed_schema.py`
+- Added statistics DB update interval control
 
 ### 🚀 Improvements
-- Improved `pm-config-gen` with cross-gateway port collision detection, schedule chronological-order validation, and tick-aware decimal combo leg prices
-- Improved `pm-cverifier` numeric field validation to reject booleans that would otherwise be silently coerced to 1/0, improved schedule verification to check time-specification and session ordering.
-- Hardened `pm-config-gen` validation, the RALF gateway test suite, and `pm-cverifier`'s numeric field checks, alongside knowledge-check quiz polish.
+- Improved `pm-config-gen` with port-collision detection, chronological schedule validation, and tick-aware combo-leg pricing
+- Improved `pm-cverifier` with stricter numeric validation, malformed-time/session checks, and stronger cross-value verification
+- Improved logging consistency across engine, scheduler, gateways, audit tooling, and supporting CLI processes with startup flags and structured flow summaries
+- Improved Config GUI validation around IPO/reference-price requirements and market-maker quote consistency
+- Improved RALF sequence handling, replay filtering, and entitlement-aware delivery behavior
+- Improved clearing robustness around reconciliation, warm-start behavior, aggregation, archive deduplication, and CLI display normalization
 
 ### 🐛 Bug Fixes
-- fixed a number of critical, high, and medium severity bugs in the matching engine
-- fixed a number of high and medium severity bugs in the scheduler
-- Fixed the knowledge-check quiz bundle Makefile target using the wrong output name
-- fixed so that circuit-breaker reference prices from the opening price on day one (IPO)'
-- fixed collar static reference tracks persisted book stats, not stale config seed
-- fixed gateway parsing of corrupted config files will no longer crash
-- Fixed test execution in CI when the readline library is unavailable
-- Fixed logging initialization issues that could leave output formatting inconsistent
+- Fixed a large set of reviewed matching-engine defects covering persistence, auctioning, SMP, fills, OCO, order handling, snapshots, validation, exceptions, and related runtime edge cases
+- Fixed scheduler state-sync, config-ingestion, and schedule-interpretation defects that could desynchronize runtime session behavior
+- Fixed gateway connection-sequence hangs and failure handling across ALF, BALF, CALF, MD, and RALF paths, including blocking-send and malformed-config edge cases
+- Fixed circuit-breaker and collar reference seeding so day-one IPO opening prices and persisted book stats are used correctly
+- Fixed ALF C example and CI behavior to skip cleanly with diagnostics when GNU readline is unavailable
+- Fixed logging initialization paths that could leave process output formatting inconsistent
 
 ### 📚 Documentation
-- Renamed exchange knowledge-check quiz files for clarity
-- Added four more quizzes and four more self-study quizzes with answers
-- Added documentation for CALF additions (both in user guide and normative specification)
-- Added a new proposed design for a info-terminal
-- Added a new appendix with normative config-file specification
-- Various updates and additions across the user-guider
-- All protocol normative specifications have been updated to reflect the latest protocol changes and additions
-- Added normative configuration file (ref-data) specification.
-- Updated the user-guide cover image
-- Updated user-guide navigation and cross-references for the new chapter order
-- Updated CLI documentation to include the logging options
+- Added a full Config GUI chapter plus setup and usage documentation
+- Added a full audit CLI chapter and updated release/PDF workflow support for its design materials
+- Reorganized the user-guide into a cleaner numbered chapter order with updated navigation, cross-references, and process startup option tables
+- Expanded Exchange Intro toward the second edition with new historical notes, revised structure, and a larger quiz/self-study set with answer keys and bundled PDFs
+- Added a normative configuration-file specification and updated all protocol specifications to match the latest ALF, BALF, CALF, and RALF behavior
+- Updated clearing, risk-control, market-data, README, architecture, and training materials to reflect the current product surface
+- Added more self-study exercises and answer keys to the Exchange Intro, including a new quiz on the clearing process and its reconciliation behavior
 
 ### 🛠 Internal
-- Hardened `test_ralf_gateway.py` to remove intermittent timing-related failures by replacing fixed sleeps with deterministic readiness polling
-- Refactored `pm-admin`'s command dispatch from a large if/else chain into a proper handler-based dispatch
-- Bump library dependencies
-- The test suite has been refactored to remove deprecated `pytest` fixtures and to improve test isolation and determinism. 
-- Added CI/test diagnostics for skipped tests and formatting checks
-- Fixed black formatting in tests
+- Refactored the large admin command dispatch chain into handler-based dispatch
+- Hardened RALF and other timing-sensitive tests to reduce CI flakiness and improve deterministic readiness checks
+- Added richer CI diagnostics for skipped tests and C-example build failures
+- Updated dependencies, formatting, and type-check fixes across Python and Node-based tooling
 
 
 ## [v0.15.3] - 2026-07-07
