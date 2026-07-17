@@ -186,6 +186,19 @@ become known only after the `SUB` — via the same wildcard subscription entry.
 - Maximum symbols per client are enforced by gateway config.
 - If any requested `(CH,SYM)` pair is invalid, the gateway rejects the `SUB`
   request with `ERR` and leaves existing subscriptions unchanged.
+- For non-`INDEX` channels, a non-wildcard `SYM` is validated against the
+  gateway's known instrument list (populated from the engine's configured
+  symbols at startup); an unrecognized symbol returns
+  `ERR|CODE=INVALID_SYMBOL`. `INDEX` is exempt from this check — index ids
+  live in a separate namespace from tradable instrument symbols, so any
+  non-empty id is accepted at `SUB` time regardless of whether a matching
+  index is actually configured.
+- If the gateway's known-symbol list itself is empty (for example, engine
+  config failed to load additional symbol metadata at gateway startup),
+  known-symbol validation is skipped entirely and any non-wildcard symbol is
+  accepted; this is a permissive fallback, not a documented steady-state
+  mode, and operators should treat an empty known-symbol list as a
+  configuration problem to fix rather than relied-upon behavior.
 
 `DEPTH` disallows `SYM=*` deliberately, not as an oversight: `DEPTH` messages
 carry up to `2 x depth_levels` price levels each, so a wildcard subscription
@@ -238,7 +251,15 @@ SUB|CH=DEPTH|SYM=AAPL
 
 **Purpose:** Session handshake. Optional replay request for one stream.
 
-**Response:** `WELCOME` or `ERR`.
+**Response:** `WELCOME` on successful handshake, or `ERR|CODE=PROTO_MISMATCH`
+(connection closed) if `CLIENT`/`PROTO` fail validation. When `RESUME=1` is
+present and the handshake itself succeeds, the gateway always sends
+`WELCOME` first and then evaluates the resume request separately — an
+invalid resume (bad `CH`/`SYM`/`LASTSEQ` shape, or a replay miss) produces
+`WELCOME` followed by an `ERR` (`BAD_MESSAGE` or `REPLAY_MISS`), not `ERR`
+alone. A `BAD_MESSAGE` resume error closes the connection after the queued
+messages are flushed; a `REPLAY_MISS` does not — it is followed by a `SNAP`
+and the session continues.
 
 | Field     | Req           | Description                            |
 |-----------|---------------|----------------------------------------|
@@ -271,7 +292,7 @@ HELLO|CLIENT=bot01|PROTO=CALF1|RESUME=1|CH=TOP|SYM=AAPL|LASTSEQ=1042
 | `GW`           | Yes | Gateway instance name                |
 | `HBINT`        | Yes | Heartbeat interval in seconds        |
 | `REPLAY`       | Yes | Replay window in seconds             |
-| `SYMBOLS`      | No  | Optional comma-separated symbol list |
+| `SYMBOLS`      | No  | Comma-separated snapshot of instrument symbols known to the gateway at connect time. Omitted when the gateway has no known symbols yet. The known-symbol set can grow after `WELCOME` is sent, as new `book.{SYMBOL}`/trade events arrive from the engine — this field is a point-in-time snapshot, not a fixed universe, and a symbol absent here may still become subscribable later without a new `WELCOME`. |
 | `CH_SUPPORTED` | No  | Comma-separated list of channels this gateway build supports. Present on every CALF `1.0.0`+ gateway; omitted entirely by earlier gateways. A client uses its presence — not the `PROTO` value, which does not change — to detect whether `DEPTH`/`INDEX` and the `SYM=*` wildcard extension are available. |
 
 ```text
@@ -581,16 +602,20 @@ Normative error codes:
 | `PROTO_MISMATCH`  | `HELLO` missing `CLIENT` or `PROTO != CALF1`                                    |
 | `AUTH_REQUIRED`   | Non-`HELLO` message sent before successful handshake                            |
 | `INVALID_CHANNEL` | `CH` not in `{TOP, TRADE, STATE, INDEX, DEPTH}`                                 |
-| `INVALID_SYMBOL`  | Symbol not in known list, or `SYM=*` used with `INDEX`/`DEPTH` (alone or mixed with any other channel) |
+| `INVALID_SYMBOL`  | Symbol not in the gateway's known instrument list (does not apply to `INDEX`, which has no known-id check — see "Subscription rules"), `SYM=*` used with `INDEX`/`DEPTH` on `SUB` (alone or mixed with any other channel), `SYM=*` used at all on `HELLO|RESUME=1` (every channel, including `TOP`/`TRADE`/`STATE`), a `SUB` with no `SYM` at all, or `CH=INDEX` combined with an empty symbol |
 | `SUB_LIMIT`       | Subscription would exceed `max_symbols_per_client`                              |
 | `REPLAY_MISS`     | `LASTSEQ` is older than the replay window; gateway sends a `SNAP` instead       |
 | `SLOW_CLIENT`     | Outbound queue exceeded `max_client_queue`; connection closed                   |
 | `BAD_MESSAGE`     | Parse failure, oversized line (> 4096 bytes), or unsupported message type       |
+| `RATE_LIMITED`    | Client exceeded `max_messages_per_second` (inbound token-bucket); connection stays open |
 
 Terminal behavior:
 
 - `SLOW_CLIENT` is terminal for the current TCP session; gateway disconnects.
 - `BAD_MESSAGE` may be terminal when parsing cannot continue safely.
+- `RATE_LIMITED` is non-terminal; the offending message is dropped and the
+  connection remains open. The client may retry once its send rate is back
+  under `max_messages_per_second`.
 
 ```text
 ERR|CODE=REPLAY_MISS|MSG=Requested sequence outside replay buffer|CH=TOP|SYM=AAPL
@@ -624,16 +649,18 @@ Examples:
 
 - Start value is `1` for each stream.
 - Increment by `1` per emitted message in that stream.
-- Sequence appears in `SNAP`, `MD`, `TRADE`, and `STATE`.
+- Sequence appears in `SNAP`, `MD`, `TRADE`, `STATE`, `IDX`, and `DEPTH`.
 - A client-detected gap means one or more missed messages.
 
 ### First connect behavior
 
-On first subscribe to a `TOP` or `STATE` stream:
+On first subscribe to a `TOP`, `STATE`, `INDEX`, or `DEPTH` stream:
 
 1. Gateway sends `SNAP` with current stream `SEQ`.
 2. Client stores `last_seq[(CH,SYM)] = SNAP.SEQ`.
 3. Next incremental event for that stream must be `SEQ + 1`.
+
+`TRADE` has no step 1 — see the `SNAP` section above.
 
 ### Reconnect behavior (`RESUME=1`)
 
@@ -646,6 +673,30 @@ On first subscribe to a `TOP` or `STATE` stream:
   continues live.
 - If missing range is outside window, gateway sends `ERR|CODE=REPLAY_MISS`
   followed by a fresh `SNAP`.
+- If the stream has no retained replay history at all yet (nothing has been
+  emitted for that `(CH,SYM)` since the gateway started or the buffer last
+  pruned it), the gateway returns zero replay lines and does **not** send
+  `ERR|CODE=REPLAY_MISS` or a `SNAP` — the client resumes live from
+  whatever the next emitted event turns out to be. This differs from the
+  replay-miss case above and is easy to mistake for a silently dropped
+  resume; clients that need a guaranteed baseline after `RESUME=1` should
+  also send an explicit `SUB` for the same stream, which always triggers a
+  `SNAP` for `TOP`/`STATE`/`INDEX`/`DEPTH` regardless of replay state.
+- `SYM=*` is always invalid for `RESUME=1`, for every channel, even for
+  `TOP`/`TRADE`/`STATE` where `SYM=*` is otherwise allowed on `SUB`.
+  `RESUME` has no equivalent of `SUB`'s per-symbol snapshot burst
+  ([Change 2](#5-change-2--sym-wildcard-for-top-and-trade) in the CALF
+  1.0.0 extensions), so a wildcard resume cannot be served a meaningful
+  baseline on a replay miss. `HELLO|RESUME=1|CH=TOP|SYM=*` returns
+  `ERR|CODE=INVALID_SYMBOL` and closes the connection, the same as an
+  ineligible wildcard on `SUB`. Clients must always resume a single
+  concrete symbol and, if they also want an "everything" subscription,
+  add it separately via `SUB|SYM=*` after reconnecting.
+- Beyond the wildcard rule above, `RESUME=1`'s `SYM` value is otherwise
+  **not** checked against the gateway's known-symbol list the way `SUB`'s
+  is — a resume for a symbol the gateway doesn't currently know about is
+  still accepted and added to the session's subscriptions; it simply won't
+  match any live event until the gateway learns about that symbol.
 
 ```mermaid
 sequenceDiagram
@@ -746,6 +797,8 @@ All supported CALF `1.0.0` configuration fields are listed below.
 | `market_data_gateway.heartbeat_interval_sec` | Integer, `> 0` | `1` | Interval used to emit `HB` when no outbound market-data line was sent. |
 | `market_data_gateway.idle_timeout_sec` | Integer, `> 0` | `5` | Maximum silent period (no inbound and no outbound traffic) before disconnect. |
 | `market_data_gateway.replay_window_sec` | Integer, `> 0` | `30` | Time-bounded replay retention per `(CH,SYM)` stream for resume/gap recovery. |
+| `market_data_gateway.max_connections` | Integer, `> 0` | `64` | Maximum concurrent TCP client connections accepted by the gateway. |
+| `market_data_gateway.max_messages_per_second` | Integer, `> 0` | `200` | Per-client inbound token-bucket rate limit; excess messages receive `ERR|CODE=RATE_LIMITED` and are dropped without disconnecting the client. |
 | `market_data_gateway.max_symbols_per_client` | Integer, `> 0` | `200` | Per-client subscription symbol limit across active subscriptions. A wildcard subscription counts as one entry. |
 | `market_data_gateway.max_client_queue` | Integer, `> 0` | `10000` | Per-client outbound queue cap; overflow triggers `ERR|CODE=SLOW_CLIENT` and disconnect. |
 | `market_data_gateway.depth_levels` | Integer, `> 0` | `10` | Number of price levels per side included in `DEPTH`/`SNAP(CH=DEPTH)` messages. There is no separate enable/disable flag — `DEPTH` is on by default in CALF `1.0.0`; this only tunes ladder depth. |
@@ -754,6 +807,11 @@ Operational notes:
 
 - `HBINT` in `WELCOME` must reflect `heartbeat_interval_sec`.
 - `REPLAY` in `WELCOME` must reflect `replay_window_sec`.
+- `max_connections` bounds concurrent TCP clients; connections beyond this
+  limit are rejected at accept time.
+- `max_messages_per_second` affects inbound `ERR|CODE=RATE_LIMITED`
+  behavior; it is a non-terminal, per-client token bucket, unlike
+  `max_client_queue`.
 - `max_symbols_per_client` affects `SUB` validation and `ERR|CODE=SUB_LIMIT`.
 - `max_client_queue` controls slow-client backpressure behavior.
 - `depth_levels` affects `DEPTH` message size and bandwidth; lower it on
@@ -772,6 +830,8 @@ market_data_gateway:
   heartbeat_interval_sec: 1
   idle_timeout_sec: 5
   replay_window_sec: 30
+  max_connections: 64
+  max_messages_per_second: 200
   max_symbols_per_client: 200
   max_client_queue: 10000
   depth_levels: 10

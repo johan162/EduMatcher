@@ -117,6 +117,28 @@ def test_resume_bad_lastseq(unit_gateway: MarketDataGateway) -> None:
     peer.close()
 
 
+def test_resume_wildcard_symbol_rejected(unit_gateway: MarketDataGateway) -> None:
+    """RESUME=1 has no per-symbol snapshot-burst path like SUB does, so a
+    wildcard resume cannot be served a meaningful baseline on a replay miss
+    (top_snapshot_fields("*") would silently return an empty SNAP). SYM=*
+    must be rejected for every channel on RESUME, including TOP/TRADE/STATE
+    where it is otherwise allowed on SUB.
+    """
+    sess, peer = _make_session()
+    unit_gateway._handle_client_line(
+        sess,
+        "HELLO|CLIENT=bot|PROTO=CALF1|RESUME=1|CH=TOP|SYM=*|LASTSEQ=1",
+    )
+    assert sess.authenticated is True
+    assert ("TOP", "*") not in sess.subscriptions
+    assert sess.closing is True
+    frames = [parse_line(line.decode("utf-8")) for line in sess.out_queue]
+    err_frames = [f for f in frames if f.msg_type == "ERR"]
+    assert err_frames, "expected an ERR frame rejecting the wildcard resume"
+    assert err_frames[-1].fields["CODE"] == "INVALID_SYMBOL"
+    peer.close()
+
+
 def test_resume_adds_live_subscription(unit_gateway: MarketDataGateway) -> None:
     sess, peer = _make_session()
     unit_gateway._replay.append("TOP", "AAPL", 2, b"MD|CH=TOP|SYM=AAPL|SEQ=2\n")

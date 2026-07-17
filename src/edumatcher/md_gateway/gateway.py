@@ -465,6 +465,21 @@ class MarketDataGateway:
             self._close_after_flush(session)
             return
 
+        # SYM=* is meaningless for RESUME: unlike SUB, there is no per-symbol
+        # snapshot-burst path here, so a wildcard resume that falls through to
+        # _send_snapshot_for_stream on a replay miss would silently produce an
+        # empty TOP snapshot (top_snapshot_fields("*") finds no such symbol).
+        # Reject up front with the same error SUB uses for wildcard misuse,
+        # rather than accepting a request that cannot be served correctly.
+        if sym == "*":
+            self._queue_line(
+                session,
+                "ERR",
+                {"CODE": "INVALID_SYMBOL", "CH": ch, "SYM": sym},
+            )
+            self._close_after_flush(session)
+            return
+
         # Resume implies immediate live continuation for the requested stream.
         session.subscriptions.add((ch, sym))
         self._subs.set_for_client(session.sock.fileno(), session.subscriptions)

@@ -217,15 +217,20 @@ Test typical protocol errors with malformed lines:
 SUB|CH=TOP|SYM=AAPL                 (before HELLO)
 HELLO|CLIENT=x|PROTO=BAD
 SUB|CH=UNKNOWN|SYM=AAPL
-SUB|CH=TOP|SYM=*                    (invalid wildcard usage)
+SUB|CH=DEPTH|SYM=*                  (invalid wildcard usage — DEPTH requires an explicit symbol)
 ```
+
+Note: as of CALF `1.0.0`, `SYM=*` is valid for `TOP`, `TRADE`, and `STATE`
+(e.g. `SUB|CH=TOP|SYM=*` now succeeds and returns one `SNAP` per known
+symbol). The wildcard is only rejected for `INDEX` and `DEPTH`, which always
+require an explicit id/symbol — see the CALF protocol reference for details.
 
 Map observed ERR codes to operator action:
 
 - AUTH_REQUIRED: client handshake bug or ordering error
 - PROTO_MISMATCH: wrong protocol negotiation value
 - INVALID_CHANNEL: unsupported CH value
-- INVALID_SYMBOL: unknown symbol or invalid wildcard usage
+- INVALID_SYMBOL: unknown symbol, or `SYM=*` used with `INDEX`/`DEPTH`
 - REPLAY_MISS: requested resume point outside replay retention
 - SLOW_CLIENT: consumer cannot keep up with delivery rate
 
