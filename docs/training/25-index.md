@@ -4,8 +4,8 @@
 
 Configure and operate the `pm-index` calculation process, observe a
 cap-weighted index updating in real time, apply corporate actions without
-disrupting the index level, and analyse historical data offline with
-`pm-index-cli`.
+disrupting the index level, and analyse historical data with `pm-index-cli`
+and `pm-stats-cli`.
 
 You will practice:
 
@@ -15,7 +15,8 @@ You will practice:
 - watching the index move as trades execute
 - applying a stock split and a cash dividend corporate action
 - adding and removing index constituents without restarting
-- querying level, EOD, and event history with `pm-index-cli`
+- querying structural/audit history with `pm-index-cli`
+- querying level and EOD time-series history with `pm-stats-cli`
 - exporting history to CSV and JSON for offline analysis
 
  
@@ -24,13 +25,18 @@ You will practice:
 
 - Chapters 01–03 completed (engine running, at least one gateway, a few trades).
 - Every constituent symbol must have `outstanding_shares` set in `symbols:`.
+- To follow Exercise 9 (level/EOD queries via `pm-stats-cli`), `pm-stats` must
+  also be running (see [Chapter 15](15-statistics-reporting.md)) — it needs to
+  be up *before* the trades happen so it can capture the `index.update` ticks
+  live.
 
 Recommended startup order for this chapter:
 
 1. Generate `engine_config.yaml` (Exercise 1).
 2. Start `pm-engine`.
 3. Start `pm-index`.
-4. Connect two gateway terminals (one TRADER, one ADMIN).
+4. Start `pm-stats` (needed later for Exercise 9's level/EOD history).
+5. Connect two gateway terminals (one TRADER, one ADMIN).
 
  
 
@@ -61,6 +67,17 @@ pm-engine  PUB :5556  ──► pm-index  PUB :5558  ──► pm-md-gwy  ──
 
 ADMIN gateways send corporate-action and history-request commands to `pm-index`
 on the PULL socket (port 5559).
+
+!!! note "Two different history stores"
+    `pm-index` writes a JSONL file per index, but it only records
+    **structural/audit events** — `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`,
+    `DELIST`. It does **not** write intraday level ticks or end-of-day OHLC
+    records to that file. Those are captured instead by `pm-stats`, which
+    subscribes to the live `index.update` broadcast and records every tick
+    (plus the EOD-forced publish) into its own SQLite database. This means
+    `pm-stats` must be **running** while trades occur for level/EOD history to
+    exist later — unlike the JSONL file, which `pm-index-cli` can read at any
+    time, even offline.
 
  
 
@@ -311,10 +328,22 @@ Run `INDEX` again and confirm TSLA no longer appears in the constituent listing.
 
  
 
-## Exercise 8: Query History with `pm-index-cli`
+## Exercise 8: Query History with `pm-index-cli` and `pm-stats-cli`
 
-`pm-index-cli` reads history files directly from disk — `pm-index` does **not**
-need to be running.
+Two tools cover two different slices of index history:
+
+- `pm-index-cli` reads the JSONL structural/audit file directly from
+  disk — `pm-index` does **not** need to be running. It only knows about
+  `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, and `DELIST` records.
+- `pm-stats-cli` reads level ticks and end-of-day OHLC rollups from
+  `pm-stats`' SQLite database. Those rows only exist if `pm-stats` was
+  **running** while the ticks happened — it captures them live from the
+  `index.update` broadcast, it does not replay history after the fact.
+
+If you started `pm-stats` back in the Prerequisites step, it has been
+recording every `EDU100` tick since. If you skipped that step, go start it
+now — `pm-stats-cli` will simply return no rows for anything that happened
+before it was running.
 
 ### List configured indices
 
@@ -322,29 +351,52 @@ need to be running.
 pm-index-cli --config engine_config.yaml indices
 ```
 
-### View recent intraday snapshots
+### View recent intraday level snapshots
+
+Every recorded tick (throttled to `publish_interval_sec`, same as the live
+`INDEX` command) is available via `pm-stats-cli index-snapshots`:
 
 ```bash
-pm-index-cli --config engine_config.yaml level --index EDU100 --days 1
+pm-stats-cli index-snapshots --index-id EDU100 --limit 50
 ```
 
 Sample table output:
 
 ```
-ts                  | index_id | level   | session_state | aggregate_cap       | divisor
---------------------+----------+---------+---------------+---------------------+--------------
-2026-06-25T10:00:01 | EDU100   | 1000.00 | PRE_OPEN      | 7007100000000.00    | 7007100000.0
-2026-06-25T10:01:23 | EDU100   | 1034.82 | CONTINUOUS    | 7251000000000.00    | 7007100000.0
+ts                  | index_id | level   | aggregate_cap       | divisor      | session_state | day_open | day_high | day_low
+--------------------+----------+---------+---------------------+--------------+----------------+----------+----------+---------
+2026-06-25T10:00:01 | EDU100   | 1000.00 | 7007100000000.00    | 7007100000.0 | PRE_OPEN       |          |          |
+2026-06-25T10:01:23 | EDU100   | 1034.82 | 7251000000000.00    | 7007100000.0 | CONTINUOUS     | 1000.00  | 1034.82  | 1000.00
 ...
+```
+
+You can list which index IDs `pm-stats` has actually recorded with:
+
+```bash
+pm-stats-cli index-ids
 ```
 
 ### View EOD records
 
-At the end of the session `pm-index` writes one EOD record. Query all EOD
-records (table format):
+`pm-index` no longer writes an end-of-day record to its own JSONL file —
+that file is structural/audit only now. Instead, `pm-stats` treats the
+EOD-forced publish like any other tick and rolls the day's ticks up into
+one daily OHLC row. Query it with `pm-stats-cli index-daily`:
 
 ```bash
-pm-index-cli --config engine_config.yaml eod
+pm-stats-cli index-daily --index-id EDU100
+```
+
+```
+date       | index_id | open_level | high_level | low_level | close_level | update_count
+-----------+----------+------------+------------+-----------+-------------+--------------
+2026-06-25 | EDU100   | 1000.00    | 1052.10    | 987.40    | 1041.55     | 312
+```
+
+Add `--wide` to also show the opening/closing aggregate market cap:
+
+```bash
+pm-stats-cli index-daily --index-id EDU100 --wide
 ```
 
 ### View all structural events
@@ -362,7 +414,9 @@ Filter to only corporate actions:
 pm-index-cli --config engine_config.yaml events --index EDU100 --type CORP_ACTION
 ```
 
-:material-checkbox-blank-outline: **Checkpoint:** `pm-index-cli` returns level, EOD, and event records.
+:material-checkbox-blank-outline: **Checkpoint:** `pm-index-cli` returns structural
+events; `pm-stats-cli index-snapshots` and `index-daily` return level and EOD
+rows for `EDU100`.
 
  
 
@@ -371,14 +425,14 @@ pm-index-cli --config engine_config.yaml events --index EDU100 --type CORP_ACTIO
 ### Export EOD data to CSV
 
 ```bash
-pm-index-cli --config engine_config.yaml eod --format csv > edu100_eod.csv
+pm-stats-cli index-daily --index-id EDU100 --format csv > edu100_eod.csv
 cat edu100_eod.csv
 ```
 
 ### Export intraday data to JSON
 
 ```bash
-pm-index-cli --config engine_config.yaml level --index EDU100 --format json \
+pm-stats-cli index-snapshots --index-id EDU100 --format json \
   | python3 -c "
 import json, sys
 rows = json.load(sys.stdin)
@@ -391,11 +445,19 @@ if rows:
 
 ### Date-range query
 
+For a single trading day, `--date` is the simplest filter:
+
 ```bash
-pm-index-cli --config engine_config.yaml level \
-  --index EDU100 \
-  --from 2026-06-25 \
-  --to 2026-06-25 \
+pm-stats-cli index-snapshots --index-id EDU100 --date 2026-06-25 --limit 500
+```
+
+For an arbitrary time window, use `--from`/`--to` with full ISO-8601
+timestamps instead:
+
+```bash
+pm-stats-cli index-snapshots --index-id EDU100 \
+  --from 2026-06-25T09:30:00+00:00 \
+  --to 2026-06-25T16:00:00+00:00 \
   --limit 500
 ```
 
@@ -447,16 +509,23 @@ TRADER01> INDEX
 [10:00:01.100] TECH2     500.00  +0.00  +0.00%  PRE_OPEN
 ```
 
-Use `pm-index-cli` to list both:
+Use `pm-index-cli` to list both configured indices, and `pm-stats-cli` to
+confirm `pm-stats` is capturing ticks for both:
 
 ```bash
 pm-index-cli --config engine_config.yaml indices
-pm-index-cli --config engine_config.yaml level --days 1
+pm-stats-cli index-ids
+pm-stats-cli index-daily
 ```
 
-With no `--index` filter, all configured indices are queried.
+`pm-index-cli indices` always shows every index in the config. `pm-stats-cli
+index-daily` with no `--index-id` filter shows the daily rollup for every
+index `pm-stats` has recorded — useful here to confirm both `EDU100` and
+`TECH2` are being tracked. `pm-stats-cli index-snapshots`, by contrast,
+requires an explicit `--index-id` (it returns raw ticks, not a summary, so a
+single-index scope keeps the output meaningful).
 
-:material-checkbox-blank-outline: **Checkpoint:** both `EDU100` and `TECH2` reported by `INDEX` command and `pm-index-cli`.
+:material-checkbox-blank-outline: **Checkpoint:** both `EDU100` and `TECH2` reported by `INDEX` command, `pm-index-cli indices`, and `pm-stats-cli index-daily`.
 
  
 
@@ -469,21 +538,34 @@ These go over the PULL socket (port 5559) and return records inline:
 OPS01> INDEX|HISTORY
 ```
 
-Returns the last 30 days of LEVEL and EOD records.
+Returns the last 30 days of **structural/audit records** — `INIT`,
+`CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST` — for whichever index you last
+saw an `INDEX` update for (or pass `INDEX=<id>` explicitly, e.g.
+`INDEX|HISTORY|INDEX=EDU100`).
 
 ```
 OPS01> INDEX|HISTORY|FROM=2026-06-25|TO=2026-06-25
 ```
 
-Returns records within the specified date range, newest last.
+Returns structural/audit records within the specified date range, newest
+last.
 
-!!! tip "Gateway vs `pm-index-cli`"
-    The gateway `INDEX|HISTORY` command is convenient for quick lookups in the
-    operator terminal. For richer filtering, multi-index queries, CSV/JSON export,
-    or scripting workflows, use `pm-index-cli` instead — it reads files directly
-    without going through the network.
+!!! warning "No level or EOD ticks here"
+    `INDEX|HISTORY` never returns intraday level ticks or end-of-day OHLC
+    rows — only the same four structural/audit record types you saw in
+    Exercise 8's `pm-index-cli events` output. For level and EOD history,
+    use `pm-stats-cli index-snapshots` / `pm-stats-cli index-daily` instead;
+    the gateway command has no equivalent for that data.
 
-:material-checkbox-blank-outline: **Checkpoint:** `INDEX|HISTORY` returns records; date-range filter works.
+!!! tip "Gateway vs `pm-index-cli` vs `pm-stats-cli`"
+    The gateway `INDEX|HISTORY` command is convenient for a quick structural
+    lookup in the operator terminal without leaving your session. For richer
+    filtering, multi-index queries, CSV/JSON export, or scripting workflows,
+    use `pm-index-cli` instead — it reads the structural/audit JSONL file
+    directly without going through the network. For level and EOD
+    time-series data, neither of those tools applies — use `pm-stats-cli`.
+
+:material-checkbox-blank-outline: **Checkpoint:** `INDEX|HISTORY` returns structural/audit records only; date-range filter works.
 
  
 
@@ -494,17 +576,19 @@ Returns records within the specified date range, newest last.
 | Start index process | `pm-index --config engine_config.yaml` |
 | Re-initialise from scratch | `pm-index --reset` |
 | Live level query | `INDEX` (any gateway) |
-| History query (gateway) | `INDEX\|HISTORY`, `INDEX\|HISTORY\|FROM=…\|TO=…` |
+| Structural/audit history query (gateway) | `INDEX\|HISTORY`, `INDEX\|HISTORY\|FROM=…\|TO=…` — INIT/CORP_ACTION/ADD_CONSTITUENT/DELIST only |
 | Stock split | `CORP_ACTION\|INDEX=…\|SYM=…\|ACTION=SPLIT\|NUM=…\|DEN=…` |
 | Cash dividend | `CORP_ACTION\|INDEX=…\|SYM=…\|ACTION=CASH_DIVIDEND\|DIV=…` |
 | Shares issuance | `CORP_ACTION\|INDEX=…\|SYM=…\|ACTION=SHARES_ISSUANCE\|SHARES=…` |
 | Add constituent | `CORP_ACTION\|INDEX=…\|SYM=…\|ACTION=ADD\|SHARES=…\|PRICE=…` |
 | Remove constituent | `CORP_ACTION\|INDEX=…\|SYM=…\|ACTION=DELIST` |
 | List configured indices | `pm-index-cli --config … indices` |
-| Intraday snapshots | `pm-index-cli --config … level --index ID --days N` |
-| EOD records | `pm-index-cli --config … eod` |
-| Structural events | `pm-index-cli --config … events [--type TYPE]` |
-| CSV export | `pm-index-cli --config … eod --format csv > out.csv` |
+| Structural/audit events | `pm-index-cli --config … events [--type TYPE]` |
+| Intraday level snapshots | `pm-stats-cli index-snapshots --index-id ID` |
+| Daily OHLC (EOD) rollup | `pm-stats-cli index-daily [--index-id ID]` |
+| List indices seen by pm-stats | `pm-stats-cli index-ids` |
+| CSV export (structural events) | `pm-index-cli --config … events --format csv > out.csv` |
+| CSV export (daily OHLC) | `pm-stats-cli index-daily --format csv > out.csv` |
 
  
 
@@ -519,6 +603,8 @@ types?
 ## See Also
 
 - [Market Index — User Guide](../user-guide/150-index.md) — full reference for config fields, formulas, and history record types
-- [pm-index-cli reference](../user-guide/160-commands.md) — all subcommands, column descriptions, and output-format options
+- [pm-index-cli reference](../user-guide/160-commands.md) — `events`/`indices` subcommands, column descriptions, and output-format options
+- [Statistics and Reporting](../user-guide/140-statistics-and-reporting.md) — `pm-stats-cli index-daily` / `index-snapshots` / `index-ids` reference
+- [Chapter 15 — Statistics & Reporting](15-statistics-reporting.md) — starting `pm-stats` and querying its SQLite database
 - [Engine Configuration](../user-guide/010-configuration.md#configuring-pm-index) — `indices:` YAML field reference
 - [Process Reference — pm-index](../user-guide/170-processes.md#pm-index-index-calculation-process) — socket layout and message types

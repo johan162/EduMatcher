@@ -8,7 +8,8 @@
     - How to configure one or more indices in `engine_config.yaml`
     - How cap-weighted index calculation and divisor normalisation work
     - How to apply corporate actions without disrupting the index level
-    - How to query the current index value and historical records from a gateway terminal
+    - How to query the current index value, structural/audit records, and
+      level/EOD time-series history
     - Where state and history files are stored and how recovery works
 
 
@@ -81,8 +82,8 @@ poetry run pm-index --reset
 !!! warning "Use `--reset` with care"
     `--reset` deletes the divisor and all persisted last prices for every
     configured index. The index restarts from scratch using only the reference
-    prices in the engine config. Historical JSONL files are **not** deleted; only
-    the small state JSON files are removed.
+    prices in the engine config. The structural/audit JSONL file is **not**
+    deleted; only the small state JSON file is removed.
 
 
 ## Configuration
@@ -133,7 +134,7 @@ indices:
 | `description`          | string | —                                 | Human-readable label emitted in index events                                    |
 | `base_value`           | float  | `1000.0`                          | Starting index level on first launch                                            |
 | `publish_interval_sec` | float  | `1.0`                             | Throttle on how often `index.update` is broadcast                               |
-| `history_file`         | string | `data/indexes/<ID>_history.jsonl` | Append-only JSONL audit trail                                                   |
+| `history_file`         | string | `data/indexes/<ID>_history.jsonl` | Append-only JSONL **structural/audit trail** — corporate actions and constituent changes only, not level history (see [State and History](#state-and-history)) |
 | `state_file`           | string | `data/indexes/<ID>_state.json`    | Checkpoint file for divisor and last prices                                     |
 | `constituents`         | list   | —                                 | Symbols included in the index                                                   |
 
@@ -285,7 +286,7 @@ CORP_ACTION|INDEX=EDU100|SYM=TSLA|ACTION=SHARES_ISSUANCE|SHARES=3500000000
 ```
 
 `pm-index` applies the action in-process, immediately publishes an updated index
-value, and writes a `CORP_ACTION` record to the history file.
+value live, and writes a `CORP_ACTION` record to the structural/audit history file.
 
 !!! important "Apply corporate actions before the market opens"
     It is safest to apply corporate actions during `PRE_OPEN` before trading
@@ -343,14 +344,13 @@ reinitialise from config.
 
 ### History file
 
-Every significant event is appended to the JSONL history file (one JSON object
-per line):
+The JSONL history file is a **structural/corporate-action audit log**, not a
+level-history store. Only events that change an index's composition or
+divisor are appended (one JSON object per line):
 
 | Record type       | When written                                                                           |
 |-------------------|----------------------------------------------------------------------------------------|
 | `INIT`            | First-ever startup (no prior state); records `base_value`, `divisor`, constituent list |
-| `LEVEL`           | Every `publish_interval_sec` during active trading                                     |
-| `EOD`             | When the session transitions to `CLOSED`; includes OHLC for the day                    |
 | `CORP_ACTION`     | After every split, dividend, or shares-issuance adjustment                             |
 | `ADD_CONSTITUENT` | After a new symbol is added to the index                                               |
 | `DELIST`          | After a symbol is removed from the index                                               |
@@ -359,13 +359,27 @@ Example history file extract:
 
 ```jsonl
 {"type": "INIT", "timestamp": 1749733100.0, "index_id": "EDU100", "base_value": 1000.0, "divisor": 7007100000.0, "constituents": ["AAPL", "MSFT", "TSLA"], "level": 1000.0}
-{"type": "LEVEL", "timestamp": 1749733200.1, "index_id": "EDU100", "level": 1048.73, "session_state": "CONTINUOUS", "aggregate_cap": 7348000000000.0, "divisor": 7007100000.0}
-{"type": "EOD", "timestamp": 1749760800.0, "index_id": "EDU100", "level": 1051.20, "session_state": "CLOSED", "open": 1042.10, "high": 1056.30, "low": 1040.05, "close": 1051.20, "aggregate_cap": 7368000000000.0, "divisor": 7007100000.0}
 {"type": "CORP_ACTION", "timestamp": 1749847200.0, "index_id": "EDU100", "symbol": "AAPL", "action": "SPLIT", "detail": "2:1", "old_divisor": 7007100000.0, "new_divisor": 7007100000.0, "level": 1051.20}
 ```
 
 History files are not deleted by `--reset`. They accumulate across sessions and
-provide a permanent audit trail.
+provide a permanent structural audit trail.
+
+!!! note "Level and EOD history live in pm-stats, not here"
+    Every `index.update` broadcast — including the throttled intraday ticks and
+    the forced end-of-day publish — is recorded by
+    [`pm-stats`](140-statistics-and-reporting.md#index-level-history) in two
+    SQLite tables: `index_level_snapshots` (every tick) and `index_daily_stats`
+    (daily OHLC rollup). Query them with `pm-stats-cli index-snapshots` and
+    `pm-stats-cli index-daily`. This JSONL file intentionally does **not**
+    duplicate that data; it exists purely so operators can audit *why* an
+    index's divisor changed (splits, dividends, constituent changes) without
+    scanning a high-frequency time series.
+
+    Note that `index_daily_stats.close_level` reflects the *most recent*
+    update for that date, not necessarily the final close, until the day
+    ends or `close_session_state` reads `CLOSED` — see
+    [Getting the EOD index level for a date](140-statistics-and-reporting.md#getting-the-eod-index-level-for-a-date).
 
 
 ## Getting Index Values
@@ -388,13 +402,15 @@ Sample output:
     `pm-index` must be running. If it is not, the gateway prints
     "No index data received yet. Is pm-index running?"
 
-#### History queries
+#### Structural/audit history queries
 
 ```
 INDEX|HISTORY
 ```
 
-Returns the last 30 days of `LEVEL` and `EOD` records.
+Returns the last 30 days of structural/audit records (`INIT`, `CORP_ACTION`,
+`ADD_CONSTITUENT`, `DELIST`) — corporate actions and constituent changes, not
+level ticks.
 
 ```
 INDEX|HISTORY|FROM=2026-06-01|TO=2026-06-12
@@ -403,10 +419,16 @@ INDEX|HISTORY|FROM=2026-06-01|TO=2026-06-12
 Returns records within the given date range (inclusive). The response includes
 one line per record, newest last.
 
+!!! tip "Level/EOD history is a different tool"
+    `INDEX|HISTORY` only returns structural/audit events. For index level or
+    end-of-day time-series data, use `pm-stats-cli index-snapshots` or
+    `pm-stats-cli index-daily` instead (see
+    [Statistics and Reporting](140-statistics-and-reporting.md#index-level-history)).
+
 !!! tip "Offline analysis with `pm-index-cli`"
-    For richer filtering, CSV/JSON export, or scripting, use `pm-index-cli`
-    instead. It reads the JSONL history files directly without going through the
-    gateway socket.
+    For richer filtering, CSV/JSON export, or scripting of structural/audit
+    records, use `pm-index-cli` instead. It reads the JSONL history files
+    directly without going through the gateway socket.
 
 ### From the market-data gateway (CALF)
 
@@ -442,37 +464,57 @@ IDX|CH=INDEX|SYM=EDU100|SEQ=2|TS=2026-06-12T10:15:24.411Z|LEVEL=1051.20|CHG=+9.1
 | `AGGCAP`  | int     | Current aggregate market cap                                        |
 | `SESSION` | string  | Current session state                                               |
 
-### Using `pm-index-cli` (recommended)
+### Using `pm-index-cli` for structural/audit records
 
-`pm-index-cli` is the primary tool for querying history files from the command
-line. It reads JSONL files directly — no running `pm-index` process is needed.
+`pm-index-cli` queries the structural/audit JSONL files directly from the
+command line — no running `pm-index` process is needed. It does **not** have
+level or EOD subcommands; use `pm-stats-cli` for that (next section).
 
 ```bash
-# Daily closing levels (table, default)
-pm-index-cli --config engine_config.yaml eod --index EDU100
-
-# Intraday snapshots from the last 7 days
-pm-index-cli --config engine_config.yaml level --index EDU100 --days 7
-
 # Corporate actions and constituent changes (all time)
 pm-index-cli --config engine_config.yaml events --index EDU100
 
-# Export EOD data to CSV for import into a spreadsheet
-pm-index-cli --config engine_config.yaml eod --format csv > edu100_eod.csv
+# Filter to a specific structural event type
+pm-index-cli --config engine_config.yaml events --index EDU100 --type CORP_ACTION
+
+# Export to CSV for import into a spreadsheet
+pm-index-cli --config engine_config.yaml events --format csv > edu100_events.csv
 
 # JSON output for scripting
-pm-index-cli --config engine_config.yaml eod --index EDU100 --format json \
-  | python3 -c "import json,sys; [print(r['date'], r['close']) for r in json.load(sys.stdin)]"
+pm-index-cli --config engine_config.yaml events --index EDU100 --format json \
+  | python3 -c "import json,sys; [print(r['ts'], r['type'], r['detail']) for r in json.load(sys.stdin)]"
 
 # Date-range query
-pm-index-cli --config engine_config.yaml level \
+pm-index-cli --config engine_config.yaml events \
   --index EDU100 --from 2026-06-01 --to 2026-06-25
+
+# List all configured indices
+pm-index-cli --config engine_config.yaml indices
 ```
 
 See the [pm-index-cli reference](160-commands.md) for all subcommands, column
 descriptions, and output-format options.
 
-### Reading the history file directly
+### Querying level/EOD history with `pm-stats-cli`
+
+For index level ticks or daily OHLC history, use `pm-stats-cli` instead, which
+reads from pm-stats' SQLite database:
+
+```bash
+# Daily open/high/low/close rollup
+pm-stats-cli index-daily --index-id EDU100
+
+# Raw level snapshots (every recorded tick) in a time window
+pm-stats-cli index-snapshots --index-id EDU100 --from 2026-06-01 --to 2026-06-25
+
+# List all index IDs that have recorded data
+pm-stats-cli index-ids
+```
+
+See [Statistics and Reporting](140-statistics-and-reporting.md#index-level-history)
+for the full command reference.
+
+### Reading the structural/audit file directly
 
 The JSONL file is plain text — one JSON object per line. This can be useful
 for quick one-off inspections or when `pm-index-cli` is not available:
@@ -480,10 +522,10 @@ for quick one-off inspections or when `pm-index-cli` is not available:
 ```bash
 tail -20 data/indexes/EDU100_history.jsonl
 
-# EOD records only
-grep '"type": "EOD"' data/indexes/EDU100_history.jsonl | python3 -m json.tool
+# Corporate action records only
+grep '"type": "CORP_ACTION"' data/indexes/EDU100_history.jsonl | python3 -m json.tool
 
-# Level records between two timestamps
+# Structural records between two timestamps
 python3 - <<'EOF'
 import json
 from_ts = 1749700000.0
@@ -491,8 +533,8 @@ to_ts   = 1749800000.0
 with open("data/indexes/EDU100_history.jsonl") as f:
     for line in f:
         rec = json.loads(line)
-        if rec["type"] == "LEVEL" and from_ts <= rec["timestamp"] <= to_ts:
-            print(f"{rec['timestamp']:.0f}  {rec['level']:.2f}  {rec['session_state']}")
+        if from_ts <= rec["timestamp"] <= to_ts:
+            print(f"{rec['timestamp']:.0f}  {rec['type']}  {rec.get('symbol', '')}")
 EOF
 ```
 

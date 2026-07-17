@@ -91,19 +91,40 @@ class TestIndexMessages:
                 index_id="EDU100",
                 from_ts=1000.0,
                 to_ts=2000.0,
-                types=["LEVEL", "EOD"],
+                types=["INIT", "CORP_ACTION"],
             )
         )
         assert topic == "index.history_request"
         assert payload["gateway_id"] == "GW01"
         assert payload["index_id"] == "EDU100"
 
+    def test_make_index_history_request_msg_defaults_to_structural_types(self) -> None:
+        """pm-index's history is a structural/audit log only — the default
+        request must never ask for LEVEL/EOD, which are no longer stored.
+        """
+        _topic, payload = _rt(
+            make_index_history_request_msg(
+                gateway_id="GW01",
+                index_id="EDU100",
+                from_ts=1000.0,
+                to_ts=2000.0,
+            )
+        )
+        assert "LEVEL" not in payload["types"]
+        assert "EOD" not in payload["types"]
+        assert set(payload["types"]) == {
+            "INIT",
+            "CORP_ACTION",
+            "ADD_CONSTITUENT",
+            "DELIST",
+        }
+
     def test_make_index_history_msg(self) -> None:
         topic, payload = _rt(
             make_index_history_msg(
                 gateway_id="GW01",
                 index_id="EDU100",
-                records=[{"type": "LEVEL", "timestamp": 1.0}],
+                records=[{"type": "CORP_ACTION", "timestamp": 1.0}],
             )
         )
         assert topic == "index.history.GW01"

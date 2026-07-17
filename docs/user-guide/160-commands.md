@@ -533,11 +533,19 @@ pm-admin-cli $ID resume-sym --sym AAPL
 
 
 
-## `pm-index-cli` — Index History Query Tool
+## `pm-index-cli` — Index Structural/Audit History Query Tool
 
-`pm-index-cli` is a read-only command-line tool for querying index history
-files written by `pm-index`. It reads JSONL files directly from disk — no
-running `pm-index` process is required.
+`pm-index-cli` is a read-only command-line tool for querying the structural/
+corporate-action audit JSONL files written by `pm-index`. It reads files
+directly from disk — no running `pm-index` process is required.
+
+!!! note "Not for level or EOD history"
+    `pm-index-cli` only exposes structural/audit records (`INIT`,
+    `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`). It has no `level` or `eod`
+    subcommand. For index level ticks or daily OHLC history, use
+    `pm-stats-cli index-snapshots` / `index-daily` instead, which reads from
+    pm-stats' SQLite database. See
+    [Statistics and Reporting](140-statistics-and-reporting.md#index-level-history).
 
 ```bash
 pm-index-cli [--config PATH] [--data-dir DIR] [--format table|json|csv] [--no-header] COMMAND [options]
@@ -554,61 +562,28 @@ pm-index-cli [--config PATH] [--data-dir DIR] [--format table|json|csv] [--no-he
 
 ### Subcommands
 
-| Subcommand | Purpose                                                                 |
-|------------|-------------------------------------------------------------------------|
-| `level`    | Throttled LEVEL records — index value snapshots captured during trading |
-| `eod`      | EOD records — one row per trading day with open/high/low/close          |
-| `events`   | Structural events: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`   |
-| `indices`  | List configured indices from `engine_config.yaml`                       |
+| Subcommand | Purpose                                                               |
+|------------|------------------------------------------------------------------------|
+| `events`   | Structural events: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST` |
+| `indices`  | List configured indices from `engine_config.yaml`                     |
 
-All history subcommands (`level`, `eod`, `events`) share the same set of
-per-index and time-range options:
+The `events` subcommand accepts:
 
-| Option                 | Description                                                                                 |
-|------------------------|---------------------------------------------------------------------------------------------|
-| `--index ID` / `-i ID` | Index ID to query (repeatable); defaults to all configured indices when `--config` is given |
-| `--days N`             | Return records from the last N days (mutually exclusive with `--from`)                      |
-| `--from DATE_OR_TS`    | Start of time range: `YYYY-MM-DD` or ISO-8601 (mutually exclusive with `--days`)            |
-| `--to DATE_OR_TS`      | End of time range: `YYYY-MM-DD` or ISO-8601 (default: now)                                  |
-| `--limit N`            | Maximum rows per index                                                                      |
-
-The `events` subcommand also accepts:
-
-| Option                    | Description                                                                               |
-|---------------------------|-------------------------------------------------------------------------------------------|
-| `--type TYPE` / `-t TYPE` | Filter to one event type (repeatable): `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST` |
+| Option                    | Description                                                                                 |
+|---------------------------|-----------------------------------------------------------------------------------------------|
+| `--index ID` / `-i ID`    | Index ID to query (repeatable); defaults to all configured indices when `--config` is given |
+| `--days N`                | Return records from the last N days (mutually exclusive with `--from`)                      |
+| `--from DATE_OR_TS`       | Start of time range: `YYYY-MM-DD` or ISO-8601 (mutually exclusive with `--days`)             |
+| `--to DATE_OR_TS`         | End of time range: `YYYY-MM-DD` or ISO-8601 (default: now)                                   |
+| `--limit N`               | Maximum rows per index                                                                        |
+| `--type TYPE` / `-t TYPE` | Filter to one event type (repeatable): `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`    |
 
 ### Output columns
-
-**`level` subcommand:**
-
-| Column          | Description                                                                  |
-|-----------------|------------------------------------------------------------------------------|
-| `ts`            | UTC timestamp (`YYYY-MM-DDTHH:MM:SS`)                                        |
-| `index_id`      | Index identifier                                                             |
-| `level`         | Index level at this snapshot                                                 |
-| `session_state` | Session state at time of snapshot                                            |
-| `aggregate_cap` | Aggregate market capitalisation (sum of price × shares for all constituents) |
-| `divisor`       | Current divisor                                                              |
-
-**`eod` subcommand:**
-
-| Column          | Description                                     |
-|-----------------|-------------------------------------------------|
-| `date`          | Calendar date (`YYYY-MM-DD`)                    |
-| `index_id`      | Index identifier                                |
-| `open`          | Day-open index level                            |
-| `high`          | Day-high index level                            |
-| `low`           | Day-low index level                             |
-| `close`         | Closing index level                             |
-| `level`         | Final level at EOD write time (same as `close`) |
-| `aggregate_cap` | Aggregate market cap at session close           |
-| `divisor`       | Divisor at session close                        |
 
 **`events` subcommand:**
 
 | Column        | Description                                                       |
-|---------------|-------------------------------------------------------------------|
+|---------------|-----------------------------------------------------------------------|
 | `ts`          | UTC timestamp                                                     |
 | `index_id`    | Index identifier                                                  |
 | `type`        | Event type: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, or `DELIST` |
@@ -618,32 +593,17 @@ The `events` subcommand also accepts:
 | `new_divisor` | Divisor after adjustment (empty for `INIT`)                       |
 | `level`       | Index level after the event                                       |
 
+**`indices` subcommand:**
+
+| Column         | Description                                     |
+|----------------|--------------------------------------------------|
+| `id`           | Index identifier                                |
+| `description`  | Human-readable label                            |
+| `history_file` | Path to the structural/audit JSONL file         |
+| `state_file`   | Path to the divisor/last-price checkpoint file  |
+| `constituents` | Comma-separated constituent symbol list         |
+
 ### Examples
-
-**Current day's live index snapshots:**
-
-```bash
-pm-index-cli --config engine_config.yaml level --index EDU100 --days 1
-```
-
-**All EOD records for two indices (table format):**
-
-```bash
-pm-index-cli --config engine_config.yaml eod --index EDU100 --index TECH2
-```
-
-**EOD records as CSV for spreadsheet import:**
-
-```bash
-pm-index-cli --config engine_config.yaml eod --format csv > index_history.csv
-```
-
-**EOD records as JSON for scripting:**
-
-```bash
-pm-index-cli --config engine_config.yaml eod --index EDU100 --format json \
-  | python3 -c "import json,sys; [print(r['date'], r['close']) for r in json.load(sys.stdin)]"
-```
 
 **Corporate actions and constituent changes in the last 30 days:**
 
@@ -651,24 +611,36 @@ pm-index-cli --config engine_config.yaml eod --index EDU100 --format json \
 pm-index-cli --config engine_config.yaml events --days 30
 ```
 
-**Only stock-split events, all time:**
+**Only stock-split/dividend/issuance events, all time:**
 
 ```bash
 pm-index-cli --config engine_config.yaml events --type CORP_ACTION --index EDU100
 ```
 
-**60-day intraday snapshots in a date range for analysis:**
+**Events as CSV for spreadsheet import:**
+
+```bash
+pm-index-cli --config engine_config.yaml events --format csv > index_events.csv
+```
+
+**Events as JSON for scripting:**
+
+```bash
+pm-index-cli --config engine_config.yaml events --index EDU100 --format json \
+  | python3 -c "import json,sys; [print(r['ts'], r['type'], r['detail']) for r in json.load(sys.stdin)]"
+```
+
+**Date-range query on a specific index:**
 
 ```bash
 pm-index-cli \
   --config engine_config.yaml \
   --format csv \
-  level \
+  events \
   --index EDU100 \
   --from 2026-05-01 \
   --to 2026-06-25 \
-  --limit 50000 \
-  > idu100_intraday.csv
+  > edu100_events.csv
 ```
 
 **List all configured indices:**
@@ -687,35 +659,38 @@ TECH2  | Technology pair          | data/indexes/TECH2_history.jsonl        | da
 **Without a config file (direct path):**
 
 ```bash
-pm-index-cli --format table level \
+pm-index-cli --format table events \
   --index EDU100 \
   --data-dir /var/edumatcher/indexes \
-  --days 7
+  --days 30
 ```
 
 ### No-row behaviour
 
 | Format  | Output when no rows match              |
-|---------|----------------------------------------|
-| `table` | `No rows found.`                       |
-| `json`  | `[]`                                   |
-| `csv`   | Header row only (unless `--no-header`) |
+|---------|------------------------------------------|
+| `table` | `No rows found.`                         |
+| `json`  | `[]`                                     |
+| `csv`   | Header row only (unless `--no-header`)   |
 
-### Plotting example (Python)
+### Plotting index level history (Python)
+
+Level/EOD history is not in `pm-index-cli` — pull it from `pm-stats-cli`
+instead:
 
 ```python
 import subprocess, json, matplotlib.pyplot as plt
 
 data = json.loads(
     subprocess.check_output([
-        "pm-index-cli", "--config", "engine_config.yaml",
+        "pm-stats-cli", "index-daily",
+        "--index-id", "EDU100",
         "--format", "json",
-        "eod", "--index", "EDU100",
     ])
 )
 
-dates  = [r["date"]  for r in data]
-closes = [r["close"] for r in data]
+dates  = [r["date"]        for r in data]
+closes = [r["close_level"] for r in data]
 
 plt.figure(figsize=(10, 4))
 plt.plot(dates, closes, marker="o")
@@ -725,6 +700,7 @@ plt.xticks(rotation=45)
 plt.tight_layout()
 plt.savefig("edu100_history.png", dpi=150)
 ```
+
 
 
 ## `ExchangeCommandClient`

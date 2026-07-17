@@ -191,14 +191,25 @@ Aggregated daily OHLC (open, high, low, close) for each configured exchange inde
 | `open_level`           | REAL    | Index level at the first update of the day              |
 | `high_level`           | REAL    | Highest index level seen during the day                 |
 | `low_level`            | REAL    | Lowest index level seen during the day                  |
-| `close_level`          | REAL    | Index level at the most recent update received          |
+| `close_level`          | REAL    | Index level at the *most recently received* update — see the finality note below |
+| `close_session_state`  | TEXT    | Session state as of that most recent update (e.g. `CONTINUOUS`, `CLOSED`) — the key to knowing whether `close_level` is final |
 | `open_aggregate_cap`   | REAL    | Aggregate constituent market cap at the first update     |
 | `close_aggregate_cap`  | REAL    | Aggregate constituent market cap at the most recent update |
 | `update_count`         | INTEGER | Number of `index.update` events folded into this day's row |
 
-**Use case**: Daily index trend analysis, comparing index performance across trading dates, spotting days with unusually few updates (a thin `update_count` may indicate a quiet index or a connectivity gap).
+**Use case**: Daily index trend analysis, comparing index performance across trading dates, spotting days with unusually few updates (a thin `update_count` may indicate a quiet index or a connectivity gap), and — the most common ask — looking up an index's official end-of-day (EOD) closing level for a chosen date.
 
 **Note**: an index has no independent trades or volume of its own — its level is computed from constituent prices — so this table has no `volume`/`trade_count`/`vwap` columns the way `daily_stats` does.
+
+!!! warning "`close_level` is only final once `close_session_state` is `CLOSED`"
+    `close_level` (and `close_session_state`) are updated on *every* `index.update` tick — they always reflect whatever was most recently received for that date, not necessarily the actual end-of-day print. For any **past** date this is a non-issue: no more updates can arrive for a date that has rolled over, so `close_level` is guaranteed final. But if you query **today's** date while the session is still open, `close_level` is a live "last level so far" that will keep changing intraday, and `close_session_state` will show whatever state the market is currently in (e.g. `CONTINUOUS`), not `CLOSED`.
+
+    To reliably get the true EOD close for a given date:
+
+    - **Simplest**: query a date that has already ended — `close_level` for a prior date is always final.
+    - **To confirm today's row is final**: check that `close_session_state == "CLOSED"`. `pm-index` sets this via a forced publish when the session transitions to `CLOSED`, so once you see it, `close_level` for that date will not change again.
+
+    See [Getting the EOD index level for a date](#getting-the-eod-index-level-for-a-date) below for a worked example.
 
 ### `index_level_snapshots`
 
@@ -491,10 +502,12 @@ pm-stats-cli index-daily --limit 10
 **Example output (default `table` format):**
 
 ```
-date       | index_id | open_level | high_level | low_level | close_level | update_count
------------|----------|------------|------------|-----------|-------------|-------------
-2026-06-14 | EDU100   | 1042.1     | 1056.3     | 1040.05   | 1048.73     | 512
+date       | index_id | open_level | high_level | low_level | close_level | close_session_state | update_count
+-----------|----------|------------|------------|-----------|-------------|----------------------|-------------
+2026-06-14 | EDU100   | 1042.1     | 1056.3     | 1040.05   | 1048.73     | CLOSED               | 512
 ```
+
+`close_session_state` is `CLOSED` above, so `close_level` (`1048.73`) is confirmed as the final EOD print for that date — see [Getting the EOD index level for a date](#getting-the-eod-index-level-for-a-date) below.
 
 #### `index-snapshots` — Intraday Index Level History
 
@@ -759,6 +772,52 @@ for a symbol:
 
 ```bash
 pm-stats-cli --format csv index-daily --index-id EDU100 --limit 100 > edu100_history.csv
+```
+
+### Getting the EOD index level for a date
+
+To look up an index's official end-of-day closing level for a specific date,
+query `index-daily` for that date and index:
+
+```bash
+pm-stats-cli index-daily --date 2026-06-14 --index-id EDU100
+```
+
+```
+date       | index_id | open_level | high_level | low_level | close_level | close_session_state | update_count
+-----------|----------|------------|------------|-----------|-------------|----------------------|-------------
+2026-06-14 | EDU100   | 1042.1     | 1056.3     | 1040.05   | 1048.73     | CLOSED               | 512
+```
+
+`close_level` is the answer. For any date in the past this is always safe to
+read directly — no more `index.update` events can arrive for a date once it
+has rolled over, so `close_level` cannot change after the fact.
+
+If you are querying **today's** date, confirm the row is actually final
+before trusting it, since `close_level` is updated on every tick and is a
+live "last level so far" until the session closes:
+
+```bash
+pm-stats-cli index-daily --index-id EDU100 --format json \
+  | python3 -c "import json,sys; r=json.load(sys.stdin)[0]; print(r['close_level'], r['close_session_state'])"
+```
+
+If `close_session_state` prints `CLOSED`, `close_level` is the final EOD
+print. Any other value (e.g. `CONTINUOUS`, `OPENING_AUCTION`) means the
+session is still running and `close_level` will keep moving — re-query
+after the close, or wait for `close_session_state` to flip to `CLOSED`.
+
+For scripting, JSON output makes this a one-line check:
+
+```bash
+pm-stats-cli index-daily --date 2026-06-14 --index-id EDU100 --format json \
+  | python3 -c "
+import json, sys
+row = json.load(sys.stdin)[0]
+if row['close_session_state'] != 'CLOSED':
+    sys.exit('not final yet: ' + row['close_session_state'])
+print(f\"EOD close for {row['date']} {row['index_id']}: {row['close_level']}\")
+"
 ```
 
 ### Validation — Did the Trade Complete Correctly?

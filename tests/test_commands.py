@@ -387,7 +387,7 @@ class TestIndexCommands:
                 make_index_history_msg(
                     gateway_id="GW_ADMIN",
                     index_id="EDU100",
-                    records=[{"type": "LEVEL", "timestamp": 1.0}],
+                    records=[{"type": "CORP_ACTION", "timestamp": 1.0}],
                 )
             )
         )

@@ -1444,8 +1444,14 @@ operator commands and publishes results on its own PUB socket
 
 ### `index.history_request`
 
-**Motivation:** Allows gateways and operator tools to retrieve historical index
-levels and corporate-action records without polling the state file.
+**Motivation:** Allows gateways and operator tools to retrieve pm-index's
+structural/audit trail (index creation, corporate actions, constituent
+changes, delistings) without polling the state file. This request does
+**not** cover index level or end-of-day history — pm-index's JSONL history
+file only ever holds structural/audit records. For index level time-series
+and end-of-day history, query pm-stats instead (`pm-stats-cli index-daily`
+/ `index-snapshots`), which records every `index.update` tick via ZMQ
+subscription.
 **Published by:** Any client (gateway, operator CLI) via PUSH → pm-index PULL
 
 | Field | Type | Description |
@@ -1454,7 +1460,7 @@ levels and corporate-action records without polling the state file.
 | `index_id` | string | Index identifier (e.g. `"EDU50"`) |
 | `from_ts` | float | Start of query window (Unix epoch seconds; default: 30 days ago) |
 | `to_ts` | float | End of query window (Unix epoch seconds; default: now) |
-| `types` | array of string | Record types to return: `"LEVEL"`, `"EOD"`, `"CORP_ACTION"`, `"INIT"`, `"ADD_CONSTITUENT"`, `"DELIST"` (default: `["LEVEL", "EOD"]`) |
+| `types` | array of string | Structural record types to return: `"INIT"`, `"CORP_ACTION"`, `"ADD_CONSTITUENT"`, `"DELIST"` (default: all four) |
 | `max_records` | integer | Maximum number of records to return (default: 10 000) |
 
 **Reply:** `index.history.{gateway_id}`

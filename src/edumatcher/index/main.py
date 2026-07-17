@@ -24,7 +24,7 @@ from edumatcher.index.config_loader import (
     IndexRuntimeConfig,
     load_index_runtime_configs,
 )
-from edumatcher.index.history import IndexHistory
+from edumatcher.index.history import STRUCTURAL_RECORD_TYPES, IndexHistory
 from edumatcher.messaging.bus import make_publisher, make_puller, make_subscriber
 from edumatcher.models.message import (
     decode,
@@ -251,17 +251,6 @@ class IndexProcess:
             day_low=idx.day_low,
         )
         self._pub_sock.send_multipart(frames)
-        idx.history.append(
-            {
-                "type": "LEVEL",
-                "timestamp": time.time(),
-                "index_id": idx.cfg.id,
-                "level": level,
-                "session_state": idx.session_state,
-                "aggregate_cap": aggregate_cap,
-                "divisor": idx.calc.divisor,
-            }
-        )
         idx.last_publish_time = now
         self._dbg_count("index_updates_published")
 
@@ -275,21 +264,10 @@ class IndexProcess:
             self._update_day_ohlc(idx, level)
             idx.session_state = "CLOSED"
 
-            idx.history.append(
-                {
-                    "type": "EOD",
-                    "timestamp": time.time(),
-                    "index_id": idx.cfg.id,
-                    "level": level,
-                    "session_state": "CLOSED",
-                    "aggregate_cap": idx.calc.aggregate_cap(),
-                    "divisor": idx.calc.divisor,
-                    "open": idx.day_open,
-                    "high": idx.day_high,
-                    "low": idx.day_low,
-                    "close": idx.day_close,
-                }
-            )
+            # The EOD close is just another level update — it is published
+            # live (below) and picked up by pm-stats' index_level_snapshots /
+            # index_daily_stats tables like every other tick. It is not
+            # written to the structural JSONL audit log.
             self._publish_level(idx, level, force=True)
             self._persist_state(idx, level)
             idx.eod_finalized_for_session = True
@@ -370,9 +348,10 @@ class IndexProcess:
             )
             return
 
-        types_raw = payload.get("types", ["LEVEL", "EOD"])
+        default_types = sorted(STRUCTURAL_RECORD_TYPES)
+        types_raw = payload.get("types", default_types)
         if not isinstance(types_raw, list):
-            types_raw = ["LEVEL", "EOD"]
+            types_raw = default_types
         record_types = {str(t).upper() for t in types_raw}
         max_records = int(payload.get("max_records", 10_000))
 

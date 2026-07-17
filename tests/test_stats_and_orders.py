@@ -396,6 +396,41 @@ class TestIndexDayAccum:
             acc.on_update(1000.0, aggregate_cap=None)
         assert acc.update_count == 7
 
+    def test_close_session_state_tracks_most_recent_update_not_extreme(self) -> None:
+        """Design intent: close_session_state is the finality signal for
+        close_level. It must mirror close_level's "most recent, not
+        extreme" semantics — the state at the moment of the last update,
+        regardless of what state earlier updates carried.
+        """
+        acc = _IndexDayAccum(date="2026-06-14", index_id="EDU100")
+        acc.on_update(1000.0, aggregate_cap=None, session_state="OPENING_AUCTION")
+        acc.on_update(1010.0, aggregate_cap=None, session_state="CONTINUOUS")
+        acc.on_update(1005.0, aggregate_cap=None, session_state="CONTINUOUS")
+        assert acc.close_session_state == "CONTINUOUS"
+
+    def test_close_session_state_becomes_closed_on_eod_update(self) -> None:
+        """The whole point of this field: once pm-index's forced EOD
+        publish arrives, close_session_state flips to CLOSED and stays
+        that way for the rest of the (now-finished) day — signalling that
+        close_level will not change again.
+        """
+        acc = _IndexDayAccum(date="2026-06-14", index_id="EDU100")
+        acc.on_update(1000.0, aggregate_cap=None, session_state="CONTINUOUS")
+        acc.on_update(1048.73, aggregate_cap=None, session_state="CLOSED")
+        assert acc.close_session_state == "CLOSED"
+        assert acc.close_level == 1048.73
+
+    def test_close_session_state_defaults_to_none_when_not_provided(self) -> None:
+        """session_state is an optional parameter — callers that don't pass
+        it (or receive a payload missing the field) shouldn't raise, and
+        the accumulator should make the "unknown/not finalized" state
+        explicit as None rather than defaulting to something that could be
+        mistaken for CLOSED.
+        """
+        acc = _IndexDayAccum(date="2026-06-14", index_id="EDU100")
+        acc.on_update(1000.0, aggregate_cap=None)
+        assert acc.close_session_state is None
+
 
 # ---------------------------------------------------------------------------
 # StatsProcess._on_index_update
@@ -445,6 +480,34 @@ class TestOnIndexUpdate:
         ).fetchall()
         assert len(rows) == 1  # one row per (date, index_id), not per update
         assert rows[0] == (1000.0, 1010.0, 2)
+
+    def test_close_session_state_persisted_and_updated_end_to_end(
+        self, sp: StatsProcess
+    ) -> None:
+        """Design intent: a caller querying index_daily_stats must be able
+        to tell whether close_level is a final EOD print or just the
+        latest tick, without a second query against index_level_snapshots.
+        This exercises the full path — payload -> handler -> accumulator ->
+        SQL upsert -> readback — for both the "still trading" and "day has
+        closed" cases.
+        """
+        sp._on_index_update(
+            self._payload(level=1000.0, session_state="OPENING_AUCTION")
+        )
+        sp._on_index_update(self._payload(level=1010.0, session_state="CONTINUOUS"))
+        row = sp._conn.execute(
+            "SELECT close_level, close_session_state FROM index_daily_stats "
+            "WHERE index_id = 'EDU100'"
+        ).fetchone()
+        assert row == (1010.0, "CONTINUOUS")  # not final yet
+
+        # pm-index's forced EOD publish arrives.
+        sp._on_index_update(self._payload(level=1048.73, session_state="CLOSED"))
+        row = sp._conn.execute(
+            "SELECT close_level, close_session_state FROM index_daily_stats "
+            "WHERE index_id = 'EDU100'"
+        ).fetchone()
+        assert row == (1048.73, "CLOSED")  # now final
 
     def test_multiple_indexes_tracked_independently(self, sp: StatsProcess) -> None:
         sp._on_index_update(self._payload(index_id="EDU100", level=1000.0))

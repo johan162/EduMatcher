@@ -196,9 +196,9 @@ pm-engine --verbose
 | **pm-orders**      | `pm-orders`               | Cross-gateway order status monitor                         | No                  |
 | **pm-board**       | `pm-board`                | Full-screen multi-symbol display                           | No                  |
 | **pm-ticker**      | `pm-ticker`               | Scrolling market data ticker                               | No (needs pm-stats) |
-| **pm-stats**       | `pm-stats`                | OHLCV statistics to SQLite                                 | No                  |
+| **pm-stats**       | `pm-stats`                | OHLCV, trade, and index-level statistics to SQLite          | No — but recommended immediately after pm-engine (see below) |
 | **pm-clearing**    | `pm-clearing`             | P&L and trade settlement                                   | No                  |
-| **pm-audit**       | `pm-audit`                | Full event log to disk                                     | No                  |
+| **pm-audit**       | `pm-audit`                | Full event log to disk                                     | No — but recommended immediately after pm-engine (see below) |
 | **pm-alf-gwy**     | `pm-alf-gwy`              | ALF TCP gateway — order entry for external bots over TCP :5565 | No              |
 | **pm-ralf-gwy**    | `pm-ralf-gwy`             | External post-trade dissemination gateway (RALF)           | No                  |
 | **pm-md-gwy**      | `pm-md-gwy`               | External market-data gateway (CALF) over TCP :5570         | No                  |
@@ -253,16 +253,27 @@ pm-engine --verbose
          ```bash
          pm-engine --verbose
          ```
-     4. Start one or more gateways:
+     4. Start `pm-stats` and `pm-audit` immediately after the engine:
+         ```bash
+         pm-stats
+         pm-audit --terminal
+         ```
+         Technically only `pm-engine` is required to match orders — every other
+         process, including these two, is an optional subscriber. In practice,
+         though, `pm-stats` and `pm-audit` are the *de facto* mandatory pair:
+         once a session starts, any trading, index, or book activity they
+         missed while offline is gone for good — there is no replay. Start
+         them right after the engine so nothing is lost, rather than as an
+         afterthought later in step 6.
+     5. Start one or more gateways:
          ```bash
          pm-alf-console --id TRADER01
          pm-alf-console --id TRADER02
          # or, for external / remote bots:
          pm-alf-gwy --config engine_config.yaml
          ```
-     5. Start optional observers/tools as needed (`pm-board`, `pm-viewer`,
-         `pm-audit --terminal`, `pm-stats`, `pm-clearing`, `pm-ticker`,
-         `pm-scheduler`).
+     6. Start remaining optional observers/tools as needed (`pm-board`,
+         `pm-viewer`, `pm-clearing`, `pm-ticker`, `pm-scheduler`, `pm-index`).
 
 
 
@@ -815,7 +826,10 @@ See [P&L & Clearing](130-pnl-clearing.md) for the accounting model and schema-le
 
 ## pm-stats — Statistics Recorder
 
-Records market statistics for every symbol to a SQLite database (`data/stats.db`).
+Records market statistics for every symbol, plus index level history, to a
+SQLite database (`data/stats.db`). This is the queryable time-series home for
+both trading statistics and index levels — `pm-index`'s own JSONL file only
+retains structural/corporate-action audit records, not level ticks.
 
 ```bash
 pm-stats [--db data/stats.db] [--snapshot-interval SEC] [--sql-trace] [--log-level LEVEL] [-v|-vv] [-q]
@@ -838,15 +852,22 @@ None.
 
 **Subscriptions:**
 
-| Topic        | Purpose                                                    |
-|--------------|------------------------------------------------------------|
-| `trade.*`    | Updates OHLCV, VWAP, min/max, volume, trade log            |
-| `book.*`     | Records opening bid/ask prices; drives 15-minute snapshots |
-| `system.eod` | Records end-of-day closing bid/ask prices                  |
+`pm-stats` opens two independent PUB/SUB connections: one to `pm-engine`
+(`ENGINE_PUB_ADDR`, port 5556) and one to `pm-index` (`INDEX_PUB_CONNECT_ADDR`,
+port 5558).
+
+| Source     | Topic          | Purpose                                                                 |
+|------------|----------------|--------------------------------------------------------------------------|
+| pm-engine  | `trade.*`      | Updates OHLCV, VWAP, min/max, volume, trade log                         |
+| pm-engine  | `book.*`       | Records opening bid/ask prices; drives 15-minute snapshots               |
+| pm-engine  | `system.eod`   | Records end-of-day closing bid/ask prices                                |
+| pm-index   | `index.update` | Records every index level tick to `index_level_snapshots` and rolls up daily OHLC into `index_daily_stats` |
 
 **On engine shutdown**, the engine broadcasts `system.eod` before closing sockets.
 `pm-stats` receives it and immediately flushes the closing bid/ask for every active symbol
-into `daily_stats`.
+into `daily_stats`. The `index.update` subscription is independent of the engine
+socket and keeps working even if `pm-index` starts or stops at a different time
+than `pm-engine`.
 
 ### How statistics are computed
 
@@ -999,13 +1020,22 @@ prints output, and exits.
 
 **Subcommands:**
 
-| Subcommand  | Purpose                                           | Typical filters                                              |
-|-------------|---------------------------------------------------|--------------------------------------------------------------|
-| `daily`     | Daily OHLCV summary from `daily_stats`            | `--date`, `--symbol`, `--limit`, `--wide`                    |
-| `snapshots` | Intraday snapshots from `price_snapshots`         | `--symbol` (required), `--date`, `--from`, `--to`, `--limit` |
-| `trades`    | Trade history from `trade_log`                    | `--symbol`, `--date`, `--from`, `--to`, `--limit`            |
-| `symbols`   | Discover symbols available in stats data          | `--date`                                                     |
-| `dates`     | Discover trading dates available in `daily_stats` | `--symbol`                                                   |
+| Subcommand         | Purpose                                                | Typical filters                                                   |
+|--------------------|---------------------------------------------------------|---------------------------------------------------------------------|
+| `daily`            | Daily OHLCV summary from `daily_stats`                 | `--date`, `--symbol`, `--limit`, `--wide`                          |
+| `snapshots`        | Intraday snapshots from `price_snapshots`               | `--symbol` (required), `--date`, `--from`, `--to`, `--limit`       |
+| `trades`           | Trade history from `trade_log`                          | `--symbol`, `--date`, `--from`, `--to`, `--limit`                  |
+| `symbols`          | Discover symbols available in stats data                | `--date`                                                            |
+| `dates`            | Discover trading dates available in `daily_stats`        | `--symbol`                                                          |
+| `index-daily`      | Daily index OHLC rollup from `index_daily_stats`        | `--date`, `--index-id`, `--limit`, `--wide`                        |
+| `index-snapshots`  | Every recorded index level tick from `index_level_snapshots` | `--index-id` (required), `--date`, `--from`, `--to`, `--limit` |
+| `index-ids`        | Discover index IDs with recorded data                   | `--date`                                                            |
+
+`index-daily`, `index-snapshots`, and `index-ids` query the level/EOD history
+that `pm-index`'s own JSONL file no longer stores — see
+[Statistics and Reporting](140-statistics-and-reporting.md#index-level-history)
+for the full reference and [Market Index](150-index.md#state-and-history) for
+why this data moved here.
 
 **Examples:**
 
@@ -1518,14 +1548,14 @@ None. `pm-index` is a long-running background process after startup.
 1. Reads all `indices:` entries from `engine_config.yaml`
 2. For each index: loads divisor and last prices from the state file if present, or initialises fresh from constituent reference prices and `base_value`
 3. Validates that every constituent symbol appears in `symbols:` with a positive `outstanding_shares`
-4. Writes an `INIT` history record for each index that starts without prior state
+4. Writes an `INIT` structural/audit history record for each index that starts without prior state
 5. Binds ZMQ PULL :5559 for operator commands and history requests
 6. Binds ZMQ PUB :5558 for broadcasting `index.update` messages
 7. Subscribes to engine PUB :5556 for `trade.executed`, `session.state`, and `system.eod`
 8. Enters the poll loop
 
 **Shutdown (Ctrl-C):**
-1. Flushes all pending JSONL history writes
+1. Flushes all pending structural/audit JSONL history writes
 2. Closes ZMQ sockets
 
 **Messages subscribed** (SUB from :5556):
@@ -1534,22 +1564,22 @@ None. `pm-index` is a long-running background process after startup.
 |------------------|-----------------------------------------------------------------------------|
 | `trade.executed` | Drives index recalculation for constituent symbols                          |
 | `session.state`  | Tracks intraday OHLC reset points and triggers EOD finalisation on `CLOSED` |
-| `system.eod`     | Alternate EOD trigger — writes final snapshot and OHLC record               |
+| `system.eod`     | Alternate EOD trigger — publishes the final index.update for the day        |
 
 **Messages received** (PULL :5559):
 
-| Topic                      | Purpose                                                             |
-|----------------------------|---------------------------------------------------------------------|
-| `index.history_request`    | Returns LEVEL and EOD records from the JSONL history file           |
-| `index.corp_action`        | Applies a stock split, cash dividend, or shares-issuance adjustment |
-| `index.constituent_change` | Adds or removes a constituent symbol from an index basket           |
+| Topic                      | Purpose                                                                                                          |
+|----------------------------|---------------------------------------------------------------------------------------------------------------------|
+| `index.history_request`    | Returns structural/audit records (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`) from the JSONL history file — not level/EOD data, which lives in pm-stats |
+| `index.corp_action`        | Applies a stock split, cash dividend, or shares-issuance adjustment                                              |
+| `index.constituent_change` | Adds or removes a constituent symbol from an index basket                                                        |
 
 **Messages published** (PUB :5558):
 
 | Topic                                  | Purpose                                                              |
 |----------------------------------------|----------------------------------------------------------------------|
-| `index.update`                         | Current index level, OHLC, aggregate cap, divisor, and session state |
-| `index.history.{GW_ID}`                | History query response addressed to the requesting gateway           |
+| `index.update`                         | Current index level, OHLC, aggregate cap, divisor, and session state — also consumed by `pm-stats` for level/EOD history |
+| `index.history.{GW_ID}`                | Structural/audit history query response addressed to the requesting gateway |
 | `index.corp_action_ack.{GW_ID}`        | Corporate action applied / rejected acknowledgement                  |
 | `index.constituent_change_ack.{GW_ID}` | Constituent add or delist accepted / rejected acknowledgement        |
 | `index.error.{GW_ID}`                  | Generic error for malformed or rejected requests                     |
@@ -1559,7 +1589,7 @@ None. `pm-index` is a long-running background process after startup.
 | File                              | Purpose                                                                                                           |
 |-----------------------------------|-------------------------------------------------------------------------------------------------------------------|
 | `data/indexes/<ID>_state.json`    | Divisor, last prices, and intraday OHLC checkpoint — rewritten after each EOD and corporate action                |
-| `data/indexes/<ID>_history.jsonl` | Append-only JSONL audit trail with `INIT`, `LEVEL`, `EOD`, `CORP_ACTION`, `ADD_CONSTITUENT`, and `DELIST` records |
+| `data/indexes/<ID>_history.jsonl` | Append-only JSONL **structural/audit trail** with `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, and `DELIST` records only — level and EOD history is recorded by `pm-stats` in `data/stats.db` instead (see the pm-stats section) |
 
 See [Market Index (pm-index)](150-index.md) for configuration details, calculation explanation, and corporate action procedures.
 
@@ -1858,10 +1888,13 @@ For more details on the options see [Configuration Chapter](010-configuration.md
 
 
 
-## pm-index-cli — Index History Query Tool
+## pm-index-cli — Index Structural/Audit History Query Tool
 
-Reads index history JSONL files written by `pm-index` directly from disk and
-renders them as a table, JSON, or CSV. No running process is required.
+Reads the structural/corporate-action audit JSONL files written by `pm-index`
+directly from disk and renders them as a table, JSON, or CSV. No running
+process is required. It does not expose level or EOD history — use
+`pm-stats-cli index-daily` / `index-snapshots` for that instead (see the
+pm-stats-cli section above).
 
 ```bash
 pm-index-cli [--config engine_config.yaml] [--format table|json|csv] COMMAND [options]
@@ -1884,14 +1917,12 @@ None.
 
 | Subcommand | Default limit | Purpose                                                                 |
 |------------|---------------|-------------------------------------------------------------------------|
-| `level`    | 1,000         | Throttled LEVEL records — index value snapshots captured during trading |
-| `eod`      | 365           | EOD records — one row per trading day with open/high/low/close          |
 | `events`   | 1,000         | Structural events: `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`   |
 | `indices`  | —             | List configured indices from `engine_config.yaml`                       |
 
-All history subcommands share `--index ID` (repeatable), `--days N`,
-`--from DATE_OR_TS`, `--to DATE_OR_TS`, and `--limit N`. The `events`
-subcommand also accepts `--type TYPE` to filter to a specific event kind.
+The `events` subcommand accepts `--index ID` (repeatable), `--days N`,
+`--from DATE_OR_TS`, `--to DATE_OR_TS`, `--limit N`, and `--type TYPE` to
+filter to a specific structural event kind.
 
 Like `pm-stats-cli`, this is a read-only offline tool. It does not connect to
 any ZeroMQ socket.

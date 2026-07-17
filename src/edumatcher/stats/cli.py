@@ -99,6 +99,7 @@ _INDEX_DAILY_COLUMNS = [
     "high_level",
     "low_level",
     "close_level",
+    "close_session_state",
     "update_count",
 ]
 _INDEX_DAILY_WIDE_COLUMNS = [
@@ -108,6 +109,7 @@ _INDEX_DAILY_WIDE_COLUMNS = [
     "high_level",
     "low_level",
     "close_level",
+    "close_session_state",
     "open_aggregate_cap",
     "close_aggregate_cap",
     "update_count",

@@ -52,11 +52,11 @@ dedicated query tool.
 
 | File | Written by | When | Purpose | Read / extract with |
 |------|------------|------|---------|---------------------|
-| `stats.db` (SQLite) | `pm-stats` | Per trade · a price snapshot every 15 min · at EOD | OHLCV daily stats, intraday price snapshots, per-trade log | **`pm-stats-cli`** or SQL — see [Statistics & Reporting](140-statistics-and-reporting.md) |
+| `stats.db` (SQLite) | `pm-stats` | Per trade · a price snapshot every 15 min · at EOD · every `index.update` tick | OHLCV daily stats, intraday price snapshots, per-trade log, index level snapshots and daily OHLC | **`pm-stats-cli`** or SQL — see [Statistics & Reporting](140-statistics-and-reporting.md) |
 | `clearing.db` (SQLite) | `pm-clearing` | Per trade · on gateway connect/disconnect · at EOD | Positions, VWAP cost, realized/unrealized P&L, daily summaries, trade events, sessions | **`pm-clearing-cli`** or SQL — see [P&L & Clearing](130-pnl-clearing.md) |
 | `audit.log` | `pm-audit` | Continuously (buffered flush); rotates at 10 MB × 5 backups | Full chronological trail of every message on the bus | **`pm-audit-cli`** — see [Audit Trail](190-audit.md) |
 | `audit_index.db` (SQLite) | `pm-audit-cli` | On demand, when you run an indexed query | Fast lookup index built over `audit.log` | **`pm-audit-cli`** |
-| `indexes/<ID>_history.jsonl` | `pm-index` | Throttled `LEVEL` records during trading · one `EOD` record per day · on structural events (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`) | Index level history for charts and analysis | **`pm-index-cli`** — see [Market Index](150-index.md) |
+| `indexes/<ID>_history.jsonl` | `pm-index` | On structural events only (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`) | Structural/corporate-action audit trail — **not** level or EOD history (that lives in `stats.db`, written by `pm-stats`) | **`pm-index-cli`** — see [Market Index](150-index.md) |
 | `indexes/<ID>_state.json` | `pm-index` | On each update | Persisted divisor + last levels so the index resumes correctly after a restart | JSON; loaded by `pm-index` at startup |
 
 !!! note "Reading the *When* column"

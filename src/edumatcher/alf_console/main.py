@@ -35,7 +35,9 @@ Commands
   POS                      — print current positions with P&L
   SYMBOLS                  — list all active instruments in the engine
     INDEX                    — show current index level
-    INDEX|HISTORY|INDEX=<id>[|FROM=YYYY-MM-DD|TO=YYYY-MM-DD] — query index history
+    INDEX|HISTORY|INDEX=<id>[|FROM=YYYY-MM-DD|TO=YYYY-MM-DD] — query index structural/audit history
+                                (corporate actions, constituent changes — not level ticks;
+                                 use pm-stats-cli for level/EOD history)
   HELP                     — show command reference
   EXIT / QUIT              — disconnect
 """

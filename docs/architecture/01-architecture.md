@@ -251,9 +251,9 @@ It subscribes to the engine PUB at :5556 and publishes index events independentl
 
 | Topic | Direction | Description |
 |-------|-----------|-------------|
-| `index.update` | pm-index → all | Current index level, OHLC, and session state |
-| `index.history_request` | GW → pm-index | Query index history by time range |
-| `index.history.{GW_ID}` | pm-index → GW | History query response |
+| `index.update` | pm-index → all | Current index level, OHLC, and session state — also consumed live by pm-stats for level/EOD history |
+| `index.history_request` | GW → pm-index | Query structural/audit history (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`) by time range — not level/EOD data, which lives in pm-stats' SQLite tables |
+| `index.history.{GW_ID}` | pm-index → GW | Structural/audit history query response |
 | `index.corp_action` | GW → pm-index | Apply a corporate action to an index constituent |
 | `index.corp_action_ack.{GW_ID}` | pm-index → GW | Corporate action acknowledgement |
 | `index.constituent_change` | GW → pm-index | Add or remove an index constituent |
@@ -1139,10 +1139,11 @@ startup, and subscriber **data stores** written continuously during the session.
 | `gtc_orders.json` | engine | clean shutdown | reloaded at startup | resting GTC orders (price-time priority preserved) |
 | `gtc_combos.json` | engine | clean shutdown | reloaded at startup | resting GTC combo parents + child links |
 | `book_stats.json` | engine | clean shutdown | reloaded at startup | last buy/sell price per symbol; reseeds collar & circuit-breaker references at the next open |
-| `stats.db` (SQLite) | pm-stats | per trade · snapshot every 15 min · EOD | accumulates | OHLCV, intraday snapshots, trade log |
+| `stats.db` (SQLite) | pm-stats | per trade · snapshot every 15 min · EOD · every index.update tick | accumulates | OHLCV, intraday snapshots, trade log, index level snapshots & daily OHLC |
 | `clearing.db` (SQLite) | pm-clearing | per trade · connect/disconnect · EOD | accumulates | positions, VWAP, realised/unrealised P&L |
 | `audit.log` | pm-audit | continuous (rotating) | accumulates | full chronological event trail |
-| `indexes/<ID>_{history.jsonl,state.json}` | pm-index | throttled + EOD / on update | accumulates | index history and restart state |
+| `indexes/<ID>_history.jsonl` | pm-index | on structural/corporate-action event only | accumulates | structural/audit trail (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`) — level/EOD history lives in `stats.db` instead |
+| `indexes/<ID>_state.json` | pm-index | on EOD / corporate action | rewritten | divisor, last prices, and intraday OHLC checkpoint for restart |
 
 (Full field-level detail is in the user guide's
 [Persistence chapter](../user-guide/180-persistence.md#data-files-at-a-glance).)

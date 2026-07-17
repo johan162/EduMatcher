@@ -1,4 +1,10 @@
-"""Tests for src/edumatcher/index/cli.py — read-only index history query tool."""
+"""Tests for src/edumatcher/index/cli.py — read-only structural/audit index history query tool.
+
+pm-index's JSONL history is a structural/corporate-action audit log only
+(INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST). Level and EOD time-series
+history lives in pm-stats' SQLite tables instead (see test_stats_*.py /
+pm-stats-cli index-daily / index-snapshots).
+"""
 
 from __future__ import annotations
 
@@ -13,13 +19,9 @@ import pytest
 
 from edumatcher.index.cli import (
     _build_parser,
-    _cmd_eod,
     _cmd_events,
     _cmd_indices,
-    _cmd_level,
-    _project_eod,
     _project_event,
-    _project_level,
     _read_jsonl,
     _render,
     _render_csv,
@@ -29,7 +31,6 @@ from edumatcher.index.cli import (
     _resolve_index_ids,
     _resolve_time_range,
     _stringify,
-    _ts_to_date,
     _ts_to_str,
     main,
 )
@@ -73,7 +74,7 @@ class TestParseTs:
 
 
 # ---------------------------------------------------------------------------
-# _ts_to_str / _ts_to_date
+# _ts_to_str
 # ---------------------------------------------------------------------------
 
 
@@ -82,19 +83,10 @@ class TestTsHelpers:
         result = _ts_to_str(0.0)
         assert result == "1970-01-01T00:00:00"
 
-    def test_ts_to_date_epoch(self) -> None:
-        result = _ts_to_date(0.0)
-        assert result == "1970-01-01"
-
     def test_ts_to_str_roundtrip(self) -> None:
         ts = _parse_ts("2026-06-15")
         s = _ts_to_str(ts)
         assert s.startswith("2026-06-15")
-
-    def test_ts_to_date_roundtrip(self) -> None:
-        ts = _parse_ts("2026-06-15")
-        d = _ts_to_date(ts)
-        assert d == "2026-06-15"
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +124,7 @@ class TestReadJsonl:
                 f.write(json.dumps(r) + "\n")
 
     def test_nonexistent_file_returns_empty(self, tmp_path: Path) -> None:
-        result = _read_jsonl(tmp_path / "nope.jsonl", 0.0, 1e18, {"LEVEL"}, 1000)
+        result = _read_jsonl(tmp_path / "nope.jsonl", 0.0, 1e18, {"INIT"}, 1000)
         assert result == []
 
     def test_filters_by_type(self, tmp_path: Path) -> None:
@@ -141,13 +133,13 @@ class TestReadJsonl:
         self._write_jsonl(
             p,
             [
-                {"type": "LEVEL", "timestamp": ts, "level": 100.0},
-                {"type": "EOD", "timestamp": ts, "close": 99.0},
+                {"type": "INIT", "timestamp": ts, "level": 100.0},
+                {"type": "CORP_ACTION", "timestamp": ts, "level": 99.0},
             ],
         )
-        result = _read_jsonl(p, 0.0, 1e18, {"LEVEL"}, 1000)
+        result = _read_jsonl(p, 0.0, 1e18, {"INIT"}, 1000)
         assert len(result) == 1
-        assert result[0]["type"] == "LEVEL"
+        assert result[0]["type"] == "INIT"
 
     def test_filters_by_time_range(self, tmp_path: Path) -> None:
         p = tmp_path / "hist.jsonl"
@@ -156,12 +148,12 @@ class TestReadJsonl:
         self._write_jsonl(
             p,
             [
-                {"type": "LEVEL", "timestamp": old, "level": 90.0},
-                {"type": "LEVEL", "timestamp": now, "level": 100.0},
+                {"type": "CORP_ACTION", "timestamp": old, "level": 90.0},
+                {"type": "CORP_ACTION", "timestamp": now, "level": 100.0},
             ],
         )
         # Only want records from last 5 days
-        result = _read_jsonl(p, now - 86400 * 5, now + 1, {"LEVEL"}, 1000)
+        result = _read_jsonl(p, now - 86400 * 5, now + 1, {"CORP_ACTION"}, 1000)
         assert len(result) == 1
         assert result[0]["level"] == 100.0
 
@@ -169,82 +161,54 @@ class TestReadJsonl:
         p = tmp_path / "hist.jsonl"
         ts = time.time()
         p.write_text(
-            "\n" + json.dumps({"type": "LEVEL", "timestamp": ts, "level": 1.0}) + "\n\n"
+            "\n" + json.dumps({"type": "INIT", "timestamp": ts, "level": 1.0}) + "\n\n"
         )
-        result = _read_jsonl(p, 0.0, 1e18, {"LEVEL"}, 1000)
+        result = _read_jsonl(p, 0.0, 1e18, {"INIT"}, 1000)
         assert len(result) == 1
 
     def test_skips_malformed_json(self, tmp_path: Path) -> None:
         p = tmp_path / "hist.jsonl"
         ts = time.time()
         p.write_text(
-            "NOT JSON\n" + json.dumps({"type": "LEVEL", "timestamp": ts}) + "\n"
+            "NOT JSON\n" + json.dumps({"type": "INIT", "timestamp": ts}) + "\n"
         )
-        result = _read_jsonl(p, 0.0, 1e18, {"LEVEL"}, 1000)
+        result = _read_jsonl(p, 0.0, 1e18, {"INIT"}, 1000)
         assert len(result) == 1
 
     def test_skips_missing_timestamp(self, tmp_path: Path) -> None:
         p = tmp_path / "hist.jsonl"
-        p.write_text(json.dumps({"type": "LEVEL", "level": 100.0}) + "\n")
-        result = _read_jsonl(p, 0.0, 1e18, {"LEVEL"}, 1000)
+        p.write_text(json.dumps({"type": "INIT", "level": 100.0}) + "\n")
+        result = _read_jsonl(p, 0.0, 1e18, {"INIT"}, 1000)
         assert result == []
 
     def test_limit_enforced(self, tmp_path: Path) -> None:
         p = tmp_path / "hist.jsonl"
         ts = time.time()
         lines = "\n".join(
-            json.dumps({"type": "LEVEL", "timestamp": ts + i}) for i in range(10)
+            json.dumps({"type": "CORP_ACTION", "timestamp": ts + i}) for i in range(10)
         )
         p.write_text(lines + "\n")
-        result = _read_jsonl(p, 0.0, 1e18, {"LEVEL"}, 3)
+        result = _read_jsonl(p, 0.0, 1e18, {"CORP_ACTION"}, 3)
         assert len(result) == 3
+
+    def test_level_type_never_matches_structural_filter(self, tmp_path: Path) -> None:
+        """Design intent: even if a stray LEVEL record exists on disk (e.g.
+        left over from before this refactor), pm-index-cli's structural
+        query surface must never surface it — LEVEL isn't a valid --type
+        value any more.
+        """
+        p = tmp_path / "hist.jsonl"
+        ts = time.time()
+        self._write_jsonl(p, [{"type": "LEVEL", "timestamp": ts, "level": 100.0}])
+        result = _read_jsonl(
+            p, 0.0, 1e18, {"INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"}, 1000
+        )
+        assert result == []
 
 
 # ---------------------------------------------------------------------------
 # Projection helpers
 # ---------------------------------------------------------------------------
-
-
-class TestProjectLevel:
-    def test_basic(self) -> None:
-        ts = 0.0
-        rec = {
-            "timestamp": ts,
-            "index_id": "IDX",
-            "level": 100.0,
-            "session_state": "CONTINUOUS",
-            "aggregate_cap": 1e9,
-            "divisor": 1000.0,
-        }
-        row = _project_level(rec)
-        assert row["index_id"] == "IDX"
-        assert row["level"] == 100.0
-        assert row["ts"] == _ts_to_str(ts)
-
-    def test_missing_fields_default_empty(self) -> None:
-        row = _project_level({"timestamp": 0.0})
-        assert row["index_id"] == ""
-        assert row["level"] is None
-
-
-class TestProjectEod:
-    def test_basic(self) -> None:
-        ts = 0.0
-        rec = {
-            "timestamp": ts,
-            "index_id": "IDX",
-            "open": 95.0,
-            "high": 102.0,
-            "low": 94.0,
-            "close": 101.0,
-            "level": 101.0,
-            "aggregate_cap": 1e9,
-            "divisor": 1000.0,
-        }
-        row = _project_eod(rec)
-        assert row["date"] == _ts_to_date(ts)
-        assert row["open"] == 95.0
-        assert row["close"] == 101.0
 
 
 class TestProjectEvent:
@@ -502,19 +466,6 @@ class TestResolveHistoryFiles:
 
 
 class TestBuildParser:
-    def test_level_subcommand(self) -> None:
-        parser = _build_parser()
-        args = parser.parse_args(["level", "--index", "IDX"])
-        assert args.command == "level"
-        assert args.index == ["IDX"]
-        assert args.limit == 1000
-
-    def test_eod_subcommand(self) -> None:
-        parser = _build_parser()
-        args = parser.parse_args(["eod", "--index", "IDX", "--days", "30"])
-        assert args.command == "eod"
-        assert args.days == 30
-
     def test_events_subcommand_with_type(self) -> None:
         parser = _build_parser()
         args = parser.parse_args(["events", "--index", "IDX", "--type", "INIT"])
@@ -529,17 +480,27 @@ class TestBuildParser:
     def test_format_choices(self) -> None:
         parser = _build_parser()
         for fmt in ("table", "json", "csv"):
-            args = parser.parse_args(["--format", fmt, "level", "--index", "X"])
+            args = parser.parse_args(["--format", fmt, "events", "--index", "X"])
             assert args.format == fmt
 
     def test_no_header_flag(self) -> None:
         parser = _build_parser()
-        args = parser.parse_args(["--no-header", "level", "--index", "X"])
+        args = parser.parse_args(["--no-header", "events", "--index", "X"])
         assert args.no_header is True
+
+    def test_level_and_eod_subcommands_no_longer_exist(self) -> None:
+        """Design intent: level/EOD queries were removed from pm-index-cli
+        entirely, not just hidden — they now live in pm-stats-cli.
+        """
+        parser = _build_parser()
+        for removed_cmd in ("level", "eod"):
+            with pytest.raises(SystemExit) as exc:
+                parser.parse_args([removed_cmd, "--index", "X"])
+            assert exc.value.code == 2
 
 
 # ---------------------------------------------------------------------------
-# _cmd_level / _cmd_eod / _cmd_events — integration tests with tmp files
+# _cmd_events — integration tests with tmp files
 # ---------------------------------------------------------------------------
 
 
@@ -571,83 +532,6 @@ def _write_history(path: Path, records: list[dict]) -> None:
     with path.open("w") as f:
         for r in records:
             f.write(json.dumps(r) + "\n")
-
-
-class TestCmdLevel:
-    def test_no_matching_records_prints_no_rows(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
-        (tmp_path / "TEST_history.jsonl").write_text("")
-        args = _make_args(tmp_path, "level")
-        _cmd_level(args)
-        assert "No rows" in capsys.readouterr().out
-
-    def test_level_records_rendered(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
-        ts = time.time()
-        _write_history(
-            tmp_path / "TEST_history.jsonl",
-            [{"type": "LEVEL", "timestamp": ts, "index_id": "TEST", "level": 99.5}],
-        )
-        args = _make_args(tmp_path, "level")
-        _cmd_level(args)
-        assert "99.5" in capsys.readouterr().out
-
-    def test_json_format(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
-        ts = time.time()
-        _write_history(
-            tmp_path / "TEST_history.jsonl",
-            [{"type": "LEVEL", "timestamp": ts, "index_id": "TEST", "level": 50.0}],
-        )
-        args = _make_args(tmp_path, "level", fmt="json")
-        _cmd_level(args)
-        parsed = json.loads(capsys.readouterr().out)
-        assert parsed[0]["level"] == 50.0
-
-    def test_csv_format(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
-        ts = time.time()
-        _write_history(
-            tmp_path / "TEST_history.jsonl",
-            [{"type": "LEVEL", "timestamp": ts, "index_id": "TEST", "level": 42.0}],
-        )
-        args = _make_args(tmp_path, "level", fmt="csv")
-        _cmd_level(args)
-        out = capsys.readouterr().out
-        assert "ts" in out  # header
-        assert "42" in out
-
-
-class TestCmdEod:
-    def test_eod_records_rendered(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
-        ts = time.time()
-        _write_history(
-            tmp_path / "TEST_history.jsonl",
-            [
-                {
-                    "type": "EOD",
-                    "timestamp": ts,
-                    "index_id": "TEST",
-                    "open": 95.0,
-                    "close": 101.0,
-                }
-            ],
-        )
-        args = _make_args(tmp_path, "eod")
-        _cmd_eod(args)
-        out = capsys.readouterr().out
-        assert "95" in out or "101" in out
-
-    def test_no_eod_rows(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
-        _write_history(
-            tmp_path / "TEST_history.jsonl",
-            [{"type": "LEVEL", "timestamp": time.time(), "level": 1.0}],
-        )
-        args = _make_args(tmp_path, "eod")
-        _cmd_eod(args)
-        assert "No rows" in capsys.readouterr().out
 
 
 class TestCmdEvents:
@@ -695,11 +579,19 @@ class TestCmdEvents:
             _cmd_events(args)
         assert exc.value.code == 2
 
+    def test_level_is_an_invalid_event_type(self, tmp_path: Path) -> None:
+        """LEVEL/EOD are not valid --type filter values any more — they
+        should be rejected the same way an unknown type would be, not
+        silently accepted (which would suggest events still stores levels).
+        """
+        (tmp_path / "TEST_history.jsonl").write_text("")
+        args = _make_args(tmp_path, "events", event_types=["LEVEL"])
+        with pytest.raises(SystemExit) as exc:
+            _cmd_events(args)
+        assert exc.value.code == 2
+
     def test_no_event_rows(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
-        _write_history(
-            tmp_path / "TEST_history.jsonl",
-            [{"type": "LEVEL", "timestamp": time.time()}],
-        )
+        (tmp_path / "TEST_history.jsonl").write_text("")
         args = _make_args(tmp_path, "events")
         _cmd_events(args)
         assert "No rows" in capsys.readouterr().out
@@ -769,47 +661,11 @@ class TestMain:
     def test_limit_zero_raises(self, tmp_path: Path) -> None:
         with patch(
             "sys.argv",
-            ["pm-index-cli", "level", "--index", "IDX", "--limit", "0"],
+            ["pm-index-cli", "events", "--index", "IDX", "--limit", "0"],
         ):
             with pytest.raises(SystemExit) as exc:
                 main()
         assert exc.value.code == 2
-
-    def test_dispatches_level(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
-        (tmp_path / "IDX_history.jsonl").write_text("")
-        with patch(
-            "sys.argv",
-            [
-                "pm-index-cli",
-                "--data-dir",
-                str(tmp_path),
-                "level",
-                "--index",
-                "IDX",
-            ],
-        ):
-            main()
-        assert "No rows" in capsys.readouterr().out
-
-    def test_dispatches_eod(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
-        (tmp_path / "IDX_history.jsonl").write_text("")
-        with patch(
-            "sys.argv",
-            [
-                "pm-index-cli",
-                "--data-dir",
-                str(tmp_path),
-                "eod",
-                "--index",
-                "IDX",
-            ],
-        ):
-            main()
-        assert "No rows" in capsys.readouterr().out
 
     def test_dispatches_events(
         self, tmp_path: Path, capsys: pytest.CaptureFixture

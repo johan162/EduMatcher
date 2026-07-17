@@ -112,8 +112,8 @@ def _seed_db(path: Path) -> None:
         conn.execute(
             "INSERT INTO index_daily_stats "
             "(date, index_id, open_level, high_level, low_level, close_level, "
-            " open_aggregate_cap, close_aggregate_cap, update_count) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " close_session_state, open_aggregate_cap, close_aggregate_cap, update_count) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 "2026-06-14",
                 "EDU100",
@@ -121,6 +121,7 @@ def _seed_db(path: Path) -> None:
                 1056.30,
                 1040.05,
                 1048.73,
+                "CLOSED",
                 7.3e12,
                 7.35e12,
                 512,
@@ -436,6 +437,22 @@ def test_index_daily_defaults_to_latest_date_table_output(
     assert "2026-06-14" in out
     # Default (non-wide) view omits aggregate cap columns
     assert "aggregate_cap" not in out
+
+
+def test_index_daily_shows_close_session_state_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+    seeded_db: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """close_session_state is the field a user needs to decide whether
+    close_level is a final EOD print — it must be visible without
+    reaching for --wide, unlike the aggregate-cap columns.
+    """
+    _run_cli(monkeypatch, ["--db", str(seeded_db), "index-daily"])
+    out = capsys.readouterr().out
+
+    assert "close_session_state" in out
+    assert "CLOSED" in out
 
 
 def test_index_daily_wide_includes_aggregate_cap_columns(

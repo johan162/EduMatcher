@@ -1,7 +1,13 @@
-"""pm-index-cli — read-only query tool for index history JSONL files.
+"""pm-index-cli — read-only query tool for index structural/audit JSONL files.
 
 Reads JSONL history files written by ``pm-index`` directly from disk.
 No running process is required.
+
+These files hold only structural/corporate-action audit records
+(INIT, CORP_ACTION, ADD_CONSTITUENT, DELIST) — index level and
+end-of-day history is not stored here. For level/EOD time-series
+queries, use ``pm-stats-cli index-daily`` / ``index-snapshots``,
+which read from pm-stats' SQLite database instead.
 """
 
 from __future__ import annotations
@@ -15,31 +21,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from edumatcher.index.history import STRUCTURAL_RECORD_TYPES
+
 _FORMATS = ("table", "json", "csv")
 _DEFAULT_DATA_DIR = "data/indexes"
 
 # ---------------------------------------------------------------------------
 # Column definitions for each subcommand
 # ---------------------------------------------------------------------------
-_LEVEL_COLUMNS = [
-    "ts",
-    "index_id",
-    "level",
-    "session_state",
-    "aggregate_cap",
-    "divisor",
-]
-_EOD_COLUMNS = [
-    "date",
-    "index_id",
-    "open",
-    "high",
-    "low",
-    "close",
-    "level",
-    "aggregate_cap",
-    "divisor",
-]
 _EVENTS_COLUMNS = [
     "ts",
     "index_id",
@@ -58,8 +47,8 @@ _INDICES_COLUMNS = [
     "constituents",
 ]
 
-# Event types shown by the 'events' subcommand (not LEVEL / EOD).
-_STRUCTURAL_TYPES = {"INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"}
+# Event types shown by the 'events' subcommand.
+_STRUCTURAL_TYPES = set(STRUCTURAL_RECORD_TYPES)
 
 
 # ---------------------------------------------------------------------------
@@ -92,10 +81,6 @@ def _parse_ts(value: str) -> float:
 
 def _ts_to_str(ts: float) -> str:
     return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
-
-
-def _ts_to_date(ts: float) -> str:
-    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
 
 
 # ---------------------------------------------------------------------------
@@ -214,31 +199,6 @@ def _read_jsonl(
 # ---------------------------------------------------------------------------
 
 
-def _project_level(rec: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "ts": _ts_to_str(float(rec["timestamp"])),
-        "index_id": rec.get("index_id", ""),
-        "level": rec.get("level"),
-        "session_state": rec.get("session_state", ""),
-        "aggregate_cap": rec.get("aggregate_cap"),
-        "divisor": rec.get("divisor"),
-    }
-
-
-def _project_eod(rec: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "date": _ts_to_date(float(rec["timestamp"])),
-        "index_id": rec.get("index_id", ""),
-        "open": rec.get("open"),
-        "high": rec.get("high"),
-        "low": rec.get("low"),
-        "close": rec.get("close"),
-        "level": rec.get("level"),
-        "aggregate_cap": rec.get("aggregate_cap"),
-        "divisor": rec.get("divisor"),
-    }
-
-
 def _project_event(rec: dict[str, Any]) -> dict[str, Any]:
     rec_type = rec.get("type", "")
     if rec_type == "CORP_ACTION":
@@ -337,8 +297,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pm-index-cli",
         description=(
-            "Query EduMatcher index history files directly from disk.\n"
-            "No running process is required — reads JSONL files written by pm-index."
+            "Query EduMatcher index structural/audit JSONL files directly from disk.\n"
+            "No running process is required — reads JSONL files written by pm-index.\n"
+            "For index level/EOD time-series history, use pm-stats-cli instead\n"
+            "(index-daily / index-snapshots subcommands)."
         ),
         formatter_class=argparse.RawTextHelpFormatter,
     )
@@ -375,56 +337,6 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     sub = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
-
-    # ------------------------------------------------------------------ level
-    level_p = sub.add_parser(
-        "level",
-        help="Show throttled LEVEL records (index value snapshots during trading).",
-        formatter_class=argparse.RawTextHelpFormatter,
-    )
-    level_p.add_argument(
-        "--index",
-        "-i",
-        action="append",
-        metavar="ID",
-        help=(
-            "Index ID to query (repeatable).\n"
-            "Defaults to all configured indices when --config is given."
-        ),
-    )
-    _add_time_args(level_p)
-    level_p.add_argument(
-        "--limit",
-        type=int,
-        default=1000,
-        metavar="N",
-        help="Maximum rows per index (default: 1000).",
-    )
-
-    # -------------------------------------------------------------------- eod
-    eod_p = sub.add_parser(
-        "eod",
-        help="Show EOD records (daily open/high/low/close summaries).",
-        formatter_class=argparse.RawTextHelpFormatter,
-    )
-    eod_p.add_argument(
-        "--index",
-        "-i",
-        action="append",
-        metavar="ID",
-        help=(
-            "Index ID to query (repeatable).\n"
-            "Defaults to all configured indices when --config is given."
-        ),
-    )
-    _add_time_args(eod_p)
-    eod_p.add_argument(
-        "--limit",
-        type=int,
-        default=365,
-        metavar="N",
-        help="Maximum rows per index (default: 365).",
-    )
 
     # ----------------------------------------------------------------- events
     events_p = sub.add_parser(
@@ -546,34 +458,6 @@ def _resolve_time_range(args: argparse.Namespace) -> tuple[float, float]:
 # ---------------------------------------------------------------------------
 
 
-def _cmd_level(args: argparse.Namespace) -> None:
-    index_ids = _resolve_index_ids(args, args.config)
-    from_ts, to_ts = _resolve_time_range(args)
-    hist_paths = _resolve_history_files(index_ids, args.config, args.data_dir)
-
-    rows: list[dict[str, Any]] = []
-    for idx_id in index_ids:
-        for rec in _read_jsonl(
-            hist_paths[idx_id], from_ts, to_ts, {"LEVEL"}, args.limit
-        ):
-            rows.append(_project_level(rec))
-
-    _render(rows, _LEVEL_COLUMNS, args.format, args.no_header)
-
-
-def _cmd_eod(args: argparse.Namespace) -> None:
-    index_ids = _resolve_index_ids(args, args.config)
-    from_ts, to_ts = _resolve_time_range(args)
-    hist_paths = _resolve_history_files(index_ids, args.config, args.data_dir)
-
-    rows: list[dict[str, Any]] = []
-    for idx_id in index_ids:
-        for rec in _read_jsonl(hist_paths[idx_id], from_ts, to_ts, {"EOD"}, args.limit):
-            rows.append(_project_eod(rec))
-
-    _render(rows, _EOD_COLUMNS, args.format, args.no_header)
-
-
 def _cmd_events(args: argparse.Namespace) -> None:
     index_ids = _resolve_index_ids(args, args.config)
     from_ts, to_ts = _resolve_time_range(args)
@@ -635,11 +519,7 @@ def main() -> None:
         print("[ERROR] --limit must be > 0", file=sys.stderr)
         raise SystemExit(2)
 
-    if args.command == "level":
-        _cmd_level(args)
-    elif args.command == "eod":
-        _cmd_eod(args)
-    elif args.command == "events":
+    if args.command == "events":
         _cmd_events(args)
     elif args.command == "indices":
         _cmd_indices(args)

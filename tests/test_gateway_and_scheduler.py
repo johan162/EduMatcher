@@ -1611,16 +1611,19 @@ class TestIndexDisplay:
             {
                 "records": [
                     {
-                        "type": "LEVEL",
+                        "type": "INIT",
                         "timestamp": _time.time(),
-                        "level": 1025.5,
-                        "session_state": "CONTINUOUS",
+                        "level": 1000.0,
+                        "base_value": 1000.0,
+                        "constituents": ["AAPL", "MSFT"],
                     },
                     {
-                        "type": "EOD",
+                        "type": "CORP_ACTION",
                         "timestamp": _time.time(),
                         "level": 1030.0,
-                        "session_state": "CLOSED",
+                        "symbol": "AAPL",
+                        "action": "SPLIT",
+                        "detail": "2:1",
                     },
                 ]
             },
@@ -1979,11 +1982,7 @@ class TestIndexDisplayEdgeCases:
         # Record with no timestamp → ts_txt = "?"
         gw._handle_event(
             "index.history.GW01",
-            {
-                "records": [
-                    {"type": "LEVEL", "level": 1000.0, "session_state": "CONTINUOUS"}
-                ]
-            },
+            {"records": [{"type": "CORP_ACTION", "level": 1000.0, "symbol": "AAPL"}]},
         )
 
     def test_index_history_record_no_level(self) -> None:
@@ -1996,9 +1995,9 @@ class TestIndexDisplayEdgeCases:
             {
                 "records": [
                     {
-                        "type": "LEVEL",
+                        "type": "CORP_ACTION",
                         "timestamp": _time.time(),
-                        "session_state": "CONTINUOUS",
+                        "symbol": "AAPL",
                         # no 'level'
                     }
                 ]

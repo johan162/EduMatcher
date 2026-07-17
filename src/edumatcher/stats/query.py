@@ -268,7 +268,7 @@ def query_index_daily(
 
     sql = (
         "SELECT date, index_id, open_level, high_level, low_level, close_level, "
-        "open_aggregate_cap, close_aggregate_cap, update_count "
+        "close_session_state, open_aggregate_cap, close_aggregate_cap, update_count "
         "FROM index_daily_stats WHERE date = ?"
     )
     params: list[Any] = [selected_date]

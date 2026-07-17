@@ -103,7 +103,9 @@ HELP_TEXT = """
   POS         — show current positions with P&L
   SYMBOLS     — list all active instruments in the engine
     INDEX       — show current cached index level
-    INDEX|HISTORY|INDEX=<id>[|FROM=YYYY-MM-DD|TO=YYYY-MM-DD] — query index history
+    INDEX|HISTORY|INDEX=<id>[|FROM=YYYY-MM-DD|TO=YYYY-MM-DD] — query index structural/
+                  audit history (corp actions, constituent changes — not level ticks;
+                  use pm-stats-cli for level/EOD history)
   HELP        — this message
   EXIT / QUIT — disconnect
 """
@@ -427,15 +429,25 @@ def print_current_index(last_index_update: dict[str, Any] | None) -> None:
 
 
 def print_index_history(records: list[dict[str, Any]]) -> None:
+    """Render structural/audit index records (INIT, CORP_ACTION,
+    ADD_CONSTITUENT, DELIST). This is not a level/EOD time series —
+    query pm-stats-cli (index-daily / index-snapshots) for that.
+    """
     if not records:
-        console.print("[dim]No index history records returned.[/dim]")
+        console.print(
+            "[dim]No structural index history records returned. "
+            "For level/EOD time-series data, use pm-stats-cli instead.[/dim]"
+        )
         return
 
-    table = Table(title="Index history", show_header=True, header_style="bold magenta")
+    table = Table(
+        title="Index structural history", show_header=True, header_style="bold magenta"
+    )
     table.add_column("Type", style="bold")
     table.add_column("Time", style="dim")
+    table.add_column("Symbol", style="dim")
+    table.add_column("Detail")
     table.add_column("Level", justify="right")
-    table.add_column("Session", style="dim")
 
     for rec in records:
         rec_type = str(rec.get("type", "?"))
@@ -444,12 +456,29 @@ def print_index_history(records: list[dict[str, Any]]) -> None:
             ts_txt = datetime.fromtimestamp(float(ts)).strftime("%Y-%m-%d %H:%M:%S")
         else:
             ts_txt = "?"
+        symbol = str(rec.get("symbol", "-")) or "-"
+        detail = _describe_structural_record(rec_type, rec)
         level = rec.get("level")
         level_txt = f"{float(level):.2f}" if isinstance(level, (int, float)) else "-"
-        session_state = str(rec.get("session_state", "-"))
-        table.add_row(rec_type, ts_txt, level_txt, session_state)
+        table.add_row(rec_type, ts_txt, symbol, detail, level_txt)
 
     console.print(table)
+
+
+def _describe_structural_record(rec_type: str, rec: dict[str, Any]) -> str:
+    if rec_type == "CORP_ACTION":
+        action = rec.get("action", "")
+        detail = rec.get("detail", "")
+        return f"{action} {detail}".strip() or "-"
+    if rec_type == "ADD_CONSTITUENT":
+        return f"ref_price={rec.get('reference_price', '?')}"
+    if rec_type == "DELIST":
+        return "-"
+    if rec_type == "INIT":
+        constituents = rec.get("constituents", [])
+        base = rec.get("base_value", "?")
+        return f"base={base} n_constituents={len(constituents)}"
+    return "-"
 
 
 def print_orders(gateway_id: str, order_cache: dict[str, dict[str, Any]]) -> None:

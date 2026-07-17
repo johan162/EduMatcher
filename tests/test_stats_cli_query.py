@@ -84,8 +84,8 @@ def _seed_db(path: Path) -> None:
     conn.execute(
         "INSERT INTO index_daily_stats "
         "(date, index_id, open_level, high_level, low_level, close_level, "
-        " open_aggregate_cap, close_aggregate_cap, update_count) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " close_session_state, open_aggregate_cap, close_aggregate_cap, update_count) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             "2026-06-14",
             "EDU100",
@@ -93,6 +93,7 @@ def _seed_db(path: Path) -> None:
             1056.30,
             1040.05,
             1048.73,
+            "CLOSED",
             7.3e12,
             7.35e12,
             512,
@@ -101,8 +102,8 @@ def _seed_db(path: Path) -> None:
     conn.execute(
         "INSERT INTO index_daily_stats "
         "(date, index_id, open_level, high_level, low_level, close_level, "
-        " open_aggregate_cap, close_aggregate_cap, update_count) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " close_session_state, open_aggregate_cap, close_aggregate_cap, update_count) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             "2026-06-15",
             "EDU100",
@@ -110,6 +111,7 @@ def _seed_db(path: Path) -> None:
             1060.00,
             1045.00,
             1055.20,
+            "CONTINUOUS",  # simulates "today, still trading" — not yet final
             7.35e12,
             7.4e12,
             480,
@@ -118,9 +120,20 @@ def _seed_db(path: Path) -> None:
     conn.execute(
         "INSERT INTO index_daily_stats "
         "(date, index_id, open_level, high_level, low_level, close_level, "
-        " open_aggregate_cap, close_aggregate_cap, update_count) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ("2026-06-14", "EDUFIN", 500.0, 505.0, 498.0, 502.0, 1.2e12, 1.21e12, 300),
+        " close_session_state, open_aggregate_cap, close_aggregate_cap, update_count) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "2026-06-14",
+            "EDUFIN",
+            500.0,
+            505.0,
+            498.0,
+            502.0,
+            "CLOSED",
+            1.2e12,
+            1.21e12,
+            300,
+        ),
     )
 
     conn.execute(
@@ -306,6 +319,29 @@ def test_query_index_daily_index_id_filter_isolates_one_index(
     assert len(rows) == 1
     assert rows[0]["index_id"] == "EDUFIN"
     assert rows[0]["close_level"] == 502.0
+
+
+def test_query_index_daily_returns_close_session_state_for_finality_check(
+    seeded_db: Path,
+) -> None:
+    """Design intent: a caller must be able to tell, from index-daily alone,
+    whether close_level for a given date is a finalized EOD print (CLOSED)
+    or just the most recent tick received so far (any other state) —
+    without a second query against index_level_snapshots.
+    """
+    conn = open_readonly_connection(seeded_db)
+
+    closed_row = query_index_daily(
+        conn, date_value="2026-06-14", index_id="EDU100", limit=100
+    )[0]
+    assert closed_row["close_session_state"] == "CLOSED"
+
+    still_trading_row = query_index_daily(
+        conn, date_value="2026-06-15", index_id="EDU100", limit=100
+    )[0]
+    assert still_trading_row["close_session_state"] == "CONTINUOUS"
+
+    conn.close()
 
 
 def test_query_index_daily_without_index_id_returns_all_indexes_for_date(

@@ -33,8 +33,19 @@ SQLite tables
 
   index_daily_stats
     Columns: date, index_id, open_level, high_level, low_level, close_level,
-             open_aggregate_cap, close_aggregate_cap, update_count
+             close_session_state, open_aggregate_cap, close_aggregate_cap,
+             update_count
     One row per (date, index_id), upserted on each index.update event.
+    IMPORTANT: close_level (and close_session_state) reflect the *most
+    recent* update received for that day, not necessarily the final EOD
+    print. For today's date, while the session is still open, close_level
+    is a live "last level so far" and will keep changing. It only becomes
+    the true end-of-day close once no further updates arrive for that date
+    — which is guaranteed once the date has rolled over, or can be
+    confirmed immediately by checking close_session_state == "CLOSED"
+    (set from pm-index's forced EOD publish). See pm-stats-cli's
+    index-daily command and docs/user-guide/140-statistics-and-reporting.md
+    for how to query this reliably.
 
   index_level_snapshots
     Columns: ts, index_id, level, aggregate_cap, divisor, session_state,
@@ -170,18 +181,29 @@ class _IndexDayAccum:
     high_level: Optional[float] = None
     low_level: Optional[float] = None
     close_level: Optional[float] = None
+    close_session_state: Optional[str] = None
 
     open_aggregate_cap: Optional[float] = None
     close_aggregate_cap: Optional[float] = None
 
     update_count: int = 0
 
-    def on_update(self, level: float, aggregate_cap: Optional[float]) -> None:
+    def on_update(
+        self,
+        level: float,
+        aggregate_cap: Optional[float],
+        session_state: Optional[str] = None,
+    ) -> None:
         if self.open_level is None:
             self.open_level = level
             self.open_aggregate_cap = aggregate_cap
         self.close_level = level
         self.close_aggregate_cap = aggregate_cap
+        # close_session_state mirrors close_level: it always reflects the
+        # most recent update. It only means "final" once it equals CLOSED
+        # (set by pm-index's forced EOD publish) — see the module docstring
+        # and the index_daily_stats column comment below.
+        self.close_session_state = session_state
         self.high_level = (
             level if self.high_level is None else max(self.high_level, level)
         )
@@ -269,6 +291,11 @@ CREATE TABLE IF NOT EXISTS index_daily_stats (
     high_level          REAL,
     low_level           REAL,
     close_level         REAL,
+    -- session_state as of the most recent update, i.e. the one that set
+    -- close_level. Only means "close_level is final" when this is CLOSED;
+    -- for the current trading day it will typically show CONTINUOUS or
+    -- another intraday state until pm-index's forced EOD publish arrives.
+    close_session_state TEXT,
     open_aggregate_cap  REAL,
     close_aggregate_cap REAL,
     update_count        INTEGER NOT NULL DEFAULT 0,
@@ -335,13 +362,14 @@ VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 UPSERT_INDEX_DAILY = """
 INSERT INTO index_daily_stats
     (date, index_id, open_level, high_level, low_level, close_level,
-     open_aggregate_cap, close_aggregate_cap, update_count)
-VALUES (?,?,?,?,?,?,?,?,?)
+     close_session_state, open_aggregate_cap, close_aggregate_cap, update_count)
+VALUES (?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(date, index_id) DO UPDATE SET
-    open_level          = excluded.open_level,
+    open_level           = excluded.open_level,
     high_level           = excluded.high_level,
     low_level            = excluded.low_level,
     close_level          = excluded.close_level,
+    close_session_state  = excluded.close_session_state,
     open_aggregate_cap   = excluded.open_aggregate_cap,
     close_aggregate_cap  = excluded.close_aggregate_cap,
     update_count         = excluded.update_count
@@ -536,6 +564,7 @@ class StatsProcess:
                     acc.high_level,
                     acc.low_level,
                     acc.close_level,
+                    acc.close_session_state,
                     acc.open_aggregate_cap,
                     acc.close_aggregate_cap,
                     acc.update_count,
@@ -660,7 +689,7 @@ class StatsProcess:
 
         with self._lock:
             acc = self._index_accum_for(index_id)
-            acc.on_update(level, aggregate_cap)
+            acc.on_update(level, aggregate_cap, session_state)
             self._flush_index_daily(acc)
 
             with self._conn:

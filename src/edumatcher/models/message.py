@@ -892,7 +892,13 @@ def make_index_history_request_msg(
     types: list[str] | None = None,
     max_records: int = 10_000,
 ) -> list[bytes]:
-    """Gateway/operator → pm-index: request historical index records."""
+    """Gateway/operator → pm-index: request structural/audit index records.
+
+    pm-index's history is a structural audit log only (INIT, CORP_ACTION,
+    ADD_CONSTITUENT, DELIST) — it no longer stores level or EOD ticks.
+    Omitting *types* returns all structural record types. For index
+    level/EOD time-series history, query pm-stats instead.
+    """
     return encode(
         "index.history_request",
         {
@@ -900,7 +906,7 @@ def make_index_history_request_msg(
             "index_id": index_id,
             "from_ts": from_ts,
             "to_ts": to_ts,
-            "types": types or ["LEVEL", "EOD"],
+            "types": types or ["INIT", "CORP_ACTION", "ADD_CONSTITUENT", "DELIST"],
             "max_records": max_records,
         },
     )
