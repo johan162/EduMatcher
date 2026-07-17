@@ -244,3 +244,97 @@ def query_dates(
 
     rows = _execute_fetchall(conn, sql, params)
     return [dict(row) for row in rows]
+
+
+def latest_index_daily_date(conn: sqlite3.Connection) -> str | None:
+    rows = _execute_fetchall(conn, "SELECT MAX(date) AS d FROM index_daily_stats", [])
+    row = rows[0] if rows else None
+    if row is None:
+        return None
+    value = row["d"]
+    return str(value) if value is not None else None
+
+
+def query_index_daily(
+    conn: sqlite3.Connection,
+    *,
+    date_value: str | None,
+    index_id: str | None,
+    limit: int,
+) -> list[dict[str, Any]]:
+    selected_date = date_value or latest_index_daily_date(conn)
+    if selected_date is None:
+        return []
+
+    sql = (
+        "SELECT date, index_id, open_level, high_level, low_level, close_level, "
+        "open_aggregate_cap, close_aggregate_cap, update_count "
+        "FROM index_daily_stats WHERE date = ?"
+    )
+    params: list[Any] = [selected_date]
+    if index_id is not None:
+        sql += " AND index_id = ?"
+        params.append(index_id)
+
+    sql += " ORDER BY date DESC, index_id ASC LIMIT ?"
+    params.append(limit)
+
+    rows = _execute_fetchall(conn, sql, params)
+    return [dict(row) for row in rows]
+
+
+def query_index_snapshots(
+    conn: sqlite3.Connection,
+    *,
+    index_id: str,
+    date_value: str | None,
+    from_ts: str | None,
+    to_ts: str | None,
+    limit: int,
+) -> list[dict[str, Any]]:
+    sql = (
+        "SELECT ts, index_id, level, aggregate_cap, divisor, session_state, "
+        "day_open, day_high, day_low "
+        "FROM index_level_snapshots WHERE index_id = ?"
+    )
+    params: list[Any] = [index_id]
+
+    if date_value is not None:
+        sql += " AND substr(ts, 1, 10) = ?"
+        params.append(date_value)
+    if from_ts is not None:
+        sql += " AND ts >= ?"
+        params.append(from_ts)
+    if to_ts is not None:
+        sql += " AND ts <= ?"
+        params.append(to_ts)
+
+    sql += " ORDER BY ts ASC LIMIT ?"
+    params.append(limit)
+
+    rows = _execute_fetchall(conn, sql, params)
+    return [dict(row) for row in rows]
+
+
+def query_index_ids(
+    conn: sqlite3.Connection,
+    *,
+    date_value: str | None,
+) -> list[dict[str, Any]]:
+    if date_value is None:
+        sql = (
+            "SELECT index_id FROM index_daily_stats "
+            "UNION SELECT index_id FROM index_level_snapshots "
+            "ORDER BY index_id ASC"
+        )
+        params: list[Any] = []
+    else:
+        sql = (
+            "SELECT index_id FROM index_daily_stats WHERE date = ? "
+            "UNION SELECT index_id FROM index_level_snapshots WHERE substr(ts, 1, 10) = ? "
+            "ORDER BY index_id ASC"
+        )
+        params = [date_value, date_value]
+
+    rows = _execute_fetchall(conn, sql, params)
+    return [dict(row) for row in rows]

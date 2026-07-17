@@ -4,10 +4,14 @@ Statistics Process — records market data to a SQLite database.
 Usage:
   poetry run pm-stats [--db data/stats.db] [--snapshot-interval SEC]
 
-Subscribes to:
+Subscribes to (engine PUB, ENGINE_PUB_ADDR):
   trade.executed  — to track OHLCV, VWAP, min/max, volume
   book.*          — to record periodic price snapshots (default: every 15 min)
   system.eod      — engine shutdown: record closing bid/ask/last price
+
+Subscribes to (pm-index PUB, INDEX_PUB_CONNECT_ADDR — a separate socket,
+since pm-index binds its own PUB endpoint distinct from the engine's):
+  index.update    — every throttled index level publication from pm-index
 
 SQLite tables
 -------------
@@ -26,6 +30,22 @@ SQLite tables
     Columns: ts, trade_id, symbol, price, quantity,
              buy_gateway_id, sell_gateway_id
     Append-only log of every individual trade.
+
+  index_daily_stats
+    Columns: date, index_id, open_level, high_level, low_level, close_level,
+             open_aggregate_cap, close_aggregate_cap, update_count
+    One row per (date, index_id), upserted on each index.update event.
+
+  index_level_snapshots
+    Columns: ts, index_id, level, aggregate_cap, divisor, session_state,
+             day_open, day_high, day_low
+    One row per index.update event received (no additional throttling —
+    pm-index already throttles via its own publish_interval_sec before
+    publishing). Indexed on (index_id, ts) for fast range queries, unlike
+    pm-index's own JSONL history file which pm-stats does not replace but
+    complements: the JSONL file remains the source for corporate-action /
+    constituent-change audit records, while this table is the queryable
+    time series for index level history.
 """
 
 from __future__ import annotations
@@ -50,6 +70,7 @@ import zmq
 from edumatcher.config import (
     ENGINE_PULL_ADDR,
     ENGINE_PUB_ADDR,
+    INDEX_PUB_CONNECT_ADDR,
     STATS_DB_FILE,
 )
 from edumatcher.messaging.bus import make_pusher, make_subscriber
@@ -128,6 +149,47 @@ class _DayAccum:
 
 
 # ---------------------------------------------------------------------------
+# Per-index intraday accumulator
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _IndexDayAccum:
+    """Holds intraday OHLC statistics for one index on one calendar date.
+
+    Mirrors ``_DayAccum``'s day-rollover/upsert shape, but tracks index
+    *level* (a computed, dimensionless value) rather than instrument price,
+    and has no volume/trade_count concept — an index has no independent
+    trades of its own, only updates driven by its constituents.
+    """
+
+    date: str  # ISO date string YYYY-MM-DD
+    index_id: str
+
+    open_level: Optional[float] = None
+    high_level: Optional[float] = None
+    low_level: Optional[float] = None
+    close_level: Optional[float] = None
+
+    open_aggregate_cap: Optional[float] = None
+    close_aggregate_cap: Optional[float] = None
+
+    update_count: int = 0
+
+    def on_update(self, level: float, aggregate_cap: Optional[float]) -> None:
+        if self.open_level is None:
+            self.open_level = level
+            self.open_aggregate_cap = aggregate_cap
+        self.close_level = level
+        self.close_aggregate_cap = aggregate_cap
+        self.high_level = (
+            level if self.high_level is None else max(self.high_level, level)
+        )
+        self.low_level = level if self.low_level is None else min(self.low_level, level)
+        self.update_count += 1
+
+
+# ---------------------------------------------------------------------------
 # Database helpers
 # ---------------------------------------------------------------------------
 
@@ -199,6 +261,35 @@ CREATE INDEX IF NOT EXISTS idx_oe_order_id ON order_events(order_id);
 CREATE INDEX IF NOT EXISTS idx_oe_gateway_ts ON order_events(gateway_id, ts);
 CREATE INDEX IF NOT EXISTS idx_oe_symbol_ts ON order_events(symbol, ts);
 CREATE INDEX IF NOT EXISTS idx_oe_type_ts ON order_events(event_type, ts);
+
+CREATE TABLE IF NOT EXISTS index_daily_stats (
+    date                TEXT NOT NULL,
+    index_id            TEXT NOT NULL,
+    open_level          REAL,
+    high_level          REAL,
+    low_level           REAL,
+    close_level         REAL,
+    open_aggregate_cap  REAL,
+    close_aggregate_cap REAL,
+    update_count        INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (date, index_id)
+);
+
+CREATE TABLE IF NOT EXISTS index_level_snapshots (
+    ts              TEXT NOT NULL,
+    index_id        TEXT NOT NULL,
+    level           REAL NOT NULL,
+    aggregate_cap   REAL,
+    divisor         REAL,
+    session_state   TEXT,
+    day_open        REAL,
+    day_high        REAL,
+    day_low         REAL,
+    PRIMARY KEY (ts, index_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ids_index_ts ON index_level_snapshots(index_id, ts);
+CREATE INDEX IF NOT EXISTS idx_ds_index_id_date ON index_daily_stats(index_id, date);
 """
 
 UPSERT_DAILY = """
@@ -239,6 +330,27 @@ INSERT INTO order_events
      quantity, remaining_qty, status, fill_price, fill_qty, trade_id, reason,
      client_order_id, combo_parent_id, oco_group_id, priority_reset)
 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+"""
+
+UPSERT_INDEX_DAILY = """
+INSERT INTO index_daily_stats
+    (date, index_id, open_level, high_level, low_level, close_level,
+     open_aggregate_cap, close_aggregate_cap, update_count)
+VALUES (?,?,?,?,?,?,?,?,?)
+ON CONFLICT(date, index_id) DO UPDATE SET
+    open_level          = excluded.open_level,
+    high_level           = excluded.high_level,
+    low_level            = excluded.low_level,
+    close_level          = excluded.close_level,
+    open_aggregate_cap   = excluded.open_aggregate_cap,
+    close_aggregate_cap  = excluded.close_aggregate_cap,
+    update_count         = excluded.update_count
+"""
+
+INSERT_INDEX_SNAPSHOT = """
+INSERT OR IGNORE INTO index_level_snapshots
+    (ts, index_id, level, aggregate_cap, divisor, session_state, day_open, day_high, day_low)
+VALUES (?,?,?,?,?,?,?,?,?)
 """
 
 
@@ -296,6 +408,9 @@ class StatsProcess:
         # symbol → timestamp of last snapshot written
         self._last_snap_ts: dict[str, float] = defaultdict(float)
 
+        # index_id → _IndexDayAccum for current calendar date
+        self._index_accum: dict[str, _IndexDayAccum] = {}
+
         self.sub = make_subscriber(
             ENGINE_PUB_ADDR,
             "trade.executed",
@@ -314,16 +429,24 @@ class StatsProcess:
             "quote.ack.",
             "quote.status.",
         )
+        # Separate socket: pm-index binds its own PUB endpoint, distinct from
+        # the engine's PUB (mirrors md_gateway's two-subscriber pattern for
+        # the same reason — index.update is not an engine topic).
+        self.index_sub = make_subscriber(
+            INDEX_PUB_CONNECT_ADDR,
+            "index.update",
+        )
         self.push = make_pusher(ENGINE_PULL_ADDR)
         self._push_lock = threading.Lock()
         self._debug_counts: defaultdict[str, int] = defaultdict(int)
         self._debug_last_summary = time.monotonic()
         log.debug(
-            "stats process initialized db=%s snapshot_interval=%ss sub=%s push=%s",
+            "stats process initialized db=%s snapshot_interval=%ss sub=%s push=%s index_sub=%s",
             self._db_path,
             self._snapshot_interval_sec,
             ENGINE_PUB_ADDR,
             ENGINE_PULL_ADDR,
+            INDEX_PUB_CONNECT_ADDR,
         )
         if self._sql_trace:
             log.info("SQLite SQL trace enabled for stats writer connection")
@@ -388,6 +511,34 @@ class StatsProcess:
                     acc.vwap,
                     acc.largest_trade_qty,
                     acc.largest_trade_price,
+                ),
+            )
+
+    def _index_accum_for(self, index_id: str) -> _IndexDayAccum:
+        today = self._today()
+        acc = self._index_accum.get(index_id)
+        if acc is None or acc.date != today:
+            # New day (or first time) — flush old if any
+            if acc is not None:
+                self._flush_index_daily(acc)
+            acc = _IndexDayAccum(date=today, index_id=index_id)
+            self._index_accum[index_id] = acc
+        return acc
+
+    def _flush_index_daily(self, acc: _IndexDayAccum) -> None:
+        with self._conn:
+            self._conn.execute(
+                UPSERT_INDEX_DAILY,
+                (
+                    acc.date,
+                    acc.index_id,
+                    acc.open_level,
+                    acc.high_level,
+                    acc.low_level,
+                    acc.close_level,
+                    acc.open_aggregate_cap,
+                    acc.close_aggregate_cap,
+                    acc.update_count,
                 ),
             )
 
@@ -476,6 +627,66 @@ class StatsProcess:
                 )
                 self._dbg_count("snapshots_written")
 
+    def _on_index_update(self, payload: dict[str, Any]) -> None:
+        """Persist one throttled index.update event from pm-index.
+
+        Every message received here already represents one throttled
+        publication (pm-index applies its own publish_interval_sec before
+        emitting index.update), so — unlike price_snapshots, which further
+        throttles a firehose of book updates — every index.update we see is
+        recorded as its own index_level_snapshots row with no additional
+        throttling in pm-stats.
+        """
+        index_id = str(payload.get("index_id", "")).strip()
+        level = payload.get("level")
+        if not index_id or level is None:
+            log.warning(
+                "ignoring malformed index.update payload (missing index_id/level): %s",
+                payload,
+            )
+            self._dbg_count("index_updates_ignored")
+            return
+
+        aggregate_cap = payload.get("aggregate_cap")
+        divisor = payload.get("divisor")
+        session_state = payload.get("session_state")
+        day_open = payload.get("day_open")
+        day_high = payload.get("day_high")
+        day_low = payload.get("day_low")
+
+        ts = datetime.fromtimestamp(
+            payload.get("timestamp", time.time()), tz=timezone.utc
+        ).isoformat(timespec="milliseconds")
+
+        with self._lock:
+            acc = self._index_accum_for(index_id)
+            acc.on_update(level, aggregate_cap)
+            self._flush_index_daily(acc)
+
+            with self._conn:
+                self._conn.execute(
+                    INSERT_INDEX_SNAPSHOT,
+                    (
+                        ts,
+                        index_id,
+                        level,
+                        aggregate_cap,
+                        divisor,
+                        session_state,
+                        day_open,
+                        day_high,
+                        day_low,
+                    ),
+                )
+        log.debug(
+            "recorded index update index_id=%s level=%s session_state=%s ts=%s",
+            index_id,
+            level,
+            session_state,
+            ts,
+        )
+        self._dbg_count("index_updates_persisted")
+
     def _on_eod(self, payload: dict[str, Any]) -> None:
         with self._lock:
             for book in payload.get("books", []):
@@ -551,6 +762,7 @@ class StatsProcess:
     def _receive(self) -> None:
         poller = zmq.Poller()
         poller.register(self.sub, zmq.POLLIN)
+        poller.register(self.index_sub, zmq.POLLIN)
         while self._running:
             try:
                 socks = dict(poller.poll(timeout=300))
@@ -558,6 +770,10 @@ class StatsProcess:
                 if exc.errno != errno.EINTR:
                     raise
                 break
+
+            if self.index_sub in socks:
+                self._receive_one_index_message()
+
             if self.sub not in socks:
                 continue
             try:
@@ -587,6 +803,22 @@ class StatsProcess:
                     self._on_order_event(topic, payload)
             except Exception as exc:
                 log.warning("error handling topic=%s err=%s", topic, exc)
+
+    def _receive_one_index_message(self) -> None:
+        try:
+            frames = self.index_sub.recv_multipart()
+            topic, payload = decode(frames)
+        except Exception as exc:
+            log.warning("failed to decode index_sub message: %s", exc)
+            return
+
+        self._dbg_count("index_messages_received")
+        try:
+            if topic == "index.update":
+                self._dbg_count("index_update_topics")
+                self._on_index_update(payload)
+        except Exception as exc:
+            log.warning("error handling index topic=%s err=%s", topic, exc)
 
     def _on_startup_symbols(self, payload: dict[str, Any]) -> None:
         """Received in response to our startup symbols request.
@@ -637,6 +869,11 @@ class StatsProcess:
             self._conn.close()
         if hasattr(self, "sub") and getattr(self.sub, "closed", False) is not True:
             self.sub.close()
+        if (
+            hasattr(self, "index_sub")
+            and getattr(self.index_sub, "closed", False) is not True
+        ):
+            self.index_sub.close()
         if hasattr(self, "push") and getattr(self.push, "closed", False) is not True:
             self.push.close()
 

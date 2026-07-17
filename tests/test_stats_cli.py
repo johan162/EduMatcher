@@ -109,6 +109,56 @@ def _seed_db(path: Path) -> None:
             ),
         )
 
+        conn.execute(
+            "INSERT INTO index_daily_stats "
+            "(date, index_id, open_level, high_level, low_level, close_level, "
+            " open_aggregate_cap, close_aggregate_cap, update_count) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "2026-06-14",
+                "EDU100",
+                1042.10,
+                1056.30,
+                1040.05,
+                1048.73,
+                7.3e12,
+                7.35e12,
+                512,
+            ),
+        )
+        conn.execute(
+            "INSERT INTO index_level_snapshots "
+            "(ts, index_id, level, aggregate_cap, divisor, session_state, day_open, day_high, day_low) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "2026-06-14T09:00:00.000+00:00",
+                "EDU100",
+                1042.10,
+                7.3e12,
+                1.25,
+                "OPENING_AUCTION",
+                None,
+                None,
+                None,
+            ),
+        )
+        conn.execute(
+            "INSERT INTO index_level_snapshots "
+            "(ts, index_id, level, aggregate_cap, divisor, session_state, day_open, day_high, day_low) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "2026-06-14T09:30:00.000+00:00",
+                "EDU100",
+                1048.73,
+                7.35e12,
+                1.25,
+                "CONTINUOUS",
+                1042.10,
+                1048.73,
+                1042.10,
+            ),
+        )
+
         conn.commit()
     finally:
         conn.close()
@@ -367,3 +417,157 @@ def test_order_lifecycle_outputs_all_events_for_order(
     assert len(lines) == 3
     assert "ACK,O-AAPL-1,GW01,AAPL" in lines[1]
     assert "FILL,O-AAPL-1,GW01,AAPL" in lines[2]
+
+
+# ---------------------------------------------------------------------------
+# index-daily / index-snapshots / index-ids — end-to-end through main()
+# ---------------------------------------------------------------------------
+
+
+def test_index_daily_defaults_to_latest_date_table_output(
+    monkeypatch: pytest.MonkeyPatch,
+    seeded_db: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _run_cli(monkeypatch, ["--db", str(seeded_db), "index-daily"])
+    out = capsys.readouterr().out
+
+    assert "EDU100" in out
+    assert "2026-06-14" in out
+    # Default (non-wide) view omits aggregate cap columns
+    assert "aggregate_cap" not in out
+
+
+def test_index_daily_wide_includes_aggregate_cap_columns(
+    monkeypatch: pytest.MonkeyPatch,
+    seeded_db: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _run_cli(
+        monkeypatch,
+        ["--db", str(seeded_db), "--format", "json", "index-daily", "--wide"],
+    )
+    out = capsys.readouterr().out
+
+    assert '"open_aggregate_cap"' in out
+    assert '"close_aggregate_cap"' in out
+
+
+def test_index_daily_index_id_filter(
+    monkeypatch: pytest.MonkeyPatch,
+    seeded_db: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Lowercase input must be normalized the same way --symbol is elsewhere
+    # in this CLI (case-insensitive convenience for interactive use).
+    _run_cli(
+        monkeypatch,
+        [
+            "--db",
+            str(seeded_db),
+            "index-daily",
+            "--date",
+            "2026-06-14",
+            "--index-id",
+            "edu100",
+        ],
+    )
+    out = capsys.readouterr().out
+    assert "EDU100" in out
+
+
+def test_index_snapshots_requires_index_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        _run_cli(monkeypatch, ["index-snapshots"])
+    assert exc_info.value.code == 2
+
+
+def test_index_snapshots_csv_output_with_header(
+    monkeypatch: pytest.MonkeyPatch,
+    seeded_db: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _run_cli(
+        monkeypatch,
+        [
+            "--db",
+            str(seeded_db),
+            "--format",
+            "csv",
+            "index-snapshots",
+            "--index-id",
+            "EDU100",
+        ],
+    )
+    lines = capsys.readouterr().out.strip().splitlines()
+
+    assert (
+        lines[0]
+        == "ts,index_id,level,aggregate_cap,divisor,session_state,day_open,day_high,day_low"
+    )
+    # Two EDU100 rows were seeded (OPENING_AUCTION and CONTINUOUS)
+    assert len(lines) == 3
+    assert "OPENING_AUCTION" in lines[1]
+    assert "CONTINUOUS" in lines[2]
+
+
+def test_index_snapshots_time_window_narrows_results(
+    monkeypatch: pytest.MonkeyPatch,
+    seeded_db: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _run_cli(
+        monkeypatch,
+        [
+            "--db",
+            str(seeded_db),
+            "index-snapshots",
+            "--index-id",
+            "EDU100",
+            "--from",
+            "2026-06-14T09:20:00+00:00",
+            "--to",
+            "2026-06-14T09:40:00+00:00",
+        ],
+    )
+    out = capsys.readouterr().out
+
+    assert "CONTINUOUS" in out
+    assert "OPENING_AUCTION" not in out
+
+
+def test_index_ids_lists_configured_indexes(
+    monkeypatch: pytest.MonkeyPatch,
+    seeded_db: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _run_cli(monkeypatch, ["--db", str(seeded_db), "index-ids"])
+    out = capsys.readouterr().out
+    assert "EDU100" in out
+
+
+def test_index_ids_no_configured_index_returns_no_rows_message(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A symbol-only exchange (no index configured) must not error on
+    index-ids — it should just report no rows, matching the documented
+    'empty is expected, not an error' behavior.
+    """
+    db_path = tmp_path / "no_index_stats.db"
+    conn = sqlite3.connect(db_path)
+    conn.executescript(SCHEMA)
+    conn.execute(
+        "INSERT INTO daily_stats (date, symbol, open_price, close_price, volume, trade_count) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        ("2026-06-14", "AAPL", 150.0, 152.0, 1000, 5),
+    )
+    conn.commit()
+    conn.close()
+
+    _run_cli(monkeypatch, ["--db", str(db_path), "index-ids"])
+    out = capsys.readouterr().out
+    assert "No rows found" in out

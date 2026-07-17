@@ -3,9 +3,9 @@
 !!! note "Learning objectives"
     After reading this page you will understand:
 
-    - How to record market statistics continuously using `pm-stats`
+    - How to record market and exchange index statistics continuously using `pm-stats`
     - How to query statistics data without writing SQL using `pm-stats-cli`
-      - Common analyst workflows: end-of-day summaries, intraday price analysis, trade analysis, and order lifecycle investigation
+      - Common analyst workflows: end-of-day summaries, intraday price analysis, trade analysis, index level history, and order lifecycle investigation
     - How to export statistics for external analysis (spreadsheets, BI tools)
     - How the statistics system integrates with other tools like `pm-ticker`
     - How to troubleshoot and validate statistics data
@@ -18,7 +18,7 @@ EduMatcher has a two-part statistics system:
 
 | Component | Role | Type | Purpose |
 |-----------|------|------|---------|
-| **pm-stats** | Subscriber | Long-running process | Listens to trades, book updates, and private order lifecycle events; writes OHLCV, snapshots, trade log, and `order_events` to `data/stats.db` |
+| **pm-stats** | Subscriber | Long-running process | Listens to trades, book updates, index level updates, and private order lifecycle events; writes OHLCV, snapshots, trade log, index history, and `order_events` to `data/stats.db` |
 | **pm-stats-cli** | Query tool | One-shot CLI | Reads from `data/stats.db` and prints human-friendly or machine-readable output without SQL |
 
 This split keeps the recorder separate from the query interface, so you can:
@@ -93,7 +93,7 @@ See [Processes — Environment variables](170-processes.md#environment-variables
 
 ## The Statistics Database Schema
 
-All statistics are stored in `data/stats.db`, a SQLite 3 database with four tables:
+All statistics are stored in `data/stats.db`, a SQLite 3 database with six tables:
 
 ### `daily_stats`
 
@@ -180,6 +180,46 @@ Append-only order lifecycle history captured from private engine topics. This ta
 
 **Use case**: API Gateway order history, support investigations, per-gateway audit trails, fill-only history, and lifecycle reconstruction for a single order ID.
 
+### `index_daily_stats`
+
+Aggregated daily OHLC (open, high, low, close) for each configured exchange index, one row per `(date, index_id)`, upserted on every `index.update` event `pm-stats` receives from `pm-index`.
+
+| Column                 | Type    | Description                                          |
+|------------------------|---------|-------------------------------------------------------|
+| `date`                 | TEXT    | Calendar date `YYYY-MM-DD`                             |
+| `index_id`             | TEXT    | Index identifier (e.g. `EDU100`)                        |
+| `open_level`           | REAL    | Index level at the first update of the day              |
+| `high_level`           | REAL    | Highest index level seen during the day                 |
+| `low_level`            | REAL    | Lowest index level seen during the day                  |
+| `close_level`          | REAL    | Index level at the most recent update received          |
+| `open_aggregate_cap`   | REAL    | Aggregate constituent market cap at the first update     |
+| `close_aggregate_cap`  | REAL    | Aggregate constituent market cap at the most recent update |
+| `update_count`         | INTEGER | Number of `index.update` events folded into this day's row |
+
+**Use case**: Daily index trend analysis, comparing index performance across trading dates, spotting days with unusually few updates (a thin `update_count` may indicate a quiet index or a connectivity gap).
+
+**Note**: an index has no independent trades or volume of its own — its level is computed from constituent prices — so this table has no `volume`/`trade_count`/`vwap` columns the way `daily_stats` does.
+
+### `index_level_snapshots`
+
+Time series of every index level update received from `pm-index`, one row per `index.update` event (no additional throttling in `pm-stats` — `pm-index` already rate-limits its own publications via `publish_interval_sec` before it ever sends one).
+
+| Column          | Type | Description                                                          |
+|-----------------|------|------------------------------------------------------------------------|
+| `ts`            | TEXT | ISO-8601 timestamp (UTC, millisecond precision)                        |
+| `index_id`      | TEXT | Index identifier                                                        |
+| `level`         | REAL | Current index level at this update                                      |
+| `aggregate_cap` | REAL | Aggregate constituent market cap at this update                         |
+| `divisor`       | REAL | Index divisor in effect at this update                                  |
+| `session_state` | TEXT | Index session state at this update (e.g. `CONTINUOUS`, `CLOSED`)        |
+| `day_open`      | REAL | Day's opening level, when known at this update                         |
+| `day_high`      | REAL | Day's high level so far, when known at this update                     |
+| `day_low`       | REAL | Day's low level so far, when known at this update                      |
+
+**Use case**: Intraday index charting, index-level history queries for `pm-terminal`-style viewers, reconstructing an index's level trajectory over any time window.
+
+**Why this table exists**: `pm-index` also keeps its own append-only JSONL history file (`data/indexes/<id>_history.jsonl`) for corporate-action, delisting, and constituent-change audit records — that file remains the source of truth for those event types and is unaffected by this table. But that file is not indexed and every query against it is a full linear scan, which does not scale as a session runs longer. `index_level_snapshots` exists specifically to give the level time series (the data an index chart needs) a queryable, indexed home, the same way `price_snapshots` already does for instrument prices — it does not replace or duplicate the JSONL file's audit role.
+
 
 
 ## Running the Statistics Recorder
@@ -197,12 +237,14 @@ pm-stats
 `pm-stats` will:
 
 1. Connect as a subscriber to the engine's PUB socket (:5556)
-2. Wait briefly for ZMQ subscriptions to propagate, then request the symbol list from the engine via PUSH (:5555); on receipt, request a current book snapshot per symbol so opening bid/ask and initial price rows are captured even before new trading activity
-3. Begin recording trades to `daily_stats` as they execute
-4. Write intraday snapshots every 15 minutes
-5. Write trade-by-trade records to `trade_log` immediately
-6. Write private order lifecycle events to `order_events`
-7. At engine shutdown, record the final close bid/ask to `daily_stats`
+2. Connect as a second, independent subscriber to `pm-index`'s own PUB socket (:5558 by default) for `index.update` events — `pm-index` binds a separate endpoint from the engine, so this is a distinct ZMQ connection, not an additional topic filter on the engine socket
+3. Wait briefly for ZMQ subscriptions to propagate, then request the symbol list from the engine via PUSH (:5555); on receipt, request a current book snapshot per symbol so opening bid/ask and initial price rows are captured even before new trading activity
+4. Begin recording trades to `daily_stats` as they execute
+5. Write intraday snapshots every 15 minutes
+6. Write trade-by-trade records to `trade_log` immediately
+7. Write private order lifecycle events to `order_events`
+8. Write every received index update to `index_level_snapshots` and upsert the day's rollup into `index_daily_stats` — no exchange indexes configured means no `index.update` traffic and these two tables simply stay empty, which is expected and not an error
+9. At engine shutdown, record the final close bid/ask to `daily_stats`
 
 **Startup options:**
 
@@ -425,6 +467,76 @@ date
 2026-06-13
 ```
 
+#### `index-daily` — Daily Index OHLC Summary
+
+Show daily index summary rows from `index_daily_stats`.
+
+```bash
+pm-stats-cli index-daily
+pm-stats-cli index-daily --date 2026-06-14
+pm-stats-cli index-daily --date 2026-06-14 --index-id EDU100
+pm-stats-cli index-daily --wide  # include open/close aggregate market cap
+pm-stats-cli index-daily --limit 10
+```
+
+**Options:**
+
+| Option       | Default          | Description                                    |
+|--------------|------------------|--------------------------------------------------|
+| `--date`     | latest available | Calendar date to query                            |
+| `--index-id` | all indexes      | Limit to one index                                 |
+| `--limit`    | 100              | Maximum rows to return                             |
+| `--wide`     | off              | Include open/close aggregate market cap columns    |
+
+**Example output (default `table` format):**
+
+```
+date       | index_id | open_level | high_level | low_level | close_level | update_count
+-----------|----------|------------|------------|-----------|-------------|-------------
+2026-06-14 | EDU100   | 1042.1     | 1056.3     | 1040.05   | 1048.73     | 512
+```
+
+#### `index-snapshots` — Intraday Index Level History
+
+Show every recorded index level update from `index_level_snapshots` for one index over a time range. Unlike `snapshots` for instruments, there is no configurable recording interval to tune — every `index.update` event `pm-stats` receives is recorded (`pm-index` has already rate-limited its own publications before `pm-stats` ever sees them).
+
+```bash
+pm-stats-cli index-snapshots --index-id EDU100
+pm-stats-cli index-snapshots --index-id EDU100 --date 2026-06-14
+pm-stats-cli index-snapshots --index-id EDU100 --from 2026-06-14T09:00:00+00:00 --to 2026-06-14T16:30:00+00:00
+pm-stats-cli index-snapshots --index-id EDU100 --limit 50
+```
+
+**Options:**
+
+| Option       | Required | Default   | Description                     |
+|--------------|----------|-----------|------------------------------------|
+| `--index-id` | Yes      | —         | Index to query                       |
+| `--date`     | No       | all dates | Restrict to one trading date          |
+| `--from`     | No       | —         | Start timestamp (ISO format)          |
+| `--to`       | No       | —         | End timestamp (ISO format)            |
+| `--limit`    | No       | 500       | Maximum rows to return                |
+
+**Example output:**
+
+```
+ts                      | index_id | level   | aggregate_cap | divisor | session_state
+-------------------------|----------|---------|----------------|---------|---------------
+2026-06-14T09:00:00.000  | EDU100   | 1042.10 | 7350000000000  | 1.25    | OPENING_AUCTION
+2026-06-14T09:00:05.500  | EDU100   | 1043.85 | 7362000000000  | 1.25    | CONTINUOUS
+```
+
+#### `index-ids` — Index Discovery
+
+List all index IDs with data in the statistics DB.
+
+```bash
+pm-stats-cli index-ids
+pm-stats-cli index-ids --date 2026-06-14  # indexes with data on a specific date
+```
+
+If no exchange indexes are configured, this returns no rows — that is expected, not an error.
+
 ### Order Lifecycle History Queries
 
 `order_events` can be queried directly with `pm-stats-cli` or through the API
@@ -629,6 +741,26 @@ pm-stats-cli --format csv daily --symbol AAPL --limit 100 > aapl_history.csv
 
 This gives you historical OHLCV to track trends, seasonal patterns, or support/resistance zones over time.
 
+### Index Level History
+
+Chart or export an exchange index's intraday level trajectory:
+
+```bash
+pm-stats-cli index-snapshots --index-id EDU100 --date 2026-06-14 | head -20
+```
+
+Look for the same signals `snapshots` gives for instruments — periods of rapid
+level movement, gaps that may indicate a connectivity issue between
+`pm-index` and `pm-stats`, and the `session_state` column shifting from
+`OPENING_AUCTION`/`CONTINUOUS`/`CLOSED`.
+
+Compare the index's daily performance across dates the same way you would
+for a symbol:
+
+```bash
+pm-stats-cli --format csv index-daily --index-id EDU100 --limit 100 > edu100_history.csv
+```
+
 ### Validation — Did the Trade Complete Correctly?
 
 After a trading session ends, verify key metrics:
@@ -773,7 +905,8 @@ print(daily[['symbol', 'return_pct']])
    ```bash
    sqlite3 data/stats.db ".tables"
    ```
-   You should see: `daily_stats`, `price_snapshots`, `trade_log`, and `order_events`.
+   You should see: `daily_stats`, `price_snapshots`, `trade_log`, `order_events`,
+   `index_daily_stats`, and `index_level_snapshots`.
 
 4. **Check for recent trades:**
    ```bash
@@ -786,6 +919,35 @@ print(daily[['symbol', 'return_pct']])
    sqlite3 data/stats.db "SELECT ts,event_type,order_id,gateway_id,symbol FROM order_events ORDER BY seq DESC LIMIT 5;"
    ```
    If empty, no private order lifecycle topics have reached `pm-stats` yet. Submit, amend, cancel, or fill an order while `pm-stats` is running.
+
+### No index data recorded — where did the index updates go?
+
+1. **Confirm the exchange actually has an index configured.** If
+   `engine_config.yaml` has no `indexes:` block, `pm-index` publishes
+   nothing and `index_daily_stats`/`index_level_snapshots` staying empty is
+   correct behavior, not a bug.
+
+2. **Verify `pm-index` is running:**
+   ```bash
+   ps aux | grep pm-index
+   ```
+   `pm-stats` connects to `pm-index`'s own PUB socket (default port 5558),
+   separate from the engine's PUB socket — if `pm-index` isn't running,
+   there is nothing for `pm-stats` to receive.
+
+3. **Check for recorded index updates:**
+   ```bash
+   pm-stats-cli index-ids
+   pm-stats-cli index-snapshots --index-id EDU100 --limit 5
+   ```
+   If `index-ids` returns nothing, `pm-stats` has not received any
+   `index.update` event yet — confirm `pm-index` is up and has finished its
+   own startup index calculation.
+
+4. **Check `pm-stats` logs at `-v`/`INFO` or higher** for
+   `recorded index update index_id=...` lines, or run with `--sql-trace` to
+   see the underlying `INSERT`/`UPDATE` statements against
+   `index_level_snapshots`/`index_daily_stats`.
 
 ### Queries return "No rows found" but I know data should exist
 
