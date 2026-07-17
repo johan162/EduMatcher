@@ -1,0 +1,106 @@
+# EduMatcher Config Builder — single-container image.
+#
+# Builds the React frontend and serves it from the Fastify API on one port,
+# so a production deployment is a single container listening on $PORT (8080).
+#
+# This assumed the need to setup a corporate proxy or CA bundle for npm and node to fetch dependencies.
+# podman run --rm -it config-gui:latest
+# podman build --no-cache --pull --log-level=debug \
+#  --build-arg USE_PROXY_CA=true \
+#  --build-arg HTTP_PROXY=http://host.containers.internal:9000 \
+#  --build-arg HTTPS_PROXY=http://host.containers.internal:9000 \
+#  --build-arg NO_PROXY=localhost,127.0.0.1 \
+#  -t config-gui:latest -f Dockerfile.proxy .
+#
+# Or using defaults:
+# podman build --no-cache  -t config-gui:latest -f Dockerfile.proxy .
+
+
+# ---- build stage -------------------------------------------------------------
+FROM node:22-slim AS build
+WORKDIR /app
+
+ARG USE_PROXY_CA=${USE_PROXY_CA:-false}
+ARG NPM_STRICT_SSL=${NPM_STRICT_SSL:-false}
+ARG CA_CERT_FILE=${CA_CERT_FILE:-CA_proxy_fw_all.pem}
+ARG HTTP_PROXY=${HTTP_PROXY:-http://host.containers.internal:9000}
+ARG HTTPS_PROXY=${HTTPS_PROXY:-http://host.containers.internal:9000}
+ARG NO_PROXY=${NO_PROXY:-localhost,127.0.0.1}
+
+# RUN echo "USE_PROXY_CA=${USE_PROXY_CA}" \
+#  && echo "CA_CERT_FILE=${CA_CERT_FILE}" \
+#  && echo "HTTP_PROXY=${HTTP_PROXY}" \
+#  && echo "HTTPS_PROXY=${HTTPS_PROXY}" \
+#  && echo "NO_PROXY=${NO_PROXY}"
+
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+
+# Need to run update-ca-certificates first so the directory trees are setup
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ca-certificates curl \
+ && rm -rf /var/lib/apt/lists/* \
+ && update-ca-certificates 
+
+# Copy proxy CA certificate 
+COPY ${CA_CERT_FILE} /tmp/certs/${CA_CERT_FILE}
+
+# Configure proxy CA certificate if USE_PROXY_CA=true
+RUN if [ "$USE_PROXY_CA" = "true" ]; then \
+        if [ -f /tmp/certs/${CA_CERT_FILE} ]; then \
+            echo "✓ Configuring proxy CA certificate..."; \
+            cat /tmp/certs/${CA_CERT_FILE} >> /etc/ssl/certs/ca-certificates.crt; \
+        else \
+            echo "⚠ Warning: USE_PROXY_CA=true but CA certificate not found!"; \
+            echo "   Build may fail when accessing HTTPS resources."; \
+        fi; \
+    else \
+        echo "→ Using standard SSL certificates (no proxy)"; \
+    fi
+
+
+ENV PATH="/root/.local/bin:$PATH"
+
+# Export proxy vars so npm (and node's fetch) honour them during the build.
+#ENV HTTP_PROXY=${HTTP_PROXY} HTTPS_PROXY=${HTTPS_PROXY} NO_PROXY=${NO_PROXY} \
+#    http_proxy=${HTTP_PROXY} https_proxy=${HTTPS_PROXY} no_proxy=${NO_PROXY} \
+#    REQUESTS_CA_BUNDLE=${REQUESTS_CA_BUNDLE}
+
+# Install workspace dependencies first (better layer caching).
+COPY package.json package-lock.json* tsconfig.base.json ./
+COPY packages ./packages
+COPY apps ./apps
+
+# && env | grep -i proxy \
+
+RUN npm config set strict-ssl "${NPM_STRICT_SSL}" \
+&& npm config set fetch-retries 2 \
+&& npm config set fetch-timeout 12000 \
+&& npm config set fetch-retry-mintimeout 1000 \
+&& npm config set fetch-retry-maxtimeout 5000 \
+&& npm install
+
+RUN npm run build --workspace @edumatcher/web
+RUN npm prune --omit=dev
+
+# ---- runtime stage -----------------------------------------------------------
+FROM node:22-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PORT=8080 \
+    STATIC_DIR=/app/apps/web/dist
+
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/packages ./packages
+COPY --from=build /app/apps/server ./apps/server
+COPY --from=build /app/apps/web/dist ./apps/web/dist
+COPY --from=build /app/package.json /app/tsconfig.base.json ./
+
+EXPOSE 8080
+# tsx (a server runtime dependency) runs the TypeScript server directly;
+# suitable for this internal tool.
+CMD ["npm", "run", "start", "--workspace", "@edumatcher/server"]
+
+
+# CMD to open a shell
+# CMD ["/bin/bash"]

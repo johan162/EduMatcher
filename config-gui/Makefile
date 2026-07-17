@@ -1,4 +1,19 @@
 # Makefile for EduMatcher Config GUI (npm workspaces + container workflow)
+#
+# For building the container behind a proxy use environament set the environmant on the command line
+# before calling make, i.e. adjust the proxy host and port to your local setup:
+#
+# Note: The special use of `host.containers.internal` is a Docker/Podman feature that resolves 
+# to the host machine from inside the container and is equivalent to "localhost" on the host. 
+# This is useful for accessing a local proxy or mirror from within the container.
+# 
+# HTTP_PROXY=http://host.containers.internal:9000 \
+# HTTPS_PROXY=http://host.containers.internal:9000 \
+# NO_PROXY=localhost,127.0.0.1  make dist
+#
+# or
+#
+# HTTP_PROXY=http://host.containers.internal:9000 HTTPS_PROXY=http://host.containers.internal:9000 NO_PROXY=localhost,127.0.0.1  make up 
 
 # --------------------------------------------------------------------------------------------
 # Make behavior
@@ -167,13 +182,24 @@ dev-server: check-npm ## Run only backend dev server (Fastify)
 cnt-build: check-container ## Build container image via compose (podman/docker)
 	@echo -e "$(YELLOW)- Building container image...$(NC)"
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
-	@$(DOCKER_COMPOSE) build
+	@$(DOCKER_COMPOSE) build --build-arg USE_PROXY_CA=false \
+	    --build-arg NPM_STRICT_SSL=false \
+	    --build-arg CA_CERT_FILE="$${CA_CERT_FILE:-}" \
+	    --build-arg HTTP_PROXY="$${HTTP_PROXY:-}" \
+	    --build-arg HTTPS_PROXY="$${HTTPS_PROXY:-}" \
+	    --build-arg NO_PROXY="$${NO_PROXY:-}"
 	@echo -e "$(GREEN)✓ Container image built$(NC)"
 
 up: check-container-env ## Start container stack (detached) with build
 	@echo -e "$(YELLOW)- Starting container stack...$(NC)"
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
-	@$(DOCKER_COMPOSE) up -d --build
+	@$(DOCKER_COMPOSE) up -d --build \
+	    --build-arg USE_PROXY_CA=false \
+	    --build-arg NPM_STRICT_SSL=false \
+	    --build-arg CA_CERT_FILE="$${CA_CERT_FILE:-}" \
+	    --build-arg HTTP_PROXY="$${HTTP_PROXY:-}" \
+	    --build-arg HTTPS_PROXY="$${HTTPS_PROXY:-}" \
+	    --build-arg NO_PROXY="$${NO_PROXY:-}"
 	@echo -e "$(GREEN)✓ Container stack is up$(NC)"
 
 down: check-container ## Stop and remove container stack
@@ -185,7 +211,13 @@ down: check-container ## Stop and remove container stack
 restart: check-container-env ## Restart container stack
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
 	@$(DOCKER_COMPOSE) down
-	@$(DOCKER_COMPOSE) up -d --build
+	@$(DOCKER_COMPOSE) up -d --build \
+	    --build-arg USE_PROXY_CA=false \
+	    --build-arg NPM_STRICT_SSL=false \
+	    --build-arg CA_CERT_FILE="$${CA_CERT_FILE:-}" \
+	    --build-arg HTTP_PROXY="$${HTTP_PROXY:-}" \
+	    --build-arg HTTPS_PROXY="$${HTTPS_PROXY:-}" \
+	    --build-arg NO_PROXY="$${NO_PROXY:-}"
 
 logs: check-container ## Follow container logs
 	@echo -e "$(BLUE)- Runtime: $(CONTAINER_RUNTIME)$(NC)"
@@ -198,19 +230,20 @@ ps: check-container ## Show container stack status
 # --------------------------------------------------------------------------------------------
 # Distributable package
 # --------------------------------------------------------------------------------------------
-dist: check-container-env ## Build a distributable: container image + exported OCI tarball in dist/
+dist: check-container-env ## Build a distributable: container image + exported OCI tarball in dist
 	@echo -e "$(YELLOW)- Building distributable package v$(VERSION)...$(NC)"
 	@echo -e "$(BLUE)- Runtime:  $(CONTAINER_RUNTIME)$(NC)"
 	@echo -e "$(BLUE)- Image:    $(IMAGE)$(NC)"
 	@echo -e "$(BLUE)- Output:   $(DIST_DIR)/$(APP_NAME)-$(VERSION).tar$(NC)"
 	@# Build (or rebuild) the container image tagged with the version
 	@$(DOCKER_COMPOSE) build \
+	    --build-arg USE_PROXY_CA=false \
+		--build-arg NPM_STRICT_SSL=false \
+		--build-arg CA_CERT_FILE="$${CA_CERT_FILE:-}" \
 		--build-arg HTTP_PROXY="$${HTTP_PROXY:-}" \
 		--build-arg HTTPS_PROXY="$${HTTPS_PROXY:-}" \
 		--build-arg NO_PROXY="$${NO_PROXY:-}" \
-		--build-arg NPM_REGISTRY="$${NPM_REGISTRY:-}" \
-		--build-arg NPM_STRICT_SSL="$${NPM_STRICT_SSL:-true}"
-	@# Also tag the image with the version so the tarball carries a useful name
+	# Also tag the image with the version so the tarball carries a useful name
 	@$(CONTAINER_RUNTIME) tag $(APP_NAME):latest $(IMAGE)
 	@# Export the image to a tar archive for offline distribution
 	@mkdir -p $(DIST_DIR)

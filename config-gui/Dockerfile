@@ -7,6 +7,24 @@
 # which is NOT included here; that endpoint returns a friendly 503 in this
 # image. Everything else works. See docs/user-guide/27-config-GUI.md.
 
+# Typically build the image when behind a corporate proxy with:
+#
+# podman build --no-cache --pull --log-level=debug \
+#  --build-arg HTTP_PROXY=http://host.containers.internal:9000 \
+#  --build-arg HTTPS_PROXY=http://host.containers.internal:9000 \
+#  --build-arg NO_PROXY=localhost,127.0.0.1 \
+#  --build-arg NPM_STRICT_SSL=false \
+#  -t config-gui:latest -f Dockerfile .
+#
+# When not behind a proxy, build with:
+# podman build --no-cache -t config-gui:latest -f Dockerfile .
+
+# Typically run the backen (non-interactive) with:
+# podman run --rm -it -p 8080:8080 config-gui:latest
+#
+# (Press Ctrl-C to stop the container, or use `podman ps` and `podman stop <id>`.)
+# 
+
 # ---- build stage -------------------------------------------------------------
 FROM node:22-slim AS build
 WORKDIR /app
@@ -15,13 +33,13 @@ WORKDIR /app
 # The build downloads npm packages from a registry. Behind a corporate proxy or
 # firewall the default `npm install` can HANG (dropped connections / TLS
 # interception). Pass these build args to route through your proxy / mirror.
-ARG HTTP_PROXY=
-ARG HTTPS_PROXY=
-ARG NO_PROXY=
+ARG HTTP_PROXY=${HTTP_PROXY:-}
+ARG HTTPS_PROXY=${HTTPS_PROXY:-}
+ARG NO_PROXY=${NO_PROXY:-}
 # Point at a corporate npm mirror (Artifactory/Nexus) if direct access is blocked.
-ARG NPM_REGISTRY=
+ARG NPM_REGISTRY=${NPM_REGISTRY:-https://registry.npmjs.org/}
 # Last resort for TLS-intercepting proxies without a trusted CA: set to "false".
-ARG NPM_STRICT_SSL=true
+ARG NPM_STRICT_SSL=${NPM_STRICT_SSL:-true}
 
 # Export proxy vars so npm (and node's fetch) honour them during the build.
 ENV HTTP_PROXY=${HTTP_PROXY} HTTPS_PROXY=${HTTPS_PROXY} NO_PROXY=${NO_PROXY} \
