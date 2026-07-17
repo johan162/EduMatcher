@@ -1,8 +1,28 @@
-Version: 1.0.0
+Version: 1.1.0
 
-Date: 2026-07-11
+Date: 2026-07-17
 
 Status: Design Proposal
+
+> **Changelog v1.1.0**
+> - Updated throughout for CALF `1.0.0`, which shipped after this document
+>   was first written: the `DEPTH` channel, the `SYM=*` wildcard for `TOP`/
+>   `TRADE`, and full `INDEX` documentation are now real, not proposed or
+>   assumed-undocumented. See `EduMatcher-CALF-Extensions.md` and the
+>   normative [CALF Protocol Reference](../docs/user-guide/920-app-calf-protocol.md).
+> - §14 (Depth-of-Book) rewritten from a protocol-extension proposal into a
+>   regular screen design section; folded into Symbol Detail as a toggle
+>   (§9.2) rather than left as a separate blocked future phase.
+> - §8 (Overview), §11 (Trade Tape), §12 (Movers) simplified to use one
+>   `SYM=*` wildcard subscription each for `TOP`/`TRADE` instead of
+>   enumerating every known symbol.
+> - §17.1 rewritten to cover the one real new complexity CALF `1.0.0`
+>   introduces for this design: `HELLO|RESUME=1` never accepts `SYM=*`, so
+>   reconnect after a wildcard subscription requires resuming known symbols
+>   individually rather than resuming the wildcard itself.
+> - §22 Open Questions trimmed to what is still actually open; three
+>   questions from v1.0.0 (INDEX documentation, `TOP`/`TRADE` wildcard,
+>   whether `DEPTH` should exist and how it should be gated) are resolved.
 
 # EduMatcher — Market Data Terminal (`pm-terminal`) Design Proposal
 
@@ -65,12 +85,14 @@ Status: Design Proposal
   - [13. Screen Design — Session \& Halt Status Board](#13-screen-design--session--halt-status-board)
     - [13.1 Wireframe](#131-wireframe)
     - [13.2 Data sources](#132-data-sources)
-  - [14. Depth-of-Book: Current Gap and Proposed CALF Extension](#14-depth-of-book-current-gap-and-proposed-calf-extension)
-    - [14.1 What real venues do](#141-what-real-venues-do)
-    - [14.2 What EduMatcher already has internally](#142-what-edumatcher-already-has-internally)
-    - [14.3 Proposed `DEPTH` channel](#143-proposed-depth-channel)
-    - [14.4 Proposed wireframe (marked PROPOSED)](#144-proposed-wireframe-marked-proposed)
-    - [14.5 Bonus: order-flow imbalance, almost free](#145-bonus-order-flow-imbalance-almost-free)
+  - [14. Screen Design — Depth-of-Book](#14-screen-design--depth-of-book)
+    - [14.1 Purpose and status](#141-purpose-and-status)
+    - [14.2 What real venues do](#142-what-real-venues-do)
+    - [14.3 Why `DEPTH` is cheap for `md_gateway` to serve](#143-why-depth-is-cheap-for-md_gateway-to-serve)
+    - [14.4 `DEPTH` channel, as shipped](#144-depth-channel-as-shipped)
+    - [14.5 Wireframe](#145-wireframe)
+    - [14.6 Data sources](#146-data-sources)
+    - [14.7 Deferred: order-flow imbalance and microprice](#147-deferred-order-flow-imbalance-and-microprice)
   - [15. Visual Design System](#15-visual-design-system)
   - [16. Client State Management](#16-client-state-management)
   - [17. `pm-terminal-bridge` Implementation Guide](#17-pm-terminal-bridge-implementation-guide)
@@ -105,12 +127,19 @@ handful of the other panels every trading-floor overview tool has. It is
 trading action, anywhere in this design.
 
 Unlike `pm-trading-ui`, which talks to `pm-api-gwy` over REST/WebSocket,
-`pm-terminal`'s live data comes from **CALF**, the purpose-built market-data
-protocol documented in
-[EduMatcher-Market_Data_Protocol.md](EduMatcher-Market_Data_Protocol.md).
-Historical bars (which CALF intentionally does not provide) are sourced from
-`pm-api-gwy`'s existing `/history/*` endpoints, the same store
-`pm-trading-ui` already uses.
+`pm-terminal`'s live data comes from **CALF `1.0.0`**, the purpose-built
+market-data protocol documented in the
+[CALF Protocol Reference](../docs/user-guide/920-app-calf-protocol.md) (the
+canonical, code-verified reference; see also
+[EduMatcher-Market_Data_Protocol.md](EduMatcher-Market_Data_Protocol.md) and
+[EduMatcher-CALF-Extensions.md](EduMatcher-CALF-Extensions.md) for the
+design-history trail). CALF `1.0.0` ships all five channels this design
+needs — `TOP`, `TRADE`, `STATE`, `INDEX`, and `DEPTH` — plus a `SYM=*`
+wildcard for `TOP`/`TRADE`/`STATE`, so `pm-terminal` can lean on CALF more
+directly than an earlier draft of this document assumed. Historical bars
+(which CALF intentionally does not provide, by design, at any protocol
+version) are sourced from `pm-api-gwy`'s existing `/history/*` endpoints,
+the same store `pm-trading-ui` already uses.
 
 ## 2. Problem Statement
 
@@ -120,14 +149,17 @@ Historical bars (which CALF intentionally does not provide) are sourced from
 - CALF was designed and built specifically to be a simple, human-readable
   feed for exactly this kind of consumer — but nothing consumes it as a
   polished visual client yet; the only worked client is the terminal example
-  in the protocol doc (§17) and ad hoc bots.
+  in the protocol doc and ad hoc bots.
 - Instructors and students benefit from a "big screen" overview (paged
   symbol grid, index ticker, trade tape) that a trading blotter UI is not
   designed to present.
 - There is a real question — closed by this document — of whether CALF as
   currently specified/implemented actually carries every field this kind of
-  terminal needs. It does not, in two places (history, depth); both are
-  resolved below with a recommendation rather than left open.
+  terminal needs. As of CALF `1.0.0` it covers every live data need in this
+  design, including a full order-book depth ladder (`DEPTH`); the one
+  remaining genuine gap is historical data (CALF is intentionally
+  live-only), resolved below by reusing `pm-api-gwy`'s existing history
+  endpoints.
 
 ## 3. Goals and Non-Goals
 
@@ -136,22 +168,26 @@ Historical bars (which CALF intentionally does not provide) are sourced from
 - Ship a Node.js/Vite web application, structured the same way as
   `config-gui` (npm/pnpm workspace: `apps/*` + `packages/*`), that runs
   entirely without a trading API key.
-- Consume live data exclusively via **CALF** (`TOP`, `TRADE`, `STATE`,
-  `INDEX`), through a small first-party bridge process (§6) because browsers
-  cannot open the raw TCP sockets CALF uses.
-- Provide, at minimum, the four view families the user asked for:
+- Consume live data exclusively via **CALF `1.0.0`** (`TOP`, `TRADE`,
+  `STATE`, `INDEX`, `DEPTH`), through a small first-party bridge process
+  (§6) because browsers cannot open the raw TCP sockets CALF uses.
+- Provide, at minimum, the five view families the user asked for:
   1. **Market Overview** — all symbols, auto-paging, configurable per-page
      delay.
   2. **Symbol Detail** — OHLC bar chart + bid/ask midpoint line, a full
      values table, and a zoomable time window. Large-screen only.
   3. **Index View** — chart of the configured index (if any).
-  4. Other common trading-floor panels, scoped in §4/§11–§13.
+  4. **Depth-of-Book** — a Level 2 ladder for the active symbol, sourced
+     directly from CALF `DEPTH` (§14).
+  5. Other common trading-floor panels, scoped in §4/§11–§13.
 - Verify, before designing, exactly what CALF (and RALF, where relevant)
-  actually deliver today — not what the protocol doc *says* it delivers, but
-  what the shipped `md_gateway` code allows (§4).
-- Where CALF is missing something a terminal genuinely needs, propose a
-  concrete, minimal protocol extension rather than silently working around
-  the gap (§14).
+  actually deliver today — not what an older draft of the protocol doc used
+  to say it delivers, but what the shipped `md_gateway` code allows (§4),
+  cross-checked against the current normative
+  [CALF Protocol Reference](../docs/user-guide/920-app-calf-protocol.md).
+- Make full use of what CALF `1.0.0` already provides — the `DEPTH` channel
+  and the `SYM=*` wildcard for `TOP`/`TRADE` — rather than working around
+  gaps that no longer exist (§4, §14).
 - Reuse the visual language, component choices, and monorepo conventions
   already established by `config-gui` and `pm-trading-ui` so the three
   frontends feel like one family.
@@ -162,9 +198,10 @@ Historical bars (which CALF intentionally does not provide) are sourced from
   engine, ever. If a future need for authenticated views arises it belongs
   in `pm-trading-ui`, not here.
 - No multi-level order-entry DOM with click-to-trade (that is
-  `pm-trading-ui`'s Trading Workspace). §14's depth ladder is read-only.
-  the-ticket wiring is explicitly out of scope even once depth data exists.
-  intentionally not carried over.
+  `pm-trading-ui`'s Trading Workspace). §14's depth ladder is read-only;
+  order-ticket wiring against depth data is explicitly out of scope here,
+  now and later — that capability, if ever built, belongs in
+  `pm-trading-ui`.
 - No mobile/small-screen layout for Symbol Detail — the user confirmed this
   is a large-screen tool.
 - No new persistence layer. `pm-terminal-bridge` is stateless beyond
@@ -177,11 +214,13 @@ Historical bars (which CALF intentionally does not provide) are sourced from
 This section is the "verify before designing" step the user asked for. It
 was done against **both** sources, in this priority order: (1) the shipped
 gateway code in `src/edumatcher/md_gateway/`, `engine/order_book.py`, and
-`api_gateway/`, and (2) the design docs
-([EduMatcher-Market_Data_Protocol.md](EduMatcher-Market_Data_Protocol.md),
-[EduMatcher-Index.md](EduMatcher-Index.md),
-[EduMatcher-Post-Trade-Dissemination-Gateway.md](EduMatcher-Post-Trade-Dissemination-Gateway.md)).
-Code wins where the two disagree.
+`api_gateway/`, and (2) the normative
+[CALF Protocol Reference](../docs/user-guide/920-app-calf-protocol.md),
+cross-checked against
+[EduMatcher-CALF-Extensions.md](EduMatcher-CALF-Extensions.md) and
+[EduMatcher-Post-Trade-Dissemination-Gateway.md](EduMatcher-Post-Trade-Dissemination-Gateway.md).
+Code wins where the two disagree; as of CALF `1.0.0` they agree everywhere
+relevant to this design.
 
 ### 4.1 Method
 
@@ -192,9 +231,9 @@ one actually comes from today.
 
 | View | Data point | Source | Status |
 |---|---|---|---|
-| Overview | Live LAST / BID / ASK / sizes | CALF `TOP` (`SNAP`/`MD`) | ✅ available |
-| Overview | Live trade prints (for LAST/flash) | CALF `TRADE` | ✅ available |
-| Overview | Today's OPEN (for % change) | `pm-api-gwy` `GET /history/daily` | ⚠️ not in CALF — REST needed |
+| Overview | Live LAST / BID / ASK / sizes | CALF `TOP` (`SNAP`/`MD`), `SUB\|CH=TOP\|SYM=*` | ✅ available |
+| Overview | Live trade prints (for LAST/flash) | CALF `TRADE`, `SUB\|CH=TRADE\|SYM=*` | ✅ available |
+| Overview | Today's OPEN (for % change) | `pm-api-gwy` `GET /history/daily` | ⚠️ not in CALF — REST needed (CALF is intentionally live-only) |
 | Overview | Session cumulative volume | `pm-api-gwy` `GET /history/daily` (`volume`) | ⚠️ not in CALF — REST needed |
 | Overview | Instrument/session state (halt badge) | CALF `STATE` | ✅ available |
 | Symbol Detail | Live top-of-book (chart tail, midpoint) | CALF `TOP` | ✅ available |
@@ -203,65 +242,42 @@ one actually comes from today.
 | Symbol Detail | Historical intraday bars (1m/5m/1h) | `pm-api-gwy` `GET /history/trades`, bucketed client-side | ⚠️ not in CALF — REST needed |
 | Symbol Detail | Historical bid/ask midpoint | *nowhere* | ❌ genuine gap — see §9.3 |
 | Symbol Detail | Session/halt state | CALF `STATE` | ✅ available |
-| Index View | Live index level, OHL, %chg | CALF `INDEX` (`IDX`/`SNAP`) | ✅ available in code; **not documented** in the v1.1.0 channel table (§4.3) |
-| Index View | Historical index level series | *nowhere in CALF* | ⚠️ gap — treated as v1 limitation, see §10 |
-| Trade Tape | Cross-symbol trade prints | CALF `TRADE` with `SYM=*`? | ⚠️ partial — see §4.3 |
-| Movers/Heatmap | LAST + %chg for all symbols | CALF `TOP`/`TRADE` + REST open | ✅ composable from above |
+| Symbol Detail | Depth ladder for active symbol | CALF `DEPTH` (`SNAP`/`DEPTH`, `SUB\|CH=DEPTH\|SYM=<symbol>`) | ✅ available — see §14 |
+| Index View | Live index level, OHL, %chg | CALF `INDEX` (`IDX`/`SNAP`) | ✅ available and fully documented in the normative CALF reference |
+| Index View | Historical index level series | *unconfirmed query surface* | ⚠️ gap — treated as v1 limitation, see §10, §22 |
+| Trade Tape | Cross-symbol trade prints | CALF `TRADE`, `SUB\|CH=TRADE\|SYM=*` | ✅ available — single wildcard subscription |
+| Movers/Heatmap | LAST + %chg for all symbols | CALF `TOP`/`TRADE` (wildcard) + REST open | ✅ composable from above |
 | Session/Halt Board | Session phase + per-symbol halts | CALF `STATE` (`SYM=*` and per-symbol) | ✅ available |
-| Depth ladder | Multi-level book | *not exposed over CALF* | ❌ gap — proposed extension, §14 |
+| Depth ladder | Multi-level book | CALF `DEPTH` (`SNAP`/`DEPTH`) | ✅ available — see §14 |
 
 ### 4.3 Gaps found
 
-1. **No historical data in CALF (by design).** §1.1 of the protocol doc says
-   so explicitly: *"historical data service (use `pm-index` for index
-   history)"* is out of scope for v1. In practice even index history isn't
-   queryable through CALF — only live `INDEX` snapshots/updates are. All
-   historical bars, for symbols and for the index, have to come from
+1. **No historical data in CALF (by design).** CALF is explicitly scoped as
+   a live-only feed; historical data is out of scope at every protocol
+   version, including `1.0.0`. This applies equally to symbols and to the
+   index — only live `INDEX` snapshots/updates are queryable through CALF.
+   All historical bars, for symbols and for the index, have to come from
    somewhere else. `pm-api-gwy`'s `GET /history/daily` and
    `GET /history/trades` (`src/edumatcher/api_gateway/routers/history.py`,
    backed by `pm-stats` SQLite) are that somewhere else, and are already
    proven by `pm-trading-ui`. Resolution: §6, §9, §17.2.
 
-2. **`INDEX` channel is real but undocumented.** The channel table in
-   §6.1 of the protocol doc lists only `TOP`, `TRADE`, `STATE`. The shipped
-   gateway (`md_gateway/gateway.py`, `_ALLOWED_CHANNELS = frozenset({"TOP",
-   "TRADE", "STATE", "INDEX"})`) and normaliser
-   (`normalise_index_update`, `index_cache`) both implement `INDEX` fully,
-   matching the message shapes proposed in
-   [EduMatcher-Index.md](EduMatcher-Index.md) §9 (`SUB|CH=INDEX|SYM=EDU100`,
-   `IDX|CH=INDEX|...`, `SNAP|CH=INDEX|...`). This is a doc-vs-code drift, not
-   a design blocker — `pm-terminal` will subscribe to `CH=INDEX` as a first-
-   class citizen. **Recommendation to the protocol maintainers (outside this
-   doc's scope): fold §9 of `EduMatcher-Index.md` into
-   `EduMatcher-Market_Data_Protocol.md` §6.1/§9 so the channel table and the
-   shipped gateway agree.**
-
-3. **Cross-symbol trade subscription is ambiguous for `TRADE`.** §6.1 of the
-   protocol doc marks `SYM=*` as *not* allowed for `TRADE` ("explicit list
-   required"), and §6.2 confirms `SYM=*` is only valid when `CH` is `STATE`
-   only. A cross-symbol Trade Tape (§11) therefore cannot subscribe once to
-   "all trades" — it must enumerate every known symbol in one `SUB|CH=TRADE`
-   call. `WELCOME|SYMBOLS=` (§9.2 of the protocol doc) already gives the
-   bridge the symbol list it needs to build that enumeration at connect
-   time and again whenever the symbol universe changes. This works, it is
-   just less elegant than a wildcard — noted as an open question in §22 for
-   the protocol itself, not blocking this design.
-
-4. **No multi-level depth over CALF.** Confirmed both in the protocol doc
-   (§16, "`DEPTH` channel — full price-level depth (5 or 10 levels)" is
-   listed as v2+ future work) and in the gateway code — `md_gateway`
-   consumes `book.{SYMBOL}` but the normaliser only ever extracts best
-   bid/ask into `MD`/`SNAP`. This is a real gap for a "Bloomberg-style"
-   terminal. §14 proposes a concrete extension, grounded in what the engine
-   already publishes internally.
-
-5. **No historical bid/ask (midpoint).** Neither CALF nor `pm-stats` retains
+2. **No historical bid/ask (midpoint).** Neither CALF nor `pm-stats` retains
    historical book state — only historical trades and daily OHLCV built from
    them. A historical "midpoint chart" is therefore not reconstructable
    before the terminal was open watching live `TOP` data. Treated as an
    accepted v1 limitation, with explicit UI labelling (§9.3) rather than a
    protocol change, since retaining full historical book state is a much
    bigger and more invasive addition than anything else in this audit.
+
+Two gaps present in an earlier draft of this document — `INDEX` being
+undocumented, and no wildcard subscription for `TRADE`/`TOP` — were resolved
+upstream in CALF `1.0.0` (see
+[EduMatcher-CALF-Extensions.md](EduMatcher-CALF-Extensions.md) §4–§5) and are
+no longer open. A third — no multi-level depth over CALF — was resolved the
+same way via the new `DEPTH` channel (§14 below documents it as shipped, not
+proposed). All three are recorded in the CHANGELOG rather than repeated here
+as live gaps.
 
 ### 4.4 Should RALF be used?
 
@@ -278,19 +294,20 @@ settlement-oriented payloads."* A market-data terminal is exactly the
 window is tempting for a deeper trade tape, but pulling it in would mean
 authenticating as a clearing/audit role for a tool that should need no
 credentials at all, and it would blur a separation the protocol design
-itself calls out as correct. CALF's `TRADE` channel — enumerated per
-symbol, per §4.3 point 3 — is the right and sufficient source for the Trade
-Tape (§11).
+itself calls out as correct. CALF's `TRADE` channel — one `SYM=*` wildcard
+subscription, as of CALF `1.0.0` — is the right and sufficient source for
+the Trade Tape (§11).
 
 ### 4.5 Verdict
 
-CALF (`TOP` + `TRADE` + `STATE` + the undocumented-but-real `INDEX`) covers
-every *live* data need in this design. Two extensions are needed for full
-parity with a real terminal: reusing `pm-api-gwy`'s existing history
-endpoints for anything historical (§6, §17.2 — no protocol change, just an
-architecture decision), and a new CALF `DEPTH` channel for the order book
-ladder (§14 — a genuine, scoped protocol proposal). Everything else in this
-design is buildable today against CALF as shipped.
+CALF `1.0.0` (`TOP` + `TRADE` + `STATE` + `INDEX` + `DEPTH`, all fully
+documented in the normative CALF reference) covers every *live* data need in
+this design, including the full order-book ladder. Only one gap remains for
+full parity with a real terminal: historical data, which CALF intentionally
+never carries at any version — resolved by reusing `pm-api-gwy`'s existing
+history endpoints (§6, §17.2), an architecture decision, not a protocol
+change. Everything else in this design is buildable today against CALF as
+shipped, with no protocol extension required.
 
 ## 5. Technology Stack
 
@@ -356,7 +373,7 @@ flowchart LR
     WS -->|"WS /stream\n(JSON frames)"| BRIDGE["pm-terminal-bridge\nFastify + Node :8090"]
     TQ -->|"REST /api/history/*\n(proxied)"| BRIDGE
 
-    BRIDGE -->|"CALF over TCP :5570\nHELLO/SUB/SNAP/MD/TRADE/STATE/IDX"| MDGWY["pm-md-gwy"]
+    BRIDGE -->|"CALF over TCP :5570\nHELLO/SUB/SNAP/MD/TRADE/STATE/IDX/DEPTH"| MDGWY["pm-md-gwy"]
     BRIDGE -->|"REST GET /api/v1/history/*\n(server-held API key)"| APIGWY["pm-api-gwy :8080"]
 ```
 
@@ -365,10 +382,10 @@ already exists (`pm-md-gwy`, `pm-api-gwy`).
 
 ### 6.2 Why a bridge instead of direct browser→CALF
 
-CALF is raw newline-delimited TCP (§4.1 of the protocol doc). Browsers have
-no API to open arbitrary TCP sockets — WebSocket or nothing. Two shapes were
-considered (this was raised as a clarifying question and resolved in favour
-of the first):
+CALF is raw newline-delimited TCP (see "Transport and session model" in the
+normative CALF reference). Browsers have no API to open arbitrary TCP
+sockets — WebSocket or nothing. Two shapes were considered (this was raised
+as a clarifying question and resolved in favour of the first):
 
 | Option | Trade-off |
 |---|---|
@@ -380,10 +397,11 @@ of the first):
 | Data path | Direction | Mechanism |
 |---|---|---|
 | Symbol list, index list | Bridge → Browser | WS `hello` frame, sourced from CALF `WELCOME|SYMBOLS=` + config |
-| Top-of-book snapshot/update | Bridge → Browser | WS `top` frame ⇐ CALF `SNAP`/`MD` (`CH=TOP`) |
-| Trade prints | Bridge → Browser | WS `trade` frame ⇐ CALF `TRADE` |
+| Top-of-book snapshot/update (all symbols) | Bridge → Browser | WS `top` frame ⇐ CALF `SNAP`/`MD` (`CH=TOP`), one bridge-side `SUB|CH=TOP|SYM=*` |
+| Trade prints (all symbols) | Bridge → Browser | WS `trade` frame ⇐ CALF `TRADE`, one bridge-side `SUB|CH=TRADE|SYM=*` |
 | Session/halt state | Bridge → Browser | WS `state` frame ⇐ CALF `STATE` |
 | Index level | Bridge → Browser | WS `index` frame ⇐ CALF `SNAP`/`IDX` (`CH=INDEX`) |
+| Depth ladder (active symbol only) | Bridge → Browser | WS `depth` frame ⇐ CALF `SNAP`/`DEPTH` (`CH=DEPTH`, one concrete symbol at a time — `SYM=*` is not allowed for `DEPTH`, see §14) |
 | Historical daily bars | Browser → Bridge → `pm-api-gwy` → Browser | REST `GET /api/history/daily?symbol=…` (proxied, §17.2) |
 | Historical trade ticks (intraday bucketing) | Browser → Bridge → `pm-api-gwy` → Browser | REST `GET /api/history/trades?symbol=…` (proxied) |
 | Bridge liveness / CALF connection health | Bridge → Browser | WS `bridge_status` frame |
@@ -392,11 +410,19 @@ of the first):
 
 - Hold exactly **one** CALF TCP session to `pm-md-gwy` regardless of how
   many browser tabs are connected (§6.5).
-- On startup, `HELLO`, then `SUB|CH=STATE|SYM=*` and `SUB|CH=INDEX|SYM=<configured index ids>`
-  immediately (cheap, always-on), plus `SUB|CH=TOP,TRADE|SYM=<all known symbols>`
-  once `WELCOME|SYMBOLS=` (or a symbol-list config fallback) is known.
+- On startup, `HELLO`, then immediately `SUB|CH=STATE,TOP,TRADE|SYM=*` and
+  `SUB|CH=INDEX|SYM=<configured index ids>` — all four wildcard-eligible or
+  index subscriptions are available from the first `SUB` call, with no need
+  to wait for `WELCOME|SYMBOLS=` first. `CH=DEPTH` is **not** part of this
+  always-on set (§14): the bridge only issues `SUB|CH=DEPTH|SYM=<symbol>`
+  for the symbol currently open in a browser tab's Symbol Detail or Depth
+  view, and `UNSUB`s it once no tab is viewing that symbol anymore, to avoid
+  paying `DEPTH`'s heavier per-tick bandwidth for symbols nobody is looking
+  at (mirrors the bandwidth reasoning CALF itself uses to justify excluding
+  `DEPTH` from the wildcard).
 - Track `last_seq` per `(CH, SYM)` exactly like the worked Python client in
-  the protocol doc §17, and use `RESUME`/`LASTSEQ` on reconnect (§6.6).
+  the protocol doc, and use `RESUME`/`LASTSEQ` on reconnect (§6.6) — noting
+  that `RESUME` must always target a concrete symbol, never `SYM=*` (§17.1).
 - Translate every inbound CALF line into one small JSON frame and fan it out
   to all connected browser WebSocket clients (§17.3).
 - Own the single `pm-api-gwy` API key used for `/history/*` reads, so it
@@ -412,21 +438,29 @@ Every browser tab (Overview on one monitor, Symbol Detail on another) opens
 its own WebSocket to the bridge, but the bridge keeps a **single shared CALF
 subscription set**, unioned across all connected browser clients — not one
 CALF session per tab. This mirrors `pm-md-gwy`'s own "shared per-stream ring
-buffer, not per-client" design (§7.4 of the protocol doc) one layer up the
-stack. A browser tab's incoming subscription request only causes a new CALF
-`SUB` if the bridge doesn't already hold that `(CH, SYM)` pair.
+buffer, not per-client" design one layer up the stack. For the always-on
+wildcard subscriptions (`TOP`, `TRADE`, `STATE`, `INDEX`), this union is
+trivial — they are held for the bridge's entire lifetime regardless of tab
+count, so there is nothing to reference-count. `DEPTH` is the one exception:
+because it is per-symbol, not wildcard (§14), the bridge reference-counts
+how many browser tabs currently have that symbol's Depth-of-Book panel open
+and only holds `SUB|CH=DEPTH|SYM=<symbol>` while the count is above zero,
+`UNSUB`-ing when the last interested tab navigates away or closes.
 
 ### 6.6 Reconnect and gap handling
 
 If the bridge's CALF TCP connection drops, it reconnects and resumes exactly
-as the worked client in the protocol doc's §17 does: `HELLO` with
+as the worked client in the protocol doc does: `HELLO` with
 `RESUME=1`/`LASTSEQ=` per stream, falling back to a fresh `SNAP` on
-`ERR|CODE=REPLAY_MISS`. Browser WebSocket clients are not torn down for a
-brief CALF hiccup — they simply see a `bridge_status: {calf: "RECONNECTING"}`
-frame and then resume receiving ticks once the bridge is caught up. If a
-browser tab's own WebSocket drops, it reconnects to the bridge and receives
-a fresh `hello`/state snapshot — it does not need to track CALF sequence
-numbers itself, only the bridge does.
+`ERR|CODE=REPLAY_MISS`. Because `RESUME=1` never accepts `SYM=*` (§17.1),
+the bridge resumes its wildcard `TOP`/`TRADE`/`STATE` subscriptions one
+concrete known symbol at a time — see §17.1 for the exact sequencing. Browser
+WebSocket clients are not torn down for a brief CALF hiccup — they simply
+see a `bridge_status: {calf: "RECONNECTING"}` frame and then resume
+receiving ticks once the bridge is caught up. If a browser tab's own
+WebSocket drops, it reconnects to the bridge and receives a fresh
+`hello`/state snapshot — it does not need to track CALF sequence numbers
+itself, only the bridge does.
 
 ## 7. Application Shell and Navigation
 
@@ -505,9 +539,13 @@ Green/red flash on each cell when a new `MD`/`TRADE` changes its value
   browser via `localStorage`.
 - Hovering the grid or pressing `⏸` pauses auto-paging; `‹`/`›` step pages
   manually at any time, `⏸`/`▶` toggles resume.
-- All rows on all pages stay subscribed on CALF `TOP`/`TRADE` regardless of
-  which page is currently shown — paging is a client-side rendering
-  concern, not a subscription concern, so numbers never go stale.
+- All rows on all pages stay live regardless of which page is currently
+  shown — paging is purely a client-side rendering concern, not a
+  subscription concern, so numbers never go stale. This falls out for free
+  from the bridge's single `SUB|CH=TOP,TRADE|SYM=*` wildcard subscription
+  (§6.4): every symbol is already flowing into the bridge and out to every
+  connected tab regardless of what that tab currently renders, so there is
+  no per-page subscribe/unsubscribe logic to write at all.
 
 ### 8.4 Column set
 
@@ -524,8 +562,8 @@ Green/red flash on each cell when a new `MD`/`TRADE` changes its value
 ### 8.5 Data sources
 
 ```
-WS  bridge → top      (CH=TOP, all symbols)
-WS  bridge → trade    (CH=TRADE, all symbols)
+WS  bridge → top      (CH=TOP, SYM=* — one bridge-side wildcard subscription, all symbols)
+WS  bridge → trade    (CH=TRADE, SYM=* — one bridge-side wildcard subscription, all symbols)
 WS  bridge → state    (CH=STATE, SYM=*  and per-symbol halts)
 REST bridge → /api/history/daily?date=today   (once per session for OPEN/VOLUME baseline)
 ```
@@ -544,7 +582,7 @@ mobile layout is specified.
 ┌──────────────────────────────────────────────────────────────────────────┐
 │ AAPL  — CONTINUOUS            150.12  +0.42 (+0.28%)     Vol 184,300     │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ [1D] [5D] [1M] [3M] [YTD] [All] [Live]     ☑ OHLC bars   ☑ Midpoint      │
+│ [1D] [5D] [1M] [3M] [YTD] [All] [Live]  ☑ OHLC  ☑ Midpoint  ☐ Depth ▾    │
 │                                                                            │
 │   152 ┤                                          ╭╮                     │
 │   151 ┤                              ╭╮       ╭──╯╰╮   ┃┃┃┃  ← candles  │
@@ -568,6 +606,14 @@ mobile layout is specified.
 └────────────────────────────┴───────────────────────────────────────────┘
 ```
 
+Toggling `☑ Depth` replaces the values panel (right-hand side, or a
+slide-out on narrower large-screen widths) with the Depth-of-Book ladder —
+see §14 for its own wireframe and data source. It is off by default: unlike
+`OHLC`/`Midpoint`, which reuse subscriptions the bridge already holds for
+every symbol, enabling Depth causes the bridge to open a new
+`SUB|CH=DEPTH|SYM=<symbol>` for this one symbol (§6.4), so it is opt-in per
+viewer rather than always-on.
+
 ### 9.3 Chart behaviour (OHLC + midpoint)
 
 - **OHLC bars** are candlesticks built from historical bars (§9.4) with the
@@ -575,7 +621,7 @@ mobile layout is specified.
   pattern `pm-trading-ui`'s chart already implements (bucket ticks into the
   current-timeframe candle, replace on each trade).
 - **Midpoint** is `(BID + ASK) / 2` from CALF `TOP`, drawn as a thin
-  secondary line series over the candles. Per the gap in §4.3 point 5,
+  secondary line series over the candles. Per the gap in §4.3 point 2,
   **there is no historical bid/ask** — the midpoint line only has real data
   from the moment `pm-terminal` (or the bridge, if already running) started
   observing `TOP` updates for this symbol. The UI must make this explicit:
@@ -612,9 +658,18 @@ come from the daily history row fetched once per symbol view.
 WS   bridge → top     (CH=TOP, this symbol)         → Bid/Ask/Mid, live candle tail
 WS   bridge → trade   (CH=TRADE, this symbol)        → Last, live candle OHLC updates, volume
 WS   bridge → state   (CH=STATE, this symbol + SYM=*)→ Session badge
+WS   bridge → depth   (CH=DEPTH, this symbol — only while the Depth toggle is on, §9.2, §14) → ladder
 REST bridge → /api/history/daily?symbol=AAPL         → Open/High/Low/Prev Close, 1D+ bars
 REST bridge → /api/history/trades?symbol=AAPL&limit=…→ intraday bar bucketing
 ```
+
+Note that `top`, `trade`, and `state` above arrive at this symbol regardless
+of whether Symbol Detail is open, since the bridge already holds them as
+part of its always-on `SYM=*` wildcard subscriptions (§6.4) — Symbol Detail
+just filters the shared stream down to one symbol client-side. `depth` is
+the exception: it is the one WS frame type that actually causes a new CALF
+subscription when this view (or its Depth toggle) opens, and causes an
+`UNSUB` when it closes (§6.5).
 
 ## 10. Screen Design — Index View
 
@@ -685,13 +740,14 @@ REST bridge → /api/history/daily?symbol=<index id> → historical level series
 
 New rows insert at the top and scroll down; a bounded ring buffer (last
 ~500 prints, client-side) keeps memory flat. Symbol filter narrows the tape
-without changing the underlying subscription (the bridge already holds
-`TRADE` for every symbol, per §6.4).
+without changing the underlying subscription (the bridge already holds a
+single `SUB|CH=TRADE|SYM=*` wildcard subscription covering every symbol,
+per §6.4).
 
 ### 11.2 Data sources
 
 ```
-WS  bridge → trade   (CH=TRADE, all symbols, per §4.3 point 3 — enumerated, not wildcard)
+WS  bridge → trade   (CH=TRADE, SYM=* — one bridge-side wildcard subscription, all symbols)
 ```
 
 ## 12. Screen Design — Market Movers / Heatmap
@@ -752,59 +808,67 @@ elsewhere (§8.4, §9.6) — no new data, just a dedicated place to see the
 whole board's health at a glance, which is genuinely useful for the
 "lobby display" use case in §8.1.
 
-## 14. Depth-of-Book: Current Gap and Proposed CALF Extension
+## 14. Screen Design — Depth-of-Book
 
-### 14.1 What real venues do
+### 14.1 Purpose and status
+
+A Level 2 order-book ladder for whichever symbol is currently open in
+Symbol Detail (§9), toggled on from there rather than being its own nav
+tab. This section was originally written as a protocol-extension proposal
+for a `DEPTH` channel that did not exist yet; CALF `1.0.0` has since shipped
+it exactly as proposed (see
+[EduMatcher-CALF-Extensions.md](EduMatcher-CALF-Extensions.md) §6 and the
+normative [CALF Protocol Reference](../docs/user-guide/920-app-calf-protocol.md)),
+so this is now a regular, buildable screen — not a future increment blocked
+on a protocol change. The background on what real venues do and what
+EduMatcher already computed internally (§14.2 in the original draft) is kept
+below because it explains *why* the ladder is cheap for `md_gateway` to
+serve, which still matters for capacity planning even though the channel
+itself is no longer new.
+
+### 14.2 What real venues do
 
 Real exchange feeds are conventionally described in three tiers:
 
 | Level | Content | Example real feeds |
 |---|---|---|
-| Level 1 | Best bid/ask + sizes (what CALF `TOP` already provides) | Most consolidated tape/SIP feeds |
-| Level 2 | Aggregated depth by price, several to many levels | Nasdaq TotalView (aggregated view), CME MDP 3.0 Market-By-Price (`MBP-10`) |
+| Level 1 | Best bid/ask + sizes (what CALF `TOP` provides) | Most consolidated tape/SIP feeds |
+| Level 2 | Aggregated depth by price, several to many levels (what CALF `DEPTH` provides) | Nasdaq TotalView (aggregated view), CME MDP 3.0 Market-By-Price (`MBP-10`) |
 | Level 3 | Full order-by-order book, every resting order individually | Nasdaq TotalView-ITCH (Market-By-Order), CME MDP 3.0 Market-By-Order |
 
 A Bloomberg-style terminal's depth ladder is a Level 2 view: aggregated
 quantity per price level, not individual orders. That is also the right
 target for EduMatcher — Level 3 would expose per-order identity CALF
-deliberately keeps out of the public feed (§1.1 of the protocol doc already
-excludes "full depth-by-order feed" from v1 for this reason).
+deliberately keeps out of the public feed at every version, `DEPTH`
+included (see "Out of scope in CALF 1.0.0" in the normative reference).
 
-### 14.2 What EduMatcher already has internally
+### 14.3 Why `DEPTH` is cheap for `md_gateway` to serve
 
-This matters because it changes the extension from "new engine feature" to
-"gateway plumbing":
+- `OrderBook.snapshot()` (`src/edumatcher/engine/order_book.py`) aggregates
+  every resting order into per-price-level rows, sorted best-first, on every
+  `book.{SYMBOL}` publish — the exact Level 2 shape `DEPTH` needs.
+- `md_gateway` already subscribed to `book.{SYMBOL}` for `TOP` before
+  `DEPTH` existed; `DEPTH` reuses that same subscription and payload rather
+  than opening a new one — confirmed in the shipped
+  `_poll_engine_events`/`normalise_depth` code path
+  (`src/edumatcher/md_gateway/gateway.py`,
+  `src/edumatcher/md_gateway/normaliser.py`).
+- No engine change was required to ship `DEPTH` — it was purely a
+  normaliser/gateway addition, which is why it landed quickly once proposed.
 
-- `OrderBook.snapshot()` (`src/edumatcher/engine/order_book.py`) already
-  aggregates every resting order into **per-price-level rows** —
-  `bid_rows`/`ask_rows`, each `{price, qty, count}`, sorted best-first — on
-  every `book.{SYMBOL}` publish. This is the *exact* Level 2 shape needed.
-- `md_gateway` already subscribes to `book.{SYMBOL}` (§3.1 of the protocol
-  doc) and already receives this full payload — it currently **discards**
-  every level except the best one when building `MD`/`SNAP`.
-- Separately, `OrderBook.depth_snapshot()` publishes an aggregate
-  imbalance/microprice metric on `depth.{SYMBOL}`, which `md_gateway` does
-  not subscribe to at all today. This is not a price ladder — it's a single
-  imbalance/microprice number — and is a good candidate for a small bonus
-  field (§14.5), not the ladder itself.
+### 14.4 `DEPTH` channel, as shipped
 
-So the ladder data is already flowing into `md_gateway`'s process on the
-same topic it already consumes. **No engine change is required** — this is
-purely a normaliser/gateway addition.
-
-### 14.3 Proposed `DEPTH` channel
-
-Mirrors the existing `TOP`/`SNAP` shape so it costs nothing to learn:
+Mirrors the `TOP`/`SNAP` shape, per the normative CALF reference:
 
 | Field | Req | Type | Description |
 |---|---|---|---|
 | `CH` | ✓ | string | `DEPTH` |
-| `SYM` | ✓ | string | Instrument symbol |
+| `SYM` | ✓ | string | Instrument symbol — always a concrete symbol; `SYM=*` is not valid for `DEPTH` |
 | `SEQ` | ✓ | int | Monotonic sequence for `(DEPTH, SYM)` |
-| `TS` | ✓ | string | Snapshot timestamp |
-| `LEVELS` | ✓ | int | Number of levels included per side (configurable, default 10) |
-| `BIDS` | — | string | Comma-separated `price:qty:count` triples, best price first |
-| `ASKS` | — | string | Comma-separated `price:qty:count` triples, best price first |
+| `TS` | ✓ | string | Event/snapshot timestamp |
+| `LEVELS` | ✓ | int | Number of levels included per side (`market_data_gateway.depth_levels`, default 10, gateway-wide — no per-client override) |
+| `BIDS` | — | string | Comma-separated `price:qty:count` triples, best price first; omitted (not empty) when no resting bids |
+| `ASKS` | — | string | Comma-separated `price:qty:count` triples, best price first; omitted (not empty) when no resting asks |
 
 ```text
 SUB|CH=DEPTH|SYM=AAPL
@@ -812,27 +876,25 @@ SNAP|CH=DEPTH|SYM=AAPL|SEQ=1|TS=2026-07-11T14:32:00.000Z|LEVELS=10|BIDS=150.10:1
 DEPTH|CH=DEPTH|SYM=AAPL|SEQ=2|TS=2026-07-11T14:32:00.512Z|LEVELS=10|BIDS=150.10:1400:4,150.09:800:2,150.08:400:1|ASKS=150.12:900:2,150.13:600:1,150.14:250:1
 ```
 
-Like `TOP`, this would be **snapshot-refresh, not order-level incremental**
-— each message is a full N-level replace, sent at the same throttled
-interval `book.{SYMBOL}` already publishes at (default 0.5s, per §3.1 of
-the protocol doc), only when the ladder actually changed. This matches the
-engine's real granularity honestly (it snapshots, it does not emit one
-event per resting order), and keeps `DEPTH` inside CALF's existing
-"snapshot + incremental" mental model (§13 of the protocol doc) rather than
-inventing a new one.
+`DEPTH` is **full-ladder replace per message, not a per-level diff** — each
+message carries a side's complete current top-`LEVELS` ladder, sent only
+when the tracked levels actually changed since the previous `DEPTH`/`SNAP`
+for that symbol. `pm-terminal`'s depth-rendering code should always replace
+its entire in-memory ladder for a side on receipt, never attempt to patch
+one price level in place.
 
-This is a **proposal**, not part of the current CALF spec — `pm-terminal`
-v1 ships without a depth ladder (per the user's decision in §22 of the
-questions asked before this design), and the view below is included so the
-gap and its fix are both visible in one document, matching how
-[EduMatcher-Index.md](EduMatcher-Index.md) itself proposed `CH=INDEX`
-before it was implemented.
+`SUB|CH=DEPTH|SYM=*` is invalid — the gateway rejects it with
+`ERR|CODE=INVALID_SYMBOL` — because `DEPTH` messages are heavier than `TOP`
+(up to `2 × depth_levels` price levels each); this is exactly why §6.4/§6.5
+scope `pm-terminal-bridge`'s `DEPTH` subscription to one symbol at a time,
+reference-counted by how many open tabs are viewing it, rather than folding
+it into the always-on wildcard set the other channels use.
 
-### 14.4 Proposed wireframe (marked PROPOSED)
+### 14.5 Wireframe
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ AAPL — DEPTH  [PROPOSED — pending CALF DEPTH channel, §14]               │
+│ AAPL — DEPTH                                                             │
 ├───────────────────┬────────┬──────────────────┬────────┬────────────────┤
 │        BID QTY     │  BID   │       │  ASK     │ ASK QTY│                │
 ├───────────────────┼────────┼──────────────────┼────────┼────────────────┤
@@ -841,19 +903,36 @@ before it was implemented.
 │             400    │ 150.08 │  █    │  150.14  │    250 │                │
 │  …                  │  …    │       │   …      │    …   │                │
 ├───────────────────┴────────┴──────────────────┴────────┴────────────────┤
-│ Imbalance: ▲ +0.18  (bid-heavy)     ← bonus field, §14.5, near-free      │
+│ up to LEVELS rows per side (10 by default, gateway-configured)           │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 14.5 Bonus: order-flow imbalance, almost free
+Bar length scales to `qty` relative to the largest level currently shown on
+either side, same convention as the Movers bar (§12.1). Rows beyond the
+gateway's configured `LEVELS` simply don't exist in the feed — there is no
+"load more" affordance, since `pm-terminal` cannot request a deeper ladder
+than the gateway is configured to publish (§14.4).
 
-`OrderBook.depth_snapshot()` already computes `bid_depth`, `ask_depth`,
-`imbalance` (`[-1, 1]`), and `microprice` on every `depth.{SYMBOL}` publish
-— data most retail terminals pay extra for. Subscribing `md_gateway` to
-`depth.{SYMBOL}` and folding `IMB=`/`MICROPX=` fields onto the same `DEPTH`
-message (or a lightweight companion) is a small addition once `DEPTH`
-exists, worth calling out now so it isn't rediscovered later as a separate
-project. Left as a §14.3 field extension, not built out further here.
+### 14.6 Data sources
+
+```
+WS  bridge → depth   (CH=DEPTH, one concrete symbol — the symbol currently open in Symbol Detail with the Depth toggle on, §6.4, §9.2)
+```
+
+### 14.7 Deferred: order-flow imbalance and microprice
+
+`OrderBook.depth_snapshot()` separately computes `bid_depth`, `ask_depth`,
+`imbalance` (`[-1, 1]`), and `microprice` on a different engine topic,
+`depth.{SYMBOL}`, which `md_gateway` does not subscribe to. This is
+explicitly deferred in
+[EduMatcher-CALF-Extensions.md](EduMatcher-CALF-Extensions.md) §7 ("Order-flow
+imbalance / microprice fields... a clean follow-up once `DEPTH` has shipped
+and proven itself") — not part of CALF `1.0.0`'s `DEPTH` channel. If/when
+those fields are added to CALF, they are a natural extension of the ladder
+above (an `IMB=`/`MICROPX=` field pair on the same message or a lightweight
+companion channel) and this screen would gain an imbalance readout with no
+other structural change. Not built out further here; tracked as a future
+increment, not an open question blocking this design.
 
 ## 15. Visual Design System
 
@@ -884,7 +963,8 @@ a new one:
 │  • Active halts / session phase                                │
 │  • Trade tape ring buffer (bounded, ~500 entries)              │
 │  • Active symbol (drives Symbol Detail route)                  │
-│  • UI prefs: overview page delay, chart series toggles (persisted to localStorage) │
+│  • Depth ladder for the active symbol, when Depth toggle is on │
+│  • UI prefs: overview page delay, chart series toggles incl. Depth (persisted to localStorage) │
 └─────────────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────────────┐
 │  TanStack Query (server state, stale-while-revalidate)        │
@@ -906,21 +986,56 @@ only ever holds read-only history, never anything invalidated by a write.
 class CalfUplink:
     socket: net.Socket            # TCP connection to pm-md-gwy :5570
     state: "CONNECTED" | "ACTIVE" | "RECONNECTING"
-    last_seq: dict[(str, str), int]   # (CH, SYM) -> last SEQ seen
-    subscribed: set[(str, str)]       # (CH, SYM) currently SUB'd
-    symbols: list[str]                 # from WELCOME|SYMBOLS=
+    last_seq: dict[(str, str), int]   # (CH, SYM) -> last SEQ seen, SYM is a concrete symbol or "*"
+    subscribed: set[(str, str)]       # (CH, SYM) currently SUB'd, includes ("TOP","*") etc.
+    symbols: list[str]                 # from WELCOME|SYMBOLS=, grown as new symbols are learned
+    ch_supported: set[str]             # parsed from WELCOME|CH_SUPPORTED=
 ```
 
-- On connect: `HELLO|CLIENT=pm-terminal-bridge|PROTO=CALF1`, then subscribe
-  per §6.4's ordering (state/index first, top/trade once symbols known).
-  On reconnect, replay `HELLO...RESUME=1` per `(CH,SYM)` using `last_seq`
-  exactly like the protocol doc's §17 Python client, one stream at a time.
+- On connect: `HELLO|CLIENT=pm-terminal-bridge|PROTO=CALF1`, then
+  immediately `SUB|CH=STATE,TOP,TRADE|SYM=*` and
+  `SUB|CH=INDEX|SYM=<configured index ids>` (§6.4) — all are available from
+  the first `SUB` with no need to wait on `WELCOME|SYMBOLS=` first, since
+  `SYM=*` covers symbols the bridge hasn't even learned about yet (they
+  fan out automatically once the gateway sees them, per the CALF `1.0.0`
+  wildcard semantics). Parse `WELCOME|CH_SUPPORTED=` and only send
+  `SUB|CH=DEPTH|...` calls if `DEPTH` is present, so the bridge degrades
+  gracefully against an older gateway build instead of erroring on every
+  depth-toggle request.
+- **Reconnect is where the wildcard subscriptions get more work, not less.**
+  `HELLO|RESUME=1` only ever resumes one `(CH, SYM)` stream per `HELLO`, and
+  `SYM=*` is invalid for `RESUME` on every channel — the gateway rejects it
+  outright, even for `TOP`/`TRADE`/`STATE`, because there is no wildcard
+  snapshot baseline to fall back on for a replay miss (§920 of the CALF
+  reference, "Reconnect behavior"). So the bridge cannot simply resend
+  `HELLO|RESUME=1|CH=TOP|SYM=*|LASTSEQ=...` after a drop. Instead, on
+  reconnect the bridge:
+  1. Sends a plain `HELLO` (no `RESUME`) to re-establish the session and
+     get a fresh `WELCOME`.
+  2. Re-issues `SUB|CH=STATE,TOP,TRADE|SYM=*` and
+     `SUB|CH=INDEX|SYM=<index ids>` immediately — this restores live
+     delivery going forward for every symbol right away, same as first
+     connect.
+  3. For any symbol the bridge was actively serving to a browser tab
+     (i.e. had non-empty `last_seq` for), issues a **separate**
+     `HELLO...RESUME=1|CH=<ch>|SYM=<that concrete symbol>|LASTSEQ=...`
+     per stream to backfill the gap between disconnect and step 2's fresh
+     `SUB`, exactly as the CALF reference's worked client example does —
+     just looped over concrete symbols instead of assumed to work with a
+     single wildcard call. This step is a best-effort gap-fill, not a
+     correctness requirement: `pm-terminal` is a display-only viewer, so a
+     brief tick gap during reconnect (visible to the user only as a short
+     `RECONNECTING` state, §6.6) is an acceptable trade-off against the
+     complexity of resuming every known symbol on every reconnect.
+  4. `DEPTH` subscriptions follow the same per-symbol resume pattern in
+     step 3, scoped to whichever symbols currently have their Depth toggle
+     on (§6.5) — there is no wildcard `DEPTH` to re-establish in step 2.
 - Buffer partial TCP reads and split on `\n` — the same non-negotiable rule
-  the protocol doc calls out in §8.1; do not assume one `recv`/`data` event
-  is one message.
-- On `ERR|CODE=SLOW_CLIENT`, reconnect immediately with `RESUME` per stream
-  (the bridge, not the browser, is the "client" CALF sees, so this only
-  ever affects the bridge's own uplink, never a browser tab directly).
+  the CALF reference calls out ("TCP stream requirement"); do not assume one
+  `recv`/`data` event is one message.
+- On `ERR|CODE=SLOW_CLIENT`, reconnect immediately following the sequence
+  above (the bridge, not the browser, is the "client" CALF sees, so this
+  only ever affects the bridge's own uplink, never a browser tab directly).
 
 ### 17.2 REST history proxy
 
@@ -948,8 +1063,21 @@ One WebSocket per browser tab, JSON frames, discriminated by `type`:
 { "type": "trade", "sym": "AAPL", "seq": 44, "ts": "...", "px": 150.12, "qty": 200, "side": "BUY" }
 { "type": "state", "sym": "AAPL", "seq": 3, "ts": "...", "session": "HALTED", "prev": "CONTINUOUS" }
 { "type": "index", "sym": "EDU100", "seq": 42, "ts": "...", "level": 1048.73, "chg": 6.63, "pctChg": 0.64, "open": 1042.10, "high": 1056.30, "low": 1040.05 }
+{ "type": "depth", "sym": "AAPL", "seq": 2, "ts": "...", "levels": 10, "bids": [[150.10,1400,4],[150.09,800,2]], "asks": [[150.12,900,2],[150.13,600,1]] }
 { "type": "bridge_status", "calf": "ACTIVE" | "RECONNECTING", "since": "..." }
 ```
+
+`depth` frames are only sent to a browser tab that has subscribed to that
+symbol's ladder via a `depth_subscribe`/`depth_unsubscribe` client→bridge
+message (not shown above — a small control frame the browser sends when the
+Depth toggle in Symbol Detail is switched on/off, §9.2), which is what
+drives the bridge's reference-counted `SUB|CH=DEPTH`/`UNSUB` behavior
+(§6.5). Every other frame type above is pushed to all connected tabs
+unconditionally, since the bridge's `TOP`/`TRADE`/`STATE`/`INDEX`
+subscriptions are always-on regardless of which tab wants what (§6.4). The
+`BIDS`/`ASKS` `price:qty:count` wire triples are parsed once, server-side,
+into `[price, qty, count]` number tuples so the browser never touches the
+CALF colon/comma grammar.
 
 Deliberately flat JSON, one object per CALF line — no client-side parsing
 of the pipe-delimited wire format is needed; that translation happens once,
@@ -961,27 +1089,38 @@ server-side, in `packages/calf-protocol`.
 |---|---|
 | `apps/bridge/src/main.ts` | Fastify app entry, WS route, HTTP proxy routes |
 | `apps/bridge/src/calf/uplink.ts` | `CalfUplink` class (§17.1) |
-| `apps/bridge/src/calf/subscriptions.ts` | Union of all browser-requested `(CH,SYM)` pairs → CALF `SUB` calls (§6.5) |
+| `apps/bridge/src/calf/subscriptions.ts` | Always-on `SYM=*` wildcard `SUB` for `TOP`/`TRADE`/`STATE`, config-driven `SUB|CH=INDEX` (§6.4) |
+| `apps/bridge/src/calf/depth-refcount.ts` | Per-symbol `SUB\|CH=DEPTH`/`UNSUB` reference counting across browser tabs (§6.5, §9.2, §14.6) |
 | `apps/bridge/src/history-proxy.ts` | `/api/history/*` passthrough to `pm-api-gwy` (§17.2) |
 | `apps/bridge/src/ws-fanout.ts` | Per-tab WS session registry, frame broadcast |
 | `packages/calf-protocol/src/index.ts` | `parseLine`/`buildLine`, TS port of `md_gateway/protocol.py`'s grammar |
-| `packages/shared-types/src/index.ts` | `TopFrame`, `TradeFrame`, `StateFrame`, `IndexFrame`, `DailyBar`, etc. |
+| `packages/shared-types/src/index.ts` | `TopFrame`, `TradeFrame`, `StateFrame`, `IndexFrame`, `DepthFrame`, `DailyBar`, etc. |
 
 ## 18. Security and Operational Notes
 
 - **No trading credentials ever reach the browser.** The one `pm-api-gwy`
   API key the bridge needs for `/history/*` lives only in the bridge's own
   config/environment, never serialized to the client.
-- The CALF connection itself needs no credential today (§15 of the protocol
-  doc — trusted-network assumption); if CALF ever grows a `TOKEN=` field
-  (§16 of that doc lists it as a v2+ possibility), the bridge is the right
-  and only place to hold it.
+- The CALF connection itself needs no credential today (trusted-network
+  assumption, per the normative CALF reference's "Out of scope in CALF
+  1.0.0" list, which still names a protocol-layer auth token as a
+  possibility for a future version); if CALF ever grows a `TOKEN=` field,
+  the bridge is the right and only place to hold it.
 - `pm-terminal` should run on a read-only network path — it never needs
   outbound access to anything but `pm-md-gwy:5570` and `pm-api-gwy:8080`.
 - Because every browser tab shares the bridge's single CALF uplink (§6.5),
   the bridge should cap total browser WS connections (config, default 200)
   to bound its own fan-out cost — this is the bridge's own concern, not a
   CALF-side limit.
+- The bridge's own `max_symbols_per_client` exposure to `pm-md-gwy` is
+  bounded and predictable: `TOP`/`TRADE`/`STATE` each contribute one entry
+  (`"*"`) regardless of symbol count (per CALF's wildcard accounting rule),
+  and `DEPTH` contributes one entry per symbol currently reference-counted
+  above zero (§6.5) — in practice, at most the number of distinct symbols
+  simultaneously open across all browser tabs' Symbol Detail views, which
+  is naturally small. The bridge does not need its own separate cap on
+  concurrent `DEPTH` subscriptions beyond what `pm-md-gwy`'s
+  `max_symbols_per_client` already enforces.
 - No PII anywhere in this application; it displays market data only.
 
 ## 19. Config Reference
@@ -1010,10 +1149,10 @@ terminal_bridge:
 | Layer | Tool | What's covered |
 |---|---|---|
 | `packages/calf-protocol` | Vitest | Line parse/build round-trip, malformed-line rejection (mirrors `test_md_normaliser.py`'s cases) |
-| `apps/bridge` uplink | Vitest + a fake CALF TCP server | HELLO/WELCOME handshake, SUB fan-out dedup (§6.5), RESUME/gap-replay path (§6.6), SLOW_CLIENT reconnect |
+| `apps/bridge` uplink | Vitest + a fake CALF TCP server | HELLO/WELCOME handshake incl. `CH_SUPPORTED` parsing, wildcard `SUB` fan-out (§6.4), per-symbol `RESUME`-after-wildcard reconnect sequencing (§17.1 — this is the trickiest path and deserves its own dedicated test group), `DEPTH` reference-count subscribe/unsubscribe (§6.5), SLOW_CLIENT reconnect |
 | `apps/bridge` history proxy | Vitest + mocked `pm-api-gwy` responses | Passthrough shape, error propagation (503 when stats DB unavailable) |
-| `apps/web` components | Vitest + React Testing Library | FlashCell flash behaviour, Overview paging timer, chart series toggles |
-| End-to-end | Playwright, against a running `pm-engine` + `pm-md-gwy` + `pm-api-gwy` + bridge stack | Overview loads and pages; Symbol Detail chart renders and zooms; a manual trade in the engine appears in the Tape within one polling interval |
+| `apps/web` components | Vitest + React Testing Library | FlashCell flash behaviour, Overview paging timer, chart series toggles incl. Depth toggle mount/unmount triggering `depth_subscribe`/`depth_unsubscribe` |
+| End-to-end | Playwright, against a running `pm-engine` + `pm-md-gwy` + `pm-api-gwy` + bridge stack | Overview loads and pages; Symbol Detail chart renders and zooms; Depth ladder renders and updates on a resting-order change; a manual trade in the engine appears in the Tape within one polling interval |
 
 ## 21. Implementation Plan
 
@@ -1024,49 +1163,59 @@ terminal_bridge:
 | 3 | Market Overview (§8) incl. paging and REST-baseline OPEN/VOLUME |
 | 4 | Symbol Detail (§9): chart, zoom, values table, live+historical splice |
 | 5 | Index View (§10); Trade Tape (§11); Movers/Heatmap (§12) — all reuse Phase 2–4 plumbing |
-| 6 | Depth ladder (§14) — blocked on the `DEPTH` channel proposal being implemented in `md_gateway`; ships as a later increment, not v1 |
+| 6 | Depth ladder (§14): `CH=DEPTH` reference-counted subscribe/unsubscribe (§6.5), Symbol Detail Depth toggle and ladder rendering. No longer blocked on a protocol change — `DEPTH` ships in CALF `1.0.0` — so this can be pulled forward alongside Phase 4/5 rather than deferred; kept as its own phase here only because it depends on the per-symbol reference-counting plumbing being in place first, not because of any external blocker |
 
 ## 22. Open Questions
 
-1. Should `EduMatcher-Index.md`'s §9 `INDEX` channel definition be merged
-   into `EduMatcher-Market_Data_Protocol.md`'s canonical channel table
-   (§4.3 point 2)? This document assumes yes eventually, but treats `INDEX`
-   as available regardless, since the shipped code already implements it.
-2. Should CALF's `TRADE` (and/or `TOP`) channel eventually allow
-   `SYM=*`, the way `STATE` already does, specifically to make an
-   all-symbols Trade Tape a single subscription instead of an enumerated
-   list (§4.3 point 3)? Low risk given `STATE` already proves the pattern
-   works, but changes gateway fan-out cost characteristics and should be
-   evaluated against `max_symbols_per_client`.
-3. Does `pm-stats` retain a queryable historical series for index levels
+Four questions from the original draft of this document are now resolved
+and removed from this list: whether `INDEX` should be formally documented
+(it has been, in the normative CALF reference), whether `TRADE`/`TOP`
+should gain a `SYM=*` wildcard (shipped in CALF `1.0.0`), whether the
+proposed `DEPTH` channel should exist at all (shipped), and whether it
+should ship opt-in-gated or on by default (shipped on by default, no
+gateway config flag to disable it — only `depth_levels` tunes ladder
+depth). What remains genuinely open:
+
+1. Does `pm-stats` retain a queryable historical series for index levels
    specifically (not just per-symbol daily bars)? `EduMatcher-Index.md`
-   mentions historical index values are stored on disk (§ "Historical index
-   values stored on disk") but this design could not confirm the query
-   surface for it the way `history.py` was confirmed for symbols — needs a
-   follow-up check against `pm-index`'s storage before §10.4 can be
-   finalized.
-4. Should the proposed `DEPTH` channel (§14.3) live in `md_gateway` proper,
-   or — given it is a genuinely optional, heavier feature most CALF clients
-   won't want — behind an opt-in `SUB|CH=DEPTH` that the gateway can refuse
-   with `ERR|CODE=INVALID_CHANNEL` until an operator explicitly enables it
-   in `market_data_gateway` config? The latter avoids forcing every
-   `pm-md-gwy` deployment to pay the extra per-tick serialization cost.
-5. Constituent-level live weight updates for the Index view (§10.2) are
+   mentions historical index values are stored on disk, but as a per-index
+   JSONL file (`data/indexes/<id>_history.jsonl`), separate from the
+   `stats.db` that `pm-api-gwy`'s `GET /history/daily` actually queries —
+   so §10.4's REST call for index history may not resolve to real data as
+   currently specified. This needs a follow-up check against `pm-index`'s
+   storage and, likely, either a new `pm-api-gwy` endpoint or a documented
+   v1 limitation (no historical index chart, headline stats only) before
+   §10.4 can be finalized.
+2. Constituent-level live weight updates for the Index view (§10.2) are
    shown as a static list in this design. Is per-constituent weight drift
    (as prices move intraday) worth streaming, or is a periodic
    recompute-on-open sufficient for a teaching tool?
+3. Should `pm-terminal-bridge` eventually parse `WELCOME|CH_SUPPORTED=`
+   defensively enough to run against a pre-`1.0.0` `pm-md-gwy` (falling back
+   to enumerated per-symbol `SUB` for `TOP`/`TRADE` and hiding the Depth
+   toggle entirely, per the capability-detection flow the CALF reference
+   describes), or is targeting CALF `1.0.0` only an acceptable simplifying
+   assumption given `pm-terminal` and `pm-md-gwy` are versioned and
+   deployed together in this project? This document assumes the latter
+   throughout (§17.1's `SUB|CH=STATE,TOP,TRADE|SYM=*` on connect has no
+   fallback path) but flags it here since it is a real compatibility
+   decision, not an oversight.
 
 ## 23. Summary
 
 `pm-terminal` is a read-only, credential-free Bloomberg-style viewer that
-consumes CALF as its live backbone — exactly the audience CALF was designed
-for — while reusing `pm-api-gwy`'s existing, already-proven history
-endpoints for anything CALF intentionally doesn't carry. The audit in §4
-found CALF sufficient for every *live* requirement (including an
-undocumented but fully-implemented `INDEX` channel), identified history and
-depth as the two real gaps, and resolved history by architecture decision
-(reuse `pm-api-gwy`, don't reinvent storage) and depth by a scoped protocol
-proposal (§14) grounded in data the engine already publishes internally.
-Structurally it mirrors `config-gui`: a small first-party Node/Fastify
-backend plus a Vite/React frontend, sharing `pm-trading-ui`'s visual
-language so the three EduMatcher web tools read as one family.
+consumes CALF `1.0.0` as its live backbone — exactly the audience CALF was
+designed for — while reusing `pm-api-gwy`'s existing, already-proven history
+endpoints for anything CALF intentionally doesn't carry, at any protocol
+version. The audit in §4 found CALF `1.0.0` sufficient for every *live*
+requirement in this design, including a full order-book depth ladder
+(`DEPTH`, §14) and a single wildcard subscription for market-wide `TOP`/
+`TRADE` feeds (Overview §8, Trade Tape §11) — capabilities an earlier draft
+of this document had to work around or propose as protocol extensions,
+which CALF `1.0.0` has since shipped in full. The one remaining real gap is
+historical data, which CALF intentionally never carries at any version;
+that is resolved by architecture decision (reuse `pm-api-gwy`, don't
+reinvent storage, §6/§17.2) rather than a protocol change. Structurally it
+mirrors `config-gui`: a small first-party Node/Fastify backend plus a
+Vite/React frontend, sharing `pm-trading-ui`'s visual language so the three
+EduMatcher web tools read as one family.
