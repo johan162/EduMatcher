@@ -133,6 +133,10 @@ def test_history_request_default_types_are_structural_only(
     pm-index no longer writes those to its JSONL file at all.
     """
     proc, fake_pub = proc_with_fakes
+    # append() only writes to the file handle's buffer; flush() is required
+    # before a fresh query() (which reopens the file for reading) can see
+    # the bootstrap INIT record written by _initialise().
+    proc._indices["EDU100"].history.flush()
     proc._handle_history_request(
         {
             "gateway_id": "GW1",
