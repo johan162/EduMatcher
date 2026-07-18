@@ -17,11 +17,12 @@ import argparse
 import json
 import os
 import sys
+from typing import Any
 
 from api_gateway_client import ApiGatewayClient
 
 
-def _print_result(result: dict) -> None:
+def _print_result(result: dict[str, Any]) -> None:
     print(f"order_id  : {result.get('order_id', '-')}")
     print(f"status    : {result.get('status', '-')}")
     if result.get("client_order_id"):
@@ -40,9 +41,7 @@ def main() -> None:
     parser.add_argument(
         "--side", required=True, choices=["BUY", "SELL"], help="Order side"
     )
-    parser.add_argument(
-        "--symbol", required=True, help="Instrument symbol, e.g. AAPL"
-    )
+    parser.add_argument("--symbol", required=True, help="Instrument symbol, e.g. AAPL")
     parser.add_argument(
         "--qty", required=True, type=int, metavar="N", help="Order quantity"
     )

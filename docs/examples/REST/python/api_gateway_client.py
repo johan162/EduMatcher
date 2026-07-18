@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
@@ -21,9 +21,11 @@ class ApiGatewayClient:
         self.timeout = timeout
 
     def get_json(self, path: str) -> dict[str, Any]:
+        """Issue a GET request and decode the JSON response body."""
         return self._json_request("GET", path)
 
     def post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Issue a POST request with a JSON body and decode the response."""
         return self._json_request("POST", path, payload)
 
     def _json_request(
@@ -49,4 +51,8 @@ class ApiGatewayClient:
         except HTTPError as exc:
             body = exc.read().decode("utf-8")
             raise RuntimeError(f"API request failed: HTTP {exc.code}: {body}") from exc
+        except URLError as exc:
+            raise RuntimeError(
+                f"Could not reach API gateway at {self.base_url}: {exc.reason}"
+            ) from exc
         return json.loads(body) if body else {}
