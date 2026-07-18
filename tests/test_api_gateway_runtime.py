@@ -135,6 +135,10 @@ api_gateways:
     assert cfg.port == 9090
     assert cfg.engine_pull_addr == "tcp://10.0.0.5:5555"
     assert cfg.log_level == "debug"
+    # --engine-host overrides pm-index's addresses too, since pm-index runs
+    # on the same host as pm-engine in this system's deployment model.
+    assert cfg.index_pull_addr == "tcp://10.0.0.5:5559"
+    assert cfg.index_pub_addr == "tcp://10.0.0.5:5558"
 
 
 def test_main_cli_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -197,7 +201,20 @@ async def test_create_app_lifespan(monkeypatch: pytest.MonkeyPatch) -> None:
         def stop_listener(self) -> None:
             self.stopped = True
 
+    class FakeIndexClient:
+        def __init__(self, pull_addr: str, pub_addr: str, loop: Any) -> None:
+            self.args = (pull_addr, pub_addr, loop)
+            self.started = False
+            self.stopped = False
+
+        def start_listener(self) -> None:
+            self.started = True
+
+        def stop_listener(self) -> None:
+            self.stopped = True
+
     monkeypatch.setattr(main, "EngineClient", FakeEngineClient)
+    monkeypatch.setattr(main, "IndexClient", FakeIndexClient)
     app = main.create_app(
         ApiGatewayConfig(credentials=(ApiCredential("k", "GW01", ""),))
     )
@@ -205,8 +222,15 @@ async def test_create_app_lifespan(monkeypatch: pytest.MonkeyPatch) -> None:
         engine = app.state.engine
         assert engine.started is True
         assert app.state.sessions.get("k") is not None
+        # The gateway also needs its own client for pm-index (structural
+        # index events), wired up the same way as the engine client — both
+        # must be live for the duration of the app, and both must shut down
+        # cleanly together.
+        index_client = app.state.index_client
+        assert index_client.started is True
     assert engine.stopped is True
     assert engine.disconnects == [("GW01", "api gateway shutdown")]
+    assert index_client.stopped is True
 
 
 @pytest.mark.anyio

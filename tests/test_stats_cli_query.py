@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import json
 import sqlite3
 from pathlib import Path
 
@@ -7,12 +9,14 @@ import pytest
 
 from edumatcher.stats.main import SCHEMA
 from edumatcher.stats.query import (
+    InvalidCursorError,
     open_readonly_connection,
     query_daily,
     query_dates,
     query_index_daily,
     query_index_ids,
     query_index_snapshots,
+    query_order_events,
     query_snapshots,
     query_symbols,
     query_trades,
@@ -219,16 +223,19 @@ def test_open_readonly_connection_missing_file_raises(tmp_path: Path) -> None:
 
 def test_query_daily_uses_latest_date_when_date_missing(seeded_db: Path) -> None:
     conn = open_readonly_connection(seeded_db)
-    rows = query_daily(conn, date_value=None, symbol=None, limit=100)
+    rows, next_cursor = query_daily(conn, date_value=None, symbol=None, limit=100)
     conn.close()
 
     assert len(rows) == 1
     assert rows[0]["date"] == "2026-06-15"
+    assert next_cursor is None
 
 
 def test_query_daily_symbol_filter(seeded_db: Path) -> None:
     conn = open_readonly_connection(seeded_db)
-    rows = query_daily(conn, date_value="2026-06-14", symbol="AAPL", limit=100)
+    rows, _next_cursor = query_daily(
+        conn, date_value="2026-06-14", symbol="AAPL", limit=100
+    )
     conn.close()
 
     assert len(rows) == 1
@@ -253,7 +260,7 @@ def test_query_snapshots_filters_by_date_and_time_window(seeded_db: Path) -> Non
 
 def test_query_trades_symbol_and_date_filter(seeded_db: Path) -> None:
     conn = open_readonly_connection(seeded_db)
-    rows = query_trades(
+    rows, next_cursor = query_trades(
         conn,
         symbol="AAPL",
         date_value="2026-06-14",
@@ -265,6 +272,7 @@ def test_query_trades_symbol_and_date_filter(seeded_db: Path) -> None:
 
     assert len(rows) == 1
     assert rows[0]["trade_id"] == "T-AAPL-1"
+    assert next_cursor is None
 
 
 def test_query_symbols_uses_union_across_tables(seeded_db: Path) -> None:
@@ -297,7 +305,9 @@ def test_query_index_daily_uses_latest_date_when_date_missing(
     seeded_db: Path,
 ) -> None:
     conn = open_readonly_connection(seeded_db)
-    rows = query_index_daily(conn, date_value=None, index_id=None, limit=100)
+    rows, _next_cursor = query_index_daily(
+        conn, date_value=None, index_id=None, limit=100
+    )
     conn.close()
 
     # EDU100 has rows on both 2026-06-14 and 2026-06-15; only the latest
@@ -311,7 +321,7 @@ def test_query_index_daily_index_id_filter_isolates_one_index(
     seeded_db: Path,
 ) -> None:
     conn = open_readonly_connection(seeded_db)
-    rows = query_index_daily(
+    rows, _next_cursor = query_index_daily(
         conn, date_value="2026-06-14", index_id="EDUFIN", limit=100
     )
     conn.close()
@@ -331,15 +341,15 @@ def test_query_index_daily_returns_close_session_state_for_finality_check(
     """
     conn = open_readonly_connection(seeded_db)
 
-    closed_row = query_index_daily(
+    closed_rows, _ = query_index_daily(
         conn, date_value="2026-06-14", index_id="EDU100", limit=100
-    )[0]
-    assert closed_row["close_session_state"] == "CLOSED"
+    )
+    assert closed_rows[0]["close_session_state"] == "CLOSED"
 
-    still_trading_row = query_index_daily(
+    still_trading_rows, _ = query_index_daily(
         conn, date_value="2026-06-15", index_id="EDU100", limit=100
-    )[0]
-    assert still_trading_row["close_session_state"] == "CONTINUOUS"
+    )
+    assert still_trading_rows[0]["close_session_state"] == "CONTINUOUS"
 
     conn.close()
 
@@ -348,15 +358,48 @@ def test_query_index_daily_without_index_id_returns_all_indexes_for_date(
     seeded_db: Path,
 ) -> None:
     conn = open_readonly_connection(seeded_db)
-    rows = query_index_daily(conn, date_value="2026-06-14", index_id=None, limit=100)
+    rows, _next_cursor = query_index_daily(
+        conn, date_value="2026-06-14", index_id=None, limit=100
+    )
     conn.close()
 
     assert {row["index_id"] for row in rows} == {"EDU100", "EDUFIN"}
 
 
+def test_query_index_daily_paginates_across_index_id(seeded_db: Path) -> None:
+    """Two indexes exist on 2026-06-14 (EDU100, EDUFIN); limit=1 should
+    force a second page, and the cursor should hand back exactly the
+    remaining index without repeating or skipping either one. A third page
+    fetch (past the last row) must come back empty with no further cursor —
+    ``next_cursor`` on a full page means "maybe more", confirmed only once
+    an actually-short page is seen.
+    """
+    conn = open_readonly_connection(seeded_db)
+    page1, cursor1 = query_index_daily(
+        conn, date_value="2026-06-14", index_id=None, limit=1
+    )
+    assert len(page1) == 1
+    assert cursor1 is not None
+
+    page2, cursor2 = query_index_daily(
+        conn, date_value="2026-06-14", index_id=None, limit=1, after=cursor1
+    )
+    assert len(page2) == 1
+    assert {page1[0]["index_id"], page2[0]["index_id"]} == {"EDU100", "EDUFIN"}
+    assert page1[0]["index_id"] != page2[0]["index_id"]
+
+    if cursor2 is not None:
+        page3, cursor3 = query_index_daily(
+            conn, date_value="2026-06-14", index_id=None, limit=1, after=cursor2
+        )
+        assert page3 == []
+        assert cursor3 is None
+    conn.close()
+
+
 def test_query_index_snapshots_filters_by_time_window(seeded_db: Path) -> None:
     conn = open_readonly_connection(seeded_db)
-    rows = query_index_snapshots(
+    rows, _next_cursor = query_index_snapshots(
         conn,
         index_id="EDU100",
         date_value="2026-06-14",
@@ -383,7 +426,7 @@ def test_query_index_snapshots_does_not_leak_across_indexes(
     provide.
     """
     conn = open_readonly_connection(seeded_db)
-    rows = query_index_snapshots(
+    rows, _next_cursor = query_index_snapshots(
         conn,
         index_id="EDUFIN",
         date_value=None,
@@ -399,7 +442,7 @@ def test_query_index_snapshots_does_not_leak_across_indexes(
 
 def test_query_index_snapshots_orders_chronologically(seeded_db: Path) -> None:
     conn = open_readonly_connection(seeded_db)
-    rows = query_index_snapshots(
+    rows, _next_cursor = query_index_snapshots(
         conn,
         index_id="EDU100",
         date_value=None,
@@ -411,6 +454,41 @@ def test_query_index_snapshots_orders_chronologically(seeded_db: Path) -> None:
 
     timestamps = [row["ts"] for row in rows]
     assert timestamps == sorted(timestamps)
+
+
+def test_query_index_snapshots_paginates_without_gaps_or_duplicates(
+    seeded_db: Path,
+) -> None:
+    """Walk every page for EDU100 with limit=1 and confirm the full,
+    unpaginated result set is reproduced exactly once each, in order —
+    the core correctness property of keyset pagination.
+    """
+    conn = open_readonly_connection(seeded_db)
+    full_rows, _ = query_index_snapshots(
+        conn, index_id="EDU100", date_value=None, from_ts=None, to_ts=None, limit=500
+    )
+
+    paged_ts: list[str] = []
+    after = None
+    for _ in range(len(full_rows) + 1):
+        page, next_cursor = query_index_snapshots(
+            conn,
+            index_id="EDU100",
+            date_value=None,
+            from_ts=None,
+            to_ts=None,
+            limit=1,
+            after=after,
+        )
+        if not page:
+            break
+        paged_ts.extend(row["ts"] for row in page)
+        after = next_cursor
+        if next_cursor is None:
+            break
+    conn.close()
+
+    assert paged_ts == [row["ts"] for row in full_rows]
 
 
 def test_query_index_ids_uses_union_across_tables(seeded_db: Path) -> None:
@@ -444,3 +522,171 @@ def test_query_index_ids_empty_db_returns_no_rows(tmp_path: Path) -> None:
     conn.close()
 
     assert rows == []
+
+
+# ---------------------------------------------------------------------------
+# Keyset pagination — design intent: walking every page reproduces the full,
+# unpaginated result set exactly once each and in order, even when several
+# rows share the same primary sort key (same ``ts``), which is where a naive
+# ``ts``-only cursor would silently skip or repeat rows. Malformed cursors
+# must fail clearly rather than being silently ignored or crashing with a
+# raw SQL/decoding error.
+# ---------------------------------------------------------------------------
+
+
+def _seed_same_timestamp_trades(path: Path, count: int) -> None:
+    conn = sqlite3.connect(path)
+    conn.executescript(SCHEMA)
+    # All rows share one ts on purpose — forces the tiebreaker (rowid) to do
+    # all of the ordering work, since ts alone cannot distinguish them.
+    for i in range(count):
+        conn.execute(
+            "INSERT INTO trade_log "
+            "(ts, trade_id, symbol, price, quantity, buy_gateway_id, sell_gateway_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                "2026-06-14T09:00:00.000+00:00",
+                f"T-{i:03d}",
+                "EDU100",
+                100.0 + i,
+                10,
+                "GW01",
+                "GW02",
+            ),
+        )
+    conn.commit()
+    conn.close()
+
+
+def test_query_trades_paginates_same_timestamp_rows_without_gaps_or_duplicates(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "same_ts_trades.db"
+    _seed_same_timestamp_trades(db_path, count=7)
+    conn = open_readonly_connection(db_path)
+
+    seen_ids: list[str] = []
+    after = None
+    for _ in range(10):
+        page, next_cursor = query_trades(
+            conn,
+            symbol=None,
+            date_value=None,
+            from_ts=None,
+            to_ts=None,
+            limit=3,
+            after=after,
+        )
+        seen_ids.extend(row["trade_id"] for row in page)
+        if next_cursor is None:
+            break
+        after = next_cursor
+    conn.close()
+
+    assert seen_ids == [f"T-{i:03d}" for i in range(7)]
+    assert len(seen_ids) == len(set(seen_ids))
+
+
+def test_query_trades_rejects_malformed_cursor(seeded_db: Path) -> None:
+    conn = open_readonly_connection(seeded_db)
+    with pytest.raises(InvalidCursorError):
+        query_trades(
+            conn,
+            symbol=None,
+            date_value=None,
+            from_ts=None,
+            to_ts=None,
+            limit=10,
+            after="not-a-real-cursor",
+        )
+    conn.close()
+
+
+def test_query_trades_rejects_cursor_missing_required_fields(
+    seeded_db: Path,
+) -> None:
+    """A cursor decodable as JSON but missing the fields this query expects
+    (e.g. one produced for a different endpoint) must be rejected, not
+    silently treated as "no filter" or crash with a KeyError.
+    """
+    bogus = base64.urlsafe_b64encode(json.dumps({"unrelated": 1}).encode()).decode()
+    conn = open_readonly_connection(seeded_db)
+    with pytest.raises(InvalidCursorError):
+        query_trades(
+            conn,
+            symbol=None,
+            date_value=None,
+            from_ts=None,
+            to_ts=None,
+            limit=10,
+            after=bogus,
+        )
+    conn.close()
+
+
+def _seed_order_events(path: Path, count: int) -> None:
+    conn = sqlite3.connect(path)
+    conn.executescript(SCHEMA)
+    for i in range(count):
+        conn.execute(
+            "INSERT INTO order_events (ts, event_type, order_id, gateway_id, symbol) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                "2026-06-14T09:00:00.000+00:00",
+                "NEW",
+                f"O-{i:03d}",
+                "GW01",
+                "EDU100",
+            ),
+        )
+    conn.commit()
+    conn.close()
+
+
+def test_query_order_events_paginates_using_seq_tiebreaker(tmp_path: Path) -> None:
+    db_path = tmp_path / "order_events.db"
+    _seed_order_events(db_path, count=5)
+    conn = open_readonly_connection(db_path)
+
+    seen_ids: list[str] = []
+    after = None
+    for _ in range(10):
+        page, next_cursor = query_order_events(
+            conn,
+            gateway_id="GW01",
+            symbol=None,
+            event_type=None,
+            date_value=None,
+            from_ts=None,
+            to_ts=None,
+            limit=2,
+            after=after,
+        )
+        seen_ids.extend(row["order_id"] for row in page)
+        if next_cursor is None:
+            break
+        after = next_cursor
+    conn.close()
+
+    assert seen_ids == [f"O-{i:03d}" for i in range(5)]
+
+
+def test_query_daily_paginates_across_symbols(seeded_db: Path) -> None:
+    """query_daily's tiebreaker is symbol itself (already unique per date);
+    confirm a small limit still walks every symbol for that date exactly
+    once.
+    """
+    conn = open_readonly_connection(seeded_db)
+    page1, cursor1 = query_daily(conn, date_value="2026-06-14", symbol=None, limit=1)
+    assert len(page1) == 1
+    assert cursor1 is not None
+
+    page2, cursor2 = query_daily(
+        conn, date_value="2026-06-14", symbol=None, limit=1, after=cursor1
+    )
+    conn.close()
+
+    # Only AAPL exists on 2026-06-14 in the shared fixture, so the second
+    # page should come back empty with no further cursor.
+    assert page2 == []
+    assert cursor2 is None

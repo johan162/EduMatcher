@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 
 from edumatcher.api_gateway.config import ApiGatewayConfig, load_api_gateway_config
 from edumatcher.api_gateway.engine_client import EngineClient
+from edumatcher.api_gateway.index_client import IndexClient
 from edumatcher.api_gateway.rate_limit import RateLimiter
 from edumatcher.api_gateway.routers import admin, history, orders, reference, ws
 from edumatcher.api_gateway.sessions import SessionRegistry
@@ -38,8 +39,11 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
         loop = asyncio.get_running_loop()
         engine = EngineClient(config.engine_pull_addr, config.engine_pub_addr, loop)
         engine.start_listener()
+        index_client = IndexClient(config.index_pull_addr, config.index_pub_addr, loop)
+        index_client.start_listener()
         app.state.config = config
         app.state.engine = engine
+        app.state.index_client = index_client
         app.state.sessions = SessionRegistry.from_config(config)
         app.state.rate_limiter = RateLimiter(
             config.rate_limit.writes_per_second,
@@ -51,6 +55,7 @@ def create_app(config: ApiGatewayConfig) -> FastAPI:
             for gateway_id in engine.active_gateways():
                 engine.send_disconnect(gateway_id, "api gateway shutdown")
             engine.stop_listener()
+            index_client.stop_listener()
 
     docs_url = "/docs" if config.swagger_enabled else None
     openapi_url = "/openapi.json" if config.swagger_enabled else None
@@ -96,9 +101,13 @@ def _config_with_overrides(args: argparse.Namespace) -> ApiGatewayConfig:
     config = load_api_gateway_config(config_path, instance=args.instance)
     engine_pull_addr = config.engine_pull_addr
     engine_pub_addr = config.engine_pub_addr
+    index_pull_addr = config.index_pull_addr
+    index_pub_addr = config.index_pub_addr
     if args.engine_host:
         engine_pull_addr = f"tcp://{args.engine_host}:5555"
         engine_pub_addr = f"tcp://{args.engine_host}:5556"
+        index_pull_addr = f"tcp://{args.engine_host}:5559"
+        index_pub_addr = f"tcp://{args.engine_host}:5558"
     return ApiGatewayConfig(
         name=config.name,
         enabled=config.enabled,
@@ -106,6 +115,8 @@ def _config_with_overrides(args: argparse.Namespace) -> ApiGatewayConfig:
         port=args.port or config.port,
         engine_pull_addr=engine_pull_addr,
         engine_pub_addr=engine_pub_addr,
+        index_pull_addr=index_pull_addr,
+        index_pub_addr=index_pub_addr,
         stats_db=Path(args.stats_db).expanduser() if args.stats_db else config.stats_db,
         log_level=args.log_level or config.log_level,
         swagger_enabled=config.swagger_enabled,

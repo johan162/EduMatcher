@@ -300,7 +300,7 @@ def _run_query(
     conn: sqlite3.Connection, args: argparse.Namespace
 ) -> tuple[list[str], list[dict[str, Any]]]:
     if args.command == "daily":
-        rows = query_daily(
+        rows, _next_cursor = query_daily(
             conn,
             date_value=args.date,
             symbol=args.symbol.upper() if args.symbol else None,
@@ -321,7 +321,7 @@ def _run_query(
         return _SNAPSHOTS_COLUMNS, rows
 
     if args.command == "trades":
-        rows = query_trades(
+        rows, _next_cursor = query_trades(
             conn,
             symbol=args.symbol.upper() if args.symbol else None,
             date_value=args.date,
@@ -332,7 +332,7 @@ def _run_query(
         return _TRADES_COLUMNS, rows
 
     if args.command == "order-events":
-        rows = query_order_events(
+        rows, _next_cursor = query_order_events(
             conn,
             gateway_id=args.gateway.upper(),
             symbol=args.symbol.upper() if args.symbol else None,
@@ -361,7 +361,7 @@ def _run_query(
         return _DATES_COLUMNS, rows
 
     if args.command == "index-daily":
-        rows = query_index_daily(
+        rows, _next_cursor = query_index_daily(
             conn,
             date_value=args.date,
             index_id=args.index_id.upper() if args.index_id else None,
@@ -371,7 +371,7 @@ def _run_query(
         return columns, rows
 
     if args.command == "index-snapshots":
-        rows = query_index_snapshots(
+        rows, _next_cursor = query_index_snapshots(
             conn,
             index_id=args.index_id.upper(),
             date_value=args.date,

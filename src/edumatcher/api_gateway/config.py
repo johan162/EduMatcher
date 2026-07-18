@@ -21,6 +21,8 @@ from edumatcher.config import (
     ENGINE_CONFIG_FILE,
     ENGINE_PULL_ADDR,
     ENGINE_PUB_ADDR,
+    INDEX_PULL_ADDR,
+    INDEX_PUB_ADDR,
     STATS_DB_FILE,
 )
 
@@ -61,6 +63,8 @@ class ApiGatewayConfig:
     port: int = 8080
     engine_pull_addr: str = ENGINE_PULL_ADDR
     engine_pub_addr: str = ENGINE_PUB_ADDR
+    index_pull_addr: str = INDEX_PULL_ADDR
+    index_pub_addr: str = INDEX_PUB_ADDR
     stats_db: Path = STATS_DB_FILE
     log_level: str = "info"
     swagger_enabled: bool = True
@@ -179,6 +183,8 @@ def _load_api_gateway_section(
         port=port,
         engine_pull_addr=str(section.get("engine_pull_addr", ENGINE_PULL_ADDR)),
         engine_pub_addr=str(section.get("engine_pub_addr", ENGINE_PUB_ADDR)),
+        index_pull_addr=str(section.get("index_pull_addr", INDEX_PULL_ADDR)),
+        index_pub_addr=str(section.get("index_pub_addr", INDEX_PUB_ADDR)),
         stats_db=stats_db,
         log_level=str(section.get("log_level", "info")),
         swagger_enabled=bool(section.get("swagger_enabled", True)),

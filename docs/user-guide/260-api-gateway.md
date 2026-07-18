@@ -30,6 +30,8 @@ flowchart LR
     API -->|ZMQ PUSH :5555| ENG[pm-engine]
     ENG -->|ZMQ PUB :5556| API
     STATS[pm-stats\nstats.db] -->|read-only history| API
+    API -->|ZMQ PUSH :5559| IDX[pm-index]
+    IDX -->|ZMQ PUB :5558| API
 ```
 
 
@@ -197,6 +199,7 @@ Base path: `/api/v1`.
 | `GET`    | `/history/index-daily`       | any valid key | Daily index OHLC rows                |
 | `GET`    | `/history/index-snapshots`   | any valid key | Intraday index level time series     |
 | `GET`    | `/history/index-ids`         | any valid key | Index IDs with recorded statistics   |
+| `GET`    | `/history/index-events`      | any valid key | Index structural/audit log (live pm-index round-trip) |
 | `GET`    | `/healthz`                   | none          | Liveness probe (not in Swagger)      |
 
 Admin endpoints are documented separately under
@@ -266,30 +269,72 @@ cache returns `409 Conflict`.
 
 ### History endpoints
 
-Base path: `/api/v1/history`. All history endpoints read from `pm-stats`'
-SQLite database (`--stats-db PATH`, default `data/stats.db`); the gateway
-returns `503` with error code `STATS_DB` if that file does not exist yet
-(for example, before `pm-stats` has run at least once).
+Base path: `/api/v1/history`. Every endpoint except `/history/index-events`
+reads from `pm-stats`' SQLite database (`--stats-db PATH`, default
+`data/stats.db`); the gateway returns `503` with error code `STATS_DB` if
+that file does not exist yet (for example, before `pm-stats` has run at
+least once). `/history/index-events` is the one exception — see its own
+section below.
 
 `/history/orders`, `/history/orders/{order_id}`, and `/history/fills` require
 a trading credential and are scoped to that credential's `gateway_id` — they
 only ever return that gateway's own orders. `/history/trades`,
-`/history/daily`, `/history/index-daily`, `/history/index-snapshots`, and
-`/history/index-ids` are public market data: any valid API key works,
-including read-only keys with no `gateway_id`.
+`/history/daily`, `/history/index-daily`, `/history/index-snapshots`,
+`/history/index-ids`, and `/history/index-events` are public market data:
+any valid API key works, including read-only keys with no `gateway_id`.
 
 | Endpoint | Query parameters | Notes |
 |---|---|---|
-| `GET /history/trades` | `symbol`, `date`, `from`, `to`, `limit` (1–5000, default 500) | Public trade tape |
-| `GET /history/daily` | `symbol`, `date`, `limit` | Omitting `date` returns the latest available date; no `from`/`to` range support |
-| `GET /history/index-daily` | `index_id`, `date`, `limit` | Same shape as `/daily` but for exchange indexes; omitting `date` returns the latest available date |
-| `GET /history/index-snapshots` | `index_id` (**required**), `date`, `from`, `to`, `limit` | Intraday index level ticks; unlike `/trades`/`/daily` there is no "all indexes" mode |
+| `GET /history/orders` | `symbol`, `event_type`, `date`, `from`, `to`, `limit` (1–5000, default 500), `after` | Trading credential only; scoped to the caller's `gateway_id` |
+| `GET /history/fills` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Trading credential only; `event_type=FILL` events for the caller's `gateway_id` |
+| `GET /history/trades` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Public trade tape |
+| `GET /history/daily` | `symbol`, `date`, `limit`, `after` | Omitting `date` returns the latest available date; no `from`/`to` range support |
+| `GET /history/index-daily` | `index_id`, `date`, `limit`, `after` | Same shape as `/daily` but for exchange indexes; omitting `date` returns the latest available date |
+| `GET /history/index-snapshots` | `index_id` (**required**), `date`, `from`, `to`, `limit`, `after` | Intraday index level ticks; unlike `/trades`/`/daily` there is no "all indexes" mode |
 | `GET /history/index-ids` | `date` | List of index IDs with recorded data; unpaginated |
+| `GET /history/index-events` | `index_id` (**required**), `from`, `to`, `types`, `max_records` | Structural/audit log; live round-trip to `pm-index`, not `pm-stats` — see below |
 
-Every list-returning endpoint wraps its rows in an envelope with `count` and,
-where pagination applies, `has_more` — a boolean that is `true` when the
-number of rows returned equals `limit` (there is currently no offset/cursor
-parameter to fetch a further page; narrow the time range instead).
+#### Pagination
+
+Every list-returning endpoint wraps its rows in an envelope with `count` and
+`has_more` — a boolean that is `true` when the page came back full (exactly
+`limit` rows), meaning more rows may exist. When `has_more` is `true`, the
+response also includes `next_cursor`, an opaque string. Pass it back as the
+`after` query parameter to fetch the next page; omit it to start from the
+beginning. Cursors are keyset-based (not a row offset), so pages stay
+correct — no skipped or duplicated rows — even if new data is being written
+concurrently. Treat the cursor string as opaque: its internal shape is not a
+stable contract and may change between releases.
+
+```http
+GET /api/v1/history/trades?symbol=EDU100&limit=2
+Authorization: Bearer key-readonly-demo
+```
+
+```json
+{
+  "trades": [
+    { "ts": "2026-06-14T09:00:00.000+00:00", "trade_id": "T000", "symbol": "EDU100", "price": 100.0, "quantity": 10, "buy_gateway_id": "GW1", "sell_gateway_id": "GW2" },
+    { "ts": "2026-06-14T09:01:00.000+00:00", "trade_id": "T001", "symbol": "EDU100", "price": 100.0, "quantity": 10, "buy_gateway_id": "GW1", "sell_gateway_id": "GW2" }
+  ],
+  "count": 2,
+  "has_more": true,
+  "next_cursor": "eyJyb3dpZCI6MiwidHMiOiIyMDI2LTA2LTE0VDA5OjAxOjAwLjAwMCswMDowMCJ9"
+}
+```
+
+```http
+GET /api/v1/history/trades?symbol=EDU100&limit=2&after=eyJyb3dpZCI6MiwidHMiOiIyMDI2LTA2LTE0VDA5OjAxOjAwLjAwMCswMDowMCJ9
+Authorization: Bearer key-readonly-demo
+```
+
+returns the next two trades, and so on until a response comes back with
+`has_more: false` and no `next_cursor`. A malformed or expired-schema
+`after` value returns `422` with error code `VALIDATION`.
+
+`/history/index-ids` has no `limit`/`after` — the number of distinct
+exchange indexes is always small (EduMatcher caps this at 5 per config
+file), so it is intentionally unbounded and unpaginated.
 
 ```http
 GET /api/v1/history/index-daily?index_id=EDU100&date=2026-06-14
@@ -342,6 +387,47 @@ Authorization: Bearer key-readonly-demo
 If no exchange index is configured, or `pm-index`/`pm-stats` have not run
 yet, `index-daily` and `index-snapshots` return an empty list (not an error)
 and `index-ids` returns `{ "index_ids": [], "count": 0 }`.
+
+#### Index structural/audit events
+
+`/history/index-events` is unlike every other endpoint on this page: it does
+not read `pm-stats`' SQLite data at all. `pm-index`'s structural/audit log
+(index creation, corporate actions, constituent additions, delistings) lives
+only in `pm-index`'s own append-only file and is never mirrored into
+`pm-stats`, so answering this requires a live ZMQ request/reply round-trip to
+the `pm-index` process itself. Practically, this means:
+
+- It can return `503` with error code `INDEX_TIMEOUT` if `pm-index` is not
+  running or does not reply within the configured timeout — independent of
+  whether `stats.db` exists.
+- It can return `502` with error code `INDEX_ERROR` if `pm-index` rejects
+  the request (for example, an unknown `index_id`).
+- There is no `limit`/`has_more`/`after` pagination; `max_records` (default
+  and max 10,000) caps the reply size directly, matching `pm-index`'s own
+  request/reply contract.
+
+```http
+GET /api/v1/history/index-events?index_id=EDU100&from=1750000000&to=1760000000
+Authorization: Bearer key-readonly-demo
+```
+
+```json
+{
+  "events": [
+    { "type": "INIT", "timestamp": 1750000012.5, "index_id": "EDU100" },
+    { "type": "CORP_ACTION", "timestamp": 1751234000.0, "index_id": "EDU100", "action": "SPLIT", "symbol": "AAPL" }
+  ],
+  "count": 2
+}
+```
+
+`from`/`to` are Unix timestamps in seconds (not the ISO-8601 strings used by
+the SQLite-backed endpoints), defaulting to the last 30 days and now
+respectively — matching `pm-index`'s own defaults. `types` restricts the
+reply to a subset of `INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`
+(repeat the query parameter for multiple values); omitting it returns all
+four. There are no level or end-of-day tick records here — use
+`/history/index-daily` and `/history/index-snapshots` for those.
 
 
 ## Admin endpoints
