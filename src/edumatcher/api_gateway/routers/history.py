@@ -12,6 +12,9 @@ from edumatcher.api_gateway.sessions import Session, auth, require_trading
 from edumatcher.stats.query import (
     open_readonly_connection,
     query_daily,
+    query_index_daily,
+    query_index_ids,
+    query_index_snapshots,
     query_order_events,
     query_order_lifecycle,
     query_trades,
@@ -158,3 +161,88 @@ async def history_daily(
             limit=limit,
         )
     return {"daily": rows, "count": len(rows), "has_more": len(rows) == limit}
+
+
+@router.get("/index-daily")
+async def history_index_daily(
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+    index_id: str | None = None,
+    date: str | None = None,
+    limit: int = Query(default=500, ge=1, le=5000),
+) -> dict[str, object]:
+    """Daily index OHLC rollup — public market data, same tier as /daily.
+
+    Mirrors /daily's shape and defaulting behaviour (omitting ``date``
+    returns the latest available date), but for exchange indexes rather
+    than instruments. ``close_level``/``close_session_state`` reflect the
+    most recently recorded index.update for that date; the row is only
+    guaranteed final once ``close_session_state`` is ``CLOSED`` or the
+    date has passed — see the Market Index and Statistics & Reporting
+    user-guide chapters.
+    """
+    _ = session
+    if date is not None:
+        _validate_time_filters(date, None, None)
+    with closing(_open_stats(request)) as conn:
+        rows = query_index_daily(
+            conn,
+            date_value=date,
+            index_id=index_id.upper() if index_id else None,
+            limit=limit,
+        )
+    return {"daily": rows, "count": len(rows), "has_more": len(rows) == limit}
+
+
+@router.get("/index-snapshots")
+async def history_index_snapshots(
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+    index_id: str = Query(..., min_length=1),
+    date: str | None = None,
+    from_ts: str | None = Query(default=None, alias="from"),
+    to_ts: str | None = Query(default=None, alias="to"),
+    limit: int = Query(default=500, ge=1, le=5000),
+) -> dict[str, object]:
+    """Intraday index level time series — public market data.
+
+    ``index_id`` is required, matching ``pm-stats-cli index-snapshots``:
+    unlike /trades and /daily, there is no "all indexes" mode here, since
+    a full multi-index tick stream would be an unbounded firehose rather
+    than a bounded daily summary.
+    """
+    _ = session
+    _validate_time_filters(date, from_ts, to_ts)
+    with closing(_open_stats(request)) as conn:
+        rows = query_index_snapshots(
+            conn,
+            index_id=index_id.upper(),
+            date_value=date,
+            from_ts=from_ts,
+            to_ts=to_ts,
+            limit=limit,
+        )
+    return {"snapshots": rows, "count": len(rows), "has_more": len(rows) == limit}
+
+
+@router.get("/index-ids")
+async def history_index_ids(
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+    date: str | None = None,
+) -> dict[str, object]:
+    """List index IDs with recorded statistics in pm-stats.
+
+    Unlike /symbols (which queries the live engine for configured
+    instruments), this queries pm-stats' SQLite data directly, mirroring
+    ``pm-stats-cli index-ids``. Unbounded/unpaginated by design: the
+    number of distinct exchange indexes is always small (EduMatcher caps
+    this at 5 per config file), so no ``limit``/``has_more`` are needed.
+    """
+    _ = session
+    if date is not None:
+        _validate_time_filters(date, None, None)
+    with closing(_open_stats(request)) as conn:
+        rows = query_index_ids(conn, date_value=date)
+    index_ids = [row["index_id"] for row in rows]
+    return {"index_ids": index_ids, "count": len(index_ids)}

@@ -194,6 +194,9 @@ Base path: `/api/v1`.
 | `GET`    | `/history/fills`             | trading       | Historical fills                     |
 | `GET`    | `/history/trades`            | any valid key | Public trade log                     |
 | `GET`    | `/history/daily`             | any valid key | Daily OHLCV rows                     |
+| `GET`    | `/history/index-daily`       | any valid key | Daily index OHLC rows                |
+| `GET`    | `/history/index-snapshots`   | any valid key | Intraday index level time series     |
+| `GET`    | `/history/index-ids`         | any valid key | Index IDs with recorded statistics   |
 | `GET`    | `/healthz`                   | none          | Liveness probe (not in Swagger)      |
 
 Admin endpoints are documented separately under
@@ -261,6 +264,86 @@ cache returns `409 Conflict`.
 | `POST /mass-cancel` | `{ "symbol":"AAPL" }` or `{}` for all symbols |
 
 
+### History endpoints
+
+Base path: `/api/v1/history`. All history endpoints read from `pm-stats`'
+SQLite database (`--stats-db PATH`, default `data/stats.db`); the gateway
+returns `503` with error code `STATS_DB` if that file does not exist yet
+(for example, before `pm-stats` has run at least once).
+
+`/history/orders`, `/history/orders/{order_id}`, and `/history/fills` require
+a trading credential and are scoped to that credential's `gateway_id` — they
+only ever return that gateway's own orders. `/history/trades`,
+`/history/daily`, `/history/index-daily`, `/history/index-snapshots`, and
+`/history/index-ids` are public market data: any valid API key works,
+including read-only keys with no `gateway_id`.
+
+| Endpoint | Query parameters | Notes |
+|---|---|---|
+| `GET /history/trades` | `symbol`, `date`, `from`, `to`, `limit` (1–5000, default 500) | Public trade tape |
+| `GET /history/daily` | `symbol`, `date`, `limit` | Omitting `date` returns the latest available date; no `from`/`to` range support |
+| `GET /history/index-daily` | `index_id`, `date`, `limit` | Same shape as `/daily` but for exchange indexes; omitting `date` returns the latest available date |
+| `GET /history/index-snapshots` | `index_id` (**required**), `date`, `from`, `to`, `limit` | Intraday index level ticks; unlike `/trades`/`/daily` there is no "all indexes" mode |
+| `GET /history/index-ids` | `date` | List of index IDs with recorded data; unpaginated |
+
+Every list-returning endpoint wraps its rows in an envelope with `count` and,
+where pagination applies, `has_more` — a boolean that is `true` when the
+number of rows returned equals `limit` (there is currently no offset/cursor
+parameter to fetch a further page; narrow the time range instead).
+
+```http
+GET /api/v1/history/index-daily?index_id=EDU100&date=2026-06-14
+Authorization: Bearer key-readonly-demo
+```
+
+```json
+{
+  "daily": [
+    {
+      "date": "2026-06-14",
+      "index_id": "EDU100",
+      "open_level": 1042.10,
+      "high_level": 1056.30,
+      "low_level": 1040.05,
+      "close_level": 1048.73,
+      "close_session_state": "CLOSED",
+      "open_aggregate_cap": 7300000000000.0,
+      "close_aggregate_cap": 7350000000000.0,
+      "update_count": 512
+    }
+  ],
+  "count": 1,
+  "has_more": false
+}
+```
+
+!!! warning "`close_level` is only final once `close_session_state` is `CLOSED`"
+    `close_level` reflects the most recently recorded `index.update` for that
+    date. For a past date this is always final. For the current date, while
+    the session is still open, `close_level` is a live "latest tick so far"
+    and will keep changing — check `close_session_state == "CLOSED"` (or wait
+    for the date to roll over) before treating it as the official close. See
+    [Statistics & Reporting](140-statistics-and-reporting.md#getting-the-eod-index-level-for-a-date).
+
+```http
+GET /api/v1/history/index-snapshots?index_id=EDU100&from=2026-06-14T09:00:00%2B00:00&to=2026-06-14T16:30:00%2B00:00&limit=100
+Authorization: Bearer key-readonly-demo
+```
+
+```http
+GET /api/v1/history/index-ids
+Authorization: Bearer key-readonly-demo
+```
+
+```json
+{ "index_ids": ["EDU100", "EDUFIN"], "count": 2 }
+```
+
+If no exchange index is configured, or `pm-index`/`pm-stats` have not run
+yet, `index-daily` and `index-snapshots` return an empty list (not an error)
+and `index-ids` returns `{ "index_ids": [], "count": 0 }`.
+
+
 ## Admin endpoints
 
 Base path: `/api/v1/admin`.
@@ -303,10 +386,15 @@ Behaviour notes:
   `503` with error code `ENGINE_TIMEOUT`.
 
 !!! note "Not currently exposed"
-    Live symbol add/update and index administration are not exposed as REST
-    endpoints. These require backend prerequisites: the engine loads its symbol
-    universe at startup, and the index lives in the separate `pm-index`
-    process.
+    Live symbol add/update and index administration (corporate actions,
+    constituent changes) are not exposed as REST endpoints. These require
+    backend prerequisites: the engine loads its symbol universe at startup,
+    and the index lives in the separate `pm-index` process, reachable today
+    only via its ZMQ PULL socket (used by `pm-alf-console`'s `INDEX|HISTORY`
+    command and `pm-index-cli`) — not through this gateway. Read access to
+    index *statistics* (level history, daily OHLC) is available via
+    [`/history/index-daily`, `/history/index-snapshots`, and
+    `/history/index-ids`](#history-endpoints) above.
 
 ### Extended `GET /status`
 
