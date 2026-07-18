@@ -684,9 +684,8 @@ On first subscribe to a `TOP`, `STATE`, `INDEX`, or `DEPTH` stream:
   `SNAP` for `TOP`/`STATE`/`INDEX`/`DEPTH` regardless of replay state.
 - `SYM=*` is always invalid for `RESUME=1`, for every channel, even for
   `TOP`/`TRADE`/`STATE` where `SYM=*` is otherwise allowed on `SUB`.
-  `RESUME` has no equivalent of `SUB`'s per-symbol snapshot burst
-  ([Change 2](#5-change-2--sym-wildcard-for-top-and-trade) in the CALF
-  1.0.0 extensions), so a wildcard resume cannot be served a meaningful
+  `RESUME` has no equivalent of `SUB`'s per-symbol snapshot burst, 
+  so a wildcard resume cannot be served a meaningful
   baseline on a replay miss. `HELLO|RESUME=1|CH=TOP|SYM=*` returns
   `ERR|CODE=INVALID_SYMBOL` and closes the connection, the same as an
   ineligible wildcard on `SUB`. Clients must always resume a single

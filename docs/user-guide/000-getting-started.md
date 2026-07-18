@@ -316,7 +316,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | `pm-stats-cli` | Query `stats.db` without writing SQL | [Processes](170-processes.md#pm-stats-cli-statistics-query-cli), [Statistics and Reporting](140-statistics-and-reporting.md) |
 | `pm-clearing-cli` | Query `clearing.db` without writing SQL | [Processes](170-processes.md#pm-clearing-cli-clearing-query-cli), [P&L & Clearing](130-pnl-clearing.md) |
 | `pm-audit-cli` | Query audit log files without shell pipelines | [Processes](170-processes.md#pm-audit-event-logger), [Audit Trail](190-audit.md) |
-| `pm-index-cli` | Read-only query interface for index history files | [Processes](170-processes.md#pm-index-cli-index-history-query-tool), [Commands](160-commands.md), [Market Index](150-index.md#using-pm-index-cli-recommended) |
+| `pm-index-cli` | Read-only query interface for index history files | [Processes](170-processes.md#pm-index-cli-index-structuralaudit-history-query-tool), [Commands](160-commands.md), [Market Index](150-index.md#using-pm-index-cli-for-structuralaudit-records) |
 | `pm-setup` |  Bootstrap local session directory and defaults | [Processes](170-processes.md), [Installation](000-getting-started.md#installation) |
 | `pm-config-gen` | Generate `engine_config.yaml` from CLI options | [Processes](170-processes.md), [Configuration generator](010-configuration.md#generate-configs-with-pm-config-gen) |
 

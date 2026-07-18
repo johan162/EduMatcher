@@ -1989,15 +1989,6 @@ pm-balf-gwy [--config engine_config.yaml] [--bind 0.0.0.0] [--port 5566] [--engi
 | `-v` / `--verbose` | off                     | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                 |
 | `-q` / `--quiet`   | off                     | Reduce output to warnings/errors                                     |
 
-## pm-alf-gwy — ALF TCP gateway
-
-`pm-alf-gwy` is implemented and provides external ALF order-entry over TCP.
-It accepts the same ALF command vocabulary as `pm-alf-console` and is designed
-for programmatic clients and remote bots.
-
-See [ALF TCP Gateway](220-alf-gateway.md) for operational usage and
-[ALF Protocol Reference](900-app-alf-protocol.md) for the wire-level contract.
-
 ## pm-md-gwy (CALF Market-Data Gateway)
 
 `pm-md-gwy` is implemented and provides external market-data distribution over
