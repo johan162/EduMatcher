@@ -1,9 +1,9 @@
-## [v0.16.0] - 2026-07-16
+## [v0.16.0] - 2026-07-19
 
 Release Type: major
 
 ### 📋 Summary
-This release introduces the new Config GUI, the new `pm-audit-cli` audit-trail inspection tool, expanded API Gateway operator controls, and broader CALF market-data capabilities. It also hardens the matching engine, scheduler, gateways, and clearing pipeline, adds consistent logging controls across processes, and refreshes the user-guide, Exchange Intro, and protocol documentation at much larger scale than a typical minor release.
+This release introduces the new Config GUI, the new `pm-audit-cli` audit-trail inspection tool, expanded API Gateway operator controls, and broader CALF market-data capabilities. It also hardens the matching engine, scheduler, gateways, and clearing pipeline, adds consistent logging controls across processes, and refreshes the user-guide, Exchange Intro, and protocol documentation at much larger scale than a typical minor release. It expands historical index and pricing visibility across the API and stats stack, improves engine handling of quote-leg requests, and tightens gateway/runtime behavior. 
 
 ### ⚠️ Breaking Changes
 - Removed the legacy `clearing_v1` implementation in favor of the current SQLite-backed clearing flow and shared feed-schema contract
@@ -17,6 +17,12 @@ This release introduces the new Config GUI, the new `pm-audit-cli` audit-trail i
 - Added Config GUI features for circuit-breaker settings, expert tuning, market-maker configuration, symbol overview, and proxy/frontend support
 - Added an explicit shared clearing/engine feed contract in `models/feed_schema.py`
 - Added statistics DB update interval control
+- Added API support for index history and new history endpoints for index events and historical price snapshots
+- Added keyset pagination for index-event history queries
+- Added daily and historical index statistics persistence to the stats database
+- Added engine handling for system.quote_legs_request with explicit completeness signaling for unavailable historical legs
+- Added proxy-oriented container build support for Config GUI
+- Added a new concepts chapter on implied orders
 
 ### 🚀 Improvements
 - Improved `pm-config-gen` with port-collision detection, chronological schedule validation, and tick-aware combo-leg pricing
@@ -25,6 +31,10 @@ This release introduces the new Config GUI, the new `pm-audit-cli` audit-trail i
 - Improved Config GUI validation around IPO/reference-price requirements and market-maker quote consistency
 - Improved RALF sequence handling, replay filtering, and entitlement-aware delivery behavior
 - Improved clearing robustness around reconciliation, warm-start behavior, aggregation, archive deduplication, and CLI display normalization
+- Improved API gateway history path behavior and pagination flow under concurrent request load
+- Improved index and stats outputs to make final end-of-day index levels clearer to operators
+- Improved engine PULL-socket dispatch structure and unknown-topic observability through warning logs and counters
+- Improved CALF and RALF example clients with broader protocol-coverage updates
 
 ### 🐛 Bug Fixes
 - Fixed a large set of reviewed matching-engine defects covering persistence, auctioning, SMP, fills, OCO, order handling, snapshots, validation, exceptions, and related runtime edge cases
@@ -33,6 +43,11 @@ This release introduces the new Config GUI, the new `pm-audit-cli` audit-trail i
 - Fixed circuit-breaker and collar reference seeding so day-one IPO opening prices and persisted book stats are used correctly
 - Fixed ALF C example and CI behavior to skip cleanly with diagnostics when GNU readline is unavailable
 - Fixed logging initialization paths that could leave process output formatting inconsistent
+- Fixed CALF RESUME validation to reject unsupported SYM=* subscriptions
+- Fixed API gateway concurrency and pagination defects affecting history retrieval behavior
+- Fixed REST API example clients for correctness and static-analysis compliance
+- Fixed ALF example value-case handling and related example-code static-analysis issues
+- Fixed user-guide broken links
 
 ### 📚 Documentation
 - Added a full Config GUI chapter plus setup and usage documentation
@@ -42,12 +57,17 @@ This release introduces the new Config GUI, the new `pm-audit-cli` audit-trail i
 - Added a normative configuration-file specification and updated all protocol specifications to match the latest ALF, BALF, CALF, and RALF behavior
 - Updated clearing, risk-control, market-data, README, architecture, and training materials to reflect the current product surface
 - Added more self-study exercises and answer keys to the Exchange Intro, including a new quiz on the clearing process and its reconciliation behavior
+- Updated user-guide chapters for index, API gateway, processes, statistics, persistence, and related messaging/examples to reflect the latest behavior
+- Updated CALF/Index design documentation to align with the latest protocol depth and index-subscription semantics
+- Refreshed training and examples documentation for CALF usage and API history workflows
 
 ### 🛠 Internal
 - Refactored the large admin command dispatch chain into handler-based dispatch
 - Hardened RALF and other timing-sensitive tests to reduce CI flakiness and improve deterministic readiness checks
 - Added richer CI diagnostics for skipped tests and C-example build failures
 - Updated dependencies, formatting, and type-check fixes across Python and Node-based tooling
+- Added pyright to the Makefile check target to strengthen CI/local static-type validation
+- Updated and stabilized tests to align with new API/index return values and buffer-handling behavior
 
 
 ## [v0.15.3] - 2026-07-07
