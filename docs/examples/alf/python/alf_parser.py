@@ -3,11 +3,25 @@
 Wire format:
     VERB|KEY=VALUE|KEY=VALUE\\n
 
-Parsing rules match pm-alf-gwy behavior:
-- All output is uppercase (commands, field names, and enum values)
-- Split on '|'; first token is the command/verb
+This module parses messages *received from* pm-alf-gwy, so it must reflect
+what the gateway actually puts on the wire in its responses -- not the
+normalization the gateway applies while validating commands it receives.
+See docs/user-guide/900-app-alf-protocol.md ("Case handling"): that
+uppercasing rule describes how pm-alf-gwy parses inbound commands, not how
+it formats outbound messages. docs/user-guide/220-alf-gateway.md's own
+wire examples show the gateway sending mixed-case data back (e.g.
+``GW=alf-gwy01``, ``ORDER|ID=abc123``), so order IDs, free-text
+``REASON``/``DETAIL`` fields, and similar values must round-trip with
+their original case intact -- forcing them to uppercase would corrupt an
+order ID a client later needs to echo back in AMEND/CANCEL. The C parser
+library (alf_parser.c) already preserves value case; this module matches
+that behavior.
+
+Parsing rules:
+- Split on '|'; first token is the command/verb, uppercased
 - Remaining tokens are KEY=VALUE; split on first '=' only
-- Keys are uppercased; tokens without '=' are silently skipped
+- Keys are uppercased; values preserve their original case
+- Tokens without '=' are silently skipped
 - Duplicate keys: last value wins
 """
 
@@ -25,8 +39,10 @@ class AlfParseError(ValueError):
 class AlfMessage:
     """One parsed ALF message received from the gateway."""
 
-    msg_type: str          # e.g. "ACK", "FILL", "WELCOME"
-    fields: dict[str, str] # all keys uppercase, last-value-wins
+    msg_type: str  # e.g. "ACK", "FILL", "WELCOME"
+    fields: dict[
+        str, str
+    ]  # keys uppercase; values preserve original case; last-value-wins
 
 
 @dataclass
@@ -37,7 +53,7 @@ class WelcomeInfo:
     gw_name: str
     proto: str
     heartbeat_interval: int  # seconds
-    idle_timeout: int         # seconds
+    idle_timeout: int  # seconds
     raw_fields: dict[str, str]
 
 
@@ -47,9 +63,13 @@ _ALLOWED_CHARS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
 def parse_alf_line(line: str) -> AlfMessage:
     """Parse one ALF line into an AlfMessage.
 
-    Strips full-line whitespace, uppercases the command verb and all
-    field names, skips segments without '=', and resolves duplicates
-    with last-value-wins semantics — identical to pm-alf-gwy's parser.
+    Strips full-line whitespace and uppercases the command verb and all
+    field names (both are case-insensitive on the wire), skips segments
+    without '=', and resolves duplicates with last-value-wins semantics.
+    Field *values* preserve their original case — the gateway's own
+    responses are not uppercase-normalized (see module docstring), and
+    forcing them upper would corrupt data like order IDs that a client
+    must echo back verbatim in a later AMEND/CANCEL.
     """
     raw = line.strip()
     if not raw:
@@ -67,7 +87,7 @@ def parse_alf_line(line: str) -> AlfMessage:
         key, _, value = seg.partition("=")
         key = key.strip().upper()
         if key:
-            fields[key] = value.strip().upper()
+            fields[key] = value.strip()
 
     return AlfMessage(msg_type=msg_type, fields=fields)
 
@@ -228,6 +248,15 @@ class AlfSession:
     def send(self, msg_type: str, fields: dict[str, str] | None = None) -> None:
         """Send one ALF line to the gateway."""
         self._sock.sendall(build_alf_line(msg_type, fields).encode("utf-8"))
+
+    def send_raw(self, line: str) -> None:
+        """Send a pre-built ALF line (without trailing '\\n') to the gateway.
+
+        For callers that already have a full "VERB|K=V|..." string on hand
+        (e.g. a REPL forwarding a user-typed command) and don't need
+        ``send()``'s dict-to-line building. Appends the trailing '\\n'.
+        """
+        self._sock.sendall((line + "\n").encode("utf-8"))
 
     def recv_msg(self) -> AlfMessage:
         """Receive and parse one ALF message from the gateway.

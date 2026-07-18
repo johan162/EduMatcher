@@ -24,14 +24,13 @@ Requires Python 3.9+ and the alf_parser.py library in the same directory.
 from __future__ import annotations
 
 import argparse
-import os
 import readline
 import sys
 import threading
 from datetime import datetime
 from pathlib import Path
 
-from alf_parser import AlfMessage, AlfParseError, AlfSession, build_alf_line
+from alf_parser import AlfMessage, AlfParseError, AlfSession
 
 # ---------------------------------------------------------------------------
 # ANSI colour helpers
@@ -39,14 +38,14 @@ from alf_parser import AlfMessage, AlfParseError, AlfSession, build_alf_line
 
 _USE_COLOR = sys.stdout.isatty()
 
-_GREEN   = "\033[32m"  if _USE_COLOR else ""
-_YELLOW  = "\033[33m"  if _USE_COLOR else ""
-_CYAN    = "\033[36m"  if _USE_COLOR else ""
-_RED     = "\033[31m"  if _USE_COLOR else ""
-_MAGENTA = "\033[35m"  if _USE_COLOR else ""
-_DIM     = "\033[2m"   if _USE_COLOR else ""
-_BOLD    = "\033[1m"   if _USE_COLOR else ""
-_RESET   = "\033[0m"   if _USE_COLOR else ""
+_GREEN = "\033[32m" if _USE_COLOR else ""
+_YELLOW = "\033[33m" if _USE_COLOR else ""
+_CYAN = "\033[36m" if _USE_COLOR else ""
+_RED = "\033[31m" if _USE_COLOR else ""
+_MAGENTA = "\033[35m" if _USE_COLOR else ""
+_DIM = "\033[2m" if _USE_COLOR else ""
+_BOLD = "\033[1m" if _USE_COLOR else ""
+_RESET = "\033[0m" if _USE_COLOR else ""
 
 HISTORY_FILE = Path.home() / ".alf_client_history"
 
@@ -92,33 +91,66 @@ _HELP_TEXT = f"""
 # ---------------------------------------------------------------------------
 
 _TOP_CMDS = [
-    "NEW", "AMEND", "CANCEL", "QUOTE", "QUOTE_CANCEL", "QBOOT",
-    "KILL", "SYMBOLS", "ORDERS", "PING", "POS", "STATUS", "HELP", "EXIT", "QUIT",
+    "NEW",
+    "AMEND",
+    "CANCEL",
+    "QUOTE",
+    "QUOTE_CANCEL",
+    "QBOOT",
+    "KILL",
+    "SYMBOLS",
+    "ORDERS",
+    "PING",
+    "POS",
+    "STATUS",
+    "HELP",
+    "EXIT",
+    "QUIT",
 ]
 
 _CMD_FIELDS: dict[str, list[str]] = {
-    "NEW":          ["SYM=", "SIDE=", "TYPE=", "QTY=", "PRICE=", "STOP=", "TRAIL=",
-                     "VISIBLE=", "TIF=", "SMP="],
-    "AMEND":        ["ID=", "PRICE=", "QTY="],
-    "CANCEL":       ["ID=", "COMBO_ID=", "OCO_ID="],
-    "QUOTE":        ["SYM=", "BID=", "ASK=", "BID_QTY=", "ASK_QTY=", "TIF=", "QUOTE_ID="],
+    "NEW": [
+        "SYM=",
+        "SIDE=",
+        "TYPE=",
+        "QTY=",
+        "PRICE=",
+        "STOP=",
+        "TRAIL=",
+        "VISIBLE=",
+        "TIF=",
+        "SMP=",
+    ],
+    "AMEND": ["ID=", "PRICE=", "QTY="],
+    "CANCEL": ["ID=", "COMBO_ID=", "OCO_ID="],
+    "QUOTE": ["SYM=", "BID=", "ASK=", "BID_QTY=", "ASK_QTY=", "TIF=", "QUOTE_ID="],
     "QUOTE_CANCEL": ["SYM="],
-    "QBOOT":        ["SYM="],
-    "KILL":         ["SYM="],
+    "QBOOT": ["SYM="],
+    "KILL": ["SYM="],
 }
 
 _VALUE_OPTS: dict[str, list[str]] = {
-    "SIDE":       ["BUY", "SELL"],
-    "TYPE":       ["MARKET", "LIMIT", "STOP", "STOP_LIMIT", "FOK", "IOC",
-                   "ICEBERG", "TRAILING_STOP", "OCO", "COMBO"],
-    "TIF":        ["DAY", "GTC", "ATO", "ATC"],
-    "SMP":        ["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"],
+    "SIDE": ["BUY", "SELL"],
+    "TYPE": [
+        "MARKET",
+        "LIMIT",
+        "STOP",
+        "STOP_LIMIT",
+        "FOK",
+        "IOC",
+        "ICEBERG",
+        "TRAILING_STOP",
+        "OCO",
+        "COMBO",
+    ],
+    "TIF": ["DAY", "GTC", "ATO", "ATC"],
+    "SMP": ["NONE", "CANCEL_AGGRESSOR", "CANCEL_RESTING", "CANCEL_BOTH"],
     "COMBO_TYPE": ["AON"],
     # OCO / COMBO leg fields
-    "LEG1_SIDE":  ["BUY", "SELL"],
-    "LEG2_SIDE":  ["BUY", "SELL"],
-    "LEG1_TYPE":  ["LIMIT", "MARKET", "STOP", "STOP_LIMIT", "TRAILING_STOP"],
-    "LEG2_TYPE":  ["LIMIT", "MARKET", "STOP", "STOP_LIMIT", "TRAILING_STOP"],
+    "LEG1_SIDE": ["BUY", "SELL"],
+    "LEG2_SIDE": ["BUY", "SELL"],
+    "LEG1_TYPE": ["LIMIT", "MARKET", "STOP", "STOP_LIMIT", "TRAILING_STOP"],
+    "LEG2_TYPE": ["LIMIT", "MARKET", "STOP", "STOP_LIMIT", "TRAILING_STOP"],
 }
 # Also accept LEGn.SIDE and LEGn.TYPE for combos
 for _i in range(10):
@@ -126,9 +158,20 @@ for _i in range(10):
     _VALUE_OPTS[f"LEG{_i}.TYPE"] = ["LIMIT", "MARKET", "STOP", "STOP_LIMIT"]
 
 _OCO_FIELDS = [
-    "OCO_ID=", "SYM=", "QTY=", "TIF=",
-    "LEG1_SIDE=", "LEG1_TYPE=", "LEG1_PRICE=", "LEG1_STOP=", "LEG1_TRAIL=",
-    "LEG2_SIDE=", "LEG2_TYPE=", "LEG2_PRICE=", "LEG2_STOP=", "LEG2_TRAIL=",
+    "OCO_ID=",
+    "SYM=",
+    "QTY=",
+    "TIF=",
+    "LEG1_SIDE=",
+    "LEG1_TYPE=",
+    "LEG1_PRICE=",
+    "LEG1_STOP=",
+    "LEG1_TRAIL=",
+    "LEG2_SIDE=",
+    "LEG2_TYPE=",
+    "LEG2_PRICE=",
+    "LEG2_STOP=",
+    "LEG2_TRAIL=",
 ]
 
 _COMBO_TOP_FIELDS = ["COMBO_ID=", "COMBO_TYPE=", "TIF=", "LEG_COUNT=", "SMP="]
@@ -143,7 +186,9 @@ class _AlfCompleter:
     """Context-aware readline tab completer for the ALF command format."""
 
     def __init__(self, symbols_ref: list[str]) -> None:
-        self._symbols = symbols_ref  # shared reference — updated when gateway sends SYMBOLS
+        self._symbols = (
+            symbols_ref  # shared reference — updated when gateway sends SYMBOLS
+        )
         self._cache: list[str] = []
 
     def complete(self, text: str, state: int) -> str | None:
@@ -160,11 +205,7 @@ class _AlfCompleter:
             return [c + "|" for c in _TOP_CMDS if c.startswith(word)]
 
         cmd = parts[0].upper()
-        already_keys = {
-            seg.split("=")[0].upper()
-            for seg in parts[1:]
-            if "=" in seg
-        }
+        already_keys = {seg.split("=")[0].upper() for seg in parts[1:] if "=" in seg}
 
         # Value completion: cursor is after KEY=
         if "=" in text:
@@ -181,14 +222,20 @@ class _AlfCompleter:
                 candidates = _VALUE_OPTS[bare]
             else:
                 return []
-            return [f"{key}={v}" for v in candidates if v.upper().startswith(partial_up)]
+            return [
+                f"{key}={v}" for v in candidates if v.upper().startswith(partial_up)
+            ]
 
         # Field-name completion: suggest next field
         partial_up = text.upper()
 
         if cmd == "NEW":
             type_val = next(
-                (seg.split("=", 1)[1].upper() for seg in parts[1:] if seg.upper().startswith("TYPE=")),
+                (
+                    seg.split("=", 1)[1].upper()
+                    for seg in parts[1:]
+                    if seg.upper().startswith("TYPE=")
+                ),
                 None,
             )
             if type_val == "OCO":
@@ -208,7 +255,8 @@ class _AlfCompleter:
             fields = _CMD_FIELDS.get(cmd, [])
 
         return [
-            f for f in fields
+            f
+            for f in fields
             if f.upper().startswith(partial_up) and f.rstrip("=") not in already_keys
         ]
 
@@ -216,6 +264,7 @@ class _AlfCompleter:
 # ---------------------------------------------------------------------------
 # Interactive ALF client
 # ---------------------------------------------------------------------------
+
 
 class AlfClient:
     """Interactive ALF client mimicking pm-alf-console over TCP.
@@ -231,12 +280,12 @@ class AlfClient:
         self._print_lock = threading.Lock()
 
         # State
-        self._orders: dict[str, dict[str, str]] = {}   # order_id → fields
+        self._orders: dict[str, dict[str, str]] = {}  # order_id → fields
         self._positions: dict[str, dict[str, float]] = {}  # symbol → P&L state
         self._session_state: str = "UNKNOWN"
 
         # Multi-line response accumulation
-        self._collecting: str | None = None      # 'SYMBOLS' | 'ORDERS' | 'QBOOT'
+        self._collecting: str | None = None  # 'SYMBOLS' | 'ORDERS' | 'QBOOT'
         self._collect_header: AlfMessage | None = None
         self._collect_rows: list[AlfMessage] = []
 
@@ -246,7 +295,7 @@ class AlfClient:
         # Readline setup
         self._completer = _AlfCompleter(self._known_symbols)
         readline.set_completer(self._completer.complete)
-        readline.set_completer_delims("")   # treat entire input as one word
+        readline.set_completer_delims("")  # treat entire input as one word
         readline.parse_and_bind("tab: complete")
         if HISTORY_FILE.exists():
             try:
@@ -262,7 +311,7 @@ class AlfClient:
         """Print an event line without garbling the readline prompt."""
         with self._print_lock:
             saved = readline.get_line_buffer()
-            sys.stdout.write("\r\033[K")        # CR + erase line
+            sys.stdout.write("\r\033[K")  # CR + erase line
             sys.stdout.write(text + "\n")
             if self._running:
                 sys.stdout.write(self._prompt + saved)
@@ -276,7 +325,9 @@ class AlfClient:
     # Event handler
     # ------------------------------------------------------------------
 
-    def _handle(self, msg: AlfMessage) -> None:  # noqa: C901 — large dispatch intentional
+    def _handle(
+        self, msg: AlfMessage
+    ) -> None:  # noqa: C901 — large dispatch intentional
         t = msg.msg_type
         f = msg.fields
         ts = self._ts()
@@ -290,66 +341,70 @@ class AlfClient:
 
         if t == "SESSION":
             state = f.get("STATE", "?")
-            prev  = f.get("PREV_STATE", "?")
+            prev = f.get("PREV_STATE", "?")
             self._session_state = state
             self._pr(f"[{ts}] {_YELLOW}SESSION{_RESET}  {prev} → {state}")
             return
 
         if t == "HALT":
-            sym   = f.get("SYMBOL", "?")
+            sym = f.get("SYMBOL", "?")
             level = f.get("LEVEL", "")
             self._pr(f"[{ts}] {_RED}HALT{_RESET}    {sym}  level={level}")
             return
 
         if t == "RESUME":
-            sym  = f.get("SYMBOL", "?")
+            sym = f.get("SYMBOL", "?")
             mode = f.get("MODE", "")
             self._pr(f"[{ts}] {_GREEN}RESUME{_RESET}  {sym}  mode={mode}")
             return
 
         if t == "TRADE":
-            sym   = f.get("SYMBOL", "?")
+            sym = f.get("SYMBOL", "?")
             price = f.get("PRICE", "?")
-            qty   = f.get("QTY", "?")
-            side  = f.get("SIDE", "?")
+            qty = f.get("QTY", "?")
+            side = f.get("SIDE", "?")
             self._pr(f"[{ts}] {_DIM}TRADE{_RESET}   {sym}  {side} {qty} @{price}")
             return
 
         if t == "ERR":
-            code   = f.get("CODE", "?")
+            code = f.get("CODE", "?")
             detail = f.get("DETAIL", "")
             self._pr(f"[{ts}] {_RED}ERR{_RESET}  [{code}]  {detail}")
             return
 
         if t == "ACK":
-            oid      = f.get("ORDER_ID", "?")
+            oid = f.get("ORDER_ID", "?")
             accepted = f.get("ACCEPTED", "FALSE") == "TRUE"
-            reason   = f.get("REASON", "")
-            short    = oid[:8]
+            reason = f.get("REASON", "")
+            short = oid[:8]
             if accepted:
                 self._pr(f"[{ts}] {_GREEN}ACK{_RESET}      {short}  order accepted")
-                self._orders.setdefault(oid, {}).update({
-                    "id": oid, "symbol": f.get("SYMBOL", ""),
-                    "side": f.get("SIDE", ""), "type": f.get("TYPE", ""),
-                    "status": "NEW",
-                })
+                self._orders.setdefault(oid, {}).update(
+                    {
+                        "id": oid,
+                        "symbol": f.get("SYMBOL", ""),
+                        "side": f.get("SIDE", ""),
+                        "type": f.get("TYPE", ""),
+                        "status": "NEW",
+                    }
+                )
             else:
                 self._pr(f"[{ts}] {_RED}REJECTED{_RESET} {short}  {reason}")
             return
 
         if t == "FILL":
-            oid   = f.get("ORDER_ID", "?")
-            qty   = f.get("FILL_QTY", "?")
+            oid = f.get("ORDER_ID", "?")
+            qty = f.get("FILL_QTY", "?")
             price = f.get("FILL_PRICE", "?")
-            rem   = f.get("REMAINING", "?")
-            st    = f.get("STATUS", "?")
+            rem = f.get("REMAINING", "?")
+            st = f.get("STATUS", "?")
             self._pr(
                 f"[{ts}] {_CYAN}FILL{_RESET}     {oid[:8]}  "
                 f"qty={qty} @{price}  remaining={rem}  [{st}]"
             )
             # Position update — use cached order for symbol/side
             order = self._orders.get(oid, {})
-            sym  = order.get("symbol") or f.get("SYMBOL", "")
+            sym = order.get("symbol") or f.get("SYMBOL", "")
             side = order.get("side") or f.get("SIDE", "")
             if sym and side:
                 try:
@@ -393,16 +448,22 @@ class AlfClient:
             if f.get("ACCEPTED", "FALSE") == "TRUE":
                 bid = f.get("BID_ID", "?")[:8]
                 ask = f.get("ASK_ID", "?")[:8]
-                self._pr(f"[{ts}] {_GREEN}QUOTE ACK{_RESET}  {qid}  bid={bid} ask={ask}")
+                self._pr(
+                    f"[{ts}] {_GREEN}QUOTE ACK{_RESET}  {qid}  bid={bid} ask={ask}"
+                )
             else:
-                self._pr(f"[{ts}] {_RED}QUOTE REJ{_RESET}  {qid}  {f.get('REASON', '')}")
+                self._pr(
+                    f"[{ts}] {_RED}QUOTE REJ{_RESET}  {qid}  {f.get('REASON', '')}"
+                )
             return
 
         if t == "QUOTE_STATUS":
-            qid  = f.get("QUOTE_ID", "?")
-            st   = f.get("STATUS", "?")
-            rsn  = f.get("REASON", "")
-            self._pr(f"[{ts}] {_CYAN}QUOTE {st}{_RESET}  {qid}" + (f"  {rsn}" if rsn else ""))
+            qid = f.get("QUOTE_ID", "?")
+            st = f.get("STATUS", "?")
+            rsn = f.get("REASON", "")
+            self._pr(
+                f"[{ts}] {_CYAN}QUOTE {st}{_RESET}  {qid}" + (f"  {rsn}" if rsn else "")
+            )
             return
 
         if t == "COMBO_ACK":
@@ -410,17 +471,25 @@ class AlfClient:
             if f.get("ACCEPTED", "FALSE") == "TRUE":
                 self._pr(f"[{ts}] {_GREEN}COMBO ACK{_RESET}  {cid}  combo accepted")
             else:
-                self._pr(f"[{ts}] {_RED}COMBO REJ{_RESET}  {cid}  {f.get('REASON', '')}")
+                self._pr(
+                    f"[{ts}] {_RED}COMBO REJ{_RESET}  {cid}  {f.get('REASON', '')}"
+                )
             return
 
         if t == "COMBO_STATUS":
             cid = f.get("COMBO_ID", "?")
-            st  = f.get("STATUS", "?")
+            st = f.get("STATUS", "?")
             rsn = f.get("REASON", "")
-            colours = {"MATCHED": _GREEN, "PARTIALLY_MATCHED": _YELLOW,
-                       "FAILED": _RED, "CANCELLED": _RED}
+            colours = {
+                "MATCHED": _GREEN,
+                "PARTIALLY_MATCHED": _YELLOW,
+                "FAILED": _RED,
+                "CANCELLED": _RED,
+            }
             c = colours.get(st, "")
-            self._pr(f"[{ts}] {c}COMBO {st}{_RESET}  {cid}" + (f"  {rsn}" if rsn else ""))
+            self._pr(
+                f"[{ts}] {c}COMBO {st}{_RESET}  {cid}" + (f"  {rsn}" if rsn else "")
+            )
             return
 
         if t == "OCO_ACK":
@@ -430,13 +499,17 @@ class AlfClient:
                 l2 = f.get("LEG2_ID", "?")[:8]
                 self._pr(f"[{ts}] {_GREEN}OCO ACK{_RESET}    {oid}  legs={l1}/{l2}")
             else:
-                self._pr(f"[{ts}] {_RED}OCO REJ{_RESET}    {oid}  {f.get('REASON', '')}")
+                self._pr(
+                    f"[{ts}] {_RED}OCO REJ{_RESET}    {oid}  {f.get('REASON', '')}"
+                )
             return
 
         if t == "OCO_CANCELLED":
-            oid  = f.get("OCO_ID", "?")
+            oid = f.get("OCO_ID", "?")
             sibl = f.get("CANCELLED_ID", "?")[:8]
-            self._pr(f"[{ts}] {_YELLOW}OCO CANCEL{_RESET} {oid}  sibling={sibl}  {f.get('REASON', '')}")
+            self._pr(
+                f"[{ts}] {_YELLOW}OCO CANCEL{_RESET} {oid}  sibling={sibl}  {f.get('REASON', '')}"
+            )
             return
 
         if t == "KILL_ACK":
@@ -457,9 +530,9 @@ class AlfClient:
     # ------------------------------------------------------------------
 
     def _flush_collected(self) -> None:
-        kind  = self._collecting
-        hdr   = self._collect_header
-        rows  = self._collect_rows
+        kind = self._collecting
+        hdr = self._collect_header
+        rows = self._collect_rows
 
         if kind == "SYMBOLS":
             syms = [r.fields.get("SYM", "?") for r in rows]
@@ -467,11 +540,9 @@ class AlfClient:
             self._known_symbols.clear()
             self._known_symbols.extend(syms)
             self._session.set_known_symbols(syms)
-            lines = [
-                f"  {_BOLD}{'SYM':<10} TICK{_RESET}"
-            ]
+            lines = [f"  {_BOLD}{'SYM':<10} TICK{_RESET}"]
             for r in rows:
-                sym  = r.fields.get("SYM", "?")
+                sym = r.fields.get("SYM", "?")
                 tick = r.fields.get("TICK", "-")
                 lines.append(f"  {sym:<10} {tick}")
             count = hdr.fields.get("COUNT", "?") if hdr else "?"
@@ -479,27 +550,36 @@ class AlfClient:
 
         elif kind == "ORDERS":
             gw = hdr.fields.get("GW", "") if hdr else ""
-            header = (f"  {'ID'[:8]:<8}  {'SYM':<6} {'SIDE':<5} {'TYPE':<11} "
-                      f"{'QTY':>6} {'REM':>6} {'PRICE':>8}  STATUS")
+            header = (
+                f"  {'ID'[:8]:<8}  {'SYM':<6} {'SIDE':<5} {'TYPE':<11} "
+                f"{'QTY':>6} {'REM':>6} {'PRICE':>8}  STATUS"
+            )
             divider = "  " + "-" * 66
             lines = [f"\n{_BOLD}Orders — {gw}{_RESET}", header, divider]
             for r in rows:
-                f_  = r.fields
-                oid  = f_.get("ID", "?")[:8]
-                sym  = f_.get("SYM", "?")
+                f_ = r.fields
+                oid = f_.get("ID", "?")[:8]
+                sym = f_.get("SYM", "?")
                 side = f_.get("SIDE", "?")
-                typ  = f_.get("TYPE", "?")
-                qty  = f_.get("QTY", "?")
-                rem  = f_.get("REMAINING", "?")
-                prc  = f_.get("PRICE", "-")
-                st   = f_.get("STATUS", "?")
+                typ = f_.get("TYPE", "?")
+                qty = f_.get("QTY", "?")
+                rem = f_.get("REMAINING", "?")
+                prc = f_.get("PRICE", "-")
+                st = f_.get("STATUS", "?")
                 # Update local cache
                 if f_.get("ID"):
-                    self._orders.setdefault(f_["ID"], {}).update({
-                        "id": f_["ID"], "symbol": sym, "side": side,
-                        "type": typ, "qty": qty, "remaining": rem,
-                        "price": prc, "status": st,
-                    })
+                    self._orders.setdefault(f_["ID"], {}).update(
+                        {
+                            "id": f_["ID"],
+                            "symbol": sym,
+                            "side": side,
+                            "type": typ,
+                            "qty": qty,
+                            "remaining": rem,
+                            "price": prc,
+                            "status": st,
+                        }
+                    )
                 lines.append(
                     f"  {oid:<8}  {sym:<6} {side:<5} {typ:<11} "
                     f"{qty:>6} {rem:>6} {prc:>8}  {st}"
@@ -511,8 +591,10 @@ class AlfClient:
             self._pr("\n".join(lines))
 
         elif kind == "QBOOT":
-            header = (f"  {'QUOTE_ID':<20} {'SYM':<6} {'BID':>8} {'ASK':>8} "
-                      f"{'B_QTY':>6} {'A_QTY':>6}  STATUS")
+            header = (
+                f"  {'QUOTE_ID':<20} {'SYM':<6} {'BID':>8} {'ASK':>8} "
+                f"{'B_QTY':>6} {'A_QTY':>6}  STATUS"
+            )
             divider = "  " + "-" * 68
             lines = [f"\n{_BOLD}Quote Bootstrap{_RESET}", header, divider]
             for r in rows:
@@ -550,13 +632,13 @@ class AlfClient:
 
             # Multi-line accumulation
             if self._collecting:
-                if t == "SYMBOL"  and self._collecting == "SYMBOLS":
+                if t == "SYMBOL" and self._collecting == "SYMBOLS":
                     self._collect_rows.append(msg)
                     continue
-                if t == "ORDER"   and self._collecting == "ORDERS":
+                if t == "ORDER" and self._collecting == "ORDERS":
                     self._collect_rows.append(msg)
                     continue
-                if t == "QUOTE"   and self._collecting == "QBOOT":
+                if t == "QUOTE" and self._collecting == "QBOOT":
                     self._collect_rows.append(msg)
                     continue
                 if t == "END" and msg.fields.get("TYPE") == self._collecting:
@@ -589,7 +671,9 @@ class AlfClient:
     # Position tracking (mirrors pm-alf-console logic)
     # ------------------------------------------------------------------
 
-    def _update_position(self, symbol: str, side: str, fill_qty: int, fill_price: float) -> None:
+    def _update_position(
+        self, symbol: str, side: str, fill_qty: int, fill_price: float
+    ) -> None:
         pos = self._positions.setdefault(
             symbol, {"net_qty": 0, "avg_cost": 0.0, "realized_pnl": 0.0}
         )
@@ -603,7 +687,8 @@ class AlfClient:
         ):
             close_qty = min(abs(signed_qty), abs(old_qty))
             pnl_per = (
-                (fill_price - pos["avg_cost"]) if old_qty > 0
+                (fill_price - pos["avg_cost"])
+                if old_qty > 0
                 else (pos["avg_cost"] - fill_price)
             )
             pos["realized_pnl"] += pnl_per * close_qty
@@ -652,7 +737,7 @@ class AlfClient:
         try:
             # Reconstruct with normalized verb
             reconstructed = "|".join([cmd] + parts[1:])
-            self._session._sock.sendall((reconstructed + "\n").encode("utf-8"))
+            self._session.send_raw(reconstructed)
         except OSError as exc:
             with self._print_lock:
                 print(f"{_RED}Send error: {exc}{_RESET}")
@@ -664,15 +749,18 @@ class AlfClient:
             if not any(p["net_qty"] != 0 for p in self._positions.values()):
                 print("  (flat — no open positions)")
             else:
-                print(f"  {'SYMBOL':<10} {'NET_QTY':>8} {'AVG_COST':>10} {'REALIZED_PNL':>14}")
-                print("  " + "-" * 48)
+                print(
+                    f"  {'SYMBOL':<10} {'DIR':<6} {'NET_QTY':>8} "
+                    f"{'AVG_COST':>10} {'REALIZED_PNL':>14}"
+                )
+                print("  " + "-" * 54)
                 for sym, pos in self._positions.items():
                     if pos["net_qty"] != 0:
                         direction = "LONG" if pos["net_qty"] > 0 else "SHORT"
-                        pnl_str   = f"{pos['realized_pnl']:>14.2f}"
+                        pnl_str = f"{pos['realized_pnl']:>14.2f}"
                         c = _GREEN if pos["net_qty"] > 0 else _RED
                         print(
-                            f"  {sym:<10} {c}{pos['net_qty']:>8}{_RESET}  "
+                            f"  {sym:<10} {c}{direction:<6}{_RESET} {pos['net_qty']:>8}  "
                             f"{pos['avg_cost']:>10.2f}  {pnl_str}"
                         )
             print()
@@ -688,8 +776,12 @@ class AlfClient:
             print(f"  Idle timeout:     {w.idle_timeout}s")
             print(f"  Session state:    {self._session_state}")
             syms = self._session.known_symbols
-            print(f"  Symbols:          {', '.join(syms) if syms else '(none loaded yet)'}")
-            print(f"  Open orders:      {sum(1 for o in self._orders.values() if o.get('status') not in ('CANCELLED','FILLED','EXPIRED','REJECTED'))}")
+            print(
+                f"  Symbols:          {', '.join(syms) if syms else '(none loaded yet)'}"
+            )
+            print(
+                f"  Open orders:      {sum(1 for o in self._orders.values() if o.get('status') not in ('CANCELLED','FILLED','EXPIRED','REJECTED'))}"
+            )
             print()
 
     # ------------------------------------------------------------------
@@ -736,15 +828,29 @@ class AlfClient:
 # Entry point
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Interactive ALF client for pm-alf-gwy",
         epilog="Example: alf_client.py --host 10.0.0.5 --port 5565 --id TRADER01",
     )
-    parser.add_argument("--host",   default="127.0.0.1", help="Gateway host (default: 127.0.0.1)")
-    parser.add_argument("--port",   type=int, default=5565, help="Gateway port (default: 5565)")
-    parser.add_argument("--id",     required=True, metavar="GW_ID", help="Gateway ID (must be in engine_config.yaml)")
-    parser.add_argument("--client", default="alf-client",  help="Client name for gateway logs (default: alf-client)")
+    parser.add_argument(
+        "--host", default="127.0.0.1", help="Gateway host (default: 127.0.0.1)"
+    )
+    parser.add_argument(
+        "--port", type=int, default=5565, help="Gateway port (default: 5565)"
+    )
+    parser.add_argument(
+        "--id",
+        required=True,
+        metavar="GW_ID",
+        help="Gateway ID (must be in engine_config.yaml)",
+    )
+    parser.add_argument(
+        "--client",
+        default="alf-client",
+        help="Client name for gateway logs (default: alf-client)",
+    )
     args = parser.parse_args()
 
     print(f"Connecting to {args.host}:{args.port} as {args.id.upper()} …")

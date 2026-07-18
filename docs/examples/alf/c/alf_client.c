@@ -583,8 +583,19 @@ static void process_socket_data(void)
     while ((nl = strchr(start, '\n')) != NULL) {
         *nl = '\0';
 
+        /* Bound-copy the line into a fixed buffer for alf_parse_line() (it
+         * tokenizes in place with strtok_r). g_recvbuf can hold more than
+         * ALF_MAX_LINE_LEN bytes between newlines if a peer sends an
+         * oversized line, so this copy is deliberately truncating -- do it
+         * with an explicit length rather than a "%s" snprintf so the
+         * compiler can see the bound statically instead of guessing from
+         * strlen() (-Wformat-truncation). */
         char line_copy[ALF_MAX_LINE_LEN];
-        snprintf(line_copy, sizeof(line_copy), "%s", start);
+        size_t seg_len = (size_t)(nl - start);
+        if (seg_len >= sizeof(line_copy))
+            seg_len = sizeof(line_copy) - 1;
+        memcpy(line_copy, start, seg_len);
+        line_copy[seg_len] = '\0';
 
         alf_message_t msg;
         if (alf_parse_line(line_copy, &msg) != 0) {
