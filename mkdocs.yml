@@ -85,6 +85,7 @@ nav:
     - Your First Trade: concepts/04-concepts-first-trade.md
     - A Full Trading Day: concepts/05-concepts-trading-day.md
     - Market Data Feed (CALF): concepts/06-concepts-market-data-feed.md
+    - Implied Orders: concepts/07-concepts-implied-orders.md
   - User Guide:
     - Getting Started: user-guide/000-getting-started.md
     - Engine Configuration: user-guide/010-configuration.md
