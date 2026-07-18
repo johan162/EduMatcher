@@ -235,9 +235,9 @@ verify: ## Run end-to-end deterministic matching verification suite
 # Code quality
 # ============================================================================================
 check: ## Run all code quality checks in parallel (format + lint + typecheck)
-	$(MAKE) -j 3 _check
+	$(MAKE) -j 4 _check
 
-_check: format lint typecheck
+_check: format lint typecheck typecheck-pyright ## Run all code quality checks (format + lint + typecheck)
 	@:
 
 lint flake8: $(LINT_STAMP) ## Run flake8 linting [stamp-cached]
@@ -247,6 +247,9 @@ format black: $(FORMAT_STAMP) ## Check formatting with black [stamp-cached]
 	@:
 
 typecheck mypy: $(TYPECHECK_STAMP) ## Run mypy type checking [stamp-cached]
+	@:
+
+typecheck-pyright: $(PYRIGHT_STAMP) ## Run pyright type checking [stamp-cached]
 	@:
 
 pre-commit: $(INSTALL_STAMP) ## Run all quality checks + short test (pre-commit gate)
