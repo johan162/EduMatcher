@@ -26,7 +26,8 @@ flowchart LR
     E["pm-engine\nPUB :5556"] -->|"trade.executed\nsession.state\nsystem.eod"| I["pm-index\nPUB :5558\nPULL :5559"]
     I -->|"index.update"| G["pm-md-gwy\nCALF TCP :5570"]
     G -->|"IDX messages"| C["External clients"]
-    OP["Operator / gateway\nterminal"] -->|"CORP_ACTION\nCONSTITUENT_CHANGE\nHISTORY_REQUEST"| I
+    CON["pm-alf-console\n(INDEX|HISTORY)"] -->|"index.history_request"| I
+    SCR["Operator script\n(ExchangeCommandClient)"] -->|"index.corp_action\nindex.constituent_change"| I
 ```
 
 `pm-index` does **not** connect to the engine PULL socket. It never sends
@@ -227,9 +228,11 @@ in the number of constituents — fast enough for any educational exchange.
 
 ### Reference prices
 
-When no trade has occurred for a constituent since startup, the seeded last
-price from the engine config (`last_buy_price` / `last_sell_price`) is used as
-the reference price. Once the first real trade arrives the reference price is
+When no trade has occurred for a constituent since startup, a reference price
+seeded from the engine config is used: the average of `last_buy_price` and
+`last_sell_price` when both are set, or whichever one is set if only one is
+present. A symbol with neither field set fails to load as an index
+constituent. Once the first real trade arrives the reference price is
 replaced by the actual trade price.
 
 ### Publish throttle
@@ -272,21 +275,47 @@ $$
 |---|---|---|---|
 | Stock split | `SPLIT` | `ratio_numerator`, `ratio_denominator` | Increases shares, reduces price by the same factor; divisor corrected for integer-rounding drift |
 | Cash dividend | `CASH_DIVIDEND` | `dividend_per_share` | Reduces price by the dividend amount; divisor adjusted to preserve index level |
-| Shares issuance | `SHARES_ISSUANCE` | `new_shares_outstanding` | Sets the new total share count; divisor adjusted upward to preserve index level |
+| Shares issuance | `SHARES_ISSUANCE` | `new_shares_outstanding` | Sets the new total share count outright (not a delta); divisor rescaled to preserve index level — typically upward for a genuine issuance, but the code does not require `new_shares_outstanding` to exceed the current count, so supplying a smaller value rescales the divisor downward instead |
 
-### Applying corporate actions from a gateway terminal
+### Applying corporate actions
 
-Corporate actions are sent through an `ADMIN` gateway using the `CORP_ACTION`
-command:
+!!! warning "No interactive command exists yet"
+    Unlike `INDEX|HISTORY` (below), corporate actions have **no** `pm-alf-console`
+    command, no `pm-admin` / `pm-admin-cli` subcommand, and no CALF/ALF wire
+    message. The engine-side handling in `pm-index` (`index.corp_action` /
+    `index.constituent_change` on its PULL socket, port `5559`) is fully
+    implemented, but today the only way to reach it is the Python
+    `ExchangeCommandClient` class (`edumatcher.commands.client`) — the same
+    class `pm-admin-cli` uses internally for its other commands. Applying a
+    corporate action currently means writing a short script.
 
+```python
+from edumatcher.commands import ExchangeCommandClient
+
+client = ExchangeCommandClient("GW_ADMIN")  # must be an ADMIN gateway
+client.connect()
+
+client.index_corp_action(
+    "EDU100", "SPLIT", "AAPL",
+    ratio_numerator=2, ratio_denominator=1,
+)
+client.index_corp_action(
+    "EDU100", "CASH_DIVIDEND", "MSFT",
+    dividend_per_share=2.50,
+)
+client.index_corp_action(
+    "EDU100", "SHARES_ISSUANCE", "TSLA",
+    new_shares_outstanding=3500000000,
+)
+
+client.disconnect()
+client.close()
 ```
-CORP_ACTION|INDEX=EDU100|SYM=AAPL|ACTION=SPLIT|NUM=2|DEN=1
-CORP_ACTION|INDEX=EDU100|SYM=MSFT|ACTION=CASH_DIVIDEND|DIV=2.50
-CORP_ACTION|INDEX=EDU100|SYM=TSLA|ACTION=SHARES_ISSUANCE|SHARES=3500000000
-```
 
-`pm-index` applies the action in-process, immediately publishes an updated index
-value live, and writes a `CORP_ACTION` record to the structural/audit history file.
+Each call blocks for the `index.corp_action_ack.{gateway_id}` response (or
+raises `CommandTimeoutError`). `pm-index` applies the action in-process,
+immediately publishes an updated index value live, and writes a
+`CORP_ACTION` record to the structural/audit history file.
 
 !!! important "Apply corporate actions before the market opens"
     It is safest to apply corporate actions during `PRE_OPEN` before trading
@@ -296,11 +325,16 @@ value live, and writes a `CORP_ACTION` record to the structural/audit history fi
 
 ### Constituent changes
 
-Constituents can be added or removed without restarting `pm-index`:
+Constituents can be added or removed without restarting `pm-index` — using
+the same `ExchangeCommandClient` script-only mechanism as corporate actions
+above (there is likewise no interactive command for this):
 
-```
-CORP_ACTION|INDEX=EDU100|SYM=AMZN|ACTION=ADD|SHARES=10500000000|PRICE=195.00
-CORP_ACTION|INDEX=EDU100|SYM=TSLA|ACTION=DELIST
+```python
+client.index_add_constituent(
+    "EDU100", "AMZN",
+    shares_outstanding=10500000000, initial_price=195.00,
+)
+client.index_delist("EDU100", "TSLA")
 ```
 
 Adding a constituent adjusts the divisor so the index level does not change at
@@ -315,8 +349,9 @@ as a `CORP_ACTION`, `ADD_CONSTITUENT`, or `DELIST` record.
 
 ### State file
 
-`pm-index` writes a small JSON checkpoint file after every EOD and corporate
-action:
+`pm-index` writes a small JSON checkpoint file at startup (right after
+computing the initial level), after every EOD finalization, and after any
+corporate action or constituent change (add/delist):
 
 ```json
 {
@@ -405,15 +440,21 @@ Sample output:
 #### Structural/audit history queries
 
 ```
-INDEX|HISTORY
+INDEX|HISTORY|INDEX=EDU100
 ```
+
+`INDEX=<id>` is required unless the console has already received at least one
+`index.update` broadcast for an index in this session, in which case that
+index's ID is used as the default and `INDEX=` may be omitted. Without either,
+the console prints `INDEX|HISTORY requires INDEX=<id> or prior index.update.`
+and sends nothing.
 
 Returns the last 30 days of structural/audit records (`INIT`, `CORP_ACTION`,
 `ADD_CONSTITUENT`, `DELIST`) — corporate actions and constituent changes, not
 level ticks.
 
 ```
-INDEX|HISTORY|FROM=2026-06-01|TO=2026-06-12
+INDEX|HISTORY|INDEX=EDU100|FROM=2026-06-01|TO=2026-06-12
 ```
 
 Returns records within the given date range (inclusive). The response includes
@@ -470,6 +511,10 @@ IDX|CH=INDEX|SYM=EDU100|SEQ=2|TS=2026-06-12T10:15:24.411Z|LEVEL=1051.20|CHG=+9.1
 command line — no running `pm-index` process is needed. It does **not** have
 level or EOD subcommands; use `pm-stats-cli` for that (next section).
 
+`--config`, `--data-dir`, `--format`, and `--no-header` are global options and
+must come **before** the subcommand (`events` / `indices`); putting them after
+the subcommand is a parse error since only the top-level parser defines them.
+
 ```bash
 # Corporate actions and constituent changes (all time)
 pm-index-cli --config engine_config.yaml events --index EDU100
@@ -477,11 +522,11 @@ pm-index-cli --config engine_config.yaml events --index EDU100
 # Filter to a specific structural event type
 pm-index-cli --config engine_config.yaml events --index EDU100 --type CORP_ACTION
 
-# Export to CSV for import into a spreadsheet
-pm-index-cli --config engine_config.yaml events --format csv > edu100_events.csv
+# Export to CSV for import into a spreadsheet (--format comes before the subcommand)
+pm-index-cli --config engine_config.yaml --format csv events > edu100_events.csv
 
 # JSON output for scripting
-pm-index-cli --config engine_config.yaml events --index EDU100 --format json \
+pm-index-cli --config engine_config.yaml --format json events --index EDU100 \
   | python3 -c "import json,sys; [print(r['ts'], r['type'], r['detail']) for r in json.load(sys.stdin)]"
 
 # Date-range query
@@ -490,6 +535,10 @@ pm-index-cli --config engine_config.yaml events \
 
 # List all configured indices
 pm-index-cli --config engine_config.yaml indices
+
+# Read history files directly from a directory without a config file
+# (defaults to ./data/indexes when --data-dir is omitted)
+pm-index-cli --data-dir /custom/path/indexes events --index EDU100
 ```
 
 See the [pm-index-cli reference](160-commands.md) for all subcommands, column
@@ -513,6 +562,31 @@ pm-stats-cli index-ids
 
 See [Statistics and Reporting](140-statistics-and-reporting.md#index-level-history)
 for the full command reference.
+
+### Via the REST API
+
+`pm-api-gwy` also exposes both the structural/audit log and the level/EOD
+time series over HTTP, under `/api/v1/history`:
+
+| Endpoint | Data | Backing store |
+|---|---|---|
+| `GET /history/index-daily` | Daily index OHLC rows | `pm-stats` SQLite |
+| `GET /history/index-snapshots` | Intraday index level ticks | `pm-stats` SQLite |
+| `GET /history/index-ids` | Index IDs with recorded statistics | `pm-stats` SQLite |
+| `GET /history/index-events` | Structural/audit records (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST`) | Live round-trip to `pm-index`, not `pm-stats` |
+
+```bash
+curl -s -H "Authorization: Bearer key-trader-demo" \
+  "http://127.0.0.1:8080/api/v1/history/index-daily?index_id=EDU100&date=2026-06-14"
+
+curl -s -H "Authorization: Bearer key-trader-demo" \
+  "http://127.0.0.1:8080/api/v1/history/index-events?index_id=EDU100&from=1750000000&to=1760000000"
+```
+
+See [API Gateway — History endpoints](260-api-gateway.md#history-endpoints)
+for the full parameter reference, pagination rules, and the note that
+`index-events` is the one history endpoint that is not served from
+`pm-stats` and has no pagination cursor.
 
 ### Reading the structural/audit file directly
 

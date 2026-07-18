@@ -156,6 +156,8 @@ market_data_gateway:
   replay_window_sec: 30
   max_symbols_per_client: 200
   max_client_queue: 10000
+  max_connections: 64
+  max_messages_per_second: 200
   depth_levels: 10
 ```
 
@@ -165,19 +167,28 @@ omitted. `pm-md-gwy` reads only this `market_data_gateway` block — see
 
 | Key | Default | Purpose |
 |-----|---------|---------|
-| `enabled` | `true` | Reserved on/off flag for the gateway instance |
+| `enabled` | `true` | When `false`, `pm-md-gwy` logs a warning and exits immediately without binding the TCP port |
 | `name` | `md-gwy01` | Gateway id reported in `WELCOME\|GW=` |
 | `bind_address` | `0.0.0.0` | TCP listen address |
 | `port` | `5570` | TCP listen port |
 | `heartbeat_interval_sec` | `1` | `HB` cadence when idle; advertised as `WELCOME\|HBINT=` |
-| `idle_timeout_sec` | `5` | Disconnect a client after this many seconds with no inbound data |
+| `idle_timeout_sec` | `5` | Disconnect a client after this many seconds with no **inbound** data (outbound market data does not reset this timer) |
 | `replay_window_sec` | `30` | Per-stream replay retention; advertised as `WELCOME\|REPLAY=` |
-| `max_symbols_per_client` | `200` | Subscription cap per client; exceeding it returns `ERR\|CODE=SUB_LIMIT` |
-| `max_client_queue` | `10000` | Outbound backlog limit; exceeding it returns `ERR\|CODE=SLOW_CLIENT` and disconnects |
+| `max_symbols_per_client` | `200` | Cap on the number of *unique symbol strings* a client has subscribed to, counted once across all channels — `SYM=*` counts as a single entry; exceeding it returns `ERR\|CODE=SUB_LIMIT` |
+| `max_client_queue` | `10000` | Outbound backlog limit; exceeding it silently disconnects the client (no `ERR` is guaranteed to arrive first) |
+| `max_connections` | `64` | Max simultaneous TCP connections; an over-limit connection is accepted at the socket level and then closed immediately with no `HELLO`/`WELCOME` exchange at all |
+| `max_messages_per_second` | `200` | Inbound token-bucket rate limit per client; exceeding it returns `ERR\|CODE=RATE_LIMITED` (connection stays open) |
 | `depth_levels` | `10` | Price levels per side on the `DEPTH` channel; surfaced as `LEVELS=` |
 
 All values must be positive integers (`port`, the intervals, the limits); the
 gateway refuses to start otherwise.
+
+!!! warning "If `engine_config.yaml` fails to load"
+    If `pm-md-gwy` cannot load the engine config's symbol list at startup (missing
+    file, parse error, etc.), it silently falls back to an empty known-symbol set,
+    which disables known-symbol validation gateway-wide — any non-wildcard symbol
+    is then accepted on `SUB`, not just configured ones. Treat this as a
+    misconfiguration to fix, not a supported mode.
 
 
 ## Start the gateway
@@ -203,11 +214,19 @@ CLI override options:
 | `--config` / `-c` | `engine_config.yaml` | Engine config YAML path |
 | `--bind ADDR` | from config / `0.0.0.0` | Override TCP bind address |
 | `--port PORT` | from config / `5570` | Override TCP listen port |
-| `--engine-pub ADDR` | from config / `tcp://127.0.0.1:5556` | Override engine PUB socket address |
+| `--engine-pub ADDR` | `tcp://127.0.0.1:5556` | Override engine PUB socket address — always the fixed engine-side default; not configurable via the `market_data_gateway` YAML block |
 | `--index-pub ADDR` | `tcp://127.0.0.1:5558` | Override index PUB socket address |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
 | `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `--version` | — | Print the installed `pm-md-gwy` version and exit |
+
+The `--engine-pub`/`--index-pub` defaults themselves can be shifted for the
+whole installation via two environment variables (useful when the engine runs
+on another host): `EDUMATCHER_ENGINE_HOST` (default `127.0.0.1`) and
+`EDUMATCHER_INDEX_PUB_PORT` (default `5558`). `EDUMATCHER_CONFIG` overrides the
+default `--config` path the same way it does for every other `pm-*` process —
+see [Getting Started → Environment variables](000-getting-started.md#environment-variables).
 
 
 ## Quick connect test
@@ -280,8 +299,9 @@ changes, the gateway emits one `MD` line containing only the fields that changed
 **When you get it:** Subscribe with `CH=TOP|SYM=<symbol>`.  The gateway
 immediately sends a `SNAP` baseline, then streams incremental `MD` events.
 Since CALF `1.0.0`, `SYM=*` is also valid on `TOP` — it produces one `SNAP`
-per known symbol rather than a single wildcard snapshot (see "Channel
-summary" below).
+per known symbol rather than a single wildcard snapshot (see
+[Step 3 — Receive snapshots](#step-3-receive-snapshots) for the full
+walkthrough of this burst behaviour).
 
 **Typical use cases:** algo trading, live bid/ask/last widgets, real-time price
 tracking.
@@ -416,10 +436,13 @@ IDX|CH=INDEX|SYM=EDU50|SEQ=12|TS=2026-06-30T09:30:01.100Z|LEVEL=5123.45|SESSION=
 ### Channel `DEPTH` — aggregated multi-level order book
 
 `DEPTH` carries the top N price levels per side (Level 2 — aggregated by
-price, never per individual order). Whenever any of the tracked levels
-change, the gateway emits a `DEPTH` line with the **complete current ladder**
-for the affected side(s), not a per-level diff — a client always replaces
-its in-memory ladder for that side on receipt.
+price, never per individual order). Whenever the ladder changes on either
+side, the gateway emits a `DEPTH` line carrying the **complete current
+ladder for both sides that currently have resting liquidity** — not a
+per-level diff, and not filtered down to only the side that changed. A side
+is omitted from the line only when it is empty, never because it happens not
+to have moved. A client always replaces its in-memory ladder for both sides
+on receipt.
 
 **When you get it:** Subscribe with `CH=DEPTH|SYM=<symbol>`. The gateway
 immediately sends a `SNAP` baseline, then streams `DEPTH` updates whenever
@@ -448,8 +471,9 @@ DEPTH|CH=DEPTH|SYM=AAPL|SEQ=2|TS=2026-06-30T09:30:00.500Z|LEVELS=10|BIDS=150.10:
 Each level in `BIDS`/`ASKS` is `PRICE:QTY:COUNT`, comma-separated, best price
 first. `QTY` is the total resting quantity at that price; `COUNT` is how many
 individual orders were aggregated into it. A side with no liquidity omits its
-field entirely. Every `DEPTH` line (and the `SNAP`) carries the **complete**
-current ladder for the affected side(s) — replace, don't merge.
+field entirely — not because it wasn't the side that changed. Every `DEPTH`
+line (and the `SNAP`) carries the **complete** current ladder for both sides
+that have any resting liquidity — replace, don't merge.
 
 The number of levels per side (`LEVELS`, default 10) is a gateway-wide
 setting (`market_data_gateway.depth_levels`) — there is no per-client
@@ -520,7 +544,9 @@ HELLO|CLIENT=mybot|PROTO=CALF1
 `1.0.0` and earlier gateways.  The gateway replies with `WELCOME` or closes
 the connection on protocol error.  Check the `SYMBOLS` field in `WELCOME` for
 the list of configured symbols — useful for building a dynamic subscription
-list.  Also check `CH_SUPPORTED`: if present, it lists every channel this
+list.  `SYMBOLS` is **omitted entirely** if the gateway has not learned of any
+symbols yet, so treat a missing field the same as an empty list rather than an
+error.  Also check `CH_SUPPORTED`: if present, it lists every channel this
 gateway build actually supports (e.g. `TOP,TRADE,STATE,INDEX,DEPTH`).  If
 `CH_SUPPORTED` is **absent**, assume a pre-`1.0.0` gateway that only supports
 `TOP`/`TRADE`/`STATE` and no `SYM=*` wildcard outside `STATE`.
@@ -633,9 +659,24 @@ If the requested `LASTSEQ` is older than the window the gateway sends
 `ERR|CODE=REPLAY_MISS|...` followed by a fresh `SNAP`.  Accept the `SNAP` and
 reset your local state.
 
+**Recovery option 3 — nothing was ever recorded for the stream**
+
+If the gateway has never emitted anything for that exact `(CH, SYM)` pair (or
+the buffer has aged everything out), `RESUME=1` returns **zero replay
+lines** — no `ERR|CODE=REPLAY_MISS` and no fresh `SNAP` either. The session
+just resumes live from that point. Don't treat an empty replay as a failure;
+if you need a guaranteed baseline after reconnecting, re-`SUB` to the stream
+to force a `SNAP` rather than relying on `RESUME=1` alone.
+
 !!! note
     `RESUME=1` applies to **one stream per `HELLO`**.  For multi-stream
     recovery, reconnect normally and re-`SUB`; the gateway sends fresh `SNAP`s.
+
+!!! warning "`SYM=*` is never valid on `RESUME=1`"
+    Unlike `SUB`, where `SYM=*` is accepted for `TOP`/`TRADE`/`STATE`, a
+    `HELLO|RESUME=1|...|SYM=*` request is always rejected with
+    `ERR|CODE=INVALID_SYMBOL` and the connection is closed — even for those
+    same three channels. `RESUME=1` only ever replays one concrete symbol.
 
 
 ## Python subscriber example
@@ -808,6 +849,10 @@ with socket.create_connection(("127.0.0.1", 5570), timeout=5) as sock:
             print(f"ERR {msg.fields['CODE']}: {msg.fields.get('MSG','')}")
             if msg.fields["CODE"] == "SLOW_CLIENT":
                 break  # terminal — must reconnect
+            # Note: a slow-client disconnect is not guaranteed to send this
+            # ERR first — the gateway may just drop the queue and close the
+            # socket. `reader.recv_line()` returning empty/raising on a
+            # closed connection is the other signal to treat as terminal.
 ```
 
 ### Run the bundled examples
@@ -841,11 +886,19 @@ cd docs/examples/calf && make
 | `AUTH_REQUIRED`   | `SUB` sent before `HELLO`                        | Send `HELLO` first                                |
 | `PROTO_MISMATCH`  | Wrong or missing `PROTO`                         | Use `PROTO=CALF1`                                 |
 | `INVALID_CHANNEL` | Unknown `CH` value                               | Use `TOP`, `TRADE`, `STATE`, `INDEX`, or `DEPTH`  |
-| `INVALID_SYMBOL`  | Unknown symbol, or `SYM=*` used with `INDEX`/`DEPTH` | Use configured symbols; `SYM=*` only for `STATE`/`TOP`/`TRADE` |
+| `INVALID_SYMBOL`  | Unknown symbol; or `SYM=*` used with `INDEX`/`DEPTH`; or `SYM=*` used at all on `HELLO\|RESUME=1` | Use configured symbols; `SYM=*` only for `STATE`/`TOP`/`TRADE` on `SUB` — never on `RESUME=1` |
 | `SUB_LIMIT`       | Too many subscribed symbols                      | Reduce requested symbol set                       |
+| `RATE_LIMITED`    | Client exceeded `max_messages_per_second`        | Slow down the send rate; connection stays open    |
 | `REPLAY_MISS`     | Requested replay is outside buffer window        | Accept fresh `SNAP` and reset local baseline      |
-| `SLOW_CLIENT`     | Client cannot drain the outbound stream fast enough | Reconnect and process faster; terminal error   |
+| `SLOW_CLIENT`     | Client cannot drain the outbound stream fast enough | Gateway closes the connection without necessarily sending this `ERR` first (queue is dropped, not flushed) — reconnect and process faster |
 | `BAD_MESSAGE`     | Malformed or oversized line (> 4096 bytes)       | Fix line syntax/framing                           |
+
+!!! note "Connection refused with no CALF response at all"
+    If the gateway is already at `max_connections`, it accepts the TCP socket
+    and closes it immediately — there is no `HELLO`/`WELCOME` exchange and no
+    `ERR` line, so this looks like a bare connection failure, not a protocol
+    error. Treat an immediate disconnect right after connecting (before any
+    `WELCOME`) as a possible sign the gateway is at its connection cap.
 
 
 ## Operational checklist
@@ -887,8 +940,10 @@ Whatever you build, the same six habits keep it correct:
    (TOP) or replace the ladder on each `DEPTH`.
 4. **Watch `SEQ`** — track it per `(CH, SYM)`; on a gap, reconnect with `RESUME=1`
    or re-`SUB` for a fresh `SNAP`.
-5. **Stay alive** — treat `HB` as a liveness signal, answer nothing; on
-   `SLOW_CLIENT` you *must* reconnect and consume faster.
+5. **Stay alive** — treat `HB` as a liveness signal, answer nothing; treat
+   any unexpected disconnect on a busy stream as a possible slow-client
+   condition (an `ERR|CODE=SLOW_CLIENT` may or may not arrive first) and
+   reconnect while consuming faster.
 6. **Degrade gracefully** — if `CH_SUPPORTED` lacks `DEPTH`/`INDEX`, fall back
    instead of subscribing blindly.
 

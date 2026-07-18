@@ -56,7 +56,7 @@ A financial exchange must be able to answer questions after the fact:
 - Which gateways were active at a given time?
 
 The audit trail answers all of these by preserving every message exactly as
-it was broadcast, with a microsecond-precision UTC timestamp.
+it was broadcast, with a millisecond-precision UTC timestamp.
 
 
 
@@ -98,7 +98,9 @@ pm-audit [options]
 | `--flush-interval SECONDS` | `10.0` | Maximum seconds to wait before flushing buffer regardless of size |
 | `--log-level` | `WARNING` | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 | `-v` / `--verbose` | off | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`) |
-| `-q` / `--quiet` | off | Reduce output to warnings/errors |
+| `-q` / `--quiet` | off | No-op — the default level is already `WARNING`, so `--quiet` currently sets the same level and has no observable effect |
+
+`--log-level` takes priority over `-v`/`-q` when both are given.
 
 ### Write buffering
 
@@ -215,7 +217,7 @@ This follows the same pattern as `pm-stats-cli` and `pm-clearing-cli`.
 
 ### Global options
 
-These flags apply to every command:
+These flags are parsed once, before the subcommand:
 
 | Flag | Default | Description |
 |---|---|---|
@@ -223,7 +225,20 @@ These flags apply to every command:
 | `--log-dir PATH` | (parent of `--log-file`) | Directory containing rotated log backups; when set, rotated files are discovered automatically |
 | `--format table\|json\|csv` | `table` | Output format |
 | `--no-header` | off | Suppress CSV header row |
-| `--use-index PATH` | (auto) | Path to SQLite index file; auto-detected as `<log-dir>/audit_index.db` when present |
+| `--use-index PATH` | (auto) | Path to SQLite index file; auto-detected as `<the directory containing --log-file>/audit_index.db` when present |
+
+!!! note "Not every flag applies to every command"
+    `--use-index` only affects the `events` command — `orders`, `trades`,
+    `topics`, `gateways`, and `timeline` always stream the JSONL log files
+    directly and never consult the SQLite index, even when one exists and
+    `--use-index` is given. `--format`/`--no-header` are also ignored by
+    `stats` (its output is a fixed text summary, not a table) and by `index`
+    (which prints build progress, not rows).
+
+    The auto-detected index path is always `<the directory containing
+    --log-file>/audit_index.db` — it does **not** use `--log-dir`. If
+    `--log-dir` points somewhere other than `--log-file`'s own parent
+    directory, the index lookup still only checks the log file's parent.
 
 **Output formats:**
 
@@ -290,6 +305,15 @@ pm-audit-cli events [options]
 | `order_id` | Order ID extracted from payload (if present) |
 | `summary` | Brief human-readable description of the event |
 
+!!! note "`summary` format differs when the SQLite index is used"
+    When `events` is served from the JSONL log files, `summary` is a
+    structured, topic-aware description (e.g. `FILL 60@150.00`). When a
+    usable index exists at the resolved `--use-index` path, `events` is
+    served from SQLite instead, and `summary` is just the payload dict's
+    `str()` representation truncated to 80 characters — a different, less
+    readable format. Rebuild the index after querying if you need the
+    latest events; the index is never queried automatically for freshness.
+
 **Examples:**
 
 ```bash
@@ -348,13 +372,23 @@ pm-audit-cli orders [options]
 |---|---|
 | `timestamp` | Event timestamp |
 | `order_id` | Order identifier |
-| `event` | Event type suffix (e.g. `new`, `ack.GW01`, `fill.GW01`, `cancel.GW01`) |
+| `event` | Last dot-separated segment of the topic. For two-part topics like `order.new` this is the verb (`new`). For per-gateway topics like `order.ack.GW01`, `order.fill.GW01`, or `order.cancelled.GW01` it is the **gateway ID**, not the verb — the topic's own verb segment (`ack`, `fill`, `cancelled`) is dropped. |
 | `gateway` | Gateway ID |
 | `symbol` | Instrument symbol |
 | `side` | `BUY` or `SELL` |
-| `qty` | Quantity (original, filled, or remaining depending on event type) |
+| `qty` | `quantity`, then `filled_qty`, then `remaining_qty` — whichever key is present first in the payload |
 | `price` | Price (limit price or fill price depending on event type) |
 | `status` | Order status after the event |
+
+!!! warning "`qty` does not show the fill quantity for order.fill events"
+    The `qty` column looks for a `filled_qty` key as its second choice, but
+    `order.fill.{GW_ID}` payloads actually use the key `fill_qty` (see
+    [Messages — order.fill](270-messages.md#orderfillgw_id)). Since neither
+    `quantity` nor `filled_qty` is present on a fill event, `qty` falls
+    through to `remaining_qty` instead — the quantity left on the order, not
+    the quantity filled in that event. Use `timeline` (which shows the full
+    payload) or `events --topic order.fill` if you need the actual fill
+    size.
 
 **Examples:**
 
@@ -411,13 +445,13 @@ pm-audit-cli trades [options]
 | Column | Description |
 |---|---|
 | `timestamp` | Trade execution timestamp |
-| `trade_id` | Trade UUID assigned by the engine |
+| `trade_id` | Trade identifier — a monotonically increasing integer (as a string, e.g. `"42"`), unique within a single engine run. Not a UUID. |
 | `symbol` | Instrument symbol |
 | `price` | Execution price |
 | `quantity` | Matched quantity |
 | `buy_gateway` | Buyer gateway ID |
 | `sell_gateway` | Seller gateway ID |
-| `aggressor` | Which side crossed the spread: `BUY` or `SELL` |
+| `aggressor` | Which side crossed the spread: `BUY`, `SELL`, or `AUCTION` for trades produced by an auction match |
 
 **Examples:**
 
@@ -604,8 +638,10 @@ pm-audit-cli timeline --symbol AAPL \
   --from 2026-07-08T09:30:00+00:00 --to 2026-07-08T16:00:00+00:00 \
   --limit 2000
 
-# All session state changes across the day
-pm-audit-cli timeline --topic session.state --date 2026-07-08
+# All session state changes across the day (timeline has no --date flag;
+# use --from/--to to bound a trading day instead)
+pm-audit-cli timeline --topic session.state \
+  --from 2026-07-08T00:00:00+00:00 --to 2026-07-08T23:59:59+00:00
 
 # Only trades and fills in the closing auction
 pm-audit-cli timeline --topic trade. \
@@ -696,7 +732,7 @@ pm-audit-cli index [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--output PATH` | `<log-dir>/audit_index.db` | Destination SQLite database |
+| `--output PATH` | `<the directory containing --log-file>/audit_index.db` | Destination SQLite database |
 | `--days N` | (none) | Index only the last N days of logs |
 | `--from ISO_TS` | (none) | Start of index range |
 | `--to ISO_TS` | (none) | End of index range |
@@ -704,6 +740,12 @@ pm-audit-cli index [options]
 | `--incremental` | off | Add only entries newer than the last indexed timestamp |
 
 `--rebuild` and `--incremental` are mutually exclusive.
+
+!!! warning "Re-running `index` without `--rebuild`/`--incremental` duplicates rows"
+    Without either flag, `index` re-inserts every entry in the requested
+    range on each run with no deduplication — running the same `--days 7`
+    command twice doubles the row count for that window. Use `--incremental`
+    for routine re-indexing, or `--rebuild` to start clean.
 
 **Index schema highlights:**
 
@@ -845,9 +887,10 @@ pm-audit-cli --log-dir data/ \
 | `1` | I/O error (log file not found, unreadable database) |
 | `2` | Argument error (invalid date format, bad `--limit`, conflicting flags) |
 
-Invalid log lines (malformed JSON, truncated writes) are silently skipped.
-The tool prints a warning to stderr only when the `--verbose` flag is
-available and enabled.
+Invalid log lines (malformed JSON, truncated writes) are always silently
+skipped — no warning is printed, and there is no global `--verbose` flag on
+`pm-audit-cli` to enable one. (`stats --verbose` is a different, per-command
+flag that only adds a per-file size/count breakdown to the `stats` output.)
 
 
 

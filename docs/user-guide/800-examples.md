@@ -23,6 +23,10 @@ and the REST API:
 | BALF | `pm-balf-gwy` | 5560 | `docs/examples/balf` |
 | REST | `pm-api-gwy`  | 8080 | `docs/examples/REST` |
 
+This chapter does not cover the ready-to-use engine configuration templates
+under `docs/examples/ref_data` — see
+[Example Engine Configs](810-example-configs.md) for those.
+
 See also: [Protocol Overview](210-protocol-overview.md)
 
 
@@ -37,6 +41,7 @@ connect over TCP and exchange text lines using the ALF wire format.
 
 | File | Description |
 |------|-------------|
+| [alf/README.md](../examples/alf/README.md) | Directory overview and quick-start |
 | [alf/python/alf_parser.py](../examples/alf/python/alf_parser.py) | Python parser, builder, and session helper |
 | [alf/python/alf_client.py](../examples/alf/python/alf_client.py) | Interactive Python client with tab-completion |
 | [alf/c/alf_parser.h](../examples/alf/c/alf_parser.h) | C library header |
@@ -74,7 +79,7 @@ Segments without `=` are silently skipped.  Duplicate keys: last value wins.
 : Block until one complete `\n`-terminated line arrives and parse it.
 
 **`AlfSession.close()`**
-: Send `PING` (optional liveness check) and close the socket.
+: Send `EXIT` and close the socket.
 
 ### Python usage pattern
 
@@ -84,7 +89,7 @@ from alf_parser import parse_alf_line, build_alf_line, AlfSession, AlfMessage
 # Parse one line received from the gateway
 msg: AlfMessage = parse_alf_line("ACK|ORDER_ID=abc|ACCEPTED=TRUE|SYMBOL=AAPL")
 print(msg.msg_type)   # "ACK"
-print(msg.fields)     # {"ORDER_ID": "ABC", "ACCEPTED": "TRUE", "SYMBOL": "AAPL"}
+print(msg.fields)     # {"ORDER_ID": "abc", "ACCEPTED": "TRUE", "SYMBOL": "AAPL"}
 
 # Build a line to send
 line: str = build_alf_line("NEW", {
@@ -208,10 +213,19 @@ See also:
 CALF (`pm-md-gwy`) is the market data feed gateway.  Subscribers connect over
 TCP and receive a stream of top-of-book, trade, and other market-data events.
 
+The example subscribers are more than a single trivial subscription: they
+combine `TOP`, `TRADE`, `STATE` (including the session-wide `SYM=*`
+wildcard), and Level 2 `DEPTH` in one client, maintain a small top-of-book
+cache (incremental `MD` updates omit unchanged sides), pretty-print the
+`DEPTH` ladder, detect gaps in the per-`(CH,SYM)` `SEQ` counters, and check
+`WELCOME|CH_SUPPORTED=` before relying on channels that may not exist on an
+older gateway build.
+
 ### Source files
 
 | File | Description |
 |------|-------------|
+| [calf/README.md](../examples/calf/README.md) | Directory overview and quick-start |
 | [calf/calf_parser.py](../examples/calf/calf_parser.py) | Python parser and builder |
 | [calf/calf_subscriber.py](../examples/calf/calf_subscriber.py) | Python subscriber example |
 | [calf/calf_parser.h](../examples/calf/calf_parser.h) | C library header |
@@ -225,7 +239,8 @@ TCP and receive a stream of top-of-book, trade, and other market-data events.
 MSGTYPE|KEY=VALUE|KEY=VALUE\n
 ```
 
-Fields missing `=` raise `CalfParseError`.  Duplicate keys are not permitted.
+Fields missing `=` raise `CalfParseError`.  Duplicate keys: last value wins
+(same as ALF), the parser never raises for this case.
 
 ### Python API — `calf_parser.py`
 
@@ -261,14 +276,27 @@ print(top.fields["BID"])     # "149.50"
 ```bash
 cd docs/examples/calf
 
-# Subscribe to TOP and TRADE for AAPL
+# Subscribe to TOP/TRADE/STATE/DEPTH for AAPL and MSFT
 python3 calf_subscriber.py --host 127.0.0.1 --port 5570 \
-    --channels TOP,TRADE --symbols AAPL
+    --symbols AAPL,MSFT
+
+# Also subscribe to an index feed (skipped if the gateway doesn't advertise
+# INDEX support in WELCOME|CH_SUPPORTED=)
+python3 calf_subscriber.py --host 127.0.0.1 --port 5570 \
+    --symbols AAPL --index EDU100
 
 # Resume from a known sequence number (single-stream resume)
 python3 calf_subscriber.py --host 127.0.0.1 --port 5570 \
     --resume --resume-ch TOP --resume-sym AAPL --lastseq 1042
 ```
+
+Channels are not selected with a flag — the client always requests every
+channel the connected gateway advertises via `WELCOME|CH_SUPPORTED=`
+(`TOP`, `TRADE`, `STATE`, `DEPTH`), plus a separate session-wide
+`SUB|CH=STATE|SYM=*` subscription and, if `--index` is given, `SUB|CH=INDEX`.
+Run `python3 calf_subscriber.py --help` for the full flag list, including
+`--client` and `--no-state-wildcard` (skip the session-wide `STATE`
+subscription).
 
 ### C API — `calf_parser.h`
 
@@ -295,8 +323,12 @@ printf("%s\n", calf_get_field(&msg, "BID"));  /* "149.50" */
 ```bash
 cd docs/examples/calf
 make
-./calf_subscriber 127.0.0.1 5570
+./calf_subscriber 127.0.0.1 5570 AAPL,MSFT EDU100
 ```
+
+Arguments are positional: `host [port [symbols [index_id]]]`.  `symbols` is
+a comma-separated list (default `AAPL`); `index_id` is optional (default:
+skip the `INDEX` subscription).
 
 ### Manual gateway sanity check
 
@@ -325,10 +357,22 @@ RALF (`pm-ralf-gwy`) is the post-trade dissemination gateway.  Clients
 connect over TCP and receive execution reports, drop-copy events, and
 audit records.
 
+The example subscribers subscribe to every channel a role is actually
+entitled to (`CLEARING`/`DROP_COPY` → that channel only, `AUDIT` → all
+three) in **one** combined `SUB`, then put the received `EXEC`/`EOD` data
+to use: a running per-symbol executed-volume tally that de-duplicates
+`EXEC` lines by `EXEC_ID` (a single executed trade is delivered once per
+subscribed channel, so an `AUDIT` client receives the same trade up to
+three times and naively counting raw lines would overstate volume).  Both
+examples also detect gaps in the per-channel `SEQ` counters, cross-check
+the tally against each `EOD`'s `TRADE_COUNT`, and print a final tally on
+Ctrl-C shutdown.
+
 ### Source files
 
 | File | Description |
 |------|-------------|
+| [ralf/README.md](../examples/ralf/README.md) | Directory overview and quick-start |
 | [ralf/ralf_parser.py](../examples/ralf/ralf_parser.py) | Python parser and builder |
 | [ralf/ralf_subscriber.py](../examples/ralf/ralf_subscriber.py) | Python subscriber example |
 | [ralf/ralf_parser.h](../examples/ralf/ralf_parser.h) | C library header |
@@ -383,14 +427,27 @@ print(fill.fields["PRICE"]) # "150.00"
 ```bash
 cd docs/examples/ralf
 
-# Subscribe as CLEARING role, all channels, all symbols
-python3 ralf_subscriber.py --host 127.0.0.1 --port 5580 \
-    --role CLEARING --channels CLEARING,DROP_COPY,AUDIT --symbols '*'
+# Subscribe as CLEARING role — --role defaults the subscribed channel(s)
+# to exactly what that role may access (here: just the CLEARING channel)
+python3 ralf_subscriber.py --host 127.0.0.1 --port 5580 --role CLEARING
 
 # Resume from a known sequence number
 python3 ralf_subscriber.py --host 127.0.0.1 --port 5580 \
-    --role CLEARING --channels CLEARING --symbols '*' --lastseq 77
+    --role CLEARING --lastseq 77
 ```
+
+Pass `--channels` explicitly to override a role's default channel set —
+this is also how to trigger `ERR|CODE=ENTITLEMENT_DENIED` on purpose, by
+requesting a channel outside the role's entitlement:
+
+```bash
+# CLEARING is only entitled to the CLEARING channel, so requesting AUDIT
+# gets rejected
+python3 ralf_subscriber.py --role CLEARING --channels AUDIT
+```
+
+Run `python3 ralf_subscriber.py --help` for the full flag list, including
+`--client` and `--symbols` (defaults to `*`).
 
 ### C API — `ralf_parser.h`
 
@@ -417,8 +474,11 @@ printf("%s\n", ralf_get_field(&msg, "PRICE")); /* "150.00" */
 ```bash
 cd docs/examples/ralf
 make
-./ralf_subscriber 127.0.0.1 5580 CLEARING
+./ralf_subscriber 127.0.0.1 5580 AUDIT
 ```
+
+Arguments are positional: `host [port [role]]` (`role` one of `CLEARING`,
+`DROP_COPY`, `AUDIT`; default `CLEARING`).
 
 ### Manual gateway sanity check
 
@@ -483,6 +543,7 @@ Prices are encoded as fixed-point integers scaled by `100_000_000`
 | `MSG_AMEND_ACK` | `0x15` | Amend acknowledgement |
 | `MSG_EXECUTION_REPORT` | `0x20` | Fill / execution report |
 | `MSG_HEARTBEAT` | `0x30` | Heartbeat |
+| `MSG_HEARTBEAT_ACK` | `0x31` | Heartbeat acknowledgement |
 | `MSG_LOGOUT` | `0x40` | Session logout |
 
 ### Python API — `balf_parser.py`
@@ -510,8 +571,10 @@ Prices are encoded as fixed-point integers scaled by `100_000_000`
 
 **`parse_execution_report(body: bytes) → dict`**
 : Decode an `EXECUTION_REPORT` body.  Returns a dict with keys
-  `client_order_id`, `order_id`, `fill_price_raw`, `fill_qty`,
-  `remaining_qty`, `timestamp_ns`, `symbol`, `side`, `status`.
+  `client_order_id`, `order_id`, `fill_price`, `fill_qty`,
+  `remaining_qty`, `timestamp_ns`, `symbol`, `side`, `status`.  `fill_price`
+  is already converted to a float via `decode_price()` — no further
+  scaling is needed.
 
 ### Python usage pattern
 
@@ -528,12 +591,34 @@ hdr, body = split_frame(raw_bytes)
 
 if hdr.msg_type == MSG_EXECUTION_REPORT:
     report = parse_execution_report(body)
-    price = decode_price(report["fill_price_raw"])
+    price = report["fill_price"]  # already decoded to a float
     print(f"fill: {report['symbol']} qty={report['fill_qty']} price={price}")
 elif hdr.msg_type == MSG_ORDER_ACK:
     ack = parse_order_ack(body)
     print(f"order_id={ack['order_id']} accepted={ack['accepted']}")
 ```
+
+### C reference decoder — `balf_parser.c`
+
+Unlike the ALF and CALF C libraries, `balf_parser.c` has no header file and
+its functions are all `static` — it is a single self-contained reference
+program, not a linkable library.  It builds a synthetic `LOGON_ACK` frame in
+memory, decodes it with the same `split_frame`/`parse_header` logic a real
+client would use, and prints the result as a self-test:
+
+```bash
+cd docs/examples/balf
+cc -std=c11 -Wall -Wextra -pedantic -O2 balf_parser.c -o balf_parser
+./balf_parser
+# → LOGON_ACK gateway_id=TRADER01 accepted=1 reject_code=0 msg=ok
+#   balf_parser.c self-test: OK
+```
+
+There is no BALF C (or Python) network client example — only the parsing
+logic is provided.  To exercise BALF end-to-end, connect a TCP client to
+`pm-balf-gwy` and feed received frames through `split_frame()`
+(Python: [`balf_parser.py`](../examples/balf/balf_parser.py)) or the C
+reference decoder's parsing functions.
 
 ### Run the gateway
 

@@ -83,7 +83,8 @@ api_gateways:
 
 The engine's `gateways.alf` allowlist remains authoritative. If a credential
 maps to `TRADER01` but `TRADER01` is not allowed by the engine config, the
-engine rejects the API gateway handshake.
+engine rejects the API gateway handshake and every request using that
+credential fails with `403` and error code `ENGINE_AUTH`.
 
 Use multiple named entries when you want logical process separation, such as one
 gateway for a human trading desk and another for automated clients. Each
@@ -163,6 +164,20 @@ WebSocket clients send the API key as their first JSON message:
 
 Read-only credentials (`gateway_id: null`) can use `/api/v1/market-data` but
 cannot submit, cancel, or inspect private orders.
+
+| Error code | Status | Cause |
+|---|---|---|
+| `AUTH` | `401` | Missing/malformed `Authorization` header, or an unrecognized API key |
+| `ENGINE_AUTH` | `403` | The credential's `gateway_id` isn't allowed by the engine's `gateways.alf` list |
+| `READ_ONLY` | `403` | A `gateway_id: null` credential called a trading-only endpoint |
+| `ROLE_DENIED` | `403` | Credential's gateway lacks the `ADMIN` role on an `/admin/*` call |
+| `RATE_LIMIT` | `429` | Per-key write rate limit exceeded |
+| `DUPLICATE` | `409` | `client_order_id` already active for the session |
+| `VALIDATION` | `422`/`400` | Malformed request body or query parameters |
+| `STATS_DB` | `503` | `pm-stats`' SQLite file doesn't exist yet |
+| `ENGINE_TIMEOUT` | `503` | No engine reply within the configured timeout |
+| `INDEX_TIMEOUT` | `503` | No `pm-index` reply within the configured timeout |
+| `INDEX_ERROR` | `502` | `pm-index` rejected the request |
 
 
 ## REST endpoints
@@ -257,6 +272,13 @@ cache returns `409 Conflict`.
 | `PATCH /orders/{order_id}`        | `{ "price": 151.00 }`, `{ "quantity": 200 }`, or both |
 | `POST /orders/{order_id}/replace` | same shape as `POST /orders`                          |
 
+`?wait=ack` is not limited to `POST /orders` — both `DELETE /orders/{order_id}`
+and `PATCH /orders/{order_id}` also accept it, waiting on the matching
+`order.cancelled.*`/`order.amended.*` event the same way. `POST
+/orders/{order_id}/replace` has no `wait` parameter; it always waits
+synchronously for the cancel to be acknowledged before submitting the
+replacement (see [Implementation notes](#implementation-notes-and-design-deviations)).
+
 
 ### OCO, combos, quotes, and mass cancel
 
@@ -266,6 +288,22 @@ cache returns `409 Conflict`.
 | `POST /combos` | `{ "combo_id":"spread-1", "legs":[{"symbol":"AAPL","side":"BUY","quantity":100,"price":150.0},{"symbol":"MSFT","side":"SELL","quantity":100,"price":410.0}] }` |
 | `POST /quotes` | `{ "symbol":"AAPL", "bid_price":150.0, "bid_qty":500, "ask_price":150.1, "ask_qty":500 }` |
 | `POST /mass-cancel` | `{ "symbol":"AAPL" }` or `{}` for all symbols |
+
+
+### Orders, positions, and reference data
+
+| Endpoint | Returns | Notes |
+|---|---|---|
+| `GET /orders` | `{ "orders": [...] }` | Live orders for the caller's gateway, keyed off the gateway's order cache; requests a fresh snapshot from the engine and falls back to the cache on timeout |
+| `GET /orders/{order_id}` | The cached order dict for `order_id` | Read-only, served entirely from the gateway's local cache (no engine round-trip); returns `404` with a plain `{"detail": "Unknown order"}` body if not found — **not** the `{"error": {...}}` envelope used by every other error response in this gateway |
+| `GET /symbols` | `{ "symbols": [...] }` | Instrument metadata, round-tripped from the engine's `system.symbols_request` |
+| `GET /session` | Current `SessionState` and schedule info | Round-tripped from the engine's `system.session_status` reply |
+| `GET /quotes/bootstrap` | Active MM quote bootstrap state | Round-tripped from the engine |
+| `GET /quotes/legs` | `{ "legs": [...] }` | Served from the gateway's local quote-leg cache when populated, otherwise round-tripped from the engine |
+| `GET /positions` | `{ "positions": [{"symbol", "net_qty", "last_price"}, ...] }` | Computed entirely from the gateway's local fill cache — no engine round-trip |
+
+All of the round-tripped endpoints above return `503` with error code
+`ENGINE_TIMEOUT` if the engine doesn't reply within `timeouts.engine_reply_sec`.
 
 
 ### History endpoints
@@ -288,6 +326,7 @@ with no `gateway_id`.
 | Endpoint | Query parameters | Notes |
 |---|---|---|
 | `GET /history/orders` | `symbol`, `event_type`, `date`, `from`, `to`, `limit` (1–5000, default 500), `after` | Trading credential only; scoped to the caller's `gateway_id` |
+| `GET /history/orders/{order_id}` | none (path parameter only) | Trading credential only; full lifecycle for one order, scoped to the caller's `gateway_id`; **unbounded and unpaginated** — see the Pagination exceptions note below |
 | `GET /history/fills` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Trading credential only; `event_type=FILL` events for the caller's `gateway_id` |
 | `GET /history/trades` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Public trade tape |
 | `GET /history/daily` | `symbol`, `date`, `limit`, `after` | Omitting `date` returns the latest available date; no `from`/`to` range support |
@@ -308,6 +347,15 @@ beginning. Cursors are keyset-based (not a row offset), so pages stay
 correct — no skipped or duplicated rows — even if new data is being written
 concurrently. Treat the cursor string as opaque: its internal shape is not a
 stable contract and may change between releases.
+
+!!! note "Pagination exceptions"
+    Three endpoints do not follow the `count`/`has_more`/`next_cursor` contract
+    above: `GET /history/index-ids` and `GET /history/index-events` are each
+    documented separately below as intentionally unbounded/unpaginated.
+    `GET /history/orders/{order_id}` is also unbounded — it returns
+    `{ "events": [...], "count": N }` with **no `has_more` and no pagination at
+    all**, since it's a single order's full lifecycle rather than an
+    open-ended list.
 
 ```http
 GET /api/v1/history/trades?symbol=EDU100&limit=2
@@ -463,7 +511,7 @@ four. There are no level or end-of-day tick records here — use
 Base path: `/api/v1/admin`.
 
 These endpoints require an API key whose `gateway_id` maps to an engine gateway
-configured with the `ADMIN` role (`gateways.fix[].role: ADMIN`). The gateway
+configured with the `ADMIN` role (`gateways.alf[].role: ADMIN`). The gateway
 role is resolved from the engine at call time, not from the API credential.
 Callers without the ADMIN role receive `403` with error code `ROLE_DENIED`.
 
@@ -494,6 +542,10 @@ Behaviour notes:
   When the engine rejects the command (for example, an ADMIN-gate or validation
   failure) the ack carries `accepted: false` and the gateway returns `403` with
   the engine's `reason`.
+- `POST /admin/circuit-breaker/trigger`'s `level` field is currently accepted by
+  the request schema but **not forwarded to the engine** — the halt is always
+  triggered without an explicit level. Omit it or leave it `null`; a non-null
+  value has no effect today.
 - Write endpoints (`POST`) are subject to the same per-key write rate limit as
   order entry and return `429` when the limit is exceeded.
 - Requests that receive no engine reply within the configured timeout return
@@ -557,6 +609,10 @@ Market-data subscription control:
 Available market-data channels are `book`, `trades`, `depth`, and `auction`.
 The `auction` channel delivers auction uncross results
 (`auction.result.{SYMBOL}`) for the subscribed symbols.
+
+Symbol filtering is opt-in: if `symbols` is omitted (or empty), every symbol
+is delivered on each subscribed channel. Send a non-empty `symbols` list to
+narrow the feed to specific instruments.
 
 Session and circuit-breaker events are always delivered after authentication.
 
@@ -733,8 +789,16 @@ The health endpoint requires no authentication and is the fastest connectivity c
 
 ```bash
 curl -s http://127.0.0.1:8080/api/v1/healthz
-# Expected: {"ok": true}
+# Expected: {"ok": true, "enabled": true, "active_gateways": ["TRADER01"]}
 ```
+
+`ok` reflects whether the gateway is `enabled` in config **and** whether its
+own engine-event listener thread is alive — it does **not** confirm that
+`pm-engine` is actually up. The listener starts at process boot regardless of
+whether a peer is listening on the other end of the ZMQ socket, so `/healthz`
+can report `{"ok": true}` even before `pm-engine` has ever been started; it
+only flips to `false` if the gateway itself is disabled or its listener
+thread has crashed.
 
 Test an authenticated endpoint:
 
@@ -762,9 +826,11 @@ curl -v --no-buffer \
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `Connection refused` | Gateway not started or wrong port | Confirm `pm-api-gwy` is running; check `port` in `api_gateways` config |
-| `{"ok": false}` from `/healthz` | Engine ZMQ connection not established | Start `pm-engine` first |
-| `401 Unauthorized` | Missing or wrong `Authorization` header | Use `Authorization: Bearer <key>` with a key listed in `credentials` |
-| `403 Forbidden` | Credential has no `gateway_id`; endpoint requires one | Use a credential with a non-null `gateway_id` for order-entry endpoints |
+| `{"ok": false}` from `/healthz` | Gateway `enabled: false` in config, or its engine-listener thread crashed | Check `enabled` in the config block and the gateway's own logs — restarting `pm-engine` alone will not fix an already-`false` result, since `/healthz` doesn't actually probe engine liveness |
+| `401 Unauthorized` | Missing/wrong `Authorization` header (`AUTH`), or the engine rejected the gateway's own handshake for that `gateway_id` (`ENGINE_AUTH`, `403`) | Use `Authorization: Bearer <key>` with a key listed in `credentials`; if you get `403 ENGINE_AUTH` instead, check that the `gateway_id` is allowed by the engine's `gateways.alf` list |
+| `403 Forbidden` | Credential has no `gateway_id` (`READ_ONLY`); or lacks the ADMIN role on an `/admin/*` call (`ROLE_DENIED`) | Use a credential with a non-null `gateway_id` for order-entry endpoints, or one whose engine gateway has `role: ADMIN` for admin endpoints |
+| `409 Conflict` (`DUPLICATE`) | `POST /orders` reused a `client_order_id` already active in the session cache | Use a fresh `client_order_id` per order |
+| `429 Too Many Requests` (`RATE_LIMIT`) | Per-key write rate limit (`rate_limit.writes_per_second`/`burst`) exceeded | Slow down write requests for that API key |
 | `404` on all endpoints | Wrong base path or wrong `--instance` flag | Check `pm-api-gwy --instance NAME` matches the config block name |
 | Swagger UI not loading | `swagger_enabled: false` | Set `swagger_enabled: true` in the config block and restart |
 | History endpoints return empty results | `pm-stats` not running or wrong `stats_db` path | Start `pm-stats`; verify the `stats_db` path in config points to the correct file |
