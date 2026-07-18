@@ -60,14 +60,29 @@ def decode_cursor(cursor: str) -> dict[str, Any]:
 
 def _decode_two_field_cursor(
     cursor: str, primary_key: str, tiebreaker_key: str
-) -> tuple[Any, Any]:
-    """Decode a cursor expected to carry exactly *primary_key*/*tiebreaker_key*."""
+) -> tuple[str, int]:
+    """Decode a cursor expected to carry exactly *primary_key*/*tiebreaker_key*.
+
+    *primary_key* (a ``ts`` string) and *tiebreaker_key* (a ``seq``/``rowid``
+    integer) are type-checked here: an untyped, wrong-typed value would
+    otherwise flow straight into a SQL comparison, where SQLite's dynamic
+    typing can silently produce a query that "succeeds" but returns the
+    wrong (often empty) page instead of a clear error.
+    """
     fields = decode_cursor(cursor)
     if primary_key not in fields or tiebreaker_key not in fields:
         raise InvalidCursorError(
             f"Cursor is missing required field(s) {primary_key!r}/{tiebreaker_key!r}"
         )
-    return fields[primary_key], fields[tiebreaker_key]
+    primary = fields[primary_key]
+    tiebreaker = fields[tiebreaker_key]
+    if not isinstance(primary, str):
+        raise InvalidCursorError(f"Cursor field {primary_key!r} has an unexpected type")
+    if not isinstance(tiebreaker, int) or isinstance(tiebreaker, bool):
+        raise InvalidCursorError(
+            f"Cursor field {tiebreaker_key!r} has an unexpected type"
+        )
+    return primary, tiebreaker
 
 
 def open_readonly_connection(db_path: Path) -> sqlite3.Connection:
@@ -122,8 +137,30 @@ def query_daily(
     ``(date, symbol)`` is the table's primary key, so within the single
     resolved date this query is scoped to, ``symbol`` alone is already a
     unique, sortable tiebreaker — no ``rowid`` needed.
+
+    When the caller omits ``date``, the *first* page resolves and pins the
+    latest available date into its ``next_cursor``; subsequent pages reuse
+    that pinned date (rather than re-resolving "latest" each time) so a
+    day rollover mid-pagination can't silently switch the result set out
+    from under a caller partway through walking it. An explicit ``date``
+    always takes precedence over any pinned cursor date.
     """
-    selected_date = date_value or latest_daily_date(conn)
+    cursor_symbol: str | None = None
+    cursor_date: str | None = None
+    if after is not None:
+        fields = decode_cursor(after)
+        if "symbol" not in fields:
+            raise InvalidCursorError("Cursor is missing required field 'symbol'")
+        if not isinstance(fields["symbol"], str):
+            raise InvalidCursorError("Cursor field 'symbol' has an unexpected type")
+        cursor_symbol = fields["symbol"]
+        raw_cursor_date = fields.get("date")
+        if raw_cursor_date is not None:
+            if not isinstance(raw_cursor_date, str):
+                raise InvalidCursorError("Cursor field 'date' has an unexpected type")
+            cursor_date = raw_cursor_date
+
+    selected_date = date_value or cursor_date or latest_daily_date(conn)
     if selected_date is None:
         return [], None
 
@@ -137,12 +174,9 @@ def query_daily(
     if symbol is not None:
         sql += " AND symbol = ?"
         params.append(symbol)
-    if after is not None:
-        fields = decode_cursor(after)
-        if "symbol" not in fields:
-            raise InvalidCursorError("Cursor is missing required field 'symbol'")
+    if cursor_symbol is not None:
         sql += " AND symbol > ?"
-        params.append(fields["symbol"])
+        params.append(cursor_symbol)
 
     sql += " ORDER BY date DESC, symbol ASC LIMIT ?"
     params.append(limit)
@@ -151,7 +185,9 @@ def query_daily(
     results = [dict(row) for row in rows]
     next_cursor = None
     if len(results) == limit:
-        next_cursor = encode_cursor({"symbol": results[-1]["symbol"]})
+        next_cursor = encode_cursor(
+            {"symbol": results[-1]["symbol"], "date": selected_date}
+        )
     return results, next_cursor
 
 
@@ -370,8 +406,30 @@ def query_index_daily(
     ``(date, index_id)`` is the table's primary key, so within the single
     resolved date this query is scoped to, ``index_id`` alone is already a
     unique, sortable tiebreaker — no ``rowid`` needed.
+
+    When the caller omits ``date``, the *first* page resolves and pins the
+    latest available date into its ``next_cursor``; subsequent pages reuse
+    that pinned date (rather than re-resolving "latest" each time) so a
+    day rollover mid-pagination can't silently switch the result set out
+    from under a caller partway through walking it. An explicit ``date``
+    always takes precedence over any pinned cursor date.
     """
-    selected_date = date_value or latest_index_daily_date(conn)
+    cursor_index_id: str | None = None
+    cursor_date: str | None = None
+    if after is not None:
+        fields = decode_cursor(after)
+        if "index_id" not in fields:
+            raise InvalidCursorError("Cursor is missing required field 'index_id'")
+        if not isinstance(fields["index_id"], str):
+            raise InvalidCursorError("Cursor field 'index_id' has an unexpected type")
+        cursor_index_id = fields["index_id"]
+        raw_cursor_date = fields.get("date")
+        if raw_cursor_date is not None:
+            if not isinstance(raw_cursor_date, str):
+                raise InvalidCursorError("Cursor field 'date' has an unexpected type")
+            cursor_date = raw_cursor_date
+
+    selected_date = date_value or cursor_date or latest_index_daily_date(conn)
     if selected_date is None:
         return [], None
 
@@ -384,12 +442,9 @@ def query_index_daily(
     if index_id is not None:
         sql += " AND index_id = ?"
         params.append(index_id)
-    if after is not None:
-        fields = decode_cursor(after)
-        if "index_id" not in fields:
-            raise InvalidCursorError("Cursor is missing required field 'index_id'")
+    if cursor_index_id is not None:
         sql += " AND index_id > ?"
-        params.append(fields["index_id"])
+        params.append(cursor_index_id)
 
     sql += " ORDER BY date DESC, index_id ASC LIMIT ?"
     params.append(limit)
@@ -398,7 +453,9 @@ def query_index_daily(
     results = [dict(row) for row in rows]
     next_cursor = None
     if len(results) == limit:
-        next_cursor = encode_cursor({"index_id": results[-1]["index_id"]})
+        next_cursor = encode_cursor(
+            {"index_id": results[-1]["index_id"], "date": selected_date}
+        )
     return results, next_cursor
 
 

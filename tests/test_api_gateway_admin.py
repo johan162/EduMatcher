@@ -202,6 +202,34 @@ async def test_kill_switch_symbol_returns_ack() -> None:
 
 
 @pytest.mark.anyio
+async def test_symbol_scoped_admin_acks_pass_symbol_match() -> None:
+    """circuit-breaker trigger/resume and kill-switch/symbol must await
+    their acks with match={"symbol": ...} — without it, two concurrent
+    calls for different symbols would race on the same unfiltered topic
+    (see EngineClient._resolve_pending).
+    """
+    engine = AdminFakeEngine(ack_accepted=True)
+    request = admin_request(engine)
+    session = admin_session()
+
+    await admin.circuit_breaker_trigger(
+        CircuitBreakerTriggerRequest(symbol="aapl"), request, session
+    )
+    await admin.circuit_breaker_resume(
+        CircuitBreakerResumeRequest(symbol="aapl"), request, session
+    )
+    await admin.kill_switch_symbol(SymbolCancelRequest(symbol="aapl"), request, session)
+
+    await_event_calls = [call for call in engine.calls if call[0] == "await_event"]
+    topics_and_matches = {
+        topic: match for _, (topic, match, _timeout) in await_event_calls
+    }
+    assert topics_and_matches["risk.symbol_halt_ack.GW01"] == {"symbol": "AAPL"}
+    assert topics_and_matches["risk.symbol_resume_ack.GW01"] == {"symbol": "AAPL"}
+    assert topics_and_matches["risk.cancel_symbol_ack.GW01"] == {"symbol": "AAPL"}
+
+
+@pytest.mark.anyio
 async def test_halts_gateways_and_schedule_replies() -> None:
     engine = AdminFakeEngine()
     request = admin_request(engine)

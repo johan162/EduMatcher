@@ -93,6 +93,12 @@ class FakeEngine:
     def send_mass_cancel(self, gateway_id: str, symbol: str = "") -> None:
         self.calls.append(("send_mass_cancel", (gateway_id, symbol)))
 
+    async def send_and_await_kill_switch(
+        self, gateway_id: str, symbol: str, timeout: float
+    ) -> dict[str, Any]:
+        self.send_mass_cancel(gateway_id, symbol)
+        return await self.await_topic(f"risk.kill_switch_ack.{gateway_id}", timeout)
+
     def request_orders(self, gateway_id: str) -> None:
         self.calls.append(("request_orders", gateway_id))
 

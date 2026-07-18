@@ -295,9 +295,13 @@ async def test_history_index_events_also_reachable_with_trading_key() -> None:
         max_records=10_000,
     )
     assert result["count"] == 0
-    # A trading session's own gateway_id is used to address the pm-index
-    # reply topic (no synthesized "ro-<key>" id needed in this case).
-    assert fake.calls[0]["request_id"] == "GW01"
+    # A trading session's own gateway_id addresses the pm-index reply
+    # topic, with a per-call UUID suffix (see the collision test below) —
+    # the whole value is also upper-cased since pm-index upper-cases
+    # whatever it echoes back.
+    request_id = fake.calls[0]["request_id"]
+    assert request_id.startswith("GW01-")
+    assert request_id == request_id.upper()
 
 
 @pytest.mark.anyio
@@ -314,8 +318,42 @@ async def test_history_index_events_readonly_key_gets_synthesized_request_id() -
     )
     # A read-only session has no gateway_id; request_id must still be a
     # non-empty, caller-unique string so pm-index's reply topic is
-    # addressable.
-    assert fake.calls[0]["request_id"] == "ro-ro-key"
+    # addressable, and must be upper-cased (pm-index upper-cases the
+    # gateway_id it receives before using it in the reply topic name, so a
+    # mixed-case api_key-derived value must already match that).
+    request_id = fake.calls[0]["request_id"]
+    assert request_id.startswith("RO-KEY-")
+    assert request_id == request_id.upper()
+
+
+@pytest.mark.anyio
+async def test_history_index_events_request_id_unique_per_call() -> None:
+    """Two concurrent calls from the same session must not collide on the
+    same pm-index reply topic — see IndexClient._register_future, which
+    overwrites (not appends) any existing pending future for a given key.
+    """
+    fake = _FakeIndexClient()
+    await history.history_index_events(
+        _request_with(fake),
+        _trading_session(),
+        index_id="EDU100",
+        from_ts=None,
+        to_ts=None,
+        types=None,
+        max_records=10_000,
+    )
+    await history.history_index_events(
+        _request_with(fake),
+        _trading_session(),
+        index_id="EDU100",
+        from_ts=None,
+        to_ts=None,
+        types=None,
+        max_records=10_000,
+    )
+    first_id = fake.calls[0]["request_id"]
+    second_id = fake.calls[1]["request_id"]
+    assert first_id != second_id
 
 
 @pytest.mark.anyio

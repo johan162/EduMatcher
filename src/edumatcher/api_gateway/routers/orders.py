@@ -298,10 +298,10 @@ async def mass_cancel(
 ) -> dict[str, Any]:
     gateway_id = require_trading(session)
     _check_rate_limit(request, session)
-    request.app.state.engine.send_mass_cancel(gateway_id, body.symbol or "")
     try:
-        event = await request.app.state.engine.await_topic(
-            f"risk.kill_switch_ack.{gateway_id}",
+        event = await request.app.state.engine.send_and_await_kill_switch(
+            gateway_id,
+            body.symbol or "",
             request.app.state.config.timeouts.wait_ack_sec,
         )
         return cast(dict[str, Any], event)

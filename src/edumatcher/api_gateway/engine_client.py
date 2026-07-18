@@ -76,6 +76,13 @@ class EngineClient:
         # Per-gateway locks prevent duplicate gateway_connect messages when
         # concurrent requests authenticate the same gateway simultaneously.
         self._auth_locks: dict[str, asyncio.Lock] = {}
+        # risk.kill_switch_ack carries no per-call identifier (unlike the
+        # symbol halt/resume/cancel acks, which echo back `symbol`), so a
+        # second concurrent mass-cancel for the same gateway cannot be
+        # distinguished from the first once both acks are in flight. Rather
+        # than guess, serialize kill-switch calls per gateway so each call's
+        # send+await is atomic with respect to others on the same gateway.
+        self._kill_switch_locks: dict[str, asyncio.Lock] = {}
         self._caches: dict[str, SessionCaches] = defaultdict(SessionCaches)
         self._sinks: dict[str, set[asyncio.Queue[dict[str, Any]]]] = defaultdict(set)
         self._market_data_sinks: set[asyncio.Queue[dict[str, Any]]] = set()
@@ -220,19 +227,41 @@ class EngineClient:
             raise TimeoutError(f"Timed out waiting for {key}") from exc
 
     def _resolve_pending(self, topic: str, payload: dict[str, Any]) -> None:
+        """Resolve waiters on *topic* with *payload*.
+
+        Waiters with an explicit ``match`` only ever consume events whose
+        payload satisfies that filter, so distinct match values (e.g.
+        different ``order_id``s) are already correctly disambiguated and can
+        all resolve off the same incoming event.
+
+        Waiters with ``match=None`` accept *any* payload on the topic. A
+        single event must not resolve more than one such waiter — two
+        concurrent callers awaiting the same unfiltered topic (e.g. two
+        admin calls whose ack carries no per-call identifier) are logically
+        separate requests, and handing both of them the same reply would
+        silently answer the second caller with the first caller's result.
+        Instead, at most the oldest still-pending match=None waiter consumes
+        this event (FIFO); any others keep waiting for a subsequent event on
+        the same topic.
+        """
         waiters = self._pending.get(topic)
         if not waiters:
             return
         remaining: list[_PendingWait] = []
+        resolved_unmatched = False
         for waiter in waiters:
             if waiter.future.done():
                 continue
-            if waiter.match is not None and not all(
-                str(payload.get(k, "")) == v for k, v in waiter.match.items()
-            ):
-                remaining.append(waiter)
-            else:
+            if waiter.match is not None:
+                if all(str(payload.get(k, "")) == v for k, v in waiter.match.items()):
+                    waiter.future.set_result(payload)
+                else:
+                    remaining.append(waiter)
+            elif not resolved_unmatched:
                 waiter.future.set_result(payload)
+                resolved_unmatched = True
+            else:
+                remaining.append(waiter)
         if remaining:
             self._pending[topic] = remaining
         else:
@@ -371,6 +400,21 @@ class EngineClient:
 
     def send_mass_cancel(self, gateway_id: str, symbol: str = "") -> None:
         self._push.send_multipart(make_kill_switch_msg(gateway_id, symbol))
+
+    async def send_and_await_kill_switch(
+        self, gateway_id: str, symbol: str, timeout: float
+    ) -> dict[str, Any]:
+        """Send a mass-cancel/kill-switch request and await its one ack.
+
+        Serialized per gateway_id via ``_kill_switch_locks`` — see the note
+        on that attribute for why this can't simply rely on ``match=``
+        filtering the way order-scoped and symbol-scoped acks do.
+        """
+        if gateway_id not in self._kill_switch_locks:
+            self._kill_switch_locks[gateway_id] = asyncio.Lock()
+        async with self._kill_switch_locks[gateway_id]:
+            self.send_mass_cancel(gateway_id, symbol)
+            return await self.await_topic(f"risk.kill_switch_ack.{gateway_id}", timeout)
 
     def request_orders(self, gateway_id: str) -> None:
         self._push.send_multipart(make_orders_request_msg(gateway_id))

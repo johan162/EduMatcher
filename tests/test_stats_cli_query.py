@@ -10,6 +10,7 @@ import pytest
 from edumatcher.stats.main import SCHEMA
 from edumatcher.stats.query import (
     InvalidCursorError,
+    encode_cursor,
     open_readonly_connection,
     query_daily,
     query_dates,
@@ -690,3 +691,181 @@ def test_query_daily_paginates_across_symbols(seeded_db: Path) -> None:
     # page should come back empty with no further cursor.
     assert page2 == []
     assert cursor2 is None
+
+
+def _seed_daily_multi_symbol(path: Path, date: str, symbols: list[str]) -> None:
+    conn = sqlite3.connect(path)
+    conn.executescript(SCHEMA)
+    for symbol in symbols:
+        conn.execute(
+            "INSERT INTO daily_stats "
+            "(date, symbol, open_price, high_price, low_price, close_price, "
+            "volume, trade_count, vwap) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (date, symbol, 100.0, 101.0, 99.0, 100.5, 10, 1, 100.2),
+        )
+    conn.commit()
+    conn.close()
+
+
+def test_query_daily_cursor_pins_resolved_date_across_pages(tmp_path: Path) -> None:
+    """If the caller omits ``date``, the first page pins the resolved
+    "latest" date into its cursor; a day rollover between page fetches must
+    not silently switch a still-in-progress pagination walk onto the new
+    date (which would produce a wrong or emptied-out page).
+    """
+    db_path = tmp_path / "daily_rollover.db"
+    _seed_daily_multi_symbol(db_path, "2026-06-14", ["AAPL", "MSFT", "TSLA"])
+    conn = open_readonly_connection(db_path)
+    page1, cursor1 = query_daily(conn, date_value=None, symbol=None, limit=1)
+    conn.close()
+    assert [row["symbol"] for row in page1] == ["AAPL"]
+    assert cursor1 is not None
+
+    # Simulate a day rollover: a new, later date now has rows too, so
+    # re-resolving "latest" blind would pick 2026-06-15 instead.
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "INSERT INTO daily_stats "
+        "(date, symbol, open_price, high_price, low_price, close_price, "
+        "volume, trade_count, vwap) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        ("2026-06-15", "ZZZZ", 1.0, 1.0, 1.0, 1.0, 1, 1, 1.0),
+    )
+    conn.commit()
+    conn.close()
+
+    conn = open_readonly_connection(db_path)
+    page2, _cursor2 = query_daily(
+        conn, date_value=None, symbol=None, limit=1, after=cursor1
+    )
+    conn.close()
+
+    # Must continue walking the pinned 2026-06-14 page, not jump to the new
+    # "latest" 2026-06-15 (which would either return ZZZZ or nothing).
+    assert [row["symbol"] for row in page2] == ["MSFT"]
+
+
+def test_query_daily_explicit_date_overrides_cursor_pin(tmp_path: Path) -> None:
+    """An explicit ``date`` always wins over any date pinned in the cursor."""
+    db_path = tmp_path / "daily_explicit.db"
+    _seed_daily_multi_symbol(db_path, "2026-06-14", ["AAPL", "MSFT"])
+    _seed_daily_multi_symbol(db_path, "2026-06-15", ["AAPL", "MSFT"])
+    conn = open_readonly_connection(db_path)
+    cursor = encode_cursor({"symbol": "AAPL", "date": "2026-06-14"})
+    rows, _next_cursor = query_daily(
+        conn, date_value="2026-06-15", symbol=None, limit=100, after=cursor
+    )
+    conn.close()
+    assert [row["symbol"] for row in rows] == ["MSFT"]
+    assert all(row["date"] == "2026-06-15" for row in rows)
+
+
+def test_query_daily_cursor_without_date_field_still_works(tmp_path: Path) -> None:
+    """Cursors minted before this fix (no 'date' field) must remain valid —
+    they fall back to re-resolving 'latest', exactly as before.
+    """
+    db_path = tmp_path / "daily_legacy_cursor.db"
+    _seed_daily_multi_symbol(db_path, "2026-06-14", ["AAPL", "MSFT"])
+    conn = open_readonly_connection(db_path)
+    legacy_cursor = encode_cursor({"symbol": "AAPL"})
+    rows, _next_cursor = query_daily(
+        conn, date_value=None, symbol=None, limit=100, after=legacy_cursor
+    )
+    conn.close()
+    assert [row["symbol"] for row in rows] == ["MSFT"]
+
+
+def test_query_daily_rejects_wrong_typed_cursor_fields(seeded_db: Path) -> None:
+    conn = open_readonly_connection(seeded_db)
+    bad_symbol = encode_cursor({"symbol": 123})
+    with pytest.raises(InvalidCursorError):
+        query_daily(
+            conn, date_value="2026-06-14", symbol=None, limit=10, after=bad_symbol
+        )
+    bad_date = encode_cursor({"symbol": "AAPL", "date": 20260614})
+    with pytest.raises(InvalidCursorError):
+        query_daily(conn, date_value=None, symbol=None, limit=10, after=bad_date)
+    conn.close()
+
+
+def test_query_index_daily_cursor_pins_resolved_date_across_pages(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "index_daily_rollover.db"
+    conn = sqlite3.connect(db_path)
+    conn.executescript(SCHEMA)
+    for index_id in ("EDU100", "EDUFIN"):
+        conn.execute(
+            "INSERT INTO index_daily_stats "
+            "(date, index_id, open_level, high_level, low_level, close_level, "
+            " close_session_state, open_aggregate_cap, close_aggregate_cap, update_count) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                "2026-06-14",
+                index_id,
+                100.0,
+                105.0,
+                98.0,
+                102.0,
+                "CLOSED",
+                1e12,
+                1.1e12,
+                1,
+            ),
+        )
+    conn.commit()
+    conn.close()
+
+    conn = open_readonly_connection(db_path)
+    page1, cursor1 = query_index_daily(conn, date_value=None, index_id=None, limit=1)
+    conn.close()
+    assert [row["index_id"] for row in page1] == ["EDU100"]
+    assert cursor1 is not None
+
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "INSERT INTO index_daily_stats "
+        "(date, index_id, open_level, high_level, low_level, close_level, "
+        " close_session_state, open_aggregate_cap, close_aggregate_cap, update_count) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        ("2026-06-15", "ZZZ999", 1.0, 1.0, 1.0, 1.0, "CLOSED", 1.0, 1.0, 1),
+    )
+    conn.commit()
+    conn.close()
+
+    conn = open_readonly_connection(db_path)
+    page2, _cursor2 = query_index_daily(
+        conn, date_value=None, index_id=None, limit=1, after=cursor1
+    )
+    conn.close()
+    assert [row["index_id"] for row in page2] == ["EDUFIN"]
+
+
+def test_query_trades_rejects_wrong_typed_tiebreaker(seeded_db: Path) -> None:
+    """A cursor whose rowid is a string (not int) must be rejected rather
+    than flowing into the SQL comparison and silently mis-ordering/mis-
+    filtering results.
+    """
+    conn = open_readonly_connection(seeded_db)
+    bad_rowid = encode_cursor({"ts": "2026-06-14T09:00:01.000+00:00", "rowid": "1"})
+    with pytest.raises(InvalidCursorError):
+        query_trades(
+            conn,
+            symbol=None,
+            date_value=None,
+            from_ts=None,
+            to_ts=None,
+            limit=10,
+            after=bad_rowid,
+        )
+    bad_ts = encode_cursor({"ts": 12345, "rowid": 1})
+    with pytest.raises(InvalidCursorError):
+        query_trades(
+            conn,
+            symbol=None,
+            date_value=None,
+            from_ts=None,
+            to_ts=None,
+            limit=10,
+            after=bad_ts,
+        )
+    conn.close()

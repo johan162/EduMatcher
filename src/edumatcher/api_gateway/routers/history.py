@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import sqlite3
 import time
+import uuid
 from contextlib import closing
 from typing import Annotated, Any
 
@@ -412,10 +413,19 @@ async def history_index_events(
 
     index_client = request.app.state.index_client
     timeout = request.app.state.config.timeouts.engine_reply_sec
-    # A read-only session has no gateway_id; the request-id only needs to be
-    # unique enough to address this call's reply topic, so the API key
-    # itself (never a real engine-authenticated gateway) works fine here.
-    request_id = session.gateway_id or f"ro-{session.api_key}"
+    # pm-index echoes request_id back (upper-cased) as the reply-topic
+    # suffix, and IndexClient keys its pending futures by that same string.
+    # Two fixes are needed here:
+    #  - a per-call UUID suffix, since a bare gateway_id/api_key is stable
+    #    across a session, so two concurrent calls from the same session
+    #    would otherwise both listen on (and resolve from) the same topic;
+    #  - upper-casing the whole value ourselves, since pm-index upper-cases
+    #    whatever it receives before using it in the reply topic name — a
+    #    mixed-case read-only api_key would otherwise never match what
+    #    IndexClient is actually listening for, timing out on every call.
+    request_id = (
+        f"{session.gateway_id or session.api_key}-{uuid.uuid4().hex[:10]}"
+    ).upper()
     try:
         reply = await index_client.request_history(
             request_id=request_id,

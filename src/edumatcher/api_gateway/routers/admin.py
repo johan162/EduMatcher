@@ -48,14 +48,21 @@ async def _await_reply(request: Request, topic: str) -> dict[str, Any]:
         ) from exc
 
 
-async def _await_ack(request: Request, topic: str) -> dict[str, Any]:
-    """Await a single risk ACK on *topic*, mapping timeouts to 503."""
+async def _await_ack(
+    request: Request, topic: str, match: dict[str, str] | None = None
+) -> dict[str, Any]:
+    """Await a single risk ACK on *topic*, mapping timeouts to 503.
+
+    Pass *match* whenever the ack payload carries a field (e.g. ``symbol``)
+    that can disambiguate concurrent calls sharing the same topic — without
+    it, two concurrent calls race to consume whichever ack arrives first.
+    """
     try:
         return cast(
             dict[str, Any],
             await request.app.state.engine.await_event(
                 topic,
-                match=None,
+                match=match,
                 timeout=request.app.state.config.timeouts.wait_ack_sec,
             ),
         )
@@ -134,7 +141,11 @@ async def circuit_breaker_trigger(  # pyright: ignore[reportUnusedFunction]
     gateway_id = await require_admin(request, session)
     _check_rate_limit(request, session)
     request.app.state.engine.send_symbol_halt(gateway_id, body.symbol)
-    ack = await _await_ack(request, f"risk.symbol_halt_ack.{gateway_id}")
+    ack = await _await_ack(
+        request,
+        f"risk.symbol_halt_ack.{gateway_id}",
+        match={"symbol": body.symbol},
+    )
     return _require_accepted(ack)
 
 
@@ -147,7 +158,11 @@ async def circuit_breaker_resume(  # pyright: ignore[reportUnusedFunction]
     gateway_id = await require_admin(request, session)
     _check_rate_limit(request, session)
     request.app.state.engine.send_symbol_resume(gateway_id, body.symbol)
-    ack = await _await_ack(request, f"risk.symbol_resume_ack.{gateway_id}")
+    ack = await _await_ack(
+        request,
+        f"risk.symbol_resume_ack.{gateway_id}",
+        match={"symbol": body.symbol},
+    )
     return _require_accepted(ack)
 
 
@@ -170,5 +185,9 @@ async def kill_switch_symbol(  # pyright: ignore[reportUnusedFunction]
     gateway_id = await require_admin(request, session)
     _check_rate_limit(request, session)
     request.app.state.engine.send_cancel_symbol(gateway_id, body.symbol)
-    ack = await _await_ack(request, f"risk.cancel_symbol_ack.{gateway_id}")
+    ack = await _await_ack(
+        request,
+        f"risk.cancel_symbol_ack.{gateway_id}",
+        match={"symbol": body.symbol},
+    )
     return _require_accepted(ack)
