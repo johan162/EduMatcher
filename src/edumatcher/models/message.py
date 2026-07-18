@@ -307,10 +307,27 @@ def make_quote_legs_request_msg(
     )
 
 
-def make_quote_legs_msg(gateway_id: str, legs: list[dict[str, Any]]) -> list[bytes]:
-    """Engine -> gateway: reply with quote legs snapshot."""
+def make_quote_legs_msg(
+    gateway_id: str,
+    legs: list[dict[str, Any]],
+    *,
+    show_requested: str = "ACTIVE",
+    complete: bool = True,
+) -> list[bytes]:
+    """Engine -> gateway: reply with quote legs snapshot.
+
+    Only currently-active quote legs are tracked by the engine (entries are
+    removed the moment a leg fills or is cancelled — there is no retained
+    history). *legs* is always the active set regardless of what was asked
+    for. When *show_requested* is anything other than ``"ACTIVE"``,
+    *complete* should be passed as ``False`` so the caller can tell "no
+    active legs" apart from "history beyond ACTIVE isn't tracked".
+    """
     topic = f"system.quote_legs.{gateway_id}"
-    return encode(topic, {"legs": legs})
+    return encode(
+        topic,
+        {"legs": legs, "show_requested": show_requested, "complete": complete},
+    )
 
 
 # ------------------------------------------------------------------

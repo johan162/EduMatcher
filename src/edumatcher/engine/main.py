@@ -82,6 +82,7 @@ from edumatcher.models.message import (
     make_orders_msg,
     make_quote_ack_msg,
     make_quote_bootstrap_msg,
+    make_quote_legs_msg,
     make_quote_status_msg,
     make_symbols_msg,
     make_session_state_msg,
@@ -165,6 +166,7 @@ class Engine:
         self.books: dict[str, OrderBook] = {}  # symbol → OrderBook
         self._running = False
         self._error_count = 0
+        self._unknown_topic_count = 0
         # If None → no symbol restrictions (backward-compat mode)
         self._allowed_symbols: frozenset[str] | None = None
         self._allowed_fix_gateways: frozenset[str] | None = None
@@ -1460,6 +1462,70 @@ class Engine:
             )
 
         self.pub_sock.send_multipart(make_quote_bootstrap_msg(gateway_id, quotes))
+
+    def _handle_quote_legs_request(self, payload: dict[str, Any]) -> None:
+        """Reply to a QLEGS snapshot request with the gateway's quote legs.
+
+        Only ACTIVE quote legs are tracked in memory — ``QuoteIndex`` entries
+        are removed the moment a leg fills or is cancelled, so there is no
+        retained RECENT/ALL history to serve. Regardless of the requested
+        ``show`` value this always replies with the currently-active legs
+        (the best data available, never a silent drop), and sets
+        ``complete=False`` on the reply when ``show`` asked for more than
+        ``ACTIVE`` so the caller can distinguish "no active legs" from
+        "history beyond ACTIVE isn't tracked".
+        """
+        gateway_id = str(payload.get("gateway_id", "")).upper()
+        symbol_filter = str(payload.get("symbol", "")).upper()
+        show = str(payload.get("show", "ACTIVE")).upper() or "ACTIVE"
+        complete = show == "ACTIVE"
+
+        ok, _ = self._gateway_status(gateway_id)
+        if not ok:
+            self.pub_sock.send_multipart(
+                make_quote_legs_msg(
+                    gateway_id, [], show_requested=show, complete=complete
+                )
+            )
+            return
+
+        order_by_id: dict[str, Order] = {}
+        for book in self.books.values():
+            for order in book.resting_orders():
+                order_by_id[order.id] = order
+
+        entries = self._quote_index.entries_for_gateway(gateway_id)
+        if symbol_filter:
+            entries = [e for e in entries if e.symbol == symbol_filter]
+
+        legs: list[dict[str, Any]] = []
+        for entry in entries:
+            for leg_side, order_id in (
+                ("BUY", entry.bid_order_id),
+                ("SELL", entry.ask_order_id),
+            ):
+                leg_order = order_by_id.get(order_id)
+                if leg_order is None:
+                    continue
+                legs.append(
+                    {
+                        "quote_id": entry.quote_id,
+                        "order_id": leg_order.id,
+                        "symbol": entry.symbol,
+                        "leg_side": leg_side,
+                        "qty": leg_order.quantity,
+                        "remaining": leg_order.remaining_qty,
+                        "filled": leg_order.quantity - leg_order.remaining_qty,
+                        "status": leg_order.status.value,
+                        "quote_status": entry.state.value,
+                    }
+                )
+
+        self.pub_sock.send_multipart(
+            make_quote_legs_msg(
+                gateway_id, legs, show_requested=show, complete=complete
+            )
+        )
 
     def _cancel_order_by_id(self, order_id: str) -> bool:
         symbol = self._order_symbol.get(order_id)
@@ -3591,6 +3657,97 @@ class Engine:
     # Main loop
     # ------------------------------------------------------------------
 
+    def _dispatch_pull_message(self, topic: str, payload: dict[str, Any]) -> None:
+        """Route one decoded PULL-socket message to its handler.
+
+        Every branch is wrapped in a single try/except so one bad message
+        can never take down the receive loop. A topic that matches no
+        branch falls into the `else` below rather than being silently
+        dropped: it's logged at WARNING (visible by default, no need to
+        raise the log level) and counted in `self._unknown_topic_count` so
+        the gap is observable instead of invisible. This is a deliberate
+        third failure mode, distinct from `self._error_count` (a *known*
+        handler raised) — "no handler is registered for this topic at all"
+        is a routing/completeness bug, not a runtime exception, and
+        operators benefit from being able to tell the two apart.
+        """
+        try:
+            if topic == "order.new":
+                self._handle_new_order(payload)
+            elif topic == "order.cancel":
+                self._handle_cancel(payload)
+            elif topic == "order.amend":
+                self._handle_amend(payload)
+            elif topic == "order.combo":
+                self._handle_combo_order(payload)
+            elif topic == "order.combo_cancel":
+                self._handle_combo_cancel(payload)
+            elif topic == "order.oco":
+                self._handle_oco_order(payload)
+            elif topic == "order.oco_cancel":
+                self._handle_oco_cancel(payload)
+            elif topic == "quote.new":
+                self._handle_quote_new(payload)
+            elif topic == "quote.cancel":
+                self._handle_quote_cancel(payload)
+            elif topic == "system.gateway_connect":
+                self._handle_gateway_connect(payload)
+            elif topic == "system.gateway_disconnect":
+                self._handle_gateway_disconnect(payload)
+            elif topic == "system.symbols_request":
+                self._handle_symbols_request(payload)
+            elif topic == "book.snapshot_request":
+                self._handle_book_snapshot_request(payload)
+            elif topic == "order.orders_request":
+                self._handle_orders_request(payload)
+            elif topic == "system.quote_bootstrap_request":
+                self._handle_quote_bootstrap_request(payload)
+            elif topic == "system.quote_legs_request":
+                self._handle_quote_legs_request(payload)
+            elif topic == "risk.kill_switch":
+                self._handle_kill_switch(payload)
+            elif topic == "risk.circuit_breaker_halt_all":
+                self._handle_circuit_breaker_halt_all(payload)
+            elif topic == "risk.circuit_breaker_resume_all":
+                self._handle_circuit_breaker_resume_all(payload)
+            elif topic == "risk.symbol_halt":
+                self._handle_symbol_halt(payload)
+            elif topic == "risk.symbol_resume":
+                self._handle_symbol_resume(payload)
+            elif topic == "risk.cancel_symbol":
+                self._handle_cancel_symbol(payload)
+            elif topic == "session.transition":
+                self._handle_session_transition(payload)
+            elif topic == "system.session_state_request":
+                self._handle_session_state_request(payload)
+            elif topic == "system.session_schedule_request":
+                self._handle_session_schedule_request(payload)
+            elif topic == "system.gateways_request":
+                self._handle_gateways_request(payload)
+            elif topic == "system.volume_request":
+                self._handle_volume_request(payload)
+            elif topic == "system.halt_status_request":
+                self._handle_halt_status_request(payload)
+            elif topic == "system.position_request":
+                self._handle_position_request(payload)
+            else:
+                self._unknown_topic_count += 1
+                log.warning(
+                    "[ENGINE] No dispatch handler for topic %s (#%d) — "
+                    "message dropped",
+                    topic,
+                    self._unknown_topic_count,
+                )
+        except Exception as exc:
+            self._dbg_count("handler_errors")
+            self._error_count += 1
+            log.error(
+                "[ENGINE] Error processing %s (#%d): %s",
+                topic,
+                self._error_count,
+                exc,
+            )
+
     def run(self) -> None:
         self._restore_gtc()
         self._load_config()  # seed stats + MM orders (after GTC restore)
@@ -3629,72 +3786,7 @@ class Engine:
                 topic, payload = decode(frames)
                 self._dbg_count("pull_messages")
                 self._dbg_count(f"topic_{topic}")
-                try:
-                    if topic == "order.new":
-                        self._handle_new_order(payload)
-                    elif topic == "order.cancel":
-                        self._handle_cancel(payload)
-                    elif topic == "order.amend":
-                        self._handle_amend(payload)
-                    elif topic == "order.combo":
-                        self._handle_combo_order(payload)
-                    elif topic == "order.combo_cancel":
-                        self._handle_combo_cancel(payload)
-                    elif topic == "order.oco":
-                        self._handle_oco_order(payload)
-                    elif topic == "order.oco_cancel":
-                        self._handle_oco_cancel(payload)
-                    elif topic == "quote.new":
-                        self._handle_quote_new(payload)
-                    elif topic == "quote.cancel":
-                        self._handle_quote_cancel(payload)
-                    elif topic == "system.gateway_connect":
-                        self._handle_gateway_connect(payload)
-                    elif topic == "system.gateway_disconnect":
-                        self._handle_gateway_disconnect(payload)
-                    elif topic == "system.symbols_request":
-                        self._handle_symbols_request(payload)
-                    elif topic == "book.snapshot_request":
-                        self._handle_book_snapshot_request(payload)
-                    elif topic == "order.orders_request":
-                        self._handle_orders_request(payload)
-                    elif topic == "system.quote_bootstrap_request":
-                        self._handle_quote_bootstrap_request(payload)
-                    elif topic == "risk.kill_switch":
-                        self._handle_kill_switch(payload)
-                    elif topic == "risk.circuit_breaker_halt_all":
-                        self._handle_circuit_breaker_halt_all(payload)
-                    elif topic == "risk.circuit_breaker_resume_all":
-                        self._handle_circuit_breaker_resume_all(payload)
-                    elif topic == "risk.symbol_halt":
-                        self._handle_symbol_halt(payload)
-                    elif topic == "risk.symbol_resume":
-                        self._handle_symbol_resume(payload)
-                    elif topic == "risk.cancel_symbol":
-                        self._handle_cancel_symbol(payload)
-                    elif topic == "session.transition":
-                        self._handle_session_transition(payload)
-                    elif topic == "system.session_state_request":
-                        self._handle_session_state_request(payload)
-                    elif topic == "system.session_schedule_request":
-                        self._handle_session_schedule_request(payload)
-                    elif topic == "system.gateways_request":
-                        self._handle_gateways_request(payload)
-                    elif topic == "system.volume_request":
-                        self._handle_volume_request(payload)
-                    elif topic == "system.halt_status_request":
-                        self._handle_halt_status_request(payload)
-                    elif topic == "system.position_request":
-                        self._handle_position_request(payload)
-                except Exception as exc:
-                    self._dbg_count("handler_errors")
-                    self._error_count += 1
-                    log.error(
-                        "[ENGINE] Error processing %s (#%d): %s",
-                        topic,
-                        self._error_count,
-                        exc,
-                    )
+                self._dispatch_pull_message(topic, payload)
             # Throttled snapshot publish — runs every poll tick (max 200ms)
             self._flush_snapshots()
             # Check circuit breaker timers — resume halted symbols

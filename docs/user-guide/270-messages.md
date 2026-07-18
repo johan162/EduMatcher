@@ -59,7 +59,7 @@ Quick index of all defined message topics with publisher and purpose.
 | `system.symbols_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the list of configured symbols from the engine. |
 | `order.orders_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the current order list for a specific gateway. |
 | `system.quote_bootstrap_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Request active quote bootstrap state for a gateway. |
-| `system.quote_legs_request` | `pm-mm-bot` or `pm-api-gwy` via PUSH :5555 | Requests a quote's per-leg state. **Unimplemented on the engine side — never replied to**, see below. |
+| `system.quote_legs_request` | `pm-mm-bot` or `pm-api-gwy` via PUSH :5555 | Requests a quote's per-leg state. Always replied to; `SHOW=ACTIVE` is fully served, `RECENT`/`ALL` fall back to active-only data with `complete=false`, see below. |
 | `system.session_state_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the current session state and whether session enforcement is enabled. |
 | `system.session_schedule_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the configured session schedule (the times the scheduler will send phase transitions). |
 | `system.gateways_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the list of configured gateways and their connection status. |
@@ -1204,21 +1204,42 @@ instead of reconstructing it from a stream of `quote.status` events.
 | `symbol` | string | Optional symbol filter (empty string means all symbols) |
 | `show` | `"ACTIVE"` \| `"RECENT"` \| `"ALL"` | Which legs to include |
 
-**Reply:** `system.quote_legs.{GW_ID}` — `{ "legs": [...] }`
+**Reply:** `system.quote_legs.{GW_ID}` — `{ "legs": [...], "show_requested": "...", "complete": true|false }`
 
-!!! warning "Unimplemented on the engine side"
-    The engine's PULL-socket dispatch currently has **no handler** for
-    `system.quote_legs_request` — the request is silently dropped and no
-    `system.quote_legs.{GW_ID}` reply is ever sent. Both known callers time
-    out waiting for a reply: `pm-mm-bot` sends it once at startup to
-    reconcile an adopted quote's legs, and simply skips that reconciliation
-    step (logging a timeout, not an error) after its bootstrap timeout
-    elapses; `pm-api-gwy`'s `GET /quotes/legs` falls back to its own local
-    quote-leg cache when populated, and otherwise also times out with `503
-    ENGINE_TIMEOUT`. `pm-alf-console`'s `QLEGS` command never sends this
-    request at all — it renders entirely from its own local cache. Treat
-    this request/reply pair as a documented-but-not-yet-wired-up API, not a
-    reliable round-trip.
+| Field | Type | Description |
+|---|---|---|
+| `legs` | array | One row per quote leg (bid and ask are separate rows) — see below |
+| `show_requested` | `"ACTIVE"` \| `"RECENT"` \| `"ALL"` | Echoes the request's `show` value |
+| `complete` | boolean | `true` when `legs` fully answers what was requested; `false` when `legs` is an active-only subset because `show` asked for more than `ACTIVE` (see note below) |
+
+Each row in `legs`:
+
+| Field | Type | Description |
+|---|---|---|
+| `quote_id` | string | Quote identifier the leg belongs to |
+| `order_id` | string | Resting order ID for this leg |
+| `symbol` | string | Instrument symbol |
+| `leg_side` | `"BUY"` \| `"SELL"` | Which side of the quote this leg is |
+| `qty` | integer | Original leg quantity |
+| `remaining` | integer | Unfilled quantity remaining |
+| `filled` | integer | `qty - remaining` |
+| `status` | string | Order status of the leg (same values as `order.ack`/`order.fill` `status`) |
+| `quote_status` | string | The quote's own lifecycle state (`ACTIVE`, `INACTIVE_BID_FILLED`, `INACTIVE_ASK_FILLED`, `CANCELLED`) |
+
+Always replies — never drops the request. The engine only tracks
+currently-**active** quote legs in memory (entries are removed the instant a
+leg fills or is cancelled, so there is no retained RECENT/ALL history).
+Regardless of the requested `show` value, the reply always contains the
+current active legs — the best data available — and sets `complete=false`
+whenever `show` asked for more than `ACTIVE`, so callers can tell "no active
+legs" apart from "history beyond ACTIVE isn't tracked". In practice
+`pm-mm-bot` always sends `SHOW=ALL`, so its replies normally have
+`complete=false` even though `legs` is populated; `pm-mm-bot`'s reconciliation
+logic (`_reconcile_qlegs`) only reads `quote_id`/`order_id` per leg and does
+not currently inspect `complete`. `pm-api-gwy`'s `GET /quotes/legs` returns
+this reply's payload directly (after its own local quote-leg cache, if
+populated). `pm-alf-console`'s `QLEGS` command still never sends this
+request — it continues to render entirely from its own local cache.
 
 
 
