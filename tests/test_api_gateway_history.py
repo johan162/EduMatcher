@@ -1,10 +1,11 @@
-"""Tests for the pm-api-gwy /history/index-* endpoints.
+"""Tests for the pm-api-gwy /history/index-* and /history/price-snapshots
+endpoints.
 
 Design intent under test (not a literal mirror of the implementation):
-  - index-daily / index-snapshots / index-ids are public market data —
-    reachable with a read-only credential (no gateway_id), the same tier
-    as /history/trades and /history/daily, unlike the gateway-scoped
-    /history/orders and /history/fills.
+  - index-daily / index-snapshots / index-ids / price-snapshots are public
+    market data — reachable with a read-only credential (no gateway_id),
+    the same tier as /history/trades and /history/daily, unlike the
+    gateway-scoped /history/orders and /history/fills.
   - index-daily defaults to the latest available date when omitted, and
     surfaces close_session_state so a caller can tell whether close_level
     is a finalized EOD print or just the most recent tick.
@@ -12,8 +13,11 @@ Design intent under test (not a literal mirror of the implementation):
     "all indexes" firehose mode) and supports the same date/from/to
     filtering contract as the other time-series endpoints.
   - index-ids lists distinct index IDs with recorded data, unpaginated.
-  - All three degrade gracefully (empty results, not errors) when no
-    index data has been recorded yet.
+  - price-snapshots requires symbol (same "no firehose mode" rule as
+    index-snapshots), upper-cases it before querying, and exposes the
+    15-minute mid/bid/ask history recorded in price_snapshots.
+  - All four degrade gracefully (empty results, not errors) when no
+    data has been recorded yet.
 """
 
 from __future__ import annotations
@@ -145,6 +149,28 @@ def _seed_index_db(path: Path) -> None:
                 None,
             ),
         )
+
+        # Intraday mid/bid/ask ticks for two symbols on 2026-06-14, used to
+        # exercise /history/price-snapshots (time window, symbol isolation,
+        # chronological order).
+        conn.execute(
+            "INSERT INTO price_snapshots "
+            "(ts, symbol, mid_price, best_bid, best_ask, pct_change) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("2026-06-14T09:00:00.000+00:00", "AAPL", 150.5, 150.0, 151.0, None),
+        )
+        conn.execute(
+            "INSERT INTO price_snapshots "
+            "(ts, symbol, mid_price, best_bid, best_ask, pct_change) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("2026-06-14T16:00:00.000+00:00", "AAPL", 152.0, 151.5, 152.5, 1.0),
+        )
+        conn.execute(
+            "INSERT INTO price_snapshots "
+            "(ts, symbol, mid_price, best_bid, best_ask, pct_change) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("2026-06-14T09:30:00.000+00:00", "MSFT", 414.5, 414.0, 415.0, None),
+        )
         conn.commit()
     finally:
         conn.close()
@@ -233,6 +259,29 @@ async def _call_index_snapshots(
         from_ts=from_ts,
         to_ts=to_ts,
         limit=limit,
+    )
+
+
+async def _call_price_snapshots(
+    request: Any,
+    session: Session,
+    *,
+    symbol: str,
+    date: str | None = None,
+    from_ts: str | None = None,
+    to_ts: str | None = None,
+    limit: int = 500,
+    after: str | None = None,
+) -> dict[str, Any]:
+    return await history.history_price_snapshots(
+        request,
+        session,
+        symbol=symbol,
+        date=date,
+        from_ts=from_ts,
+        to_ts=to_ts,
+        limit=limit,
+        after=after,
     )
 
 
@@ -465,6 +514,79 @@ async def test_index_ids_empty_db_returns_empty_list_not_error(
 
 
 # ---------------------------------------------------------------------------
+# price-snapshots
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_price_snapshots_readonly_key_is_sufficient(seeded_db: Path) -> None:
+    request = _request_for(seeded_db)
+    result = await _call_price_snapshots(request, _readonly_session(), symbol="AAPL")
+    assert result["count"] == 2
+
+
+@pytest.mark.anyio
+async def test_price_snapshots_isolates_by_symbol(seeded_db: Path) -> None:
+    """Design intent: querying one symbol's snapshots must never leak
+    another symbol's ticks into the result, even though both share the
+    same table.
+    """
+    request = _request_for(seeded_db)
+    msft = await _call_price_snapshots(request, _readonly_session(), symbol="MSFT")
+    assert msft["count"] == 1
+    assert all(row["symbol"] == "MSFT" for row in msft["snapshots"])
+
+
+@pytest.mark.anyio
+async def test_price_snapshots_time_window_filters(seeded_db: Path) -> None:
+    request = _request_for(seeded_db)
+    result = await _call_price_snapshots(
+        request,
+        _readonly_session(),
+        symbol="AAPL",
+        from_ts="2026-06-14T12:00:00+00:00",
+        to_ts="2026-06-14T23:59:59+00:00",
+    )
+    assert result["count"] == 1
+    assert result["snapshots"][0]["mid_price"] == 152.0
+
+
+@pytest.mark.anyio
+async def test_price_snapshots_chronological_order(seeded_db: Path) -> None:
+    request = _request_for(seeded_db)
+    result = await _call_price_snapshots(request, _readonly_session(), symbol="AAPL")
+    timestamps = [row["ts"] for row in result["snapshots"]]
+    assert timestamps == sorted(timestamps)
+
+
+@pytest.mark.anyio
+async def test_price_snapshots_symbol_is_case_insensitive(seeded_db: Path) -> None:
+    request = _request_for(seeded_db)
+    result = await _call_price_snapshots(request, _readonly_session(), symbol="aapl")
+    assert result["count"] == 2
+    assert all(row["symbol"] == "AAPL" for row in result["snapshots"])
+
+
+@pytest.mark.anyio
+async def test_price_snapshots_invalid_time_range_rejected(seeded_db: Path) -> None:
+    request = _request_for(seeded_db)
+    with pytest.raises(HTTPException) as exc_info:
+        await _call_price_snapshots(
+            request, _readonly_session(), symbol="AAPL", from_ts="garbage"
+        )
+    assert exc_info.value.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_price_snapshots_empty_db_returns_empty_not_error(
+    empty_db: Path,
+) -> None:
+    request = _request_for(empty_db)
+    result = await _call_price_snapshots(request, _readonly_session(), symbol="AAPL")
+    assert result == {"snapshots": [], "count": 0, "has_more": False}
+
+
+# ---------------------------------------------------------------------------
 # Cross-cutting: trading credentials work too (auth is "any valid key",
 # not "read-only key only")
 # ---------------------------------------------------------------------------
@@ -486,6 +608,7 @@ async def test_index_endpoints_also_accept_trading_credentials(
     ids_result = await history.history_index_ids(request, session)
     assert isinstance(ids_result["count"], int)
     assert ids_result["count"] >= 0
+    assert (await _call_price_snapshots(request, session, symbol="AAPL"))["count"] >= 0
 
 
 @pytest.mark.anyio

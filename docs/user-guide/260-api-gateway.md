@@ -196,6 +196,7 @@ Base path: `/api/v1`.
 | `GET`    | `/history/fills`             | trading       | Historical fills                     |
 | `GET`    | `/history/trades`            | any valid key | Public trade log                     |
 | `GET`    | `/history/daily`             | any valid key | Daily OHLCV rows                     |
+| `GET`    | `/history/price-snapshots`   | any valid key | Intraday instrument mid/bid/ask time series |
 | `GET`    | `/history/index-daily`       | any valid key | Daily index OHLC rows                |
 | `GET`    | `/history/index-snapshots`   | any valid key | Intraday index level time series     |
 | `GET`    | `/history/index-ids`         | any valid key | Index IDs with recorded statistics   |
@@ -279,9 +280,10 @@ section below.
 `/history/orders`, `/history/orders/{order_id}`, and `/history/fills` require
 a trading credential and are scoped to that credential's `gateway_id` — they
 only ever return that gateway's own orders. `/history/trades`,
-`/history/daily`, `/history/index-daily`, `/history/index-snapshots`,
-`/history/index-ids`, and `/history/index-events` are public market data:
-any valid API key works, including read-only keys with no `gateway_id`.
+`/history/daily`, `/history/price-snapshots`, `/history/index-daily`,
+`/history/index-snapshots`, `/history/index-ids`, and `/history/index-events`
+are public market data: any valid API key works, including read-only keys
+with no `gateway_id`.
 
 | Endpoint | Query parameters | Notes |
 |---|---|---|
@@ -289,6 +291,7 @@ any valid API key works, including read-only keys with no `gateway_id`.
 | `GET /history/fills` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Trading credential only; `event_type=FILL` events for the caller's `gateway_id` |
 | `GET /history/trades` | `symbol`, `date`, `from`, `to`, `limit`, `after` | Public trade tape |
 | `GET /history/daily` | `symbol`, `date`, `limit`, `after` | Omitting `date` returns the latest available date; no `from`/`to` range support |
+| `GET /history/price-snapshots` | `symbol` (**required**), `date`, `from`, `to`, `limit`, `after` | Intraday mid/bid/ask ticks (15-minute recording interval); unlike `/trades`/`/daily` there is no "all symbols" mode |
 | `GET /history/index-daily` | `index_id`, `date`, `limit`, `after` | Same shape as `/daily` but for exchange indexes; omitting `date` returns the latest available date |
 | `GET /history/index-snapshots` | `index_id` (**required**), `date`, `from`, `to`, `limit`, `after` | Intraday index level ticks; unlike `/trades`/`/daily` there is no "all indexes" mode |
 | `GET /history/index-ids` | `date` | List of index IDs with recorded data; unpaginated |
@@ -335,6 +338,31 @@ returns the next two trades, and so on until a response comes back with
 `/history/index-ids` has no `limit`/`after` — the number of distinct
 exchange indexes is always small (EduMatcher caps this at 5 per config
 file), so it is intentionally unbounded and unpaginated.
+
+```http
+GET /api/v1/history/price-snapshots?symbol=AAPL&from=2026-06-14T09:00:00%2B00:00&to=2026-06-14T16:30:00%2B00:00&limit=100
+Authorization: Bearer key-readonly-demo
+```
+
+```json
+{
+  "snapshots": [
+    { "ts": "2026-06-14T09:00:00.000+00:00", "symbol": "AAPL", "mid_price": 150.5, "best_bid": 150.0, "best_ask": 151.0, "pct_change": null },
+    { "ts": "2026-06-14T09:15:00.000+00:00", "symbol": "AAPL", "mid_price": 151.0, "best_bid": 150.5, "best_ask": 151.5, "pct_change": 0.3322 }
+  ],
+  "count": 2,
+  "has_more": false
+}
+```
+
+Rows come from `pm-stats`' periodic book snapshots — recorded at a fixed
+interval (15 minutes by default, overridable via `pm-stats --snapshot-interval
+SEC`), not on every tick. For live tick-by-tick mid-price movement, use the
+CALF `TOP` channel instead; this endpoint is for historical/charting use,
+not a substitute for a live feed. `pct_change` is the percent change versus
+the *previous recorded snapshot* for that symbol (not versus the day's
+open), and is `null` for the first snapshot recorded for a symbol since
+`pm-stats` started, since there is no prior snapshot to compare against.
 
 ```http
 GET /api/v1/history/index-daily?index_id=EDU100&date=2026-06-14
@@ -385,8 +413,8 @@ Authorization: Bearer key-readonly-demo
 ```
 
 If no exchange index is configured, or `pm-index`/`pm-stats` have not run
-yet, `index-daily` and `index-snapshots` return an empty list (not an error)
-and `index-ids` returns `{ "index_ids": [], "count": 0 }`.
+yet, `index-daily`, `index-snapshots`, and `price-snapshots` return an empty
+list (not an error) and `index-ids` returns `{ "index_ids": [], "count": 0 }`.
 
 #### Index structural/audit events
 

@@ -18,6 +18,7 @@ from edumatcher.stats.query import (
     query_index_ids,
     query_index_snapshots,
     query_order_events,
+    query_price_snapshots,
     query_snapshots,
     query_symbols,
     query_trades,
@@ -490,6 +491,166 @@ def test_query_index_snapshots_paginates_without_gaps_or_duplicates(
     conn.close()
 
     assert paged_ts == [row["ts"] for row in full_rows]
+
+
+def test_query_price_snapshots_filters_by_time_window(seeded_db: Path) -> None:
+    conn = open_readonly_connection(seeded_db)
+    rows, _next_cursor = query_price_snapshots(
+        conn,
+        symbol="AAPL",
+        date_value="2026-06-14",
+        from_ts="2026-06-14T09:10:00+00:00",
+        to_ts="2026-06-14T09:20:00+00:00",
+        limit=500,
+    )
+    conn.close()
+
+    # Two AAPL snapshots exist on 2026-06-14 (09:00, 09:15) — the 09:10-09:20
+    # window should isolate exactly the 09:15 row, proving the range filter
+    # actually narrows rather than just filtering by date.
+    assert len(rows) == 1
+    assert rows[0]["ts"] == "2026-06-14T09:15:00+00:00"
+    assert rows[0]["mid_price"] == 151.0
+
+
+def test_query_price_snapshots_does_not_leak_across_symbols(
+    seeded_db: Path,
+) -> None:
+    """AAPL and MSFT both have a snapshot on 2026-06-14; querying one symbol
+    must never return the other's rows.
+    """
+    conn = open_readonly_connection(seeded_db)
+    rows, _next_cursor = query_price_snapshots(
+        conn,
+        symbol="MSFT",
+        date_value=None,
+        from_ts=None,
+        to_ts=None,
+        limit=500,
+    )
+    conn.close()
+
+    assert len(rows) == 1
+    assert rows[0]["symbol"] == "MSFT"
+
+
+def test_query_price_snapshots_orders_chronologically(seeded_db: Path) -> None:
+    conn = open_readonly_connection(seeded_db)
+    rows, _next_cursor = query_price_snapshots(
+        conn,
+        symbol="AAPL",
+        date_value=None,
+        from_ts=None,
+        to_ts=None,
+        limit=500,
+    )
+    conn.close()
+
+    timestamps = [row["ts"] for row in rows]
+    assert timestamps == sorted(timestamps)
+
+
+def _seed_bulk_price_snapshots(path: Path, count: int) -> None:
+    conn = sqlite3.connect(path)
+    conn.executescript(SCHEMA)
+    # price_snapshots' primary key is (ts, symbol), so distinct rows for the
+    # same symbol must have distinct ts values — unlike trade_log/
+    # order_events, we can't force a same-ts rowid-tiebreaker collision here.
+    # This still exercises the core keyset-pagination correctness property:
+    # walking every page reproduces the full result set exactly once, in
+    # order.
+    for i in range(count):
+        conn.execute(
+            "INSERT INTO price_snapshots "
+            "(ts, symbol, mid_price, best_bid, best_ask, pct_change) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                f"2026-06-14T09:{i:02d}:00.000+00:00",
+                "AAPL",
+                100.0 + i,
+                99.5 + i,
+                100.5 + i,
+                None,
+            ),
+        )
+    conn.commit()
+    conn.close()
+
+
+def test_query_price_snapshots_paginates_without_gaps_or_duplicates(
+    tmp_path: Path,
+) -> None:
+    """Walk every page for AAPL with limit=1 and confirm the full,
+    unpaginated result set is reproduced exactly once each, in order —
+    the core correctness property of keyset pagination.
+    """
+    db_path = tmp_path / "price_snapshots.db"
+    _seed_bulk_price_snapshots(db_path, 5)
+
+    conn = open_readonly_connection(db_path)
+    full_rows, _ = query_price_snapshots(
+        conn, symbol="AAPL", date_value=None, from_ts=None, to_ts=None, limit=500
+    )
+
+    paged_mid_prices: list[float] = []
+    after = None
+    for _ in range(len(full_rows) + 1):
+        page, next_cursor = query_price_snapshots(
+            conn,
+            symbol="AAPL",
+            date_value=None,
+            from_ts=None,
+            to_ts=None,
+            limit=1,
+            after=after,
+        )
+        if not page:
+            break
+        paged_mid_prices.extend(row["mid_price"] for row in page)
+        after = next_cursor
+        if next_cursor is None:
+            break
+    conn.close()
+
+    assert len(full_rows) == 5
+    assert paged_mid_prices == [row["mid_price"] for row in full_rows]
+    assert len(set(paged_mid_prices)) == 5
+
+
+def test_query_price_snapshots_rejects_malformed_cursor(seeded_db: Path) -> None:
+    conn = open_readonly_connection(seeded_db)
+    with pytest.raises(InvalidCursorError):
+        query_price_snapshots(
+            conn,
+            symbol="AAPL",
+            date_value=None,
+            from_ts=None,
+            to_ts=None,
+            limit=500,
+            after="not-a-real-cursor",
+        )
+    conn.close()
+
+
+def test_query_price_snapshots_rejects_cursor_missing_required_fields(
+    seeded_db: Path,
+) -> None:
+    bogus_cursor = base64.urlsafe_b64encode(
+        json.dumps({"unrelated": 1}).encode()
+    ).decode()
+
+    conn = open_readonly_connection(seeded_db)
+    with pytest.raises(InvalidCursorError):
+        query_price_snapshots(
+            conn,
+            symbol="AAPL",
+            date_value=None,
+            from_ts=None,
+            to_ts=None,
+            limit=500,
+            after=bogus_cursor,
+        )
+    conn.close()
 
 
 def test_query_index_ids_uses_union_across_tables(seeded_db: Path) -> None:

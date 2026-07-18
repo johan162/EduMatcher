@@ -245,6 +245,8 @@ CREATE TABLE IF NOT EXISTS price_snapshots (
     PRIMARY KEY (ts, symbol)
 );
 
+CREATE INDEX IF NOT EXISTS idx_ps_symbol_ts ON price_snapshots(symbol, ts);
+
 CREATE TABLE IF NOT EXISTS trade_log (
     ts              TEXT NOT NULL,
     trade_id        TEXT NOT NULL PRIMARY KEY,

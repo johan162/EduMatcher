@@ -11,8 +11,8 @@ Design intent under test (not a literal mirror of the implementation):
   - A malformed after cursor is rejected with 422 VALIDATION, not a raw
     exception or a silently-ignored filter.
   - The pagination contract is uniform across every paginated endpoint
-    (orders, fills, trades, daily, index-daily, index-snapshots), not just
-    the one first implemented.
+    (orders, fills, trades, daily, index-daily, index-snapshots,
+    price-snapshots), not just the one first implemented.
 """
 
 from __future__ import annotations

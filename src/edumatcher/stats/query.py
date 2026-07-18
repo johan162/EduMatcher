@@ -223,6 +223,61 @@ def query_snapshots(
     return [dict(row) for row in rows]
 
 
+def query_price_snapshots(
+    conn: sqlite3.Connection,
+    *,
+    symbol: str,
+    date_value: str | None,
+    from_ts: str | None,
+    to_ts: str | None,
+    limit: int,
+    after: str | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Return up to *limit* price snapshots plus a next-page cursor.
+
+    ``price_snapshots``' primary key is ``(ts, symbol)``, but multiple
+    symbols can share a ``ts`` — since this query is already scoped to one
+    ``symbol``, ``rowid`` (insertion order) still serves as the tiebreaker
+    for any same-``ts`` rows within that single symbol. This is the
+    paginated sibling of :func:`query_snapshots`, which predates the
+    keyset-pagination work and is left as-is since ``pm-stats-cli``'s
+    ``snapshots`` subcommand still depends on its non-paginated return
+    shape.
+    """
+    sql = (
+        "SELECT rowid AS _rowid, ts, symbol, mid_price, best_bid, best_ask, "
+        "pct_change FROM price_snapshots WHERE symbol = ?"
+    )
+    params: list[Any] = [symbol]
+
+    if date_value is not None:
+        sql += " AND substr(ts, 1, 10) = ?"
+        params.append(date_value)
+    if from_ts is not None:
+        sql += " AND ts >= ?"
+        params.append(from_ts)
+    if to_ts is not None:
+        sql += " AND ts <= ?"
+        params.append(to_ts)
+    if after is not None:
+        after_ts, after_rowid = _decode_two_field_cursor(after, "ts", "rowid")
+        sql += " AND (ts > ? OR (ts = ? AND rowid > ?))"
+        params.extend([after_ts, after_ts, after_rowid])
+
+    sql += " ORDER BY ts ASC, rowid ASC LIMIT ?"
+    params.append(limit)
+
+    rows = _execute_fetchall(conn, sql, params)
+    results = [dict(row) for row in rows]
+    next_cursor = None
+    if len(results) == limit:
+        last = results[-1]
+        next_cursor = encode_cursor({"ts": last["ts"], "rowid": last["_rowid"]})
+    for result in results:
+        del result["_rowid"]
+    return results, next_cursor
+
+
 def query_trades(
     conn: sqlite3.Connection,
     *,

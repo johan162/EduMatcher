@@ -24,6 +24,7 @@ from edumatcher.stats.query import (
     query_index_snapshots,
     query_order_events,
     query_order_lifecycle,
+    query_price_snapshots,
     query_trades,
     validate_date,
     validate_iso_ts,
@@ -245,6 +246,49 @@ async def history_daily(
                 detail={"error": {"code": "VALIDATION", "message": str(exc)}},
             ) from exc
     return _paginated_envelope("daily", rows, next_cursor)
+
+
+@router.get("/price-snapshots")
+async def history_price_snapshots(
+    request: Request,
+    session: Annotated[Session, Depends(auth)],
+    symbol: str = Query(..., min_length=1),
+    date: str | None = None,
+    from_ts: str | None = Query(default=None, alias="from"),
+    to_ts: str | None = Query(default=None, alias="to"),
+    limit: int = Query(default=500, ge=1, le=5000),
+    after: str | None = None,
+) -> dict[str, object]:
+    """Intraday instrument mid/bid/ask time series — public market data.
+
+    ``symbol`` is required, matching ``pm-stats-cli snapshots``: unlike
+    /trades and /daily, there is no "all symbols" mode here, since a full
+    multi-symbol tick stream would be an unbounded firehose rather than a
+    bounded daily summary.
+
+    Set ``after`` to the previous response's ``next_cursor`` to fetch the
+    next page — see the History endpoints section of the user guide for
+    the full pagination contract.
+    """
+    _ = session
+    _validate_time_filters(date, from_ts, to_ts)
+    with closing(_open_stats(request)) as conn:
+        try:
+            rows, next_cursor = query_price_snapshots(
+                conn,
+                symbol=symbol.upper(),
+                date_value=date,
+                from_ts=from_ts,
+                to_ts=to_ts,
+                limit=limit,
+                after=after,
+            )
+        except InvalidCursorError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"error": {"code": "VALIDATION", "message": str(exc)}},
+            ) from exc
+    return _paginated_envelope("snapshots", rows, next_cursor)
 
 
 @router.get("/index-daily")
