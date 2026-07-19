@@ -208,9 +208,10 @@ know what to edit, what you are editing, and what still needs attention.
 
 - **Top bar** — the [persona](#personas) switcher, **Import** (load an existing
   YAML file), **New** (start a blank draft, with a confirmation), the light/dark
-  **theme toggle** (☾ / ☀), and **Save** (flushes the autosaved draft to your
-  browser). The draft is autosaved to `localStorage` continuously, so a refresh
-  or crash never loses work.
+  **theme toggle** (☾ / ☀), and **Save** (shows a confirmation toast; the draft
+  is already autosaved to `localStorage` continuously on every change, so a
+  refresh or crash never loses work — clicking Save doesn't write anything
+  that wasn't already saved).
 - **Navigation** — the list of [tabs](#the-tabs-at-a-glance). Each carries a
   status glyph: `✓` valid, `!` has warnings, `✗` has errors, `—` optional and
   untouched. Tabs above your current persona are hidden entirely, not disabled.
@@ -331,14 +332,23 @@ The dialog collects:
 |---|---|
 | **Symbol name** | Uppercased automatically; must be unique. |
 | **Reference price** | The opening mid-price. Derives `last_buy_price` / `last_sell_price` and becomes the collar's static reference on day one. |
-| **Tick decimals** | Price precision (0–8). Defaults to the global value. See [tick size](060-order-types.md). |
+| **Tick decimals** (Intermediate+) | Price precision (0–8). Defaults to the global value. See [tick size](060-order-types.md). |
 | **Outstanding shares** | Required if the symbol will be an [index](150-index.md) constituent; a sensible default is pre-filled. |
-| **Market maker quotes** (Intermediate+) | One bid/ask per MM gateway. Left blank, the builder falls back to [mid-range seeding](#quote-seeding-mid-range-vs-explicit) or emits a null stub. |
+| **Opening spread (ticks)** (Intermediate+) | Spread, in ticks, used to auto-derive the primary market maker's opening bid/ask around the reference price. |
+| **Quote size** (Intermediate+) | Quantity used for the auto-derived primary market maker quote. |
+| **Additional market makers** (Expert) | Extra bid/ask quote rows for MM gateways beyond the primary one. |
+
+If a `MARKET_MAKER` gateway is configured, the primary market-maker quote is
+always auto-derived from **Opening spread** and **Quote size** applied to the
+reference price — it is never left blank. [Mid-range seeding](#quote-seeding-mid-range-vs-explicit)
+is a separate mechanism that applies when a symbol has no explicit quote at
+all (for example, one added outside the IPO dialog).
 
 !!! note "📷 Figure 4 — The IPO ‘List a new symbol’ dialog"
-    _Screenshot placeholder._ Capture the dialog open with a reference price and
-    tick decimals filled in, and (at Intermediate+) the market-maker quote rows
-    visible. Suggested file: `images/config-gui/fig-04-ipo-dialog.png`.
+    _Screenshot placeholder._ Capture the dialog open with a reference price,
+    tick decimals, and opening spread/quote size filled in, and (at Expert)
+    the additional market-maker quote rows visible. Suggested file:
+    `images/config-gui/fig-04-ipo-dialog.png`.
 
 ### The Symbols workspace
 

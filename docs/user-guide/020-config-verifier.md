@@ -12,7 +12,9 @@
 
 ## Why a Config Verifier?
 
-`engine_config.yaml` covers symbols, gateways, risk controls, collar bands,
+`engine_config.yaml` (see [Configuration](010-configuration.md) for the full
+guide and [App Config Spec](990-app-config-spec.md) for the normative field
+reference) covers symbols, gateways, risk controls, collar bands,
 circuit breakers, market-maker obligations, session schedules, combo seeds,
 index definitions, and five optional gateway subsystems (`alf_gateway`,
 `balf_gateway`, `post_trade_gateway`, `market_data_gateway`, `api_gateways`).
@@ -75,6 +77,7 @@ Options:
   --no-color    Disable ANSI color in text output
   --strict      Treat warnings as errors for CI exit-code purposes
   --help        Show help and exit
+  --version     Show the pm-cverifier version and exit
 ```
 
 
@@ -322,6 +325,10 @@ these codes cover the per-symbol equivalents.
 |--------|--------------------------------------------------------|
 | `S080` | `api_gateways` section fails runtime-loader validation |
 
+`S080` also covers the case where the config uses the unsupported singular
+key `api_gateway` instead of `api_gateways` — see the [App Config Spec](990-app-config-spec.md)
+(CV15), which documents that rejection as a normative rule.
+
 **ALF, RALF, and market-data gateway sections**
 
 | Code   | Condition                                              |
@@ -341,7 +348,7 @@ these codes cover the per-symbol equivalents.
 | `S054` | `balf_gateway.duplicate_session_policy` not `REJECT_NEW` or `EVICT_OLD`  |
 | `S085` | `balf_gateway` fails runtime-loader validation for a reason not covered by `S050`–`S054` (drift safety net; only fires when none of those already reported) |
 
-### Layer 3 — Semantic (`M001`–`M022`)
+### Layer 3 — Semantic (`M001`–`M025`)
 
 `M014` is currently emitted during the schema pass because CB threshold ordering
 is validated while parsing `circuit_breaker_defaults`.
@@ -368,7 +375,11 @@ is validated while parsing `circuit_breaker_defaults`.
 | `M018` | ERROR    | Two configured gateway sections (`alf_gateway`, `balf_gateway`, `post_trade_gateway`, `market_data_gateway`, or any `api_gateways.<name>`) are bound to the same port |
 | `M019` | ERROR    | `mm_obligation_defaults.symbols` references an unknown symbol |
 | `M020` | ERROR    | MM seed `gateway_id` exists but is not a `MARKET_MAKER` gateway |
+| `M021` | ERROR    | A `schedule` time value isn't a quoted `"HH:MM"` string (e.g. YAML mis-parsed it as a sexagesimal integer) |
 | `M022` | ERROR    | API credential `gateway_id` is not defined in `gateways.alf` |
+| `M023` | ERROR    | A `schedule` time value doesn't parse as a valid 24-hour `HH:MM` time |
+| `M024` | ERROR    | `sessions_enabled: true` but `schedule` is missing one or more of the five phase keys |
+| `M025` | ERROR    | `schedule` phases don't form a legal transition chain starting from `CLOSED` |
 
 ### Layer 4 — Completeness (`C001`–`C013`)
 
@@ -429,14 +440,20 @@ A ⚠ next to a Risk Summary line marks a potentially risky or incomplete
 subsystem configuration (for example missing ADMIN gateway or missing collar
 configuration), even if the overall verdict is `OK`.
 
+The JSON `risk_summary` object carries a few additional machine-readable
+fields not shown in the text table above, including `circuit_breakers_using_defaults`
+(`true` when no explicit `circuit_breaker_defaults` block was configured and the
+built-in L1/L2/L3 ladder is in effect).
+
 
 ## Relationship to Other Tools
 
-| Tool            | Purpose                                           |
-|-----------------|---------------------------------------------------|
-| `pm-config-gen` | *Generate* an `engine_config.yaml` from CLI flags |
-| `pm-cverifier`  | *Verify* an existing config file before use       |
-| `pm-engine`     | *Load* the config and start the matching engine   |
+| Tool                             | Purpose                                             |
+|----------------------------------|------------------------------------------------------|
+| `pm-config-gen` (see [Configuration](010-configuration.md)) | *Generate* an `engine_config.yaml` from CLI flags |
+| Config GUI (see [Config GUI](030-config-GUI.md))            | *Generate/edit* an `engine_config.yaml` visually, with a built-in "Verify with pm-cverifier" action |
+| `pm-cverifier`                   | *Verify* an existing config file before use         |
+| `pm-engine` (see [Running the Engine](040-running-the-engine.md)) | *Load* the config and start the matching engine |
 
 `pm-cverifier` is read-only and has no effect on the engine or any runtime state.
 It is safe to run at any time, including while the engine is running.

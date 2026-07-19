@@ -23,10 +23,15 @@ The key words **MUST**, **MUST NOT**, **REQUIRED**, **SHOULD**, **MAY**, and
 ### 1.2 The file
 
 The configuration is a single YAML 1.1 document whose root MUST be a **mapping**.
-A loader given a non-mapping root MUST reject the file. When the file is **absent**
-entirely, the engine runs in *unrestricted mode* (no symbol/gateway allowlist,
-sessions disabled); that mode is out of scope here — this document specifies the
-content of a *present* file.
+A loader given a non-mapping root MUST reject the file. `load_engine_config()`
+itself MUST raise `FileNotFoundError` for a missing path — it does not implement
+a fallback. The *caller*, `pm-engine` (`engine/main.py`), checks for the file's
+existence before calling the loader: if the resolved config path (from `--config`,
+`$EDUMATCHER_CONFIG`, or the default `engine_config.yaml` location) does not
+exist, `pm-engine` skips loading entirely and starts in *unrestricted mode* (no
+symbol/gateway allowlist, sessions disabled) rather than failing. That fallback
+is implemented by `pm-engine`, not by the loader, and is out of scope here —
+this document specifies the content of a *present* file.
 
 ### 1.3 Scalar type notation
 
@@ -138,9 +143,9 @@ AlfGatewaySpec:                              # one entry of gateways.alf
   role:                    ? Enum<Role> = TRADER
   disconnect_behaviour:    ? Enum<DisconnectBehaviour> = CANCEL_QUOTES_ONLY
   quote_refresh_policy:    ? Enum<QuoteRefreshPolicy> = INACTIVATE_ON_ANY_FILL
-  enforce_mm_obligation:   ? Bool = <mm_obligation_defaults.enforce_mm_obligation | false>
-  mm_max_spread_ticks:     ? Ticks = <default 10>
-  mm_min_qty:              ? Qty   = <default 100>
+  enforce_mm_obligation:   ? Bool  = <mm_obligation_defaults.enforce_mm_obligation | false>
+  mm_max_spread_ticks:     ? Ticks = <mm_obligation_defaults.mm_max_spread_ticks | 10>
+  mm_min_qty:              ? Qty   = <mm_obligation_defaults.mm_min_qty | 100>
   mm_obligations:          ? Map<Symbol, MMObligationSpec>
 ```
 
@@ -196,8 +201,8 @@ A per-symbol `collar` is merged over the symbol's resolved `level` collar
 | `side` | `Enum<Side>` | ✔ | — | |
 | `order_type` | `Enum<OrderType>` | ✔ | — | |
 | `quantity` | `Qty` | ✔ | — | |
-| `price` | `Ticks` | – | `null` | required by order types that carry a limit price |
-| `stop_price` | `Ticks` | – | `null` | |
+| `price` | `Int` | – | `null` | tick price; required by `LIMIT`, `FOK`, `STOP_LIMIT`, `ICEBERG` legs (not enforced for `IOC` despite carrying a limit price); positivity is **not** validated anywhere in code, unlike other `Ticks`-typed fields |
+| `stop_price` | `Int` | – | `null` | tick stop price; currently unvalidated for any order type, including `STOP`/`STOP_LIMIT`/`TRAILING_STOP` |
 | `smp_action` | `Enum<SmpAction>` | – | `NONE` | |
 
 ### 4.5 `IndexSpec` — `indices[]`
@@ -321,6 +326,7 @@ See [Configuration → Which Process Reads What](010-configuration.md#which-proc
 | `bind_address` | `Str` | – | `"0.0.0.0"` | |
 | `port` | `Port` | – | `5565` | `> 0` |
 | `heartbeat_interval_sec` | `Int` | – | `5` | `> 0` |
+| `handshake_timeout_sec` | `Int` | – | `10` | `> 0` |
 | `idle_timeout_sec` | `Int` | – | `30` | `> 0` |
 | `max_connections` | `Int` | – | `64` | `> 0` |
 | `max_client_queue` | `Int` | – | `10000` | `> 0` |
@@ -362,6 +368,8 @@ Also consumes `gateways.alf` for identity, role, and `disconnect_behaviour`.
 | `heartbeat_interval_sec` | `Int` | – | `1` | `> 0`; advertised as `WELCOME\|HBINT=` |
 | `idle_timeout_sec` | `Int` | – | `5` | `> 0` |
 | `replay_window_sec` | `Int` | – | `30` | `> 0`; advertised as `WELCOME\|REPLAY=` |
+| `max_connections` | `Int` | – | `64` | `> 0` |
+| `max_messages_per_second` | `Int` | – | `200` | `> 0` |
 | `max_symbols_per_client` | `Int` | – | `200` | `> 0` |
 | `max_client_queue` | `Int` | – | `10000` | `> 0` |
 | `depth_levels` | `Int` | – | `10` | `> 0` |

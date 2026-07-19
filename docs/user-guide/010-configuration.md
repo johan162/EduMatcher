@@ -502,15 +502,18 @@ SYM/SIDE/ORDER_TYPE/QTY[/PRICE[/STOP_PRICE[/SMP_ACTION]]]
 | `SIDE`       | Yes      | `BUY`, `SELL`                                                                         | —        |
 | `ORDER_TYPE` | Yes      | `LIMIT`, `MARKET`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP`    | —        |
 | `QTY`        | Yes      | Positive integer                                                                      | —        |
-| `PRICE`      | No       | Integer tick price; omit or use `null` for market orders                              | `null`   |
-| `STOP_PRICE` | No       | Integer tick stop price for stop orders; omit or use `null` otherwise                 | `null`   |
+| `PRICE`      | No       | Integer tick count or decimal display price (see note below); omit or use `null` for market orders | `null`   |
+| `STOP_PRICE` | No       | Integer tick count or decimal display price for stop orders; omit or use `null` otherwise | `null`   |
 | `SMP_ACTION` | No       | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`                           | `NONE`   |
 
 Constraints: at least 2 and at most 10 legs; each `SYM` must appear in `--symbols`; duplicate leg symbols within one combo are rejected.
 
-!!! note "Combo leg prices are integer ticks"
-    Like hand-written `market_maker_combos`, combo legs use integer tick prices.
-    With `tick_decimals: 2`, `20950` represents `$209.50`.
+!!! note "`--combo` PRICE/STOP_PRICE accept ticks or a decimal price"
+    Unlike hand-written `market_maker_combos` YAML — where `legs[].price`/`legs[].stop_price`
+    are always integer ticks — the `--combo` flag's `PRICE`/`STOP_PRICE` parts accept **either**
+    a plain integer tick count (e.g. `20950`) **or** a decimal display price containing a `.`
+    (e.g. `209.50`), which is converted to ticks using the leg symbol's `tick_decimals`. With
+    `tick_decimals: 2`, both `20950` and `209.50` produce the same stored value: `$209.50`.
 
 Minimal two-leg example:
 
@@ -1512,7 +1515,9 @@ Use this checklist when creating a new engine configuration.
 
 10. Check persistence before first run.
     Remove stale state when changing seed behavior or symbol universe, especially
-    `data/book_stats.json`, `data/gtc_orders.json`, and `data/gtc_combos.json`.
+    `book_stats.json`, `gtc_orders.json`, and `gtc_combos.json` in the data
+    directory (`src/data/` in a source checkout, `~/.local/share/edumatcher`
+    when installed, or `$EDUMATCHER_DATA_DIR` if set).
 
 11. Validate before class or demo.
     Start `pm-engine --verbose --config your_config.yaml`, connect each gateway
@@ -1739,7 +1744,7 @@ its `level`, or `risk_controls.default_level` — see
 [Risk Controls and Collars](#risk-controls-and-collars)), the engine derives
 the collar's static-band `reference_price` at startup as follows:
 
-1. Persisted `data/book_stats.json` values are restored first (see
+1. Persisted `<DATA_DIR>/book_stats.json` values are restored first (see
    [Startup and Persistence Order](#startup-and-persistence-order)). If the
    symbol has a persisted `last_buy_price`, it is used.
 2. Otherwise, if the symbol has a persisted `last_sell_price`, it is used.
@@ -2099,21 +2104,27 @@ Engine startup
     |
     +-- 1. Parse config if present
     +-- 2. Bind main PULL/PUB sockets
-    +-- 3. Load persisted book stats from data/book_stats.json
-    +-- 4. Restore persisted GTC orders from data/gtc_orders.json
-    +-- 5. Restore persisted GTC combos from data/gtc_combos.json
+    +-- 3. Load persisted book stats from <DATA_DIR>/book_stats.json
+    +-- 4. Restore persisted GTC orders from <DATA_DIR>/gtc_orders.json
+    +-- 5. Restore persisted GTC combos from <DATA_DIR>/gtc_combos.json
     +-- 6. Inject market_maker_quotes
     +-- 7. Inject market_maker_combos
     +-- 8. Bind drop-copy PUB :5557 if available
     +-- 9. Publish initial book snapshots
 ```
 
+`<DATA_DIR>` resolves to `src/data/` in a source checkout, `~/.local/share/edumatcher`
+when installed, or `$EDUMATCHER_DATA_DIR` if that environment variable is set.
+
 This ordering means persisted GTC state comes back before config seed liquidity,
 and persisted book stats override `last_buy_price` / `last_sell_price` seeds.
 When changing seed behavior or symbol definitions, consider removing stale data:
 
 ```bash
-rm -f data/gtc_orders.json data/book_stats.json data/gtc_combos.json
+# from a source checkout:
+rm -f src/data/gtc_orders.json src/data/book_stats.json src/data/gtc_combos.json
+# or, if EDUMATCHER_DATA_DIR is set:
+rm -f "$EDUMATCHER_DATA_DIR"/gtc_orders.json "$EDUMATCHER_DATA_DIR"/book_stats.json "$EDUMATCHER_DATA_DIR"/gtc_combos.json
 ```
 
 
@@ -2160,8 +2171,7 @@ ValueError: Engine config must have a 'symbols' mapping
 ```
 
 ```text
-ValueError: Gateway 'TRADER01' has invalid disconnect_behaviour: 'CANCEL_NONE'
-  (allowed: CANCEL_QUOTES_ONLY, CANCEL_ALL, LEAVE_ALL)
+ValueError: gateways.alf[0].disconnect_behaviour is invalid
 ```
 
 For installed (pipx) users who do not have access to the `poetry run` environment,
@@ -2184,6 +2194,11 @@ This section is a complete machine-readable-style reference for every field
 parsed from `engine_config.yaml`. Types follow Python conventions: `bool`,
 `int`, `float`, `str`. "Enum" means the field must match one of the listed
 string values exactly (case-insensitive during loading; stored in uppercase).
+
+For the auxiliary gateway processes (`pm-alf-gwy`, `pm-balf-gwy`, `pm-md-gwy`,
+`pm-ralf-gwy`, `pm-api-gwy`) and the full normative schema, see
+[App Config Spec](990-app-config-spec.md), which governs if the two documents
+ever disagree.
 Ranges use mathematical interval notation: `(a, b)` is open (exclusive),
 `[a, b]` is closed (inclusive).
 
@@ -2348,8 +2363,8 @@ symbol has no breaker):
 | `side` | Enum | Yes | — | `BUY`, `SELL` | Case-insensitive |
 | `order_type` | Enum | Yes | — | `MARKET`, `LIMIT`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, `TRAILING_STOP` | Case-insensitive |
 | `quantity` | int | Yes | — | Positive integer | — |
-| `price` | int | Conditional | `null` | Integer tick price | Required for `LIMIT`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC` |
-| `stop_price` | int | Conditional | `null` | Integer tick price | Required for `STOP`, `STOP_LIMIT`, `TRAILING_STOP` |
+| `price` | int | Conditional | `null` | Integer tick price | Required for `LIMIT`, `STOP_LIMIT`, `FOK`, `ICEBERG` (not enforced for `IOC`) |
+| `stop_price` | int | Optional | `null` | Integer tick price | Not currently validated as required for any order type, including `STOP`/`STOP_LIMIT`/`TRAILING_STOP` |
 | `smp_action` | Enum | No | `NONE` | `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH` | Case-insensitive |
 
 !!! note "Combo leg prices are integer ticks"
