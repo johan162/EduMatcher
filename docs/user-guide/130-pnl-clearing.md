@@ -81,6 +81,9 @@ sequenceDiagram
     C->>C: force-flush buffered trades for that gateway
     C->>DB: UPDATE gateway_sessions (disconnect time + reason)
 
+    E->>C: session.state (phase transition)
+    C->>DB: INSERT → session_events (PHASE row)
+
     Q->>DB: SELECT (read-only, WAL allows concurrent reads)
     DB-->>Q: rows
 ```
@@ -104,6 +107,7 @@ pm-clearing [OPTIONS]
                          INFO, DEBUG (default: WARNING)
   -v, --verbose          Increase verbosity (-v: INFO, -vv: DEBUG)
   -q, --quiet            Reduce log output to warnings/errors
+  --sql-trace            Log executed SQLite SQL statements (off by default)
   --version              Show version and exit
   --help                 Show help and exit
 ```
@@ -126,6 +130,7 @@ pm-clearing [OPTIONS]
 | `system.eod` | No (secondary) | Force-flush, apply EOD marks from the book snapshot, write `session_events` row |
 | `system.gateway_auth.{id}` | No (secondary) | Record a `gateway_sessions` connect row when a gateway's auth is accepted |
 | `system.gateway_bye.{id}` | No (secondary) | Force-flush that gateway's trades, update the `gateway_sessions` row with the disconnect |
+| `session.state` | No (secondary) | Write a `PHASE` row to `session_events` recording the new and previous session state |
 
 The secondary subscriptions add contextual information without affecting the core
 P&L accuracy. If they are not received (for example, engine was killed hard
@@ -166,6 +171,16 @@ the disconnect reason, and immediately force-flushes any buffered trades for the
 disconnecting gateway so no fill is lost before the engine processes its order
 cancellations.
 
+#### `session.state` — session phase transitions
+
+On receipt, `pm-clearing` inserts a `PHASE` row into `session_events` recording
+the new state and the previous state (e.g. `CONTINUOUS` → `CLOSING_AUCTION`).
+This is purely informational — it does not affect P&L, positions, or the EOD
+mark — and gives `session_events` a running record of every phase transition
+the engine went through during the session. See [`session_events`](#session_events)
+below for the full event-type reference, including which types are (and are not)
+surfaced by `pm-clearing-cli`.
+
 
 ## Data folder location
 
@@ -201,7 +216,7 @@ re-opened safely across process restarts.
 | `trade_events` | Append-only fact table; one row per `trade.executed` event |
 | `gateway_symbol_positions` | Running position state; one row per `(gateway_id, symbol)` |
 | `gateway_daily_summary` | Daily rollup aggregates; one row per `(trade_date, gateway_id, symbol)` |
-| `session_events` | Clearing-significant events (`EOD`, plus `GAP` and `ID_COLLISION` integrity alarms) |
+| `session_events` | Clearing-significant events (`EOD`, `PHASE` session-state transitions, plus `GAP` and `ID_COLLISION` integrity alarms) |
 | `gateway_sessions` | Gateway connect / disconnect history |
 
 ### `trade_events`
@@ -289,26 +304,28 @@ Daily incremental aggregates. Updated in the same transaction as
 
 ### `session_events`
 
-Append-only log of clearing-significant events. Three event types are written:
+Append-only log of clearing-significant events. Four event types are written:
 
 | `event_type` | Written when | `payload_json` |
 |---|---|---|
 | `EOD` | `system.eod` received on graceful engine shutdown | `{"eod_marks": {symbol: price_ticks, ...}, "symbols_count": N}` |
+| `PHASE` | `session.state` received (session phase transition) | `{"state": ..., "prev_state": ...}` |
 | `GAP` | The engine's trade-id sequence jumps forward, i.e. the lossy PUB feed dropped one or more trades | `{"last_seq": L, "next_seq": N, "missing_trades": M}` |
 | `ID_COLLISION` | An incoming trade id matches a stored row with a *different* timestamp (engine-restart id reuse) | `{"id": ..., "new_ts_ns": ..., "existing_ts_ns": [...]}` |
 
 | Column | Type | Description |
 |---|---|---|
 | `id` | INTEGER (autoincrement) | Surrogate key |
-| `event_type` | TEXT | `EOD`, `GAP`, or `ID_COLLISION` |
+| `event_type` | TEXT | `EOD`, `PHASE`, `GAP`, or `ID_COLLISION` |
 | `ts_ns` | INTEGER | Ingestion timestamp |
 | `trade_date` | TEXT | Session-timezone date derived from `ts_ns` (default UTC) |
 | `payload_json` | TEXT | Event-specific JSON (see table above) |
 
-`EOD` rows are surfaced by `pm-clearing-cli eod`. `GAP` and `ID_COLLISION` are
-durable integrity alarms — they are recorded so a dropped-trade or id-reuse
-event is visible after the fact rather than silently corrupting positions; query
-them directly from `session_events` by `event_type`.
+`EOD` rows are surfaced by `pm-clearing-cli eod`. `PHASE`, `GAP`, and `ID_COLLISION`
+are not currently surfaced by any `pm-clearing-cli` verb — `GAP` and `ID_COLLISION`
+are durable integrity alarms, recorded so a dropped-trade or id-reuse event is
+visible after the fact rather than silently corrupting positions; query all three
+directly from `session_events` by `event_type`.
 
 ### `gateway_sessions`
 

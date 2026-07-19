@@ -44,7 +44,7 @@ at the next startup so the market resumes where it left off.
 |------|------------|------|---------|---------------------|
 | `gtc_orders.json` | `pm-engine` | Clean shutdown (Ctrl-C) | Resting GTC orders, restored with their price-time priority at next startup | JSON; loaded by the engine at startup |
 | `gtc_combos.json` | `pm-engine` | Clean shutdown | Resting GTC combo parents and their child-leg links | JSON; loaded by the engine at startup |
-| `book_stats.json` | `pm-engine` | Clean shutdown | Last buy/sell price per symbol + seed-once flags; seeds the collar and circuit-breaker reference at the next open | JSON; loaded by the engine at startup |
+| `book_stats.json` | `pm-engine` | Clean shutdown | Last buy/sell price and previous-close per symbol; seeds the collar and circuit-breaker reference at the next open, and the `SYMBOLS` command's `prev_close` field | JSON; loaded by the engine at startup |
 
 **Accumulating data stores** — written by the optional subscriber processes while
 a session runs. They grow across sessions (never auto-truncated) and each has a
@@ -77,19 +77,19 @@ accumulating stores each have their own chapter (linked in the table).
 1. The engine collects all **resting** orders (status `NEW` or `PARTIAL`) from every order book.
 2. Orders with `TIF = DAY` receive an `order.expired.<GW_ID>` event and are discarded.
 3. DAY combo children that expire trigger cascade-cancel of their parent combo.
-4. Orders with `TIF = GTC` are serialized to `data/gtc_orders.json`.
-5. GTC combos (status `PENDING` or `PARTIALLY_MATCHED`) are serialized to `data/gtc_combos.json`.
-6. Book statistics (`last_buy_price`, `last_sell_price` per symbol) are saved to `data/book_stats.json`.
+4. Orders with `TIF = GTC` are serialized to `<DATA_DIR>/gtc_orders.json`.
+5. GTC combos (status `PENDING` or `PARTIALLY_MATCHED`) are serialized to `<DATA_DIR>/gtc_combos.json`.
+6. Book statistics (`last_buy_price`, `last_sell_price`, and `prev_close` per symbol) are saved to `<DATA_DIR>/book_stats.json`.
 7. A `system.eod` message is published with final book snapshots for all symbols (allows stats/viewers to record closing state).
 8. ZMQ sockets are closed.
 
 ### At Startup
 
-1. The engine reads `data/gtc_orders.json` (if it exists).
+1. The engine reads `<DATA_DIR>/gtc_orders.json` (if it exists).
 2. Each GTC order is re-injected into its symbol's order book **with its original timestamp preserved**.
-3. The engine reads `data/gtc_combos.json` (if it exists) and rebuilds parent-child tracking maps.
+3. The engine reads `<DATA_DIR>/gtc_combos.json` (if it exists) and rebuilds parent-child tracking maps.
 4. If any GTC orders were restored, initial book snapshots are published.
-5. The engine reads `data/book_stats.json` (if it exists) and restores `last_buy_price` / `last_sell_price` per symbol.  Persisted values take priority over config-seeded values.
+5. The engine reads `<DATA_DIR>/book_stats.json` (if it exists) and restores `last_buy_price` / `last_sell_price` / `prev_close` per symbol.  Persisted values take priority over config-seeded values.
 6. Market-maker quotes from each symbol's `market_maker_quotes` config section are injected as linked bid/ask quote legs.  **No gateway connection is required** — seeds enter the book before any participant dials in.  If a restored GTC order already crosses a seed price, a trade executes immediately during this step.
 7. Market-maker combos from the `market_maker_combos` config section are injected.
 8. Book snapshots are published for any symbol where MM quotes were injected.
@@ -100,7 +100,7 @@ accumulating stores each have their own chapter (linked in the table).
 
 ## Operational edge cases
 
-- If `data/gtc_orders.json`, `data/gtc_combos.json`, or `data/book_stats.json`
+- If `<DATA_DIR>/gtc_orders.json`, `<DATA_DIR>/gtc_combos.json`, or `<DATA_DIR>/book_stats.json`
   is malformed JSON, startup does **not** fail. The loader returns empty state
   for that file and the engine continues.
 - Restored GTC orders for symbols that no longer exist in the current config are
@@ -132,7 +132,7 @@ MARKET, FOK, and IOC orders are always DAY orders — they cannot be GTC because
 
 
 
-## The data/gtc_orders.json File
+## The `gtc_orders.json` File
 
 Format: a JSON array of serialized `Order` objects.
 
@@ -174,7 +174,7 @@ flowchart TD
     GTC2[Load gtc_combos.json\nrebuild parent-child maps]
     REINJ[Re-inject GTC orders\nwith original timestamps]
     SNAP1{Any GTC orders\nrestored?}
-    BSTAT[Load book_stats.json\nrestore last_buy/sell prices]
+    BSTAT[Load book_stats.json\nrestore last_buy/sell prices + prev_close]
     MMQ[Inject MM quotes from config\nseeds posted without MM online]
     CROSS{GTC rests cross\nMM seeds?}
     TRADE1[Trades fire immediately]
@@ -219,26 +219,29 @@ already marked `CANCELLED`.
 
 
 
-## The data/book_stats.json File
+## The `book_stats.json` File
 
-Preserves the **last trade price context** per symbol across sessions.  This allows the
-engine to correctly trigger stop orders on the first trade of a new day (stops compare
-against `last_trade_price`, which would otherwise be unknown).
+Preserves the **last trade price context** per symbol across sessions. This serves two
+purposes: it allows the engine to correctly trigger stop orders on the first trade of a
+new day (stops compare against `last_trade_price`, which would otherwise be unknown), and
+it carries the prior session's closing price forward as `prev_close`, which the engine
+reports in its `SYMBOLS` command response so gateways can show a previous-close reference.
 
-Format: a JSON object keyed by symbol.  Prices are stored as **integer tick
-values** (the engine's internal representation):
+Format: a JSON object keyed by symbol. Unlike `gtc_orders.json` and `gtc_combos.json`,
+prices here are stored as **display floats** (not integer ticks) — the save path
+deliberately converts ticks to display prices before writing, and the load path converts
+back on restore, so values round-trip exactly regardless of a symbol's `tick_decimals`:
 
 ```json
 {
-  "AAPL": {"last_buy_price": 15025, "last_sell_price": 14980},
-  "MSFT": {"last_buy_price": null, "last_sell_price": 41550}
+  "AAPL": {"last_buy_price": 150.25, "last_sell_price": 149.80, "prev_close": 150.10},
+  "MSFT": {"last_buy_price": null, "last_sell_price": 415.50, "prev_close": 415.50}
 }
 ```
 
-For a symbol with `tick_decimals: 2`, the value `15025` represents `150.25`.
-
-- `last_buy_price`: tick-integer price of the most recent trade where the buyer was the aggressor
-- `last_sell_price`: tick-integer price of the most recent trade where the seller was the aggressor
+- `last_buy_price`: display price of the most recent trade where the buyer was the aggressor
+- `last_sell_price`: display price of the most recent trade where the seller was the aggressor
+- `prev_close`: display price of the most recent trade overall (`last_trade_price`), carried forward as the next session's previous-close reference
 - `null` means no trade of that type occurred during the session
 
 On startup, persisted values **override** any `last_buy_price` / `last_sell_price` seeded
@@ -255,7 +258,7 @@ in `engine_config.yaml`.  Config seeds are only used when no persisted file exis
 
 
 
-## The data/gtc_combos.json File
+## The `gtc_combos.json` File
 
 Format: a JSON array of serialized `ComboOrder` objects (only combos with TIF=GTC and
 status `PENDING` or `PARTIALLY_MATCHED`):

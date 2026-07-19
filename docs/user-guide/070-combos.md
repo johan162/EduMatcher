@@ -287,8 +287,19 @@ NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=GTC|LEG_COUNT=2|LEG0.SYM=MSF
 | `LEG_COUNT=2`       | Number of legs (2–10)                                                          |
 | `LEG<i>.SYM`        | Symbol for leg *i*                                                             |
 | `LEG<i>.SIDE`       | BUY or SELL for leg *i*                                                        |
+| `LEG<i>.TYPE`       | Order type for leg *i* — `LIMIT`, `MARKET`, `STOP`, `STOP_LIMIT`, `FOK`, `ICEBERG`, `IOC`, or `TRAILING_STOP` (defaults to `LIMIT` if omitted) |
 | `LEG<i>.QTY`        | Quantity for leg *i*                                                           |
-| `LEG<i>.PRICE`      | Limit price for leg *i*                                                        |
+| `LEG<i>.PRICE`      | Limit price for leg *i* — required for legs typed `LIMIT`, `IOC`, or `FOK`     |
+| `LEG<i>.STOP`       | Stop price for leg *i* — required for legs typed `STOP` or `STOP_LIMIT`        |
+| `SMP=`              | Optional self-match-prevention action applied to all legs — `NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, or `CANCEL_BOTH` (default `NONE`) |
+
+!!! note "Price/stop requirements are enforced differently at different points"
+    The exact set of leg order types that require `LEG<i>.PRICE` vs `LEG<i>.STOP`
+    can differ slightly depending on whether the combo is submitted live via the
+    gateway or seeded from `market_maker_combos` in `engine_config.yaml` at
+    startup — treat the table above as a practical guide, and expect the engine
+    to reject a combo outright (with a descriptive error) rather than silently
+    accept an inconsistent leg.
 
 ### What Happens After Submission
 
@@ -298,10 +309,10 @@ NEW|TYPE=COMBO|COMBO_ID=PAIR-001|COMBO_TYPE=AON|TIF=GTC|LEG_COUNT=2|LEG0.SYM=MSF
    respective order books.
 4. Child orders match and rest like normal orders. Each fill is reported to you as a
    standard `order.fill` event.
-5. When **all legs are fully filled**, the engine publishes a `combo.fill(MATCHED)`
+5. When **all legs are fully filled**, the engine publishes a `combo.status(MATCHED)`
    event.
 6. If any leg is **cancelled or expires** before all legs fill, the engine
-   cascade-cancels the remaining legs and publishes `combo.fill(FAILED)`.
+   cascade-cancels the remaining legs and publishes `combo.status(FAILED)`.
 
 ### Cancelling a Combo
 
@@ -313,8 +324,10 @@ This cancels all child legs atomically. Fills that already occurred are not reve
 
 ### Monitoring Combo Status
 
-The `ORDERS` command shows child orders with their parent combo ID. The `pm-orders`
-monitor displays combo-level status transitions in real time.
+Child orders appear in the `ORDERS` command's output like any other resting
+order (the `ORDERS` response does not currently include a parent-combo-ID
+column). To follow a combo's overall progress, watch for `combo.ack` and
+`combo.status` events on your gateway — see [Messages](270-messages.md).
 
 
 
@@ -494,9 +507,8 @@ problems real exchanges spend years solving.
 
 ## See also
 
-- [Implied Orders](../concepts/07-concepts-implied-orders.md) - A crach course in implied (or synthetic) orders
+- [Implied Orders](../concepts/07-concepts-implied-orders.md) - A crash course in implied (or synthetic) orders
 - [Order Types](060-order-types.md) — the individual order types used as combo legs
-- [Auctions & Scheduling](080-auctions-scheduling.md) — how combos interact with auction phases
 - [Persistence](180-persistence.md) — how GTC combos are saved and restored across sessions
-- [Messages](270-messages.md) — `combo.ack`, `order.fill`, and cascade-cancel events
+- [Messages](270-messages.md) — `combo.ack`, `combo.status`, `order.fill`, and cascade-cancel events
 - [Gateway](050-gateway.md) — the full COMBO and CANCEL|COMBO_ID= command syntax
