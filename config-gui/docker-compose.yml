@@ -2,7 +2,7 @@
 #
 #   docker compose up --build
 #
-# Then open http://localhost:8080. See docs/user-guide/27-config-GUI.md.
+# Then open http://localhost:8080. See docs/user-guide/030-config-GUI.md.
 services:
   config-gui:
     build:

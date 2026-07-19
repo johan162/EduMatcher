@@ -5,7 +5,7 @@
 #
 # The optional "Verify with pm-cverifier" button needs the Python toolchain,
 # which is NOT included here; that endpoint returns a friendly 503 in this
-# image. Everything else works. See docs/user-guide/27-config-GUI.md.
+# image. Everything else works. See docs/user-guide/030-config-GUI.md.
 
 # Typically build the image when behind a corporate proxy with:
 #
@@ -29,7 +29,7 @@
 FROM node:22-slim AS build
 WORKDIR /app
 
-# --- Corporate-network support (see docs/user-guide/27-config-GUI.md) --------
+# --- Corporate-network support (see docs/user-guide/030-config-GUI.md) --------
 # The build downloads npm packages from a registry. Behind a corporate proxy or
 # firewall the default `npm install` can HANG (dropped connections / TLS
 # interception). Pass these build args to route through your proxy / mirror.
