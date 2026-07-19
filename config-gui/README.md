@@ -9,7 +9,7 @@ guaranteed parseable by the engine.
 > **User & operator documentation** — installation, running in development,
 > production and container deployment, environment variables, and a full
 > troubleshooting guide — lives in the user guide:
-> **[Configuration GUI chapter](../docs/user-guide/27-config-GUI.md)**.
+> **[Configuration GUI chapter](../docs/user-guide/030-config-GUI.md)**.
 >
 > This README is the **developer** reference: project layout, getting started,
 > and how to keep the GUI in sync with `pm-config-gen`.
