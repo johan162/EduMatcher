@@ -1190,10 +1190,12 @@ Each element in `quotes` includes:
 
 ### `system.quote_legs_request` / `system.quote_legs.{GW_ID}`
 
-**Motivation:** Lets a market-maker bot or the API gateway pull a quote's
-current leg state (order IDs, fill progress, per-leg status) on demand,
-instead of reconstructing it from a stream of `quote.status` events.
-**Published by:** `pm-mm-bot` or `pm-api-gwy` via PUSH :5555 (request); intended reply from pm-engine via PUB :5556
+**Motivation:** Lets a market-maker bot, the API gateway, or `pm-alf-gwy` pull
+a quote's current leg state (order IDs, fill progress, per-leg status) on
+demand, instead of reconstructing it from a stream of `quote.status` events —
+and, for `RECENT`/`ALL`, review recently-inactivated quotes without having to
+replay the event stream themselves.
+**Published by:** `pm-mm-bot`, `pm-api-gwy`, or `pm-alf-gwy` via PUSH :5555 (request); reply from pm-engine via PUB :5556
 
 | Field | Type | Description |
 |---|---|---|
@@ -1201,13 +1203,14 @@ instead of reconstructing it from a stream of `quote.status` events.
 | `symbol` | string | Optional symbol filter (empty string means all symbols) |
 | `show` | `"ACTIVE"` \| `"RECENT"` \| `"ALL"` | Which legs to include |
 
-**Reply:** `system.quote_legs.{GW_ID}` — `{ "legs": [...], "show_requested": "...", "complete": true|false }`
+**Reply:** `system.quote_legs.{GW_ID}` — `{ "legs": [...], "recent": [...], "show_requested": "...", "complete": true|false }`
 
 | Field | Type | Description |
 |---|---|---|
-| `legs` | array | One row per quote leg (bid and ask are separate rows) — see below |
+| `legs` | array | Currently-**active** leg rows (bid and ask are separate rows) — populated when `show` is `ACTIVE` or `ALL`; see below |
+| `recent` | array | Recently-**inactivated** quote summaries, most-recently-removed first — populated when `show` is `RECENT` or `ALL`; see below |
 | `show_requested` | `"ACTIVE"` \| `"RECENT"` \| `"ALL"` | Echoes the request's `show` value |
-| `complete` | boolean | `true` when `legs` fully answers what was requested; `false` when `legs` is an active-only subset because `show` asked for more than `ACTIVE` (see note below) |
+| `complete` | boolean | Always `true` — see note below |
 
 Each row in `legs`:
 
@@ -1223,20 +1226,49 @@ Each row in `legs`:
 | `status` | string | Order status of the leg (same values as `order.ack`/`order.fill` `status`) |
 | `quote_status` | string | The quote's own lifecycle state (`ACTIVE`, `INACTIVE_BID_FILLED`, `INACTIVE_ASK_FILLED`, `CANCELLED`) |
 
-Always replies — never drops the request. The engine only tracks
-currently-**active** quote legs in memory (entries are removed the instant a
-leg fills or is cancelled, so there is no retained RECENT/ALL history).
-Regardless of the requested `show` value, the reply always contains the
-current active legs — the best data available — and sets `complete=false`
-whenever `show` asked for more than `ACTIVE`, so callers can tell "no active
-legs" apart from "history beyond ACTIVE isn't tracked". In practice
-`pm-mm-bot` always sends `SHOW=ALL`, so its replies normally have
-`complete=false` even though `legs` is populated; `pm-mm-bot`'s reconciliation
-logic (`_reconcile_qlegs`) only reads `quote_id`/`order_id` per leg and does
-not currently inspect `complete`. `pm-api-gwy`'s `GET /quotes/legs` returns
-this reply's payload directly (after its own local quote-leg cache, if
-populated). `pm-alf-console`'s `QLEGS` command still never sends this
-request — it continues to render entirely from its own local cache.
+Each row in `recent` — a **quote-level summary**, not a per-leg row:
+
+| Field | Type | Description |
+|---|---|---|
+| `quote_id` | string | Quote identifier |
+| `symbol` | string | Instrument symbol |
+| `bid_order_id` | string | The quote's bid-leg order ID |
+| `ask_order_id` | string | The quote's ask-leg order ID |
+| `quote_status` | string | Final state: `INACTIVE_BID_FILLED`, `INACTIVE_ASK_FILLED`, or `CANCELLED` (every non-fill removal reason is reported as `CANCELLED`) |
+| `reason` | string | Free-text removal reason recorded by the engine, e.g. `"Cancelled by participant"`, `"Gateway disconnected"`, `"Kill switch"`, `"Circuit breaker halt"`, `"Replaced by new quote"`, or one of the `INACTIVE_*_FILLED` values |
+| `removed_at_ns` | integer | Engine-clock nanosecond timestamp when the quote was removed from the active index |
+
+Always replies — never drops the request. The engine tracks currently-active
+quote legs in `QuoteIndex` as before, and **also** keeps a bounded,
+per-gateway, in-memory ring buffer of the last 30 (default) inactivated
+quotes — populated at every point a quote leaves the active index: a fill (of
+either leg, subject to the gateway's `quote_refresh_policy`), an explicit
+`QUOTE_CANCEL`, a kill switch, a circuit breaker halt, a symbol mass-cancel, a
+gateway disconnect, or being replaced by a new quote on the same
+gateway+symbol. `RECENT`/`ALL` replies are served from this buffer, so
+`complete` is now always `true`: both `ACTIVE` and `RECENT`/`ALL` requests are
+answered with the real, current data behind them (modulo the history buffer's
+bound — very old inactivations may have been evicted; see
+[Persistence → What is deliberately not persisted](180-persistence.md#data-files-at-a-glance)
+for why this buffer is in-memory-only and does not survive an engine
+restart).
+
+`recent` reports **quote-level** detail only (not per-leg qty/remaining/status):
+once an order leaves the book, its live fill detail is not retained anywhere
+in the engine, so a removed quote's identity, final status, removal reason,
+and removal time are reported instead of reconstructed per-leg numbers.
+
+`pm-mm-bot` always sends `SHOW=ALL`; its reconciliation logic
+(`_reconcile_qlegs`) reads only `legs` (never `recent`) and does not currently
+gate behavior on `complete`. `pm-api-gwy`'s `GET /quotes/legs` returns this
+reply's payload directly, so `recent` and the now-always-`true` `complete`
+flow through automatically. `pm-alf-gwy` forwards `QLEGS` requests from its
+own ALF sessions to this message and renders both `legs` (as `LEG` lines) and
+`recent` (as `RECENT_LEG` lines) — see
+[Gateway → QLEGS](050-gateway.md#qlegs-inspect-mm-quote-legs-and-fill-flags).
+`pm-alf-console`'s own `QLEGS` command does **not** use this message at all —
+it continues to render entirely from its own local, session-scoped cache
+(unrelated code path, unaffected by any of the above).
 
 
 

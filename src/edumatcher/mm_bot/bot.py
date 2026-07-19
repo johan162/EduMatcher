@@ -715,10 +715,16 @@ class MMBot:
         """Reconcile a QLEGS snapshot against local quote state.
 
         Only acts while actively quoting a tracked quote; a divergence
-        clears local state and schedules an immediate reissue.
+        clears local state and schedules an immediate reissue. Reconciles
+        against ``legs`` (the currently-active set) only — ``recent`` (the
+        engine's bounded inactivation history, present when ``show=ALL``)
+        is informational and not used for reconciliation.
         """
         if self._state != BotState.QUOTING or self._quote_id is None:
             return
+
+        if not payload.get("complete", True):
+            self._debug("QLEGS reply marked incomplete by engine")
 
         legs = payload.get("legs", [])
         if not legs:

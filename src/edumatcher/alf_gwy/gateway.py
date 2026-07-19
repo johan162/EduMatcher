@@ -47,6 +47,7 @@ from edumatcher.models.message import (
     make_orders_request_msg,
     make_quote_bootstrap_request_msg,
     make_quote_cancel_msg,
+    make_quote_legs_request_msg,
     make_quote_new_msg,
     make_symbols_request_msg,
 )
@@ -445,8 +446,17 @@ class AlfGateway:
                 )
             )
             return
+        if cmd == "QLEGS":
+            self._send_to_engine(
+                make_quote_legs_request_msg(
+                    self._require_gw(session),
+                    fields.get("SYM", ""),
+                    fields.get("SHOW", "ACTIVE"),
+                )
+            )
+            return
 
-        if cmd in {"STATUS", "POS", "QLEGS", "HELP"}:
+        if cmd in {"STATUS", "POS", "HELP"}:
             raise ValidationError(
                 "UNKNOWN_COMMAND",
                 f"{cmd} is interactive-only and not supported by pm-alf-gwy",
@@ -815,6 +825,11 @@ class AlfGateway:
                 self._handle_qboot_response(gateway_id, payload)
                 continue
 
+            if topic.startswith("system.quote_legs."):
+                gateway_id = topic.rsplit(".", 1)[-1].upper()
+                self._handle_qlegs_response(gateway_id, payload)
+                continue
+
             if topic == "session.state":
                 self._broadcast(
                     "SESSION",
@@ -1000,6 +1015,62 @@ class AlfGateway:
                 },
             )
         self._queue_line(session, "END", {"TYPE": "QBOOT"})
+
+    def _handle_qlegs_response(self, gateway_id: str, payload: dict[str, Any]) -> None:
+        session = self._session_for_gateway(gateway_id)
+        if session is None:
+            return
+
+        legs = payload.get("legs", [])
+        if not isinstance(legs, list):
+            legs = []
+        recent = payload.get("recent", [])
+        if not isinstance(recent, list):
+            recent = []
+        show_requested = str(payload.get("show_requested", "ACTIVE"))
+
+        self._queue_line(
+            session,
+            "QLEGS",
+            {
+                "COUNT": str(len(legs)),
+                "RECENT_COUNT": str(len(recent)),
+                "SHOW": show_requested,
+            },
+        )
+        for leg in legs:
+            if not isinstance(leg, dict):
+                continue
+            self._queue_line(
+                session,
+                "LEG",
+                {
+                    "QUOTE_ID": str(leg.get("quote_id", "")),
+                    "SYM": str(leg.get("symbol", "")),
+                    "SIDE": str(leg.get("leg_side", "")),
+                    "ORDER_ID": str(leg.get("order_id", "")),
+                    "QTY": str(leg.get("qty", "")),
+                    "REMAINING": str(leg.get("remaining", "")),
+                    "FILLED": str(leg.get("filled", "")),
+                    "STATUS": str(leg.get("status", "")),
+                    "QUOTE_STATUS": str(leg.get("quote_status", "")),
+                },
+            )
+        for entry in recent:
+            if not isinstance(entry, dict):
+                continue
+            self._queue_line(
+                session,
+                "RECENT_LEG",
+                {
+                    "QUOTE_ID": str(entry.get("quote_id", "")),
+                    "SYM": str(entry.get("symbol", "")),
+                    "QUOTE_STATUS": str(entry.get("quote_status", "")),
+                    "REASON": str(entry.get("reason", "")),
+                    "REMOVED_AT_NS": str(entry.get("removed_at_ns", "")),
+                },
+            )
+        self._queue_line(session, "END", {"TYPE": "QLEGS"})
 
     def _route_gateway_scoped_event(self, topic: str, payload: dict[str, Any]) -> None:
         if "." not in topic:

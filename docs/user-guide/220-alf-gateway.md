@@ -8,7 +8,7 @@
     - how to start it and verify connectivity from a terminal
     - the session lifecycle: HELLO → WELCOME → commands → EXIT
     - what commands are accepted and what responses to expect
-    - how multi-line responses (SYMBOLS, ORDERS, QBOOT) are framed
+    - how multi-line responses (SYMBOLS, ORDERS, QBOOT, QLEGS) are framed
     - which broadcast events arrive unsolicited on every authenticated session
     - how heartbeats, idle timeouts, and rate limiting work
     - the error codes your client must handle
@@ -62,8 +62,13 @@ flowchart LR
 |---------------------|--------|
 | `STATUS` | Console P&L and position display — use `ORDERS` + `SYMBOLS` instead |
 | `POS` | Positions are computed locally in `pm-alf-console` |
-| `QLEGS` | Gateway-local quote-leg cache |
 | `HELP` | Interactive terminal reference text |
+
+`QLEGS` **is** supported — see the [command reference](#qlegs-quote-leg-snapshot-active-recent)
+below. Unlike `pm-alf-console`'s `QLEGS` (which renders from its own local,
+session-scoped cache), `pm-alf-gwy` forwards the request to the engine over
+`system.quote_legs_request` and renders the engine's reply, including real
+`RECENT`/`ALL` history.
 
 For interactive operator use, `pm-alf-console` remains the right tool.
 `pm-alf-gwy` is for programmatic clients and remote bots.
@@ -409,6 +414,45 @@ QBOOT|COUNT=1
 QUOTE|QUOTE_ID=...|SYM=AAPL|BID=150.00|ASK=150.10|BID_QTY=500|ASK_QTY=500|STATUS=ACTIVE
 END|TYPE=QBOOT
 ```
+
+### `QLEGS` — quote leg snapshot (active + recent)
+
+```text
+QLEGS
+QLEGS|SYM=AAPL
+QLEGS|SHOW=RECENT
+QLEGS|SYM=AAPL|SHOW=ALL
+```
+
+| Field  | Required | Default     | Description                                                             |
+|--------|----------|-------------|--------------------------------------------------------------------------|
+| `SYM`  | No       | all symbols | Restrict output to one symbol                                            |
+| `SHOW` | No       | `ACTIVE`    | `ACTIVE` = currently live legs, `RECENT` = recently-inactivated quotes, `ALL` = both |
+
+`pm-alf-gwy` forwards this straight to the engine's
+[`system.quote_legs_request`](270-messages.md#systemquote_legs_request-systemquote_legsgw_id)
+message and renders the reply. `ACTIVE` legs (`LEG` lines) carry live
+qty/remaining/status per leg, same as before. `RECENT` rows (`RECENT_LEG`
+lines) are quote-level summaries drawn from the engine's bounded, in-memory,
+per-gateway history of recently-inactivated quotes — not per-leg fill detail,
+which is no longer available once an order leaves the book. See
+[Gateway → QLEGS](050-gateway.md#qlegs-inspect-mm-quote-legs-and-fill-flags)
+for the full column semantics (shared with `pm-alf-console`'s `QLEGS`).
+
+**Multi-line response:**
+
+```text
+QLEGS|COUNT=2|RECENT_COUNT=1|SHOW=ALL
+LEG|QUOTE_ID=Q123|SYM=AAPL|SIDE=BUY|ORDER_ID=7c4a91e2|QTY=500|REMAINING=400|FILLED=100|STATUS=PARTIAL_FILL|QUOTE_STATUS=ACTIVE
+LEG|QUOTE_ID=Q123|SYM=AAPL|SIDE=SELL|ORDER_ID=be2170fd|QTY=500|REMAINING=500|FILLED=0|STATUS=RESTING|QUOTE_STATUS=ACTIVE
+RECENT_LEG|QUOTE_ID=Q100|SYM=AAPL|QUOTE_STATUS=CANCELLED|REASON=Cancelled by participant|REMOVED_AT_NS=1784468999030221878
+END|TYPE=QLEGS
+```
+
+An unconnected/unknown gateway still gets a well-formed, empty reply
+(`QLEGS|COUNT=0|RECENT_COUNT=0|SHOW=...` followed immediately by
+`END|TYPE=QLEGS`) rather than an error — `QLEGS` never fails on a bad
+gateway ID, it simply has nothing to report.
 
 ### `PING` / `EXIT`
 

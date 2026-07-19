@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from edumatcher.models.mm_obligation import MMPState, MarketMakerObligation
-from edumatcher.models.quote import QuoteEntry, QuoteIndex
+from edumatcher.models.quote import QuoteEntry, QuoteHistoryEntry, QuoteIndex
 
 
 def test_quote_index_put_and_get() -> None:
@@ -79,6 +79,102 @@ def test_quote_index_cancel_for_symbol_and_has_symbol() -> None:
     assert len(removed) == 2
     assert idx.has_symbol("AAPL") is False
     assert idx.active_count() == 1
+
+
+def test_remove_records_history_with_reason() -> None:
+    idx = QuoteIndex()
+    idx.put(QuoteEntry("Q1", "GW01", "AAPL", "B1", "S1"))
+
+    removed = idx.remove("GW01", "AAPL", reason="Cancelled by participant")
+    assert removed is not None
+    assert removed.quote_id == "Q1"
+
+    recent = idx.recent_for_gateway("GW01")
+    assert len(recent) == 1
+    assert isinstance(recent[0], QuoteHistoryEntry)
+    assert recent[0].entry.quote_id == "Q1"
+    assert recent[0].reason == "Cancelled by participant"
+    assert recent[0].removed_at_ns > 0
+
+
+def test_remove_missing_entry_records_no_history() -> None:
+    idx = QuoteIndex()
+    removed = idx.remove("GW01", "AAPL", reason="Kill switch")
+    assert removed is None
+    assert idx.recent_for_gateway("GW01") == []
+
+
+def test_cancel_all_for_gateway_records_history_for_each_entry() -> None:
+    idx = QuoteIndex()
+    idx.put(QuoteEntry("Q1", "GW01", "AAPL", "B1", "S1"))
+    idx.put(QuoteEntry("Q2", "GW01", "MSFT", "B2", "S2"))
+
+    idx.cancel_all_for_gateway("GW01", reason="Gateway disconnected")
+
+    recent = idx.recent_for_gateway("GW01")
+    assert len(recent) == 2
+    assert {h.entry.quote_id for h in recent} == {"Q1", "Q2"}
+    assert all(h.reason == "Gateway disconnected" for h in recent)
+
+
+def test_cancel_all_for_symbol_records_history_for_each_entry() -> None:
+    idx = QuoteIndex()
+    idx.put(QuoteEntry("Q1", "GW01", "AAPL", "B1", "S1"))
+    idx.put(QuoteEntry("Q2", "GW02", "AAPL", "B2", "S2"))
+
+    idx.cancel_all_for_symbol("AAPL", reason="Circuit breaker halt")
+
+    assert len(idx.recent_for_gateway("GW01")) == 1
+    assert len(idx.recent_for_gateway("GW02")) == 1
+
+
+def test_recent_for_gateway_filters_by_symbol() -> None:
+    idx = QuoteIndex()
+    idx.put(QuoteEntry("Q1", "GW01", "AAPL", "B1", "S1"))
+    idx.put(QuoteEntry("Q2", "GW01", "MSFT", "B2", "S2"))
+    idx.cancel_all_for_gateway("GW01", reason="Kill switch")
+
+    aapl_only = idx.recent_for_gateway("GW01", "AAPL")
+    assert len(aapl_only) == 1
+    assert aapl_only[0].entry.symbol == "AAPL"
+
+
+def test_recent_for_gateway_most_recent_first() -> None:
+    idx = QuoteIndex()
+    idx.put(QuoteEntry("Q1", "GW01", "AAPL", "B1", "S1"))
+    idx.remove("GW01", "AAPL", reason="first")
+    idx.put(QuoteEntry("Q2", "GW01", "AAPL", "B3", "S3"))
+    idx.remove("GW01", "AAPL", reason="second")
+
+    recent = idx.recent_for_gateway("GW01")
+    assert [h.reason for h in recent] == ["second", "first"]
+
+
+def test_recent_for_gateway_unknown_gateway_returns_empty() -> None:
+    idx = QuoteIndex()
+    assert idx.recent_for_gateway("NOPE") == []
+
+
+def test_history_is_bounded_by_maxlen() -> None:
+    idx = QuoteIndex(history_maxlen=2)
+    for i in range(5):
+        idx.put(QuoteEntry(f"Q{i}", "GW01", "AAPL", f"B{i}", f"S{i}"))
+        idx.remove("GW01", "AAPL", reason=f"reason-{i}")
+
+    recent = idx.recent_for_gateway("GW01")
+    assert len(recent) == 2
+    # Oldest entries were evicted; only the last two removals remain,
+    # most-recent first.
+    assert [h.reason for h in recent] == ["reason-4", "reason-3"]
+
+
+def test_remove_default_reason_is_empty_string() -> None:
+    idx = QuoteIndex()
+    idx.put(QuoteEntry("Q1", "GW01", "AAPL", "B1", "S1"))
+    idx.remove("GW01", "AAPL")
+
+    recent = idx.recent_for_gateway("GW01")
+    assert recent[0].reason == ""
 
 
 def test_mmp_state_records_and_activates() -> None:

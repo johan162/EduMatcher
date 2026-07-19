@@ -68,6 +68,25 @@ dedicated query tool.
 The engine state files are described in detail in the sections below; the
 accumulating stores each have their own chapter (linked in the table).
 
+!!! note "What is deliberately *not* persisted: quote inactivation history"
+    The engine keeps a small, bounded, **in-memory-only** ring buffer per
+    gateway of recently-inactivated MM quotes (filled or cancelled), used to
+    answer the ALF `QLEGS|SHOW=RECENT` / `SHOW=ALL` subcommands and the
+    equivalent `system.quote_legs_request` wire message — see
+    [Gateway → QLEGS](050-gateway.md#qlegs-inspect-mm-quote-legs-and-fill-flags)
+    and [Messages → `system.quote_legs_request`](270-messages.md#systemquote_legs_request-systemquote_legsgw_id).
+    Unlike `gtc_orders.json`/`gtc_combos.json`, this history is **not** written
+    to disk and does not survive an engine restart — a fresh engine process
+    starts with empty history for every gateway. This is intentional: the
+    persistence files on this page exist to restore **actionable, resting
+    exposure** (orders and combos still working in the book) so the market
+    resumes correctly after a restart. Quote inactivation history is neither
+    resting nor actionable — it is a short operator convenience for "what just
+    happened to my quote," and it is safe, by design, for it to reset to empty
+    on every engine restart. The buffer's bound (30 entries per gateway by
+    default) also does not need to be pre-sized against restart timing; it
+    exists only to cap memory use during a single continuous run.
+
 
 
 ## How It Works

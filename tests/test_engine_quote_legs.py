@@ -15,7 +15,15 @@ down.
 
 from __future__ import annotations
 
-from tests.engine_harness import SYMBOL, connect, make_engine, msgs, submit_quote
+from edumatcher.models.order import OrderType, Side, TIF
+from tests.engine_harness import (
+    SYMBOL,
+    connect,
+    make_engine,
+    msgs,
+    order_payload,
+    submit_quote,
+)
 
 
 def test_quote_legs_request_active_returns_both_legs(monkeypatch, tmp_path):
@@ -33,6 +41,7 @@ def test_quote_legs_request_active_returns_both_legs(monkeypatch, tmp_path):
     payload = replies[0]
     assert payload["show_requested"] == "ACTIVE"
     assert payload["complete"] is True
+    assert payload["recent"] == []
 
     legs = payload["legs"]
     assert len(legs) == 2
@@ -48,13 +57,12 @@ def test_quote_legs_request_active_returns_both_legs(monkeypatch, tmp_path):
         assert leg["quote_status"] == "ACTIVE"
 
 
-def test_quote_legs_request_all_still_returns_active_legs_but_flags_incomplete(
+def test_quote_legs_request_all_returns_active_legs_and_is_complete(
     monkeypatch, tmp_path
 ):
-    """pm-mm-bot's real callers always send show="ALL" (never "ACTIVE") — the
-    engine only tracks currently-active quote legs (no retained history), so
-    it must still reply with what it has instead of dropping the request,
-    while being honest that "ALL" wasn't fully honored.
+    """pm-mm-bot's real callers always send show="ALL" (never "ACTIVE").
+    ALL now returns both the active legs and the (possibly empty) recent
+    history, and is honestly marked complete=True.
     """
     engine, pub_sock = make_engine(monkeypatch, tmp_path, mm_gateways=("GW01",))
     connect(engine, "GW01")
@@ -67,8 +75,153 @@ def test_quote_legs_request_all_still_returns_active_legs_but_flags_incomplete(
 
     payload = msgs(pub_sock, "system.quote_legs.GW01")[0]
     assert payload["show_requested"] == "ALL"
-    assert payload["complete"] is False
+    assert payload["complete"] is True
     assert len(payload["legs"]) == 2  # active legs, not an empty/dropped reply
+    assert payload["recent"] == []  # nothing inactivated yet
+
+
+def test_quote_legs_request_recent_returns_cancelled_quote_history(
+    monkeypatch, tmp_path
+):
+    """After a quote is cancelled, SHOW=RECENT must report it — this is the
+    core RECENT/ALL fix: history that used to be silently dropped.
+    """
+    engine, pub_sock = make_engine(monkeypatch, tmp_path, mm_gateways=("GW01",))
+    connect(engine, "GW01")
+    submit_quote(engine, "GW01", bid_price=100.0, ask_price=101.0, quote_id="Q1")
+    pub_sock.sent.clear()
+
+    engine._handle_quote_cancel({"gateway_id": "GW01", "symbol": SYMBOL})
+    pub_sock.sent.clear()
+
+    engine._handle_quote_legs_request(
+        {"gateway_id": "GW01", "symbol": "", "show": "RECENT"}
+    )
+
+    payload = msgs(pub_sock, "system.quote_legs.GW01")[0]
+    assert payload["show_requested"] == "RECENT"
+    assert payload["complete"] is True
+    assert payload["legs"] == []  # RECENT alone does not include active legs
+
+    recent = payload["recent"]
+    assert len(recent) == 1
+    assert recent[0]["quote_id"] == "Q1"
+    assert recent[0]["symbol"] == SYMBOL
+    assert recent[0]["reason"] == "Cancelled by participant"
+    assert recent[0]["quote_status"] == "CANCELLED"
+    assert recent[0]["removed_at_ns"] > 0
+
+
+def test_quote_legs_request_all_includes_both_active_and_recent(monkeypatch, tmp_path):
+    """ALL after a cancel+new-quote cycle returns the new active quote's legs
+    plus the old quote's history — both halves of "ALL" are now real.
+    """
+    engine, pub_sock = make_engine(
+        monkeypatch, tmp_path, symbols=("AAPL", "MSFT"), mm_gateways=("GW01",)
+    )
+    connect(engine, "GW01")
+    submit_quote(
+        engine, "GW01", bid_price=100.0, ask_price=101.0, quote_id="Q1", symbol="AAPL"
+    )
+    engine._handle_quote_cancel({"gateway_id": "GW01", "symbol": "AAPL"})
+    submit_quote(
+        engine, "GW01", bid_price=200.0, ask_price=201.0, quote_id="Q2", symbol="MSFT"
+    )
+    pub_sock.sent.clear()
+
+    engine._handle_quote_legs_request(
+        {"gateway_id": "GW01", "symbol": "", "show": "ALL"}
+    )
+
+    payload = msgs(pub_sock, "system.quote_legs.GW01")[0]
+    assert payload["complete"] is True
+    assert len(payload["legs"]) == 2
+    assert {leg["symbol"] for leg in payload["legs"]} == {"MSFT"}
+    assert len(payload["recent"]) == 1
+    assert payload["recent"][0]["quote_id"] == "Q1"
+
+
+def test_quote_legs_request_recent_symbol_filter(monkeypatch, tmp_path):
+    engine, pub_sock = make_engine(
+        monkeypatch, tmp_path, symbols=("AAPL", "MSFT"), mm_gateways=("GW01",)
+    )
+    connect(engine, "GW01")
+    submit_quote(
+        engine, "GW01", bid_price=100.0, ask_price=101.0, quote_id="Q1", symbol="AAPL"
+    )
+    submit_quote(
+        engine, "GW01", bid_price=200.0, ask_price=201.0, quote_id="Q2", symbol="MSFT"
+    )
+    engine._handle_quote_cancel({"gateway_id": "GW01", "symbol": "AAPL"})
+    engine._handle_quote_cancel({"gateway_id": "GW01", "symbol": "MSFT"})
+    pub_sock.sent.clear()
+
+    engine._handle_quote_legs_request(
+        {"gateway_id": "GW01", "symbol": "AAPL", "show": "RECENT"}
+    )
+
+    payload = msgs(pub_sock, "system.quote_legs.GW01")[0]
+    recent = payload["recent"]
+    assert len(recent) == 1
+    assert recent[0]["quote_id"] == "Q1"
+    assert recent[0]["symbol"] == "AAPL"
+
+
+def test_quote_legs_request_recent_reflects_fill_driven_inactivation(
+    monkeypatch, tmp_path
+):
+    """A quote inactivated by a leg fill (not an explicit cancel) also lands
+    in RECENT, with the INACTIVE_*_FILLED status as its reason.
+    """
+    engine, pub_sock = make_engine(
+        monkeypatch,
+        tmp_path,
+        gateways=("GW01", "TAKER"),
+        mm_gateways=("GW01",),
+    )
+    connect(engine, "GW01", "TAKER")
+    submit_quote(engine, "GW01", bid_price=100.0, ask_price=101.0, quote_id="Q1")
+
+    # A marketable BUY at the quote's ask price fills the ask leg, which
+    # (with the default INACTIVATE_ON_ANY_FILL policy) inactivates the
+    # whole quote and cancels the sibling bid leg.
+    engine._handle_new_order(
+        order_payload(
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            qty=100,
+            gateway_id="TAKER",
+            price=101.0,
+            tif=TIF.DAY,
+        )
+    )
+    pub_sock.sent.clear()
+
+    engine._handle_quote_legs_request(
+        {"gateway_id": "GW01", "symbol": "", "show": "RECENT"}
+    )
+
+    payload = msgs(pub_sock, "system.quote_legs.GW01")[0]
+    recent = payload["recent"]
+    assert len(recent) == 1
+    assert recent[0]["quote_id"] == "Q1"
+    assert recent[0]["reason"] == "INACTIVE_ASK_FILLED"
+
+
+def test_quote_legs_request_unconnected_gateway_recent_returns_empty_complete(
+    monkeypatch, tmp_path
+):
+    engine, pub_sock = make_engine(monkeypatch, tmp_path, mm_gateways=("GW01",))
+    # Deliberately skip connect(engine, "GW01").
+    engine._handle_quote_legs_request(
+        {"gateway_id": "GW01", "symbol": "", "show": "RECENT"}
+    )
+
+    replies = msgs(pub_sock, "system.quote_legs.GW01")
+    assert len(replies) == 1
+    assert replies[0]["legs"] == []
+    assert replies[0]["recent"] == []
+    assert replies[0]["complete"] is True
 
 
 def test_quote_legs_request_no_active_quote_returns_empty_not_dropped(

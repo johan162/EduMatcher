@@ -111,7 +111,12 @@ from edumatcher.models.order import (
 )
 from edumatcher.models.price import from_ticks, to_ticks
 from edumatcher.models.price import get_tick_decimals, register_tick_decimals
-from edumatcher.models.quote import QuoteEntry, QuoteIndex, QuoteRefreshPolicy
+from edumatcher.models.quote import (
+    QuoteEntry,
+    QuoteIndex,
+    QuoteRefreshPolicy,
+    QuoteState,
+)
 from edumatcher.models.session import (
     SessionState,
     VALID_TRANSITIONS,
@@ -435,7 +440,9 @@ class Engine:
                 gateway_id = quote_seed.gateway_id
                 quote_id = quote_seed.quote_id or f"SEED-{gateway_id}-{sym}-{idx}"
 
-                previous = self._quote_index.remove(gateway_id, sym)
+                previous = self._quote_index.remove(
+                    gateway_id, sym, reason="Replaced by startup quote"
+                )
                 if previous:
                     self._cancel_quote_entry(
                         previous, reason="Replaced by startup quote"
@@ -1055,6 +1062,15 @@ class Engine:
                     self._check_combo_after_child_event(evt)
                 if evt.status == OrderStatus.FILLED and evt.oco_group_id:
                     self._check_oco_after_event(evt)
+                # MM quote leg inactivation: a resting quote leg can be filled
+                # here by an independent, later-arriving taker order — not
+                # just by the quote's own submission sweeping the book (that
+                # path is handled separately in _handle_quote_submit's match
+                # loop). Without this call, a quote hit by a later order was
+                # never inactivated or had its sibling leg cancelled, and its
+                # removal was never recorded in QuoteIndex's RECENT history.
+                if evt.quote_id:
+                    self._on_quote_leg_filled(evt)
                 # H7: a fully filled order is terminal — drop its engine-level
                 # order→symbol routing entry (the book already purged its own
                 # indexes).  A partially filled order that rests keeps it.
@@ -1466,29 +1482,59 @@ class Engine:
     def _handle_quote_legs_request(self, payload: dict[str, Any]) -> None:
         """Reply to a QLEGS snapshot request with the gateway's quote legs.
 
-        Only ACTIVE quote legs are tracked in memory — ``QuoteIndex`` entries
-        are removed the moment a leg fills or is cancelled, so there is no
-        retained RECENT/ALL history to serve. Regardless of the requested
-        ``show`` value this always replies with the currently-active legs
-        (the best data available, never a silent drop), and sets
-        ``complete=False`` on the reply when ``show`` asked for more than
-        ``ACTIVE`` so the caller can distinguish "no active legs" from
-        "history beyond ACTIVE isn't tracked".
+        ``ACTIVE`` legs come straight from ``QuoteIndex`` plus each leg's
+        live order state (qty, remaining, status) — unchanged from before.
+
+        ``RECENT``/``ALL`` are now served from ``QuoteIndex``'s bounded
+        per-gateway history of recently-removed quotes (see
+        ``QuoteIndex.recent_for_gateway``), populated at every point a quote
+        is inactivated (fill, cancel, disconnect, kill switch, circuit
+        breaker halt, etc.). This history is a *quote-level* summary, not a
+        per-leg one: once an order leaves the book its live qty/remaining/
+        status are no longer available anywhere in the engine, so recent
+        rows report the quote's identity, final state, removal reason, and
+        removal time instead of reconstructing per-leg fill detail. The
+        history is in-memory only, bounded, and does not survive an engine
+        restart — see docs/user-guide/180-persistence.md.
+
+        ``complete`` is ``True`` whenever the reply honestly reflects what
+        was asked for: ``ACTIVE`` is always complete, and ``RECENT``/``ALL``
+        are now complete too (subject to the history buffer's bound — very
+        old inactivations may have been evicted).
         """
         gateway_id = str(payload.get("gateway_id", "")).upper()
         symbol_filter = str(payload.get("symbol", "")).upper()
         show = str(payload.get("show", "ACTIVE")).upper() or "ACTIVE"
-        complete = show == "ACTIVE"
 
         ok, _ = self._gateway_status(gateway_id)
         if not ok:
             self.pub_sock.send_multipart(
-                make_quote_legs_msg(
-                    gateway_id, [], show_requested=show, complete=complete
-                )
+                make_quote_legs_msg(gateway_id, [], show_requested=show, complete=True)
             )
             return
 
+        legs: list[dict[str, Any]] = []
+        if show in ("ACTIVE", "ALL"):
+            legs = self._active_quote_legs(gateway_id, symbol_filter)
+
+        recent: list[dict[str, Any]] = []
+        if show in ("RECENT", "ALL"):
+            recent = self._recent_quote_legs(gateway_id, symbol_filter)
+
+        self.pub_sock.send_multipart(
+            make_quote_legs_msg(
+                gateway_id,
+                legs,
+                show_requested=show,
+                complete=True,
+                recent=recent,
+            )
+        )
+
+    def _active_quote_legs(
+        self, gateway_id: str, symbol_filter: str
+    ) -> list[dict[str, Any]]:
+        """Build the ACTIVE leg rows for one gateway (unchanged behavior)."""
         order_by_id: dict[str, Order] = {}
         for book in self.books.values():
             for order in book.resting_orders():
@@ -1520,12 +1566,45 @@ class Engine:
                         "quote_status": entry.state.value,
                     }
                 )
+        return legs
 
-        self.pub_sock.send_multipart(
-            make_quote_legs_msg(
-                gateway_id, legs, show_requested=show, complete=complete
-            )
-        )
+    def _recent_quote_legs(
+        self, gateway_id: str, symbol_filter: str
+    ) -> list[dict[str, Any]]:
+        """Build RECENT rows from QuoteIndex's bounded inactivation history.
+
+        Quote-level summaries (see `_handle_quote_legs_request` docstring),
+        most-recently-removed first.
+
+        `QuoteEntry.state` is never mutated after creation (it is always
+        the `ACTIVE` it started as), so it cannot be used to report a
+        removed quote's final status. Instead, the final `quote_status` is
+        derived from `reason`: fill-driven removals pass one of the
+        `INACTIVE_*_FILLED` values as `reason` (see `_on_quote_leg_filled`),
+        so that value doubles as the status; every other removal path is a
+        cancellation of one kind or another (participant cancel, kill
+        switch, disconnect, circuit breaker halt, replaced by a new quote,
+        ...), so it is reported as `CANCELLED`.
+        """
+        history = self._quote_index.recent_for_gateway(gateway_id, symbol_filter)
+        fill_reasons = {
+            QuoteState.INACTIVE_BID_FILLED.value,
+            QuoteState.INACTIVE_ASK_FILLED.value,
+        }
+        return [
+            {
+                "quote_id": h.entry.quote_id,
+                "symbol": h.entry.symbol,
+                "bid_order_id": h.entry.bid_order_id,
+                "ask_order_id": h.entry.ask_order_id,
+                "quote_status": (
+                    h.reason if h.reason in fill_reasons else QuoteState.CANCELLED.value
+                ),
+                "reason": h.reason,
+                "removed_at_ns": h.removed_at_ns,
+            }
+            for h in history
+        ]
 
     def _cancel_order_by_id(self, order_id: str) -> bool:
         symbol = self._order_symbol.get(order_id)
@@ -1665,7 +1744,9 @@ class Engine:
         # Cancel all resting quotes for the halted symbol.
         # Fast-path: avoid cancellation traversal when no quotes exist.
         if self._quote_index.has_symbol(symbol):
-            for entry in self._quote_index.cancel_all_for_symbol(symbol):
+            for entry in self._quote_index.cancel_all_for_symbol(
+                symbol, reason="Circuit breaker halt"
+            ):
                 self._cancel_quote_entry(entry, reason="Circuit breaker halt")
 
         self.pub_sock.send_multipart(
@@ -1750,13 +1831,13 @@ class Engine:
         if not should_inactivate:
             return
 
-        self._quote_index.remove(order.gateway_id, order.symbol)
-        sibling_id = entry.counterpart_order_id(order.side.value)
-        self._cancel_order_by_id(sibling_id)
-
         status = (
             "INACTIVE_BID_FILLED" if order.side == Side.BUY else "INACTIVE_ASK_FILLED"
         )
+        self._quote_index.remove(order.gateway_id, order.symbol, reason=status)
+        sibling_id = entry.counterpart_order_id(order.side.value)
+        self._cancel_order_by_id(sibling_id)
+
         self.pub_sock.send_multipart(
             make_quote_status_msg(order.gateway_id, entry.quote_id, status)
         )
@@ -1916,7 +1997,9 @@ class Engine:
                 )
                 return
 
-        previous = self._quote_index.remove(gateway_id, symbol)
+        previous = self._quote_index.remove(
+            gateway_id, symbol, reason="Replaced by new quote"
+        )
         if previous:
             self._cancel_quote_entry(previous, reason="Replaced by new quote")
 
@@ -2030,7 +2113,9 @@ class Engine:
             )
             return
 
-        entry = self._quote_index.remove(gateway_id, symbol)
+        entry = self._quote_index.remove(
+            gateway_id, symbol, reason="Cancelled by participant"
+        )
         if not entry:
             self.pub_sock.send_multipart(
                 make_quote_ack_msg(gateway_id, "", False, "No active quote for symbol")
@@ -2061,7 +2146,9 @@ class Engine:
         if session.disconnect_behaviour == DisconnectBehaviour.LEAVE_ALL:
             return
 
-        removed_quotes = self._quote_index.cancel_all_for_gateway(gateway_id)
+        removed_quotes = self._quote_index.cancel_all_for_gateway(
+            gateway_id, reason="Gateway disconnected"
+        )
         for entry in removed_quotes:
             self._cancel_quote_entry(entry, reason="Gateway disconnected")
 
@@ -2091,12 +2178,16 @@ class Engine:
         if symbol_filter:
             entry = self._quote_index.get(gateway_id, symbol_filter)
             if entry is not None:
-                self._quote_index.remove(gateway_id, symbol_filter)
+                self._quote_index.remove(
+                    gateway_id, symbol_filter, reason="Kill switch"
+                )
                 cancelled_quotes += self._cancel_quote_entry(
                     entry, reason="Kill switch"
                 )
         else:
-            entries = self._quote_index.cancel_all_for_gateway(gateway_id)
+            entries = self._quote_index.cancel_all_for_gateway(
+                gateway_id, reason="Kill switch"
+            )
             for entry in entries:
                 cancelled_quotes += self._cancel_quote_entry(
                     entry, reason="Kill switch"
@@ -2163,7 +2254,9 @@ class Engine:
                 cb.triggered_level = "ADMIN_ALL"
                 cb.active_resumption_mode = "MANUAL"
 
-            for entry in self._quote_index.cancel_all_for_symbol(symbol):
+            for entry in self._quote_index.cancel_all_for_symbol(
+                symbol, reason="Global circuit breaker halt"
+            ):
                 cancelled_quotes += self._cancel_quote_entry(
                     entry, reason="Global circuit breaker halt"
                 )
@@ -2298,7 +2391,9 @@ class Engine:
             cb.active_resumption_mode = "MANUAL"
 
         cancelled_quotes = 0
-        for entry in self._quote_index.cancel_all_for_symbol(symbol):
+        for entry in self._quote_index.cancel_all_for_symbol(
+            symbol, reason="Per-symbol halt"
+        ):
             cancelled_quotes += self._cancel_quote_entry(
                 entry, reason="Per-symbol halt"
             )
@@ -2424,7 +2519,9 @@ class Engine:
                         cancelled_orders += 1
 
         cancelled_quotes = 0
-        for entry in self._quote_index.cancel_all_for_symbol(symbol):
+        for entry in self._quote_index.cancel_all_for_symbol(
+            symbol, reason="Symbol mass cancel"
+        ):
             cancelled_quotes += self._cancel_quote_entry(
                 entry, reason="Symbol mass cancel"
             )

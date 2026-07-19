@@ -386,6 +386,19 @@ It is intended for `MARKET_MAKER` ALF sessions where operators need a compact,
 low-cognitive-load view of which quote legs are still active and which have
 already traded.
 
+!!! note "`pm-alf-console` vs. `pm-alf-gwy`"
+    This section describes `pm-alf-console`'s `QLEGS`, which renders entirely
+    from its own **local, session-scoped cache** built by observing this
+    session's own quote/fill/cancel events — it never asks the engine.
+    `pm-alf-gwy` also supports `QLEGS` with the same command syntax and
+    column semantics described below, but forwards the request to the engine
+    (`system.quote_legs_request`) and renders the engine's authoritative
+    reply instead of a local cache — see
+    [ALF TCP Gateway → QLEGS](220-alf-gateway.md#qlegs-quote-leg-snapshot-active-recent).
+    The `RECENT`/`ALL` history in both cases is real and current; it is kept
+    in memory only and does not survive an engine restart — see
+    [Persistence → What is deliberately not persisted](180-persistence.md#data-files-at-a-glance).
+
 ```
 QLEGS[|SYM=<symbol>][|SHOW=ACTIVE|RECENT|ALL]
 ```

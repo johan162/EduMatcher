@@ -6,6 +6,7 @@ provides O(1) lookup by (gateway_id, symbol).
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
@@ -26,6 +27,14 @@ class QuoteRefreshPolicy(str, Enum):
     NEVER_INACTIVATE = "NEVER_INACTIVATE"
 
 
+# Bounded per-gateway history of recently-inactivated quotes, used to answer
+# QLEGS SHOW=RECENT/ALL. Deliberately in-memory only — does not survive an
+# engine restart. See docs/user-guide/180-persistence.md for the rationale:
+# only actionable, resting state (GTC orders/combos) is persisted; quote
+# inactivation history is neither resting nor actionable.
+DEFAULT_QUOTE_HISTORY_MAXLEN = 30
+
+
 @dataclass(slots=True)
 class QuoteEntry:
     quote_id: str
@@ -40,11 +49,27 @@ class QuoteEntry:
         return self.ask_order_id if filled_side == "BUY" else self.bid_order_id
 
 
+@dataclass(frozen=True, slots=True)
+class QuoteHistoryEntry:
+    """A snapshot of a `QuoteEntry` at the moment it was removed from the
+    live index, plus the reason it was removed and when.
+
+    This is a point-in-time record — it does not track the entry going
+    forward, only what it looked like at removal.
+    """
+
+    entry: QuoteEntry
+    reason: str
+    removed_at_ns: int = field(default_factory=now_ns)
+
+
 class QuoteIndex:
-    def __init__(self) -> None:
+    def __init__(self, history_maxlen: int = DEFAULT_QUOTE_HISTORY_MAXLEN) -> None:
         self._index: dict[tuple[str, str], QuoteEntry] = {}
         self._keys_by_gateway: dict[str, set[tuple[str, str]]] = {}
         self._keys_by_symbol: dict[str, set[tuple[str, str]]] = {}
+        self._history_maxlen = history_maxlen
+        self._history: dict[str, deque[QuoteHistoryEntry]] = {}
 
     def _track_key(self, key: tuple[str, str]) -> None:
         gw, sym = key
@@ -64,6 +89,12 @@ class QuoteIndex:
             if not sym_keys:
                 self._keys_by_symbol.pop(sym, None)
 
+    def _record_history(self, entry: QuoteEntry, reason: str) -> None:
+        bucket = self._history.setdefault(
+            entry.gateway_id, deque(maxlen=self._history_maxlen)
+        )
+        bucket.append(QuoteHistoryEntry(entry, reason))
+
     def get(self, gateway_id: str, symbol: str) -> Optional[QuoteEntry]:
         return self._index.get((gateway_id, symbol))
 
@@ -76,30 +107,37 @@ class QuoteIndex:
         self._track_key(key)
         return old
 
-    def remove(self, gateway_id: str, symbol: str) -> Optional[QuoteEntry]:
+    def remove(
+        self, gateway_id: str, symbol: str, reason: str = ""
+    ) -> Optional[QuoteEntry]:
         key = (gateway_id, symbol)
         old = self._index.pop(key, None)
         if old is not None:
             self._untrack_key(key)
+            self._record_history(old, reason)
         return old
 
-    def cancel_all_for_gateway(self, gateway_id: str) -> list[QuoteEntry]:
+    def cancel_all_for_gateway(
+        self, gateway_id: str, reason: str = ""
+    ) -> list[QuoteEntry]:
         keys = list(self._keys_by_gateway.get(gateway_id, set()))
         removed: list[QuoteEntry] = []
         for key in keys:
             entry = self._index.pop(key, None)
             if entry is not None:
                 self._untrack_key(key)
+                self._record_history(entry, reason)
                 removed.append(entry)
         return removed
 
-    def cancel_all_for_symbol(self, symbol: str) -> list[QuoteEntry]:
+    def cancel_all_for_symbol(self, symbol: str, reason: str = "") -> list[QuoteEntry]:
         keys = list(self._keys_by_symbol.get(symbol, set()))
         removed: list[QuoteEntry] = []
         for key in keys:
             entry = self._index.pop(key, None)
             if entry is not None:
                 self._untrack_key(key)
+                self._record_history(entry, reason)
                 removed.append(entry)
         return removed
 
@@ -113,3 +151,17 @@ class QuoteIndex:
         """Return active quote entries for one gateway."""
         keys = self._keys_by_gateway.get(gateway_id, set())
         return [self._index[key] for key in keys if key in self._index]
+
+    def recent_for_gateway(
+        self, gateway_id: str, symbol: str = ""
+    ) -> list[QuoteHistoryEntry]:
+        """Return the bounded, most-recent-first history of inactivated
+        quote entries for one gateway, optionally filtered to one symbol.
+        """
+        bucket = self._history.get(gateway_id)
+        if not bucket:
+            return []
+        items = reversed(bucket)
+        if symbol:
+            return [h for h in items if h.entry.symbol == symbol]
+        return list(items)

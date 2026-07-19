@@ -313,20 +313,34 @@ def make_quote_legs_msg(
     *,
     show_requested: str = "ACTIVE",
     complete: bool = True,
+    recent: list[dict[str, Any]] | None = None,
 ) -> list[bytes]:
     """Engine -> gateway: reply with quote legs snapshot.
 
-    Only currently-active quote legs are tracked by the engine (entries are
-    removed the moment a leg fills or is cancelled — there is no retained
-    history). *legs* is always the active set regardless of what was asked
-    for. When *show_requested* is anything other than ``"ACTIVE"``,
-    *complete* should be passed as ``False`` so the caller can tell "no
-    active legs" apart from "history beyond ACTIVE isn't tracked".
+    *legs* is the currently-active per-leg detail (qty, remaining, status)
+    — populated when *show_requested* is ``"ACTIVE"`` or ``"ALL"``.
+
+    *recent* is a bounded, most-recently-removed-first list of quote-level
+    summaries (quote_id, symbol, leg order ids, final quote_status, removal
+    *reason*, and *removed_at_ns*) drawn from the engine's in-memory,
+    per-gateway inactivation history — populated when *show_requested* is
+    ``"RECENT"`` or ``"ALL"``. Unlike *legs*, recent rows do not carry live
+    qty/remaining/status: that detail is not retained once an order leaves
+    the book. This history does not survive an engine restart.
+
+    *complete* is ``True`` when the reply fully answers what was requested
+    (always true for ``ACTIVE``; also true for ``RECENT``/``ALL`` now that
+    real history is tracked, modulo the history buffer's bound).
     """
     topic = f"system.quote_legs.{gateway_id}"
     return encode(
         topic,
-        {"legs": legs, "show_requested": show_requested, "complete": complete},
+        {
+            "legs": legs,
+            "show_requested": show_requested,
+            "complete": complete,
+            "recent": recent or [],
+        },
     )
 
 
