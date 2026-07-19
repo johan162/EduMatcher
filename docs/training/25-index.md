@@ -224,22 +224,46 @@ Suppose AAPL announces a 2-for-1 stock split. Without adjustment, the index
 would drop by ~50% when AAPL's price halves — which is wrong because no value
 was destroyed.
 
-Apply the split from your ADMIN gateway:
+!!! warning "No gateway command for corporate actions"
+    Unlike `INDEX|HISTORY` (Exercise 11), corporate actions and constituent
+    changes have **no** `pm-alf-console` command, no `pm-admin`/`pm-admin-cli`
+    subcommand, and no ALF/CALF wire message — there is no `CORP_ACTION|...`
+    line you can type at a gateway prompt. The engine-side handling in
+    `pm-index` is fully implemented (`index.corp_action` on its PULL socket,
+    port 5559), but today the only way to reach it is the Python
+    `ExchangeCommandClient` class — the same class `pm-admin-cli` uses
+    internally. See
+    [Market Index → Applying corporate actions](../user-guide/150-index.md#applying-corporate-actions).
+
+Apply the split with a short script:
+
+```bash
+python - <<'PY'
+from edumatcher.commands import ExchangeCommandClient
+
+client = ExchangeCommandClient("OPS01")  # must be an ADMIN gateway
+client.connect()
+
+result = client.index_corp_action(
+    "EDU100", "SPLIT", "AAPL",
+    ratio_numerator=2, ratio_denominator=1,
+)
+print("CORP_ACTION result:", result)
+
+client.disconnect()
+client.close()
+PY
+```
+
+The call blocks for the `index.corp_action_ack.OPS01` response (or raises
+`CommandTimeoutError`). `pm-index` applies the action in-process, publishes
+an updated index value live, and writes a `CORP_ACTION` record to the
+structural/audit history file.
+
+Query the index immediately after, from any gateway terminal:
 
 ```
-OPS01> CORP_ACTION|INDEX=EDU100|SYM=AAPL|ACTION=SPLIT|NUM=2|DEN=1
-```
-
-Expected response:
-
-```
-[OK] CORP_ACTION applied: AAPL SPLIT 2:1 — divisor adjusted, index level preserved
-```
-
-Query the index immediately after:
-
-```
-OPS01> INDEX
+TRADER01> INDEX
 ```
 
 The level should be **unchanged** (or differ by only rounding). Now check that
@@ -271,22 +295,37 @@ absolute difference should be at most a few cents (rounding only), never a
 
 ## Exercise 6: Apply a Cash Dividend
 
-Apply a $2.50 cash dividend for MSFT:
+Apply a $2.50 cash dividend for MSFT — same `ExchangeCommandClient` mechanism
+as Exercise 5, no gateway command:
 
 ```
-OPS01> CORP_ACTION|INDEX=EDU100|SYM=MSFT|ACTION=CASH_DIVIDEND|DIV=2.50
+TRADER01> INDEX        (before)
+```
+
+```bash
+python - <<'PY'
+from edumatcher.commands import ExchangeCommandClient
+
+client = ExchangeCommandClient("OPS01")
+client.connect()
+
+result = client.index_corp_action(
+    "EDU100", "CASH_DIVIDEND", "MSFT",
+    dividend_per_share=2.50,
+)
+print("CORP_ACTION result:", result)
+
+client.disconnect()
+client.close()
+PY
+```
+
+```
+TRADER01> INDEX        (after)
 ```
 
 A cash dividend reduces the effective price by the dividend amount. The divisor
 is adjusted to compensate so the index level is preserved.
-
-Verify the level before and after:
-
-```
-OPS01> INDEX        (before)
-OPS01> CORP_ACTION|INDEX=EDU100|SYM=MSFT|ACTION=CASH_DIVIDEND|DIV=2.50
-OPS01> INDEX        (after)
-```
 
 :material-checkbox-blank-outline: **Checkpoint:** index level preserved across dividend adjustment.
 
@@ -294,32 +333,55 @@ OPS01> INDEX        (after)
 
 ## Exercise 7: Add and Remove a Constituent
 
+Constituent changes use the same script-only `ExchangeCommandClient`
+mechanism as corporate actions — no gateway command exists for these either.
+
 ### Add AMZN to the index
 
 Adding a constituent adjusts the divisor so the level does not jump at the
 moment of addition. You must supply the new shares and a reference price:
 
-```
-OPS01> CORP_ACTION|INDEX=EDU100|SYM=AMZN|ACTION=ADD|SHARES=10500000000|PRICE=195.00
+```bash
+python - <<'PY'
+from edumatcher.commands import ExchangeCommandClient
+
+client = ExchangeCommandClient("OPS01")
+client.connect()
+
+result = client.index_add_constituent(
+    "EDU100", "AMZN",
+    shares_outstanding=10500000000,
+    initial_price=195.00,
+)
+print("ADD result:", result)
+
+client.disconnect()
+client.close()
+PY
 ```
 
 Check that AMZN now appears when you run `INDEX`. It may take a few trades before
 AMZN's price updates from the seeded reference.
 
 ```
-OPS01> INDEX
+TRADER01> INDEX
 ```
 
 ### Remove TSLA from the index
 
-```
-OPS01> CORP_ACTION|INDEX=EDU100|SYM=TSLA|ACTION=DELIST
-```
+```bash
+python - <<'PY'
+from edumatcher.commands import ExchangeCommandClient
 
-Expected response:
+client = ExchangeCommandClient("OPS01")
+client.connect()
 
-```
-[OK] CORP_ACTION applied: TSLA DELIST — divisor adjusted, index level preserved
+result = client.index_delist("EDU100", "TSLA")
+print("DELIST result:", result)
+
+client.disconnect()
+client.close()
+PY
 ```
 
 Run `INDEX` again and confirm TSLA no longer appears in the constituent listing.
@@ -577,11 +639,11 @@ last.
 | Re-initialise from scratch | `pm-index --reset` |
 | Live level query | `INDEX` (any gateway) |
 | Structural/audit history query (gateway) | `INDEX\|HISTORY`, `INDEX\|HISTORY\|FROM=…\|TO=…` — INIT/CORP_ACTION/ADD_CONSTITUENT/DELIST only |
-| Stock split | `CORP_ACTION\|INDEX=…\|SYM=…\|ACTION=SPLIT\|NUM=…\|DEN=…` |
-| Cash dividend | `CORP_ACTION\|INDEX=…\|SYM=…\|ACTION=CASH_DIVIDEND\|DIV=…` |
-| Shares issuance | `CORP_ACTION\|INDEX=…\|SYM=…\|ACTION=SHARES_ISSUANCE\|SHARES=…` |
-| Add constituent | `CORP_ACTION\|INDEX=…\|SYM=…\|ACTION=ADD\|SHARES=…\|PRICE=…` |
-| Remove constituent | `CORP_ACTION\|INDEX=…\|SYM=…\|ACTION=DELIST` |
+| Stock split (no gateway command — `ExchangeCommandClient` script) | `client.index_corp_action(idx, "SPLIT", sym, ratio_numerator=…, ratio_denominator=…)` |
+| Cash dividend (script only) | `client.index_corp_action(idx, "CASH_DIVIDEND", sym, dividend_per_share=…)` |
+| Shares issuance (script only) | `client.index_corp_action(idx, "SHARES_ISSUANCE", sym, new_shares_outstanding=…)` |
+| Add constituent (script only) | `client.index_add_constituent(idx, sym, shares_outstanding=…, initial_price=…)` |
+| Remove constituent (script only) | `client.index_delist(idx, sym)` |
 | List configured indices | `pm-index-cli --config … indices` |
 | Structural/audit events | `pm-index-cli --config … events [--type TYPE]` |
 | Intraday level snapshots | `pm-stats-cli index-snapshots --index-id ID` |

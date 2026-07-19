@@ -154,6 +154,12 @@ A trailing stop follows the market by a fixed offset:
 TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=TRAILING_STOP|QTY=100|TRAIL=0.20|TIF=DAY
 ```
 
+No `STOP=` is given here, so the engine derives the initial trigger from the
+last traded price minus `TRAIL` (this works because AAPL has already traded
+in earlier exercises). If AAPL has no trade history yet, `TRAILING_STOP`
+without an explicit `STOP=` is **rejected** — pass `STOP=<price>` explicitly
+to set the initial trigger yourself, e.g. `STOP=149.50`.
+
 If AAPL rises to 150.50, the stop moves to 150.30 (150.50 − 0.20).
 If AAPL then falls to 150.30, the stop triggers and sells at market.
 

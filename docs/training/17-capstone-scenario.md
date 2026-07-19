@@ -136,8 +136,12 @@ Check the observer terminals and run:
 
 ```bash
 pm-stats-cli trades --symbol AAPL --limit 10
-pm-stats-cli summary
+pm-stats-cli daily
 ```
+
+(`daily` with no `--symbol` filter gives one OHLCV summary row per symbol —
+see [15 — Statistics & Reporting](15-statistics-reporting.md) for the full
+`pm-stats-cli` verb reference; there is no separate `summary` verb.)
 
 Explain what each observer showed:
 

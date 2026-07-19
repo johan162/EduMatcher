@@ -151,16 +151,23 @@ What it does:
 2. Copies a sample `engine_config.yaml` into the current working directory.
 3. Prints a shell snippet with the environment variable exports you need.
 
-Expected output:
+Expected output (abbreviated — the real output also prints the exact
+`pm-engine`/`pm-scheduler`/`pm-alf-console` startup commands to run next):
 
 ```
-✓ Created data directory: /Users/you/.local/share/edumatcher
-✓ Copied sample engine_config.yaml to ./engine_config.yaml
+pm-setup — EduMatcher session initialisation
+==================================================
+  ✓ Created data directory:          /Users/you/.local/share/edumatcher
+  ✓ Sample config written to:        /Users/you/session/engine_config.yaml
+    → Edit this file before starting the engine.
 
-Add the following to your shell profile (~/.zshrc or ~/.bashrc):
+  Shell environment snippet — add to your shell profile:
+  (~/.zshrc)
 
-  export EDUMATCHER_DATA_DIR="$HOME/.local/share/edumatcher"
-  export EDUMATCHER_CONFIG="./engine_config.yaml"
+  ----------------------------------------------
+  export EDUMATCHER_DATA_DIR="/Users/you/.local/share/edumatcher"
+  export EDUMATCHER_CONFIG="/Users/you/session/engine_config.yaml"
+  ----------------------------------------------
 ```
 
 !!! note "Re-running pm-setup"

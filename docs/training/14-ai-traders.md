@@ -142,8 +142,12 @@ force-kills immediately if a bot hangs. Your baseline liquidity providers
 ## Classroom Tips
 
 - Run 3–5 AI traders for realistic order flow without overwhelming the book.
-- Mix profiles (`--profiles aggressive,cautious`) for diverse market dynamics.
-- Use `--seed` for reproducible order sequences across repeated classroom runs.
+- Mix profiles (`pm-ai-swarm --profiles aggressive,cautious`) for diverse
+  market dynamics.
+- For reproducible order sequences across repeated classroom runs: on a
+  single bot, use `pm-ai-trader --seed 42`; on the swarm, use
+  `pm-ai-swarm --seed-base 1000` (each bot's actual seed is
+  `seed_base + bot_index`) — `pm-ai-swarm` has no `--seed` flag of its own.
 - Combine with circuit breakers to demonstrate halt/resume under stress.
 
  

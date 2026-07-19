@@ -27,9 +27,13 @@ to detect gaps and de-duplicate messages.
 
 Important current limitation:
 
-- Replay exists as an in-process publisher method.
+- Replay exists as an in-process publisher method
+  (`DropCopyPublisher.replay(recipient_id, from_seq)`), backed by a
+  circular in-memory buffer of the last 10,000 events (roughly 16 minutes
+  of history at a sustained ~10 fills/second).
 - There is currently no external ZMQ replay-request handler for downstream
-  clients to call directly.
+  clients to call directly — and even once one exists, replay is bounded by
+  that 10,000-event buffer, not unlimited history.
 
 So operationally, reconnect handling is currently:
 

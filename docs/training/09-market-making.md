@@ -57,15 +57,15 @@ Expected: a table showing both legs with prices, quantities, and fill status.
 Representative shape:
 
 ```
-leg_id             side  price   qty  remaining  filled_qty  status
-ord_abc_bid_001    BUY   149.90  500  500        0           ACTIVE
-ord_abc_ask_001    SELL  150.10  500  400        100         PARTIAL
+leg_id             side  price   qty  remaining  filled  status
+ord_abc_bid_001    BUY   149.90  500  500        0       ACTIVE
+ord_abc_ask_001    SELL  150.10  500  400        100     PARTIAL
 ```
 
 How to read it:
 
 - `remaining` tells you what is still resting.
-- `filled_qty` tells you what already executed.
+- `filled` tells you what already executed.
 - `status` helps classify lifecycle (`ACTIVE`, `PARTIAL`, `FILLED`, etc.).
 
 :material-checkbox-blank-outline: **Checkpoint:** QLEGS shows both bid and ask legs.

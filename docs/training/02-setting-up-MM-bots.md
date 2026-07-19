@@ -137,9 +137,9 @@ restart or partial execution.
 
 Interpretation guide:
 
-- `remaining` is open quantity still resting in the book.
-- `filled_qty` is already executed quantity on that leg.
-- `status` shows state such as ACTIVE, PARTIAL, or FILLED.
+- `Rem` is open quantity still resting in the book.
+- `Filled` is already executed quantity on that leg.
+- `Leg status` shows state such as `RESTING`, `PARTIAL`, or `FILLED`.
 
 :material-checkbox-blank-outline: **Checkpoint:** QLEGS shows both quote legs for each symbol.
 
