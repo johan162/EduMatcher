@@ -391,31 +391,46 @@ pm-mm-bot --symbol AAPL --gap 0.10 --qty 500 -v
 
 ## Understanding bot output
 
-Each bot prefixes every log line with its gateway ID and timestamp:
+Each bot prefixes every log line with its gateway ID and timestamp. At default
+verbosity the bot is quiet — it only logs milestones and problems, not routine
+quoting activity:
 
 ```
+[MM:MM_AAPL_01 09:30:00] starting: symbol=AAPL gap=0.1 qty=500 tif=DAY drift_ticks=3
 [MM:MM_AAPL_01 09:30:01] authenticated
-[MM:MM_AAPL_01 09:30:01] received symbols: AAPL, MSFT, TSLA
-[MM:MM_AAPL_01 09:30:01] QBOOT: no active quote
-[MM:MM_AAPL_01 09:30:01] session state: CONTINUOUS
-[MM:MM_AAPL_01 09:30:01] bootstrap: mid from book = 150.00
-[MM:MM_AAPL_01 09:30:01] quote sent: bid=149.95 ask=150.05 qty=500
-[MM:MM_AAPL_01 09:30:01] quote.ack: accepted quote_id=q-001
-[MM:MM_AAPL_01 09:30:14] fill: ask side 200@150.05
-[MM:MM_AAPL_01 09:30:14] quote inactivated — scheduling reissue
-[MM:MM_AAPL_01 09:30:15] quote sent: bid=149.95 ask=150.05 qty=500
-[MM:MM_AAPL_01 09:30:15] quote.ack: accepted quote_id=q-002
-[MM:MM_AAPL_01 09:31:02] mid drift: 150.00 → 150.04 (>3 ticks) — repricing
-[MM:MM_AAPL_01 09:31:02] quote sent: bid=149.99 ask=150.09 qty=500
+[MM:MM_AAPL_01 09:30:01] bootstrap from random range: 150.00
+[MM:MM_AAPL_01 09:30:14] quote REJECTED: gap exceeds mm_max_spread_ticks
+[MM:MM_AAPL_01 09:30:20] circuit breaker HALT
+[MM:MM_AAPL_01 09:30:45] circuit breaker RESUME
+[MM:MM_AAPL_01 09:31:02] heartbeat: no active quote — reissuing
+[MM:MM_AAPL_01 09:31:10] QLEGS mismatch: quote_id divergence — reissuing
+[MM:MM_AAPL_01 09:35:00] shutdown complete
 ```
 
-With `--verbose` (`-v`), additional debug lines appear:
+The `starting:` line reports the bot's resolved configuration and is always
+visible — you don't need `-v` to confirm what a running bot is actually
+configured to quote.
+
+With `--verbose` (`-v`), the bot additionally logs routine quoting activity —
+symbol/session updates, every quote sent, every fill, and every repricing
+decision:
 
 ```
-[MM:MM_AAPL_01 09:30:01] [debug] book update: bid=149.95 ask=150.05
-[MM:MM_AAPL_01 09:30:05] [debug] heartbeat check: quote active
-[MM:MM_AAPL_01 09:30:15] [debug] QLEGS reconciliation: OK
+[MM:MM_AAPL_01 09:30:01] symbols received: ['AAPL', 'MSFT', 'TSLA']
+[MM:MM_AAPL_01 09:30:01] reference from book/trade: 150.00
+[MM:MM_AAPL_01 09:30:01] QUOTE sent bid=149.95 ask=150.05
+[MM:MM_AAPL_01 09:30:01] quote ACK id=q-001
+[MM:MM_AAPL_01 09:30:14] fill: ASK 200@150.05
+[MM:MM_AAPL_01 09:30:15] QUOTE sent bid=149.95 ask=150.05
+[MM:MM_AAPL_01 09:31:02] drift detected — repricing
+[MM:MM_AAPL_01 09:31:02] state: QUOTING -> REPRICING
+[MM:MM_AAPL_01 09:31:02] QUOTE sent bid=149.99 ask=150.09
 ```
+
+`-v` also raises the underlying log level and enables the bot's own debug
+prints together — it is not just a "print more" switch, it also turns on
+low-level flow tracing (e.g. `book mid=...`, `session: OLD -> NEW`, and
+`state: OLD -> NEW` transitions of the bot's own state machine).
 
 ---
 
@@ -434,8 +449,8 @@ With `--verbose` (`-v`), additional debug lines appear:
 
 ## See also
 
-- [Market Making](090-market-maker.md) — the `QUOTE` command and obligations framework
+- [Market Making](090-market-maker.md) — the `QUOTE` command, the MM obligations framework, and Market-Maker Protection (MMP)
 - [AI Traders](110-ai-traders.md) — the `pm-ai-trader` and `pm-ai-swarm` processes
 - [Configuration](010-configuration.md) — engine and gateway configuration
 - [Processes](170-processes.md) — architecture overview of all EduMatcher processes
-- [Risk Controls](120-risk-controls.md) — MMP and kill switch
+- [Risk Controls](120-risk-controls.md) — the kill switch

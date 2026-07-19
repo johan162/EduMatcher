@@ -144,6 +144,12 @@ class MMBot:
         self._debug_counts.clear()
         self._debug_last_summary = now
 
+    def _set_state(self, new_state: "BotState") -> None:
+        if new_state is self._state:
+            return
+        self._debug(f"state: {self._state.value} -> {new_state.value}")
+        self._state = new_state
+
     @staticmethod
     def _topic_family(topic: str) -> str:
         if topic.startswith("book."):
@@ -202,7 +208,7 @@ class MMBot:
         assert self._sub_sock is not None
         time.sleep(0.05)
         self._send(make_gateway_connect_msg(self.gateway_id))
-        self._state = BotState.AUTHENTICATING
+        self._set_state(BotState.AUTHENTICATING)
 
         poller = zmq.Poller()
         poller.register(self._sub_sock, zmq.POLLIN)
@@ -429,7 +435,7 @@ class MMBot:
         self._send(make_quote_new_msg(quote_payload))
         self._quoted_at_mid = self._pricer.mid_price
         self._last_quote_sent_at = time.monotonic()
-        self._state = BotState.REISSUING
+        self._set_state(BotState.REISSUING)
         self._debug(f"QUOTE sent bid={bid} ask={ask}")
 
     def _cancel_quote(self) -> None:
@@ -451,7 +457,7 @@ class MMBot:
             self._cancel_quote()
             self._awaiting_cancel_for_reissue = True
             self._reissue_at = time.monotonic() + self._cancel_timeout_sec
-            self._state = BotState.REPRICING
+            self._set_state(BotState.REPRICING)
             return
         self._send_quote()
 
@@ -491,7 +497,7 @@ class MMBot:
             self._quote_id = str(payload.get("quote_id", ""))
             self._bid_order_id = str(payload.get("bid_order_id", ""))
             self._ask_order_id = str(payload.get("ask_order_id", ""))
-            self._state = BotState.QUOTING
+            self._set_state(BotState.QUOTING)
             self._debug(f"quote ACK id={self._quote_id}")
             # Process buffered fills
             self._process_pending_fills()
@@ -513,6 +519,8 @@ class MMBot:
             # Engine inactivated the quote; schedule fresh reissue.
             self._reissue_at = time.monotonic() + self._reissue_delay_sec
             self._clear_quote_state()
+            if self._awaiting_cancel_for_reissue:
+                self._debug("awaiting_cancel_for_reissue: True -> False (inactivated)")
             self._awaiting_cancel_for_reissue = False
 
         elif status == "CANCELLED":
@@ -523,6 +531,10 @@ class MMBot:
             if self._quote_id is not None or self._awaiting_cancel_for_reissue:
                 self._reissue_at = time.monotonic()  # immediate
                 self._clear_quote_state()
+                if self._awaiting_cancel_for_reissue:
+                    self._debug(
+                        "awaiting_cancel_for_reissue: True -> False (cancelled)"
+                    )
                 self._awaiting_cancel_for_reissue = False
 
     def _handle_order_fill(self, payload: dict[str, Any]) -> None:
@@ -563,7 +575,7 @@ class MMBot:
 
         if new_state in _QUOTING_SESSIONS:
             if self._state == BotState.PAUSED:
-                self._state = BotState.WAITING_FOR_SESSION
+                self._set_state(BotState.WAITING_FOR_SESSION)
                 # Trigger reissue if we have reference
                 if self._pricer and self._pricer.mid_price is not None:
                     self._reissue_at = time.monotonic()
@@ -572,7 +584,7 @@ class MMBot:
             if self._state in (BotState.QUOTING, BotState.REPRICING):
                 self._cancel_quote()
                 self._clear_quote_state()
-            self._state = BotState.PAUSED
+            self._set_state(BotState.PAUSED)
             self._reissue_at = None
 
     def _handle_circuit_breaker_halt(self) -> None:
@@ -581,13 +593,13 @@ class MMBot:
         if self._state in (BotState.QUOTING, BotState.REPRICING, BotState.REISSUING):
             self._cancel_quote()
             self._clear_quote_state()
-        self._state = BotState.PAUSED
+        self._set_state(BotState.PAUSED)
         self._reissue_at = None
 
     def _handle_circuit_breaker_resume(self) -> None:
         """Handle circuit_breaker.resume.SYMBOL."""
         self._log("circuit breaker RESUME")
-        self._state = BotState.WAITING_FOR_SESSION
+        self._set_state(BotState.WAITING_FOR_SESSION)
 
     def _process_pending_fills(self) -> None:
         """Process fills that arrived before quote.ack."""
@@ -612,8 +624,8 @@ class MMBot:
                 and self._quoted_at_mid is not None
                 and self._pricer.has_drifted(self._quoted_at_mid)
             ):
-                self._state = BotState.REPRICING
                 self._debug("drift detected — repricing")
+                self._set_state(BotState.REPRICING)
                 self._cancel_and_reissue()
         elif topic == "trade.executed":
             self._handle_trade(payload)
@@ -665,7 +677,7 @@ class MMBot:
                 elif self._state == BotState.WAITING_FOR_SESSION:
                     pass  # wait for session
                 else:
-                    self._state = BotState.WAITING_FOR_SESSION
+                    self._set_state(BotState.WAITING_FOR_SESSION)
 
         # Heartbeat guard — recover if we are in an active state but hold no
         # live quote and have no reissue already scheduled. This covers a
@@ -744,6 +756,10 @@ class MMBot:
 
     def run(self) -> int:
         """Run the bot event loop. Returns exit code."""
+        self._log(
+            f"starting: symbol={self.symbol} gap={self.gap} qty={self.qty} "
+            f"tif={self.tif} drift_ticks={self.drift_ticks}"
+        )
         self._setup_sockets()
         self._running = True
 

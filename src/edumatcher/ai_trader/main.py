@@ -79,7 +79,9 @@ class AITraderBot:
         self._positions: dict[str, int] = {}
         self._last_market_update: dict[str, float] = {}
         self._reject_times: deque[float] = deque()
+        self._reject_reason_counts: defaultdict[str, int] = defaultdict(int)
         self._risk_pause_until = 0.0
+        self._was_risk_paused = False
         self.metrics = BotMetrics()
         self.verbose = bool(verbose)
 
@@ -213,9 +215,10 @@ class AITraderBot:
         while self._reject_times and self._reject_times[0] < threshold:
             self._reject_times.popleft()
 
-    def _on_reject(self) -> None:
+    def _on_reject(self, reason: str = "unknown") -> None:
         now = time.monotonic()
         self._reject_times.append(now)
+        self._reject_reason_counts[reason] += 1
         self._trim_reject_times(now)
         if len(self._reject_times) >= self._max_rejects:
             self._risk_pause_until = now + self._reject_cooldown_sec
@@ -276,13 +279,22 @@ class AITraderBot:
             if payload.get("accepted", False):
                 self.metrics.acknowledged += 1
             else:
+                reason = str(payload.get("reason") or "unknown")
                 self.metrics.rejected += 1
-                self._on_reject()
+                self._debug(f"order REJECTED: {reason}")
+                self._on_reject(reason)
             return
 
         if topic == f"order.fill.{self.gateway_id}":
             self.metrics.filled += 1
+            symbol = str(payload.get("symbol", "")).upper()
+            side = str(payload.get("side", "")).upper()
             self._update_position_from_fill(payload)
+            self._debug(
+                f"fill: {side} {payload.get('fill_qty', '?')}@"
+                f"{payload.get('fill_price', '?')} {symbol} "
+                f"pos={self._positions.get(symbol, 0)}"
+            )
             return
 
         if topic in {
@@ -315,14 +327,20 @@ class AITraderBot:
             and last_update is not None
             and (now - last_update) > self._stale_data_sec
         ):
+            self._debug(
+                f"skip {symbol}: stale market data "
+                f"({now - last_update:.1f}s > {self._stale_data_sec:.1f}s)"
+            )
             return None
 
         snap = self._market.get(symbol, MarketSnapshot())
         pos = self._positions.get(symbol, 0)
         if pos >= self._max_position:
             side = "SELL"
+            self._debug(f"position limit reached on {symbol} (pos={pos}); forcing SELL")
         elif pos <= -self._max_position:
             side = "BUY"
+            self._debug(f"position limit reached on {symbol} (pos={pos}); forcing BUY")
         else:
             side = "BUY" if self._rng.random() < 0.5 else "SELL"
 
@@ -385,7 +403,12 @@ class AITraderBot:
 
         if now < self._risk_pause_until:
             self._dbg_count("skips_risk_pause")
+            self._was_risk_paused = True
             return
+
+        if self._was_risk_paused:
+            self._was_risk_paused = False
+            self._log("reject breaker cooldown ended; resuming submissions")
 
         interval = self.profile.decision_interval_ms / 1000.0
         if now - self._last_submit_ts < interval:
@@ -406,6 +429,10 @@ class AITraderBot:
         self.metrics.submitted += 1
         self._last_submit_ts = now
         self._dbg_count("orders_submitted")
+        self._debug(
+            f"order SUBMIT {payload['side']} {payload['quantity']}@"
+            f"{payload['price']} {payload['symbol']}"
+        )
 
     def run(self, duration_sec: float) -> int:
         log.info(
@@ -414,6 +441,12 @@ class AITraderBot:
             self.profile.name,
             duration_sec,
             self._run_id,
+        )
+        duration_desc = "until stopped" if duration_sec <= 0 else f"{duration_sec:.0f}s"
+        self._log(
+            f"starting: profile={self.profile.name} "
+            f"symbols={self._symbols_filter or 'all'} "
+            f"duration={duration_desc} run_id={self._run_id}"
         )
         if not self._authenticate():
             log.error("startup failed: authentication gateway_id=%s", self.gateway_id)
@@ -444,11 +477,18 @@ class AITraderBot:
             self._flush_debug_summary()
 
         self._flush_debug_summary(force=True)
+        reasons = ", ".join(
+            f"{reason}={count}"
+            for reason, count in sorted(
+                self._reject_reason_counts.items(), key=lambda kv: -kv[1]
+            )
+        )
+        reasons_suffix = f" ({reasons})" if reasons else ""
         self._log(
             "stopped "
             f"submitted={self.metrics.submitted} "
             f"acked={self.metrics.acknowledged} "
-            f"rejected={self.metrics.rejected} "
+            f"rejected={self.metrics.rejected}{reasons_suffix} "
             f"fills={self.metrics.filled}"
         )
         log.info(
