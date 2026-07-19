@@ -51,7 +51,6 @@ from edumatcher.models.message import (
     make_quote_cancel_msg,
     make_quote_ack_msg,
     make_quote_status_msg,
-    make_dropcopy_fill_msg,
     make_trade_msg,
     make_oco_order_msg,
     make_oco_cancel_msg,
@@ -604,11 +603,6 @@ class TestMMQuoteAndRiskMessages:
         assert topic == "risk.circuit_breaker_resume_all_ack.GW01"
         assert payload["accepted"] is True
         assert payload["resumed_symbols"] == 5
-
-    def test_make_dropcopy_fill_msg(self) -> None:
-        topic, payload = _rt(make_dropcopy_fill_msg("GW01", {"trade_id": "1"}))
-        assert topic == "dropcopy.fill.GW01"
-        assert payload["trade_id"] == "1"
 
     def test_make_depth_msg(self) -> None:
         topic, payload = _rt(make_depth_msg("AAPL", {"bids": [[10000, 10]]}))

@@ -889,10 +889,7 @@ publishes a derived `drop_copy.event.{gateway_id}` message (`event_type:
 message has its own envelope (`seq`, `timestamp`, `gateway_id`, `event_type`)
 and is not a verbatim republish of this topic's payload — see
 [Drop Copy](200-drop-copy.md) for the full drop-copy schema. No other topic
-on this page is mirrored to `:5557`. (A `dropcopy.fill.{gateway_id}` builder
-also exists in `models/message.py` but is unused dead code, kept only for
-backward compatibility — the actual drop-copy relay uses
-`drop_copy.event.{gateway_id}` as described above.)
+on this page is mirrored to `:5557`.
 
 | Field | Type | Description |
 |---|---|---|

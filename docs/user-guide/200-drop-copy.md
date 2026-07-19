@@ -80,18 +80,6 @@ The drop copy address is configurable via `DROP_COPY_PUB_ADDR` in
     [RALF DROP_COPY channel vs. this feed](#ralf-drop_copy-channel-vs-this-feed)
     below), which does enforce per-connection role entitlement.
 
-### A note on `make_dropcopy_fill_msg`
-
-`src/edumatcher/models/message.py` also defines a `make_dropcopy_fill_msg()`
-helper that publishes on `dropcopy.fill.{gateway_id}` (port 5556, the main
-engine PUB socket). It predates `DropCopyPublisher` and is kept only for
-backward compatibility with any subscriber still consuming that topic; it is
-not called anywhere in the engine's live trade-publication path. New
-integrations should use the `drop_copy.event.{gateway_id}` feed on port 5557
-described on this page, not `make_dropcopy_fill_msg`.
-
-
-
 ## Message format
 
 Every drop copy message is a two-frame ZeroMQ multipart message:

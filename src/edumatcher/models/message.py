@@ -814,13 +814,6 @@ def make_cancel_symbol_ack_msg(
     )
 
 
-def make_dropcopy_fill_msg(
-    gateway_id: str, fill_payload: dict[str, Any]
-) -> list[bytes]:
-    """Engine → backoffice: copy of fill activity for one participant."""
-    return encode(f"dropcopy.fill.{gateway_id}", fill_payload)
-
-
 # ---------------------------------------------------------------------------
 # Halt-status snapshot (request / reply)
 # ---------------------------------------------------------------------------

@@ -29,13 +29,6 @@ Buffer
 ``DROP_COPY_BUFFER_SIZE = 10_000`` messages are retained in a bounded deque.
 Once the deque is full, the oldest messages are automatically dropped.
 At ~10 fills/second, 10,000 messages covers roughly 16 minutes.
-
-Relationship to make_dropcopy_fill_msg
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-``models/message.py`` contains ``make_dropcopy_fill_msg()`` as an early
-placeholder for the drop copy concept.  ``DropCopyPublisher`` supersedes it
-for engine-side publishing.  The older helper is kept for backward compat
-with any subscribers that consume ``dropcopy.fill.{gateway_id}`` on port 5556.
 """
 
 from __future__ import annotations
