@@ -59,7 +59,7 @@ Quick index of all defined message topics with publisher and purpose.
 | `system.symbols_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the list of configured symbols from the engine. |
 | `order.orders_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the current order list for a specific gateway. |
 | `system.quote_bootstrap_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Request active quote bootstrap state for a gateway. |
-| `system.quote_legs_request` | `pm-mm-bot` or `pm-api-gwy` via PUSH :5555 | Requests a quote's per-leg state. Always replied to; `SHOW=ACTIVE` is fully served, `RECENT`/`ALL` fall back to active-only data with `complete=false`, see below. |
+| `system.quote_legs_request` | `pm-mm-bot`, `pm-api-gwy`, or `pm-alf-gwy` via PUSH :5555 | Requests a quote's per-leg state. Always replied to; `SHOW=ACTIVE`, `RECENT`, and `ALL` are all fully served (`complete` is always `true`), see below. |
 | `system.session_state_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the current session state and whether session enforcement is enabled. |
 | `system.session_schedule_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the configured session schedule (the times the scheduler will send phase transitions). |
 | `system.gateways_request` | Requesting client process (for example pm-alf-console, pm-admin, pm-viewer, pm-stats, bots, or API gateway) via PUSH :5555 | Requests the list of configured gateways and their connection status. |
@@ -1226,7 +1226,8 @@ Each row in `legs`:
 | `status` | string | Order status of the leg (same values as `order.ack`/`order.fill` `status`) |
 | `quote_status` | string | The quote's own lifecycle state (`ACTIVE`, `INACTIVE_BID_FILLED`, `INACTIVE_ASK_FILLED`, `CANCELLED`) |
 
-Each row in `recent` — a **quote-level summary**, not a per-leg row:
+Each row in `recent` — a quote-level summary, plus (as of v0.2.0) optional
+per-leg detail:
 
 | Field | Type | Description |
 |---|---|---|
@@ -1237,6 +1238,18 @@ Each row in `recent` — a **quote-level summary**, not a per-leg row:
 | `quote_status` | string | Final state: `INACTIVE_BID_FILLED`, `INACTIVE_ASK_FILLED`, or `CANCELLED` (every non-fill removal reason is reported as `CANCELLED`) |
 | `reason` | string | Free-text removal reason recorded by the engine, e.g. `"Cancelled by participant"`, `"Gateway disconnected"`, `"Kill switch"`, `"Circuit breaker halt"`, `"Replaced by new quote"`, or one of the `INACTIVE_*_FILLED` values |
 | `removed_at_ns` | integer | Engine-clock nanosecond timestamp when the quote was removed from the active index |
+| `bid_leg` | object \| null | Snapshot of the bid leg's final order state at removal time, or `null` if none was captured — see below |
+| `ask_leg` | object \| null | Snapshot of the ask leg's final order state at removal time, or `null` if none was captured — see below |
+
+When present, `bid_leg`/`ask_leg` are objects with the same shape:
+
+| Field | Type | Description |
+|---|---|---|
+| `order_id` | string | The leg's order ID |
+| `qty` | integer | Original leg quantity |
+| `remaining` | integer | Unfilled quantity remaining at removal time |
+| `filled` | integer | `qty - remaining` at removal time |
+| `status` | string | Order status at removal time (same values as `legs[].status`) |
 
 Always replies — never drops the request. The engine tracks currently-active
 quote legs in `QuoteIndex` as before, and **also** keeps a bounded,
@@ -1253,18 +1266,24 @@ bound — very old inactivations may have been evicted; see
 for why this buffer is in-memory-only and does not survive an engine
 restart).
 
-`recent` reports **quote-level** detail only (not per-leg qty/remaining/status):
-once an order leaves the book, its live fill detail is not retained anywhere
-in the engine, so a removed quote's identity, final status, removal reason,
-and removal time are reported instead of reconstructed per-leg numbers.
+`recent` always reports quote-level detail; `bid_leg`/`ask_leg` add per-leg
+`qty`/`remaining`/`filled`/`status` on top of that whenever the engine had
+each leg's final order state available at the moment it cancelled that leg
+(the common case for every normal inactivation path). They are `null` only
+when a leg could not be found at cancellation time — a consumer that needs
+to handle that edge case, or needs fill detail beyond these four fields,
+must still fall back to `order.fill.*` / `order.cancelled.*` events, the
+same as before this field existed.
 
 `pm-mm-bot` always sends `SHOW=ALL`; its reconciliation logic
 (`_reconcile_qlegs`) reads only `legs` (never `recent`) and does not currently
 gate behavior on `complete`. `pm-api-gwy`'s `GET /quotes/legs` returns this
-reply's payload directly, so `recent` and the now-always-`true` `complete`
-flow through automatically. `pm-alf-gwy` forwards `QLEGS` requests from its
-own ALF sessions to this message and renders both `legs` (as `LEG` lines) and
-`recent` (as `RECENT_LEG` lines) — see
+reply's payload directly, so `recent` (including `bid_leg`/`ask_leg`) and the
+now-always-`true` `complete` flow through automatically. `pm-alf-gwy`
+forwards `QLEGS` requests from its own ALF sessions to this message and
+renders `legs` (as `LEG` lines), `recent` (as `RECENT_LEG` lines), and
+`bid_leg`/`ask_leg` (as `RECENT_BID_LEG`/`RECENT_ASK_LEG` lines, emitted only
+when present) — see
 [Gateway → QLEGS](050-gateway.md#qlegs-inspect-mm-quote-legs-and-fill-flags).
 `pm-alf-console`'s own `QLEGS` command does **not** use this message at all —
 it continues to render entirely from its own local, session-scoped cache

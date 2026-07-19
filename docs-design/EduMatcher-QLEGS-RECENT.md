@@ -1,10 +1,26 @@
-Version: 0.1.0
+Version: 0.2.0
 
 Date: 2026-07-19
 
-Status: Design Proposal (not implemented — see [Misc Comments](#12-misc-comments))
+Status: Implemented
 
-# EduMatcher — QLEGS `RECENT`/`ALL` History Design Proposal
+# EduMatcher — QLEGS `RECENT`-`ALL` History Design Proposal
+
+!!! note "v0.2.0 change"
+    v0.1.0 shipped `RECENT`/`ALL` as **quote-level summaries only**
+    (`quote_id`, `symbol`, order ids, derived `quote_status`, `reason`,
+    `removed_at_ns`) and explicitly excluded per-leg fill detail as a
+    follow-up (see the original §11 alternative, now superseded). That
+    question came up directly when comparing `pm-alf-gwy`'s new
+    engine-backed `QLEGS` against `pm-alf-console`'s existing local-cache
+    `QLEGS` (see [§4](#4-pm-alf-gwy-vs-pm-alf-console-vs-rest-api)):
+    `pm-alf-console`'s `RECENT` already reports per-leg qty/remaining/
+    filled/status, so a `pm-alf-gwy` user asking the same question got a
+    strictly worse answer. v0.2.0 closes that gap by widening
+    `QuoteHistoryEntry` with optional `bid_leg`/`ask_leg` snapshots — see
+    [§9.3](#93-per-leg-snapshot-capture-widened-in-v020) for the mechanism
+    and why it turned out to be a much smaller change than v0.1.0's
+    alternatives-considered entry estimated.
 
 
 
@@ -98,8 +114,14 @@ promise.
 - `pm-alf-gwy` gaining `QLEGS` support (currently entirely unsupported),
   including `RECENT`/`ALL`, by forwarding to the same engine message
   `pm-alf-console` and `pm-mm-bot` already use.
-- A quote-level (not per-leg) summary shape for `RECENT` rows — see
-  [§5](#5-known-limitations) for why.
+- A quote-level summary shape for every `RECENT` row (`quote_id`, `symbol`,
+  order ids, derived `quote_status`, `reason`, `removed_at_ns`), **plus**
+  per-leg detail (`bid_leg`/`ask_leg`: `order_id`/`qty`/`remaining`/
+  `filled`/`status`) captured at the moment of removal wherever the engine
+  had access to it — which in practice is every quote-cancellation and
+  fill-driven-inactivation path (see [§9.3](#93-per-leg-snapshot-capture-widened-in-v020)).
+  The per-leg fields are `None` only in the rare case a history entry was
+  recorded before its cancellation completed.
 - Fixing the latent `_on_quote_leg_filled` gap discovered during design
   review (a resting quote leg filled by a *later, independent* taker order
   never reaches `_on_quote_leg_filled` today — see
@@ -114,12 +136,6 @@ promise.
   (`docs/user-guide/180-persistence.md`): only *actionable, resting*
   state (GTC orders, GTC combos, book stats) survives a restart. Quote
   inactivation history is neither resting nor actionable.
-- **Per-leg fill reconstruction in `RECENT` rows.** Once an order leaves the
-  book, the engine does not retain its live qty/remaining/status anywhere
-  (`Engine._cancel_order_by_id()` returns only `bool`, discarding the
-  `Order` object). Reconstructing that would require a second, larger change
-  with a wide blast radius (see [§11](#11-alternatives-considered)). Out of
-  scope here.
 - **Changes to `pm-alf-console`'s own `QLEGS`.** It already has a working,
   independent local cache and does not use this wire message at all — see
   [§4](#4-pm-alf-gwy-vs-pm-alf-console-vs-rest-api).
@@ -210,15 +226,19 @@ responses because of the pre-existing cache-first short-circuit.
 
 ## 5. Known Limitations
 
-1. **Quote-level, not per-leg, `RECENT` detail.** A `RECENT` row reports
-   `quote_id`, `symbol`, `bid_order_id`, `ask_order_id`, a derived
-   `quote_status`, the removal `reason`, and `removed_at_ns` — it does *not*
-   report the leg's final `qty`/`remaining`/`filled`/`status` the way an
-   `ACTIVE` row does. That data genuinely does not exist anywhere in the
-   engine once an order leaves the book (`_cancel_order_by_id()` discards
-   the `Order` object). A consumer that needs precise fill detail for a
-   historical quote must still reconstruct it from `order.fill.*` /
-   `order.cancelled.*` events, the same as today.
+1. **Per-leg `RECENT` detail is best-effort, not guaranteed.** As of v0.2.0,
+   a `RECENT` row reports `bid_leg`/`ask_leg` snapshots
+   (`order_id`/`qty`/`remaining`/`filled`/`status`) alongside the existing
+   quote-level fields — see [§9.3](#93-per-leg-snapshot-capture-widened-in-v020).
+   These are populated whenever `_cancel_quote_entry()` or
+   `_on_quote_leg_filled()` had the corresponding `Order` in hand at removal
+   time, which covers every normal inactivation path. They are `None` only
+   when a leg could not be found at cancellation time (e.g. it was already
+   gone from the book through some other path) — `attach_leg_snapshots()`
+   is a best-effort enrichment of an already-recorded entry, not a
+   guarantee. A consumer that needs to handle that edge case, or needs
+   detail beyond the four captured fields, must still fall back to
+   `order.fill.*` / `order.cancelled.*` events, the same as today.
 
 2. **Bounded history, not a full audit trail.** The ring buffer is capped
    (proposed default: 30 entries per gateway). A gateway that inactivates
@@ -479,13 +499,31 @@ sequenceDiagram
 
 ## 8. Proposed Data Structures
 
-### 8.1 `QuoteHistoryEntry` (new)
+### 8.1 `QuoteHistoryEntry` (new) and `QuoteLegSnapshot` (new, v0.2.0)
 
 A frozen, immutable snapshot recorded at the moment a `QuoteEntry` leaves the
 active index — it does not track the entry's original mutable state going
-forward, it is a point-in-time record.
+forward, it is a point-in-time record. As of v0.2.0 it optionally carries a
+per-leg snapshot for each side, populated separately from the quote-level
+fields — see [§9.3](#93-per-leg-snapshot-capture-widened-in-v020) for how and
+when that happens.
 
 ```python
+@dataclass(frozen=True, slots=True)
+class QuoteLegSnapshot:
+    """A point-in-time snapshot of one quote leg's order state, captured at
+    the moment its quote was removed from the active index.
+
+    This is deliberately a small, independent copy — not a reference to the
+    live Order — so it remains valid after the order itself is discarded
+    by the book."""
+    order_id: str
+    qty: int
+    remaining: int
+    filled: int
+    status: str
+
+
 @dataclass(frozen=True, slots=True)
 class QuoteHistoryEntry:
     """A snapshot of a QuoteEntry at the moment it was removed from the
@@ -493,6 +531,8 @@ class QuoteHistoryEntry:
     entry: QuoteEntry          # the QuoteEntry as it existed at removal time
     reason: str                 # free-text removal reason (see table below)
     removed_at_ns: int = field(default_factory=now_ns)
+    bid_leg: Optional[QuoteLegSnapshot] = None   # NEW in v0.2.0
+    ask_leg: Optional[QuoteLegSnapshot] = None   # NEW in v0.2.0
 ```
 
 `reason` values used by existing call sites (verified against
@@ -546,6 +586,16 @@ class QuoteIndex:
             return []
         items = reversed(bucket)
         return [h for h in items if not symbol or h.entry.symbol == symbol]
+
+    def attach_leg_snapshots(  # NEW in v0.2.0
+        self, gateway_id: str, quote_id: str,
+        bid_leg: Optional[QuoteLegSnapshot], ask_leg: Optional[QuoteLegSnapshot],
+    ) -> bool:
+        """Patch the most-recently-recorded history entry matching quote_id
+        with per-leg detail. See §9.3 for why this is a separate, post-hoc
+        step rather than a parameter threaded through remove()/
+        cancel_all_for_*() above."""
+        ...
 ```
 
 **Why `deque(maxlen=N)` per gateway, keyed in a `dict`, rather than one
@@ -581,7 +631,9 @@ O(k) total iteration cost, identical either way for a bounded k=30.
   "recent": [
     {"quote_id": "Q0", "symbol": "AAPL", "bid_order_id": "...", "ask_order_id": "...",
      "quote_status": "CANCELLED", "reason": "Cancelled by participant",
-     "removed_at_ns": 1784468999030221878}
+     "removed_at_ns": 1784468999030221878,
+     "bid_leg": {"order_id": "...", "qty": 500, "remaining": 500, "filled": 0, "status": "CANCELLED"},
+     "ask_leg": {"order_id": "...", "qty": 500, "remaining": 200, "filled": 300, "status": "CANCELLED"}}
   ],
   "show_requested": "ALL",
   "complete": true
@@ -592,7 +644,10 @@ O(k) total iteration cost, identical either way for a bounded k=30.
 on why this must not change). `recent` is new and additive — any consumer
 that does not know about it (e.g. `pm-mm-bot` today) simply ignores the
 extra key, which is safe under Python's/JSON's usual duck-typed
-deserialization.
+deserialization. `bid_leg`/`ask_leg` (added in v0.2.0) are themselves
+additive within each `recent` row and are `null` when no snapshot was
+captured (see [§5](#5-known-limitations), limitation 1) — a consumer that
+predates v0.2.0 ignores both keys the same way it ignores `recent` itself.
 
 
 
@@ -640,7 +695,9 @@ def _active_quote_legs(self, gateway_id: str, symbol_filter: str) -> list[dict[s
     ...
 
 def _recent_quote_legs(self, gateway_id: str, symbol_filter: str) -> list[dict[str, Any]]:
-    """New. Derives quote_status from reason (see §5, limitation 4)."""
+    """New. Derives quote_status from reason (see §5, limitation 4).
+    bid_leg/ask_leg (v0.2.0) serialize whatever QuoteLegSnapshot the entry
+    carries, or None if attach_leg_snapshots() never reached it — see §9.3."""
     history = self._quote_index.recent_for_gateway(gateway_id, symbol_filter)
     fill_reasons = {QuoteState.INACTIVE_BID_FILLED.value, QuoteState.INACTIVE_ASK_FILLED.value}
     return [
@@ -652,6 +709,8 @@ def _recent_quote_legs(self, gateway_id: str, symbol_filter: str) -> list[dict[s
             "quote_status": h.reason if h.reason in fill_reasons else QuoteState.CANCELLED.value,
             "reason": h.reason,
             "removed_at_ns": h.removed_at_ns,
+            "bid_leg": self._leg_snapshot_to_dict(h.bid_leg),
+            "ask_leg": self._leg_snapshot_to_dict(h.ask_leg),
         }
         for h in history
     ]
@@ -664,9 +723,92 @@ just now `complete=True` unconditionally rather than depending on `show`
 *for an unconnected gateway* fully answers the question "what does this
 gateway have," which is "nothing," regardless of what was asked for).
 
-### 9.3 Threading `reason` through removal call sites
+### 9.3 Per-leg snapshot capture (widened in v0.2.0)
 
-Each of the ~10 call sites listed in [§8.1](#81-quotehistoryentry-new)'s
+v0.1.0 shipped `RECENT`/`ALL` as quote-level summaries only and listed
+per-leg fill detail as a rejected/deferred alternative (see the original
+[§11](#11-alternatives-considered) entry, now superseded). Comparing
+`pm-alf-gwy`'s engine-backed `QLEGS` against `pm-alf-console`'s existing
+local-cache `QLEGS` (see [§4](#4-pm-alf-gwy-vs-pm-alf-console-vs-rest-api))
+showed `pm-alf-console` already reports per-leg qty/remaining/filled/status
+in its own `RECENT`, so a `pm-alf-gwy` user asking the same question got a
+strictly worse answer. This section covers the mechanism v0.2.0 adds to
+close that gap.
+
+**Why this turned out smaller than v0.1.0 estimated.** The original
+alternatives-considered entry assumed per-leg detail would require a
+"meaningfully larger and riskier change" because the leg's final order
+state appeared to be discarded once cancelled. In practice, `book.
+cancel_order()` already returns the full, terminal `Order` object — the
+engine-level wrapper `_cancel_order_by_id()` was simply discarding it after
+using it for bookkeeping. Widening `_cancel_order_by_id()`'s return type
+from `bool` to `Optional[Order]` (a strict superset — `Optional[Order]` is
+still truthy/falsy the same way `bool` was, so every existing call site
+that only checked success/failure keeps working unchanged) was enough to
+make the `Order`'s final `qty`/`remaining_qty`/`status` available at every
+call site that needed it, with no change to the order book or matching
+engine itself.
+
+**`QuoteLegSnapshot`** (see [§8.1](#81-quotehistoryentry-new-and-quotelegsnapshot-new-v020))
+is a small, frozen, independent copy of one leg's order state — deliberately
+not a reference to the live `Order`, so it stays valid after the book
+discards the order. `Engine._snapshot_quote_leg(order: Optional[Order]) ->
+Optional[QuoteLegSnapshot]` builds one from an `Order` (or returns `None` if
+there was nothing to snapshot), and `Engine._leg_snapshot_to_dict(...)`
+serializes one for the wire payload.
+
+**Why a post-hoc `attach_leg_snapshots()` patch, not a parameter threaded
+through `remove()`/`cancel_all_for_gateway()`/`cancel_all_for_symbol()`.**
+The natural-looking approach — pass `bid_leg`/`ask_leg` snapshots directly
+into the removal call so `_record_history()` captures them in one shot —
+was tried first and reverted. At every one of the ~9 quote-removal call
+sites, the quote is dropped from the active `QuoteIndex` *before* its
+resting orders are actually cancelled (removal records quote-level history
+immediately, so it's never lost even if cancellation fails partway through
+— see [§4](#4-pm-alf-gwy-vs-pm-alf-console-vs-rest-api)). Threading leg
+snapshots through removal would require reordering cancellation ahead of
+removal at every call site, which is a larger and riskier change than the
+feature itself. Instead, `QuoteIndex.attach_leg_snapshots(gateway_id,
+quote_id, bid_leg, ask_leg) -> bool` (see
+[§8.2](#82-quoteindex-additions)) searches the relevant gateway's history
+deque in reverse for the most-recently-recorded entry matching `quote_id`
+and patches it in place once the caller has both legs' final state. It
+returns `False` (a silent no-op, not an error) if no matching entry is
+found — this can only happen if `attach_leg_snapshots()` were called
+without a preceding removal, which none of the current call sites do; it
+exists so a future call site added without a preceding removal fails safe
+rather than raising.
+
+Two call sites integrate with it:
+
+- **`Engine._cancel_quote_entry(entry, reason="")`** — the choke point for
+  ~9 of the engine's quote-removal paths (participant cancel, kill switch,
+  disconnect, circuit breakers, requote-replacement, mass cancel). It
+  already calls `_cancel_order_by_id()` for both `entry.bid_order_id` and
+  `entry.ask_order_id` to actually cancel the resting orders; it now keeps
+  each call's `Optional[Order]` result, converts both through
+  `_snapshot_quote_leg()`, and calls `attach_leg_snapshots()` once with
+  both legs.
+- **`Engine._on_quote_leg_filled(order)`** — the one path that cancels a
+  quote's sibling leg directly rather than through `_cancel_quote_entry()`.
+  Here the *filled* leg (`order`) is already a terminal `Order` in scope
+  from the fill event itself; only the *sibling* leg needs to be captured
+  via `_cancel_order_by_id()`'s return value. Both are snapshotted and
+  assigned to `bid_leg`/`ask_leg` based on `order.side`, then passed to the
+  same `attach_leg_snapshots()`.
+
+Both legs can independently be `None` (if a leg could not be found/was
+already gone at cancellation time) — see [§5](#5-known-limitations),
+limitation 1, for what that means for a consumer.
+
+The three `_cancel_order_by_id()` call sites outside these two paths are
+unaffected: each explicitly filters `order.origin != OrderOrigin.QUOTE`
+before calling it, i.e. they only ever cancel non-quote orders and have
+nothing to do with quote history.
+
+### 9.4 Threading `reason` through removal call sites
+
+Each of the ~10 call sites listed in [§8.1](#81-quotehistoryentry-new-and-quotelegsnapshot-new-v020)'s
 table already computes or has in scope a natural reason string (most flow
 into the existing `_cancel_quote_entry(entry, reason=...)` helper for the
 pub/sub notification side already) — this is largely a mechanical "also pass
@@ -678,7 +820,7 @@ sequence diagram) — implementation needs to either reorder that computation
 above the `remove()` call, or have `remove()` accept the reason and compute
 status inline. The former is simpler and is the recommended approach.
 
-### 9.4 `pm-alf-gwy` command support (new)
+### 9.5 `pm-alf-gwy` command support (new)
 
 `src/edumatcher/alf_gwy/gateway.py`'s `_dispatch_authenticated` currently
 rejects `QLEGS` alongside `STATUS`/`POS`/`HELP` as interactive-only. The
@@ -705,7 +847,7 @@ visually and programmatically distinguishable, and to avoid overloading
 `LEG`'s field set with columns that are meaningless for one or the other
 kind of row (e.g. `LEG` has no `REASON`, `RECENT_LEG` has no `QTY`).
 
-### 9.5 Non-persistence rationale (documentation)
+### 9.6 Non-persistence rationale (documentation)
 
 `docs/user-guide/180-persistence.md` should gain an explicit note (not a new
 data file — nothing is written to disk) explaining that this history is
@@ -732,13 +874,21 @@ should also survive a restart like GTC orders do.
 ## 11. Alternatives Considered
 
 - **Reconstruct full per-leg detail for `RECENT` (qty/remaining/status).**
-  Rejected for this proposal's scope — would require changing
-  `_cancel_order_by_id()` to return the cancelled `Order` object (or
-  snapshot it before cancellation) at every one of its call sites, a
-  meaningfully larger and riskier change touching more of `engine/main.py`
-  than the history-buffer approach. Left as a possible follow-up if
-  quote-level summaries prove insufficient in practice (see
-  [§5](#5-known-limitations), limitation 1).
+  v0.1.0 rejected this for the initial proposal's scope, estimating it would
+  require changing `_cancel_order_by_id()` to return the cancelled `Order`
+  object (or snapshot it before cancellation) at every one of its call
+  sites — "a meaningfully larger and riskier change touching more of
+  `engine/main.py` than the history-buffer approach," deferred as a
+  possible follow-up. **v0.2.0 implemented it**, once comparing
+  `pm-alf-gwy`'s `RECENT` against `pm-alf-console`'s existing per-leg
+  `RECENT` (see [§4](#4-pm-alf-gwy-vs-pm-alf-console-vs-rest-api)) made the
+  gap concrete enough to revisit. The change turned out smaller than
+  estimated: `book.cancel_order()` already returned the full `Order`; only
+  the thin `_cancel_order_by_id()` wrapper was discarding it. See
+  [§9.3](#93-per-leg-snapshot-capture-widened-in-v020) for the mechanism
+  actually used, which is `attach_leg_snapshots()` post-hoc patching rather
+  than threading a return-type change through every removal call site as
+  this bullet originally envisioned.
 
 - **Global (not per-gateway) history deque.** Rejected because QLEGS is
   always gateway-scoped in the protocol; a global buffer would let one busy
@@ -775,17 +925,19 @@ should also survive a restart like GTC orders do.
 
 ## 12. Misc Comments
 
-- **This document intentionally describes a design that is not currently
-  implemented in the codebase.** An implementation of this design was built
-  and fully verified (tests green, `black`/`flake8`/`mypy --strict`/
-  `pyright --strict` clean, ~3000-test full suite passing with only
-  pre-existing, environment-related failures) earlier in this working
-  session, then explicitly reverted at the requester's direction in favor
-  of first producing this design document. All line numbers, function
-  names, and code excerpts in this document were re-verified against the
-  current (reverted) `HEAD` state of the repository, not against memory of
-  the reverted implementation — see the verification task in this session's
-  todo list.
+- **Implementation status.** Both v0.1.0 (quote-level `RECENT`/`ALL`) and
+  the v0.2.0 widening (per-leg `bid_leg`/`ask_leg` snapshots,
+  [§9.3](#93-per-leg-snapshot-capture-widened-in-v020)) are implemented in
+  the codebase and verified: tests green (including new tests for
+  `attach_leg_snapshots()` and per-leg snapshot capture on both the
+  cancel-driven and fill-driven paths), `black`/`flake8`/`mypy --strict`/
+  `pyright --strict` clean, full test suite passing with only pre-existing,
+  environment-related failures unrelated to this change. (Earlier in this
+  document's history, v0.1.0's implementation was briefly built, then
+  reverted at the requester's direction so the design document could be
+  produced first, then restored — see this session's task history for
+  detail. That back-and-forth is now resolved; code and document are in
+  sync as of v0.2.0.)
 
 - **The §6.4 bug (missing `_on_quote_leg_filled` wiring) is real and present
   in the codebase today, independent of whether this RECENT proposal is ever
@@ -819,4 +971,28 @@ should also survive a restart like GTC orders do.
   does not attempt that unification (see [§2](#2-scope-included-excluded)),
   but it is a natural next question once `pm-alf-gwy` and engine-side RECENT
   exist and can be compared against `pm-alf-console`'s existing behavior in
-  practice.
+  practice. **Follow-up (v0.2.0):** this question was revisited once both
+  existed side by side. Rewriting `pm-alf-console` to consume the engine's
+  history was considered and rejected — `pm-alf-console`'s local cache is
+  richer (already per-leg before v0.2.0), unbounded for the session's
+  lifetime rather than a bounded ring buffer, and already correct for its
+  single-session scope, so switching it to the engine-backed source would
+  be a net loss for that specific client. Instead, the gap was closed in
+  the other direction: the engine's history was widened
+  ([§9.3](#93-per-leg-snapshot-capture-widened-in-v020)) so `pm-alf-gwy`
+  and any other engine-backed `QLEGS` consumer gets the same per-leg detail
+  `pm-alf-console` always had, without touching `pm-alf-console` itself.
+  Full cache unification remains out of scope and is not currently planned.
+
+- **v0.2.0 design pivot: signature-widening vs. post-hoc patching.** The
+  first implementation attempt widened `QuoteIndex.remove()`,
+  `cancel_all_for_gateway()`, and `cancel_all_for_symbol()` to accept
+  `bid_leg`/`ask_leg` parameters directly, so a single call could record
+  quote-level and per-leg history together. This was reverted before
+  testing once it became clear it required reordering order-cancellation
+  ahead of quote-removal at every one of the ~9 call sites (removal
+  currently always happens first, so history is recorded even if
+  cancellation fails partway through). `attach_leg_snapshots()` — patching
+  an already-recorded entry after cancellation completes — avoids that
+  reordering entirely and was adopted instead. See
+  [§9.3](#93-per-leg-snapshot-capture-widened-in-v020).

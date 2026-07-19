@@ -114,6 +114,7 @@ from edumatcher.models.price import get_tick_decimals, register_tick_decimals
 from edumatcher.models.quote import (
     QuoteEntry,
     QuoteIndex,
+    QuoteLegSnapshot,
     QuoteRefreshPolicy,
     QuoteState,
 )
@@ -1568,13 +1569,28 @@ class Engine:
                 )
         return legs
 
+    @staticmethod
+    def _leg_snapshot_to_dict(
+        leg: Optional[QuoteLegSnapshot],
+    ) -> Optional[dict[str, Any]]:
+        if leg is None:
+            return None
+        return {
+            "order_id": leg.order_id,
+            "qty": leg.qty,
+            "remaining": leg.remaining,
+            "filled": leg.filled,
+            "status": leg.status,
+        }
+
     def _recent_quote_legs(
         self, gateway_id: str, symbol_filter: str
     ) -> list[dict[str, Any]]:
         """Build RECENT rows from QuoteIndex's bounded inactivation history.
 
-        Quote-level summaries (see `_handle_quote_legs_request` docstring),
-        most-recently-removed first.
+        Quote-level summary fields (see `_handle_quote_legs_request`
+        docstring), most-recently-removed first, plus per-leg detail
+        (`bid_leg`/`ask_leg`) when available.
 
         `QuoteEntry.state` is never mutated after creation (it is always
         the `ACTIVE` it started as), so it cannot be used to report a
@@ -1585,6 +1601,14 @@ class Engine:
         cancellation of one kind or another (participant cancel, kill
         switch, disconnect, circuit breaker halt, replaced by a new quote,
         ...), so it is reported as `CANCELLED`.
+
+        `bid_leg`/`ask_leg` carry each leg's final `order_id`/`qty`/
+        `remaining`/`filled`/`status` at the moment its quote was removed,
+        captured via `QuoteIndex.attach_leg_snapshots` (see
+        `Engine._cancel_quote_entry` and `Engine._on_quote_leg_filled`).
+        They are `None` on the rare entry recorded before its cancellation
+        completed (e.g. process interrupted mid-cancel) — callers should
+        treat a `None` leg as "detail unavailable," not "leg had no fill."
         """
         history = self._quote_index.recent_for_gateway(gateway_id, symbol_filter)
         fill_reasons = {
@@ -1602,16 +1626,28 @@ class Engine:
                 ),
                 "reason": h.reason,
                 "removed_at_ns": h.removed_at_ns,
+                "bid_leg": self._leg_snapshot_to_dict(h.bid_leg),
+                "ask_leg": self._leg_snapshot_to_dict(h.ask_leg),
             }
             for h in history
         ]
 
-    def _cancel_order_by_id(self, order_id: str) -> bool:
+    def _cancel_order_by_id(self, order_id: str) -> Optional[Order]:
+        """Cancel a resting order by id.
+
+        Returns the cancelled `Order` (reflecting its final qty/remaining/
+        status at the moment of cancellation) so callers that need that
+        detail — e.g. quote-leg history snapshots, see
+        `_snapshot_quote_leg` — don't have to re-derive it. Returns `None`
+        if the order could not be found or was already terminal; callers
+        that only care about success/failure can keep using this as a
+        truthy check, same as the previous `bool` return.
+        """
         symbol = self._order_symbol.get(order_id)
         book = self.books.get(symbol) if symbol else None
         cancelled = book.cancel_order(order_id) if book else None
         if not cancelled:
-            return False
+            return None
         self._order_symbol.pop(order_id, None)
         self._mark_dirty(cancelled.symbol)
         # L8: echo the order's client_tag on the cancel so subscribers that
@@ -1621,13 +1657,44 @@ class Engine:
                 cancelled.gateway_id, order_id, client_tag=cancelled.client_tag
             )
         )
-        return True
+        return cancelled
+
+    @staticmethod
+    def _snapshot_quote_leg(order: Optional[Order]) -> Optional[QuoteLegSnapshot]:
+        """Build a `QuoteLegSnapshot` from a (possibly already-terminal)
+        `Order`, or `None` if there is nothing to snapshot (e.g. the order
+        was already gone before cancellation was attempted).
+        """
+        if order is None:
+            return None
+        return QuoteLegSnapshot(
+            order_id=order.id,
+            qty=order.quantity,
+            remaining=order.remaining_qty,
+            filled=order.quantity - order.remaining_qty,
+            status=order.status.value,
+        )
 
     def _cancel_quote_entry(self, entry: QuoteEntry, reason: str = "") -> int:
         cancelled = 0
-        for order_id in (entry.bid_order_id, entry.ask_order_id):
-            if self._cancel_order_by_id(order_id):
-                cancelled += 1
+        bid_order = self._cancel_order_by_id(entry.bid_order_id)
+        if bid_order is not None:
+            cancelled += 1
+        ask_order = self._cancel_order_by_id(entry.ask_order_id)
+        if ask_order is not None:
+            cancelled += 1
+        # entry has already been popped from the active QuoteIndex and its
+        # quote-level history recorded by the caller (remove()/
+        # cancel_all_for_*()) before _cancel_quote_entry runs — attach the
+        # per-leg detail we just captured to that already-recorded entry.
+        # See QuoteIndex.attach_leg_snapshots and
+        # docs-design/EduMatcher-QLEGS-RECENT.md §9.3.
+        self._quote_index.attach_leg_snapshots(
+            entry.gateway_id,
+            entry.quote_id,
+            self._snapshot_quote_leg(bid_order),
+            self._snapshot_quote_leg(ask_order),
+        )
         self.pub_sock.send_multipart(
             make_quote_status_msg(entry.gateway_id, entry.quote_id, "CANCELLED", reason)
         )
@@ -1836,7 +1903,19 @@ class Engine:
         )
         self._quote_index.remove(order.gateway_id, order.symbol, reason=status)
         sibling_id = entry.counterpart_order_id(order.side.value)
-        self._cancel_order_by_id(sibling_id)
+        sibling_order = self._cancel_order_by_id(sibling_id)
+
+        # `order` is the filled leg — already terminal, its final state is
+        # available directly. `sibling_order` is whatever _cancel_order_by_id
+        # just returned for the other leg. Attach both to the history entry
+        # remove() just recorded, same pattern as _cancel_quote_entry.
+        filled_snapshot = self._snapshot_quote_leg(order)
+        sibling_snapshot = self._snapshot_quote_leg(sibling_order)
+        bid_leg = filled_snapshot if order.side == Side.BUY else sibling_snapshot
+        ask_leg = sibling_snapshot if order.side == Side.BUY else filled_snapshot
+        self._quote_index.attach_leg_snapshots(
+            order.gateway_id, entry.quote_id, bid_leg, ask_leg
+        )
 
         self.pub_sock.send_multipart(
             make_quote_status_msg(order.gateway_id, entry.quote_id, status)

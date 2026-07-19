@@ -434,8 +434,14 @@ QLEGS|SYM=AAPL|SHOW=ALL
 message and renders the reply. `ACTIVE` legs (`LEG` lines) carry live
 qty/remaining/status per leg, same as before. `RECENT` rows (`RECENT_LEG`
 lines) are quote-level summaries drawn from the engine's bounded, in-memory,
-per-gateway history of recently-inactivated quotes — not per-leg fill detail,
-which is no longer available once an order leaves the book. See
+per-gateway history of recently-inactivated quotes. Each `RECENT_LEG` line
+is optionally followed by `RECENT_BID_LEG` and/or `RECENT_ASK_LEG` lines
+carrying that leg's final qty/remaining/filled/status snapshot at the
+moment it was cancelled — these are emitted only when the engine had that
+leg's final order state available at removal time, which is the common
+case for every normal inactivation path (see
+[`system.quote_legs_request`](270-messages.md#systemquote_legs_request-systemquote_legsgw_id)
+for when a leg's snapshot can be absent). See
 [Gateway → QLEGS](050-gateway.md#qlegs-inspect-mm-quote-legs-and-fill-flags)
 for the full column semantics (shared with `pm-alf-console`'s `QLEGS`).
 
@@ -446,6 +452,8 @@ QLEGS|COUNT=2|RECENT_COUNT=1|SHOW=ALL
 LEG|QUOTE_ID=Q123|SYM=AAPL|SIDE=BUY|ORDER_ID=7c4a91e2|QTY=500|REMAINING=400|FILLED=100|STATUS=PARTIAL_FILL|QUOTE_STATUS=ACTIVE
 LEG|QUOTE_ID=Q123|SYM=AAPL|SIDE=SELL|ORDER_ID=be2170fd|QTY=500|REMAINING=500|FILLED=0|STATUS=RESTING|QUOTE_STATUS=ACTIVE
 RECENT_LEG|QUOTE_ID=Q100|SYM=AAPL|QUOTE_STATUS=CANCELLED|REASON=Cancelled by participant|REMOVED_AT_NS=1784468999030221878
+RECENT_BID_LEG|QUOTE_ID=Q100|SIDE=BUY|ORDER_ID=3f9a2b71|QTY=500|REMAINING=500|FILLED=0|STATUS=CANCELLED
+RECENT_ASK_LEG|QUOTE_ID=Q100|SIDE=SELL|ORDER_ID=8d1c4e05|QTY=500|REMAINING=200|FILLED=300|STATUS=CANCELLED
 END|TYPE=QLEGS
 ```
 

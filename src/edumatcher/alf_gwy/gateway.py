@@ -1059,17 +1059,45 @@ class AlfGateway:
         for entry in recent:
             if not isinstance(entry, dict):
                 continue
+            quote_id = str(entry.get("quote_id", ""))
             self._queue_line(
                 session,
                 "RECENT_LEG",
                 {
-                    "QUOTE_ID": str(entry.get("quote_id", "")),
+                    "QUOTE_ID": quote_id,
                     "SYM": str(entry.get("symbol", "")),
                     "QUOTE_STATUS": str(entry.get("quote_status", "")),
                     "REASON": str(entry.get("reason", "")),
                     "REMOVED_AT_NS": str(entry.get("removed_at_ns", "")),
                 },
             )
+            # Per-leg detail (qty/remaining/filled/status), when the engine
+            # had it available at removal time — see
+            # docs-design/EduMatcher-QLEGS-RECENT.md §9.3. Emitted as
+            # separate, optional lines rather than folded into RECENT_LEG's
+            # field set so existing parsers of RECENT_LEG are unaffected,
+            # and so a missing snapshot (bid_leg/ask_leg is None) is simply
+            # the absence of a line rather than a row of blank fields.
+            for leg_line_type, leg_field, leg_side in (
+                ("RECENT_BID_LEG", "bid_leg", "BUY"),
+                ("RECENT_ASK_LEG", "ask_leg", "SELL"),
+            ):
+                leg = entry.get(leg_field)
+                if not isinstance(leg, dict):
+                    continue
+                self._queue_line(
+                    session,
+                    leg_line_type,
+                    {
+                        "QUOTE_ID": quote_id,
+                        "SIDE": leg_side,
+                        "ORDER_ID": str(leg.get("order_id", "")),
+                        "QTY": str(leg.get("qty", "")),
+                        "REMAINING": str(leg.get("remaining", "")),
+                        "FILLED": str(leg.get("filled", "")),
+                        "STATUS": str(leg.get("status", "")),
+                    },
+                )
         self._queue_line(session, "END", {"TYPE": "QLEGS"})
 
     def _route_gateway_scoped_event(self, topic: str, payload: dict[str, Any]) -> None:

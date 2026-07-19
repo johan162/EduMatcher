@@ -50,17 +50,43 @@ class QuoteEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class QuoteLegSnapshot:
+    """A point-in-time snapshot of one quote leg's order state, captured at
+    the moment its quote was removed from the active index.
+
+    This is deliberately a small, independent copy — not a reference to the
+    live `Order` — so it remains valid after the order itself is discarded
+    by the book.
+    """
+
+    order_id: str
+    qty: int
+    remaining: int
+    filled: int
+    status: str
+
+
+@dataclass(frozen=True, slots=True)
 class QuoteHistoryEntry:
     """A snapshot of a `QuoteEntry` at the moment it was removed from the
     live index, plus the reason it was removed and when.
 
     This is a point-in-time record — it does not track the entry going
     forward, only what it looked like at removal.
+
+    `bid_leg`/`ask_leg` are populated when the caller had access to each
+    leg's final `Order` state at removal time (the common case — see
+    `Engine._cancel_quote_entry` and `Engine._on_quote_leg_filled`). They are
+    `None` when no such snapshot was supplied, so RECENT/ALL replies can
+    still report per-leg qty/remaining/status detail instead of only a
+    quote-level summary. See docs-design/EduMatcher-QLEGS-RECENT.md §8.1.
     """
 
     entry: QuoteEntry
     reason: str
     removed_at_ns: int = field(default_factory=now_ns)
+    bid_leg: Optional[QuoteLegSnapshot] = None
+    ask_leg: Optional[QuoteLegSnapshot] = None
 
 
 class QuoteIndex:
@@ -94,6 +120,44 @@ class QuoteIndex:
             entry.gateway_id, deque(maxlen=self._history_maxlen)
         )
         bucket.append(QuoteHistoryEntry(entry, reason))
+
+    def attach_leg_snapshots(
+        self,
+        gateway_id: str,
+        quote_id: str,
+        bid_leg: Optional[QuoteLegSnapshot],
+        ask_leg: Optional[QuoteLegSnapshot],
+    ) -> bool:
+        """Attach per-leg order snapshots to the most-recently-recorded
+        history entry for `quote_id` on `gateway_id`.
+
+        Removal (`remove()`/`cancel_all_for_*()`) and the actual order
+        cancellation that captures each leg's final state happen as two
+        separate steps at every call site — the quote is dropped from the
+        active index first (recording quote-level history immediately, so
+        it's never lost even if something goes wrong before cancellation
+        completes), and the resting orders are cancelled second. This method
+        lets the caller enrich that already-recorded entry with per-leg
+        detail once it has it, without having to thread `Order` snapshots
+        through every removal call site or reorder cancellation ahead of
+        removal. Returns `True` if a matching entry was found and updated.
+        """
+        bucket = self._history.get(gateway_id)
+        if not bucket:
+            return False
+        for i in range(len(bucket) - 1, -1, -1):
+            existing = bucket[i]
+            if existing.entry.quote_id != quote_id:
+                continue
+            bucket[i] = QuoteHistoryEntry(
+                entry=existing.entry,
+                reason=existing.reason,
+                removed_at_ns=existing.removed_at_ns,
+                bid_leg=bid_leg,
+                ask_leg=ask_leg,
+            )
+            return True
+        return False
 
     def get(self, gateway_id: str, symbol: str) -> Optional[QuoteEntry]:
         return self._index.get((gateway_id, symbol))

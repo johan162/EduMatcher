@@ -112,6 +112,107 @@ def test_quote_legs_request_recent_returns_cancelled_quote_history(
     assert recent[0]["removed_at_ns"] > 0
 
 
+def test_quote_legs_request_recent_includes_per_leg_snapshot_on_cancel(
+    monkeypatch, tmp_path
+):
+    """RECENT rows carry real per-leg detail (qty/remaining/filled/status),
+    not just the quote-level summary — this is the widened design from
+    docs-design/EduMatcher-QLEGS-RECENT.md.
+    """
+    engine, pub_sock = make_engine(monkeypatch, tmp_path, mm_gateways=("GW01",))
+    connect(engine, "GW01")
+    submit_quote(
+        engine,
+        "GW01",
+        bid_price=100.0,
+        ask_price=101.0,
+        bid_qty=500,
+        ask_qty=500,
+        quote_id="Q1",
+    )
+    pub_sock.sent.clear()
+
+    engine._handle_quote_cancel({"gateway_id": "GW01", "symbol": SYMBOL})
+    pub_sock.sent.clear()
+
+    engine._handle_quote_legs_request(
+        {"gateway_id": "GW01", "symbol": "", "show": "RECENT"}
+    )
+
+    payload = msgs(pub_sock, "system.quote_legs.GW01")[0]
+    recent = payload["recent"][0]
+
+    for leg_key in ("bid_leg", "ask_leg"):
+        leg = recent[leg_key]
+        assert leg is not None
+        assert leg["order_id"]
+        assert leg["qty"] == 500
+        assert leg["remaining"] == 500  # never filled — cancelled while fully resting
+        assert leg["filled"] == 0
+        assert leg["status"] == "CANCELLED"
+    assert recent["bid_leg"]["order_id"] != recent["ask_leg"]["order_id"]
+
+
+def test_quote_legs_request_recent_fill_driven_leg_snapshot_reflects_fill(
+    monkeypatch, tmp_path
+):
+    """For a fill-driven inactivation, the filled leg's snapshot reports its
+    actual fill quantity/remaining/status, and the sibling leg (cancelled as
+    a side effect) reports its own cancelled-while-resting state.
+    """
+    engine, pub_sock = make_engine(
+        monkeypatch,
+        tmp_path,
+        gateways=("GW01", "TAKER"),
+        mm_gateways=("GW01",),
+    )
+    connect(engine, "GW01", "TAKER")
+    submit_quote(
+        engine,
+        "GW01",
+        bid_price=100.0,
+        ask_price=101.0,
+        bid_qty=500,
+        ask_qty=500,
+        quote_id="Q1",
+    )
+
+    # Partial fill: taker only takes 100 of the 500 resting on the ask.
+    engine._handle_new_order(
+        order_payload(
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            qty=100,
+            gateway_id="TAKER",
+            price=101.0,
+            tif=TIF.DAY,
+        )
+    )
+    pub_sock.sent.clear()
+
+    engine._handle_quote_legs_request(
+        {"gateway_id": "GW01", "symbol": "", "show": "RECENT"}
+    )
+
+    payload = msgs(pub_sock, "system.quote_legs.GW01")[0]
+    recent = payload["recent"][0]
+    assert recent["reason"] == "INACTIVE_ASK_FILLED"
+
+    ask_leg = recent["ask_leg"]
+    assert ask_leg is not None
+    assert ask_leg["qty"] == 500
+    assert ask_leg["filled"] == 100
+    assert ask_leg["remaining"] == 400
+    assert ask_leg["status"] == "PARTIAL"
+
+    bid_leg = recent["bid_leg"]
+    assert bid_leg is not None
+    assert bid_leg["qty"] == 500
+    assert bid_leg["filled"] == 0
+    assert bid_leg["remaining"] == 500
+    assert bid_leg["status"] == "CANCELLED"
+
+
 def test_quote_legs_request_all_includes_both_active_and_recent(monkeypatch, tmp_path):
     """ALL after a cancel+new-quote cycle returns the new active quote's legs
     plus the old quote's history — both halves of "ALL" are now real.
