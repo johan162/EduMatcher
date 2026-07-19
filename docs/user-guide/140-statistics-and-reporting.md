@@ -263,6 +263,7 @@ pm-stats
 |-------------------------|-----------------|----------------------------------------------------------------------------------------|
 | `--db`                  | `data/stats.db` | Custom statistics database path                                                        |
 | `--snapshot-interval`   | `900` (15 min)  | Seconds between `price_snapshots` rows per symbol. Lower values give finer intraday resolution at the cost of more database writes. |
+| `--sql-trace`           | off             | Log executed SQLite statements from the stats writer connection — useful for debugging what `pm-stats` is actually writing |
 | `--log-level`           | `WARNING`       | Explicit level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG`                       |
 | `-v`, `--verbose`       | off             | Increase verbosity (`-v` → `INFO`, `-vv` → `DEBUG`)                                   |
 | `-q`, `--quiet`         | off             | Reduce output to warnings/errors                                                       |
@@ -591,6 +592,13 @@ API filters for `/api/v1/history/orders`:
 | `from` | No | Inclusive ISO timestamp lower bound |
 | `to` | No | Inclusive ISO timestamp upper bound |
 | `limit` | No | Maximum rows to return, default `500`, maximum `5000` |
+| `after` | No | Opaque keyset-pagination cursor from a previous response's `next_cursor`; fetches the next page |
+
+`/history/orders` (and `/history/fills`) responses include `next_cursor` when
+more rows are available. See
+[API Gateway — Pagination](260-api-gateway.md#pagination) for the full
+`count`/`has_more`/`next_cursor` contract, including which endpoints are
+exceptions to it.
 
 To reconstruct one order's lifecycle, use the order ID path:
 

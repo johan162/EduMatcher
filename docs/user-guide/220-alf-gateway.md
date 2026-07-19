@@ -88,11 +88,13 @@ alf_gateway:
   bind_address: "0.0.0.0"
   port: 5565
   heartbeat_interval_sec: 5
+  handshake_timeout_sec: 10
   idle_timeout_sec: 30
   max_connections: 64
   max_client_queue: 10000
   max_commands_per_second: 100
   max_errors_before_disconnect: 50
+  error_window_sec: 60
 ```
 
 The gateway reads gateway roles from the existing `gateways.alf` list — no
@@ -106,11 +108,13 @@ can connect to `pm-alf-gwy`.
 | `bind_address` | `0.0.0.0` | Network interface to listen on (`127.0.0.1` for local-only) |
 | `port` | `5565` | TCP listen port |
 | `heartbeat_interval_sec` | `5` | Seconds between `HB` lines when no other outbound traffic |
+| `handshake_timeout_sec` | `10` | Disconnect a connection that hasn't sent `HELLO` within this many seconds |
 | `idle_timeout_sec` | `30` | Disconnect after this many seconds of inbound silence |
 | `max_connections` | `64` | Maximum simultaneous TCP connections |
 | `max_client_queue` | `10000` | Per-client outbound line buffer capacity |
 | `max_commands_per_second` | `100` | Token-bucket rate limit per client |
 | `max_errors_before_disconnect` | `50` | Error threshold in a sliding window before forced disconnect |
+| `error_window_sec` | `60` | Width of the sliding window used to count errors toward `max_errors_before_disconnect` |
 
 !!! note "TLS"
     `pm-alf-gwy` does not terminate TLS.  For remote deployments, put it behind
@@ -458,6 +462,7 @@ Every error arrives as `ERR|CODE=<CODE>|DETAIL=<message>`.
 | Code | When it occurs | Connection kept? |
 |------|---------------|-----------------|
 | `AUTH_REQUIRED` | Any command before `HELLO` completes | No — closed immediately |
+| `AUTH_TIMEOUT` | No `HELLO` received within `handshake_timeout_sec` (default 10s) of connecting | No |
 | `AUTH_FAILED` | Engine rejected the gateway ID | No |
 | `PROTO_MISMATCH` | `HELLO` with wrong `PROTO` value | No |
 | `GATEWAY_ALREADY_CONNECTED` | Same gateway ID already has an active session | No |

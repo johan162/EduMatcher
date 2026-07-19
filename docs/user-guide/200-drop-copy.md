@@ -71,6 +71,25 @@ calling `run()` do not bind a ZMQ socket.
 The drop copy address is configurable via `DROP_COPY_PUB_ADDR` in
 `src/edumatcher/config.py`.
 
+!!! warning "No authentication or entitlement checks"
+    The drop copy PUB socket performs no authentication, and there is no
+    per-gateway entitlement check on who may subscribe. Any process that can
+    reach `tcp://127.0.0.1:5557` can subscribe to fills for **every**
+    gateway, regardless of the topic prefix it filters on. This differs from
+    the RALF gateway's `DROP_COPY` channel (see
+    [RALF DROP_COPY channel vs. this feed](#ralf-drop_copy-channel-vs-this-feed)
+    below), which does enforce per-connection role entitlement.
+
+### A note on `make_dropcopy_fill_msg`
+
+`src/edumatcher/models/message.py` also defines a `make_dropcopy_fill_msg()`
+helper that publishes on `dropcopy.fill.{gateway_id}` (port 5556, the main
+engine PUB socket). It predates `DropCopyPublisher` and is kept only for
+backward compatibility with any subscriber still consuming that topic; it is
+not called anywhere in the engine's live trade-publication path. New
+integrations should use the `drop_copy.event.{gateway_id}` feed on port 5557
+described on this page, not `make_dropcopy_fill_msg`.
+
 
 
 ## Message format
@@ -81,6 +100,10 @@ Every drop copy message is a two-frame ZeroMQ multipart message:
 Frame 0 (topic):    b"drop_copy.event.<gateway_id>"
 Frame 1 (payload):  orjson-encoded JSON object
 ```
+
+Payloads are serialized with `orjson` when it is installed (the normal case);
+`edumatcher.models.message` falls back to the stdlib `json` module if
+`orjson` is unavailable, so the wire format is identical either way.
 
 ### Payload fields
 
@@ -94,8 +117,10 @@ Frame 1 (payload):  orjson-encoded JSON object
 
 ### `order.fill` event
 
-Published whenever an order receives a full or partial fill. This is the only
-live drop-copy event type currently emitted by the engine.
+Published whenever a trade occurs. This is the only live drop-copy event
+type currently emitted by the engine. Every trade produces **two** drop-copy
+events — one per counterparty — so the example below represents one side of
+a matched MAKER/TAKER pair, not the whole trade.
 
 ```json
 {
@@ -107,23 +132,32 @@ live drop-copy event type currently emitted by the engine.
   "symbol": "MSFT",
   "fill_qty": 100,
   "fill_price": 420.0,
-  "remaining_qty": 0,
   "liquidity_flag": "MAKER"
 }
 ```
 
 !!! note "Price units and fields"
     `fill_price` is published as a display-price float, not as raw integer
-    ticks. The payload also uses `remaining_qty` and `liquidity_flag`; it does
-    not include `side` or `leaves_qty`.
+    ticks. `liquidity_flag` is derived from the trade's aggressor side
+    (`"TAKER"` for the aggressor, `"MAKER"` for the resting side). The
+    payload does not include `remaining_qty`, `side`, or `leaves_qty`.
+
+This is fed from the engine's single trade-publication path (`engine/main.py`,
+`_publish_trade`), so it covers every fill-producing flow — new orders,
+quotes, combo legs, OCO legs, auction uncrosses, stop cascades, and
+amend-rematches — not just plain new-order fills.
 
 
 
 ## Sequence numbers
 
-The `seq` field is a global counter shared across all events published by a
-single engine instance.  It increments by 1 for every event and starts at 1
-when the engine starts.  It is never reset during the engine's lifetime.
+The `seq` field comes from a **process-wide** counter (`itertools.count(1)`
+at module scope in `drop_copy.py`), shared by every `DropCopyPublisher`
+instance created in the same process — not scoped to one engine instance.
+It increments by 1 for every event, starts at 1, and is never reset while
+the process is alive. Tests or tools that construct more than one
+`DropCopyPublisher` in the same process will see `seq` continue counting up
+across instances rather than restarting at 1.
 
 Sequence numbers allow downstream consumers to:
 
@@ -143,6 +177,9 @@ reconnect after a gap.
 
 The buffer is implemented as a `collections.deque` with `maxlen=10_000`.  When
 the buffer is full, the oldest event is discarded automatically.
+
+At a sustained rate of ~10 fills/second, 10,000 buffered messages covers
+roughly 16 minutes of history before the oldest events start being dropped.
 
 
 
@@ -170,10 +207,6 @@ Frame 1 (payload):  same format as live events
 ```
 
 The call returns the number of messages replayed.
-
-There is currently **no external replay-request message handler** wired into the
-engine loop. Replay exists as an in-process publisher method, which is useful
-for tests or embedded consumers but is not yet a full reconnect protocol.
 
 ### Replay topic design
 
@@ -271,9 +304,38 @@ Listening for drop-copy events on :5557 ...
 
 
 
+## RALF DROP_COPY channel vs. this feed
+
+The RALF gateway (`pm-ralf-gwy`) has its own concept called the `DROP_COPY`
+**channel** — see the
+[RALF protocol reference](930-app-ralf-protocol.md#7-roles-entitlements).
+Despite the shared name, it is a different mechanism from the feed described
+on this page:
+
+- The engine's drop copy feed (this page) is published by `DropCopyPublisher`
+  on its own ZMQ PUB socket, port **5557**, with sequence numbers and a
+  replay buffer scoped to fills only.
+- RALF's `DROP_COPY` channel is one of three role-based subscription
+  channels (`CLEARING`, `DROP_COPY`, `AUDIT`) on the RALF text protocol. Each
+  trade is emitted **once per channel** as an `EXEC` message, sourced from
+  the same `trade.executed` broadcast on port 5556 that feeds `CLEARING` and
+  `AUDIT` — it is not sourced from port 5557, and the three channels carry
+  identical trade content, differing only in which entitlement role may
+  subscribe to them.
+
+If you need a per-participant, sequenced, replayable fill feed for
+programmatic consumption, use the engine's drop copy feed on port 5557. If
+you need RALF's text-protocol trade feed with role-based entitlement
+checks, see [RALF protocol reference](930-app-ralf-protocol.md) and
+[Post-trade](250-post-trade.md).
+
+
+
 ## See also
 
 - [Processes](170-processes.md) — full ZeroMQ topology
 - [Risk Controls](120-risk-controls.md) — halt, collar, and circuit breaker events
 - [Persistence](180-persistence.md) — durable audit trail as a complement to drop copy
 - [Messages](270-messages.md) — all message types used in EduMatcher
+- [Post-trade](250-post-trade.md) — RALF post-trade feed and channels
+- [RALF protocol reference](930-app-ralf-protocol.md) — RALF `DROP_COPY` channel wire format

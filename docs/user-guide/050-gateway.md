@@ -52,7 +52,7 @@ client population:
 | **ETI (Eurex)** | Binary | European derivatives traders | Enhanced Transaction Interface; supports complex derivatives workflows |
 | **Proprietary REST/WebSocket** | Text / JSON | Retail, algorithmic | Used by crypto exchanges and some retail venues; easy to integrate |
 
-EduMatcher's gateway speaks a **FIX-inspired pipe-delimited text format** that
+EduMatcher's order-entry gateway speaks a **FIX-inspired pipe-delimited text format** that
 we call **ALF** (**AL**most **F**ix):
 `NEW|SYM=AAPL|SIDE=BUY|TYPE=LIMIT|QTY=100|PRICE=150.00`.
 It borrows FIX's field=value concept but uses a simplified subset - no session
@@ -136,7 +136,7 @@ without discrimination.  In practice this means:
 EduMatcher has none of these mechanisms.  The engine processes messages in
 ZeroMQ arrival order with no timestamps beyond the wall clock of the machine
 running the test.  For a learning system on localhost this is irrelevant; for a
-regulated venue it would be a compliance failure.
+regulated venue it would be a *compliance failure*.
 
 
 ## What this process does
@@ -252,6 +252,16 @@ On startup, the gateway:
 6. If rejected: prints the reason and exits immediately
 7. If timeout (engine not running): exits with "Gateway authentication timed out"
 
+!!! note "A second pair of sockets talks to pm-index"
+    Independently of the engine sockets above, `pm-alf-console` also opens a
+    PUSH socket to the `pm-index` process's PULL port (`EDUMATCHER_INDEX_PULL_PORT`,
+    default `5559`) and a SUB socket to its PUB port
+    (`EDUMATCHER_INDEX_PUB_PORT`, default `5558`), subscribed to `index.update`,
+    `index.history.{ID}`, and `index.error.{ID}`. These back the `INDEX` command
+    family below and are independent of gateway authentication — `pm-index` does
+    not need to be running for the rest of the console to work, but `INDEX` and
+    `INDEX|HISTORY` will simply produce no output if it is not.
+
 ```mermaid
 sequenceDiagram
     participant GW as pm-alf-console --id TRADER01
@@ -327,7 +337,7 @@ All commands use the ALF pipe-separated key=value format.
 | Order entry | `NEW`, `NEW|TYPE=COMBO`, `NEW|TYPE=OCO`, `QUOTE` | Create new exposure |
 | Order updates | `AMEND`, `CANCEL`, `QUOTE_CANCEL` | Modify or remove exposure |
 | Risk controls | `KILL` | Emergency local gateway kill-switch |
-| Monitoring | `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `QBOOT`, `QLEGS` | Inspect live/cached state |
+| Monitoring | `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `QBOOT`, `QLEGS`, `INDEX` | Inspect live/cached state |
 | Session control | `HELP`, `EXIT`, `QUIT` | Terminal usability |
 
 ### Role entitlements (what each role can do)
@@ -479,6 +489,48 @@ Typical startup use:
 3. If exactly one healthy two-leg quote is returned, adopt it.
 4. If state is missing/partial, cancel and re-issue.
 
+### INDEX — Show Live Index Level / Structural History
+
+`INDEX` prints the most recent index level update received from `pm-index`.
+`INDEX|HISTORY` requests the structural/audit history (index creation,
+corporate actions, constituent adds, delistings) for one index.
+
+```
+INDEX
+INDEX|HISTORY[|INDEX=<index_id>][|FROM=<date>][|TO=<date>]
+```
+
+| Field   | Required | Default                                          | Description                                    |
+|---------|----------|---------------------------------------------------|-------------------------------------------------|
+| `INDEX` | No       | the last index ID seen on `index.update`          | Index to query history for                     |
+| `FROM`  | No       | 30 days before now                                | Start of the history window                    |
+| `TO`    | No       | now                                                | End of the history window                      |
+
+Bare `INDEX` reads from an in-memory cache populated by the `index.update`
+feed and does not send a request to the engine or `pm-index` — if no
+`index.update` has been received yet, it prints
+`No index data received yet. Is pm-index running?`.
+
+`INDEX|HISTORY` sends a request to `pm-index` and prints a **structural**
+history table (`INIT`, `CORP_ACTION`, `ADD_CONSTITUENT`, `DELIST` records) —
+it is not a level/EOD time series. For level and EOD history, use
+`pm-stats-cli index-daily` / `index-snapshots` instead; see
+[Statistics and Reporting](140-statistics-and-reporting.md).
+
+If `INDEX=` is omitted and no `index.update` has been seen yet, `INDEX|HISTORY`
+prints `INDEX|HISTORY requires INDEX=<id> or prior index.update.` and sends
+nothing.
+
+Example:
+
+```text
+TRADER01> INDEX
+[09:31:00.512] TECH100  4213.55 [green]+12.30 +0.29%[/green] [dim]O=4201.25 H=4220.10 L=4198.00[/dim] OPEN
+
+TRADER01> INDEX|HISTORY|INDEX=TECH100|FROM=2026-06-01|TO=2026-07-01
+# prints a "Index structural history" table of corporate-action-style records
+```
+
 ### KILL — Trigger Kill-Switch
 
 ```
@@ -554,6 +606,7 @@ NEW|TYPE=COMBO|COMBO_ID=<label>|COMBO_TYPE=AON|TIF=<DAY|GTC>|LEG_COUNT=<n>|LEG0.
 | `LEG<i>.QTY`       | Yes      | Quantity                                         |
 | `LEG<i>.PRICE`     | Yes*     | Limit price (*required for LIMIT type)           |
 | `LEG<i>.TYPE`      | No       | Order type (default LIMIT)                       |
+| `SMP=<action>`     | No       | Self-match prevention, applied to every leg (default `NONE`); same values as `NEW`'s `SMP` |
 
 #### Examples
 
@@ -859,9 +912,12 @@ All events are printed inline with a `[HH:MM:SS.mmm]` timestamp prefix. A backgr
 
 ### System Events
 
-| Message                    | Meaning                       |
-|----------------------------|-------------------------------|
-| `Active Instruments` table | Response to `SYMBOLS` command |
+| Message                           | Meaning                                                   |
+|-----------------------------------|------------------------------------------------------------|
+| `Active Instruments` table        | Response to `SYMBOLS` command                             |
+| `<INDEX_ID>  <level>  ...`        | Response to `INDEX`, printed from the cached `index.update` feed |
+| `Index structural history` table  | Response to `INDEX\|HISTORY`                               |
+| `INDEX ERROR  <reason>`           | `pm-index` rejected an `INDEX\|HISTORY` request            |
 
 !!! note "Session phase changes"
     The gateway does **not** subscribe to `session.state` events. Trading phase transitions are not displayed in the gateway terminal. To monitor session phases, run `pm-audit`, `pm-viewer`, or `pm-orders` in a separate terminal.
@@ -937,7 +993,7 @@ The gateway provides **context-aware tab completion**:
 
 | Position                  | Completions                                                                                                                               |
 |---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| First word                | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `QBOOT`, `QLEGS`, `KILL`, `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `HELP`, `EXIT`, `QUIT` |
+| First word                | `NEW`, `AMEND`, `CANCEL`, `QUOTE`, `QUOTE_CANCEL`, `QBOOT`, `QLEGS`, `KILL`, `STATUS`, `ORDERS`, `POS`, `SYMBOLS`, `INDEX`, `HELP`, `EXIT`, `QUIT` |
 | After `NEW\|`             | `SYM=`, `SIDE=`, `TYPE=`, `QTY=`, `PRICE=`, `STOP=`, `TRAIL=`, `TIF=`, `VISIBLE=`, `SMP=`                                                 |
 | After `NEW\|TYPE=COMBO\|` | `COMBO_ID=`, `COMBO_TYPE=`, `TIF=`, `LEG_COUNT=`, plus `LEG0.SYM=`, `LEG0.SIDE=`, etc.                                                    |
 | After `NEW\|TYPE=OCO\|`   | `OCO_ID=`, `SYM=`, `QTY=`, `TIF=`, `LEG1_SIDE=`, `LEG1_TYPE=`, etc.                                                                       |
@@ -983,3 +1039,5 @@ the command prompt. You can continue typing while events arrive.
 - [Messages](270-messages.md) — the ZeroMQ messages the gateway publishes and subscribes to
 - [Risk Controls](120-risk-controls.md) — how the engine enforces collars, halts, and kill switches on gateway flow
 - [Running the Engine](040-running-the-engine.md) — how to start `pm-alf-console` and verify the connection
+- [Index](150-index.md) — `pm-index` process, index composition, and the `index.update`/`index.history` feed behind the `INDEX` command
+- [Statistics and Reporting](140-statistics-and-reporting.md) — `pm-stats-cli index-daily`/`index-snapshots` for level/EOD history (vs. `INDEX|HISTORY`'s structural records)
