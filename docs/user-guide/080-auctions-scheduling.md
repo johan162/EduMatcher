@@ -83,17 +83,22 @@ The scheduler process (`pm-scheduler`) drives these transitions by sending
 | TIF = ATO | Reject | **Accept** | Reject | Reject | Reject |
 | TIF = ATC | Reject | Reject | Reject | **Accept** | Reject |
 
-¹ TRAILING_STOP is rejected during PRE_OPEN/auction phases if no `STOP=` is given and
-  no prior trade has established a `last_trade_price` for the symbol.
+¹ This check is not actually phase-specific: a TRAILING_STOP order is rejected
+  in **any** session phase (including CONTINUOUS) if no `STOP=` is given and
+  no prior trade has established a `last_trade_price` for the symbol — the
+  engine needs one of the two to compute an initial stop price.  In practice
+  this almost always bites during PRE_OPEN/auction phases, since that is
+  before the symbol's first trade of the day.
 
 MARKET, FOK, and IOC orders are always rejected outside CONTINUOUS because they
 cannot rest on the book — they require immediate execution.
 
 ### Transition side-effects
 
-When the engine transitions **into a matching phase** (i.e. when the new state
-has matching enabled and the old one did not — including the `PRE_OPEN → CONTINUOUS`
-shortcut):
+When the engine transitions **into a matching phase, or into `CLOSED` from
+`CLOSING_AUCTION`** (i.e. when the new state has matching enabled and the old
+one did not, or the transition is the end-of-day close — including the
+`PRE_OPEN → CONTINUOUS` shortcut):
 
 1. **Uncross** — the equilibrium price algorithm runs on every symbol book
    and executes all crossable interest at the equilibrium price.
@@ -122,7 +127,7 @@ stateDiagram-v2
 ```
 
 Invalid transitions are silently rejected by the engine and logged to
-stderr.
+stdout (the engine's `logging` output stream, not stderr).
 
 
 
@@ -135,8 +140,12 @@ socket.
 ### Starting the scheduler
 
 ```bash
-# Use times from engine_config.yaml (or built-in defaults)
+# Use times from engine_config.yaml (or built-in defaults); run today's
+# schedule once (catching up on any times already passed) and then exit
 poetry run pm-scheduler
+
+# Repeat the schedule every calendar day instead of exiting after today
+poetry run pm-scheduler --daily
 
 # Rapid-fire all transitions immediately (for testing / demos)
 poetry run pm-scheduler --now
@@ -147,6 +156,19 @@ poetry run pm-scheduler --now --delay 5
 # Point to a different config file
 poetry run pm-scheduler --config my_schedule.yaml
 ```
+
+### CLI flag reference
+
+| Flag                    | Default             | Description                                                                 |
+|--------------------------|---------------------|-------------------------------------------------------------------------------|
+| `--now`                  | off                 | Rapid-fire all five transitions immediately (for testing / demos)             |
+| `--delay SECONDS`        | `3.0`                | Seconds between transitions in `--now` mode; ignored (with a warning) otherwise |
+| `--daily`                | off                 | Run continuously, repeating the schedule every calendar day instead of exiting after today |
+| `--config FILE` / `-c`   | `engine_config.yaml` | Config YAML with a `schedule` section                                       |
+| `--no-confirm`           | off                 | Skip querying/confirming session state via the engine's `session.state` broadcast |
+| `--log-level {CRITICAL,ERROR,WARNING,INFO,DEBUG}` | `WARNING` | Explicit logging level override                                    |
+| `--verbose` / `-v`       | off (WARNING)       | Increase log verbosity; repeatable (`-v` = INFO, `-vv` = DEBUG)              |
+| `--quiet` / `-q`         | off                 | Reduce log output to warnings/errors (this is already the default level)     |
 
 ### Configuring the schedule
 
@@ -402,11 +424,19 @@ TRADER01> NEW|SYM=AAPL|SIDE=SELL|TYPE=LIMIT|QTY=100|PRICE=149.50|TIF=ATO
 # Terminal 1 — trigger the uncross
 OPS01> SESSION|STATE=CONTINUOUS
 [OPENING_AUCTION → CONTINUOUS]
-# Engine prints: auction.result AAPL price=149.75 qty=100 surplus=0
+# Engine prints: auction.result AAPL price=149.50 qty=100 surplus=0
 ```
 
 Both ATO orders fill at the equilibrium price.  The `TIF=ATO` orders are
 expired if they did *not* fill.
+
+!!! note "Why 149.50 and not the midpoint"
+    With only one bid (150.00) and one ask (149.50), both candidate prices
+    (149.50 and 150.00) achieve the same maximum `exec_qty` (100) with the
+    same surplus (0).  Per the tie-break rule (Step 3 above), the algorithm
+    picks the **lowest** of the tied candidate prices — 149.50 — not the
+    midpoint between the bid and ask.  EduMatcher's uncross always settles
+    at one of the resting order prices, never an interpolated value.
 
 ## See also
 

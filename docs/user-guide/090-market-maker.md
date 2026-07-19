@@ -8,7 +8,7 @@
     - What happens to a quote when one side fills (inactivation)
     - How `quote_refresh_policy` controls inactivation behaviour
     - How MM obligations enforce minimum spread width and size
-    - How Market-Maker Protection (MMP) prevents excessive fills in a burst
+    - Why Market-Maker Protection (MMP) is a data model today, not an enforced engine feature
     - How `disconnect_behaviour` determines what happens to your quotes if your gateway drops
 
     **Prerequisites**: [Configuration](010-configuration.md) — you need a gateway configured
@@ -109,13 +109,17 @@ stateDiagram-v2
     [*] --> ACTIVE : QUOTE accepted
     ACTIVE --> INACTIVE_BID_FILLED : bid leg fills
     ACTIVE --> INACTIVE_ASK_FILLED : ask leg fills
-    ACTIVE --> CANCELLED : QUOTE_CANCEL or gateway disconnect
-    ACTIVE --> REPLACED : new QUOTE submitted for same symbol
+    ACTIVE --> CANCELLED : QUOTE_CANCEL, gateway disconnect, or a new QUOTE replacing this one
     INACTIVE_BID_FILLED --> [*] : ask leg cancelled by engine
     INACTIVE_ASK_FILLED --> [*] : bid leg cancelled by engine
     CANCELLED --> [*]
-    REPLACED --> [*]
 ```
+
+There is no separate `REPLACED` status: a new `QUOTE` on the same
+`(gateway_id, symbol)` cancels the old quote and the engine emits an ordinary
+`quote.status CANCELLED` for it (with reason `"Replaced by new quote"`)
+before installing the new one. The engine's only `quote.status` values are
+`ACTIVE`, `INACTIVE_BID_FILLED`, `INACTIVE_ASK_FILLED`, and `CANCELLED`.
 
 When inactivation occurs, the gateway receives a `quote.status` event:
 
@@ -189,14 +193,23 @@ Obligations can be configured with four levels of precedence, from lowest to
 highest:
 
 ```
-global mm_obligation_defaults
-  └── per-symbol global policy (mm_obligation_policies[symbol])
-       └── per-gateway defaults (gateways[MM01]: mm_max_spread_ticks, ...)
-            └── per-gateway per-symbol policy (gateways[MM01].mm_obligations[symbol])
+global mm_obligation_defaults (flat fields)
+  └── per-gateway defaults (gateways.alf[].mm_max_spread_ticks, ...)
+       └── per-symbol global policy (mm_obligation_defaults.symbols.<SYM>)
+            └── per-gateway per-symbol policy (gateways.alf[].mm_obligations.<SYM>)
 ```
 
-This lets you enforce tight spreads on liquid symbols while being more lenient
-on illiquid ones, all from a single config file.
+A per-gateway per-symbol override (`gateways.alf[].mm_obligations.<SYM>`) wins
+over everything else; a global per-symbol override
+(`mm_obligation_defaults.symbols.<SYM>`) wins over a gateway's own flat
+defaults. This lets you enforce tight spreads on liquid symbols while being
+more lenient on illiquid ones, all from a single config file.
+
+!!! note "Field names differ inside `mm_obligations`"
+    Inside a gateway's `mm_obligations.<SYM>` block the size/spread fields are
+    named `max_spread_ticks` and `min_qty` — **without** the `mm_` prefix used
+    everywhere else in the config. This is intentional in the current schema,
+    not a typo.
 
 Example:
 
@@ -207,60 +220,39 @@ mm_obligation_defaults:
   mm_min_qty: 50
 
 gateways:
-  MM01:
-    role: MARKET_MAKER
-    mm_obligations:
-      AAPL:
-        mm_max_spread_ticks: 5    # tighter spread required on AAPL
-        mm_min_qty: 200
+  alf:
+    - id: MM01
+      role: MARKET_MAKER
+      mm_obligations:
+        AAPL:
+          max_spread_ticks: 5    # tighter spread required on AAPL
+          min_qty: 200
 ```
 
 ---
 
-## Market-Maker Protection (MMP)
+## Market-Maker Protection (MMP) — data model only, not enforced by the engine
 
 Real market makers are exposed to **adverse selection**: a rapid stream of fills
 on one side can mean an informed trader is hitting their price while they cannot
-adjust fast enough. Market-Maker Protection provides an automatic pause when
-fill activity exceeds a threshold.
+adjust fast enough. A full Market-Maker Protection feature would provide an
+automatic pause when fill activity exceeds a threshold.
 
-The MMP parameters live in `mm_obligation_defaults` or per-gateway config:
-
-| Parameter              | Default       | Meaning                                                   |
-|------------------------|---------------|-----------------------------------------------------------|
-| `mmp_fill_count`       | 5             | Number of fills within the window that triggers MMP       |
-| `mmp_window_ns`        | 1,000,000,000 | Rolling window in nanoseconds (default: 1 second)         |
-| `max_requote_delay_ns` | 500,000,000   | How long (ns) the MM has to re-quote before being flagged |
-
-```mermaid
-sequenceDiagram
-    participant E as Engine
-    participant MM as MM01 gateway
-
-    E-->>MM: order.fill.MM01 (fill 1)
-    E-->>MM: order.fill.MM01 (fill 2)
-    E-->>MM: order.fill.MM01 (fill 3)
-    E-->>MM: order.fill.MM01 (fill 4)
-    E-->>MM: order.fill.MM01 (fill 5 - MMP threshold reached)
-    note over E: MMP activates and requote deadline is set
-    MM->>E: QUOTE\|SYM=AAPL\|... (re-quote within deadline)
-    note over E: MMP reset
-```
-
-What the MM operator sees in the terminal when MMP fires:
-
-```text
-[09:30:01.002] FILL      7c4a91e2  qty=100 @209.8  remaining=400  [PARTIAL]
-[09:30:01.003] FILL      7c4a91e2  qty=100 @209.8  remaining=300  [PARTIAL]
-[09:30:01.004] FILL      7c4a91e2  qty=100 @209.8  remaining=200  [PARTIAL]
-[09:30:01.005] FILL      7c4a91e2  qty=100 @209.8  remaining=100  [PARTIAL]
-[09:30:01.006] FILL      7c4a91e2  qty=100 @209.8  remaining=0    [FILLED]
-[09:30:01.006] CANCELLED be2170fd
-[09:30:01.006] QUOTE INACTIVE_BID_FILLED  Q1
-```
-
-The bot (or operator) must re-quote within `max_requote_delay_ns` to avoid
-an obligation breach flag.
+!!! warning "Not currently wired into the engine"
+    `MarketMakerObligation` (`src/edumatcher/models/mm_obligation.py`) defines
+    `mmp_fill_count` (default 5), `mmp_window_ns` (default 1,000,000,000 ns),
+    and `max_requote_delay_ns` (default 500,000,000 ns) as dataclass fields,
+    and a companion `MMPState` class implements the fill-counting and
+    requote-deadline logic (`record_fill` / `activate_mmp` / `reset_mmp`).
+    However, **none of this is read from `engine_config.yaml`** —
+    `config_loader.py` never parses `mmp_fill_count`, `mmp_window_ns`, or
+    `max_requote_delay_ns` from any config section — and **`MMPState` is never
+    instantiated anywhere in `engine/main.py`**. There is no automatic pause,
+    no requote deadline, and no "MMP breach" flag in the running engine today.
+    A burst of fills on a quote leg behaves exactly like any other fill: it is
+    governed only by `quote_refresh_policy` (see above). Treat this section as
+    a description of the underlying data model that a future MMP feature could
+    build on, not as documentation of live engine behaviour.
 
 ---
 
@@ -281,6 +273,17 @@ A live market maker's first action after connecting is to post a quote. In a
 classroom or demo environment it is useful to have quotes already in the book
 *before any participant connects*, so the book is never completely empty and
 price discovery can begin from a known starting point.
+
+!!! warning "`market_maker_quotes` is mandatory once any MARKET_MAKER gateway is configured"
+    This is not just a convenience feature. Config loading enforces it: if
+    `gateways.alf` contains **any** gateway with `role: MARKET_MAKER`, then
+    **every** configured symbol must have at least one `market_maker_quotes`
+    entry, or `load_engine_config()` raises `ValueError("Symbol '<SYM>': at
+    least one market_maker_quotes entry is required when MARKET_MAKER
+    gateways are configured")` and the engine refuses to start. Each seed's
+    `gateway_id` must also reference a gateway that is actually configured
+    with `role: MARKET_MAKER` — a seed pointing at a `TRADER` gateway is
+    rejected at load time too.
 
 !!! note "Seed quotes are the symbol's IPO opening quote"
     A `market_maker_quotes` seed is the day-one **opening quote** for a newly
@@ -474,17 +477,18 @@ ask to reflect the inventory consumed.
 
 ```yaml
 gateways:
-  MM01:
-    role: MARKET_MAKER
-    quote_refresh_policy: INACTIVATE_ON_ANY_FILL   # or INACTIVATE_ON_FULL_FILL / NEVER_INACTIVATE
-    disconnect_behaviour: CANCEL_QUOTES_ONLY        # or CANCEL_ALL / LEAVE_ALL
-    enforce_mm_obligation: true
-    mm_max_spread_ticks: 10
-    mm_min_qty: 100
-    mm_obligations:              # per-symbol overrides (optional)
-      TSLA:
-        mm_max_spread_ticks: 20
-        mm_min_qty: 50
+  alf:
+    - id: MM01
+      role: MARKET_MAKER
+      quote_refresh_policy: INACTIVATE_ON_ANY_FILL   # or INACTIVATE_ON_FULL_FILL / NEVER_INACTIVATE
+      disconnect_behaviour: CANCEL_QUOTES_ONLY        # or CANCEL_ALL / LEAVE_ALL
+      enforce_mm_obligation: true
+      mm_max_spread_ticks: 10
+      mm_min_qty: 100
+      mm_obligations:              # per-symbol overrides (optional); note: no mm_ prefix here
+        TSLA:
+          max_spread_ticks: 20
+          min_qty: 50
 ```
 
 
@@ -987,6 +991,31 @@ QLEGS[|SYM=<symbol>][|SHOW=ACTIVE|RECENT|ALL]
 columns, so the operator can identify the traded leg without mentally joining
 multiple event lines.
 
+!!! note "`QLEGS` reads a local cache, not the engine"
+    `QLEGS` is answered entirely from `quote_leg_cache`, a table the gateway
+    builds up locally from `quote.ack`, `order.fill`, and `order.cancelled`
+    events it has received **during the current connection**. It does not
+    send any request to the engine. If the gateway just (re)connected and
+    missed earlier events, or if `SHOW=RECENT`/`SHOW=ALL` is requested,
+    `QLEGS` can only show what this session has observed — it is not a
+    guaranteed-authoritative snapshot of engine state.
+
+    For an authoritative, engine-side view of currently active quotes, use
+    `QBOOT` instead:
+
+    ```text
+    QBOOT[|SYM=<symbol>]
+    ```
+
+    `QBOOT` sends a `system.quote_bootstrap_request` to the engine and prints
+    the reply (`system.quote_bootstrap.<gateway_id>`), which is built directly
+    from the engine's own `QuoteIndex` — the same `QuoteEntry` records
+    described earlier in this chapter. Each row shows `quote_id`, `state`,
+    `bid`/`ask` price, and `BidRem`/`AskRem` (remaining quantity per leg).
+    This is the right tool to run right after connecting or reconnecting, to
+    recover the current `quote_id` → leg mapping without having witnessed the
+    original `quote.ack`.
+
 A programmatic MM should keep the full IDs from the message payload. A human
 operator using the terminal will usually work from the 8-character prefixes
 printed by the gateway.
@@ -1261,300 +1290,6 @@ flowchart TD
   I --> L
   K --> L
 ```
-
-### Recommended MM-side local state
-
-The MM should maintain these structures.
-
-#### Active quote record per symbol
-
-```text
-active_quote[symbol] = {
-  quote_id,
-  bid_order_id,
-  ask_order_id,
-  bid_price,
-  ask_price,
-  bid_qty,
-  ask_qty,
-  tif,
-  state,
-}
-```
-
-#### Reverse index by order ID
-
-```text
-order_to_quote[order_id] = {
-  quote_id,
-  symbol,
-  leg_side,   ## BID or ASK
-}
-```
-
-#### Pending submit state
-
-```text
-pending_quote[symbol] = {
-  client_quote_id,
-  bid_price,
-  ask_price,
-  bid_qty,
-  ask_qty,
-  tif,
-  sent_at,
-}
-```
-
-This exists specifically to survive the immediate-fill-before-ack edge case.
-
-### What the MM must know to re-issue a quote
-
-To issue a new quote, the MM must compute and send:
-
-- `SYM`
-- `BID`
-- `ASK`
-- `BID_QTY`
-- `ASK_QTY`
-- optional `TIF`
-- optional `QUOTE_ID`
-
-Example:
-
-```text
-MM01> QUOTE|SYM=AAPL|BID=209.70|ASK=210.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q124
-```
-
-#### What the MM should normally do before re-issuing
-
-##### If policy auto-inactivates
-
-Recommended sequence:
-
-1. receive `order.fill` for the quote leg
-2. receive `quote.status INACTIVE_*` or otherwise confirm old quote is no longer active
-3. compute the new two-sided quote
-4. send the new `QUOTE`
-
-Manual `QUOTE_CANCEL` is usually unnecessary here.
-
-##### If policy does not auto-inactivate
-
-The MM must choose one of:
-
-1. send `QUOTE_CANCEL|SYM=<symbol>`, wait for cancellation lifecycle, then send a new `QUOTE`
-2. send a replacement `QUOTE` directly on the same symbol, relying on the engine's replace semantics
-
-#### What the MM must not assume
-
-The MM must not assume:
-
-- that `order.fill` contains `quote_id`
-- that `quote.ack` always arrives before every other quote-related message
-- that `quote.status ACTIVE` always means the quote is still active at the moment it is received
-- that `QUOTE_CANCEL` is keyed by `quote_id` rather than by symbol
-
-### Recommended local state machine
-
-The engine publishes only a few quote lifecycle statuses. The MM usually needs a
-slightly richer local state machine.
-
-Recommended local states:
-
-- `PENDING_SUBMIT`
-- `ACTIVE`
-- `PARTIALLY_FILLED_STILL_ACTIVE`
-- `INACTIVE_BID_FILLED`
-- `INACTIVE_ASK_FILLED`
-- `CANCELLED`
-- `REJECTED`
-
-Notes:
-
-- `PARTIALLY_FILLED_STILL_ACTIVE` is an MM-local state, not an engine `quote.status`
-- `REJECTED` is also MM-local; the engine reports rejection only through `quote.ack accepted=false`
-
-```mermaid
-stateDiagram-v2
-    [*] --> PENDING_SUBMIT
-    PENDING_SUBMIT --> ACTIVE: quote.ack accepted=true
-    PENDING_SUBMIT --> REJECTED: quote.ack accepted=false
-
-    ACTIVE --> PARTIALLY_FILLED_STILL_ACTIVE: order.fill and policy does not inactivate yet
-    ACTIVE --> INACTIVE_BID_FILLED: quote.status INACTIVE_BID_FILLED
-    ACTIVE --> INACTIVE_ASK_FILLED: quote.status INACTIVE_ASK_FILLED
-    ACTIVE --> CANCELLED: quote.status CANCELLED
-
-    PARTIALLY_FILLED_STILL_ACTIVE --> INACTIVE_BID_FILLED: later quote.status INACTIVE_BID_FILLED
-    PARTIALLY_FILLED_STILL_ACTIVE --> INACTIVE_ASK_FILLED: later quote.status INACTIVE_ASK_FILLED
-    PARTIALLY_FILLED_STILL_ACTIVE --> CANCELLED: quote.status CANCELLED
-
-    INACTIVE_BID_FILLED --> PENDING_SUBMIT: strategy decides to re-quote
-    INACTIVE_ASK_FILLED --> PENDING_SUBMIT: strategy decides to re-quote
-    CANCELLED --> PENDING_SUBMIT: strategy decides to re-quote
-```
-
-### Sequence graph: normal auto-inactivate flow
-
-This is the cleanest sequence to reason about and the best default example for
-docs or code comments.
-
-```mermaid
-sequenceDiagram
-    participant MM as MM Gateway
-    participant ENG as Engine
-    participant TK as Taker
-
-    MM->>ENG: QUOTE|SYM=AAPL|...|QUOTE_ID=Q123
-    ENG-->>MM: quote.ack.MM01 {quote_id=Q123, bid_order_id=B1, ask_order_id=S1}
-    ENG-->>MM: quote.status.MM01 {quote_id=Q123, status=ACTIVE}
-
-    TK->>ENG: aggressive order hits B1
-    ENG-->>MM: order.fill.MM01 {order_id=B1, ...}
-    ENG-->>MM: order.cancelled.MM01 {order_id=S1}
-    ENG-->>MM: quote.status.MM01 {quote_id=Q123, status=INACTIVE_BID_FILLED}
-
-    MM->>MM: map B1 -> Q123 using quote.ack state
-    MM->>MM: compute replacement quote
-    MM->>ENG: QUOTE|SYM=AAPL|...|QUOTE_ID=Q124
-```
-
-### Practical conclusions
-
-- The engine's unique active quote slot is `(gateway_id, symbol)`.
-- `quote_id` identifies the logical quote instance occupying that slot.
-- The MM identifies quote-leg fills by `order_id`, not by `quote_id` in the fill payload.
-- `quote.ack` is the critical mapping message because it provides `bid_order_id` and `ask_order_id`.
-- Under `INACTIVATE_ON_ANY_FILL`, sibling cancellation is automatic.
-- Under `INACTIVATE_ON_FULL_FILL`, sibling cancellation happens only after full fill.
-- Under `NEVER_INACTIVATE`, the MM must decide when to cancel or replace.
-- Re-quoting can be done either by explicit `QUOTE_CANCEL` followed by new `QUOTE`, or by sending a replacement `QUOTE` directly on the same symbol.
-- The MM must tolerate edge cases where `order.fill` and even `quote.status INACTIVE_*` arrive before `quote.ack`.
-
-### Operational checklist for the MM implementation
-
-- Always send your own `QUOTE_ID` for clean reconciliation.
-- Persist `quote.ack` mappings immediately.
-- Maintain `order_id -> quote_id` reverse lookup.
-- Correlate fills by `order_id`, never by assumed `quote_id` in the fill payload.
-- Subscribe to all of:
-  - `order.fill.<gateway_id>`
-  - `order.cancelled.<gateway_id>`
-  - `quote.ack.<gateway_id>`
-  - `quote.status.<gateway_id>`
-- Add pending-submit buffering for the immediate-fill-before-ack edge case.
-- Treat `quote.status INACTIVE_*` or `quote.status CANCELLED` as the authoritative signal that the previous quote slot is no longer active.
-- Use direct replacement `QUOTE` when you want the engine to perform atomic replace semantics on the same symbol.
-
-```text
-[09:31:02] FILL  B1A8C2D4  AAPL BUY 100@209.80  remaining=400  status=PARTIAL
-```
-
-And that may be all.
-
-In that case:
-
-- no sibling auto-cancel occurs yet
-- no `quote.status INACTIVE_*` is emitted yet
-- the quote remains active in the engine
-
-The MM therefore continues to treat the quote as active until either:
-
-- the filled leg becomes fully filled, causing inactivation, or
-- the MM explicitly cancels or replaces the quote
-
-### Example 3: `NEVER_INACTIVATE`
-
-Assume policy `NEVER_INACTIVATE`.
-
-The MM may see:
-
-```text
-[09:31:02] FILL  B1A8C2D4  AAPL BUY 100@209.80
-```
-
-And no automatic sibling cancel, and no `INACTIVE_*` status.
-
-Meaning:
-
-- the quote slot remains active in the engine
-- the sibling ask leg remains resting unless something else removes it
-- the MM must decide whether to keep quoting, cancel, or replace
-
-If the MM wants a fresh two-sided quote immediately, it has two valid options:
-
-#### Option A: explicit cancel then new quote
-
-```text
-MM01> QUOTE_CANCEL|SYM=AAPL
-```
-
-Typical resulting events:
-
-```text
-[09:31:02] CANCELLED  S9F3E1AA
-[09:31:02] QUOTE CANCELLED  Q123  Cancelled by participant
-[09:31:02] QUOTE ACK  Q123
-```
-
-Then the MM submits a new quote.
-
-#### Option B: direct replacement quote
-
-```text
-MM01> QUOTE|SYM=AAPL|BID=209.70|ASK=210.10|BID_QTY=500|ASK_QTY=500|TIF=DAY|QUOTE_ID=Q124
-```
-
-The engine will:
-
-- remove the current active quote slot for `(MM01, AAPL)`
-- cancel any surviving old child orders
-- emit `quote.status CANCELLED` for the old quote
-- install the new quote
-
-This means the MM does not have to send `QUOTE_CANCEL` first if it is
-immediately replacing the quote with another quote on the same symbol.
-
-### Example 4: immediate fill before `quote.ack`
-
-This is the tricky case that every robust MM must handle.
-
-Suppose the quote is marketable as soon as it is inserted. The MM may see:
-
-```text
-[09:30:00] FILL  B1A8C2D4  AAPL BUY 500@209.80
-[09:30:00] CANCELLED  S9F3E1AA
-[09:30:00] QUOTE INACTIVE_BID_FILLED  Q123
-[09:30:00] QUOTE ACK  Q123  bid=B1A8C2D4 ask=S9F3E1AA
-[09:30:00] QUOTE ACTIVE  Q123
-```
-
-Yes, that ordering is possible in the current engine.
-
-#### What the MM must do in this case
-
-The MM needs one more local concept:
-
-- `pending_quote_by_symbol`
-
-When it sends:
-
-```text
-QUOTE|SYM=AAPL|...|QUOTE_ID=Q123
-```
-
-it should locally remember that there is a pending quote submission for AAPL.
-
-Then if an early fill arrives before `quote.ack`, the MM can:
-
-1. temporarily buffer the fill by `(gateway_id, symbol)`
-2. wait for `quote.ack`
-3. use `bid_order_id` and `ask_order_id` from the ack to retroactively resolve that buffered fill
-4. then continue normal state handling
-
-Without this pending-submit buffer, the MM cannot deterministically map an
-early fill to the quote until the ack arrives.
 
 ### Recommended MM-side local state
 

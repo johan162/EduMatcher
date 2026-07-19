@@ -278,7 +278,7 @@ pm-mm-bot --symbol AAPL    # autonomous market-maker bot
 | `pm-stats` | No | SUB :5556, PUSH :5555 | OHLCV statistics aggregator. Writes open/high/low/close/volume bars to `data/stats.db` (SQLite). Required by `pm-ticker` and `pm-board`. |
 | `pm-ticker` | No | Reads `data/stats.db` | Scrolling one-line-per-interval market data ticker. Queries `pm-stats`'s database at a configurable interval and prints a formatted price/volume line. |
 | `pm-board` | No | SUB :5556, reads `data/stats.db` | Full-screen multi-symbol dashboard. Combines live order-book data from the PUB socket with OHLCV data from the stats database. |
-| `pm-admin` | No (for operator use) | PUSH :5555, SUB :5556 | Interactive ADMIN console with tab completion. Used for halt/resume, kill switch, gateway management, and read-only queries. Requires an `ADMIN`-role gateway configured. |
+| `pm-admin` | No (for operator use) | PUSH :5555, SUB :5556 | Interactive console with tab completion. Used for kill switch, gateway management, and read-only queries with any configured gateway ID; the exchange-wide/per-symbol halt-resume commands additionally require `role: ADMIN` on that gateway ID. |
 | `pm-admin-cli` | No | PUSH :5555, SUB :5556 | Single-shot CLI wrapper for the same commands as `pm-admin`. For scripting and automation. |
 | `pm-ai-trader` | No | PUSH :5555, SUB :5556 | Single AI trading bot that connects as a gateway and submits orders based on configurable personality profiles. |
 | `pm-ai-swarm` | No | PUSH :5555, SUB :5556 | Coordinated multi-agent AI trading swarm. Runs multiple bots simultaneously to generate realistic order flow. |
@@ -558,7 +558,26 @@ The first update only appears after the first `trade.executed` message.
 The scheduler requires a `schedule:` block in `engine_config.yaml`.  If the
 block is missing, use `--now` mode for testing or add a schedule to your config.
 
-### `pm-admin` refuses connection with `Auth refused: role is not ADMIN`
+### `HALT`/`RESUME`/`HALT_SYM`/`RESUME_SYM`/`CANCEL_SYM` are rejected
+
+!!! note "Connecting does not require `role: ADMIN`"
+    The engine does not check role at connect time — any gateway ID listed in
+    `gateways.alf` can connect via `pm-admin`/`pm-admin-cli` and run read-only
+    or per-gateway commands (`SESSION_STATUS`, `SCHEDULE`, `GATEWAYS`, `BOOK`,
+    `ORDERS`, `SYMBOLS`, `KILL`, `KICK`, `QCANCEL`, `SESSION`). Role is
+    enforced per-command, only for the five exchange-wide/per-symbol
+    circuit-breaker commands below.
+
+If your gateway ID connects successfully but these specific commands are
+rejected, the ack's `reason` field names the requirement directly, e.g.:
+
+```
+Global circuit-breaker halt is only allowed for ADMIN participants
+Global circuit-breaker resume is only allowed for ADMIN participants
+Per-symbol halt is only allowed for ADMIN participants
+Per-symbol resume is only allowed for ADMIN participants
+Symbol-level mass cancel is only allowed for ADMIN participants
+```
 
 The gateway ID you passed to `--id` exists in the config but does not have
 `role: ADMIN`.  Update the config:
@@ -633,8 +652,9 @@ pm-admin --id GW_ADMIN
   Auto-scheduling   : ON
 
 [GW_ADMIN|ADMIN]> SCHEDULE
+                Session schedule
 ┌───────────────────────────┬──────────────┐
-│ Session schedule          │ Time (HH:MM) │
+│ Phase                     │ Time (HH:MM) │
 ├───────────────────────────┼──────────────┤
 │ Pre-Open                  │ 09:00        │
 │ Opening Auction Start     │ 09:25        │
@@ -644,29 +664,57 @@ pm-admin --id GW_ADMIN
 └───────────────────────────┴──────────────┘
 
 [GW_ADMIN|ADMIN]> GATEWAYS
-ID          Role          Connected
-----------  ------------  ----------
-TRADER01    TRADER        yes
-MM01        MARKET_MAKER  yes
-GW_ADMIN    ADMIN         yes
+                     Configured gateways
+ID          Role          Description       Connected
+----------  ------------  ----------------  ----------
+TRADER01    TRADER        First trader      YES
+MM01        MARKET_MAKER  Market maker      YES
+GW_ADMIN    ADMIN         Operator console  YES
 
 [GW_ADMIN|ADMIN]> BOOK|SYM=AAPL
-AAPL   bid 149.90 x 500   ask 150.10 x 500   last 149.95
+                 Order Book — AAPL
+┌──────────┬────────────┬────────────┬─────────┐
+│  Bid Qty │  Bid Price │  Ask Price │ Ask Qty │
+├──────────┼────────────┼────────────┼─────────┤
+│      500 │     149.90 │     150.10 │     500 │
+└──────────┴────────────┴────────────┴─────────┘
+  Last trade: 149.95 × 100
 
 [GW_ADMIN|ADMIN]> ORDERS|GW=TRADER01
-order_id  sym   side  type   qty  price   status
---------  ----  ----  -----  ---  ------  ------
-...
+                    Resting orders — TRADER01
+┌────────────────┬────────┬──────┬────────┬───────────┬────────┐
+│ ID             │ Symbol │ Side │ Type   │ Remaining │  Price │
+├────────────────┼────────┼──────┼────────┼───────────┼────────┤
+│ 3f2a91e2-xxxx… │ AAPL   │ BUY  │ LIMIT  │       100 │ 150.00 │
+└────────────────┴────────┴──────┴────────┴───────────┴────────┘
 
 [GW_ADMIN|ADMIN]> VOLUME
-Symbol   Qty    Value        Trades
-------   -----  -----------  ------
-AAPL     1 200  179 940.00        8
-TOTAL    1 200  179 940.00        8
+             Daily traded volume
+┌─────────┬────────┬─────────────┬────────┐
+│ Symbol  │    Qty │       Value │ Trades │
+├─────────┼────────┼─────────────┼────────┤
+│ AAPL    │  1,200 │  179,940.00 │      8 │
+├─────────┼────────┼─────────────┼────────┤
+│ TOTAL   │  1,200 │  179,940.00 │      8 │
+└─────────┴────────┴─────────────┴────────┘
 
 [GW_ADMIN|ADMIN]> SYMBOLS
-AAPL  MSFT  TSLA
+   Configured instruments
+┌──────┬────────┐
+│ #    │ Symbol │
+├──────┼────────┤
+│ 1    │ AAPL   │
+│ 2    │ MSFT   │
+│ 3    │ TSLA   │
+└──────┴────────┘
 ```
+
+!!! note
+    `BOOK` prints one row per price level present in the snapshot (L2), not
+    just top-of-book — the example above shows a single level for brevity.
+    `ID` in the `ORDERS` table is truncated to 14 characters; use the full ID
+    from `pm-alf-console`'s own `ORDERS` command when you need to `AMEND` or
+    `CANCEL` an order.
 
 #### Single-shot CLI (`pm-admin-cli`)
 
@@ -687,11 +735,28 @@ pm-admin-cli --id GW_ADMIN orders --gw TRADER01
 pm-admin-cli --id GW_ADMIN session --state CONTINUOUS
 pm-admin-cli --id GW_ADMIN halt
 pm-admin-cli --id GW_ADMIN resume
+pm-admin-cli --id GW_ADMIN halt-sym   --sym AAPL
+pm-admin-cli --id GW_ADMIN resume-sym --sym AAPL
+pm-admin-cli --id GW_ADMIN cancel-sym --sym AAPL
 pm-admin-cli --id GW_ADMIN kill   --gw TRADER01
 pm-admin-cli --id GW_ADMIN kill   --gw TRADER01 --sym AAPL
 pm-admin-cli --id GW_ADMIN kick   --gw TRADER01 --reason "Compliance hold"
 pm-admin-cli --id GW_ADMIN qcancel --gw MM01 --sym AAPL
 ```
+
+| Command | ADMIN role required? | Effect |
+|---|---|---|
+| `halt` / `resume` | Yes | Circuit-breaker halt/resume for every symbol |
+| `halt-sym --sym` / `resume-sym --sym` | Yes | Circuit-breaker halt/resume for one symbol |
+| `cancel-sym --sym` | Yes | Cancel every resting order on one symbol, across all gateways |
+| `session --state` | No | Request a session-phase transition (see note below) |
+| `kill --gw [--sym]` | No | Cancel resting orders/quotes for one gateway |
+| `kick --gw [--reason]` | No | Forcefully disconnect a gateway |
+| `qcancel --gw --sym` | No | Cancel one gateway's active two-sided quote on a symbol |
+
+The equivalent interactive `pm-admin` syntax for the ADMIN-only commands is
+`HALT`, `RESUME`, `HALT_SYM\|SYM=<sym>`, `RESUME_SYM\|SYM=<sym>`, and
+`CANCEL_SYM\|SYM=<sym>`.
 
 Use `--timeout MS` (default 3000 ms) and `--push` / `--sub` to override
 defaults when the engine is on a remote host:
@@ -869,7 +934,11 @@ the wall-clock schedule entirely.  Ideal for classroom demos and testing.
 
 ### How do I advance the session phase manually?
 
-Use the ADMIN console (requires an `ADMIN`-role gateway):
+Use the console with any configured gateway ID — unlike the halt/resume
+commands, `SESSION|STATE=` does not require `role: ADMIN` (the underlying
+`session.transition` message carries no gateway identity for the engine to
+check), but running it from an `ADMIN` gateway keeps the convention that
+session control is an operator action:
 
 ```
 pm-admin --id GW_ADMIN
@@ -882,14 +951,24 @@ Or with the CLI tool (useful in scripts):
 pm-admin-cli --id GW_ADMIN session --state CONTINUOUS
 ```
 
+The target state must be a valid transition from the current session state
+(see [Auctions & Scheduling](080-auctions-scheduling.md) for the allowed
+state graph); an invalid transition is logged by the engine and silently
+ignored — the caller receives no rejection message.
+
 ### How do I cleanly shut down the exchange?
 
 Press `Ctrl-C` on the `pm-engine` terminal.  The engine will:
 
-1. Serialize all resting GTC orders to `data/gtc_orders.json`
-2. Publish `order.expired` for all DAY orders
-3. Publish `system.eod` with final book snapshots
-4. Close sockets
+1. Serialize all resting GTC orders to `data/gtc_orders.json` (GTC quote legs
+   are excluded — they are re-seeded from `market_maker_quotes` on the next
+   startup, not persisted)
+2. Serialize all resting GTC combos to `data/gtc_combos.json`
+3. Publish `order.expired` for all DAY orders (cascading combo-child cancels
+   where applicable)
+4. Save per-symbol book statistics to `data/book_stats.json`
+5. Publish `system.eod` with final book snapshots
+6. Close sockets (drop-copy socket included, if it was bound)
 
 All other processes detect the socket closure and exit cleanly.  For scripted
 shutdown, send `SIGINT` to the engine PID:

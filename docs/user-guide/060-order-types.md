@@ -226,6 +226,11 @@ Use FOK when:
 - The order is one leg of a tightly coupled strategy and partial execution introduces exposure.
 
 - Checks total available quantity at the given price before executing
+- The pre-check includes hidden iceberg reserve quantity (not just the
+  displayed peak) and **excludes** same-gateway resting liquidity that
+  self-match prevention would skip — so a FOK can reject even when the
+  book's *displayed* total looks sufficient, if most of it belongs to your
+  own gateway
 - If `available_qty < order_qty` → rejected entirely (no partial fills ever)
 - If sufficient → executes in full immediately
 
@@ -964,14 +969,42 @@ AMEND|ID=abc123...|QTY=60
 | `order.amended.{GW}`                | Amendment accepted; contains new `price`, `qty`, `remaining_qty`, `priority_reset` |
 | `order.ack.{GW}` (`accepted=false`) | Amendment rejected; contains `reason`                                              |
 
+### A price amend can trigger an immediate fill
+
+If a price amend makes the order **marketable** — the new price crosses the
+current best opposite price — the engine does not simply leave it resting at
+the new price. It pulls the resting copy, re-processes it through the normal
+matching path as if it were a fresh aggressive order, and publishes any
+resulting `order.fill.{GW}`/`trade.executed` events before the order (or its
+remainder) rests again. From the caller's point of view this looks like an
+`order.amended.{GW}` event followed immediately by one or more
+`order.fill.{GW}` events for the same order ID.
+
+```
+# Resting buy at 149.00; best ask is currently 150.00 (no cross)
+AMEND|ID=<order-id>|PRICE=150.50
+# → AMENDED: price=150.5 ...   (priority reset)
+# → FILL: ...                    (the amend crossed the book and filled immediately)
+```
+
+Quantity-only amends never trigger this path — only a price change (with or
+without an accompanying quantity change) can make an order marketable. If the
+symbol is halted or the session phase is non-continuous, the amend still
+applies to the resting order but cannot cross, even if the new price would
+otherwise be marketable.
+
 ### Edge Cases and Gotchas
 
 | Scenario                          | Behaviour                                                                              |
 |-----------------------------------|----------------------------------------------------------------------------------------|
 | Order not found (wrong ID)        | **REJECTED** — "Order not found"                                                       |
+| Order owned by another gateway    | **REJECTED** — "Cannot amend an order owned by another gateway"                        |
 | Order already filled              | **REJECTED** — "Cannot amend FILLED order"                                             |
 | Order already cancelled           | **REJECTED** — "Cannot amend CANCELLED order"                                          |
 | MARKET / STOP / FOK order         | **REJECTED** — e.g. `"Cannot amend STOP orders"` (message names the actual order type) |
+| Session state is `CLOSED`         | **REJECTED** — "Market is closed"                                                      |
+| New price violates the symbol's collar | **REJECTED** — same collar-rejection reason a `NEW` order at that price would get |
+| `QTY=` is not a valid integer     | **REJECTED** — "Amend quantity must be an integer"                                     |
 | New QTY $\leq$ already filled qty | **REJECTED** — "New quantity must exceed already-filled quantity"                      |
 | New QTY = 0 or negative           | **REJECTED** — "Quantity must be positive"                                             |
 | New PRICE $\leq$ 0                | **REJECTED** — "Price must be positive"                                                |
@@ -979,7 +1012,7 @@ AMEND|ID=abc123...|QTY=60
 | Iceberg order amended             | Supported — displayed_qty is recalculated from `visible_qty`                           |
 | Combo child order amended         | Allowed — the child is a normal resting order                                          |
 | OCO leg amended                   | Allowed — does not affect the OCO linkage                                              |
-| Amend during auction phase        | Allowed — the resting order's price/qty is updated in the book                         |
+| Amend during auction phase        | Allowed (any non-`CLOSED` state accepts amends) — see note above about crossing amends  |
 
 !!! warning "QTY means *total* quantity"
     `QTY=` in an `AMEND` command sets the **new total order size**, not the

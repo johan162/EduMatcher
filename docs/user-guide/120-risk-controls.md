@@ -39,7 +39,7 @@ admission-path controls:
 flowchart TD
     A([Incoming order]) --> B{Symbol halted?}
     B -- Yes --> C{Order type?}
-    C -- MARKET / FOK / IOC --> REJ1([Reject: SYMBOL_HALTED])
+    C -- MARKET / FOK / IOC --> REJ1([Reject: SYM is halted —\nTYPE orders rejected during\ncircuit breaker halt])
     C -- LIMIT / ICEBERG --> REST([Accept \u2014 rest on book,\nno matching sweep])
     B -- No --> D{Collar\nconfigured?}
     D -- Yes --> E{Price within\nstatic band?}
@@ -56,6 +56,13 @@ flowchart TD
     I -- No --> DONE([Done])
     H -- No --> DONE
 ```
+
+!!! note "Global on/off switches"
+    Collar and circuit-breaker enforcement can each be disabled engine-wide
+    with the top-level `enforce_collars` / `enforce_circuit_breakers` boolean
+    config fields (both default to `true`). These are blunt, engine-startup
+    switches intended for tests, not per-symbol controls — see
+    [Configuration - Engine Behavior Flags](010-configuration.md#engine-behavior-flags).
 
 
 
@@ -90,15 +97,18 @@ dictionary is implicitly `ACTIVE`.
 
 When the engine receives a new order for a halted symbol:
 
-- **MARKET / FOK / IOC** — rejected immediately with reason
-  `SYMBOL_HALTED`.  These order types require immediate execution and cannot
-  be held on the book.
+- **MARKET / FOK / IOC** — rejected immediately with a reason of the form
+  `"<SYMBOL> is halted — <TYPE> orders rejected during circuit breaker halt"`
+  (e.g. `"AAPL is halted — MARKET orders rejected during circuit breaker
+  halt"`).  These order types require immediate execution and cannot be held
+  on the book.
 - **LIMIT / ICEBERG** — accepted and placed on the book but the engine
   suppresses the continuous-matching sweep.  The order will rest until the
   symbol is resumed, at which point it participates in the reopening.
 
 When the engine receives a new quote for a halted symbol, the entire quote is
-rejected (both sides).
+rejected (both sides) with reason `"<SYMBOL> is halted — quotes rejected
+during circuit breaker halt"`.
 
 Quote eligibility by participant role (for example, `MARKET_MAKER` vs
 `TRADER`) is described in
@@ -297,19 +307,25 @@ own rolling trade reference and can halt independently.
    `_flush_circuit_breakers()`, which checks `should_resume(now)` for every
    active circuit breaker.  When the pause expires:
      - The symbol is un-halted.
-     - If `resumption_mode == "AUCTION"`, an uncross is run to reprice resting
-       orders at a new equilibrium.
+     - The engine always runs an uncross (`_run_uncross()`, the same
+       equilibrium-price algorithm used for scheduled auctions) for that
+       symbol before continuous matching resumes, regardless of
+       `resumption_mode`, guaranteeing that any interest which crossed while
+       resting during the halt is matched at a fair equilibrium price rather
+       than starting continuous trading in a crossed state. If nothing
+       crossed, the uncross is a no-op. `resumption_mode` is carried through
+       to the broadcast `circuit_breaker.resume.{symbol}` message as a label
+       only; it does not currently change engine behaviour.
      - A `circuit_breaker.resume.{symbol}` message is broadcast.
 
 ```mermaid
 stateDiagram-v2
     [*] --> ACTIVE
     ACTIVE --> HALTED : trade price shift \u2265 L1/L2/L3 threshold\nMM quotes cancelled
-    HALTED --> AUCTION_UNCROSS : resume timer expires\n(resumption_mode\u202f=\u202fAUCTION)
-    HALTED --> ACTIVE : resume timer expires\n(resumption_mode\u202f=\u202fCONTINUOUS)
-    AUCTION_UNCROSS --> ACTIVE : uncross complete
+    HALTED --> UNCROSS : resume timer expires
+    UNCROSS --> ACTIVE : uncross run unconditionally\n(no-op if nothing crossed)\nresumption_mode carried as a label only
     ACTIVE --> HALTED : operator halt\n(per-symbol or ADMIN all)\nMM quotes cancelled
-    HALTED --> ACTIVE : operator resume\n(risk.circuit_breaker_resume_all)
+    HALTED --> ACTIVE : operator resume\n(risk.symbol_resume or\nrisk.circuit_breaker_resume_all)
 ```
 
 ### Rolling reference window
@@ -372,10 +388,20 @@ Notes and edge cases:
 
 ### Resumption modes
 
-| Mode | What happens at resume |
-|---|---|
-| `AUCTION` | The engine runs a mini uncross for the symbol, computing an equilibrium price from resting limit orders.  This is the default and mirrors how real exchanges reopen after a volatility interruption. |
-| `CONTINUOUS` | The symbol resumes continuous matching immediately.  Resting orders participate in normal sweeping as the next order arrives. |
+`resumption_mode` (`AUCTION`, the default, or `CONTINUOUS`) is a per-level
+config field that is echoed back verbatim in the `circuit_breaker.halt.*` and
+`circuit_breaker.resume.*` payloads (as `resumption_mode` / `mode`) so
+downstream consumers can log or display which policy a level was configured
+with.
+
+In the current implementation it is **informational only**: `_flush_circuit_breakers()`
+always calls `_run_uncross()` for the resuming symbol — the same
+equilibrium-price algorithm used for scheduled auctions — regardless of the
+configured mode, so that any interest which crossed while resting during the
+halt is matched fairly before continuous trading resumes. If no orders are
+crossed, `compute_equilibrium()` finds no equilibrium price and the uncross is
+a no-op, which is indistinguishable from an immediate continuous resume. There
+is currently no config value that skips the uncross step.
 
 ### Configuration
 
@@ -490,7 +516,8 @@ operator-initiated halt.
 ### Combined example
 
 ```
-Reference price: 10000 ticks (100.00 in display)
+Opening reference price: 10000 ticks (100.00 in display)
+  → also seeds the CB's rolling trade_history as a single baseline point
 Static collar:   ±20%  → [8000, 12000] ticks
 Dynamic collar:  ±2%   → depends on last trade
 CB levels:       L1=7%, L2=13%, L3=20%
@@ -498,22 +525,35 @@ CB levels:       L1=7%, L2=13%, L3=20%
 A limit sell order arrives at price 7500 ticks:
   → Static collar: 7500 < 8000 → STATIC_COLLAR_BREACH → rejected
 
-A limit buy at 10100 ticks trades. Last trade = 10100.
-  → CB rolling reference (from history) = 10050
-  → deviation = |10100 - 10050| / 10050 ≈ 0.5% < 5% → no halt
+A limit buy at 10100 ticks trades.
+  → CB reference = history average BEFORE this trade = 10000 (seed only)
+  → deviation = |10100 - 10000| / 10000 = 1.0% < L1 (7%) → no halt
+  → history becomes [10000, 10100] (sum=20100, len=2)
 
-A limit buy at 10800 ticks trades. Reference = 10100.
-  → deviation = |10800 - 10100| / 10100 ≈ 6.9% < 7% → no breaker
+A limit buy at 10700 ticks trades.
+  → CB reference = 20100 // 2 = 10050 (integer-tick average)
+  → deviation = |10700 - 10050| / 10050 ≈ 6.5% < L1 (7%) → no halt
+  → history becomes [10000, 10100, 10700] (sum=30800, len=3)
 
-A limit buy at 11000 ticks trades. Reference = 10100.
-  → deviation = |11000 - 10100| / 10100 ≈ 8.9% ≥ L1 (7%)
-  → L1 circuit breaker fires, symbol halted for L1 duration (e.g. 5 min)
+A limit buy at 11000 ticks trades.
+  → CB reference = 30800 // 3 = 10266 (floor division)
+  → deviation = |11000 - 10266| / 10266 ≈ 7.1% ≥ L1 (7%)
+  → L1 circuit breaker fires, symbol halted for L1 duration (5 min default);
+    resume always runs an uncross for the symbol regardless of resumption_mode
 
-A limit buy at 12200 ticks trades. Reference = 10100.
+Separately, suppose a later session's rolling reference has settled at 10100
+and a limit buy at 12200 ticks trades:
   → deviation = |12200 - 10100| / 10100 ≈ 20.8% ≥ L3 (20%)
   → L3 circuit breaker fires, symbol halted for rest of trading day
   → next order at this symbol: if MARKET → rejected; if LIMIT → accepted, no match
 ```
+
+!!! note "Reference price is an integer-tick rolling average"
+    `CircuitBreakerState.record_trade()` computes the reference as
+    `sum(prices in window) // len(prices in window)` — floor (`//`) integer
+    division, consistent with all prices being stored as integer ticks. The
+    reference used for a given trade always excludes that trade itself; it is
+    only added to the rolling history *after* the deviation check.
 
 What the gateway operator sees when a collar rejects an order:
 
@@ -580,6 +620,13 @@ subscribes to the PUB socket (port 5556) to receive ack messages.
 
 See [Role Privileges](010-configuration.md#role-privileges)
 for the full permissions matrix.
+
+!!! note "Not available from the ALF terminal"
+    The ALF console (`pm-alf-console`) only exposes `KILL` for risk actions —
+    it has no `HALT`/`RESUME`/`CANCEL_SYM` command. To trigger an exchange-wide
+    halt, a per-symbol halt/resume, or a symbol-level mass cancel, send the raw
+    ZMQ frames shown below directly, or use the REST admin endpoints described
+    in [API Gateway](260-api-gateway.md).
 
 
 
@@ -738,10 +785,85 @@ sequenceDiagram
 |--------------------------|--------------------------------------|--------------------------------------------|
 | Trigger                  | Trade price deviation                | Operator command                           |
 | Scope                    | Single symbol                        | All symbols                                |
-| Resume                   | Scheduled timer (or AUCTION uncross) | Explicit `risk.circuit_breaker_resume_all` |
+| Resume                   | Scheduled timer, always via uncross  | Explicit `risk.circuit_breaker_resume_all` (or `risk.symbol_resume` for a single symbol) |
 | Quotes cancelled on halt | Yes                                  | Yes                                        |
 | `resumption_mode`        | `AUCTION` or `CONTINUOUS`            | Always `MANUAL`                            |
 | Who can send             | Any connected gateway                | `ADMIN` role only                          |
+
+
+
+### Halting or resuming a single symbol
+
+Alongside the exchange-wide `risk.circuit_breaker_halt_all` / `risk.circuit_breaker_resume_all`
+pair, an `ADMIN` gateway can halt or resume **one symbol at a time** using
+`risk.symbol_halt` / `risk.symbol_resume`. This is the command used by the
+`/api/v1/admin/circuit-breaker/trigger` and `/circuit-breaker/resume` REST
+endpoints (see [API Gateway](260-api-gateway.md)) and is the mechanism behind
+the "Per-symbol operator halt" row in the
+[Market-maker interaction](#market-maker-interaction) table below.
+
+```
+Frame 0 (topic):   b"risk.symbol_halt"
+Frame 1 (payload): {"gateway_id": "GW_ADMIN", "symbol": "AAPL"}
+```
+
+What the engine does:
+
+1. Verifies `GW_ADMIN` is connected and carries role `ADMIN`; rejects with
+   reason `"Per-symbol halt is only allowed for ADMIN participants"` otherwise.
+2. Marks the symbol `HALTED` (`_halted_symbols[symbol] = True`) and, if a
+   circuit breaker is configured for the symbol, sets its state to `halted`
+   with `triggered_level = "ADMIN_SYMBOL"` and `active_resumption_mode = "MANUAL"`.
+3. Cancels all outstanding market-maker quote legs for that symbol only, with
+   cancellation reason `"Per-symbol halt"`.
+4. Publishes `circuit_breaker.halt.<SYMBOL>` with `"level": "ADMIN_SYMBOL"`
+   and `"resumption_mode": "MANUAL"`.
+5. Sends `risk.symbol_halt_ack.<GW_ADMIN>` with
+   `{"accepted": true, "symbol": "AAPL", "reason": "", "cancelled_quotes": <count>}`.
+
+`risk.symbol_resume` mirrors this: it requires `ADMIN` role (rejecting with
+`"Per-symbol resume is only allowed for ADMIN participants"`), rejects with
+`"<SYMBOL> is not halted"` if the symbol isn't currently halted, otherwise
+clears the halt, deactivates the circuit breaker state, runs the same
+unconditional uncross as an automatic resume, publishes
+`circuit_breaker.resume.<SYMBOL>` with `"mode": "MANUAL"`, and acks on
+`risk.symbol_resume_ack.<GW_ADMIN>` with `{"accepted": true, "symbol": "AAPL", "reason": ""}`.
+
+Both `symbol_halt` and `symbol_resume` also reject with `"symbol required"`
+if the `symbol` field is missing, and `symbol_halt` additionally rejects with
+`"Unknown symbol: <SYMBOL>"` if the engine has an allowlist of symbols and
+the requested symbol isn't in it.
+
+### Symbol-level mass cancel
+
+`risk.cancel_symbol` cancels every resting order and quote leg for one symbol,
+**across all gateways** — not just the sender's own exposure like the kill
+switch. It does not halt the symbol; trading continues immediately with an
+empty book (aside from any order that arrives afterward). It is `ADMIN`-only
+and is the command behind the `/api/v1/admin/kill-switch/symbol` REST endpoint
+(see [API Gateway](260-api-gateway.md)).
+
+```
+Frame 0 (topic):   b"risk.cancel_symbol"
+Frame 1 (payload): {"gateway_id": "GW_ADMIN", "symbol": "AAPL"}
+```
+
+What the engine does:
+
+1. Verifies `GW_ADMIN` is connected and carries role `ADMIN`; rejects with
+   reason `"Symbol-level mass cancel is only allowed for ADMIN participants"`
+   otherwise. Also rejects with `"symbol required"` if `symbol` is missing.
+2. Cancels every resting order for the symbol that did not originate from a
+   quote leg (`order.origin != OrderOrigin.QUOTE`), across every gateway.
+3. Cancels every quote leg resting for the symbol, across every gateway, with
+   cancellation reason `"Symbol mass cancel"`.
+4. Sends `risk.cancel_symbol_ack.<GW_ADMIN>` with
+   `{"accepted": true, "symbol": "AAPL", "reason": "", "cancelled_orders": <count>, "cancelled_quotes": <count>}`.
+
+Unlike the kill switch (which is scoped to one gateway's own resting
+exposure) and the instrument halt (which stops the symbol from matching),
+`risk.cancel_symbol` clears standing interest for a symbol from every
+participant while leaving the symbol open for new orders.
 
 
 
@@ -788,6 +910,7 @@ When `"symbol"` is empty or absent, all symbols are included.
 topic:   b"risk.kill_switch_ack.GW01"
 payload: {
     "accepted":          true,
+    "reason":            "",
     "cancelled_orders":  <count>,
     "cancelled_quotes":  <count>
 }
@@ -800,13 +923,17 @@ payload: {
 | Scope               | One gateway's orders    | All orders on a symbol               |
 | Symbol trading      | Continues uninterrupted | Paused                               |
 | New orders accepted | Yes                     | LIMIT/ICEBERG only                   |
-| Requires ADMIN role | No                      | No (per-symbol); Yes (exchange-wide) |
+| Requires ADMIN role | No                      | No when auto-triggered by a circuit breaker; **Yes** for an operator-initiated halt, whether per-symbol (`risk.symbol_halt`) or exchange-wide (`risk.circuit_breaker_halt_all`) |
 | Auto-resume         | Not applicable          | Yes (CB) / Manual (operator)         |
 
 !!! note "No cross-gateway kill switch"
     A kill switch always targets a single gateway.  There is no command to
-    cancel all orders across *all* gateways at once — use an exchange-wide
-    `HALT` (requires ADMIN role) for that scenario.
+    cancel all orders across *all* gateways at once — use a per-symbol
+    `risk.symbol_halt` or an exchange-wide `risk.circuit_breaker_halt_all`
+    (both require ADMIN role) to stop trading, or `risk.cancel_symbol`
+    (ADMIN role, see [Symbol-level mass cancel](#symbol-level-mass-cancel))
+    to clear resting interest for a symbol across every gateway without a
+    kill switch's single-gateway scope.
 
 
 
@@ -829,5 +956,5 @@ When a symbol resumes, market makers are expected to submit fresh quotes at upda
 - [Configuration](010-configuration.md) — full `engine_config.yaml` reference including collar and CB ladder config
 - [Order Types](060-order-types.md) — how different order types behave under halt
 - [Drop Copy](200-drop-copy.md) — how fill events are forwarded to risk systems
-- [Auctions & Session Scheduling](080-auctions-scheduling.md) — the uncross that can occur at circuit breaker resumption
+- [Auctions & Session Scheduling](080-auctions-scheduling.md) — the equilibrium-price uncross algorithm that circuit-breaker resumption always runs
 - [Gateway Reference](050-gateway.md) — `KILL` command for triggering the kill switch via the ALF terminal
