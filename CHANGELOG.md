@@ -23,6 +23,7 @@ This release introduces the new Config GUI, the new `pm-audit-cli` audit-trail i
 - Added engine handling for system.quote_legs_request with explicit completeness signaling for unavailable historical legs
 - Added proxy-oriented container build support for Config GUI
 - Added a new concepts chapter on implied orders
+- Added QLEGS/RECENT-ALL history support for alf-gwy
 
 ### 🚀 Improvements
 - Improved `pm-config-gen` with port-collision detection, chronological schedule validation, and tick-aware combo-leg pricing
