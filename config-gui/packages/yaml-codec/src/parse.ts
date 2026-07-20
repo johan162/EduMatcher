@@ -31,6 +31,7 @@ const KNOWN_TOP_LEVEL_KEYS = new Set([
   "sessions_enabled",
   "enforce_collars",
   "enforce_circuit_breakers",
+  "engine_tuning",
   "snapshot_interval_sec",
   "mm_obligation_defaults",
   "risk_controls",
@@ -81,8 +82,20 @@ export function parseYamlToDraft(text: string): ImportResult {
     raw.enforce_circuit_breakers,
     draft.enforceCircuitBreakers,
   );
+  const engineTuning = isDict(raw.engine_tuning) ? raw.engine_tuning : undefined;
   draft.snapshotIntervalSec =
-    asNumber(raw.snapshot_interval_sec) ?? draft.snapshotIntervalSec;
+    asNumber(engineTuning?.snapshot_interval_sec) ??
+    asNumber(raw.snapshot_interval_sec) ??
+    draft.snapshotIntervalSec;
+  draft.quoteHistoryMaxlen =
+    asNumber(engineTuning?.quote_history_maxlen) ?? draft.quoteHistoryMaxlen;
+  draft.dropCopyBufferSize =
+    asNumber(engineTuning?.drop_copy_buffer_size) ?? draft.dropCopyBufferSize;
+  draft.recentTradesMaxlen =
+    asNumber(engineTuning?.recent_trades_maxlen) ?? draft.recentTradesMaxlen;
+  draft.depthSnapshotToleranceTicks =
+    asNumber(engineTuning?.depth_snapshot_tolerance_ticks) ??
+    draft.depthSnapshotToleranceTicks;
 
   parseGateways(raw.gateways, draft);
   parseSymbols(raw.symbols, draft);

@@ -289,6 +289,10 @@ export interface EngineConfigDraft {
   sessionsEnabled: boolean;
   emitSchedule: boolean;
   snapshotIntervalSec: number;
+  quoteHistoryMaxlen: number;
+  dropCopyBufferSize: number;
+  recentTradesMaxlen: number;
+  depthSnapshotToleranceTicks: number;
   enforceCollars: boolean;
   enforceCircuitBreakers: boolean;
   schedule: Schedule;

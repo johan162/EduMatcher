@@ -22,7 +22,8 @@ export interface RenderOptions {
 
 const SECTION_ORDER: Array<[string, string[]]> = [
   ["Session control", ["sessions_enabled"]],
-  ["Engine behavior", ["enforce_collars", "enforce_circuit_breakers", "snapshot_interval_sec"]],
+  ["Engine behavior", ["enforce_collars", "enforce_circuit_breakers"]],
+  ["Engine tuning", ["engine_tuning"]],
   ["Market-maker obligation defaults", ["mm_obligation_defaults"]],
   ["Collar profiles", ["risk_controls"]],
   ["Circuit-breaker ladder", ["circuit_breaker_defaults"]],
@@ -42,7 +43,7 @@ const TOP_LEVEL_HINTS: Record<string, string[]> = {
   ],
   enforce_collars: ["enables per-symbol collar checks on incoming orders"],
   enforce_circuit_breakers: ["enables per-symbol circuit-breaker enforcement"],
-  snapshot_interval_sec: ["seconds between book snapshot publications for dirty books"],
+  engine_tuning: ["runtime retention and throttling knobs with memory/latency trade-offs"],
   mm_obligation_defaults: ["default market-maker obligation settings"],
   risk_controls: ["collar profiles by risk level"],
   circuit_breaker_defaults: ["circuit-breaker ladder definitions"],
@@ -61,6 +62,16 @@ const INLINE_HINTS: Record<string, string[]> = {
   "last_buy_price: null": ["REQUIRED: set last buy reference price"],
   "last_sell_price: null": ["REQUIRED: set last sell reference price"],
   "halt_duration_ns: null": ["null = rest-of-day halt"],
+};
+
+const ENGINE_TUNING_HINTS: Record<string, string[]> = {
+  snapshot_interval_sec: ["seconds between book snapshot publications for dirty books"],
+  quote_history_maxlen: ["per-gateway RECENT/ALL quote history retained in memory"],
+  drop_copy_buffer_size: ["drop-copy replay messages retained in memory"],
+  recent_trades_maxlen: ["recent trades retained per symbol snapshot"],
+  depth_snapshot_tolerance_ticks: [
+    "depth window around last trade in ticks; larger values publish more depth",
+  ],
 };
 
 function dumpBlock(payload: PlainConfig): string {
@@ -87,14 +98,30 @@ function annotate(dumped: string): string[] {
   const source = dumped.split("\n");
   const out: string[] = [];
   let idx = 0;
+  let inEngineTuning = false;
   while (idx < source.length) {
     const line = source[idx]!;
     const stripped = line.trim();
     const indent = indentOf(line);
 
+    if (indent === 0 && stripped) {
+      inEngineTuning = stripped === "engine_tuning:";
+    }
+
     if (indent === 0) {
       const key = stripped.split(":", 1)[0]!;
       const hint = TOP_LEVEL_HINTS[key];
+      if (hint !== undefined) {
+        out.push(...commentLines(indent, hint));
+        out.push(line);
+        idx += 1;
+        continue;
+      }
+    }
+
+    if (inEngineTuning && indent === 2) {
+      const key = stripped.split(":", 1)[0]!;
+      const hint = ENGINE_TUNING_HINTS[key];
       if (hint !== undefined) {
         out.push(...commentLines(indent, hint));
         out.push(line);
