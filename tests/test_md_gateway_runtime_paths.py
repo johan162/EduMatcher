@@ -273,6 +273,212 @@ def test_poll_engine_events_all_topics(
     assert ("STATE", "STATE", "AAPL") in seen
 
 
+def test_poll_engine_events_halt_emits_state_and_cb(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeSubscriber(
+        [
+            (
+                "circuit_breaker.halt.aapl",
+                {
+                    "symbol": "AAPL",
+                    "trigger_price": 148.20,
+                    "reference_price": 150.10,
+                    "resume_at_ns": 1_784_560_800_000_000_000,
+                    "resumption_mode": "AUCTION",
+                    "level": "L2",
+                    "timestamp": 4.0,
+                },
+            ),
+        ]
+    )
+    unit_gateway._sub_sock.close()
+    unit_gateway._sub_sock = fake
+    monkeypatch.setattr(gateway_mod, "decode", lambda payload: payload)
+
+    seen: list[tuple[str, str, str, dict[str, str]]] = []
+
+    def _capture(
+        msg_type: str,
+        ch: str,
+        sym: str,
+        payload_fields: dict[str, str],
+        ts_seconds: float,
+    ) -> None:
+        _ = ts_seconds
+        seen.append((msg_type, ch, sym, payload_fields))
+
+    monkeypatch.setattr(unit_gateway, "_emit_stream_event", _capture)
+    unit_gateway._poll_engine_events()
+
+    by_type = {(msg_type, ch): fields for msg_type, ch, _sym, fields in seen}
+    # STATE keeps its existing, unchanged shape.
+    assert by_type[("STATE", "STATE")] == {"SESSION": "HALTED", "PREV": "CONTINUOUS"}
+    # CB carries the full detail STATE never has.
+    cb_fields = by_type[("CB", "CB")]
+    assert cb_fields["STATUS"] == "HALTED"
+    assert cb_fields["LEVEL"] == "L2"
+    assert cb_fields["TRIGGERPX"] == "148.2"
+    assert cb_fields["REFPX"] == "150.1"
+    assert cb_fields["MODE"] == "AUCTION"
+    assert "RESUMEAT" in cb_fields
+    assert all(sym == "AAPL" for _, _, sym, _ in seen)
+
+
+def test_poll_engine_events_admin_halt_omits_price_fields_on_cb(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeSubscriber(
+        [
+            (
+                "circuit_breaker.halt.tsla",
+                {
+                    "symbol": "TSLA",
+                    "trigger_price": None,
+                    "reference_price": None,
+                    "resume_at_ns": None,
+                    "resumption_mode": "MANUAL",
+                    "level": "ADMIN_ALL",
+                    "timestamp": 4.0,
+                },
+            ),
+        ]
+    )
+    unit_gateway._sub_sock.close()
+    unit_gateway._sub_sock = fake
+    monkeypatch.setattr(gateway_mod, "decode", lambda payload: payload)
+
+    seen: list[tuple[str, str, str, dict[str, str]]] = []
+    monkeypatch.setattr(
+        unit_gateway,
+        "_emit_stream_event",
+        lambda msg_type, ch, sym, fields, ts: seen.append((msg_type, ch, sym, fields)),
+    )
+    unit_gateway._poll_engine_events()
+
+    cb_fields = next(fields for mt, ch, _s, fields in seen if (mt, ch) == ("CB", "CB"))
+    assert cb_fields["STATUS"] == "HALTED"
+    assert cb_fields["LEVEL"] == "ADMIN_ALL"
+    assert cb_fields["MODE"] == "MANUAL"
+    assert "TRIGGERPX" not in cb_fields
+    assert "REFPX" not in cb_fields
+    assert "RESUMEAT" not in cb_fields
+
+
+def test_poll_engine_events_resume_emits_state_and_cb(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeSubscriber(
+        [
+            (
+                "circuit_breaker.resume.aapl",
+                {"symbol": "AAPL", "mode": "AUCTION", "timestamp": 5.0},
+            ),
+        ]
+    )
+    unit_gateway._sub_sock.close()
+    unit_gateway._sub_sock = fake
+    monkeypatch.setattr(gateway_mod, "decode", lambda payload: payload)
+
+    seen: list[tuple[str, str, str, dict[str, str]]] = []
+    monkeypatch.setattr(
+        unit_gateway,
+        "_emit_stream_event",
+        lambda msg_type, ch, sym, fields, ts: seen.append((msg_type, ch, sym, fields)),
+    )
+    unit_gateway._poll_engine_events()
+
+    by_type = {(msg_type, ch): fields for msg_type, ch, _sym, fields in seen}
+    assert by_type[("STATE", "STATE")] == {"SESSION": "CONTINUOUS", "PREV": "HALTED"}
+    assert by_type[("CB", "CB")] == {"STATUS": "ACTIVE", "MODE": "AUCTION"}
+
+
+def test_poll_engine_events_auction_result(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeSubscriber(
+        [
+            (
+                "auction.result.aapl",
+                {
+                    "symbol": "AAPL",
+                    "eq_price": 150.10,
+                    "eq_qty": 48200,
+                    "trades_count": 37,
+                    "imbalance_side": "BUY",
+                    "imbalance_qty": 1400,
+                    "timestamp": 6.0,
+                },
+            ),
+        ]
+    )
+    unit_gateway._sub_sock.close()
+    unit_gateway._sub_sock = fake
+    monkeypatch.setattr(gateway_mod, "decode", lambda payload: payload)
+
+    seen: list[tuple[str, str, str, dict[str, str]]] = []
+    monkeypatch.setattr(
+        unit_gateway,
+        "_emit_stream_event",
+        lambda msg_type, ch, sym, fields, ts: seen.append((msg_type, ch, sym, fields)),
+    )
+    unit_gateway._poll_engine_events()
+
+    assert len(seen) == 1
+    msg_type, ch, sym, fields = seen[0]
+    assert (msg_type, ch, sym) == ("AUCTION", "AUCTION", "AAPL")
+    assert fields["EQPX"] == "150.1"
+    assert fields["EQQTY"] == "48200"
+    assert fields["TRADES"] == "37"
+    assert fields["IMBSIDE"] == "BUY"
+    assert fields["IMBQTY"] == "1400"
+
+
+def test_poll_engine_events_auction_no_cross(
+    unit_gateway: MarketDataGateway,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = _FakeSubscriber(
+        [
+            (
+                "auction.result.tsla",
+                {
+                    "symbol": "TSLA",
+                    "eq_price": None,
+                    "eq_qty": 0,
+                    "trades_count": 0,
+                    "imbalance_side": "",
+                    "imbalance_qty": 0,
+                    "timestamp": 6.0,
+                },
+            ),
+        ]
+    )
+    unit_gateway._sub_sock.close()
+    unit_gateway._sub_sock = fake
+    monkeypatch.setattr(gateway_mod, "decode", lambda payload: payload)
+
+    seen: list[dict[str, str]] = []
+    monkeypatch.setattr(
+        unit_gateway,
+        "_emit_stream_event",
+        lambda msg_type, ch, sym, fields, ts: seen.append(fields),
+    )
+    unit_gateway._poll_engine_events()
+
+    assert len(seen) == 1
+    fields = seen[0]
+    assert "EQPX" not in fields
+    assert "IMBSIDE" not in fields
+    assert fields["EQQTY"] == "0"
+    assert fields["TRADES"] == "0"
+    assert fields["IMBQTY"] == "0"
+
+
 def test_poll_index_events_emits_idx(
     unit_gateway: MarketDataGateway,
     monkeypatch: pytest.MonkeyPatch,

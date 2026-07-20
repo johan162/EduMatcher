@@ -29,13 +29,20 @@ from edumatcher.md_gateway.sequencer import SequenceAllocator
 from edumatcher.messaging.bus import make_subscriber
 from edumatcher.models.message import decode
 
-_ALLOWED_CHANNELS = frozenset({"TOP", "TRADE", "STATE", "INDEX", "DEPTH"})
+_ALLOWED_CHANNELS = frozenset(
+    {"TOP", "TRADE", "STATE", "INDEX", "DEPTH", "AUCTION", "CB"}
+)
 # Channels that may be combined with SYM=* on a single SUB line (CALF 1.0.0,
-# see EduMatcher-CALF-Extensions.md §5). INDEX and DEPTH are deliberately
-# excluded: INDEX always requires an explicit index id, and DEPTH is heavy
-# enough per-message that a wildcard subscription could multiply one
-# client's outbound bandwidth by the whole symbol count (§6.9).
-_WILDCARD_ELIGIBLE_CHANNELS = frozenset({"STATE", "TOP", "TRADE"})
+# see EduMatcher-CALF-Extensions.md §5; AUCTION added by
+# EduMatcher-CALF-auction-cb.md §6.4). INDEX, DEPTH, and CB are deliberately
+# excluded: INDEX always requires an explicit index id, DEPTH is heavy enough
+# per-message that a wildcard subscription could multiply one client's
+# outbound bandwidth by the whole symbol count (§6.9), and CB halts/resumes
+# are rare, operator-relevant-per-symbol events rather than a firehose use
+# case. AUCTION is included: auction events are extremely low frequency (at
+# most a handful per symbol per day), so a wildcard subscription poses none
+# of DEPTH's bandwidth risk.
+_WILDCARD_ELIGIBLE_CHANNELS = frozenset({"STATE", "TOP", "TRADE", "AUCTION"})
 _MAX_LINE_BYTES = 4096
 _HELLO_TIMEOUT_SEC = 5
 _MAX_ENGINE_EVENTS_PER_LOOP = 2000
@@ -73,6 +80,7 @@ class MarketDataGateway:
             "session.state",
             "circuit_breaker.halt.",
             "circuit_breaker.resume.",
+            "auction.result.",
         )
         self._index_sub = make_subscriber(config.index_pub_addr, "index.")
 
@@ -573,7 +581,7 @@ class MarketDataGateway:
             # no baseline — contradicting EduMatcher-Index.md's original
             # design ("gateway sends an initial SNAP"). Fixed here to match
             # TOP/STATE/DEPTH's already-established pattern.
-            if ch in {"TOP", "STATE", "INDEX", "DEPTH"}:
+            if ch in {"TOP", "STATE", "INDEX", "DEPTH", "CB"}:
                 self._send_snapshot_for_stream(session, ch, sym)
 
     def _handle_unsub(self, session: ClientSession, fields: dict[str, str]) -> None:
@@ -615,6 +623,8 @@ class MarketDataGateway:
             fields.update(self._normaliser.index_snapshot_fields(sym))
         elif ch == "DEPTH":
             fields.update(self._normaliser.depth_snapshot_fields(sym))
+        elif ch == "CB":
+            fields.update(self._normaliser.cb_snapshot_fields(sym))
 
         self._queue_raw(session, build_line("SNAP", fields), is_market_data=True)
 
@@ -719,6 +729,8 @@ class MarketDataGateway:
                         state_fields,
                         now_seconds,
                     )
+                    cb_sym, cb_fields = self._normaliser.normalise_cb_halt(sym, payload)
+                    self._emit_stream_event("CB", "CB", cb_sym, cb_fields, now_seconds)
                     continue
 
                 if topic.startswith("circuit_breaker.resume."):
@@ -732,6 +744,21 @@ class MarketDataGateway:
                         state_fields,
                         now_seconds,
                     )
+                    cb_sym, cb_fields = self._normaliser.normalise_cb_resume(
+                        sym, payload
+                    )
+                    self._emit_stream_event("CB", "CB", cb_sym, cb_fields, now_seconds)
+                    continue
+
+                if topic.startswith("auction.result."):
+                    self._dbg_count("auction_topics")
+                    sym, auction_fields = self._normaliser.normalise_auction_result(
+                        payload
+                    )
+                    if sym:
+                        self._emit_stream_event(
+                            "AUCTION", "AUCTION", sym, auction_fields, now_seconds
+                        )
             except Exception:
                 log.warning(
                     "md_gateway handler error on engine topic=%s", topic, exc_info=True

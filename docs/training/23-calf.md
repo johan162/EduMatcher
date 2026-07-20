@@ -37,9 +37,11 @@ In this chapter, the most important operational ideas are:
 
 - Session establishment with HELLO and WELCOME
 - Channel and symbol subscription with SUB and UNSUB
-- Baseline snapshots (`SNAP`) plus incremental live events (`MD`, `TRADE`, `STATE`)
+- Baseline snapshots (`SNAP`) plus incremental live events (`MD`, `TRADE`, `STATE`, `AUCTION`, `CB`)
 - Liveness with HB and PING/PONG
 - Replay with RESUME=1 / LASTSEQ and REPLAY_MISS handling
+- Auction uncross results (`AUCTION`) and circuit-breaker detail (`CB`) as
+  the two newer channels beyond the original TOP/TRADE/STATE/INDEX/DEPTH set
 
  
 
@@ -74,21 +76,23 @@ pm-md-gwy --config engine_config.yaml
 
 ## Exercise 2: Use the Python Example as a TOP/TRADE Consumer
 
-From the example directory:
+From the example directory. `calf_subscriber.py` has no `--channels` flag —
+it always subscribes to the Cartesian product of `{TOP, TRADE, STATE, DEPTH}`
+(filtered down to whatever `WELCOME|CH_SUPPORTED=` actually advertises) for
+the symbols you pass:
 
 ```bash
 cd docs/examples/calf
 python3 calf_subscriber.py \
   --host 127.0.0.1 \
   --port 5570 \
-  --channels TOP,TRADE \
   --symbols AAPL
 ```
 
 Observe:
 
 - WELCOME line parsed by the Python library
-- SNAP for TOP baseline
+- SNAP for TOP (and STATE, DEPTH) baseline
 - incoming MD and TRADE messages for subscribed symbols
 
 :material-checkbox-blank-outline: Checkpoint: subscriber prints parsed MD/TRADE events with expected symbol and sequence fields.
@@ -142,22 +146,71 @@ Observe in output:
 
 ## Exercise 4: State Channel and Wildcard Behavior
 
-Run a subscriber for state transitions:
+`calf_subscriber.py` automatically adds a session-wide `SUB|CH=STATE|SYM=*`
+on top of its per-symbol subscriptions (pass `--no-state-wildcard` to skip
+it):
 
 ```bash
 python3 docs/examples/calf/calf_subscriber.py \
   --host 127.0.0.1 \
   --port 5570 \
-  --channels STATE \
-  --symbols '*'
+  --symbols AAPL
 ```
 
 Expected behavior:
 
-- immediate SNAP for CH=STATE,SYM=*
+- immediate SNAP for CH=STATE,SYM=* (session-wide) plus one for
+  CH=STATE,SYM=AAPL (that symbol's own halt/resume stream)
 - STATE updates when session phase or halt/resume transitions occur
 
 :material-checkbox-blank-outline: Checkpoint: you can explain why wildcard symbols are valid only for STATE.
+
+Note: as of CALF `1.0.0`, `SYM=*` is also valid for `TOP` and `TRADE` (see
+Exercise 7 below); as of the `AUCTION`/`CB` extension, `SYM=*` is valid for
+`AUCTION` too. It remains invalid for `INDEX`, `DEPTH`, and `CB`.
+
+ 
+
+## Exercise 4B: Auction Results and Circuit-Breaker Detail
+
+Two channels extend the original five: `AUCTION` (auction uncross results —
+no baseline `SNAP`, `SYM=*` allowed, mirrors `TRADE`) and `CB`
+(circuit-breaker halt/resume detail — cached baseline `SNAP`, `SYM=*` **not**
+allowed, mirrors `DEPTH`/`INDEX`). `calf_subscriber.py` does not drive these
+two channels, so exercise them manually with `nc`, alongside `STATE` for
+comparison:
+
+```bash
+nc 127.0.0.1 5570
+```
+
+```text
+HELLO|CLIENT=manual03|PROTO=CALF1
+SUB|CH=CB,STATE|SYM=AAPL
+SUB|CH=AUCTION|SYM=AAPL
+```
+
+Expected behavior:
+
+- immediate `SNAP|CH=CB|SYM=AAPL|STATUS=ACTIVE|...` on subscribe (or
+  `STATUS=HALTED` plus detail if already halted) — `AUCTION` gets no `SNAP`,
+  same as `TRADE`
+- an `AUCTION|...` line the next time AAPL's auction uncrosses (open, close,
+  or a re-opening auction after a halt), carrying `EQPX`/`EQQTY`/`TRADES`
+  and, if a residual exists, `IMBSIDE`/`IMBQTY`
+- a `CB|...` line on the next halt (`STATUS=HALTED` with `LEVEL`,
+  `TRIGGERPX`, `REFPX`, `RESUMEAT`, `MODE`) and a matching one on resume
+  (`STATUS=ACTIVE` with `MODE`)
+- a `STATE|...` line for the same halt/resume, independently — compare the
+  two: `STATE` gives you the simple `SESSION=HALTED`/`SESSION=CONTINUOUS`
+  flag, `CB` gives you the operational detail behind it. They fire
+  independently, not in a guaranteed order relative to each other
+
+In a second `nc` session, try `SUB|CH=CB|SYM=*` and confirm it is rejected
+with `ERR|CODE=INVALID_SYMBOL` — unlike `AUCTION`, `TOP`, `TRADE`, and
+`STATE`, `CB` never accepts a wildcard symbol.
+
+:material-checkbox-blank-outline: Checkpoint: you can explain why `AUCTION` has no `SNAP` but `CB` does, and why `CB` rejects `SYM=*` while `AUCTION` accepts it.
 
  
 
@@ -218,19 +271,22 @@ SUB|CH=TOP|SYM=AAPL                 (before HELLO)
 HELLO|CLIENT=x|PROTO=BAD
 SUB|CH=UNKNOWN|SYM=AAPL
 SUB|CH=DEPTH|SYM=*                  (invalid wildcard usage — DEPTH requires an explicit symbol)
+SUB|CH=CB|SYM=*                     (invalid wildcard usage — CB requires an explicit symbol)
 ```
 
 Note: as of CALF `1.0.0`, `SYM=*` is valid for `TOP`, `TRADE`, and `STATE`
 (e.g. `SUB|CH=TOP|SYM=*` now succeeds and returns one `SNAP` per known
-symbol). The wildcard is only rejected for `INDEX` and `DEPTH`, which always
-require an explicit id/symbol — see the CALF protocol reference for details.
+symbol). As of the `AUCTION`/`CB` extension, `SYM=*` is also valid for
+`AUCTION`. The wildcard is rejected for `INDEX`, `DEPTH`, and `CB`, which
+always require an explicit id/symbol — see the CALF protocol reference for
+details.
 
 Map observed ERR codes to operator action:
 
 - AUTH_REQUIRED: client handshake bug or ordering error
 - PROTO_MISMATCH: wrong protocol negotiation value
 - INVALID_CHANNEL: unsupported CH value
-- INVALID_SYMBOL: unknown symbol, or `SYM=*` used with `INDEX`/`DEPTH`
+- INVALID_SYMBOL: unknown symbol, or `SYM=*` used with `INDEX`/`DEPTH`/`CB`
 - REPLAY_MISS: requested resume point outside replay retention
 - SLOW_CLIENT: consumer cannot keep up with delivery rate
 
@@ -259,6 +315,10 @@ You have now covered major CALF protocol usage patterns:
 - provisioning configuration with pm-config-gen
 - connecting external clients through example libraries
 - handling channel/symbol subscriptions and snapshots
+- distinguishing channels with a baseline `SNAP` (`TOP`, `STATE`, `INDEX`,
+  `DEPTH`, `CB`) from those without one (`TRADE`, `AUCTION`)
+- reading auction uncross results (`AUCTION`) and circuit-breaker operational
+  detail (`CB`) alongside the simpler `STATE` halt/resume flag
 - using control messages and liveness probes
 - recovering with RESUME=1/LASTSEQ semantics
 - diagnosing protocol errors operationally
@@ -281,6 +341,7 @@ events vs. price/quote state) rather than just their names.
 ## Further Reading
 
 - [Market Data Feed (CALF)](../user-guide/240-market-data-feed.md)
+- [CALF Protocol Spy (pm-calf-spy)](../user-guide/241-calf-spy-cli.md)
 - [CALF Protocol Appendix](../user-guide/920-app-calf-protocol.md)
 - [Protocol Support Library Examples](../user-guide/800-examples.md)
 - [Processes](../user-guide/170-processes.md)

@@ -4,8 +4,8 @@
     After reading this page you will understand:
 
     - what `pm-md-gwy` does and why CALF exists as an external feed
-    - what data is available on each channel (`TOP`, `TRADE`, `STATE`, `INDEX`, `DEPTH`)
-    - which channels accept the `SYM=*` wildcard (`TOP`, `TRADE`, `STATE` — not `INDEX`/`DEPTH`)
+    - what data is available on each channel (`TOP`, `TRADE`, `STATE`, `INDEX`, `DEPTH`, `AUCTION`, `CB`)
+    - which channels accept the `SYM=*` wildcard (`TOP`, `TRADE`, `STATE`, `AUCTION` — not `INDEX`/`DEPTH`/`CB`)
     - how to detect gateway capability via `WELCOME|CH_SUPPORTED=` before relying on `DEPTH`
     - when to choose CALF over the other available protocols
     - how to start the gateway and verify connectivity from a terminal
@@ -30,7 +30,7 @@ socket and line-split logic.
 
 ```mermaid
 flowchart TB
-    E[pm-engine\nZMQ PUB :5556] -->|"book.*, trade.executed\nsession.state\ncircuit_breaker.*\nindex.*"| G
+    E[pm-engine\nZMQ PUB :5556] -->|"book.*, trade.executed\nsession.state\ncircuit_breaker.*\nauction.result.*\nindex.*"| G
 
     subgraph G["pm-md-gwy  (TCP :5570)"]
         direction TB
@@ -52,9 +52,9 @@ Responsibilities of `pm-md-gwy`:
 - keeps a **time-bounded replay buffer** so reconnecting clients can recover
   missed messages without a full snapshot
 - sends an automatic **baseline snapshot** (`SNAP`) when a client first
-  subscribes to a `TOP`, `STATE`, `INDEX`, or `DEPTH` stream (a wildcard
+  subscribes to a `TOP`, `STATE`, `INDEX`, `DEPTH`, or `CB` stream (a wildcard
   `TOP` subscription gets one real `SNAP` per known symbol, not a single
-  `SYM=*` snapshot)
+  `SYM=*` snapshot); `TRADE` and `AUCTION` never send one
 - advertises which channels a given gateway build supports via
   `WELCOME|CH_SUPPORTED=`, so clients can detect `DEPTH`/`INDEX`/wildcard
   availability without a protocol version bump
@@ -74,7 +74,7 @@ of the chapter is detail.
 | Protocol token | `CALF1` (in `HELLO` / `WELCOME`) — unchanged across gateway builds |
 | Line format | `MSGTYPE\|KEY=VALUE\|KEY=VALUE\n` |
 | Max line length | 4096 bytes (longer → `ERR\|CODE=BAD_MESSAGE`) |
-| Channels | `TOP`, `TRADE`, `STATE`, `INDEX`, `DEPTH` |
+| Channels | `TOP`, `TRADE`, `STATE`, `INDEX`, `DEPTH`, `AUCTION`, `CB` |
 | Heartbeat | every `heartbeat_interval_sec` (default 1 s) when a stream is quiet |
 | Idle timeout | disconnect after `idle_timeout_sec` (default 5 s) with no inbound data |
 | Replay window | `replay_window_sec` (default 30 s), tracked per `(channel, symbol)` stream |
@@ -102,29 +102,32 @@ code.**
 | Message | Channel(s) | Meaning |
 |---------|-----------|---------|
 | `WELCOME` | — | Session accepted; carries `GW`, `HBINT`, `REPLAY`, `SYMBOLS`, `CH_SUPPORTED` |
-| `SNAP` | TOP, STATE, INDEX, DEPTH | Baseline snapshot for a stream — the `SEQ` you anchor on |
+| `SNAP` | TOP, STATE, INDEX, DEPTH, CB | Baseline snapshot for a stream — the `SEQ` you anchor on |
 | `MD` | TOP | Incremental top-of-book change (only the fields that changed) |
 | `TRADE` | TRADE | One executed trade |
 | `STATE` | STATE | Session-phase transition, or a symbol halt/resume |
 | `IDX` | INDEX | Index level recalculation |
 | `DEPTH` | DEPTH | Full top-N ladder for the changed side(s) |
+| `AUCTION` | AUCTION | Auction uncross result (equilibrium price/qty, imbalance) |
+| `CB` | CB | Circuit-breaker halt or resume detail for one symbol |
 | `HB` | — | Heartbeat while the stream is quiet |
 | `PONG` | — | Reply to `PING` |
 | `ERR\|CODE=..` | — | Protocol or subscription error (see [Common errors](#common-errors-and-fixes)) |
 
 ### The envelope on every market-data line
 
-`SNAP`, `MD`, `TRADE`, `STATE`, `IDX`, and `DEPTH` all begin with the same four
-envelope fields, followed by channel-specific payload fields:
+`SNAP`, `MD`, `TRADE`, `STATE`, `IDX`, `DEPTH`, `AUCTION`, and `CB` all begin
+with the same four envelope fields, followed by channel-specific payload
+fields:
 
 | Field | Meaning |
 |-------|---------|
-| `CH` | Channel: `TOP`, `TRADE`, `STATE`, `INDEX`, or `DEPTH` |
+| `CH` | Channel: `TOP`, `TRADE`, `STATE`, `INDEX`, `DEPTH`, `AUCTION`, or `CB` |
 | `SYM` | Symbol; the index id on `INDEX`; or `*` on a session-wide `STATE` line |
 | `SEQ` | Per-`(CH, SYM)` sequence number — starts at 1, +1 per message. Your gap detector |
 | `TS` | Event time, ISO-8601 UTC with milliseconds (e.g. `2026-06-30T09:30:00.000Z`) |
 
-### The five channels
+### The seven channels
 
 | Channel | Incremental msg | Baseline `SNAP`? | `SYM=*`? | Payload fields | Primary use |
 |---------|-----------------|------------------|----------|----------------|-------------|
@@ -133,6 +136,8 @@ envelope fields, followed by channel-specific payload fields:
 | `STATE` | `STATE` | Yes | Yes | `SESSION PREV` | halt gating, session-phase display |
 | `INDEX` | `IDX` | Yes (1.0.0+) | No | `LEVEL SESSION OPEN CHG PCTCHG HIGH LOW AGGCAP` | index trackers, benchmarks |
 | `DEPTH` | `DEPTH` | Yes | No | `LEVELS BIDS ASKS` | order-book (DOM) widgets, Level-2 teaching |
+| `AUCTION` | `AUCTION` | No | Yes | `EQPX EQQTY TRADES IMBSIDE IMBQTY` | auction uncross results, Terminal-style auction views |
+| `CB` | `CB` | Yes | No | `STATUS LEVEL TRIGGERPX REFPX RESUMEAT MODE` | circuit-breaker detail beyond `STATE`'s halt/resume flag |
 
 Each channel is detailed under [What information is available](#what-information-is-available); the exact field meanings are in the per-channel field tables there.
 
@@ -234,6 +239,11 @@ see [Getting Started → Environment variables](000-getting-started.md#environme
 Use `nc` (or `telnet`) to validate the line protocol from the command line before
 writing any code:
 
+!!! tip "Prefer a ready-made client?"
+    [`pm-calf-spy`](241-calf-spy-cli.md) does everything below for you —
+    handshake, subscribe, and pretty-print every line — without hand-typing
+    protocol messages: `pm-calf-spy --channels TOP,TRADE --symbols AAPL`.
+
 ```bash
 nc 127.0.0.1 5570
 ```
@@ -284,10 +294,30 @@ SUB|CH=DEPTH|SYM=AAPL
 Expect an immediate `SNAP|CH=DEPTH|SYM=AAPL|LEVELS=...|BIDS=...|ASKS=...`,
 then a `DEPTH|...` line whenever the top price levels change.
 
+To verify the `AUCTION` channel (fires around auction uncrosses — try it
+around the open/close auction or a re-opening after a halt):
+
+```text
+SUB|CH=AUCTION|SYM=AAPL
+```
+
+There is no `SNAP` — you'll see an `AUCTION|...` line the next time that
+symbol's auction uncrosses.
+
+To verify the `CB` channel:
+
+```text
+SUB|CH=CB|SYM=AAPL
+```
+
+Expect an immediate `SNAP|CH=CB|SYM=AAPL|STATUS=ACTIVE|...` (or `STATUS=HALTED`
+plus detail fields if the symbol happens to already be halted), then a
+`CB|...` line on the next halt or resume for that symbol.
+
 
 ## What information is available
 
-The gateway exposes five logical channels.  Each represents a different view of
+The gateway exposes seven logical channels.  Each represents a different view of
 market activity.
 
 ### Channel `TOP` — best bid, ask, and last trade
@@ -483,9 +513,107 @@ subscribing" below).
 
 ---
 
+### Channel `AUCTION` — auction uncross results
+
+`AUCTION` carries one line every time a symbol's auction uncrosses: the
+equilibrium price, matched quantity, number of trades generated, and any
+remaining imbalance. There is **no baseline `SNAP`** — like `TRADE`, the
+stream starts from events that occur after the subscription becomes active.
+
+**When you get it:** Subscribe with `CH=AUCTION|SYM=<symbol>`, or `SYM=*` to
+receive every symbol's auction results on one subscription — useful for a
+market-wide auction monitor without enumerating tickers. Expect events around
+the opening auction, closing auction, and any re-opening auction after a
+circuit-breaker halt.
+
+**Typical use cases:** auction monitors, Terminal-style auction panels,
+open/close imbalance dashboards, halt re-opening confirmation.
+
+**Wire example:**
+
+```text
+AUCTION|CH=AUCTION|SYM=AAPL|SEQ=1|TS=2026-07-20T09:30:00.000Z|EQPX=150.10|EQQTY=48200|TRADES=37|IMBSIDE=BUY|IMBQTY=1400
+```
+
+A no-cross auction (no matched quantity) omits `EQPX` and `IMBSIDE`:
+
+```text
+AUCTION|CH=AUCTION|SYM=MSFT|SEQ=1|TS=2026-07-20T09:30:00.000Z|EQQTY=0|TRADES=0|IMBQTY=0
+```
+
+**Fields:**
+
+| Field | Type | Present | Meaning |
+|-------|------|---------|---------|
+| `EQPX` | decimal | when a cross occurred | Equilibrium (uncross) price |
+| `EQQTY` | integer | always | Matched quantity at the equilibrium price |
+| `TRADES` | integer | always | Number of trades generated by the uncross |
+| `IMBSIDE` | enum | when an imbalance remains | Side of the remaining imbalance — `BUY` or `SELL` |
+| `IMBQTY` | integer | always | Remaining imbalance quantity (`0` when fully matched) |
+
+`EQQTY`, `TRADES`, and `IMBQTY` are always present (`0` when there's nothing
+to report); `EQPX` and `IMBSIDE` are omitted rather than sent as `0`/empty
+when there was no cross or no imbalance, so don't treat a missing `EQPX` as
+a literal zero price.
+
+---
+
+### Channel `CB` — circuit-breaker detail
+
+`CB` carries the same halt/resume events already visible on `STATE`, but with
+the operational detail `STATE` doesn't carry: trigger price, reference price,
+breaker ladder level, scheduled resume time, and re-opening mode. Think of it
+as the detail view behind `STATE`'s simple `HALTED`/`CONTINUOUS` flag.
+
+The gateway sends an immediate `SNAP` for each new `(CB, symbol)` stream,
+reflecting the symbol's current status — `STATUS=ACTIVE` with no other
+fields if it has never been halted, or the current halt detail if it has.
+
+**When you get it:** Subscribe with `CH=CB|SYM=<symbol>`. `SYM=*` is **not**
+valid for `CB` — unlike `AUCTION`, a circuit-breaker event is rare and
+per-symbol/operator-relevant rather than a firehose case, so an explicit
+symbol is always required.
+
+**Typical use cases:** halt detail panels, breaker-ladder-level display,
+resume-time countdowns, distinguishing an automatic trigger from an operator
+(`ADMIN_ALL`/`ADMIN_SYMBOL`) halt.
+
+**Wire example — automatic halt, then resume:**
+
+```text
+SNAP|CH=CB|SYM=AAPL|SEQ=1|TS=2026-07-20T10:02:17.000Z|STATUS=ACTIVE
+CB|CH=CB|SYM=AAPL|SEQ=2|TS=2026-07-20T10:02:17.000Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T10:20:00.000Z|MODE=AUCTION
+CB|CH=CB|SYM=AAPL|SEQ=3|TS=2026-07-20T10:20:00.000Z|STATUS=ACTIVE|MODE=AUCTION
+```
+
+Note that `STATE` also emits its own, simpler pair of lines for the same
+halt/resume — `CB` and `STATE` fire independently for the same event, so a
+client that wants both just subscribes to both channels; they are not
+sequenced against each other.
+
+**Fields:**
+
+| Field | Type | Present | Meaning |
+|-------|------|---------|---------|
+| `STATUS` | enum | always | `ACTIVE` or `HALTED` |
+| `LEVEL` | string | on halt | Circuit-breaker ladder level (e.g. `L1`/`L2`/`L3`) |
+| `TRIGGERPX` | decimal | on automatic halt | Price that triggered the breaker |
+| `REFPX` | decimal | on automatic halt | Reference price the trigger was measured against |
+| `RESUMEAT` | string | on halt, when scheduled | Scheduled resume time, ISO-8601 UTC with ms (same format as `TS`) |
+| `MODE` | enum | on halt and resume | Re-opening mode, e.g. `AUCTION` |
+
+An operator-initiated halt (`ADMIN_ALL`/`ADMIN_SYMBOL`) omits `TRIGGERPX`,
+`REFPX`, and `RESUMEAT` since there was no automatic trigger and often no
+scheduled time. `MODE` is carried on both the halt and the resume line —
+internally the engine calls this field `resumption_mode` on the halt event
+and `mode` on the resume event; CALF normalises both to the single wire key
+`MODE` so clients don't need to know about that inconsistency.
+
+---
+
 ### Channel summary
 
-See the [five-channel overview table](#the-five-channels) at the top of the
+See the [seven-channel overview table](#the-seven-channels) at the top of the
 chapter for the at-a-glance comparison (message type, snapshot behaviour,
 wildcard support, and payload per channel).
 
@@ -497,7 +625,7 @@ on your context.
 
 | Approach | Transport | Data available | Best for | Not suitable for |
 |----------|-----------|---------------|----------|------------------|
-| **CALF** (`pm-md-gwy`) | TCP text | TOP, TRADE, STATE, INDEX, DEPTH | External clients; any language; snapshot + replay | Internal Python code that already imports edumatcher |
+| **CALF** (`pm-md-gwy`) | TCP text | TOP, TRADE, STATE, INDEX, DEPTH, AUCTION, CB | External clients; any language; snapshot + replay | Internal Python code that already imports edumatcher |
 | **Internal ZMQ PUB** (`:5556`) | ZMQ binary | Raw engine events (`book.*`, `trade.executed`, …) | Internal Python processes (`pm-stats`, bots) | External clients; languages without a ZMQ binding |
 | **REST API** (`pm-api-gwy`) | HTTP/JSON | Snapshot queries; order status | Web dashboards; one-shot queries | Low-latency streaming; high-frequency incremental data |
 | **WebSocket API** (`pm-api-gwy`) | WebSocket/JSON | Streaming market data (JSON) | Browser-based UIs; REST-native stacks | Latency-critical paths |
@@ -523,7 +651,7 @@ sequenceDiagram
 
     C->>G: TCP connect :5570
     C->>G: HELLO|CLIENT=mybot|PROTO=CALF1
-    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|CH_SUPPORTED=TOP,TRADE,STATE,INDEX,DEPTH
+    G-->>C: WELCOME|PROTO=CALF1|GW=md-gwy01|HBINT=1|REPLAY=30|SYMBOLS=AAPL,MSFT|CH_SUPPORTED=AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE
     C->>G: SUB|CH=TOP,TRADE|SYM=AAPL,MSFT
     G-->>C: SNAP|CH=TOP|SYM=AAPL|SEQ=100|...
     G-->>C: SNAP|CH=TOP|SYM=MSFT|SEQ=55|...
@@ -547,9 +675,11 @@ the list of configured symbols — useful for building a dynamic subscription
 list.  `SYMBOLS` is **omitted entirely** if the gateway has not learned of any
 symbols yet, so treat a missing field the same as an empty list rather than an
 error.  Also check `CH_SUPPORTED`: if present, it lists every channel this
-gateway build actually supports (e.g. `TOP,TRADE,STATE,INDEX,DEPTH`).  If
-`CH_SUPPORTED` is **absent**, assume a pre-`1.0.0` gateway that only supports
-`TOP`/`TRADE`/`STATE` and no `SYM=*` wildcard outside `STATE`.
+gateway build actually supports (e.g. `AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE`).
+If `CH_SUPPORTED` is **absent**, assume a pre-`1.0.0` gateway that only
+supports `TOP`/`TRADE`/`STATE` and no `SYM=*` wildcard outside `STATE`;
+`AUCTION` and `CB` are newer still, so check for their individual presence
+in `CH_SUPPORTED` rather than assuming they ship together with `DEPTH`/`INDEX`.
 
 ### Step 2 — Subscribe
 
@@ -569,9 +699,10 @@ SUB|CH=TOP,TRADE,STATE|SYM=*
 
 ### Step 3 — Receive snapshots
 
-For each new `TOP`, `STATE`, `INDEX`, or `DEPTH` subscription pair the
+For each new `TOP`, `STATE`, `INDEX`, `DEPTH`, or `CB` subscription pair the
 gateway sends an immediate `SNAP`.  Store the `SEQ` — it is your baseline
-sequence number for that stream.  `TRADE` never gets a baseline `SNAP`.
+sequence number for that stream.  `TRADE` and `AUCTION` never get a baseline
+`SNAP`.
 
 A wildcard `TOP` subscription (`SYM=*`) is the one exception to "one `SNAP`
 per pair": it produces **one `SNAP` per symbol the gateway currently knows
@@ -619,6 +750,9 @@ overhead.
 | Top and trades for several symbols | `SUB\|CH=TOP,TRADE\|SYM=AAPL,MSFT,GOOG` |
 | Index level | `SUB\|CH=INDEX\|SYM=EDU50` |
 | Order book ladder for one symbol | `SUB\|CH=DEPTH\|SYM=AAPL` (CALF `1.0.0`+) |
+| Auction results for one symbol | `SUB\|CH=AUCTION\|SYM=AAPL` |
+| Market-wide auction monitor | `SUB\|CH=AUCTION\|SYM=*` |
+| Circuit-breaker detail for one symbol | `SUB\|CH=CB\|SYM=AAPL` |
 | Build up incrementally | Multiple `SUB` lines are cumulative |
 
 !!! tip "Symbol discovery"
@@ -627,10 +761,10 @@ overhead.
 
 !!! tip "Capability discovery"
     The `CH_SUPPORTED` field in `WELCOME` lists every channel this gateway
-    build supports (e.g. `TOP,TRADE,STATE,INDEX,DEPTH`). Check it before
-    subscribing to `DEPTH` or relying on the `TOP`/`TRADE` wildcard so your
-    client degrades gracefully against an older gateway instead of handling
-    an `ERR` reactively.
+    build supports (e.g. `AUCTION,CB,DEPTH,INDEX,STATE,TOP,TRADE`). Check it
+    before subscribing to `DEPTH`/`AUCTION`/`CB` or relying on the
+    `TOP`/`TRADE` wildcard so your client degrades gracefully against an
+    older gateway instead of handling an `ERR` reactively.
 
 
 ## Gap detection and replay recovery
@@ -885,8 +1019,8 @@ cd docs/examples/calf && make
 |-------------------|--------------------------------------------------|---------------------------------------------------|
 | `AUTH_REQUIRED`   | `SUB` sent before `HELLO`                        | Send `HELLO` first                                |
 | `PROTO_MISMATCH`  | Wrong or missing `PROTO`                         | Use `PROTO=CALF1`                                 |
-| `INVALID_CHANNEL` | Unknown `CH` value                               | Use `TOP`, `TRADE`, `STATE`, `INDEX`, or `DEPTH`  |
-| `INVALID_SYMBOL`  | Unknown symbol; or `SYM=*` used with `INDEX`/`DEPTH`; or `SYM=*` used at all on `HELLO\|RESUME=1` | Use configured symbols; `SYM=*` only for `STATE`/`TOP`/`TRADE` on `SUB` — never on `RESUME=1` |
+| `INVALID_CHANNEL` | Unknown `CH` value                               | Use `TOP`, `TRADE`, `STATE`, `INDEX`, `DEPTH`, `AUCTION`, or `CB` |
+| `INVALID_SYMBOL`  | Unknown symbol; or `SYM=*` used with `INDEX`/`DEPTH`/`CB`; or `SYM=*` used at all on `HELLO\|RESUME=1` | Use configured symbols; `SYM=*` only for `STATE`/`TOP`/`TRADE`/`AUCTION` on `SUB` — never on `RESUME=1` |
 | `SUB_LIMIT`       | Too many subscribed symbols                      | Reduce requested symbol set                       |
 | `RATE_LIMITED`    | Client exceeded `max_messages_per_second`        | Slow down the send rate; connection stays open    |
 | `REPLAY_MISS`     | Requested replay is outside buffer window        | Accept fresh `SNAP` and reset local baseline      |
@@ -927,6 +1061,8 @@ patterns already shown:
 | CSV / Parquet recorder | `TRADE`, `TOP` | append every line to disk for replay and back-testing |
 | Halt-aware alert bot | `STATE` | alert on `SESSION=HALTED`, clear on resume |
 | Index dashboard | `INDEX` | plot `LEVEL` / `PCTCHG` across the day |
+| Auction monitor | `AUCTION` (`SYM=*`) | print each uncross; flag large `IMBQTY` remainders |
+| Circuit-breaker panel | `CB` | show `STATUS`/`LEVEL`/`RESUMEAT` per halted symbol, clear on resume |
 
 ### Anatomy of a robust client
 
@@ -944,8 +1080,8 @@ Whatever you build, the same six habits keep it correct:
    any unexpected disconnect on a busy stream as a possible slow-client
    condition (an `ERR|CODE=SLOW_CLIENT` may or may not arrive first) and
    reconnect while consuming faster.
-6. **Degrade gracefully** — if `CH_SUPPORTED` lacks `DEPTH`/`INDEX`, fall back
-   instead of subscribing blindly.
+6. **Degrade gracefully** — if `CH_SUPPORTED` lacks `DEPTH`/`INDEX`/`AUCTION`/`CB`,
+   fall back instead of subscribing blindly.
 
 ### Browser clients need a server-side bridge
 
@@ -1026,7 +1162,9 @@ ws.onmessage = (e) => {
 ## See also
 
 - [External Protocols Overview](210-protocol-overview.md) — ALF, BALF, CALF, RALF at a glance
-- [Appendix — CALF Protocol](920-app-calf-protocol.md) — normative wire format, full field tables, sequencing rules
+- [Appendix — CALF Protocol](920-app-calf-protocol.md) — normative wire format, full field tables, sequencing rules, including the `AUCTION` and `CB` message definitions
+- [CALF Protocol Spy (pm-calf-spy)](241-calf-spy-cli.md) — read-only CLI for watching the raw feed, human-readable or JSON
+- [Risk Controls](120-risk-controls.md) — circuit-breaker mechanics behind the `CB` channel and `STATE` halt/resume events
 - [API Gateway](260-api-gateway.md) — REST and WebSocket market data alternative
 - [Post-Trade Dissemination (RALF)](250-post-trade.md) — fills and post-trade events
 - [Messages Reference](270-messages.md#calf-tcp-protocol-pm-md-gwy) — CALF messages in the full message catalogue

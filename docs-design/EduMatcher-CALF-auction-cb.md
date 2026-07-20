@@ -1,10 +1,37 @@
-Version: 0.1.0
+Version: 1.1.0
 
 Date: 2026-07-20
 
-Status: Design Proposal
+Status: Implemented
 
 # EduMatcher — CALF Extension: Auction Uncross and Circuit-Breaker Detail Channels
+
+> **Post-implementation update (v1.1.0).** This proposal has been
+> implemented in full, with two deliberate deviations from the original
+> design (v0.1.0) discovered while implementing it — both are corrections,
+> not scope changes:
+>
+> 1. **`RESUMEAT` is ISO-8601 text, not raw epoch nanoseconds.** §7.4.3's
+>    Open Question #4 flagged this as worth a second opinion; on
+>    implementation, raw nanosecond ticks were rejected as the only
+>    non-ISO-8601 timestamp field on the CALF wire, inconsistent with `TS`
+>    and every other timestamp in the protocol. `RESUMEAT` is formatted with
+>    the same `iso_utc()` helper `TS` uses (e.g.
+>    `RESUMEAT=2026-07-20T15:20:00.000Z`), converted from the engine's
+>    `resume_at_ns` at the gateway boundary. All wire examples below have
+>    been updated accordingly wherever they showed a raw-nanosecond value.
+> 2. **`WELCOME|CH_SUPPORTED=` needed no separate code change.** §5 presented
+>    this as a distinct implementation step, but `CH_SUPPORTED` is generated
+>    in code as `",".join(sorted(_ALLOWED_CHANNELS))` — adding `AUCTION`/`CB`
+>    to `_ALLOWED_CHANNELS` (§6.6.3/§7.8.2) updates it automatically. No
+>    separate edit was needed or made.
+>
+> Everything else — the `AUCTION` channel shape, the `CB` channel shape and
+> `SNAP` caching, the `mode`/`resumption_mode` wire-key normalization, the
+> new `auction.result.` engine subscription, and the `SYM=*`
+> eligibility/ineligibility decisions — was implemented exactly as designed.
+> See `docs/user-guide/920-app-calf-protocol.md` for the normative,
+> code-verified reference reflecting the shipped behavior.
 
 
 
@@ -639,11 +666,11 @@ none has ever occurred.
 | `LEVEL` | — | string | Ladder level or `ADMIN_ALL`/`ADMIN_SYMBOL`; present only when `STATUS=HALTED` |
 | `TRIGGERPX` | — | decimal | Trigger price; present only for automatic (non-`ADMIN_*`) halts currently in effect |
 | `REFPX` | — | decimal | Reference price at trigger time; present only for automatic halts currently in effect |
-| `RESUMEAT` | — | int | Scheduled auto-resume time, UTC epoch nanoseconds; present only for timed halts currently in effect (absent for rest-of-day or manual halts) |
+| `RESUMEAT` | — | string | Scheduled auto-resume time, UTC ISO-8601 with ms (same format as `TS`, converted from the engine's `resume_at_ns`); present only for timed halts currently in effect (absent for rest-of-day or manual halts) |
 | `MODE` | — | string | `AUCTION`, `CONTINUOUS`, or `MANUAL`; present only when `STATUS=HALTED` |
 
 ```text
-SNAP|CH=CB|SYM=AAPL|SEQ=3|TS=2026-07-20T14:05:00.000Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=1784560800000000000|MODE=AUCTION
+SNAP|CH=CB|SYM=AAPL|SEQ=3|TS=2026-07-20T14:05:00.000Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T15:20:00.000Z|MODE=AUCTION
 ```
 
 ```text
@@ -660,7 +687,7 @@ populated according to the same presence rules as `SNAP`.
 **Halt event** — automatic trigger:
 
 ```text
-CB|CH=CB|SYM=AAPL|SEQ=4|TS=2026-07-20T14:05:00.010Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=1784560800000000000|MODE=AUCTION
+CB|CH=CB|SYM=AAPL|SEQ=4|TS=2026-07-20T14:05:00.010Z|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=2026-07-20T15:20:00.000Z|MODE=AUCTION
 ```
 
 **Halt event** — ADMIN exchange-wide halt (`trigger`/`reference`/`resume`
@@ -1034,29 +1061,35 @@ of that document).
    or publish an indicative pre-auction price at all — this would be new
    engine work, not just a gateway change, and is left for a future
    proposal if there is demand.
-4. Is `RESUMEAT` (raw epoch nanoseconds) the right wire representation, or
-   should it be ISO-8601 like `TS`, matching `SNAP`/event timestamps
-   elsewhere in CALF? Raw nanoseconds were chosen here to match the
-   engine's own `resume_at_ns` representation exactly with no conversion
-   loss, but this is worth a second opinion given every other CALF
-   timestamp field is ISO-8601 text.
+4. ~~Is `RESUMEAT` (raw epoch nanoseconds) the right wire representation, or
+   should it be ISO-8601 like `TS`?~~ **Resolved during implementation:**
+   `RESUMEAT` is ISO-8601 text (via the same `iso_utc()` helper `TS` uses),
+   not raw nanoseconds — see the "Post-implementation update" note at the
+   top of this document.
 
 
 ## 15. Acceptance Checklist
 
-- [ ] `AUCTION` channel implemented per §6, including the new
+- [x] `AUCTION` channel implemented per §6, including the new
       `auction.result.` engine subscription (§6.6.1).
-- [ ] `CB` channel implemented per §7, including the `mode`/
+- [x] `CB` channel implemented per §7, including the `mode`/
       `resumption_mode` normalization (§7.3).
-- [ ] `WELCOME|CH_SUPPORTED=` includes `AUCTION,CB` (§5).
-- [ ] `STATE`'s existing field set and behavior are provably unchanged
-      (regression tests).
-- [ ] `920-app-calf-protocol.md` updated to include both channels
+- [x] `WELCOME|CH_SUPPORTED=` includes `AUCTION,CB` (§5) — automatic via
+      `_ALLOWED_CHANNELS`, no separate code change (see
+      "Post-implementation update" above).
+- [x] `STATE`'s existing field set and behavior are provably unchanged
+      (regression tests) — confirmed via `test_poll_engine_events_all_topics`
+      and the full pre-existing `md_gateway`/`calf_protocol` suite passing
+      unmodified.
+- [x] `920-app-calf-protocol.md` updated to include both channels
       (channel model, message catalog, field tables, `CH_SUPPORTED`
       example).
-- [ ] `120-risk-controls.md` cross-references the new `CB` CALF exposure.
-- [ ] All test cases in §6.8 and §7.10 pass.
-- [ ] `black`, `flake8`, `mypy`, `pyright` clean on all changed files.
+- [x] `120-risk-controls.md` cross-references the new `CB` CALF exposure.
+- [x] All test cases in §6.8 and §7.10 pass (as unit/integration tests in
+      `tests/test_md_normaliser.py`, `tests/test_md_gateway_unit.py`,
+      `tests/test_md_gateway_emit.py`, and
+      `tests/test_md_gateway_runtime_paths.py`).
+- [x] `black`, `flake8`, `mypy`, `pyright` clean on all changed files.
 
 
 ## 16. Summary

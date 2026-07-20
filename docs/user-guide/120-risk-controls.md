@@ -592,6 +592,18 @@ payload: {
 }
 ```
 
+!!! note "This detail is also on the CALF market-data wire"
+    `pm-md-gwy` (the CALF gateway) exposes this same payload to external
+    clients on a dedicated `CB` channel — `trigger_price`, `reference_price`,
+    `level`, `resume_at_ns`, and `resumption_mode`/`mode` all reach the wire,
+    alongside the coarse `SESSION=HALTED`/`SESSION=CONTINUOUS` transition
+    CALF's `STATE` channel already carried. See
+    [CALF Protocol Reference — `CB`](920-app-calf-protocol.md#cb) for the
+    field mapping (note CALF normalizes the `resumption_mode`/`mode`
+    inconsistency above onto a single wire key, `MODE`). Auction uncross
+    results (`auction.result.{SYMBOL}`, used by the resumption-auction flow
+    described below) are similarly exposed via CALF's `AUCTION` channel.
+
 
 
 ##  ADMIN-role operator controls

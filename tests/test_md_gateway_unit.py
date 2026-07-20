@@ -107,6 +107,33 @@ def test_sub_trade_no_snap(unit_gateway: MarketDataGateway) -> None:
     peer.close()
 
 
+def test_sub_auction_unknown_symbol_rejected(unit_gateway: MarketDataGateway) -> None:
+    """AUCTION follows the same known-symbol validation as every non-INDEX
+    channel; it does not get a special exemption."""
+    sess, peer = _make_session()
+    sess.authenticated = True
+    unit_gateway._handle_client_line(sess, "SUB|CH=AUCTION|SYM=ZZZZ")
+    frame = parse_line(sess.out_queue[0].decode("utf-8"))
+    assert frame.fields["CODE"] == "INVALID_SYMBOL"
+    peer.close()
+
+
+def test_resume_auction_replays_missed_events(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    sess, peer = _make_session()
+    unit_gateway._replay.append(
+        "AUCTION", "AAPL", 2, b"AUCTION|CH=AUCTION|SYM=AAPL|SEQ=2\n"
+    )
+    unit_gateway._handle_client_line(
+        sess,
+        "HELLO|CLIENT=bot|PROTO=CALF1|RESUME=1|CH=AUCTION|SYM=AAPL|LASTSEQ=1",
+    )
+    assert sess.authenticated is True
+    assert ("AUCTION", "AAPL") in sess.subscriptions
+    peer.close()
+
+
 def test_resume_bad_lastseq(unit_gateway: MarketDataGateway) -> None:
     sess, peer = _make_session()
     unit_gateway._handle_client_line(
@@ -164,6 +191,80 @@ def test_heartbeat_interval_not_spam(unit_gateway: MarketDataGateway) -> None:
     second_count = len(sess.out_queue)
     assert first_count == 1
     assert second_count == 1
+    peer.close()
+
+
+def test_sub_auction_wildcard_allowed(unit_gateway: MarketDataGateway) -> None:
+    sess, peer = _make_session()
+    sess.authenticated = True
+    unit_gateway._handle_client_line(sess, "SUB|CH=AUCTION|SYM=*")
+    assert ("AUCTION", "*") in sess.subscriptions
+    peer.close()
+
+
+def test_sub_auction_no_snap(unit_gateway: MarketDataGateway) -> None:
+    """AUCTION has no persistent current-state to snapshot, like TRADE."""
+    sess, peer = _make_session()
+    sess.authenticated = True
+    unit_gateway._handle_client_line(sess, "SUB|CH=AUCTION|SYM=AAPL")
+    assert ("AUCTION", "AAPL") in sess.subscriptions
+    assert not sess.out_queue
+    peer.close()
+
+
+def test_sub_cb_wildcard_rejected(unit_gateway: MarketDataGateway) -> None:
+    sess, peer = _make_session()
+    sess.authenticated = True
+    unit_gateway._handle_client_line(sess, "SUB|CH=CB|SYM=*")
+    frame = parse_line(sess.out_queue[0].decode("utf-8"))
+    assert frame.fields["CODE"] == "INVALID_SYMBOL"
+    assert ("CB", "*") not in sess.subscriptions
+    peer.close()
+
+
+def test_sub_cb_snap_active_with_no_history(unit_gateway: MarketDataGateway) -> None:
+    sess, peer = _make_session()
+    sess.authenticated = True
+    unit_gateway._handle_client_line(sess, "SUB|CH=CB|SYM=AAPL")
+    assert ("CB", "AAPL") in sess.subscriptions
+    snap = parse_line(sess.out_queue[0].decode("utf-8"))
+    assert snap.msg_type == "SNAP"
+    assert snap.fields["CH"] == "CB"
+    assert snap.fields["STATUS"] == "ACTIVE"
+    assert "LEVEL" not in snap.fields
+    peer.close()
+
+
+def test_sub_cb_snap_reflects_current_halt(unit_gateway: MarketDataGateway) -> None:
+    sess, peer = _make_session()
+    sess.authenticated = True
+    unit_gateway._normaliser.normalise_cb_halt(
+        "AAPL",
+        {
+            "trigger_price": 148.20,
+            "reference_price": 150.10,
+            "resume_at_ns": 1_784_560_800_000_000_000,
+            "resumption_mode": "AUCTION",
+            "level": "L2",
+        },
+    )
+    unit_gateway._handle_client_line(sess, "SUB|CH=CB|SYM=AAPL")
+    snap = parse_line(sess.out_queue[0].decode("utf-8"))
+    assert snap.fields["STATUS"] == "HALTED"
+    assert snap.fields["LEVEL"] == "L2"
+    assert snap.fields["TRIGGERPX"] == "148.2"
+    peer.close()
+
+
+def test_welcome_ch_supported_includes_auction_and_cb(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    sess, peer = _make_session()
+    unit_gateway._handle_client_line(sess, "HELLO|CLIENT=x|PROTO=CALF1")
+    welcome = parse_line(sess.out_queue[0].decode("utf-8"))
+    supported = welcome.fields["CH_SUPPORTED"].split(",")
+    assert "AUCTION" in supported
+    assert "CB" in supported
     peer.close()
 
 

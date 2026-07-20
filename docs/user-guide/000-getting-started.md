@@ -318,6 +318,7 @@ documented. All commands are shown in pipx form; in developer mode prepend
 | `pm-audit-cli` | Query audit log files without shell pipelines | [Processes](170-processes.md#pm-audit-event-logger), [Audit Trail](190-audit.md) |
 | `pm-index-cli` | Read-only query interface for index history files | [Processes](170-processes.md#pm-index-cli-index-structuralaudit-history-query-tool), [Commands](160-commands.md), [Market Index](150-index.md#using-pm-index-cli-for-structuralaudit-records) |
 | `pm-index-admin-cli` | Apply index corporate actions (splits, dividends, share issuance/buybacks) and constituent changes (add/delist) | [Processes](170-processes.md#pm-index-admin-cli-index-corporate-action-constituent-change-cli), [Index Admin CLI](152-index-admin-cli.md), [Market Index](150-index.md) |
+| `pm-calf-spy` | Spy on the CALF market-data protocol — connect to `pm-md-gwy` and print every line, human-readable or JSON | [Processes](170-processes.md#pm-calf-spy-calf-protocol-spy), [CALF Protocol Spy](241-calf-spy-cli.md), [Market Data Feed](240-market-data-feed.md) |
 | `pm-setup` |  Bootstrap local session directory and defaults | [Processes](170-processes.md), [Installation](000-getting-started.md#installation) |
 | `pm-config-gen` | Generate `engine_config.yaml` from CLI options | [Processes](170-processes.md), [Configuration generator](010-configuration.md#generate-configs-with-pm-config-gen) |
 

@@ -12,6 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from edumatcher.md_gateway.protocol import iso_utc
+
 
 @dataclass
 class TopOfBook:
@@ -54,6 +56,27 @@ class DepthBook:
     asks: tuple[tuple[str, str, str], ...] = ()
 
 
+@dataclass(frozen=True)
+class CBStatus:
+    """Cached circuit-breaker status for one symbol.
+
+    Every field except ``status`` is an empty string when not applicable —
+    e.g. a fresh symbol that has never halted, or a halt/resume path (ADMIN
+    halts, all resumes) that does not carry a trigger/reference price or an
+    auto-resume time. An empty string is a safe "absent" sentinel here: the
+    engine never publishes an empty-string ``level``, and a legitimate
+    ``0``-valued price or timestamp still round-trips through
+    ``_as_decimal``/``_as_int_text`` as the non-empty text ``"0"``.
+    """
+
+    status: str = "ACTIVE"  # "ACTIVE" | "HALTED"
+    level: str = ""
+    trigger_price: str = ""
+    reference_price: str = ""
+    resume_at: str = ""
+    mode: str = ""
+
+
 @dataclass
 class EngineNormaliser:
     """Translate engine payloads to CALF field maps and detect top changes."""
@@ -64,6 +87,7 @@ class EngineNormaliser:
     index_cache: dict[str, dict[str, str]] = field(default_factory=dict)
     depth_cache: dict[str, DepthBook] = field(default_factory=dict)
     depth_levels: int = 10
+    cb_cache: dict[str, CBStatus] = field(default_factory=dict)
 
     def normalise_book(
         self, symbol: str, payload: dict[str, Any]
@@ -266,6 +290,74 @@ class EngineNormaliser:
         """Return cached snapshot fields for one index stream."""
         return dict(self.index_cache.get(index_id.upper(), {}))
 
+    def normalise_auction_result(
+        self, payload: dict[str, Any]
+    ) -> tuple[str, dict[str, str]]:
+        """Return ``(symbol, fields)`` for a CALF ``AUCTION`` message.
+
+        Unlike ``TOP``/``DEPTH``/``INDEX``, ``AUCTION`` has no persistent
+        "current state" to cache or snapshot: every ``auction.result.SYMBOL``
+        engine event is forwarded as its own independent CALF event.
+        """
+        sym = str(payload.get("symbol", "")).upper()
+        fields: dict[str, str] = {
+            "EQQTY": _as_int_text(payload.get("eq_qty")) or "0",
+            "TRADES": _as_int_text(payload.get("trades_count")) or "0",
+            "IMBQTY": _as_int_text(payload.get("imbalance_qty")) or "0",
+        }
+        eq_price = payload.get("eq_price")
+        if eq_price is not None:
+            price_text = _as_decimal(eq_price)
+            if price_text is not None:
+                fields["EQPX"] = price_text
+        imbalance_side = str(payload.get("imbalance_side", "")).upper()
+        if imbalance_side:
+            fields["IMBSIDE"] = imbalance_side
+        return sym, fields
+
+    def normalise_cb_halt(
+        self, symbol: str, payload: dict[str, Any]
+    ) -> tuple[str, dict[str, str]]:
+        """Return ``(symbol, fields)`` for a CALF ``CB`` halt event.
+
+        Caches the resulting status so a later ``SUB|CH=CB`` on this symbol
+        gets a ``SNAP`` reflecting the halt still in effect.
+        """
+        sym = symbol.upper()
+        resume_at_ns = payload.get("resume_at_ns")
+        state = CBStatus(
+            status="HALTED",
+            level=str(payload.get("level", "")).upper(),
+            trigger_price=_as_decimal(payload.get("trigger_price")) or "",
+            reference_price=_as_decimal(payload.get("reference_price")) or "",
+            resume_at=_ns_to_iso(resume_at_ns),
+            mode=str(payload.get("resumption_mode", "")).upper(),
+        )
+        self.cb_cache[sym] = state
+        return sym, _cb_fields(state)
+
+    def normalise_cb_resume(
+        self, symbol: str, payload: dict[str, Any]
+    ) -> tuple[str, dict[str, str]]:
+        """Return ``(symbol, fields)`` for a CALF ``CB`` resume event.
+
+        The engine's own resume payload only carries ``symbol``/``mode`` —
+        see ``normalise_cb_halt`` for why ``LEVEL``/``TRIGGERPX``/``REFPX``/
+        ``RESUMEAT`` are intentionally absent from a resume event.
+        """
+        sym = symbol.upper()
+        state = CBStatus(
+            status="ACTIVE",
+            mode=str(payload.get("mode", "")).upper(),
+        )
+        self.cb_cache[sym] = state
+        return sym, _cb_fields(state)
+
+    def cb_snapshot_fields(self, symbol: str) -> dict[str, str]:
+        """Return current cached CB snapshot fields for symbol."""
+        state = self.cb_cache.get(symbol.upper(), CBStatus())
+        return _cb_fields(state)
+
 
 def _as_decimal(raw: Any) -> str | None:
     if raw is None:
@@ -324,3 +416,43 @@ def _extract_levels(
 def _encode_levels(levels: tuple[tuple[str, str, str], ...]) -> str:
     """Encode ``(price, qty, count)`` triples as ``price:qty:count,...``."""
     return ",".join(f"{px}:{qty}:{cnt}" for px, qty, cnt in levels)
+
+
+def _ns_to_iso(raw_ns: Any) -> str:
+    """Convert an epoch-nanoseconds value to CALF's ISO-8601 timestamp text.
+
+    Returns ``""`` (the CBStatus "absent" sentinel) when ``raw_ns`` is
+    ``None`` or not a usable number — e.g. a rest-of-day or manual halt,
+    where the engine's own ``resume_at_ns`` is ``None``. Every other CALF
+    timestamp field is ISO-8601 text (``TS`` via ``iso_utc``); ``RESUMEAT``
+    follows that convention rather than exposing raw engine-internal
+    nanosecond ticks on the wire.
+    """
+    if raw_ns is None:
+        return ""
+    try:
+        return iso_utc(int(raw_ns) / 1_000_000_000)
+    except (TypeError, ValueError, OverflowError, OSError):
+        return ""
+
+
+def _cb_fields(state: CBStatus) -> dict[str, str]:
+    """Return the CALF field map for a cached/just-computed CB status.
+
+    Shared by ``normalise_cb_halt``, ``normalise_cb_resume``, and
+    ``cb_snapshot_fields`` so the halt/resume event shape and the SNAP
+    baseline shape can never drift apart.
+    """
+    fields: dict[str, str] = {"STATUS": state.status}
+    if state.status == "HALTED":
+        if state.level:
+            fields["LEVEL"] = state.level
+        if state.trigger_price:
+            fields["TRIGGERPX"] = state.trigger_price
+        if state.reference_price:
+            fields["REFPX"] = state.reference_price
+        if state.resume_at:
+            fields["RESUMEAT"] = state.resume_at
+    if state.mode:
+        fields["MODE"] = state.mode
+    return fields

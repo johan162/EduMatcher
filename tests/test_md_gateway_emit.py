@@ -57,3 +57,56 @@ def test_emit_stream_event_routes_to_subscriber(
     assert frame.fields["CH"] == "TOP"
     assert frame.fields["SYM"] == "AAPL"
     right.close()
+
+
+def test_emit_auction_routes_to_wildcard_subscriber(
+    unit_gateway: MarketDataGateway,
+) -> None:
+    left, right = socket.socketpair()
+    left.setblocking(False)
+    right.setblocking(False)
+    session = ClientSession(sock=left, addr=("local", 0), authenticated=True)
+    session.subscriptions.add(("AUCTION", "*"))
+    unit_gateway._clients[left.fileno()] = session
+    unit_gateway._subs.set_for_client(left.fileno(), session.subscriptions)
+
+    unit_gateway._emit_stream_event(
+        "AUCTION",
+        "AUCTION",
+        "AAPL",
+        {"EQPX": "150.1", "EQQTY": "48200", "TRADES": "37", "IMBQTY": "1400"},
+        ts_seconds=0.0,
+    )
+
+    assert session.out_queue
+    frame = parse_line(session.out_queue[0].decode("utf-8"))
+    assert frame.msg_type == "AUCTION"
+    assert frame.fields["CH"] == "AUCTION"
+    assert frame.fields["SYM"] == "AAPL"
+    assert frame.fields["EQPX"] == "150.1"
+    right.close()
+
+
+def test_emit_cb_routes_to_subscriber(unit_gateway: MarketDataGateway) -> None:
+    left, right = socket.socketpair()
+    left.setblocking(False)
+    right.setblocking(False)
+    session = ClientSession(sock=left, addr=("local", 0), authenticated=True)
+    session.subscriptions.add(("CB", "AAPL"))
+    unit_gateway._clients[left.fileno()] = session
+    unit_gateway._subs.set_for_client(left.fileno(), session.subscriptions)
+
+    unit_gateway._emit_stream_event(
+        "CB",
+        "CB",
+        "AAPL",
+        {"STATUS": "HALTED", "LEVEL": "L2", "MODE": "AUCTION"},
+        ts_seconds=0.0,
+    )
+
+    assert session.out_queue
+    frame = parse_line(session.out_queue[0].decode("utf-8"))
+    assert frame.msg_type == "CB"
+    assert frame.fields["CH"] == "CB"
+    assert frame.fields["STATUS"] == "HALTED"
+    right.close()

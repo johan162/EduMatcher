@@ -113,6 +113,7 @@ nav:
     - ALF TCP Gateway: user-guide/220-alf-gateway.md
     - BALF TCP Gateway: user-guide/230-balf-gateway.md
     - Market Data Feed (CALF): user-guide/240-market-data-feed.md
+    - CALF Protocol Spy (pm-calf-spy): user-guide/241-calf-spy-cli.md
     - Post-Trade Dissemination (RALF): user-guide/250-post-trade.md
     - API Gateway: user-guide/260-api-gateway.md
     - Message Reference: user-guide/270-messages.md

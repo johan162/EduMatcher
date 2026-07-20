@@ -217,6 +217,7 @@ pm-engine --verbose
 | **pm-audit-cli**  | `pm-audit-cli <command> [options]` | Read-only query interface for audit JSONL log files     | Optional              |
 | **pm-index-cli**  | `pm-index-cli <command> [options]` | Read-only query interface for index history JSONL files | Optional              |
 | **pm-index-admin-cli** | `pm-index-admin-cli --id <GW_ID> <command> [options]` | One-shot CLI for index corporate actions and constituent changes | Optional              |
+| **pm-calf-spy**  | `pm-calf-spy [--channels CH] [--symbols SYM] [--format human\|json]` | Read-only CALF protocol spy — connects to `pm-md-gwy` and prints every line it sends | Optional |
 
 
 **Setup and configuration tools:**
@@ -2055,6 +2056,18 @@ CALF/TCP. It consumes engine PUB topics and exposes sequence-aware streams for:
 See [Market Data Feed (CALF)](240-market-data-feed.md) for operational usage and
 [CALF Protocol Reference](920-app-calf-protocol.md) for the wire-level contract.
 
+## pm-calf-spy (CALF Protocol Spy)
+
+`pm-calf-spy` is a read-only CLI client for `pm-md-gwy`: it opens a CALF TCP
+session, subscribes to whatever channels/symbols you ask for, and prints
+every line it receives — human-readable or as JSON — so you can see exactly
+what the protocol sends without writing a client. It never mutates exchange
+state, and any number of instances can run at once (e.g. one per terminal,
+each with a different `--channels`/`--symbols` filter) since `pm-md-gwy`
+accepts unlimited concurrent connections up to `max_connections`.
+
+See [CALF Protocol Spy (pm-calf-spy)](241-calf-spy-cli.md) for full usage.
+
 ## See also
 
 - [Running the Engine](040-running-the-engine.md) — startup order, launch scripts, and verification
@@ -2065,6 +2078,7 @@ See [Market Data Feed (CALF)](240-market-data-feed.md) for operational usage and
 - [Post-Trade Dissemination](250-post-trade.md) — external RALF gateway usage
 - [RALF Protocol Reference](930-app-ralf-protocol.md) — official protocol appendix
 - [Market Data Feed (CALF)](240-market-data-feed.md) — external CALF gateway usage
+- [CALF Protocol Spy (pm-calf-spy)](241-calf-spy-cli.md) — read-only CALF inspection CLI
 - [ALF TCP Gateway](220-alf-gateway.md) — external ALF order-entry gateway usage
 - [API Gateway (REST/WebSocket)](260-api-gateway.md) — REST/WebSocket gateway usage and endpoint reference
 - [Market Index (pm-index)](150-index.md) — index configuration, calculation, and corporate actions
