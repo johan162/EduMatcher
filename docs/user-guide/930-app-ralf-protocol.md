@@ -267,6 +267,7 @@ the corresponding engine events become available; they are **not** part of `RALF
 ## See also
 
 - [Post-Trade Dissemination](250-post-trade.md) — operational guide and client examples
+- [RALF Protocol Spy (pm-ralf-spy)](251-ralf-spy-cli.md) — read-only CLI for inspecting the live wire format
 - [Processes](170-processes.md#pm-ralf-gwy-post-trade-dissemination-gateway) — where `pm-ralf-gwy` sits
 - [Engine Config Specification](990-app-config-spec.md#64-post_trade_gateway-pm-ralf-gwy-ralf) — `post_trade_gateway` field law
 - [External Protocols Overview](210-protocol-overview.md) — ALF/BALF/CALF/RALF at a glance

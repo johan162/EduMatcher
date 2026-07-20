@@ -386,6 +386,11 @@ reset your local state for that stream.
 Use `nc` (or `telnet`) to validate the line protocol from the command line
 before writing any code:
 
+!!! tip "Prefer a ready-made client?"
+    [`pm-ralf-spy`](251-ralf-spy-cli.md) does everything below for you —
+    handshake, subscribe, and pretty-print every line — without
+    hand-typing protocol messages: `pm-ralf-spy --role CLEARING`.
+
 ```bash
 nc 127.0.0.1 5580
 ```
@@ -690,6 +695,7 @@ Outcomes:
 
 - [External Protocols Overview](210-protocol-overview.md) — ALF, BALF, CALF, RALF at a glance
 - [Appendix — RALF Protocol](930-app-ralf-protocol.md) — normative wire format and field tables
+- [RALF Protocol Spy (pm-ralf-spy)](251-ralf-spy-cli.md) — read-only CLI for watching the raw feed, human-readable or JSON
 - [Market Data Feed (CALF)](240-market-data-feed.md) — pre-trade streaming market data
 - [Drop Copy](200-drop-copy.md)
 - [Processes](170-processes.md#pm-ralf-gwy-post-trade-dissemination-gateway)
