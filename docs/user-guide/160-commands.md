@@ -675,6 +675,11 @@ pm-index-cli --format table events \
 
 ### Plotting index level history (Python)
 
+!!! tip "Looking for the write-side tool?"
+    `pm-index-cli` is read-only. To *apply* corporate actions or constituent
+    changes to a running `pm-index` process, use `pm-index-admin-cli` — see
+    the next section.
+
 Level/EOD history is not in `pm-index-cli` — pull it from `pm-stats-cli`
 instead:
 
@@ -700,6 +705,58 @@ plt.xticks(rotation=45)
 plt.tight_layout()
 plt.savefig("edu100_history.png", dpi=150)
 ```
+
+
+
+## `pm-index-admin-cli` — Index Corporate Action / Constituent Change CLI
+
+`pm-index-admin-cli` is a one-shot command-line tool for applying corporate
+actions (splits, cash dividends, share issuance/buy-backs) and constituent
+changes (add/delist) to a running `pm-index` process. It talks directly to
+`pm-index`'s PUSH/SUB sockets (default `tcp://127.0.0.1:5559` /
+`tcp://127.0.0.1:5558`) — no `pm-engine` connection or `connect()`/auth
+handshake is involved, since `pm-index`'s socket has no authentication.
+
+```bash
+pm-index-admin-cli --id OPS01 COMMAND [options]
+```
+
+### Subcommands
+
+| Subcommand | Purpose                                                        |
+|------------|-----------------------------------------------------------------|
+| `split`    | Apply a stock split (`--ratio-numerator`, `--ratio-denominator`) |
+| `dividend` | Apply a cash dividend (`--dividend-per-share`)                  |
+| `shares`   | Set shares outstanding — issuance or buy-back (`--new-shares` or `--delta`) |
+| `add`      | Add a constituent (`--shares-outstanding`, `--initial-price`)   |
+| `delist`   | Remove a constituent                                             |
+| `history`  | Show recent structural/corp-action history for an index         |
+
+### Global options
+
+| Flag          | Default                | Description                                            |
+|---------------|-------------------------|----------------------------------------------------------|
+| `--id`        | *(required)*            | Ack-routing label — not a credential; see the full chapter |
+| `--push`      | `tcp://127.0.0.1:5559` | `pm-index` PULL socket address                          |
+| `--sub`       | `tcp://127.0.0.1:5558` | `pm-index` PUB socket address                           |
+| `--timeout`   | `3000`                  | Ack timeout in milliseconds                             |
+| `--dry-run`   | off                     | Validate and print the outbound payload; do not send it |
+| `-y`, `--yes` | off                     | Skip the confirmation prompt                             |
+| `--format`    | `table`                 | Output format: `table` or `json`                        |
+
+### Exit codes
+
+| Code | Meaning                                                                    |
+|------|------------------------------------------------------------------------------|
+| `0`  | Accepted by `pm-index` (or `--dry-run` validated cleanly)                 |
+| `1`  | Rejected by `pm-index`, ack timeout, or confirmation prompt declined       |
+| `2`  | Usage error — bad flags or a client-side validation failure               |
+
+Under the hood this tool is built on the same `ExchangeCommandClient` class
+described below — specifically its `index_corp_action()`, `index_delist()`,
+`index_add_constituent()`, and `index_history()` methods. For the full
+subcommand reference, worked examples, and the confirmation-prompt/`--dry-run`
+behaviour, see [Index Admin CLI](152-index-admin-cli.md).
 
 
 

@@ -556,9 +556,14 @@ Behaviour notes:
     constituent changes) are not exposed as REST endpoints. These require
     backend prerequisites: the engine loads its symbol universe at startup,
     and the index lives in the separate `pm-index` process, reachable today
-    only via its ZMQ PULL socket (used by `pm-alf-console`'s `INDEX|HISTORY`
-    command and `pm-index-cli`) — not through this gateway. Read access to
-    index *statistics* (level history, daily OHLC) is available via
+    only via its ZMQ PULL socket (port `5559`) — used by `pm-alf-console`'s
+    `INDEX|HISTORY` command (read) and
+    [`pm-index-admin-cli`](152-index-admin-cli.md) (corporate
+    actions/constituent changes, write) — not through this gateway.
+    [`pm-index-cli`](160-commands.md#pm-index-cli-index-structuralaudit-history-query-tool)
+    is unrelated to that socket: it is a read-only tool that parses
+    `pm-index`'s structural/audit JSONL files directly from disk. Read access
+    to index *statistics* (level history, daily OHLC) is available via
     [`/history/index-daily`, `/history/index-snapshots`, and
     `/history/index-ids`](#history-endpoints) above.
 

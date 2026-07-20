@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from edumatcher.commands import CommandTimeoutError, ExchangeCommandClient
+from edumatcher.commands import CommandError, CommandTimeoutError, ExchangeCommandClient
 from edumatcher.models.message import (
     decode,
     encode,
@@ -38,6 +38,7 @@ from edumatcher.models.message import (
     make_orders_msg,
     make_quote_ack_msg,
     make_quote_bootstrap_msg,
+    make_index_error_msg,
     make_index_history_msg,
     make_index_corp_action_ack_msg,
     make_index_constituent_change_ack_msg,
@@ -461,6 +462,115 @@ class TestIndexCommands:
         assert delist_topic == "index.constituent_change"
         assert delist_payload["change_type"] == "DELIST"
         assert delist_result["accepted"] is True
+
+    def test_index_corp_action_still_rejected_normally_for_unknown_symbol(
+        self,
+    ) -> None:
+        """A rejection on the expected ack topic (e.g. unknown symbol, where
+        pm-index knows the index and can reply on the corp-action ack topic)
+        must still surface as a normal accepted=False payload, not raise
+        CommandError. Only a reply on the index.error.* side channel should
+        raise.
+        """
+        client, _push = _client(
+            recv_queue=_q(
+                make_index_corp_action_ack_msg(
+                    gateway_id="GW_ADMIN",
+                    accepted=False,
+                    reason="Unknown symbol 'ZZZZ'",
+                    index_id="EDU100",
+                )
+            )
+        )
+        result = client.index_corp_action(
+            "edu100",
+            action="split",
+            symbol="zzzz",
+            ratio_numerator=2,
+            ratio_denominator=1,
+        )
+        assert result["accepted"] is False
+        assert "Unknown symbol" in result["reason"]
+
+    def test_index_corp_action_raises_command_error_for_unknown_index(
+        self,
+    ) -> None:
+        client, _push = _client(
+            recv_queue=_q(
+                make_index_error_msg("GW_ADMIN", "Unknown index_id 'NOPE'"),
+            )
+        )
+        with pytest.raises(CommandError, match="Unknown index_id 'NOPE'") as exc_info:
+            client.index_corp_action(
+                "nope",
+                action="split",
+                symbol="aapl",
+                ratio_numerator=2,
+                ratio_denominator=1,
+            )
+        assert exc_info.value.reason == "Unknown index_id 'NOPE'"
+        assert exc_info.value.payload["reason"] == "Unknown index_id 'NOPE'"
+
+    def test_index_delist_raises_command_error_for_unknown_index(self) -> None:
+        client, _push = _client(
+            recv_queue=_q(make_index_error_msg("GW_ADMIN", "Unknown index_id 'NOPE'"))
+        )
+        with pytest.raises(CommandError):
+            client.index_delist("nope", "aapl")
+
+    def test_index_add_constituent_raises_command_error_for_unknown_index(
+        self,
+    ) -> None:
+        client, _push = _client(
+            recv_queue=_q(make_index_error_msg("GW_ADMIN", "Unknown index_id 'NOPE'"))
+        )
+        with pytest.raises(CommandError):
+            client.index_add_constituent(
+                "nope", "aapl", shares_outstanding=10, initial_price=100.0
+            )
+
+    def test_index_history_raises_command_error_for_unknown_index(self) -> None:
+        client, _push = _client(
+            recv_queue=_q(make_index_error_msg("GW_ADMIN", "Unknown index_id 'NOPE'"))
+        )
+        with pytest.raises(CommandError):
+            client.index_history("nope", from_ts=0.0, to_ts=10.0)
+
+    def test_command_error_still_raised_before_matching_ack_arrives(self) -> None:
+        """If an index.error reply is queued before the matching ack (e.g.
+        arriving out of order), CommandError takes priority — _recv() must
+        not skip past it while still searching for expected_prefix.
+        """
+        client, _push = _client(
+            recv_queue=_q(
+                make_index_error_msg("GW_ADMIN", "Unknown index_id 'NOPE'"),
+                make_index_corp_action_ack_msg(
+                    gateway_id="GW_ADMIN", accepted=True, index_id="EDU100"
+                ),
+            )
+        )
+        with pytest.raises(CommandError):
+            client.index_corp_action(
+                "nope",
+                action="split",
+                symbol="aapl",
+                ratio_numerator=2,
+                ratio_denominator=1,
+            )
+
+    def test_command_error_not_raised_when_no_error_prefix_configured(self) -> None:
+        """Commands that don't pass error_prefix (e.g. book_depth, halt_all)
+        must ignore an index.error message entirely rather than raising —
+        it simply isn't a message they're listening for.
+        """
+        client, _push = _client(
+            recv_queue=_q(
+                make_index_error_msg("GW_ADMIN", "Unrelated index error"),
+                make_gateway_auth_msg("GW_ADMIN", True),
+            )
+        )
+        result = client.connect()
+        assert result["accepted"] is True
 
 
 # ---------------------------------------------------------------------------

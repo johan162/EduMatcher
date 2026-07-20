@@ -1,10 +1,25 @@
-Version: 1.0.0
+Version: 1.1.0
 
-Date: 2026-07-19
+Date: 2026-07-20
 
-Status: Design and Research Proposal
+Status: Implemented
 
 # EduMatcher — Index Admin CLI (`pm-index-admin-cli`) Design Proposal
+
+!!! note "Post-implementation correction (v1.1.0)"
+    §8 originally assumed `ExchangeCommandClient._recv()` already handled an
+    `index.error.<gateway_id>` reply arriving in place of the expected ack
+    — it does not; `_recv()` only ever matched a single topic prefix and
+    silently discarded anything else, so an unknown `--index` produced a
+    `CommandTimeoutError` after the full `--timeout` window instead of an
+    immediate `REJECTED`. This was caught during implementation via
+    end-to-end testing against a real `pm-index` process (unit tests using
+    injected sockets did not catch it, since nothing exercised the
+    conflicting-topic case). Fixed at the client-library level: `_recv()`
+    gained an optional `error_prefix` parameter, and a new `CommandError`
+    exception is raised when a message matches it. See the updated §8
+    below and [Index Admin CLI](../docs/user-guide/152-index-admin-cli.md#unknown-index-id-fails-fast)
+    for the current, correct behavior.
 
 
 
@@ -622,10 +637,22 @@ Specific error paths to handle explicitly, since `pm-index`'s ack/error
 topics are two different topics depending on failure type:
 
 - **Unknown `index_id`**: arrives on `index.error.<gateway_id>`, not the
-  command's own ack topic — `ExchangeCommandClient`'s `_recv()` already
-  handles this by listening across the shared `_ACK_SUB_PREFIXES`
-  (confirmed to include `"index.error."`), so no extra handling is needed
-  beyond printing `result.get("reason")` when `accepted` is absent/false.
+  command's own ack topic. `_ACK_SUB_PREFIXES` including `"index.error."`
+  only controls which topics the ZMQ `SUB` socket receives at all — it does
+  **not** mean `_recv()` matches an error reply to the call that's waiting
+  for a different prefix. Getting this right required a client-library
+  change: `ExchangeCommandClient._recv()` gained an optional `error_prefix`
+  parameter, and each of the four index methods (`index_corp_action`,
+  `index_delist`, `index_add_constituent`, `index_history`) now passes
+  `index.error.<gateway_id>` as that parameter. A message matching it
+  raises a new `CommandError` exception (carrying the error payload)
+  immediately, instead of being silently discarded while `_recv()` keeps
+  waiting for its expected prefix. `pm-index-admin-cli` catches
+  `CommandError` in `main()` and reports it exactly like a normal
+  `accepted=False` rejection (`REJECTED  <reason>`, or the raw payload
+  under `--format json`), respecting the configured output format. This
+  fix lives entirely in `ExchangeCommandClient`, so it benefits every
+  caller of those four methods, not just this CLI.
 - **Connection/timeout**: if `pm-index` is not running, the PUSH send
   succeeds (ZMQ PUSH buffers locally) but no ack ever arrives, and the
   client raises `CommandTimeoutError` after `--timeout` ms. The CLI should

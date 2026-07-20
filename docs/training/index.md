@@ -63,7 +63,7 @@ later chapters build on configuration and positions established in earlier ones.
 | 22 | [RALF Post-Trade Gateway Protocol](../user-guide/250-post-trade.md) | pm-ralf-gwy, RALF handshake/subscriptions, role-based consumers, replay and recovery |
 | 23 | [CALF Market-Data Gateway Protocol](../user-guide/240-market-data-feed.md) | pm-md-gwy, CALF handshake/subscriptions, snapshots, replay and recovery |
 | 24 | [API Gateway REST/WebSocket](../user-guide/170-processes.md) | pm-api-gwy, bearer tokens, REST endpoints, WebSocket streams, multi-instance split |
-| 25 | [Market Index (pm-index)](../user-guide/150-index.md) | Index config, cap-weighted formula, divisor, corporate actions, INDEX command, pm-index-cli |
+| 25 | [Market Index (pm-index)](../user-guide/150-index.md) | Index config, cap-weighted formula, divisor, corporate actions via pm-index-admin-cli, INDEX command, pm-index-cli |
 | 26 | [ALF TCP Gateway Protocol](../user-guide/220-alf-gateway.md) | pm-alf-gwy, port verification with CLI tools, nc/telnet handshake, Python and C example clients, order lifecycle over raw TCP |
 | 27 | [BALF TCP Gateway Protocol](../user-guide/230-balf-gateway.md) | pm-balf-gwy, binary LOGON/LOGON_ACK session flow, raw frame order lifecycle, heartbeat handling, parser validation |
 
@@ -101,7 +101,7 @@ training chapter.
 | 22 | [Post-Trade Dissemination (RALF)](../user-guide/250-post-trade.md), [Appendix: RALF Protocol Reference](../user-guide/930-app-ralf-protocol.md) |
 | 23 | [Market Data Feed (CALF)](../user-guide/240-market-data-feed.md), [Appendix: CALF Protocol Reference](../user-guide/920-app-calf-protocol.md) |
 | 24 | [pm-api-gwy processes](../user-guide/170-processes.md#pm-api-gwy-restwebsocket-api-gateway), [API Gateway Config](../user-guide/260-api-gateway.md) |
-| 25 | [Market Index (pm-index)](../user-guide/150-index.md), [pm-index-cli reference](../user-guide/160-commands.md), [pm-index process](../user-guide/170-processes.md#pm-index-index-calculation-process) |
+| 25 | [Market Index (pm-index)](../user-guide/150-index.md), [Index Admin CLI](../user-guide/152-index-admin-cli.md), [pm-index-cli reference](../user-guide/160-commands.md), [pm-index process](../user-guide/170-processes.md#pm-index-index-calculation-process) |
 | 26 | [ALF TCP Gateway](../user-guide/220-alf-gateway.md), [ALF Protocol Reference](../user-guide/900-app-alf-protocol.md), [Gateway Commands](../user-guide/050-gateway.md) |
 | 27 | [BALF TCP Gateway](../user-guide/230-balf-gateway.md), [BALF Protocol Reference](../user-guide/910-app-balf-protocol.md), [Configuration](../user-guide/010-configuration.md#configuring-pm-balf-gwy) |
 

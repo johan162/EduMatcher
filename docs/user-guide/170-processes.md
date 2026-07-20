@@ -216,6 +216,7 @@ pm-engine --verbose
 | **pm-stats-cli**  | `pm-stats-cli <command> [options]` | Read-only query interface for `stats.db`                | Optional              |
 | **pm-audit-cli**  | `pm-audit-cli <command> [options]` | Read-only query interface for audit JSONL log files     | Optional              |
 | **pm-index-cli**  | `pm-index-cli <command> [options]` | Read-only query interface for index history JSONL files | Optional              |
+| **pm-index-admin-cli** | `pm-index-admin-cli --id <GW_ID> <command> [options]` | One-shot CLI for index corporate actions and constituent changes | Optional              |
 
 
 **Setup and configuration tools:**
@@ -1930,6 +1931,59 @@ any ZeroMQ socket.
 See [pm-index-cli in the commands reference](160-commands.md)
 for the full option reference, output column descriptions, and examples
 including CSV export and Python plotting.
+
+## pm-index-admin-cli — Index Corporate Action / Constituent Change CLI
+
+One-shot CLI for applying corporate actions (splits, cash dividends, share
+issuances and buy-backs) and constituent changes (add/delist) to a running
+`pm-index` process. Unlike `pm-index-cli` above, this tool is a **write**
+tool and talks directly to `pm-index`'s live PUSH/PULL socket pair — it does
+not read JSONL files and does not require `--config`.
+
+```bash
+pm-index-admin-cli --id <GW_ID> [--push ADDR] [--sub ADDR] [--timeout MS] [--dry-run] [-y] [--format table|json] COMMAND [options]
+```
+
+**Startup options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--id` | required | Ack-routing label — not authenticated by `pm-index` (its PULL socket has no auth of any kind) |
+| `--push` | `tcp://127.0.0.1:5559` | `pm-index` PULL socket address |
+| `--sub` | `tcp://127.0.0.1:5558` | `pm-index` PUB socket address |
+| `--timeout` | `3000` | Ack timeout in milliseconds |
+| `--dry-run` | off | Print the outbound payload instead of sending it |
+| `-y` / `--yes` | off | Skip the confirmation prompt |
+| `--format` | `table` | Output format: `table` or `json` |
+
+**Expected runtime input arguments:**
+
+None (one-shot; runs a single subcommand and exits).
+
+**Subcommands:**
+
+| Subcommand | Purpose |
+|---|---|
+| `split` | Apply a stock split or reverse split |
+| `dividend` | Apply a cash dividend adjustment |
+| `shares` | Set shares outstanding — covers both issuances and buy-backs |
+| `add` | Add a new constituent |
+| `delist` | Remove a constituent |
+| `history` | Show recent structural/corp-action history for an index |
+
+Every mutating subcommand (`split`, `dividend`, `shares`, `add`, `delist`)
+prints the action and prompts `Continue? [y/N]` before sending, unless
+`-y`/`--yes` is given. `pm-index` has no dedicated buy-back action type — the
+`shares` subcommand's `--delta` flag models a buy-back as a negative delta
+against the constituent's last known share count, resolved via `history`
+before sending an absolute `SHARES_ISSUANCE` value.
+
+This tool has no `connect()`/authentication step, unlike `pm-admin-cli`:
+`pm-index`'s PULL socket accepts any non-empty `gateway_id`, using it only as
+an ack-routing key.
+
+See [Index Admin CLI](152-index-admin-cli.md) for the full subcommand
+reference, confirmation-prompt behaviour, and worked examples.
 
 ## Order Lifecycle Message Flow
 

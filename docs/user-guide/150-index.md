@@ -27,7 +27,7 @@ flowchart LR
     I -->|"index.update"| G["pm-md-gwy\nCALF TCP :5570"]
     G -->|"IDX messages"| C["External clients"]
     CON["pm-alf-console\n(INDEX|HISTORY)"] -->|"index.history_request"| I
-    SCR["Operator script\n(ExchangeCommandClient)"] -->|"index.corp_action\nindex.constituent_change"| I
+    ADM["pm-index-admin-cli"] -->|"index.corp_action\nindex.constituent_change"| I
 ```
 
 `pm-index` does **not** connect to the engine PULL socket. It never sends
@@ -279,43 +279,22 @@ $$
 
 ### Applying corporate actions
 
-!!! warning "No interactive command exists yet"
-    Unlike `INDEX|HISTORY` (below), corporate actions have **no** `pm-alf-console`
-    command, no `pm-admin` / `pm-admin-cli` subcommand, and no CALF/ALF wire
-    message. The engine-side handling in `pm-index` (`index.corp_action` /
-    `index.constituent_change` on its PULL socket, port `5559`) is fully
-    implemented, but today the only way to reach it is the Python
-    `ExchangeCommandClient` class (`edumatcher.commands.client`) — the same
-    class `pm-admin-cli` uses internally for its other commands. Applying a
-    corporate action currently means writing a short script.
+Use [`pm-index-admin-cli`](152-index-admin-cli.md) to apply corporate actions
+to a running `pm-index` process:
 
-```python
-from edumatcher.commands import ExchangeCommandClient
-
-client = ExchangeCommandClient("GW_ADMIN")  # must be an ADMIN gateway
-client.connect()
-
-client.index_corp_action(
-    "EDU100", "SPLIT", "AAPL",
-    ratio_numerator=2, ratio_denominator=1,
-)
-client.index_corp_action(
-    "EDU100", "CASH_DIVIDEND", "MSFT",
-    dividend_per_share=2.50,
-)
-client.index_corp_action(
-    "EDU100", "SHARES_ISSUANCE", "TSLA",
-    new_shares_outstanding=3500000000,
-)
-
-client.disconnect()
-client.close()
+```bash
+pm-index-admin-cli --id OPS01 split    --index EDU100 --symbol AAPL --ratio-numerator 2 --ratio-denominator 1
+pm-index-admin-cli --id OPS01 dividend --index EDU100 --symbol MSFT --dividend-per-share 2.50
+pm-index-admin-cli --id OPS01 shares   --index EDU100 --symbol TSLA --new-shares 3500000000
 ```
 
-Each call blocks for the `index.corp_action_ack.{gateway_id}` response (or
-raises `CommandTimeoutError`). `pm-index` applies the action in-process,
-immediately publishes an updated index value live, and writes a
-`CORP_ACTION` record to the structural/audit history file.
+Each subcommand prints a confirmation prompt before sending (skip it with
+`-y`/`--yes`), supports `--dry-run` to preview the outbound payload without
+sending it, and blocks for the `index.corp_action_ack.{gateway_id}` response.
+`pm-index` applies the action in-process, immediately publishes an updated
+index value live, and writes a `CORP_ACTION` record to the structural/audit
+history file. See [Index Admin CLI](152-index-admin-cli.md) for the full
+subcommand reference, `--dry-run` output, and exit codes.
 
 !!! important "Apply corporate actions before the market opens"
     It is safest to apply corporate actions during `PRE_OPEN` before trading
@@ -323,18 +302,49 @@ immediately publishes an updated index value live, and writes a
     will have a brief moment where the pre-adjustment divisor is used for one
     more trade before the action takes effect.
 
+??? note "Under the hood: `ExchangeCommandClient`"
+    `pm-index-admin-cli` is a thin wrapper over the `ExchangeCommandClient`
+    class (`edumatcher.commands.client`) — the same class `pm-admin-cli` uses
+    internally for its engine commands. The CLI calls its
+    `index_corp_action()` method directly:
+
+    ```python
+    from edumatcher.commands import ExchangeCommandClient
+
+    client = ExchangeCommandClient("GW_ADMIN")
+
+    client.index_corp_action(
+        "EDU100", "SPLIT", "AAPL",
+        ratio_numerator=2, ratio_denominator=1,
+    )
+    client.index_corp_action(
+        "EDU100", "CASH_DIVIDEND", "MSFT",
+        dividend_per_share=2.50,
+    )
+    client.index_corp_action(
+        "EDU100", "SHARES_ISSUANCE", "TSLA",
+        new_shares_outstanding=3500000000,
+    )
+
+    client.close()
+    ```
+
+    Unlike the engine's PUSH socket, `pm-index`'s PULL socket has no
+    `connect()`/auth handshake — see
+    [Index Admin CLI — Why there is no connect() step](152-index-admin-cli.md#why-there-is-no-connect-authentication-step).
+    Writing a script against this class directly still works and is how
+    `pm-index-admin-cli` itself is implemented, but the CLI adds validation,
+    a confirmation prompt, and `--dry-run`, so it's the preferred path for
+    interactive/manual use.
+
 ### Constituent changes
 
-Constituents can be added or removed without restarting `pm-index` — using
-the same `ExchangeCommandClient` script-only mechanism as corporate actions
-above (there is likewise no interactive command for this):
+Constituents can be added or removed without restarting `pm-index`, also via
+[`pm-index-admin-cli`](152-index-admin-cli.md):
 
-```python
-client.index_add_constituent(
-    "EDU100", "AMZN",
-    shares_outstanding=10500000000, initial_price=195.00,
-)
-client.index_delist("EDU100", "TSLA")
+```bash
+pm-index-admin-cli --id OPS01 add    --index EDU100 --symbol AMZN --shares-outstanding 10500000000 --initial-price 195.00
+pm-index-admin-cli --id OPS01 delist --index EDU100 --symbol TSLA
 ```
 
 Adding a constituent adjusts the divisor so the index level does not change at
@@ -342,7 +352,8 @@ the moment of addition. Delisting a constituent adjusts the divisor so the
 remaining constituents continue smoothly.
 
 Every corporate action and constituent change is written to the `history_file`
-as a `CORP_ACTION`, `ADD_CONSTITUENT`, or `DELIST` record.
+as a `CORP_ACTION`, `ADD_CONSTITUENT`, or `DELIST` record — queryable with
+[`pm-index-cli`](160-commands.md#pm-index-cli-index-structuralaudit-history-query-tool).
 
 
 ## State and History
@@ -684,6 +695,7 @@ indices:
    reconnect if the order is reversed but may miss the first few trades.
 4. Use `--reset` only when deliberately changing the constituent list or
    `base_value`. This discards the divisor history for all indices.
-5. Apply corporate actions during `PRE_OPEN` to avoid mid-session index jumps.
+5. Apply corporate actions during `PRE_OPEN` to avoid mid-session index jumps,
+   using [`pm-index-admin-cli`](152-index-admin-cli.md).
 6. Check `data/indexes/<ID>_state.json` after a crash to confirm the divisor
    was persisted. If the file is missing or truncated, use `--reset`.

@@ -89,6 +89,33 @@ class CommandTimeoutError(Exception):
     """Raised when no matching ack arrives within the configured timeout."""
 
 
+class CommandError(Exception):
+    """
+    Raised when the server replies with a generic error on a side-channel
+    topic instead of the ack topic the caller is waiting on.
+
+    This is distinct from a normal rejection (``result["accepted"] is
+    False`` on the expected ack topic, e.g. an invalid split ratio) — those
+    are returned as a payload dict, not raised. ``CommandError`` covers
+    replies that arrive on a *different* topic entirely, such as
+    ``index.error.<gateway_id>`` for an unrecognized ``index_id`` — a case
+    ``_recv()`` would otherwise silently discard while continuing to wait
+    for its expected prefix, ultimately raising a misleading
+    ``CommandTimeoutError`` instead.
+
+    Parameters
+    ----------
+    payload:
+        The full decoded payload from the error message (typically has
+        ``reason`` and ``timestamp`` keys).
+    """
+
+    def __init__(self, payload: dict[str, Any]) -> None:
+        self.payload = payload
+        self.reason = str(payload.get("reason", "unknown error"))
+        super().__init__(self.reason)
+
+
 class ExchangeCommandClient:
     """
     Operator command client for an EduMatcher gateway.
@@ -168,7 +195,11 @@ class ExchangeCommandClient:
         """Send a two-frame ZMQ multipart message over the PUSH socket."""
         self._push.send_multipart(frames)
 
-    def _recv(self, expected_prefix: str) -> dict[str, Any]:
+    def _recv(
+        self,
+        expected_prefix: str,
+        error_prefix: str | None = None,
+    ) -> dict[str, Any]:
         """
         Return the payload of the first inbound message whose topic starts
         with *expected_prefix*.
@@ -177,8 +208,23 @@ class ExchangeCommandClient:
         without ZMQ polling.  In production mode, ``zmq.Poller`` is used so
         the timeout is correctly enforced.
 
+        Parameters
+        ----------
+        expected_prefix:
+            Topic prefix of the normal ack this call is waiting for.
+        error_prefix:
+            Optional topic prefix for a generic side-channel error reply
+            (e.g. ``index.error.<gateway_id>``). If a message with this
+            prefix arrives before a message matching *expected_prefix*,
+            ``CommandError`` is raised immediately instead of waiting out
+            the full timeout for an ack that will never come. Pass ``None``
+            (the default) for commands with no such side-channel.
+
         Raises
         ------
+        CommandError
+            If a message matching *error_prefix* arrives before one
+            matching *expected_prefix*.
         CommandTimeoutError
             If no matching message arrives within ``timeout_ms``.
         """
@@ -189,6 +235,8 @@ class ExchangeCommandClient:
                 topic, payload = decode(frames)
                 if topic.startswith(expected_prefix):
                     return payload
+                if error_prefix is not None and topic.startswith(error_prefix):
+                    raise CommandError(payload)
             raise CommandTimeoutError(
                 f"Test queue exhausted before finding prefix '{expected_prefix}'"
             )
@@ -216,6 +264,8 @@ class ExchangeCommandClient:
                 topic, payload = decode(frames)
                 if topic.startswith(expected_prefix):
                     return payload
+                if error_prefix is not None and topic.startswith(error_prefix):
+                    raise CommandError(payload)
             # Discard unrelated messages and keep waiting.
 
     # ------------------------------------------------------------------
@@ -371,7 +421,15 @@ class ExchangeCommandClient:
         to_ts: float,
         types: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Query historical index records for one index id."""
+        """
+        Query historical index records for one index id.
+
+        Raises
+        ------
+        CommandError
+            If *index_id* is not configured in ``pm-index`` — it replies on
+            ``index.error.<gateway_id>`` rather than the history topic.
+        """
         self._index_push.send_multipart(
             make_index_history_request_msg(
                 gateway_id=self._gw_id,
@@ -381,7 +439,10 @@ class ExchangeCommandClient:
                 types=types,
             )
         )
-        return self._recv(f"index.history.{self._gw_id}")
+        return self._recv(
+            f"index.history.{self._gw_id}",
+            error_prefix=f"index.error.{self._gw_id}",
+        )
 
     def index_corp_action(
         self,
@@ -390,7 +451,19 @@ class ExchangeCommandClient:
         symbol: str,
         **params: Any,
     ) -> dict[str, Any]:
-        """Apply a corporate action on an index constituent."""
+        """
+        Apply a corporate action on an index constituent.
+
+        Raises
+        ------
+        CommandError
+            If *index_id* is not configured in ``pm-index``. An unknown
+            *symbol* or invalid action-specific parameters are instead
+            returned as a normal rejection (``result["accepted"] is
+            False``) on the corp-action ack topic, since ``pm-index``
+            knows the index at that point and can reply on the expected
+            topic.
+        """
         self._index_push.send_multipart(
             make_index_corp_action_msg(
                 action=action.upper(),
@@ -400,10 +473,20 @@ class ExchangeCommandClient:
                 params=params,
             )
         )
-        return self._recv(f"index.corp_action_ack.{self._gw_id}")
+        return self._recv(
+            f"index.corp_action_ack.{self._gw_id}",
+            error_prefix=f"index.error.{self._gw_id}",
+        )
 
     def index_delist(self, index_id: str, symbol: str) -> dict[str, Any]:
-        """Delist a symbol from an index."""
+        """
+        Delist a symbol from an index.
+
+        Raises
+        ------
+        CommandError
+            If *index_id* is not configured in ``pm-index``.
+        """
         self._index_push.send_multipart(
             make_index_constituent_change_msg(
                 change_type="DELIST",
@@ -412,7 +495,10 @@ class ExchangeCommandClient:
                 gateway_id=self._gw_id,
             )
         )
-        return self._recv(f"index.constituent_change_ack.{self._gw_id}")
+        return self._recv(
+            f"index.constituent_change_ack.{self._gw_id}",
+            error_prefix=f"index.error.{self._gw_id}",
+        )
 
     def index_add_constituent(
         self,
@@ -421,7 +507,14 @@ class ExchangeCommandClient:
         shares_outstanding: int,
         initial_price: float,
     ) -> dict[str, Any]:
-        """Add a constituent to an index."""
+        """
+        Add a constituent to an index.
+
+        Raises
+        ------
+        CommandError
+            If *index_id* is not configured in ``pm-index``.
+        """
         self._index_push.send_multipart(
             make_index_constituent_change_msg(
                 change_type="ADD",
@@ -432,7 +525,10 @@ class ExchangeCommandClient:
                 initial_price=initial_price,
             )
         )
-        return self._recv(f"index.constituent_change_ack.{self._gw_id}")
+        return self._recv(
+            f"index.constituent_change_ack.{self._gw_id}",
+            error_prefix=f"index.error.{self._gw_id}",
+        )
 
     def quote_bootstrap(self, target_gw: str, symbol: str = "") -> list[dict[str, Any]]:
         """

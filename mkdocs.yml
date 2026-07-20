@@ -103,6 +103,7 @@ nav:
     - P&L & Clearing: user-guide/130-pnl-clearing.md
     - Statistics and Reporting: user-guide/140-statistics-and-reporting.md
     - Market Index: user-guide/150-index.md
+    - Index Admin CLI: user-guide/152-index-admin-cli.md
     - Exchange Commands: user-guide/160-commands.md
     - Processes: user-guide/170-processes.md
     - Persistence: user-guide/180-persistence.md

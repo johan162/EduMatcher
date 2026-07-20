@@ -4,8 +4,8 @@
 
 Configure and operate the `pm-index` calculation process, observe a
 cap-weighted index updating in real time, apply corporate actions without
-disrupting the index level, and analyse historical data with `pm-index-cli`
-and `pm-stats-cli`.
+disrupting the index level using `pm-index-admin-cli`, and analyse historical
+data with `pm-index-cli` and `pm-stats-cli`.
 
 You will practice:
 
@@ -13,8 +13,8 @@ You will practice:
 - starting `pm-index` and verifying initialisation
 - querying the live index level through the `INDEX` gateway command
 - watching the index move as trades execute
-- applying a stock split and a cash dividend corporate action
-- adding and removing index constituents without restarting
+- applying a stock split and a cash dividend corporate action with `pm-index-admin-cli`
+- adding and removing index constituents without restarting, with `pm-index-admin-cli`
 - querying structural/audit history with `pm-index-cli`
 - querying level and EOD time-series history with `pm-stats-cli`
 - exporting history to CSV and JSON for offline analysis
@@ -224,41 +224,28 @@ Suppose AAPL announces a 2-for-1 stock split. Without adjustment, the index
 would drop by ~50% when AAPL's price halves — which is wrong because no value
 was destroyed.
 
-!!! warning "No gateway command for corporate actions"
+!!! note "No gateway command for corporate actions"
     Unlike `INDEX|HISTORY` (Exercise 11), corporate actions and constituent
     changes have **no** `pm-alf-console` command, no `pm-admin`/`pm-admin-cli`
     subcommand, and no ALF/CALF wire message — there is no `CORP_ACTION|...`
-    line you can type at a gateway prompt. The engine-side handling in
-    `pm-index` is fully implemented (`index.corp_action` on its PULL socket,
-    port 5559), but today the only way to reach it is the Python
-    `ExchangeCommandClient` class — the same class `pm-admin-cli` uses
-    internally. See
+    line you can type at a gateway prompt. Instead, use the dedicated
+    [`pm-index-admin-cli`](../user-guide/152-index-admin-cli.md) tool, which
+    talks directly to `pm-index`'s PULL socket (port 5559). See
     [Market Index → Applying corporate actions](../user-guide/150-index.md#applying-corporate-actions).
 
-Apply the split with a short script:
+Apply the split:
 
 ```bash
-python - <<'PY'
-from edumatcher.commands import ExchangeCommandClient
-
-client = ExchangeCommandClient("OPS01")  # must be an ADMIN gateway
-client.connect()
-
-result = client.index_corp_action(
-    "EDU100", "SPLIT", "AAPL",
-    ratio_numerator=2, ratio_denominator=1,
-)
-print("CORP_ACTION result:", result)
-
-client.disconnect()
-client.close()
-PY
+pm-index-admin-cli --id OPS01 split \
+  --index EDU100 --symbol AAPL \
+  --ratio-numerator 2 --ratio-denominator 1
 ```
 
-The call blocks for the `index.corp_action_ack.OPS01` response (or raises
-`CommandTimeoutError`). `pm-index` applies the action in-process, publishes
-an updated index value live, and writes a `CORP_ACTION` record to the
-structural/audit history file.
+You'll be shown a confirmation prompt before the command is sent (add `-y` to
+skip it, or `--dry-run` to preview the payload without sending). The command
+blocks for the `index.corp_action_ack.OPS01` response and prints the result.
+`pm-index` applies the action in-process, publishes an updated index value
+live, and writes a `CORP_ACTION` record to the structural/audit history file.
 
 Query the index immediately after, from any gateway terminal:
 
@@ -295,7 +282,7 @@ absolute difference should be at most a few cents (rounding only), never a
 
 ## Exercise 6: Apply a Cash Dividend
 
-Apply a $2.50 cash dividend for MSFT — same `ExchangeCommandClient` mechanism
+Apply a $2.50 cash dividend for MSFT — same `pm-index-admin-cli` mechanism
 as Exercise 5, no gateway command:
 
 ```
@@ -303,21 +290,8 @@ TRADER01> INDEX        (before)
 ```
 
 ```bash
-python - <<'PY'
-from edumatcher.commands import ExchangeCommandClient
-
-client = ExchangeCommandClient("OPS01")
-client.connect()
-
-result = client.index_corp_action(
-    "EDU100", "CASH_DIVIDEND", "MSFT",
-    dividend_per_share=2.50,
-)
-print("CORP_ACTION result:", result)
-
-client.disconnect()
-client.close()
-PY
+pm-index-admin-cli --id OPS01 dividend \
+  --index EDU100 --symbol MSFT --dividend-per-share 2.50
 ```
 
 ```
@@ -329,12 +303,33 @@ is adjusted to compensate so the index level is preserved.
 
 :material-checkbox-blank-outline: **Checkpoint:** index level preserved across dividend adjustment.
 
+??? note "Under the hood: `ExchangeCommandClient`"
+    `pm-index-admin-cli` is a thin wrapper over the same
+    `ExchangeCommandClient` class `pm-admin-cli` uses internally. If you ever
+    need to script a corporate action directly (e.g. from a test harness),
+    the equivalent code is:
+
+    ```python
+    from edumatcher.commands import ExchangeCommandClient
+
+    client = ExchangeCommandClient("OPS01")
+    result = client.index_corp_action(
+        "EDU100", "CASH_DIVIDEND", "MSFT",
+        dividend_per_share=2.50,
+    )
+    print("CORP_ACTION result:", result)
+    client.close()
+    ```
+
+    Note `pm-index`'s PULL socket has no `connect()`/auth handshake, unlike
+    the engine socket `pm-admin-cli` talks to.
+
  
 
 ## Exercise 7: Add and Remove a Constituent
 
-Constituent changes use the same script-only `ExchangeCommandClient`
-mechanism as corporate actions — no gateway command exists for these either.
+Constituent changes also use [`pm-index-admin-cli`](../user-guide/152-index-admin-cli.md)
+— no gateway command exists for these either.
 
 ### Add AMZN to the index
 
@@ -342,22 +337,9 @@ Adding a constituent adjusts the divisor so the level does not jump at the
 moment of addition. You must supply the new shares and a reference price:
 
 ```bash
-python - <<'PY'
-from edumatcher.commands import ExchangeCommandClient
-
-client = ExchangeCommandClient("OPS01")
-client.connect()
-
-result = client.index_add_constituent(
-    "EDU100", "AMZN",
-    shares_outstanding=10500000000,
-    initial_price=195.00,
-)
-print("ADD result:", result)
-
-client.disconnect()
-client.close()
-PY
+pm-index-admin-cli --id OPS01 add \
+  --index EDU100 --symbol AMZN \
+  --shares-outstanding 10500000000 --initial-price 195.00
 ```
 
 Check that AMZN now appears when you run `INDEX`. It may take a few trades before
@@ -370,18 +352,7 @@ TRADER01> INDEX
 ### Remove TSLA from the index
 
 ```bash
-python - <<'PY'
-from edumatcher.commands import ExchangeCommandClient
-
-client = ExchangeCommandClient("OPS01")
-client.connect()
-
-result = client.index_delist("EDU100", "TSLA")
-print("DELIST result:", result)
-
-client.disconnect()
-client.close()
-PY
+pm-index-admin-cli --id OPS01 delist --index EDU100 --symbol TSLA
 ```
 
 Run `INDEX` again and confirm TSLA no longer appears in the constituent listing.
@@ -639,11 +610,11 @@ last.
 | Re-initialise from scratch | `pm-index --reset` |
 | Live level query | `INDEX` (any gateway) |
 | Structural/audit history query (gateway) | `INDEX\|HISTORY`, `INDEX\|HISTORY\|FROM=…\|TO=…` — INIT/CORP_ACTION/ADD_CONSTITUENT/DELIST only |
-| Stock split (no gateway command — `ExchangeCommandClient` script) | `client.index_corp_action(idx, "SPLIT", sym, ratio_numerator=…, ratio_denominator=…)` |
-| Cash dividend (script only) | `client.index_corp_action(idx, "CASH_DIVIDEND", sym, dividend_per_share=…)` |
-| Shares issuance (script only) | `client.index_corp_action(idx, "SHARES_ISSUANCE", sym, new_shares_outstanding=…)` |
-| Add constituent (script only) | `client.index_add_constituent(idx, sym, shares_outstanding=…, initial_price=…)` |
-| Remove constituent (script only) | `client.index_delist(idx, sym)` |
+| Stock split (no gateway command — use `pm-index-admin-cli`) | `pm-index-admin-cli --id ID split --index IDX --symbol SYM --ratio-numerator … --ratio-denominator …` |
+| Cash dividend | `pm-index-admin-cli --id ID dividend --index IDX --symbol SYM --dividend-per-share …` |
+| Shares issuance / buy-back | `pm-index-admin-cli --id ID shares --index IDX --symbol SYM --new-shares …` (or `--delta …`) |
+| Add constituent | `pm-index-admin-cli --id ID add --index IDX --symbol SYM --shares-outstanding … --initial-price …` |
+| Remove constituent | `pm-index-admin-cli --id ID delist --index IDX --symbol SYM` |
 | List configured indices | `pm-index-cli --config … indices` |
 | Structural/audit events | `pm-index-cli --config … events [--type TYPE]` |
 | Intraday level snapshots | `pm-stats-cli index-snapshots --index-id ID` |
@@ -665,6 +636,7 @@ types?
 ## See Also
 
 - [Market Index — User Guide](../user-guide/150-index.md) — full reference for config fields, formulas, and history record types
+- [Index Admin CLI](../user-guide/152-index-admin-cli.md) — full `pm-index-admin-cli` subcommand reference, `--dry-run`, and confirmation-prompt behaviour
 - [pm-index-cli reference](../user-guide/160-commands.md) — `events`/`indices` subcommands, column descriptions, and output-format options
 - [Statistics and Reporting](../user-guide/140-statistics-and-reporting.md) — `pm-stats-cli index-daily` / `index-snapshots` / `index-ids` reference
 - [Chapter 15 — Statistics & Reporting](15-statistics-reporting.md) — starting `pm-stats` and querying its SQLite database
