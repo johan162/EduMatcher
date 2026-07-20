@@ -49,6 +49,8 @@ from .defaults import (
     DEFAULT_MARKET_DATA_GATEWAY_PORT,
     DEFAULT_MARKET_DATA_GATEWAY_REPLAY_WINDOW_SEC,
     DEFAULT_CB_WINDOW_NS,
+    DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS,
+    DEFAULT_DROP_COPY_BUFFER_SIZE,
     DEFAULT_DYNAMIC_BAND_PCT,
     DEFAULT_MM_MIN_QTY,
     DEFAULT_MM_SPREAD_TICKS,
@@ -61,6 +63,8 @@ from .defaults import (
     DEFAULT_POST_TRADE_GATEWAY_NAME,
     DEFAULT_POST_TRADE_GATEWAY_PORT,
     DEFAULT_POST_TRADE_GATEWAY_REPLAY_RETENTION_SEC,
+    DEFAULT_QUOTE_HISTORY_MAXLEN,
+    DEFAULT_RECENT_TRADES_MAXLEN,
     DEFAULT_SNAPSHOT_INTERVAL_SEC,
     DEFAULT_STATIC_BAND_PCT,
     DEFAULT_TICK_DECIMALS,
@@ -75,6 +79,10 @@ class ConfigSpec:
     gateways: list[GatewaySpec]
     sessions_enabled: bool = False
     snapshot_interval_sec: float = DEFAULT_SNAPSHOT_INTERVAL_SEC
+    quote_history_maxlen: int = DEFAULT_QUOTE_HISTORY_MAXLEN
+    drop_copy_buffer_size: int = DEFAULT_DROP_COPY_BUFFER_SIZE
+    recent_trades_maxlen: int = DEFAULT_RECENT_TRADES_MAXLEN
+    depth_snapshot_tolerance_ticks: int = DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS
     enforce_collars: bool = True
     enforce_circuit_breakers: bool = True
     static_band_pct: float | None = None
@@ -219,7 +227,13 @@ class ConfigBuilder:
             "sessions_enabled": self.spec.sessions_enabled,
             "enforce_collars": self.spec.enforce_collars,
             "enforce_circuit_breakers": self.spec.enforce_circuit_breakers,
-            "snapshot_interval_sec": self.spec.snapshot_interval_sec,
+            "engine_tuning": {
+                "snapshot_interval_sec": self.spec.snapshot_interval_sec,
+                "quote_history_maxlen": self.spec.quote_history_maxlen,
+                "drop_copy_buffer_size": self.spec.drop_copy_buffer_size,
+                "recent_trades_maxlen": self.spec.recent_trades_maxlen,
+                "depth_snapshot_tolerance_ticks": self.spec.depth_snapshot_tolerance_ticks,
+            },
         }
 
         if self._should_emit_mm_defaults():

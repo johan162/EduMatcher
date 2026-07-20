@@ -40,6 +40,28 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
         ]
     )
 
+    lines.extend(
+        [
+            "engine_tuning:",
+            "  snapshot_interval_sec: 0.5",
+            "    Minimum interval between published book snapshots for a dirty symbol.",
+            "    Lower values reduce latency but increase CPU and outbound traffic.",
+            "  quote_history_maxlen: 30",
+            "    Per-gateway count of recently inactivated quotes kept for QLEGS RECENT/ALL.",
+            "    Larger values improve operator history at a linear memory cost.",
+            "  drop_copy_buffer_size: 10000",
+            "    Number of drop-copy events retained for replay after subscriber reconnects.",
+            "    Larger values increase replay depth and memory usage.",
+            "  recent_trades_maxlen: 20",
+            "    Number of recent trades retained per symbol for snapshots and diagnostics.",
+            "    Larger values expose more context at a linear per-book memory cost.",
+            "  depth_snapshot_tolerance_ticks: 100",
+            "    Depth window around the last trade when publishing depth snapshots.",
+            "    Larger values publish more price levels and require more work per snapshot.",
+            "",
+        ]
+    )
+
     # enforce_collars
     lines.extend(
         [
@@ -54,16 +76,6 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
         [
             "enforce_circuit_breakers: true",
             "  Global switch for circuit-breaker halt detection and enforcement.",
-            "",
-        ]
-    )
-
-    # snapshot_interval_sec
-    lines.extend(
-        [
-            "snapshot_interval_sec: 0.5",
-            "  Minimum interval between published book snapshots for a dirty symbol.",
-            "  Reduces outbound snapshot volume while preserving near-real-time updates.",
             "",
         ]
     )
@@ -324,6 +336,29 @@ def build_default_engine_field_comment_lines(config: dict[str, object]) -> list[
             "=============================================================================",
             "Field Notes and Accepted Values",
             "=============================================================================",
+            "",
+        ]
+    )
+
+    lines.extend(
+        [
+            "engine_tuning entries",
+            "" + "-" * 21,
+            "snapshot_interval_sec: 0.5",
+            "  Minimum time between dirty-book snapshot publishes for the same symbol.",
+            "  Lower values improve freshness but increase publish rate and CPU.",
+            "quote_history_maxlen: 30",
+            "  Per-gateway RECENT/ALL quote-history entries retained in memory.",
+            "  Raise this for longer QLEGS history, lower it to cap memory usage.",
+            "drop_copy_buffer_size: 10000",
+            "  Number of drop-copy events available for replay after reconnect.",
+            "  Raise this for longer replay windows, lower it to reduce memory usage.",
+            "recent_trades_maxlen: 20",
+            "  Recent trade rows stored per order book and echoed in book snapshots.",
+            "  Raise this for richer diagnostics, lower it for lower per-symbol memory cost.",
+            "depth_snapshot_tolerance_ticks: 100",
+            "  Width of the published depth window around the last trade, in ticks.",
+            "  Raise this for deeper depth snapshots, lower it to reduce snapshot work and payload size.",
             "",
         ]
     )

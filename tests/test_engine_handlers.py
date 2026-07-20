@@ -56,6 +56,10 @@ def _make_engine(
     gateways=("GW01",),
     sessions_enabled: bool = False,
     snapshot_interval_sec: float = 0.5,
+    quote_history_maxlen: int = 30,
+    drop_copy_buffer_size: int = 10_000,
+    recent_trades_maxlen: int = 20,
+    depth_snapshot_tolerance_ticks: int = 100,
 ) -> tuple[Engine, _FakeSock]:
     pull_sock = _FakeSock(sent=[])
     pub_sock = _FakeSock(sent=[])
@@ -66,6 +70,10 @@ def _make_engine(
             gw: FixGatewayConfig(id=gw, description=f"{gw} trader") for gw in gateways
         },
         snapshot_interval_sec=snapshot_interval_sec,
+        quote_history_maxlen=quote_history_maxlen,
+        drop_copy_buffer_size=drop_copy_buffer_size,
+        recent_trades_maxlen=recent_trades_maxlen,
+        depth_snapshot_tolerance_ticks=depth_snapshot_tolerance_ticks,
         sessions_enabled=sessions_enabled,
     )
 
@@ -661,6 +669,20 @@ class TestFlushSnapshots:
             snapshot_interval_sec=1.25,
         )
         assert engine.snapshot_interval_sec == 1.25
+
+    def test_engine_uses_configured_tuning_knobs(self, monkeypatch, tmp_path) -> None:
+        engine, _ = _make_engine(
+            monkeypatch,
+            tmp_path,
+            quote_history_maxlen=60,
+            drop_copy_buffer_size=5000,
+            recent_trades_maxlen=50,
+            depth_snapshot_tolerance_ticks=250,
+        )
+        assert engine.quote_history_maxlen == 60
+        assert engine.drop_copy_buffer_size == 5000
+        assert engine.recent_trades_maxlen == 50
+        assert engine.depth_snapshot_tolerance_ticks == 250
 
     def test_flush_publishes_dirty_symbols(self, monkeypatch, tmp_path) -> None:
         engine, pub_sock = _make_engine(monkeypatch, tmp_path)

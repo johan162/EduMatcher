@@ -214,7 +214,15 @@ def _check_mm_obligation_completeness(
 
 
 def _check_snapshot_interval(raw: dict[str, Any], results: list[CheckResult]) -> None:
-    snap = raw.get("snapshot_interval_sec", _DEFAULT_SNAPSHOT_INTERVAL_SEC)
+    engine_tuning = raw.get("engine_tuning")
+    path = "snapshot_interval_sec"
+    if isinstance(engine_tuning, dict) and "snapshot_interval_sec" in engine_tuning:
+        snap = engine_tuning.get(
+            "snapshot_interval_sec", _DEFAULT_SNAPSHOT_INTERVAL_SEC
+        )
+        path = "engine_tuning.snapshot_interval_sec"
+    else:
+        snap = raw.get("snapshot_interval_sec", _DEFAULT_SNAPSHOT_INTERVAL_SEC)
     try:
         snap_f = float(snap)
     except (TypeError, ValueError):
@@ -232,7 +240,7 @@ def _check_snapshot_interval(raw: dict[str, Any], results: list[CheckResult]) ->
                     "This is suitable for most deployments. Consider lowering for "
                     "latency-sensitive setups or raising for high-symbol-count configs."
                 ),
-                path="snapshot_interval_sec",
+                path=path,
             )
         )
 
@@ -250,7 +258,7 @@ def _check_snapshot_interval(raw: dict[str, Any], results: list[CheckResult]) ->
                     "At high symbol counts, very short snapshot intervals can generate "
                     "high ZMQ publish rates. Consider raising snapshot_interval_sec to 0.5 or higher."
                 ),
-                path="snapshot_interval_sec",
+                path=path,
             )
         )
 

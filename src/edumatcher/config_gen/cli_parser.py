@@ -6,8 +6,12 @@ import argparse
 
 from edumatcher.config_gen.defaults import (
     DEFAULT_CB_WINDOW_NS,
+    DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS,
+    DEFAULT_DROP_COPY_BUFFER_SIZE,
     DEFAULT_MM_MIN_QTY,
     DEFAULT_MM_SPREAD_TICKS,
+    DEFAULT_QUOTE_HISTORY_MAXLEN,
+    DEFAULT_RECENT_TRADES_MAXLEN,
     DEFAULT_SCHEDULE,
     DEFAULT_SNAPSHOT_INTERVAL_SEC,
     DEFAULT_TICK_DECIMALS,
@@ -97,6 +101,34 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_SNAPSHOT_INTERVAL_SEC,
         metavar="SECS",
         help="Snapshot interval seconds (> 0).",
+    )
+    parser.add_argument(
+        "--quote-history-maxlen",
+        type=int,
+        default=DEFAULT_QUOTE_HISTORY_MAXLEN,
+        metavar="N",
+        help="Max RECENT/ALL quote-history entries kept per gateway (> 0).",
+    )
+    parser.add_argument(
+        "--drop-copy-buffer-size",
+        type=int,
+        default=DEFAULT_DROP_COPY_BUFFER_SIZE,
+        metavar="N",
+        help="Drop-copy replay buffer size in messages (> 0).",
+    )
+    parser.add_argument(
+        "--recent-trades-maxlen",
+        type=int,
+        default=DEFAULT_RECENT_TRADES_MAXLEN,
+        metavar="N",
+        help="Recent trades retained per book snapshot (> 0).",
+    )
+    parser.add_argument(
+        "--depth-snapshot-tolerance-ticks",
+        type=int,
+        default=DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS,
+        metavar="N",
+        help="Depth snapshot window around last trade in ticks (> 0).",
     )
 
     parser.add_argument(

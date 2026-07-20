@@ -92,7 +92,7 @@ class OrderBook:
         "_arrival_seq",
     )
 
-    def __init__(self, symbol: str) -> None:
+    def __init__(self, symbol: str, recent_trades_maxlen: int = 20) -> None:
         self.symbol = symbol
         self._bids: list[_HeapEntry] = []  # max-heap via negated price
         self._asks: list[_HeapEntry] = []  # min-heap
@@ -123,7 +123,7 @@ class OrderBook:
         self.last_sell_price: Optional[int] = (
             None  # last trade where seller was aggressor
         )
-        self.recent_trades: deque[Trade] = deque(maxlen=20)
+        self.recent_trades: deque[Trade] = deque(maxlen=recent_trades_maxlen)
 
         # Daily cumulative stats — reset only on engine restart (new OrderBook instance).
         # pm-stats owns EOD aggregation; these counters are session-only.

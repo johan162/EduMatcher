@@ -479,7 +479,7 @@ def test_comment_default_config_fields_emits_engine_field_defaults(
         in captured.out
     )
     assert (
-        "# seconds between book snapshot publications for dirty books\nsnapshot_interval_sec: 0.5"
+        "# runtime retention and throttling knobs with memory/latency trade-offs\nengine_tuning:\n  # seconds between book snapshot publications for dirty books\n  snapshot_interval_sec: 0.5"
         in captured.out
     )
     # Check for circuit_breaker_defaults documentation in "Field Notes and Accepted Values" section
