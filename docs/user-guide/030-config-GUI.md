@@ -272,7 +272,7 @@ gateway has the `MARKET_MAKER` role.
 | **Indices** | Intermediate | Cap-weighted index definitions and constituents | [Market Index](150-index.md) |
 | **Combos** | Expert | Multi-leg startup seed orders | [Combo Orders](070-combos.md) |
 | **Auxiliary Gateways** | Intermediate | Post-Trade, Market-Data, BALF, and API gateway processes | [RALF](250-post-trade.md), [CALF](240-market-data-feed.md), [BALF](230-balf-gateway.md), [API](260-api-gateway.md) |
-| **Engine Tuning** | Expert | Low-level performance knobs (snapshot throttle) | [`snapshot_interval_sec`](010-configuration.md#snapshot_interval_sec) |
+| **Engine Tuning** | Expert | Low-level runtime retention and throttling knobs | [`engine_tuning`](010-configuration.md#engine_tuning) |
 | **Review & Export** | Beginner | Diagnostics summary, YAML preview, download, and verify | [Config Verifier](020-config-verifier.md) |
 
 ¹ Shown only when a `MARKET_MAKER` gateway exists.
@@ -655,9 +655,31 @@ would bind the same address and port.
 ### Engine tuning
 
 The **Engine Tuning** tab (Expert) exposes low-level performance knobs that
-rarely need changing. Currently that is the **snapshot interval**
-([`snapshot_interval_sec`](010-configuration.md#snapshot_interval_sec)) — the
-minimum seconds between published book snapshots for a busy symbol.
+rarely need changing. It mirrors the grouped
+[`engine_tuning`](010-configuration.md#engine_tuning) block and currently
+exposes five fields:
+
+- **Snapshot interval** —
+  [`engine_tuning.snapshot_interval_sec`](010-configuration.md#engine_tuningsnapshot_interval_sec),
+  the minimum seconds between published book snapshots for a busy symbol.
+- **Quote history** —
+  [`engine_tuning.quote_history_maxlen`](010-configuration.md#engine_tuningquote_history_maxlen),
+  how many recently inactivated quotes per gateway are retained for QLEGS
+  RECENT/ALL.
+- **Drop copy buffer** —
+  [`engine_tuning.drop_copy_buffer_size`](010-configuration.md#engine_tuningdrop_copy_buffer_size),
+  how many drop-copy events are retained in memory for replay after reconnect.
+- **Recent trades** —
+  [`engine_tuning.recent_trades_maxlen`](010-configuration.md#engine_tuningrecent_trades_maxlen),
+  how many recent trade rows each order book keeps for snapshots and
+  diagnostics.
+- **Depth snapshot tolerance** —
+  [`engine_tuning.depth_snapshot_tolerance_ticks`](010-configuration.md#engine_tuningdepth_snapshot_tolerance_ticks),
+  the published depth window around the last trade, measured in ticks.
+
+The GUI presents these in the same way as the rest of the application: default
+values are shown as hints, changing a value marks the field as explicitly set,
+and the reset control returns it to the engine default.
 
 ## Diagnostics and live validation
 
