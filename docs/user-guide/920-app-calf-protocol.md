@@ -701,7 +701,7 @@ sequenceDiagram
     G-->>C: STATE|CH=STATE|SYM=AAPL|SEQ=10|SESSION=HALTED|PREV=CONTINUOUS
     G-->>C: CB|CH=CB|SYM=AAPL|SEQ=3|STATUS=HALTED|LEVEL=L2|TRIGGERPX=148.20|REFPX=150.10|RESUMEAT=...|MODE=AUCTION
 
-    Note over E: halt duration elapses; engine resumes and re-auctions AAPL
+    Note over E: halt duration elapses engine resumes and re-auctions AAPL
     E-->>G: circuit_breaker.resume.AAPL
     G-->>C: STATE|CH=STATE|SYM=AAPL|SEQ=11|SESSION=CONTINUOUS|PREV=HALTED
     G-->>C: CB|CH=CB|SYM=AAPL|SEQ=4|STATUS=ACTIVE|MODE=AUCTION
