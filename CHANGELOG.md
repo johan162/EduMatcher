@@ -3,7 +3,7 @@
 Release Type: major
 
 ### 📋 Summary
-This release introduces the new Config GUI, the new `pm-audit-cli` audit-trail inspection tool, expanded API Gateway operator controls, and broader CALF market-data capabilities. It also hardens the matching engine, scheduler, gateways, and clearing pipeline, adds consistent logging controls across processes, and refreshes the user-guide, Exchange Intro, and protocol documentation at much larger scale than a typical minor release. It expands historical index and pricing visibility across the API and stats stack, improves engine handling of quote-leg requests, and tightens gateway/runtime behavior. 
+This release introduces the new Config GUI, the new `pm-audit-cli` audit-trail inspection tool, expanded API Gateway operator controls, and broader CALF market-data capabilities. For Index handling a new admin client was added `pm-index-admin-cli` that handles corporate actions. It also hardens the matching engine, scheduler, gateways, and clearing pipeline, adds consistent logging controls across processes, and refreshes the user-guide, Exchange Intro, and protocol documentation at much larger scale than a typical minor release. It expands historical index and pricing visibility across the API and stats stack, improves engine handling of quote-leg requests, and tightens gateway/runtime behavior. 
 
 ### ⚠️ Breaking Changes
 - Removed the legacy `clearing_v1` implementation in favor of the current SQLite-backed clearing flow and shared feed-schema contract
@@ -11,6 +11,7 @@ This release introduces the new Config GUI, the new `pm-audit-cli` audit-trail i
 ### ✨ Additions
 - Added `config-gui`, a web application for creating and editing exchange reference data with Docker, Makefile, and workspace support
 - Added `pm-audit-cli` together with audit indexing, querying, formatting, and a dedicated user-guide chapter
+. Added `pm-index-admin-cli` index administration to handle index adjustment after corporate actions
 - Added ADMIN-only API Gateway operator commands and supporting session/schema updates
 - Added CALF protocol extensions including deeper market-data coverage, configurable depth levels, and index-channel support
 - Added consistent CLI-controlled logging options across gateway and operator processes, including AI trader, swarm, console, market-data, board, ticker, and viewer entrypoints
