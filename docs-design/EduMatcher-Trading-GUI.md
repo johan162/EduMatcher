@@ -46,18 +46,18 @@ Status: Design and Research Proposal
     - [5.1 Overall topology](#51-overall-topology)
     - [5.2 Data flow summary](#52-data-flow-summary)
     - [5.3 Client-side state layers](#53-client-side-state-layers)
-  - [6. API Gateway Extensions Required (`pm-api-gwy`)](#6-api-gateway-extensions-required-pm-api-gwy)
+  - [6. Backend Capability Matrix (`pm-api-gwy`)](#6-backend-capability-matrix-pm-api-gwy)
     - [6.1 Scope and status](#61-scope-and-status)
-    - [6.2 Extended `GET /api/v1/status`](#62-extended-get-apiv1status)
-    - [6.3 Session control](#63-session-control)
-    - [6.4 Circuit breaker control](#64-circuit-breaker-control)
-    - [6.5 Gateway administration](#65-gateway-administration)
-    - [6.6 Halts and risk configuration (read-only)](#66-halts-and-risk-configuration-read-only)
-    - [6.7 Symbol administration](#67-symbol-administration)
-    - [6.8 Index administration](#68-index-administration)
-    - [6.9 Admin monitor WebSocket (`/api/v1/admin/monitor`)](#69-admin-monitor-websocket-apiv1adminmonitor)
-    - [6.10 Auction market-data channel](#610-auction-market-data-channel)
-    - [6.11 Extension summary table](#611-extension-summary-table)
+    - [6.2 `GET /api/v1/status` (available now)](#62-get-apiv1status-available-now)
+    - [6.3 Session control (available now)](#63-session-control-available-now)
+    - [6.4 Circuit breaker control (partially available)](#64-circuit-breaker-control-partially-available)
+    - [6.5 Gateway administration (available now)](#65-gateway-administration-available-now)
+    - [6.6 Halts and risk configuration (mixed status)](#66-halts-and-risk-configuration-mixed-status)
+    - [6.7 Symbol administration (still blocked on engine prerequisite)](#67-symbol-administration-still-blocked-on-engine-prerequisite)
+    - [6.8 Index administration (still dependent on `pm-index` bridge)](#68-index-administration-still-dependent-on-pm-index-bridge)
+    - [6.9 Admin monitor WebSocket (`/api/v1/admin/monitor`) (available now)](#69-admin-monitor-websocket-apiv1adminmonitor-available-now)
+    - [6.10 Auction market-data channel (available now)](#610-auction-market-data-channel-available-now)
+    - [6.11 Capability summary table](#611-capability-summary-table)
     - [6.12 Open questions and backend prerequisites](#612-open-questions-and-backend-prerequisites)
   - [7. Authentication and API Integration](#7-authentication-and-api-integration)
     - [7.1 API key storage](#71-api-key-storage)
@@ -221,10 +221,10 @@ system state that a serious user needs.
 
 `pm-api-gwy` exposes most of the engine capability over REST + WebSocket. The TRADER and
 MARKET_MAKER workflows are pure consumers of that existing API and require no backend changes. The
-ADMIN persona is different: several of its controls (session transitions, gateway administration,
-symbol and risk administration, and a live monitoring feed) are **not** part of the current
-`pm-api-gwy` design. This document formalises those as a required gateway extension in
-[§6](#6-api-gateway-extensions-required-pm-api-gwy) rather than treating them as vague "future" work.
+ADMIN persona is different: some of its controls are already available in the current
+`pm-api-gwy`, while others still depend on backend additions or engine prerequisites. This document
+therefore treats [§6](#6-backend-capability-matrix-pm-api-gwy) as a capability matrix rather than a
+speculative future-endpoint list.
 
 ### What changes
 
@@ -244,10 +244,10 @@ symbol and risk administration, and a live monitoring feed) are **not** part of 
 
 ### What this design requires from the backend
 
-- **Gateway extensions** to `pm-api-gwy` for the ADMIN persona and role reporting, specified in
-  [§6](#6-api-gateway-extensions-required-pm-api-gwy).
-- A small **market-data addition**: exposing the engine's `auction.result.{SYMBOL}` event as a new
-  `auction` channel on `/market-data` (see [§6.10](#610-auction-market-data-channel)).
+- The current `pm-api-gwy` already covers most TRADER / MARKET_MAKER needs and a meaningful part of
+  the ADMIN surface: role-aware `GET /api/v1/status`, admin session control, gateway management,
+  halt snapshots, an admin monitor WebSocket, quote bootstrap / legs snapshots, and the `auction`
+  market-data channel.
 - A few items flagged as **engine prerequisites** (manual circuit-breaker trigger/resume, live
   symbol addition) that may not exist in the backend yet — see
   [§6.12](#612-open-questions-and-backend-prerequisites).
@@ -443,22 +443,19 @@ flowchart LR
 
 ---
 
-## 6. API Gateway Extensions Required (`pm-api-gwy`)
+## 6. Backend Capability Matrix (`pm-api-gwy`)
 
-> **These endpoints are NOT part of the current `pm-api-gwy` design
-> ([EduMatcher-ALF-API-Gwy2.md](./EduMatcher-ALF-API-Gwy2.md)). Implementing the ADMIN persona
-> requires extending `pm-api-gwy` (and possibly the engine) as specified here.** The TRADER and
-> MARKET_MAKER personas use only endpoints already defined in the API Gateway spec and require none
-> of this section.
+> This section no longer assumes the ADMIN surface is mostly hypothetical. It distinguishes between
+> capabilities that are already present in `pm-api-gwy`, capabilities that still need API work, and
+> capabilities blocked on engine prerequisites. The TRADER and MARKET_MAKER personas remain pure
+> consumers of the current REST/WebSocket API.
 
 ### 6.1 Scope and status
 
 The 1.0.0 design invented ADMIN endpoints inline and labelled them "future," which produced
-coherence gaps (screens referenced endpoints that did not exist). This section replaces that with a
-formal dependency: each control the ADMIN persona needs is defined here with method, path, request
-schema, response schema, and the engine ZMQ message/topic it maps to. Where an endpoint depends on a
-backend capability that may not yet exist, it is flagged and listed in
-[§6.12](#612-open-questions-and-backend-prerequisites).
+coherence gaps (screens referenced endpoints that did not exist). The current backend has since
+closed a large part of that gap. This section now records, per capability, whether it is available
+now, available but narrower than the ideal UX, or still missing and dependent on backend work.
 
 Existing engine topics referenced below are defined in the Requirements document
 ([EduMatcher-Requirements.md](./EduMatcher-Requirements.md)): `session.transition` (§3.3.21),
@@ -470,33 +467,31 @@ Existing engine topics referenced below are defined in the Requirements document
 All admin endpoints require an API key whose resolved role is `ADMIN` (see
 [§6.2](#62-extended-get-apiv1status)). Non-admin keys receive `403 Forbidden`. All bodies are JSON.
 
-### 6.2 Extended `GET /api/v1/status`
+### 6.2 `GET /api/v1/status` (available now)
 
-`GET /api/v1/status` MUST be extended so the UI can detect the caller's role and, for admin keys,
-the number of connected gateways.
+`GET /api/v1/status` already supports role detection and, for admin keys, the number of connected
+gateways.
 
 **Response `200 OK`:**
 
 ```jsonc
 {
   "gateway_id": "GW01",
-  "gateway_role": "TRADER",       // "TRADER" | "MARKET_MAKER" | "ADMIN"  (REQUIRED addition)
+  "gateway_role": "TRADER",       // "TRADER" | "MARKET_MAKER" | "ADMIN"
   "session_state": "CONTINUOUS",
   "gateway_count": 4,             // present only for ADMIN keys: number of connected gateways
   "connected": true
 }
 ```
 
-- `gateway_role` derives from the gateway's configured role (`gateways.fix[].role` — the engine
-  already distinguishes `MARKET_MAKER` per FR-MMQ-002; `ADMIN` is a gateway role the allowlist must
-  support).
+- `gateway_role` derives from the gateway's configured role.
 - `gateway_count` is populated from the gateway's own connection registry (the set of authenticated
   `gateway_id`s, see API Gateway spec §3.3) and is omitted for non-admin keys.
 
-**Engine mapping:** none for `gateway_role`/`gateway_count` — both are served from `pm-api-gwy`
-local state (credential store + connection registry). No engine round-trip.
+**UX implication:** the login flow, role-based routing, and ADMIN dashboard gateway-count KPI can be
+implemented against the current API with no extension work.
 
-### 6.3 Session control
+### 6.3 Session control (available now)
 
 **`POST /api/v1/admin/session/transition`**
 
@@ -514,14 +509,11 @@ Purpose: drive the engine through its session phases (the same capability the sc
 { "requested_state": "CONTINUOUS", "status": "PENDING" }
 ```
 
-**Engine mapping:** emits `session.transition` `{ "to_state": "<STATE>" }` on the engine PUSH socket
-(Requirements §3.3.21). The **engine validates the transition** against its allowed-transition map
-(FR-ENG-029); an invalid transition is silently rejected by the engine (no reply). The UI therefore
-confirms success by observing the subsequent `session.state` broadcast on `/market-data` rather than
-the HTTP response. If no `session.state` change is observed within a short window, the UI surfaces a
-"transition not accepted (invalid from current phase)" warning.
+**Engine mapping:** emits `session.transition` `{ "to_state": "<STATE>" }` on the engine PUSH socket.
+The engine validates the transition; the UI should still confirm success by observing the subsequent
+`session.state` broadcast on `/market-data` rather than treating the HTTP `202` as completion.
 
-### 6.4 Circuit breaker control
+### 6.4 Circuit breaker control (partially available)
 
 **`POST /api/v1/admin/circuit-breaker/trigger`**
 
@@ -539,20 +531,17 @@ the HTTP response. If no `session.state` change is observed within a short windo
 
 **Response `202 Accepted`:** `{ "symbol": "AAPL", "status": "PENDING" }`
 
-> **⚠ Prerequisite flag:** The engine's circuit breaker is currently **automatic** — it triggers on
-> price shift ladders and auto-resumes on timers (FR-RISK-003/006/007). The Requirements document
-> defines `circuit_breaker.halt.{SYMBOL}` / `circuit_breaker.resume.{SYMBOL}` as **engine → all**
-> broadcasts, not as inbound commands. **A manual operator-initiated CB trigger/resume engine
-> command does not appear to exist yet** and is a backend prerequisite for these two endpoints. See
-> [§6.12](#612-open-questions-and-backend-prerequisites). Until that engine command exists, the
-> Circuit Breaker Management screen ([§15.6](#156-circuit-breaker-management)) shows the trigger/resume
-> controls as disabled with an explanatory tooltip.
+> **Current reality:** `pm-api-gwy` already exposes `POST /api/v1/admin/circuit-breaker/trigger`
+> and `/resume`, but the current trigger path is symbol-level rather than a true arbitrary “L1/L2/L3
+> force trigger” control. The request schema accepts `level`, but the current route delegates to a
+> symbol-halt command and does not use the level value. The UI should therefore present this as a
+> manual symbol halt / resume control, not a precise simulated breaker-level trigger, until the
+> backend semantics become level-aware.
 
-**Engine mapping (proposed):** a new inbound `risk.circuit_breaker_trigger` / `risk.circuit_breaker_resume`
-engine command (to be added), producing the existing `circuit_breaker.halt.{SYMBOL}` /
-`circuit_breaker.resume.{SYMBOL}` broadcasts on success.
+**Engine mapping:** current implementation maps to symbol halt / resume actions and reuses the
+existing `circuit_breaker.halt.{SYMBOL}` / `circuit_breaker.resume.{SYMBOL}` broadcasts.
 
-### 6.5 Gateway administration
+### 6.5 Gateway administration (available now)
 
 **`GET /api/v1/admin/gateways`**
 
@@ -570,9 +559,8 @@ Purpose: list configured gateways and their live connection status.
 }
 ```
 
-**Engine mapping:** served from `pm-api-gwy` local state — the credential store
-(`api_gateway_config.yaml`, providing `gateway_id`/`role`/`description`) joined with the connection
-registry (`connected`). No engine round-trip.
+**UX implication:** the Gateway Management table and “Kick” action are now straightforward and no
+longer need to be treated as speculative admin work.
 
 **`POST /api/v1/admin/gateways/{id}/disconnect`**
 
@@ -587,7 +575,7 @@ API Gateway spec §3.5 shutdown path). **Note:** disconnecting a gateway cancels
 resting orders and active quotes per the engine's disconnect policy (FR-MMQ-006 `CANCEL_ALL`
 semantics). The UI's confirmation dialog states this explicitly.
 
-### 6.6 Halts and risk configuration (read-only)
+### 6.6 Halts and risk configuration (mixed status)
 
 **`GET /api/v1/admin/halts`**
 
@@ -605,12 +593,9 @@ Purpose: list active circuit breaker halts.
 }
 ```
 
-**Engine mapping:** the authoritative source is the stream of `circuit_breaker.halt.{SYMBOL}` /
-`circuit_breaker.resume.{SYMBOL}` broadcasts, which `pm-api-gwy` already receives. Two viable
-implementations: (a) `pm-api-gwy` maintains a halt cache folded from those events and serves it here
-(preferred, for a synchronous snapshot on page load); or (b) the UI derives halts purely from the
-always-on `circuit_breaker` channel and this endpoint is a convenience bootstrap. The UI treats it as
-a bootstrap and keeps the live view current from the `circuit_breaker` channel regardless.
+**Current reality:** `GET /api/v1/admin/halts` is available now and should be treated as the
+authoritative bootstrap for the ADMIN halt table, with websocket `circuit_breaker` events providing
+the live delta stream.
 
 **`GET /api/v1/admin/risk/collars`**
 
@@ -639,13 +624,12 @@ a bootstrap and keeps the live view current from the `circuit_breaker` channel r
 }
 ```
 
-**Engine mapping:** both are read-only views of resolved configuration
-(`risk_controls.levels`, `circuit_breaker_defaults`, and per-symbol overrides — FR-RISK-002/003/004).
-`pm-api-gwy` can read these from the loaded engine config or via a `system.*` config-request topic if
-one is added. No mutation is offered from the UI — editing requires a config file change and engine
-restart, consistent with the current backend model.
+**Status note:** unlike `/admin/halts`, these read-only risk-configuration endpoints do not appear to
+be available yet in the current API surface. The UI should therefore treat the Risk Control Panel as
+either a later API enhancement or a view hydrated from imported/static config rather than runtime
+REST.
 
-### 6.7 Symbol administration
+### 6.7 Symbol administration (still blocked on engine prerequisite)
 
 **`POST /api/v1/admin/symbols`** — add a new symbol.
 
@@ -680,7 +664,7 @@ restart, consistent with the current backend model.
 **Engine mapping (proposed):** a new `system.symbol_add` / `system.symbol_update` engine command.
 Read side continues to use `system.symbols_request` (FR-ENG-019).
 
-### 6.8 Index administration
+### 6.8 Index administration (still dependent on `pm-index` bridge)
 
 **`GET /api/v1/admin/indexes`**
 
@@ -705,20 +689,10 @@ Read side continues to use `system.symbols_request` (FR-ENG-019).
 > `503 Service Unavailable` and the Index Admin screen ([§15.3](#153-index-administration)) shows a
 > placeholder.
 
-### 6.9 Admin monitor WebSocket (`/api/v1/admin/monitor`)
+### 6.9 Admin monitor WebSocket (`/api/v1/admin/monitor`) (available now)
 
-ADMIN monitoring needs a live, cross-gateway feed of order/fill/session/CB activity. Two options
-were considered:
-
-1. **Expose the engine drop-copy stream** (`drop_copy.event.{GW_ID}`, per Requirements FR-OPS-001,
-   which already carries a sequenced, per-gateway event stream on the dedicated drop-copy PUB socket
-   `tcp://127.0.0.1:5557`) over a **read-only admin WebSocket**; or
-2. **Poll `GET /history/*`** repeatedly.
-
-**Recommended: option 1 — a read-only admin WebSocket `/api/v1/admin/monitor`.** Polling history is
-higher-latency, heavier, and cannot show session/CB transitions promptly. The drop-copy stream is
-purpose-built for operational monitoring (FR-OPS-001/002, NFR-015 keeps it isolated from market-data
-transport).
+ADMIN monitoring no longer needs a design-time trade-off: the current gateway already exposes a
+read-only `/api/v1/admin/monitor` WebSocket for cross-gateway order/fill/session/CB activity.
 
 **Connection lifecycle:** identical to `/events` — the client opens the socket, sends
 `{ "api_key": "..." }` (must resolve to an ADMIN key, else close code `4003`), receives
@@ -747,16 +721,14 @@ corresponding payloads. This one socket powers both the System Dashboard recent-
 ([§15.1](#151-system-dashboard)) and the Audit / Monitor Log Viewer
 ([§15.9](#159-audit--monitor-log-viewer)).
 
-**Engine mapping:** subscribe to `drop_copy.event.*` on the drop-copy PUB socket; optionally use
-`drop_copy.replay.{RECIPIENT_ID}` (FR-OPS-001) to backfill a bounded history on connect. No new
-engine command is required — the drop-copy socket already exists; the extension is purely a
-`pm-api-gwy` fan-out endpoint.
+**UX implication:** the ADMIN dashboard and monitor log can now be designed around a true live feed,
+not around polling or speculative backend work.
 
-### 6.10 Auction market-data channel
+### 6.10 Auction market-data channel (available now)
 
-The engine publishes `auction.result.{SYMBOL}` on its bus when a symbol uncrosses (Requirements
-§3.3.23, FR-ENG-031). The current `/market-data` design does not expose it. This design adds a new
-**`auction`** channel to `/market-data`, subscribed like `book`/`trades`/`depth`.
+The engine publishes `auction.result.{SYMBOL}` on its bus when a symbol uncrosses, and the current
+gateway already exposes that stream as an `auction` channel on `/market-data`, subscribed like
+`book`/`trades`/`depth`.
 
 **Subscribe:** `{ "action": "subscribe", "symbols": ["AAPL"], "channels": ["auction"] }`
 
@@ -777,29 +749,24 @@ The engine publishes `auction.result.{SYMBOL}` on its bus when a symbol uncrosse
 }
 ```
 
-**Engine mapping:** `auction.result.{SYMBOL}` (Requirements §3.3.23). For an *indicative* price
-during an ongoing auction phase (as opposed to the final uncross result), the engine would need to
-publish periodic indicative uncross computations; if the engine only emits the final result on phase
-exit, the UI shows the last indicative it received and otherwise computes an indicative equilibrium
-client-side from the resting auction book. This client-side fallback is noted in
-[§16.6](#166-auction--indicative-price-panel). This is a small `pm-api-gwy` addition (one more
-channel mapping) and is listed in the extension summary below.
+**Design consequence:** the auction / indicative-price panel should now be treated as a first-class
+surface, not as a speculative enhancement.
 
-### 6.11 Extension summary table
+### 6.11 Capability summary table
 
-| # | Extension | Kind | Engine topic / source | Backend prerequisite? |
-|---|-----------|------|-----------------------|-----------------------|
-| 1 | `GET /status` → `gateway_role`, `gateway_count` | REST field addition | gateway local state | No |
-| 2 | `POST /admin/session/transition` | REST admin | `session.transition` | No (topic exists) |
-| 3 | `POST /admin/circuit-breaker/trigger` \| `/resume` | REST admin | (proposed) `risk.circuit_breaker_*` | **Yes — manual CB engine command** |
-| 4 | `GET /admin/gateways` | REST admin | gateway local state | No |
-| 5 | `POST /admin/gateways/{id}/disconnect` | REST admin | `system.gateway_disconnect` | No (topic exists) |
-| 6 | `GET /admin/halts` | REST admin | `circuit_breaker.*` cache | No |
-| 7 | `GET /admin/risk/collars` \| `/circuit-breakers` | REST admin (read-only) | resolved config | No |
-| 8 | `POST /admin/symbols` \| `PATCH /admin/symbols/{sym}` | REST admin | (proposed) `system.symbol_add/update` | **Yes — live symbol add engine command** |
-| 9 | `GET /admin/indexes` \| `POST /admin/indexes/{id}/rebalance` | REST admin | `pm-index` bridge | **Yes — depends on `pm-index`** |
-| 10 | `WS /admin/monitor` | WebSocket | `drop_copy.event.*` | No (drop-copy socket exists) |
-| 11 | `auction` channel on `/market-data` | WebSocket channel | `auction.result.{SYMBOL}` | No (topic exists; indicative may need engine support) |
+| Capability | Current status | Notes |
+|---|---|---|
+| `GET /api/v1/status` → `gateway_role`, admin `gateway_count` | Available now | Use for role-aware routing and ADMIN KPI bootstrap |
+| `POST /api/v1/admin/session/transition` | Available now | Confirm success from subsequent `session.state` event |
+| `POST /api/v1/admin/circuit-breaker/trigger` / `/resume` | Available, but symbol-level | Treat as manual symbol halt / resume until `level` is semantically honoured |
+| `GET /api/v1/admin/gateways` | Available now | Supports Gateway Management screen |
+| `POST /api/v1/admin/gateways/{id}/disconnect` | Available now | “Kick” action already implementable |
+| `GET /api/v1/admin/halts` | Available now | Preferred bootstrap for active halts table |
+| `GET /api/v1/admin/risk/collars` / `/circuit-breakers` | Still missing | Keep risk-config panel read-only and deferred or config-backed |
+| `POST /api/v1/admin/symbols` / `PATCH /api/v1/admin/symbols/{sym}` | Blocked | Requires live symbol-add/update engine capability |
+| `GET /api/v1/admin/indexes` / `POST /api/v1/admin/indexes/{id}/rebalance` | Blocked | Requires `pm-index` bridge |
+| `WS /api/v1/admin/monitor` | Available now | Use as the primary ADMIN live feed |
+| `auction` channel on `/api/v1/market-data` | Available now | Use for auction panel, badges, and workspace cues |
 
 ### 6.12 Open questions and backend prerequisites
 
@@ -817,10 +784,10 @@ channel mapping) and is listed in the extension summary below.
    [§16.6](#166-auction--indicative-price-panel)). Confirmation needed.
 4. **`pm-index` availability.** Index admin ([§6.8](#68-index-administration)) depends on the
    separate `pm-index` process and a `pm-api-gwy` bridge to it.
-5. **Session schedule exposure.** The session clock/countdown ([§9.2](#92-top-bar)) needs the
-   configured schedule. If `pm-api-gwy` does not expose the scheduler's `schedule` block, the top bar
-   shows only the current phase and elapsed time in that phase, not a countdown to the next
-   transition.
+5. **Session schedule exposure for non-admin roles.** The gateway now exposes
+  `GET /api/v1/admin/session/schedule` for ADMIN. ADMIN can therefore show a real next-transition
+  countdown today. TRADER / MARKET_MAKER still need either a public schedule endpoint or a degraded
+  phase-only clock.
 
 ---
 
@@ -1624,22 +1591,26 @@ A filter bar above the table: Symbol (combobox), Date range (from/to date picker
 
 ### 13.6 Position Summary Panel (with Flatten)
 
-Shows net positions per symbol for the authenticated gateway, with mark-to-market P&L.
+Shows net positions per symbol for the authenticated gateway. The current API supports a compact
+position summary first; richer P&L analytics remain a follow-up enhancement once average-cost data
+is exposed by the backend.
 
 ```
-┌────────┬──────────┬──────────────┬──────────────┬──────────┬──────────┬─────────┐
-│ Symbol │ Position │ Avg Cost     │ Last Price   │ Unreal.  │ Realized │ Action  │
-├────────┼──────────┼──────────────┼──────────────┼──────────┼──────────┼─────────┤
-│ AAPL   │ +500     │ 149.80       │ 151.20 ▲     │ +700.00  │ +120.00  │ Flatten │
-│ MSFT   │ -200     │ 415.50       │ 413.00 ▼     │ +500.00  │ 0.00     │ Flatten │
-└────────┴──────────┴──────────────┴──────────────┴──────────┴──────────┴─────────┘
-                                                            [ Flatten All ]
+┌────────┬──────────┬──────────────┬─────────┐
+│ Symbol │ Position │ Last Price   │ Action  │
+├────────┼──────────┼──────────────┼─────────┤
+│ AAPL   │ +500     │ 151.20 ▲     │ Flatten │
+│ MSFT   │ -200     │ 413.00 ▼     │ Flatten │
+└────────┴──────────┴──────────────┴─────────┘
+                                  [ Flatten All ]
 ```
 
 - Data from `GET /api/v1/positions` (initial) + WebSocket `order.fill` events (live updates via
   TanStack Query invalidation).
-- Unrealized P&L = `position × (last_price − avg_cost)`. Last price from Zustand `bookStore`.
-- Positive unrealized P&L in green, negative in red.
+- Current API payload shape is `symbol`, `net_qty`, `last_price`; that is enough for net exposure
+  awareness and flattening, but not for authoritative average-cost / realized-P&L display.
+- If a future API revision exposes `avg_cost`, the panel can be expanded into a full P&L view without
+  changing its interaction model.
 - **Flatten (per row):** a one-click action that submits a `MARKET` order to close the net position —
   side is the opposite of the position sign (`SELL` for a long, `BUY` for a short), quantity is
   `abs(position)`. It calls `POST /api/v1/orders` with `{ order_type: "MARKET", tif: "DAY" }`.
@@ -1750,6 +1721,15 @@ Two complementary read sources:
   is the **authoritative source for the quote cards' fill indicators** in
   [§14.1.1](#1411-quote-card-anatomy); `/bootstrap` provides the higher-level active-quote snapshot,
   while `/legs` provides the granular bid/ask fill quantities that drive the progress bars.
+
+These two endpoints should also define the MM reconnect/recovery path:
+
+- on initial page load, hydrate the quote dashboard from `/quotes/bootstrap`
+- immediately follow with `/quotes/legs` to populate per-leg fill and status detail
+- on WebSocket reconnect, rerun both calls so the UI reconciles to engine truth before replayed live
+  events continue updating the cards
+- show a small “reconciled at HH:MM:SS” stamp so the user can see that the dashboard has been
+  resynced after a disconnect
 
 The combined table shows:
 
@@ -1895,8 +1875,9 @@ Per-symbol read-only view of:
 | Dynamic Band | Dynamic collar ± % vs last trade |
 | Profile | Level name from `risk_controls.levels` |
 
-Sourced from `GET /api/v1/admin/risk/collars` ([§6.6](#66-halts-and-risk-configuration-read-only)).
-Editing requires a config file change and engine restart.
+This view depends on a read-only risk-configuration endpoint that is not yet present in the current
+gateway surface. Until it exists, the panel should either remain hidden or be explicitly labelled as
+"configuration-backed" rather than runtime API-backed.
 
 #### 15.5.2 Circuit breaker ladder
 
@@ -1909,8 +1890,8 @@ For each circuit breaker level (L1/L2/L3):
 | Halt Duration | Minutes or "Rest of day" |
 | Resumption Mode | AUCTION / CONTINUOUS |
 
-Sourced from `GET /api/v1/admin/risk/circuit-breakers`
-([§6.6](#66-halts-and-risk-configuration-read-only)). Read-only display; no inline edit.
+This view has the same status as the collar table above: useful, but still dependent on a read-only
+risk-config API that does not yet appear to exist in the current gateway surface.
 
 ### 15.6 Circuit Breaker Management
 
@@ -1930,9 +1911,10 @@ A form with: Symbol picker + Level selector (L1/L2/L3) + Confirm button, mapping
 ([§6.4](#64-circuit-breaker-control)). Confirmation dialog: "Trigger L2 circuit breaker for AAPL?
 This will halt the symbol for 15 minutes."
 
-> **⚠ Prerequisite:** a manual CB trigger engine command may not exist yet (the engine's CB is
-> automatic — see [§6.12](#612-open-questions-and-backend-prerequisites)). Until that backend command
-> is added, this control is **disabled** with a tooltip explaining it is a backend prerequisite.
+> **Current limitation:** the gateway currently exposes this endpoint, but the backend semantics are
+> closer to a manual symbol halt than a true level-aware simulated breaker trigger. The UI should
+> therefore either (a) remove the Level selector for now, or (b) keep it visibly disabled / marked as
+> informational until the backend honours `level` as an input.
 
 #### 15.6.3 Manual CB clear
 
