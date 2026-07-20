@@ -349,7 +349,13 @@ export function buildConfigDocument(draft: EngineConfigDraft): PlainConfig {
     sessions_enabled: draft.sessionsEnabled,
     enforce_collars: draft.enforceCollars,
     enforce_circuit_breakers: draft.enforceCircuitBreakers,
-    snapshot_interval_sec: draft.snapshotIntervalSec,
+    engine_tuning: {
+      snapshot_interval_sec: draft.snapshotIntervalSec,
+      quote_history_maxlen: draft.quoteHistoryMaxlen,
+      drop_copy_buffer_size: draft.dropCopyBufferSize,
+      recent_trades_maxlen: draft.recentTradesMaxlen,
+      depth_snapshot_tolerance_ticks: draft.depthSnapshotToleranceTicks,
+    },
   };
 
   if (shouldEmitMmDefaults(draft)) {

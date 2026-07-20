@@ -84,14 +84,19 @@ class DropCopyPublisher:
               ``edumatcher.config`` (``tcp://127.0.0.1:5557``).
     """
 
-    def __init__(self, context: zmq.Context[Any], addr: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        context: zmq.Context[Any],
+        addr: Optional[str] = None,
+        buffer_size: int = DROP_COPY_BUFFER_SIZE,
+    ) -> None:
         from edumatcher.config import DROP_COPY_PUB_ADDR
 
         bind_addr = addr if addr is not None else DROP_COPY_PUB_ADDR
         self._pub: zmq.Socket[bytes] = context.socket(zmq.PUB)
         self._pub.bind(bind_addr)
         # Bounded deque: when full, oldest messages are silently dropped
-        self._log: deque[DropCopyMessage] = deque(maxlen=DROP_COPY_BUFFER_SIZE)
+        self._log: deque[DropCopyMessage] = deque(maxlen=buffer_size)
         # Per-gateway topic bytes cache — avoids f-string + .encode() per publish
         self._topic_cache: dict[str, bytes] = {}
 

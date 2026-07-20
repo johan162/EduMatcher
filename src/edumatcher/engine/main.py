@@ -166,6 +166,10 @@ def order_to_display_dict(order: Order) -> dict[str, Any]:
 class Engine:
     # Minimum interval between book snapshot publishes per symbol (seconds)
     SNAPSHOT_INTERVAL = 0.5
+    QUOTE_HISTORY_MAXLEN = 30
+    DROP_COPY_BUFFER_SIZE = 10_000
+    RECENT_TRADES_MAXLEN = 20
+    DEPTH_SNAPSHOT_TOLERANCE_TICKS = 100
 
     def __init__(self, verbose: bool = False, config_path: str | None = None) -> None:
         self.verbose = verbose
@@ -180,7 +184,11 @@ class Engine:
         self._gateway_descriptions: dict[str, str] = {}
         self._connected_fix_gateways: set[str] = set()
         self._sessions: dict[str, ParticipantSession] = {}
-        self._quote_index = QuoteIndex()
+        self.quote_history_maxlen: int = self.QUOTE_HISTORY_MAXLEN
+        self.drop_copy_buffer_size: int = self.DROP_COPY_BUFFER_SIZE
+        self.recent_trades_maxlen: int = self.RECENT_TRADES_MAXLEN
+        self.depth_snapshot_tolerance_ticks: int = self.DEPTH_SNAPSHOT_TOLERANCE_TICKS
+        self._quote_index = QuoteIndex(self.quote_history_maxlen)
 
         # Halt state — keyed by symbol; True means halted (circuit breaker fired)
         self._halted_symbols: dict[str, bool] = {}
@@ -246,6 +254,13 @@ class Engine:
                     self._engine_config.enforce_circuit_breakers
                 )
                 self.snapshot_interval_sec = self._engine_config.snapshot_interval_sec
+                self.quote_history_maxlen = self._engine_config.quote_history_maxlen
+                self.drop_copy_buffer_size = self._engine_config.drop_copy_buffer_size
+                self.recent_trades_maxlen = self._engine_config.recent_trades_maxlen
+                self.depth_snapshot_tolerance_ticks = (
+                    self._engine_config.depth_snapshot_tolerance_ticks
+                )
+                self._quote_index = QuoteIndex(self.quote_history_maxlen)
                 self._gateway_descriptions = {
                     gw_id: cfg.description
                     for gw_id, cfg in self._engine_config.fix_gateways.items()
@@ -353,7 +368,9 @@ class Engine:
 
     def _book(self, symbol: str) -> OrderBook:
         if symbol not in self.books:
-            self.books[symbol] = OrderBook(symbol)
+            self.books[symbol] = OrderBook(
+                symbol, recent_trades_maxlen=self.recent_trades_maxlen
+            )
         return self.books[symbol]
 
     def _mark_dirty(self, symbol: str) -> None:
@@ -375,7 +392,9 @@ class Engine:
                 if book:
                     self.pub_sock.send_multipart(make_book_msg(symbol, book.snapshot()))
                     # Depth metrics — published alongside each book snapshot
-                    depth = book.depth_snapshot(tolerance_ticks=100)
+                    depth = book.depth_snapshot(
+                        tolerance_ticks=self.depth_snapshot_tolerance_ticks
+                    )
                     if depth:
                         self.pub_sock.send_multipart(encode(f"depth.{symbol}", depth))
                 self._last_snapshot[symbol] = now
@@ -3931,7 +3950,10 @@ class Engine:
         # Create drop copy publisher here (not in __init__) so that unit tests
         # that call handlers directly never attempt to bind ZMQ port 5557.
         try:
-            self._drop_copy = DropCopyPublisher(zmq.Context.instance())
+            self._drop_copy = DropCopyPublisher(
+                zmq.Context.instance(),
+                buffer_size=self.drop_copy_buffer_size,
+            )
             log.info("[ENGINE] Drop copy PUB bound on port 5557")
         except zmq.ZMQError as exc:
             log.warning("[ENGINE] Drop copy unavailable — %s", exc)

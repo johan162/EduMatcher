@@ -1418,7 +1418,13 @@ def _check_runtime_flags(raw: dict[str, Any], results: list[CheckResult]) -> Non
             )
         )
 
-    snapshot_interval = raw.get("snapshot_interval_sec")
+    engine_tuning = raw.get("engine_tuning")
+    snapshot_path = "snapshot_interval_sec"
+    if isinstance(engine_tuning, dict) and "snapshot_interval_sec" in engine_tuning:
+        snapshot_interval = engine_tuning.get("snapshot_interval_sec")
+        snapshot_path = "engine_tuning.snapshot_interval_sec"
+    else:
+        snapshot_interval = raw.get("snapshot_interval_sec")
     if snapshot_interval is not None:
         try:
             snap = float(snapshot_interval)
@@ -1434,7 +1440,7 @@ def _check_runtime_flags(raw: dict[str, Any], results: list[CheckResult]) -> Non
                         f"Got '{snapshot_interval}'."
                     ),
                     suggestion="Set snapshot_interval_sec to a value > 0, e.g. 0.5.",
-                    path="snapshot_interval_sec",
+                    path=snapshot_path,
                 )
             )
 

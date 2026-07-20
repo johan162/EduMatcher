@@ -225,7 +225,11 @@ Core engine and risk options:
 
 | Option                                   | Type             | Default         | Description                                         |
 |------------------------------------------|------------------|-----------------|-----------------------------------------------------|
-| `--snapshot-interval SECS`               | float (`> 0`)    | `0.5`           | `snapshot_interval_sec`                             |
+| `--snapshot-interval SECS`               | float (`> 0`)    | `0.5`           | `engine_tuning.snapshot_interval_sec`               |
+| `--quote-history-maxlen N`               | int (`> 0`)      | `30`            | `engine_tuning.quote_history_maxlen`                |
+| `--drop-copy-buffer-size N`              | int (`> 0`)      | `10000`         | `engine_tuning.drop_copy_buffer_size`               |
+| `--recent-trades-maxlen N`               | int (`> 0`)      | `20`            | `engine_tuning.recent_trades_maxlen`                |
+| `--depth-snapshot-tolerance-ticks N`     | int (`> 0`)      | `100`           | `engine_tuning.depth_snapshot_tolerance_ticks`      |
 | `--no-collars`                           | Flag             | off             | Emit `enforce_collars: false`                       |
 | `--no-circuit-breakers`                  | Flag             | off             | Emit `enforce_circuit_breakers: false`              |
 | `--static-band PCT`                      | float in `(0,1)` | unset           | Default risk-control static band (`DEFAULT` level)  |
@@ -877,7 +881,7 @@ The current parser recognizes these top-level keys:
 | `sessions_enabled`         |                         No | Engine                          | Enable scheduler-driven session states                                    |
 | `enforce_collars`          |                         No | Engine                          | Global collar enforcement toggle                                          |
 | `enforce_circuit_breakers` |                         No | Engine                          | Global circuit-breaker enforcement toggle                                 |
-| `snapshot_interval_sec`    |                         No | Engine                          | Per-symbol book snapshot throttle                                         |
+| `engine_tuning`            |                         No | Engine                          | Runtime retention and throttling knobs                                    |
 | `mm_obligation_defaults`   |                         No | Engine                          | Default market-maker quote obligation policy                              |
 | `risk_controls`            |                         No | Engine                          | Named collar profiles                                                     |
 | `circuit_breaker_defaults` |                         No | Engine                          | Default circuit-breaker ladder                                            |
@@ -905,7 +909,7 @@ touched by the engine itself.
 
 | Process | Loader module | Top-level section(s) read | What it needs it for |
 |---|---|---|---|
-| `pm-engine` | `engine/config_loader.py` | `symbols`, `gateways.alf`, `sessions_enabled`, `enforce_collars`, `enforce_circuit_breakers`, `snapshot_interval_sec`, `mm_obligation_defaults`, `risk_controls`, `circuit_breaker_defaults`, `market_maker_combos`, `schedule`, `indices` | Symbol universe, allowed order-entry gateways, session/collar/circuit-breaker policy, MM obligations, startup combo seeds, session schedule, and index definitions |
+| `pm-engine` | `engine/config_loader.py` | `symbols`, `gateways.alf`, `sessions_enabled`, `enforce_collars`, `enforce_circuit_breakers`, `engine_tuning`, `mm_obligation_defaults`, `risk_controls`, `circuit_breaker_defaults`, `market_maker_combos`, `schedule`, `indices` | Symbol universe, allowed order-entry gateways, session/collar/circuit-breaker policy, runtime tuning, MM obligations, startup combo seeds, session schedule, and index definitions |
 | `pm-alf-gwy` | `alf_gwy/config.py` | `alf_gateway`, `gateways.alf` | Own bind address/port/timeouts, plus the gateway ID allowlist and roles for ALF client sessions |
 | `pm-balf-gwy` | `balf_gwy/config.py` | `balf_gateway`, `gateways.alf` | Own bind address/port/timeouts, plus the gateway ID allowlist, roles, and `disconnect_behaviour` for BALF sessions |
 | `pm-ralf-gwy` | `ralf_gateway/config.py` | `post_trade_gateway` | Own bind address/port/timeouts and `allowed_roles` for RALF (post-trade) subscribers |
@@ -1180,7 +1184,8 @@ This mirrors the live sample `engine_config.yaml`.
 sessions_enabled: false
 enforce_collars: true
 enforce_circuit_breakers: true
-snapshot_interval_sec: 0.5
+engine_tuning:
+  snapshot_interval_sec: 0.5
 
 symbols:
   AAPL:
@@ -1213,7 +1218,8 @@ operator gateway, reusable collar levels, and a normal continuous trading day.
 sessions_enabled: true
 enforce_collars: true
 enforce_circuit_breakers: true
-snapshot_interval_sec: 0.5
+engine_tuning:
+  snapshot_interval_sec: 0.5
 
 risk_controls:
   default_level: L2
@@ -1280,7 +1286,12 @@ symbol overrides, startup combo seeds, and scheduler times.
 sessions_enabled: true
 enforce_collars: true
 enforce_circuit_breakers: true
-snapshot_interval_sec: 0.5
+engine_tuning:
+  snapshot_interval_sec: 0.5
+  quote_history_maxlen: 30
+  drop_copy_buffer_size: 10000
+  recent_trades_maxlen: 20
+  depth_snapshot_tolerance_ticks: 100
 
 mm_obligation_defaults:
   enforce_mm_obligation: true
@@ -1559,10 +1570,26 @@ enforce_circuit_breakers: true
 Controls whether configured circuit breakers can halt symbols. This defaults to
 `true` and should normally remain enabled outside tests.
 
-### `snapshot_interval_sec`
+### `engine_tuning`
 
 ```yaml
-snapshot_interval_sec: 0.5
+engine_tuning:
+  snapshot_interval_sec: 0.5
+  quote_history_maxlen: 30
+  drop_copy_buffer_size: 10000
+  recent_trades_maxlen: 20
+  depth_snapshot_tolerance_ticks: 100
+```
+
+`engine_tuning` groups low-level runtime retention and throttling knobs that
+affect memory usage, snapshot cost, and replay depth. All of them are optional;
+omitted fields fall back to built-in defaults.
+
+### `engine_tuning.snapshot_interval_sec`
+
+```yaml
+engine_tuning:
+  snapshot_interval_sec: 0.5
 ```
 
 Controls the per-symbol throttle window for `book.<SYMBOL>` publications from
@@ -1573,6 +1600,70 @@ Rules:
 - must be numeric
 - must be greater than zero
 - defaults to `0.5` seconds when omitted
+
+### `engine_tuning.quote_history_maxlen`
+
+```yaml
+engine_tuning:
+  quote_history_maxlen: 30
+```
+
+Controls how many recently inactivated quotes per gateway are retained in
+memory for `QLEGS SHOW=RECENT` / `SHOW=ALL`.
+
+Rules:
+
+- must be an integer
+- must be greater than zero
+- defaults to `30` when omitted
+
+### `engine_tuning.drop_copy_buffer_size`
+
+```yaml
+engine_tuning:
+  drop_copy_buffer_size: 10000
+```
+
+Controls how many drop-copy events are retained in memory for replay after a
+subscriber reconnects.
+
+Rules:
+
+- must be an integer
+- must be greater than zero
+- defaults to `10000` when omitted
+
+### `engine_tuning.recent_trades_maxlen`
+
+```yaml
+engine_tuning:
+  recent_trades_maxlen: 20
+```
+
+Controls how many recent trade rows each order book keeps for snapshots and
+diagnostics.
+
+Rules:
+
+- must be an integer
+- must be greater than zero
+- defaults to `20` when omitted
+
+### `engine_tuning.depth_snapshot_tolerance_ticks`
+
+```yaml
+engine_tuning:
+  depth_snapshot_tolerance_ticks: 100
+```
+
+Controls the depth window around the last trade, measured in ticks, when the
+engine publishes aggregated depth snapshots.
+
+Rules:
+
+- must be an integer
+- must be greater than zero
+- defaults to `100` when omitted
 
 
 ## ALF Gateway Allowlist
@@ -2214,12 +2305,22 @@ Ranges use mathematical interval notation: `(a, b)` is open (exclusive),
 | `sessions_enabled`         | bool    |       No | `true` when file exists, `false` in unrestricted mode | `true`, `false`        | Must be a YAML boolean                   |
 | `enforce_collars`          | bool    |       No | `true`                                                | `true`, `false`        | Must be a YAML boolean                   |
 | `enforce_circuit_breakers` | bool    |       No | `true`                                                | `true`, `false`        | Must be a YAML boolean                   |
-| `snapshot_interval_sec`    | float   |       No | `0.5`                                                 | Any number             | Must be `> 0`                            |
+| `engine_tuning`            | mapping |       No | —                                                     | —                      | Runtime tuning block                     |
 | `mm_obligation_defaults`   | mapping |       No | —                                                     | —                      | —                                        |
 | `risk_controls`            | mapping |       No | —                                                     | —                      | —                                        |
 | `circuit_breaker_defaults` | mapping |       No | —                                                     | —                      | —                                        |
 | `market_maker_combos`      | list    |       No | `[]`                                                  | —                      | Each entry must be a mapping             |
 | `schedule`                 | mapping |       No | —                                                     | —                      | Parsed by scheduler and stored by engine |
+
+### `engine_tuning` fields
+
+| Field | Type | Required | Default | Allowed values / range | Constraint |
+|---|---|---:|---|---|---|
+| `snapshot_interval_sec` | float | No | `0.5` | Any number | Must be `> 0` |
+| `quote_history_maxlen` | int | No | `30` | Positive integer | Must be `> 0` |
+| `drop_copy_buffer_size` | int | No | `10000` | Positive integer | Must be `> 0` |
+| `recent_trades_maxlen` | int | No | `20` | Positive integer | Must be `> 0` |
+| `depth_snapshot_tolerance_ticks` | int | No | `100` | Positive integer | Must be `> 0` |
 
 ---
 

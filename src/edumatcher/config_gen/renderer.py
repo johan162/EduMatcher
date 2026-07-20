@@ -41,7 +41,11 @@ def render_yaml(
         ),
         (
             "Engine behavior",
-            ["enforce_collars", "enforce_circuit_breakers", "snapshot_interval_sec"],
+            ["enforce_collars", "enforce_circuit_breakers"],
+        ),
+        (
+            "Engine tuning",
+            ["engine_tuning"],
         ),
         ("Market-maker obligation defaults", ["mm_obligation_defaults"]),
         ("Collar profiles", ["risk_controls"]),
@@ -88,15 +92,27 @@ def _annotate(dumped: str) -> list[str]:
     source_lines = dumped.splitlines()
     out: list[str] = []
     idx = 0
+    in_engine_tuning = False
     while idx < len(source_lines):
         line = source_lines[idx]
         stripped = line.strip()
         indent = len(line) - len(line.lstrip(" "))
 
+        if indent == 0 and stripped:
+            in_engine_tuning = stripped == "engine_tuning:"
+
         if indent == 0:
             top_level_comment = _TOP_LEVEL_HINTS.get(stripped.split(":", 1)[0])
             if top_level_comment is not None:
                 out.extend(_comment_lines(indent, top_level_comment))
+                out.append(line)
+                idx += 1
+                continue
+
+        if in_engine_tuning and indent == 2 and ":" in stripped:
+            tuning_comment = _ENGINE_TUNING_HINTS.get(stripped.split(":", 1)[0])
+            if tuning_comment is not None:
+                out.extend(_comment_lines(indent, tuning_comment))
                 out.append(line)
                 idx += 1
                 continue
@@ -163,8 +179,8 @@ _TOP_LEVEL_HINTS: dict[str, list[str]] = {
     ],
     "enforce_collars": ["enables per-symbol collar checks on incoming orders"],
     "enforce_circuit_breakers": ["enables per-symbol circuit-breaker enforcement"],
-    "snapshot_interval_sec": [
-        "seconds between book snapshot publications for dirty books"
+    "engine_tuning": [
+        "runtime retention and throttling knobs with memory/latency trade-offs"
     ],
     "mm_obligation_defaults": ["default market-maker obligation settings"],
     "risk_controls": ["collar profiles by risk level"],
@@ -176,4 +192,16 @@ _TOP_LEVEL_HINTS: dict[str, list[str]] = {
     "symbols": ["symbol universe"],
     "market_maker_combos": ["startup market-maker combo seeds"],
     "schedule": ["session schedule"],
+}
+
+_ENGINE_TUNING_HINTS: dict[str, list[str]] = {
+    "snapshot_interval_sec": [
+        "seconds between book snapshot publications for dirty books"
+    ],
+    "quote_history_maxlen": ["per-gateway RECENT/ALL quote history retained in memory"],
+    "drop_copy_buffer_size": ["drop-copy replay messages retained in memory"],
+    "recent_trades_maxlen": ["recent trades retained per symbol snapshot"],
+    "depth_snapshot_tolerance_ticks": [
+        "depth window around last trade in ticks; larger values publish more depth"
+    ],
 }

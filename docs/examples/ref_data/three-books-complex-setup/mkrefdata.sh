@@ -98,6 +98,10 @@ SPECIFIC_ARGS=(
   --closing-auction 16:00
   --closing-end 16:10
   --snapshot-interval 0.25
+  --quote-history-maxlen 30
+  --drop-copy-buffer-size 10000
+  --recent-trades-maxlen 20
+  --depth-snapshot-tolerance-ticks 100
   --static-band 0.20
   --dynamic-band 0.02
   --risk-level CORE:0.18:0.02

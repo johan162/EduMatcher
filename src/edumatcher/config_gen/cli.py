@@ -79,6 +79,14 @@ from edumatcher.config_gen.cli_comments import build_default_engine_field_commen
 def _validate_basic_args(args: argparse.Namespace) -> None:
     if args.snapshot_interval <= 0:
         raise ValueError("--snapshot-interval must be > 0")
+    if args.quote_history_maxlen <= 0:
+        raise ValueError("--quote-history-maxlen must be > 0")
+    if args.drop_copy_buffer_size <= 0:
+        raise ValueError("--drop-copy-buffer-size must be > 0")
+    if args.recent_trades_maxlen <= 0:
+        raise ValueError("--recent-trades-maxlen must be > 0")
+    if args.depth_snapshot_tolerance_ticks <= 0:
+        raise ValueError("--depth-snapshot-tolerance-ticks must be > 0")
     if not (0 <= args.tick_decimals <= 8):
         raise ValueError("--tick-decimals must be in range 0..8")
     if args.mm_spread_ticks <= 0:
@@ -1260,6 +1268,10 @@ def main() -> None:
             gateways=gateways,
             sessions_enabled=bool(args.sessions_enabled),
             snapshot_interval_sec=float(args.snapshot_interval),
+            quote_history_maxlen=int(args.quote_history_maxlen),
+            drop_copy_buffer_size=int(args.drop_copy_buffer_size),
+            recent_trades_maxlen=int(args.recent_trades_maxlen),
+            depth_snapshot_tolerance_ticks=int(args.depth_snapshot_tolerance_ticks),
             enforce_collars=not args.no_collars,
             enforce_circuit_breakers=not args.no_circuit_breakers,
             static_band_pct=args.static_band,

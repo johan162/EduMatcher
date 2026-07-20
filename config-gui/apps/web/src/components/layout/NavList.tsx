@@ -1,6 +1,13 @@
 import clsx from "clsx";
 import { NavLink } from "react-router-dom";
-import { DEFAULT_SNAPSHOT_INTERVAL_SEC, type EngineConfigDraft } from "@edumatcher/schema";
+import {
+  DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS,
+  DEFAULT_DROP_COPY_BUFFER_SIZE,
+  DEFAULT_QUOTE_HISTORY_MAXLEN,
+  DEFAULT_RECENT_TRADES_MAXLEN,
+  DEFAULT_SNAPSHOT_INTERVAL_SEC,
+  type EngineConfigDraft,
+} from "@edumatcher/schema";
 import { useDraftStore } from "@/store/draftStore";
 import { visibleTabs, type TabDef } from "@/lib/tabs";
 
@@ -39,7 +46,13 @@ function isConfigured(draft: EngineConfigDraft, tabId: string): boolean {
         draft.apiGateways.length > 0
       );
     case "engine-tuning":
-      return draft.snapshotIntervalSec !== DEFAULT_SNAPSHOT_INTERVAL_SEC;
+      return (
+        draft.snapshotIntervalSec !== DEFAULT_SNAPSHOT_INTERVAL_SEC ||
+        draft.quoteHistoryMaxlen !== DEFAULT_QUOTE_HISTORY_MAXLEN ||
+        draft.dropCopyBufferSize !== DEFAULT_DROP_COPY_BUFFER_SIZE ||
+        draft.recentTradesMaxlen !== DEFAULT_RECENT_TRADES_MAXLEN ||
+        draft.depthSnapshotToleranceTicks !== DEFAULT_DEPTH_SNAPSHOT_TOLERANCE_TICKS
+      );
     case "review":
       return true;
     default:

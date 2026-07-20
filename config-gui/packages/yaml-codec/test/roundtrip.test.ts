@@ -29,8 +29,15 @@ describe("buildConfigDocument", () => {
       "sessions_enabled",
       "enforce_collars",
       "enforce_circuit_breakers",
-      "snapshot_interval_sec",
+      "engine_tuning",
     ]);
+    expect(doc.engine_tuning).toEqual({
+      snapshot_interval_sec: 0.5,
+      quote_history_maxlen: 30,
+      drop_copy_buffer_size: 10_000,
+      recent_trades_maxlen: 20,
+      depth_snapshot_tolerance_ticks: 100,
+    });
     expect(doc.symbols).toHaveProperty("AAPL");
     expect(doc.gateways).toEqual({
       alf: [
@@ -275,12 +282,20 @@ describe("parseYamlToDraft round trip", () => {
     draft.sessionsEnabled = true;
     draft.riskControls.globalStaticBandPct = 0.2;
     draft.gateways.push(createGateway("OPS01", "ADMIN"));
+    draft.quoteHistoryMaxlen = 45;
+    draft.dropCopyBufferSize = 12_000;
+    draft.recentTradesMaxlen = 30;
+    draft.depthSnapshotToleranceTicks = 250;
     const text = generateYaml(draft);
     const { draft: reparsed } = parseYamlToDraft(text);
     expect(reparsed.symbolOrder).toEqual(["AAPL"]);
     expect(reparsed.gateways.map((g) => g.id)).toEqual(["TRADER01", "TRADER02", "OPS01"]);
     expect(reparsed.gateways[2]!.role).toBe("ADMIN");
     expect(reparsed.sessionsEnabled).toBe(true);
+    expect(reparsed.quoteHistoryMaxlen).toBe(45);
+    expect(reparsed.dropCopyBufferSize).toBe(12_000);
+    expect(reparsed.recentTradesMaxlen).toBe(30);
+    expect(reparsed.depthSnapshotToleranceTicks).toBe(250);
     expect(reparsed.riskControls.globalStaticBandPct).toBeCloseTo(0.2, 5);
   });
 
@@ -289,7 +304,8 @@ describe("parseYamlToDraft round trip", () => {
       "sessions_enabled: false",
       "enforce_collars: true",
       "enforce_circuit_breakers: true",
-      "snapshot_interval_sec: 0.5",
+      "engine_tuning:",
+      "  snapshot_interval_sec: 0.5",
       "gateways:",
       "  alf:",
       "  - id: TRADER01", // TRADER, disconnect_behaviour intentionally omitted
@@ -345,7 +361,8 @@ describe("parseYamlToDraft round trip", () => {
       "sessions_enabled: false",
       "enforce_collars: true",
       "enforce_circuit_breakers: true",
-      "snapshot_interval_sec: 0.5",
+      "engine_tuning:",
+      "  snapshot_interval_sec: 0.5",
       "gateways:",
       "  alf:",
       "  - id: TRADER01",

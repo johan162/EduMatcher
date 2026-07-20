@@ -512,21 +512,65 @@ sequenceDiagram
 
 ## Starting more processes
 
-The engine is the only mandatory process. Add the others as you need them:
+The engine is the only mandatory process. Add the others as you need them,
+grouped below by role.
 
-| When you want to…                                   | Start this process                      | More information                                           |
-|-----------------------------------------------------|-----------------------------------------|------------------------------------------------------------|
-| Watch P&L update in real time                       | `pm-clearing`                           | [P&L and Clearing](130-pnl-clearing.md)                     |
-| Record OHLCV statistics                             | `pm-stats`                              | [Statistics and Reporting](140-statistics-and-reporting.md) |
-| Query recorded statistics without SQL               | `pm-stats-cli daily --date 2026-06-14`  | [Statistics and Reporting](140-statistics-and-reporting.md) |
-| Query clearing and P&L data without SQL             | `pm-clearing-cli pnl`                   | [P&L and Clearing](130-pnl-clearing.md)                     |
-| Query audit logs without shell pipelines            | `pm-audit-cli events --date 2026-06-14` | [Audit Trail](190-audit.md)                                 |
-| Use `pm-admin` operator commands                    | `pm-admin` (interactive REPL)           | [Risk Controls](120-risk-controls.md)                       |
-| Schedule opening/closing auctions                   | `pm-scheduler`                          | [Auctions and Scheduling](080-auctions-scheduling.md)       |
-| Add autonomous AI order flow                        | `pm-ai-swarm --count 5 --duration 60`   | [AI Traders](110-ai-traders.md)                             |
-| Add automated market-maker liquidity                | `pm-mm-bot --symbol AAPL`               | [Market-Maker Bot](100-mm-bot.md)                           |
-| Feed external clearing/drop-copy consumers over TCP | `pm-ralf-gwy`                           | [Post-Trade Dissemination](250-post-trade.md)               |
-| Feed compliance/risk systems                        | Subscribe to `:5557` (drop-copy socket) | [Drop Copy](200-drop-copy.md)                               |
+### Mandatory
+
+| When you want to…                                       | Start this process | More information                                |
+|-------------------------------------------------------------|-----------------------|------------------------------------------------------|
+| Run the matching engine (required for everything else)   | `pm-engine`         | [Running the Engine](040-running-the-engine.md) |
+
+### Recommended core
+
+| When you want to…                            | Start this process             | More information                                      |
+|----------------------------------------------|----------------------------------|--------------------------------------------------------|
+| Automate opening/closing auctions            | `pm-scheduler`                  | [Auctions and Scheduling](080-auctions-scheduling.md) |
+| Capture the full event log for later audit   | `pm-audit`                      | [Audit Trail](190-audit.md)                           |
+| Watch P&L update in real time                | `pm-clearing`                   | [P&L and Clearing](130-pnl-clearing.md)               |
+| Use operator commands (halt/resume/session)  | `pm-admin` (interactive REPL)   | [Risk Controls](120-risk-controls.md)                 |
+
+### Reporting, statistics & monitoring
+
+| When you want to…                                | Start this process                      | More information                                             |
+|------------------------------------------------------|--------------------------------------------|-------------------------------------------------------------------|
+| Record OHLCV statistics                           | `pm-stats`                              | [Statistics and Reporting](140-statistics-and-reporting.md) |
+| Query recorded statistics without SQL             | `pm-stats-cli daily --date 2026-06-14`  | [Statistics and Reporting](140-statistics-and-reporting.md) |
+| Query clearing and P&L data without SQL           | `pm-clearing-cli pnl`                   | [P&L and Clearing](130-pnl-clearing.md)                     |
+| Query audit logs without shell pipelines          | `pm-audit-cli events --date 2026-06-14` | [Audit Trail](190-audit.md)                                 |
+| Watch a single symbol's live order book           | `pm-viewer`                              | [Order Types](060-order-types.md)                           |
+| Monitor live order status across gateways         | `pm-orders`                              | [Messages](270-messages.md)                                 |
+| Display a multi-symbol market board               | `pm-board`                               | [Processes](170-processes.md)                               |
+| Show a scrolling ticker with OHLCV context        | `pm-ticker`                               | [Statistics and Reporting](140-statistics-and-reporting.md) |
+| Calculate and disseminate a cap-weighted index    | `pm-index`                               | [Market Index](150-index.md)                                |
+| Query index history without SQL                  | `pm-index-cli`                           | [Market Index](150-index.md#using-pm-index-cli-recommended) |
+
+### Gateways
+
+| When you want to…                                    | Start this process                      | More information                                 |
+|-----------------------------------------------------------|--------------------------------------------|--------------------------------------------------------|
+| Distribute market data externally (CALF)             | `pm-md-gwy`                             | [Market Data Feed](240-market-data-feed.md)     |
+| Expose REST/WebSocket order entry & market data      | `pm-api-gwy`                             | [API Gateway](260-api-gateway.md)                |
+| Accept binary order entry over TCP (BALF)            | `pm-balf-gwy`                           | [BALF Gateway](230-balf-gateway.md)              |
+| Feed external clearing/drop-copy consumers (RALF)    | `pm-ralf-gwy`                           | [Post-Trade Dissemination](250-post-trade.md)    |
+| Feed compliance/risk systems directly                | Subscribe to `:5557` (drop-copy socket) | [Drop Copy](200-drop-copy.md)                    |
+
+### Automation
+
+| When you want to…                                | Start this process                    | More information                  |
+|------------------------------------------------------|------------------------------------------|----------------------------------------|
+| Add a single autonomous trading bot               | `pm-ai-trader`                        | [AI Traders](110-ai-traders.md)   |
+| Add autonomous AI order flow (multi-agent)        | `pm-ai-swarm --count 5 --duration 60` | [AI Traders](110-ai-traders.md)   |
+| Add automated market-maker liquidity              | `pm-mm-bot --symbol AAPL`             | [Market-Maker Bot](100-mm-bot.md) |
+
+### Other utilities
+
+| When you want to…                                | Start this process | More information                                                                    |
+|-------------------------------------------------------|-----------------------|------------------------------------------------------------------------------------------|
+| Generate `engine_config.yaml` from CLI flags      | `pm-config-gen`     | [Configuration generator](010-configuration.md#generate-configs-with-pm-config-gen) |
+| Validate `engine_config.yaml` before runtime      | `pm-cverifier`      | [Config Verifier](020-config-verifier.md)                                          |
+| Run admin commands non-interactively (scripts)    | `pm-admin-cli`      | [Risk Controls](120-risk-controls.md)                                               |
+| Bootstrap a local session directory               | `pm-setup`          | [Installation](000-getting-started.md#installation)                                |
 
 !!! tip "Where does all this data go?"
     Several of these processes write data files (statistics, P&L, audit log,
