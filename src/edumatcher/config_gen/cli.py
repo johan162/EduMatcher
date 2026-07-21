@@ -504,9 +504,11 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
     )
     if gateway_smp:
         gateways = [
-            replace(gw, smp_action=gateway_smp[gw.gateway_id])
-            if gw.gateway_id in gateway_smp
-            else gw
+            (
+                replace(gw, smp_action=gateway_smp[gw.gateway_id])
+                if gw.gateway_id in gateway_smp
+                else gw
+            )
             for gw in gateways
         ]
 
