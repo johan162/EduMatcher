@@ -457,3 +457,67 @@ def test_two_independent_clients_different_roles(running_gateway: RalfGateway) -
 
     assert received_a[0].fields["CH"] == "CLEARING"
     assert received_b[0].fields["CH"] == "DROP_COPY"
+
+
+# ---------------------------------------------------------------------------
+# _SpySession.on_frame -- HB/PONG suppression (--show-heartbeats)
+# ---------------------------------------------------------------------------
+
+
+def _make_session(*, show_heartbeats: bool) -> ralf_spy_cli._SpySession:
+    import argparse
+
+    args = argparse.Namespace(
+        no_color=True,
+        format="json",
+        raw=False,
+        show_heartbeats=show_heartbeats,
+    )
+    return ralf_spy_cli._SpySession(args)
+
+
+def test_on_frame_hides_pong_by_default(capsys: pytest.CaptureFixture[str]) -> None:
+    """PONG (the gateway's reply to our own keep-alive PING) is noise by
+    default, same as HB -- both are suppressed unless --show-heartbeats."""
+    session = _make_session(show_heartbeats=False)
+    session.on_frame(RalfFrame(msg_type="PONG", fields={}), "PONG", 0.0)
+
+    out = capsys.readouterr().out
+    assert out == ""
+    assert session.count == 0
+
+
+def test_on_frame_hides_hb_by_default(capsys: pytest.CaptureFixture[str]) -> None:
+    session = _make_session(show_heartbeats=False)
+    session.on_frame(RalfFrame(msg_type="HB", fields={}), "HB", 0.0)
+
+    out = capsys.readouterr().out
+    assert out == ""
+    assert session.count == 0
+
+
+def test_on_frame_shows_pong_with_show_heartbeats(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    session = _make_session(show_heartbeats=True)
+    session.on_frame(RalfFrame(msg_type="PONG", fields={}), "PONG", 0.0)
+
+    out = capsys.readouterr().out
+    assert '"msg_type": "PONG"' in out
+    assert session.count == 1
+
+
+def test_on_frame_does_not_suppress_data_frames(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Only HB/PONG are suppressed -- ordinary stream data always prints."""
+    session = _make_session(show_heartbeats=False)
+    session.on_frame(
+        RalfFrame(msg_type="DROP_COPY", fields={"CH": "DROP_COPY", "SYM": "AAPL"}),
+        "DROP_COPY|...",
+        0.0,
+    )
+
+    out = capsys.readouterr().out
+    assert '"msg_type": "DROP_COPY"' in out
+    assert session.count == 1

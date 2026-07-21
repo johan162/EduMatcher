@@ -358,7 +358,9 @@ def test_quote_without_smp_action_self_trades_against_stale_resting_order(
     NONE default, the same crossing scenario DOES self-trade -- proving the
     CANCEL_RESTING behavior above comes from the gateway config wiring and
     not from some other unrelated guard."""
-    engine, pub_sock = _make_engine(monkeypatch, tmp_path, role=ParticipantRole.MARKET_MAKER)
+    engine, pub_sock = _make_engine(
+        monkeypatch, tmp_path, role=ParticipantRole.MARKET_MAKER
+    )
 
     stale_ask = Order.create(
         symbol="AAPL",

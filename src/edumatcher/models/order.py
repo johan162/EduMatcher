@@ -227,7 +227,9 @@ class Order:
             "stop_price": self.stop_price,
             "visible_qty": self.visible_qty,
             "displayed_qty": self.displayed_qty,
-            "smp_action": self.smp_action.value if self.smp_action is not None else None,
+            "smp_action": (
+                self.smp_action.value if self.smp_action is not None else None
+            ),
             "combo_parent_id": self.combo_parent_id,
             "leg_index": self.leg_index,
             "origin": self.origin.value,

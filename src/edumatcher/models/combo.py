@@ -65,7 +65,9 @@ class ComboLeg:
             "quantity": self.quantity,
             "price": self.price,
             "stop_price": self.stop_price,
-            "smp_action": self.smp_action.value if self.smp_action is not None else None,
+            "smp_action": (
+                self.smp_action.value if self.smp_action is not None else None
+            ),
         }
 
     @classmethod

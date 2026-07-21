@@ -94,7 +94,7 @@ explicit symbols for `INDEX`/`DEPTH`/`CB` rather than relying on `*`.
 | `--format` | `human` | `human` (colourised log line) or `json` (one `json.dumps` object per line) |
 | `--raw` | off | Also echo the raw wire line under each formatted line (human format only) |
 | `--no-color` | off | Disable ANSI colour even on a terminal |
-| `--show-heartbeats` | off | Also print `HB` lines (suppressed by default to reduce noise) |
+| `--show-heartbeats` | off | Also print `HB` and `PONG` lines (suppressed by default to reduce noise) |
 | `--count N` | `0` | Exit after N data-carrying lines (`0` = run until Ctrl-C); heartbeats don't count |
 
 **Diagnostics:** `--log-level`, `-v`/`--verbose`, `-q`/`--quiet`, `--version`,

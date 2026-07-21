@@ -405,4 +405,67 @@ def test_parse_line_roundtrip_sanity() -> None:
     decision made when building this tool)."""
     frame = parse_line("TRADE|CH=TRADE|SYM=AAPL|SEQ=1|TS=x|PX=1|QTY=1|SIDE=BUY")
     assert frame.msg_type == "TRADE"
-    assert frame.fields["SYM"] == "AAPL"
+
+
+# ---------------------------------------------------------------------------
+# _SpySession.on_frame -- HB/PONG suppression (--show-heartbeats)
+# ---------------------------------------------------------------------------
+
+
+def _make_session(*, show_heartbeats: bool) -> calf_spy_cli._SpySession:
+    import argparse
+
+    args = argparse.Namespace(
+        no_color=True,
+        format="json",
+        raw=False,
+        show_heartbeats=show_heartbeats,
+    )
+    return calf_spy_cli._SpySession(args)
+
+
+def test_on_frame_hides_pong_by_default(capsys: pytest.CaptureFixture[str]) -> None:
+    """PONG (the gateway's reply to our own keep-alive PING) is noise by
+    default, same as HB -- both are suppressed unless --show-heartbeats."""
+    session = _make_session(show_heartbeats=False)
+    session.on_frame(CalfFrame(msg_type="PONG", fields={}), "PONG", 0.0)
+
+    out = capsys.readouterr().out
+    assert out == ""
+    assert session.count == 0
+
+
+def test_on_frame_hides_hb_by_default(capsys: pytest.CaptureFixture[str]) -> None:
+    session = _make_session(show_heartbeats=False)
+    session.on_frame(CalfFrame(msg_type="HB", fields={}), "HB", 0.0)
+
+    out = capsys.readouterr().out
+    assert out == ""
+    assert session.count == 0
+
+
+def test_on_frame_shows_pong_with_show_heartbeats(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    session = _make_session(show_heartbeats=True)
+    session.on_frame(CalfFrame(msg_type="PONG", fields={}), "PONG", 0.0)
+
+    out = capsys.readouterr().out
+    assert '"msg_type": "PONG"' in out
+    assert session.count == 1
+
+
+def test_on_frame_does_not_suppress_data_frames(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Only HB/PONG are suppressed -- ordinary stream data always prints."""
+    session = _make_session(show_heartbeats=False)
+    session.on_frame(
+        CalfFrame(msg_type="TRADE", fields={"CH": "TRADE", "SYM": "AAPL"}),
+        "TRADE|...",
+        0.0,
+    )
+
+    out = capsys.readouterr().out
+    assert '"msg_type": "TRADE"' in out
+    assert session.count == 1

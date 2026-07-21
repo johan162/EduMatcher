@@ -118,8 +118,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default=60.0,
         metavar="SECONDS",
         help="Send PING to the gateway every SECONDS seconds to avoid its "
-        "idle timeout (default: 60). The gateway replies PONG. Set to 0 to "
-        "disable.",
+        "idle timeout (default: 60). The gateway replies PONG (hidden by "
+        "default, see --show-heartbeats). Set to 0 to disable.",
     )
 
     out = parser.add_argument_group("output")
@@ -144,8 +144,9 @@ def _build_parser() -> argparse.ArgumentParser:
     out.add_argument(
         "--show-heartbeats",
         action="store_true",
-        help="Also print HB heartbeat lines (suppressed by default to "
-        "reduce noise; they still keep the connection alive either way)",
+        help="Also print HB heartbeat lines and PONG keep-alive replies "
+        "(suppressed by default to reduce noise; they still keep the "
+        "connection alive either way)",
     )
     out.add_argument(
         "--count",
@@ -240,7 +241,7 @@ class _SpySession:
         self.count = 0
 
     def on_frame(self, frame: RalfFrame, raw_line: str, recv_time: float) -> None:
-        if frame.msg_type == "HB" and not self.args.show_heartbeats:
+        if frame.msg_type in ("HB", "PONG") and not self.args.show_heartbeats:
             return
 
         if self.args.format == "json":

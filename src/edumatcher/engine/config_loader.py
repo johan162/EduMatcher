@@ -843,9 +843,7 @@ def load_engine_config(path: Path) -> EngineConfig:
                 QuoteRefreshPolicy.INACTIVATE_ON_ANY_FILL.value,
             )
         ).upper()
-        smp_action_raw = str(
-            item.get("smp_action", SmpAction.NONE.value)
-        ).upper()
+        smp_action_raw = str(item.get("smp_action", SmpAction.NONE.value)).upper()
         enforce_mm_obligation = item.get(
             "enforce_mm_obligation", mm_global_policy.enforce_mm_obligation
         )

@@ -31,6 +31,7 @@ This release also hardens the matching engine, scheduler, gateways, and clearing
 - Added proxy-oriented container build support for Config GUI
 - Added a new concepts chapter on implied orders
 - Added QLEGS/RECENT-ALL history support for alf-gwy
+- Added gateway-level SMP default for ALF NEW/combo/quote orders
 
 ### 🚀 Improvements
 - Improved `pm-config-gen` with port-collision detection, chronological schedule validation, and tick-aware combo-leg pricing
@@ -69,6 +70,7 @@ This release also hardens the matching engine, scheduler, gateways, and clearing
 - Updated CALF/Index design documentation to align with the latest protocol depth and index-subscription semantics
 - Refreshed training and examples documentation for CALF usage and API history workflows
 - Added first draft of presentation for use in training
+- Added SMP holistic overview in Risk Controls (mechanics, precedence rules, per-path support matrix, worked examples)
 
 ### 🛠 Internal
 - Refactored the large admin command dispatch chain into handler-based dispatch

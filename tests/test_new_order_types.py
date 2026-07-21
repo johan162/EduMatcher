@@ -1097,13 +1097,9 @@ class TestSmpGatewayDefaultFallback:
     explicit client value -- including explicit SmpAction.NONE -- always
     takes precedence over that default."""
 
-    def test_new_order_unspecified_smp_gets_gateway_default(
-        self, eng_with_smp_default
-    ):
+    def test_new_order_unspecified_smp_gets_gateway_default(self, eng_with_smp_default):
         engine, pub_sock = eng_with_smp_default
-        order = _make_order(
-            gateway_id="TRADER01", price=100.0, smp_action=None
-        )
+        order = _make_order(gateway_id="TRADER01", price=100.0, smp_action=None)
         engine._handle_new_order(order.to_dict())
 
         book = engine._book("AAPL")
@@ -1156,9 +1152,7 @@ class TestSmpGatewayDefaultFallback:
         assert internal is not None
         assert internal.smp_action == SmpAction.NONE
 
-    def test_combo_leg_unspecified_smp_gets_gateway_default(
-        self, eng_with_smp_default
-    ):
+    def test_combo_leg_unspecified_smp_gets_gateway_default(self, eng_with_smp_default):
         engine, pub_sock = eng_with_smp_default
         combo = ComboOrder.create(
             combo_id="C1",
@@ -1185,10 +1179,14 @@ class TestSmpGatewayDefaultFallback:
         engine._accept_combo(combo)
 
         aapl_orders = [
-            o for o in engine._book("AAPL").resting_orders() if o.gateway_id == "TRADER01"
+            o
+            for o in engine._book("AAPL").resting_orders()
+            if o.gateway_id == "TRADER01"
         ]
         msft_orders = [
-            o for o in engine._book("MSFT").resting_orders() if o.gateway_id == "TRADER01"
+            o
+            for o in engine._book("MSFT").resting_orders()
+            if o.gateway_id == "TRADER01"
         ]
         assert len(aapl_orders) == 1
         assert len(msft_orders) == 1
@@ -1226,10 +1224,14 @@ class TestSmpGatewayDefaultFallback:
         engine._accept_combo(combo)
 
         aapl_orders = [
-            o for o in engine._book("AAPL").resting_orders() if o.gateway_id == "TRADER01"
+            o
+            for o in engine._book("AAPL").resting_orders()
+            if o.gateway_id == "TRADER01"
         ]
         msft_orders = [
-            o for o in engine._book("MSFT").resting_orders() if o.gateway_id == "TRADER01"
+            o
+            for o in engine._book("MSFT").resting_orders()
+            if o.gateway_id == "TRADER01"
         ]
         assert len(aapl_orders) == 1
         assert len(msft_orders) == 1

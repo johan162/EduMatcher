@@ -765,9 +765,7 @@ class Engine:
         # SMP=None means the client omitted it -- fall back to the gateway's
         # configured default (gateways.alf[].smp_action). An explicit value
         # (including SmpAction.NONE) from the client is always respected.
-        order.smp_action = self._resolve_smp_action(
-            order.gateway_id, order.smp_action
-        )
+        order.smp_action = self._resolve_smp_action(order.gateway_id, order.smp_action)
 
         # FIX gateway allowlist + connect/auth check
         # Fast-path: if gateway_id is already in _connected_fix_gateways it is
@@ -2740,9 +2738,7 @@ class Engine:
             # SMP=None on a leg means it was omitted (either by the client on
             # a live combo, or by an unset market_maker_combos[].legs[]
             # config seed) -- fall back to the gateway's configured default.
-            leg_smp_action = self._resolve_smp_action(
-                combo.gateway_id, leg.smp_action
-            )
+            leg_smp_action = self._resolve_smp_action(combo.gateway_id, leg.smp_action)
             child = Order.create(
                 symbol=leg.symbol,
                 side=leg.side,
