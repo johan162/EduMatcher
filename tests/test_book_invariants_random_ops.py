@@ -114,6 +114,7 @@ class _OpDriver:
 
         if r < 0.40:  # LIMIT
             price = self._price()
+            smp = self._smp()
             o = Order.create(
                 symbol=SYMBOL,
                 side=side,
@@ -121,25 +122,27 @@ class _OpDriver:
                 quantity=qty,
                 gateway_id=gw,
                 price=price,
-                smp_action=self._smp(),
+                smp_action=smp,
             )
             self._submit(o)
-            return f"LIMIT {side.value} {qty}@{price} gw={gw} smp={o.smp_action.value}"
+            return f"LIMIT {side.value} {qty}@{price} gw={gw} smp={smp.value}"
 
         if r < 0.50:  # MARKET
+            smp = self._smp()
             o = Order.create(
                 symbol=SYMBOL,
                 side=side,
                 order_type=OrderType.MARKET,
                 quantity=qty,
                 gateway_id=gw,
-                smp_action=self._smp(),
+                smp_action=smp,
             )
             self._submit(o)
-            return f"MARKET {side.value} {qty} gw={gw} smp={o.smp_action.value}"
+            return f"MARKET {side.value} {qty} gw={gw} smp={smp.value}"
 
         if r < 0.60:  # IOC
             price = self._price()
+            smp = self._smp()
             o = Order.create(
                 symbol=SYMBOL,
                 side=side,
@@ -147,13 +150,14 @@ class _OpDriver:
                 quantity=qty,
                 gateway_id=gw,
                 price=price,
-                smp_action=self._smp(),
+                smp_action=smp,
             )
             self._submit(o)
-            return f"IOC {side.value} {qty}@{price} gw={gw} smp={o.smp_action.value}"
+            return f"IOC {side.value} {qty}@{price} gw={gw} smp={smp.value}"
 
         if r < 0.67:  # FOK
             price = self._price()
+            smp = self._smp()
             o = Order.create(
                 symbol=SYMBOL,
                 side=side,
@@ -161,10 +165,10 @@ class _OpDriver:
                 quantity=qty,
                 gateway_id=gw,
                 price=price,
-                smp_action=self._smp(),
+                smp_action=smp,
             )
             self._submit(o)
-            return f"FOK {side.value} {qty}@{price} gw={gw} smp={o.smp_action.value}"
+            return f"FOK {side.value} {qty}@{price} gw={gw} smp={smp.value}"
 
         if r < 0.77:  # ICEBERG (falls back to LIMIT when disabled)
             price = self._price()

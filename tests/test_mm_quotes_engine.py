@@ -7,7 +7,7 @@ import pytest
 from edumatcher.engine.config_loader import EngineConfig, FixGatewayConfig, SymbolConfig
 from edumatcher.engine.main import Engine
 from edumatcher.models.message import decode
-from edumatcher.models.order import Order, OrderStatus, OrderType, Side, SmpAction, TIF
+from edumatcher.models.order import Order, OrderType, Side, SmpAction, TIF
 from edumatcher.models.participant import DisconnectBehaviour, ParticipantRole
 
 
