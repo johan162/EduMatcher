@@ -43,6 +43,52 @@ log = logging.getLogger(__name__)
 _REFRESH_HZ = 2  # rich Live refresh rate
 _MAX_RECENT_TRADES = 5
 _DEBUG_SUMMARY_INTERVAL_SEC = 5.0
+_SNAPSHOT_INITIAL_DELAY_SEC = 0.15
+_SNAPSHOT_RETRY_TIMEOUT_SEC = 2.0
+_SNAPSHOT_RETRY_INTERVAL_SEC = 0.1
+
+
+def request_snapshot_with_retry(
+    symbol: str,
+    *,
+    initial_delay_sec: float = _SNAPSHOT_INITIAL_DELAY_SEC,
+    retry_timeout_sec: float = _SNAPSHOT_RETRY_TIMEOUT_SEC,
+    retry_interval_sec: float = _SNAPSHOT_RETRY_INTERVAL_SEC,
+) -> None:
+    """Ask the engine for the current book snapshot for ``symbol``.
+
+    ``make_pusher()`` sets ``IMMEDIATE=1`` + ``SNDTIMEO=0`` (fail-fast, so
+    gateways never block their reactor on a slow/absent engine). That means
+    ``send_multipart()`` raises :class:`zmq.Again` if the PUSH->PULL
+    handshake to the engine hasn't completed yet, which easily races a short
+    startup sleep -- especially the first time ``pm-viewer`` connects. Retry
+    for up to ``retry_timeout_sec`` instead of letting the caller's thread
+    crash with an unhandled traceback; if the engine is genuinely
+    unreachable this gives up quietly and logs a warning -- the live
+    ``book.<SYMBOL>`` feed will still populate the display once the engine
+    is reachable.
+    """
+    time.sleep(initial_delay_sec)
+    push = make_pusher(ENGINE_PULL_ADDR)
+    try:
+        deadline = time.monotonic() + retry_timeout_sec
+        while True:
+            try:
+                push.send_multipart(make_book_snapshot_request_msg(symbol))
+                return
+            except zmq.Again:
+                if time.monotonic() >= deadline:
+                    log.warning(
+                        "could not reach engine at %s for initial snapshot "
+                        "request (symbol=%s); live updates will still "
+                        "populate the book once the engine is reachable",
+                        ENGINE_PULL_ADDR,
+                        symbol,
+                    )
+                    return
+                time.sleep(retry_interval_sec)
+    finally:
+        push.close()
 
 
 def _build_display(snapshot: dict[str, Any], symbol: str, depth: int) -> Panel:
@@ -141,17 +187,11 @@ def main() -> None:
 
     sub = make_subscriber(ENGINE_PUB_ADDR, f"book.{symbol}")
 
-    # Request the current snapshot so reconnects show the live book immediately.
-    # Done in a daemon thread so we don't block the main loop.
-    def _request_snapshot() -> None:
-        time.sleep(0.15)
-        push = make_pusher(ENGINE_PULL_ADDR)
-        try:
-            push.send_multipart(make_book_snapshot_request_msg(symbol))
-        finally:
-            push.close()
-
-    threading.Thread(target=_request_snapshot, daemon=True).start()
+    # Request the current snapshot so reconnects show the live book
+    # immediately. Done in a daemon thread so we don't block the main loop.
+    threading.Thread(
+        target=lambda: request_snapshot_with_retry(symbol), daemon=True
+    ).start()
 
     latest_snapshot: dict[str, Any] = {"bids": [], "asks": [], "recent_trades": []}
     poller = zmq.Poller()
