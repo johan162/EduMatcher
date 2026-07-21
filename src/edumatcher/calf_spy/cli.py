@@ -108,6 +108,15 @@ def _build_parser() -> argparse.ArgumentParser:
         "may be resumed per connection; live subscriptions from --channels/"
         "--symbols are still applied afterwards.",
     )
+    sub.add_argument(
+        "--ping-interval",
+        type=float,
+        default=60.0,
+        metavar="SECONDS",
+        help="Send PING to the gateway every SECONDS seconds to avoid its "
+        "idle timeout (default: 60). The gateway replies PONG. Set to 0 to "
+        "disable.",
+    )
 
     out = parser.add_argument_group("output")
     out.add_argument(
@@ -261,6 +270,10 @@ def main() -> None:
         parser.error(str(exc))
         return  # unreachable, parser.error() raises SystemExit
 
+    if args.ping_interval < 0:
+        parser.error("--ping-interval must be >= 0")
+        return  # unreachable, parser.error() raises SystemExit
+
     client_name = args.client_name or f"calf-spy-{os.getpid()}"
     requested_symbols = _parse_csv_upper(args.symbols) or ["*"]
 
@@ -270,6 +283,7 @@ def main() -> None:
         client_name=client_name,
         symbols=requested_symbols,
         resume=resume,
+        ping_interval_sec=args.ping_interval,
     )
     client = CalfSpyClient(options)
     session = _SpySession(args)

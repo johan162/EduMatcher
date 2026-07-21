@@ -7,7 +7,6 @@ This release introduces the new Config GUI, the new `pm-audit-cli` audit-trail i
 The CALF protocol gets two new channels AUCTION and CB and in addition both CALF and RALF gateways get a "spy" client `pm-calf-spy` and `pm-ralf_spy` which are used to take a peek under the protocol hood what information the protocols are sending. These are purely read-only tools.
 This release also hardens the matching engine, scheduler, gateways, and clearing pipeline, adds consistent logging controls across processes, and refreshes the user-guide, Exchange Intro, and protocol documentation at much larger scale than a typical minor release. It expands historical index and pricing visibility across the API and stats stack, improves engine handling of quote-leg requests, and tightens gateway/runtime behavior. 
 
-T
 
 ### ⚠️ Breaking Changes
 - Removed the legacy `clearing_v1` implementation in favor of the current SQLite-backed clearing flow and shared feed-schema contract
@@ -69,6 +68,7 @@ T
 - Updated user-guide chapters for index, API gateway, processes, statistics, persistence, and related messaging/examples to reflect the latest behavior
 - Updated CALF/Index design documentation to align with the latest protocol depth and index-subscription semantics
 - Refreshed training and examples documentation for CALF usage and API history workflows
+- Added first draft of presentation for use in training
 
 ### 🛠 Internal
 - Refactored the large admin command dispatch chain into handler-based dispatch
@@ -77,6 +77,8 @@ T
 - Updated dependencies, formatting, and type-check fixes across Python and Node-based tooling
 - Added pyright to the Makefile check target to strengthen CI/local static-type validation
 - Updated and stabilized tests to align with new API/index return values and buffer-handling behavior
+- Added top-level Makefile target to build multipass VM from dev snapshot
+- Regenerated all example enging-configuration
 
 
 ## [v0.15.3] - 2026-07-07

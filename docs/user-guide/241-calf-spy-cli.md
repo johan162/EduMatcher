@@ -11,6 +11,8 @@
     - How to run several instances at once against the same gateway to
       watch different channels on separate terminals
     - How `--resume` and `--count` work
+    - How `--ping-interval` keeps an otherwise-silent session alive past the
+      gateway's idle timeout
     - How connection and protocol errors are reported
 
 
@@ -68,6 +70,7 @@ handshake to succeed, but you will not see any live data until it is.
 | `--host` | `127.0.0.1` | `pm-md-gwy` TCP host |
 | `--port` | `5570` | `pm-md-gwy` TCP port |
 | `--client-name` | `calf-spy-<pid>` | `HELLO\|CLIENT=` identifier reported in gateway logs |
+| `--ping-interval` | `60` | Seconds between `PING` frames sent to the gateway; `0` disables the heartbeat. See [Keeping the connection alive](#keeping-the-connection-alive) |
 
 **Subscription filtering:**
 
@@ -97,6 +100,26 @@ explicit symbols for `INDEX`/`DEPTH`/`CB` rather than relying on `*`.
 **Diagnostics:** `--log-level`, `-v`/`--verbose`, `-q`/`--quiet`, `--version`,
 `--help` — same conventions as every other `pm-*` process (see
 [Getting Started — Environment variables](000-getting-started.md#environment-variables)).
+
+
+## Keeping the connection alive
+
+`pm-calf-spy` is purely a listener: after the initial `HELLO`/`SUB`
+handshake it has nothing more to say, so — unlike a real trading client that
+periodically sends orders or cancels — it would otherwise go completely
+silent for the rest of the session. `pm-md-gwy` disconnects any client that
+sends nothing at all for `market_data_gateway.idle_timeout_sec` (see
+[Market Data Feed — Configuration](240-market-data-feed.md)), so a purely
+receive-only client needs to generate outbound traffic of its own to avoid
+being dropped.
+
+`pm-calf-spy` does this automatically: a background thread sends `PING`
+every `--ping-interval` seconds (default `60`), and the gateway replies with
+a `PONG` (suppressed from the default view the same way `HB` is — pass
+`--show-heartbeats` to see both). Set `--ping-interval` lower than the
+gateway's `idle_timeout_sec` if you have shortened that value for
+diagnostics, or `0` to disable the heartbeat entirely (e.g. when
+deliberately testing idle-timeout behavior).
 
 
 ## Human-readable output

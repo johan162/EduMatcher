@@ -217,8 +217,8 @@ pm-engine --verbose
 | **pm-audit-cli**  | `pm-audit-cli <command> [options]` | Read-only query interface for audit JSONL log files     | Optional              |
 | **pm-index-cli**  | `pm-index-cli <command> [options]` | Read-only query interface for index history JSONL files | Optional              |
 | **pm-index-admin-cli** | `pm-index-admin-cli --id <GW_ID> <command> [options]` | One-shot CLI for index corporate actions and constituent changes | Optional              |
-| **pm-calf-spy**  | `pm-calf-spy [--channels CH] [--symbols SYM] [--format human\|json]` | Read-only CALF protocol spy — connects to `pm-md-gwy` and prints every line it sends | Optional |
-| **pm-ralf-spy**  | `pm-ralf-spy --role ROLE [--channels CH] [--symbols SYM] [--format human\|json]` | Read-only RALF protocol spy — connects to `pm-ralf-gwy` and prints every line it sends | Optional |
+| **pm-calf-spy**  | `pm-calf-spy [--channels CH] [--symbols SYM] [--ping-interval SEC] [--format human\|json]` | Read-only CALF protocol spy — connects to `pm-md-gwy` and prints every line it sends | Optional |
+| **pm-ralf-spy**  | `pm-ralf-spy --role ROLE [--channels CH] [--symbols SYM] [--ping-interval SEC] [--format human\|json]` | Read-only RALF protocol spy — connects to `pm-ralf-gwy` and prints every line it sends | Optional |
 
 
 **Setup and configuration tools:**
@@ -1529,7 +1529,26 @@ subscribes to whatever channels/symbols you ask for, and prints every line
 it receives — human-readable or as JSON — so you can see exactly what the
 protocol sends without writing a client. It never mutates exchange state,
 and any number of instances can run at once (e.g. one per terminal, each
-with a different `--role`/`--channels`/`--symbols` filter).
+with a different `--role`/`--channels`/`--symbols` filter). Since it never
+sends anything on its own after the initial subscription, it sends a
+periodic `PING` (`--ping-interval`, default 60s) to keep the gateway from
+dropping it as an idle client.
+
+**Startup options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--host` | `127.0.0.1` | `pm-ralf-gwy` TCP host |
+| `--port` | `5580` | `pm-ralf-gwy` TCP port |
+| `--client-name` | `ralf-spy-<pid>` | `HELLO\|CLIENT=` identifier reported in gateway logs |
+| `--role` | `AUDIT` | `HELLO\|ROLE=` to authenticate as: `CLEARING`, `DROP_COPY`, or `AUDIT` |
+| `--channels` | `*` | Comma-separated channels; `*` = every channel `--role` is entitled to |
+| `--symbols` | `*` | Comma-separated symbols; `*` = every symbol |
+| `--lastseq` | `0` | Requests replay on connect via `HELLO\|LASTSEQ=N` (`0` = no replay) |
+| `--ping-interval` | `60` | Seconds between `PING` keepalives sent to the gateway; `0` disables |
+| `--format` | `human` | `human` or `json` output |
+| `--count` | `0` | Exit after N data-carrying lines (`0` = run until Ctrl-C) |
+| `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 
 See [RALF Protocol Spy (pm-ralf-spy)](251-ralf-spy-cli.md) for full usage.
 
@@ -2077,7 +2096,25 @@ every line it receives — human-readable or as JSON — so you can see exactly
 what the protocol sends without writing a client. It never mutates exchange
 state, and any number of instances can run at once (e.g. one per terminal,
 each with a different `--channels`/`--symbols` filter) since `pm-md-gwy`
-accepts unlimited concurrent connections up to `max_connections`.
+accepts unlimited concurrent connections up to `max_connections`. Since it
+never sends anything on its own after the initial subscription, it sends a
+periodic `PING` (`--ping-interval`, default 60s) to keep the gateway from
+dropping it as an idle client.
+
+**Startup options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--host` | `127.0.0.1` | `pm-md-gwy` TCP host |
+| `--port` | `5570` | `pm-md-gwy` TCP port |
+| `--client-name` | `calf-spy-<pid>` | `HELLO\|CLIENT=` identifier reported in gateway logs |
+| `--channels` | `*` | Comma-separated channels; `*` = every channel in `WELCOME\|CH_SUPPORTED=` |
+| `--symbols` | `*` | Comma-separated symbols; `*` = wildcard for channels that allow it |
+| `--resume` | *(none)* | One-shot `CH:SYM:LASTSEQ` — requests single-stream replay on connect |
+| `--ping-interval` | `60` | Seconds between `PING` keepalives sent to the gateway; `0` disables |
+| `--format` | `human` | `human` or `json` output |
+| `--count` | `0` | Exit after N data-carrying lines (`0` = run until Ctrl-C) |
+| `--log-level` | `WARNING` | Explicit log level: `CRITICAL`, `ERROR`, `WARNING`, `INFO`, `DEBUG` |
 
 See [CALF Protocol Spy (pm-calf-spy)](241-calf-spy-cli.md) for full usage.
 

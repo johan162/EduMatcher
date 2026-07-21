@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import socket
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -27,6 +28,7 @@ log = logging.getLogger(__name__)
 _MAX_LINE_BYTES = 4096
 _RECV_CHUNK_BYTES = 4096
 _CONNECT_TIMEOUT_SEC = 5.0
+_DEFAULT_PING_INTERVAL_SEC = 60.0
 
 
 class RalfSpyConnectionError(RuntimeError):
@@ -44,6 +46,7 @@ class RalfSpyOptions:
     channels: list[str] = field(default_factory=list)
     symbols: list[str] = field(default_factory=lambda: ["*"])
     last_seq: int = 0
+    ping_interval_sec: float = _DEFAULT_PING_INTERVAL_SEC
 
 
 FrameHandler = Callable[[RalfFrame, str, float], None]
@@ -58,6 +61,9 @@ class RalfSpyClient:
         self._sock: socket.socket | None = None
         self._buf = bytearray()
         self._running = False
+        self._send_lock = threading.Lock()
+        self._ping_thread: threading.Thread | None = None
+        self._ping_stop = threading.Event()
 
     # ------------------------------------------------------------------
     # Connection lifecycle
@@ -79,6 +85,7 @@ class RalfSpyClient:
 
     def close(self) -> None:
         self._running = False
+        self._stop_ping_thread()
         if self._sock is not None:
             try:
                 self._sock.close()
@@ -141,32 +148,75 @@ class RalfSpyClient:
         """Read and dispatch frames until stopped, the peer closes, or
         ``max_frames`` data-carrying frames (anything but HB) have been
         delivered (0 = unlimited).
+
+        A background thread sends a ``PING`` every ``ping_interval_sec``
+        seconds for the duration of the read loop, so the gateway's idle
+        timeout never fires for a client (like ralf-spy) that otherwise
+        never sends anything after its initial SUB.
         """
         self._running = True
-        delivered = 0
-        while self._running:
-            line = self._recv_line()
-            if line is None:
-                log.info("gateway closed the connection")
-                return
-            recv_time = time.time()
-            try:
-                frame = parse_line(line)
-            except RalfProtocolError as exc:
-                log.warning("unparseable line from gateway: %r (%s)", line, exc)
-                continue
-
-            on_frame(frame, line, recv_time)
-
-            if frame.msg_type != "HB":
-                delivered += 1
-                if max_frames and delivered >= max_frames:
+        self._start_ping_thread()
+        try:
+            delivered = 0
+            while self._running:
+                line = self._recv_line()
+                if line is None:
+                    log.info("gateway closed the connection")
                     return
-            if frame.msg_type == "EXIT":
-                return
+                recv_time = time.time()
+                try:
+                    frame = parse_line(line)
+                except RalfProtocolError as exc:
+                    log.warning("unparseable line from gateway: %r (%s)", line, exc)
+                    continue
+
+                on_frame(frame, line, recv_time)
+
+                if frame.msg_type != "HB":
+                    delivered += 1
+                    if max_frames and delivered >= max_frames:
+                        return
+                if frame.msg_type == "EXIT":
+                    return
+        finally:
+            self._stop_ping_thread()
 
     def stop(self) -> None:
         self._running = False
+        self._stop_ping_thread()
+
+    # ------------------------------------------------------------------
+    # PING heartbeat
+    # ------------------------------------------------------------------
+
+    def _start_ping_thread(self) -> None:
+        interval = self._opts.ping_interval_sec
+        if interval <= 0:
+            return
+        self._ping_stop.clear()
+        thread = threading.Thread(
+            target=self._ping_loop, args=(interval,), daemon=True, name="ralf-spy-ping"
+        )
+        self._ping_thread = thread
+        thread.start()
+
+    def _stop_ping_thread(self) -> None:
+        self._ping_stop.set()
+        thread = self._ping_thread
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=1.0)
+        self._ping_thread = None
+
+    def _ping_loop(self, interval: float) -> None:
+        while not self._ping_stop.wait(interval):
+            if not self._running:
+                return
+            try:
+                self._send_line("PING", {})
+            except OSError as exc:
+                log.info("ping send failed: %s", exc)
+                return
+            log.debug("sent PING (interval=%ss)", interval)
 
     # ------------------------------------------------------------------
     # Low-level IO
@@ -174,7 +224,8 @@ class RalfSpyClient:
 
     def _send_line(self, msg_type: str, fields: dict[str, str]) -> None:
         assert self._sock is not None, "connect() must be called first"
-        self._sock.sendall(build_line(msg_type, fields))
+        with self._send_lock:
+            self._sock.sendall(build_line(msg_type, fields))
 
     def _recv_line(self) -> str | None:
         assert self._sock is not None, "connect() must be called first"

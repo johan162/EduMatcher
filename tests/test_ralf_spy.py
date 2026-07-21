@@ -139,6 +139,13 @@ def test_cli_parser_defaults() -> None:
     assert args.lastseq == 0
     assert args.format == "human"
     assert args.count == 0
+    assert args.ping_interval == 60.0
+
+
+def test_cli_parser_ping_interval_override() -> None:
+    parser = ralf_spy_cli._build_parser()
+    args = parser.parse_args(["--ping-interval", "5"])
+    assert args.ping_interval == 5.0
 
 
 def test_cli_parser_version(capsys: pytest.CaptureFixture[str]) -> None:
@@ -366,6 +373,58 @@ def test_connect_refused_raises_connection_error() -> None:
     with pytest.raises(RalfSpyConnectionError):
         client.connect()
         client.handshake()
+
+
+def test_ping_thread_sends_ping_and_gateway_replies_pong(
+    running_gateway: RalfGateway,
+) -> None:
+    """A ralf-spy client with a short --ping-interval should send PING on
+    its own (with no other outbound traffic after SUB) and get PONG back
+    from the gateway -- the mechanism that keeps an otherwise-silent spy
+    client from being dropped by idle_timeout_sec."""
+    options = RalfSpyOptions(
+        host="127.0.0.1",
+        port=running_gateway.config.port,
+        ping_interval_sec=0.05,
+    )
+    client = RalfSpyClient(options)
+    received: list[RalfFrame] = []
+    try:
+        client.connect()
+        client.handshake()
+
+        t = threading.Thread(
+            target=lambda: client.run(
+                lambda frame, raw, ts: received.append(frame), max_frames=0
+            ),
+            daemon=True,
+        )
+        t.start()
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline and not any(
+            f.msg_type == "PONG" for f in received
+        ):
+            time.sleep(0.02)
+    finally:
+        client.close()
+
+    assert any(frame.msg_type == "PONG" for frame in received)
+
+
+def test_ping_disabled_when_interval_zero(running_gateway: RalfGateway) -> None:
+    options = RalfSpyOptions(
+        host="127.0.0.1",
+        port=running_gateway.config.port,
+        ping_interval_sec=0,
+    )
+    client = RalfSpyClient(options)
+    try:
+        client.connect()
+        client.handshake()
+        client._start_ping_thread()
+        assert client._ping_thread is None
+    finally:
+        client.close()
 
 
 def test_two_independent_clients_different_roles(running_gateway: RalfGateway) -> None:

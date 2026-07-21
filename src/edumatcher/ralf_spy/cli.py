@@ -112,6 +112,15 @@ def _build_parser() -> argparse.ArgumentParser:
         "CALF's RESUME=1, RALF replay is requested directly on HELLO and "
         "is not scoped to a single channel/symbol.",
     )
+    sub.add_argument(
+        "--ping-interval",
+        type=float,
+        default=60.0,
+        metavar="SECONDS",
+        help="Send PING to the gateway every SECONDS seconds to avoid its "
+        "idle timeout (default: 60). The gateway replies PONG. Set to 0 to "
+        "disable.",
+    )
 
     out = parser.add_argument_group("output")
     out.add_argument(
@@ -248,6 +257,10 @@ def main() -> None:
     args = parser.parse_args()
     _configure_logging(args)
 
+    if args.ping_interval < 0:
+        parser.error("--ping-interval must be >= 0")
+        return  # unreachable, parser.error() raises SystemExit
+
     client_name = args.client_name or f"ralf-spy-{os.getpid()}"
     requested_symbols = _parse_csv_upper(args.symbols) or ["*"]
 
@@ -258,6 +271,7 @@ def main() -> None:
         role=args.role,
         symbols=requested_symbols,
         last_seq=args.lastseq,
+        ping_interval_sec=args.ping_interval,
     )
     client = RalfSpyClient(options)
     session = _SpySession(args)

@@ -13,6 +13,8 @@
     - How `--lastseq` differs from CALF's `RESUME=1`
     - How to run several instances at once, each with a different role, to
       watch different post-trade streams on separate terminals
+    - How `--ping-interval` keeps an otherwise-silent session alive past the
+      gateway's idle timeout
 
 
 ## What this tool is
@@ -80,6 +82,7 @@ occur (and until the next end-of-day cycle for `EOD`).
 | `--host` | `127.0.0.1` | `pm-ralf-gwy` TCP host |
 | `--port` | `5580` | `pm-ralf-gwy` TCP port |
 | `--client-name` | `ralf-spy-<pid>` | `HELLO\|CLIENT=` identifier reported in gateway logs |
+| `--ping-interval` | `60` | Seconds between `PING` frames sent to the gateway; `0` disables the heartbeat. See [Keeping the connection alive](#keeping-the-connection-alive) |
 
 **Subscription filtering:**
 
@@ -117,6 +120,25 @@ aborting the whole session, so you can see exactly what was rejected.
 
 **Diagnostics:** `--log-level`, `-v`/`--verbose`, `-q`/`--quiet`, `--version`,
 `--help` — same conventions as every other `pm-*` process.
+
+
+## Keeping the connection alive
+
+`pm-ralf-spy` is purely a listener: after the initial `HELLO`/`SUB`
+handshake it has nothing more to say, so — unlike a real clearing/drop-copy
+consumer that might send its own protocol traffic — it would otherwise go
+completely silent for the rest of the session. `pm-ralf-gwy` disconnects
+(sends `EXIT|REASON=idle_timeout` and closes) any client that sends nothing
+at all for `idle_timeout_sec`, so a purely receive-only client needs to
+generate outbound traffic of its own to avoid being dropped.
+
+`pm-ralf-spy` does this automatically: a background thread sends `PING`
+every `--ping-interval` seconds (default `60`), and the gateway replies with
+a `PONG` (suppressed from the default view the same way `HB` is — pass
+`--show-heartbeats` to see both). Set `--ping-interval` lower than the
+gateway's `idle_timeout_sec` if you have shortened that value for
+diagnostics, or `0` to disable the heartbeat entirely (e.g. when
+deliberately testing idle-timeout behavior — see the `EXIT` example below).
 
 
 ## Human-readable output
@@ -210,9 +232,10 @@ independently per session.
   channel, role/channel mismatch) is printed like any other line — the
   session stays open so you can see the rejection and keep watching
   whatever subscriptions *did* succeed.
-- If the gateway sends `EXIT` (e.g. after `idle_timeout_sec` with no
-  inbound traffic from you), `pm-ralf-spy` prints it and closes cleanly
-  rather than trying to keep reading a closing socket.
+- If the gateway sends `EXIT` — normally only seen if `--ping-interval 0`
+  disabled the heartbeat, or a network hiccup silently dropped the PINGs —
+  `pm-ralf-spy` prints it and closes cleanly rather than trying to keep
+  reading a closing socket.
 - Ctrl-C (or reaching `--count`) closes the connection cleanly and prints
   `pm-ralf-spy: connection closed.`
 
