@@ -1140,12 +1140,12 @@ state and needs no special-casing for it.
 
 ```mermaid
 flowchart TD
-    A([Order or combo leg\narrives at the engine]) --> B{SMP=\nspecified?}
-    B -- "Yes, incl. explicit NONE" --> C([Use the specified value\nas-is])
+    A(["Order or combo leg\narrives at the engine"]) --> B{SMP=\nspecified?}
+    B -- "Yes, incl. explicit NONE" --> C(["Use the specified value\nas-is"])
     B -- No --> D{Gateway has\nsmp_action configured?}
-    D -- Yes --> E([Use gateways.alf[].smp_action])
-    D -- No --> F([Use SmpAction.NONE])
-    C --> G([Concrete smp_action\nreaches the order book])
+    D -- Yes --> E(["Use gateways.alf.smp_action"])
+    D -- No --> F(["Use SmpAction.NONE"])
+    C --> G(["Concrete smp_action\nreaches the order book"])
     E --> G
     F --> G
 ```

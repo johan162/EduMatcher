@@ -40,6 +40,74 @@ def test_minimal_output_parses(
     assert "Wrote generated config" in stderr
 
 
+def test_gateway_smp_emitted_and_parses(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out_file = tmp_path / "engine_config.yaml"
+    _run_main(
+        monkeypatch,
+        [
+            "--symbols",
+            "AAPL",
+            "--gateways",
+            "TRADER01",
+            "TRADER02",
+            "--gateway-smp",
+            "TRADER02:CANCEL_RESTING",
+            "--output",
+            str(out_file),
+        ],
+    )
+
+    cfg = load_engine_config(out_file)
+    assert cfg.fix_gateways["TRADER02"].smp_action.value == "CANCEL_RESTING"
+    # TRADER01 was not given --gateway-smp, so it keeps the engine's own
+    # NONE default rather than pm-config-gen spelling out a no-op field.
+    assert cfg.fix_gateways["TRADER01"].smp_action.value == "NONE"
+    assert out_file.read_text(encoding="utf-8").count("smp_action") == 1
+
+
+def test_gateway_smp_unknown_gateway_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                "--gateway-smp",
+                "NOPE:CANCEL_BOTH",
+                "--dry-run",
+            ],
+        )
+
+    assert exc_info.value.code == 2
+
+
+def test_gateway_smp_invalid_action_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        _run_main(
+            monkeypatch,
+            [
+                "--symbols",
+                "AAPL",
+                "--gateways",
+                "TRADER01",
+                "--gateway-smp",
+                "TRADER01:NOT_A_VALUE",
+                "--dry-run",
+            ],
+        )
+
+    assert exc_info.value.code == 2
+
+
 def test_market_maker_warns_and_stubs(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

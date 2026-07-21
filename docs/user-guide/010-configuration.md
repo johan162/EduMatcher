@@ -208,6 +208,7 @@ Required inputs:
 |------------------------------------|-------------------|-------------------------------------------|
 | `--symbols SYM [SYM ...]`          | Repeatable tokens | Symbol universe (uppercased on parse)     |
 | `--gateways GW_SPEC [GW_SPEC ...]` | Repeatable tokens | Gateway specs as `ID[:ROLE[:DISCONNECT[:DESCRIPTION]]]` |
+| `--gateway-smp GW_ID:SMP_ACTION`   | Repeatable        | Sets `gateways.alf[<GW_ID>].smp_action` (`NONE`, `CANCEL_AGGRESSOR`, `CANCEL_RESTING`, `CANCEL_BOTH`); `GW_ID` must be one of `--gateways`; omitted gateways stay at `NONE`. See [Risk Controls — Self-Match Prevention](120-risk-controls.md#self-match-prevention-smp) |
 
 Session and schedule options:
 

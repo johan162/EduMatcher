@@ -45,6 +45,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="One or more gateway specs (ID[:ROLE[:DISCONNECT]]).",
     )
     parser.add_argument(
+        "--gateway-smp",
+        action="append",
+        default=[],
+        metavar="GW_ID:SMP_ACTION",
+        help="Gateway-level self-match-prevention default (NONE, CANCEL_AGGRESSOR, "
+        "CANCEL_RESTING, CANCEL_BOTH), applied by the engine to any order, combo "
+        "leg, or quote from GW_ID that doesn't specify its own SMP=. GW_ID must "
+        "be one of the IDs given to --gateways. Omit for a gateway to leave its "
+        "default at NONE. Can be repeated.",
+    )
+    parser.add_argument(
         "--symbol-opts",
         action="append",
         default=[],

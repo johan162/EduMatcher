@@ -8,6 +8,7 @@ import random
 import string
 from typing import Any
 
+from edumatcher.models.order import SmpAction
 from edumatcher.models.participant import ParticipantRole
 
 from .cb_spec import CbSpec
@@ -543,6 +544,8 @@ class ConfigBuilder:
                 payload["description"] = gw.description
             if gw.role == ParticipantRole.MARKET_MAKER:
                 payload["quote_refresh_policy"] = "INACTIVATE_ON_ANY_FILL"
+            if gw.smp_action != SmpAction.NONE:
+                payload["smp_action"] = gw.smp_action.value
             gateways.append(payload)
         return gateways
 

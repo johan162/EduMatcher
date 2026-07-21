@@ -10,7 +10,10 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+from dataclasses import replace
+
 from edumatcher.engine.config_loader import load_engine_config
+from edumatcher.models.order import SmpAction
 from edumatcher.models.participant import ParticipantRole
 
 from edumatcher.config_gen.builder import ConfigBuilder, ConfigSpec
@@ -372,6 +375,39 @@ def _parse_symbol_level_specs(
     return result
 
 
+def _parse_gateway_smp_specs(
+    specs: list[str],
+    allowed_gateways: set[str],
+) -> dict[str, SmpAction]:
+    result: dict[str, SmpAction] = {}
+    for raw in specs:
+        if ":" not in raw:
+            raise ValueError(
+                f"Invalid --gateway-smp '{raw}': expected GW_ID:SMP_ACTION"
+            )
+        gw_raw, smp_raw = raw.split(":", 1)
+        gateway_id = gw_raw.strip().upper()
+        if not gateway_id:
+            raise ValueError(
+                f"Invalid --gateway-smp '{raw}': gateway ID cannot be empty"
+            )
+        if gateway_id not in allowed_gateways:
+            raise ValueError(
+                f"--gateway-smp references unknown gateway_id '{gateway_id}'"
+            )
+        if gateway_id in result:
+            raise ValueError(f"Duplicate --gateway-smp for gateway '{gateway_id}'")
+        smp_str = smp_raw.strip().upper()
+        try:
+            smp_action = SmpAction(smp_str)
+        except ValueError:
+            raise ValueError(
+                f"Invalid --gateway-smp '{raw}': smp_action '{smp_str}' is invalid"
+            ) from None
+        result[gateway_id] = smp_action
+    return result
+
+
 def _parse_api_credentials(
     specs: list[str], allowed_gateways: set[str]
 ) -> tuple[ApiCredentialSpec, ...]:
@@ -461,6 +497,18 @@ def _parse_specs(args: argparse.Namespace) -> tuple[
     symbols = [s.upper() for s in args.symbols]
 
     gateways = [parse_gateway_spec(raw) for raw in args.gateways]
+
+    gateway_smp = _parse_gateway_smp_specs(
+        specs=args.gateway_smp,
+        allowed_gateways={gw.gateway_id for gw in gateways},
+    )
+    if gateway_smp:
+        gateways = [
+            replace(gw, smp_action=gateway_smp[gw.gateway_id])
+            if gw.gateway_id in gateway_smp
+            else gw
+            for gw in gateways
+        ]
 
     risk_levels: dict[str, tuple[float, float | None]] = {}
     for raw in args.risk_level:
