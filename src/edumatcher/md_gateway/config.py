@@ -26,7 +26,7 @@ class MarketDataGatewayConfig:
     engine_pub_addr: str = ENGINE_PUB_ADDR
     index_pub_addr: str = INDEX_PUB_CONNECT_ADDR
     heartbeat_interval_sec: int = 1
-    idle_timeout_sec: int = 5
+    idle_timeout_sec: int = 300
     replay_window_sec: int = 30
     max_connections: int = 64
     max_messages_per_second: int = 200
@@ -63,7 +63,7 @@ def _load_market_data_gateway_config_from_raw(
         md_raw.get("heartbeat_interval_sec", 1),
         "heartbeat_interval_sec",
     )
-    idle_timeout_sec = _as_int(md_raw.get("idle_timeout_sec", 5), "idle_timeout_sec")
+    idle_timeout_sec = _as_int(md_raw.get("idle_timeout_sec", 300), "idle_timeout_sec")
     replay_window_sec = _as_int(
         md_raw.get("replay_window_sec", 30),
         "replay_window_sec",
